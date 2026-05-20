@@ -1,0 +1,18 @@
+{
+  "version": "0.1.0",
+  "weeks": [
+    {"week": 1, "theme": "Discovery and setup", "phase": "Discovery and Audit"},
+    {"week": 2, "theme": "Audit execution", "phase": "Discovery and Audit"},
+    {"week": 3, "theme": "Audit completion and early findings", "phase": "Discovery and Audit"},
+    {"week": 4, "theme": "Issue analysis", "phase": "Analysis and Standardization"},
+    {"week": 5, "theme": "Standards drafting", "phase": "Analysis and Standardization"},
+    {"week": 6, "theme": "FMEA-lite and pilot selection", "phase": "Analysis and Standardization"},
+    {"week": 7, "theme": "Pilot planning", "phase": "Pilot Implementation"},
+    {"week": 8, "theme": "Pilot implementation", "phase": "Pilot Implementation"},
+    {"week": 9, "theme": "Pilot validation", "phase": "Pilot Implementation"},
+    {"week": 10, "theme": "KPI review", "phase": "Pilot Implementation"},
+    {"week": 11, "theme": "Final documentation", "phase": "Validation and Handoff"},
+    {"week": 12, "theme": "Presentation and handoff", "phase": "Validation and Handoff"}
+  ]
+}
+

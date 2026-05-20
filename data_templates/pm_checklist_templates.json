@@ -1,0 +1,13 @@
+{
+  "templates": [
+    {
+      "eoat_type": "Vacuum",
+      "checks": ["Inspect cups", "Inspect tubing", "Verify vacuum confirmation", "Check routing and strain relief"]
+    },
+    {
+      "eoat_type": "Mechanical Gripper",
+      "checks": ["Inspect gripper fingers", "Check fasteners", "Verify sensors", "Check pivot and slide wear"]
+    }
+  ]
+}
+

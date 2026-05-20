@@ -1,0 +1,2 @@
+KPI ID,Date,Plant/Area,Press/Machine #,Tool #,Part Family,EOAT Type,Downtime Minutes,EOAT-Related Downtime?,Part Drops,Mis-Picks,Scrap Quantity,Scrap Reason,Cycle Time,Maintenance Event Count,Data Source,Notes
+DEMO-KPI-001,2026-05-18,Demo Area,DEMO-PRESS-001,DEMO-TOOL-001,Demo Family,Vacuum,0,No,0,0,0,Demo reason,20.0,0,Synthetic demo source,Synthetic template row

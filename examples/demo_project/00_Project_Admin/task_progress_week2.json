@@ -1,0 +1,17 @@
+{
+  "week": 2,
+  "tasks": [
+    {
+      "id": "W2D1T1",
+      "day": "1",
+      "task": "Continue audit sweep",
+      "status": "Not started"
+    },
+    {
+      "id": "W2D5STRETCH1",
+      "day": "5",
+      "task": "Future stretch task: prepare pilot candidate review",
+      "status": "Not started"
+    }
+  ]
+}
