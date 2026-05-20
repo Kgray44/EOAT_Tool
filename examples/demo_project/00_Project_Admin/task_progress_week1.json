@@ -1,0 +1,53 @@
+{
+  "week": 1,
+  "tasks": [
+    {
+      "id": "W1D1T1",
+      "day": "1",
+      "task": "Confirm project folder structure and workbook access",
+      "status": "Complete",
+      "evidence": [
+        "Fake Week 1 Day 1 summary"
+      ]
+    },
+    {
+      "id": "W1D1T2",
+      "day": "1",
+      "task": "Review EOAT Command Center with mentor",
+      "status": "In progress"
+    },
+    {
+      "id": "W1D1T3",
+      "day": "1",
+      "task": "Start Press 101 baseline audit",
+      "status": "Blocked",
+      "evidence": [
+        "Need production window"
+      ]
+    },
+    {
+      "id": "W1D2T1",
+      "day": "2",
+      "task": "Audit Press 102 gripper EOAT",
+      "status": "Not started"
+    },
+    {
+      "id": "W1D2T2",
+      "day": "2",
+      "task": "Intake photos from Press 101 and Press 102",
+      "status": "Not started"
+    },
+    {
+      "id": "W1D2T3",
+      "day": "2",
+      "task": "Run workbook validation after Day 2 data entry",
+      "status": "Not started"
+    },
+    {
+      "id": "W1D4STRETCH1",
+      "day": "4",
+      "task": "Future stretch task: compare BOM common components",
+      "status": "Not started"
+    }
+  ]
+}

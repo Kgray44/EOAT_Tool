@@ -1,0 +1,16 @@
+{
+  "project_root": "examples/demo_project",
+  "debug_mode": false,
+  "theme": "light",
+  "git_executable": "git",
+  "project_start_date": "2026-05-18",
+  "workdays": [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday"
+  ],
+  "skip_weekends": true,
+  "holidays": []
+}

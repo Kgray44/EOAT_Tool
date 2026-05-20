@@ -1,0 +1,2 @@
+Audit ID,Audit Date,Auditor,Plant/Area,Press/Machine #,EOAT Type,Tubing Condition,Cable Management Condition,Mounting Hardware Condition,Photos Taken?,Photo Folder/Link,Notes
+DEMO-AUD-001,2026-05-18,Demo User,Demo Area,DEMO-PRESS-001,Vacuum,Good,Good,Good,No,examples/demo_project/01_EOAT_Audit/Cell_Photos,Synthetic template row

@@ -1,0 +1,2 @@
+Audit ID,Audit Date,Auditor,Plant/Area,Press/Machine #,Tool #,Robot Type,Robot Model/Controller,Part Family,Part Name/Description,EOAT Type,Known Issues,Status,Priority,Pilot Candidate?,Follow-Up Needed,Notes
+DEMO-AUD-001,2026-05-18,Demo User,Demo Area,DEMO-PRESS-001,DEMO-TOOL-001,Demo Robot,Demo Controller,Demo Family,Demo Part Description,Vacuum,Demo issue category only,Not Started,Medium,No,No,Synthetic template row

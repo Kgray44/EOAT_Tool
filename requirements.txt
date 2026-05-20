@@ -1,0 +1,7 @@
+openpyxl
+python-docx
+pypdf
+PySide6
+pandas
+matplotlib
+pytest

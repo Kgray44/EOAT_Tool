@@ -1,0 +1,6 @@
+{
+  "severity_scale": {"1": "Low impact", "5": "Moderate production or quality impact", "10": "High safety, quality, or downtime impact"},
+  "frequency_scale": {"1": "Rare", "5": "Occasional", "10": "Frequent"},
+  "detectability_scale": {"1": "Easy to detect", "5": "Sometimes detected", "10": "Hard to detect before impact"}
+}
+

@@ -1,0 +1,590 @@
+﻿from __future__ import annotations
+
+from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
+
+from core.audit_by_press import AUDIT_BY_PRESS_SHEET, REFRESH_ACTION_NAME, UNASSIGNED_PRESS_GROUP, refresh_audit_by_press_view_action
+from core.audit_entries import generate_audit_id, load_audit_entry, save_audit_entry
+from core.paths import resolve_project_paths
+from core.tool_fields import LEGACY_TOOL_FIELD
+from core.workbook_schema import get_expected_headers, get_expected_sheets
+
+
+def test_generate_audit_id_and_add_row(fake_project):
+    audit_id = generate_audit_id(fake_project, "2026-05-18")
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": audit_id,
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Tool #": "DEMO-PN-1200",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Connection Type": "ATI",
+            "Gripper Model": "DESTACO-GRIP",
+            "Gripper Size": "40 mm",
+            "Status": "Audited",
+        },
+    )
+
+    assert result.success is True
+    assert audit_id.startswith("AUD-20260518-")
+    assert result.files_created
+    wb = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
+    ws = wb["EOAT Inventory"]
+    assert ws.max_row == 2
+    assert ws["A2"].value == audit_id
+    headers = [cell.value for cell in ws[1]]
+    assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
+    tooling_start = headers.index("EOAT Type")
+    assert headers[tooling_start : tooling_start + 6] == [
+        "EOAT Type",
+        "Connection Type",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
+        "Gripper Model",
+        "Gripper Size",
+    ]
+    row_values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    assert row_values["Tool #"] == "DEMO-PN-1200"
+    assert row_values["Connection Type"] == "ATI"
+    assert row_values["Gripper Model"] == "DESTACO-GRIP"
+    assert row_values["Gripper Size"] == "40 mm"
+    assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    wb.close()
+
+
+def test_audit_entry_update_existing(fake_project):
+    entry = {
+        "Audit ID": "AUD-20260518-001",
+        "Audit Date": "2026-05-18",
+        "Auditor": "KG",
+        "Plant/Area": "Plant 4",
+        "Press/Machine #": "Press 12",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Status": "Audited",
+        "Priority": "Medium",
+    }
+    assert save_audit_entry(fake_project, entry).success
+    entry["Priority"] = "High"
+    result = save_audit_entry(fake_project, entry, allow_update=True)
+
+    assert result.success is True
+    assert result.metrics["updated"] is True
+
+
+def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-NA-001",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success is True
+    workbook = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    assert values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    assert values["Tool #"] == "N/A"
+    assert values["Connection Type"] == "N/A"
+    assert values["Cup Type/Material"] == "Silicone"
+    assert values["Known Issues"] == "N/A"
+    assert values["Notes"] == "N/A"
+    assert values["Gripper Model"] == "N/A"
+    assert all(value not in (None, "") for value in values.values())
+    workbook.close()
+
+
+def test_cup_defaults_are_eoat_type_aware(fake_project):
+    for audit_id, eoat_type, expected_cup, expected_size in [
+        ("AUD-CUP-VACUUM", "Vacuum", "Silicone", "N/A"),
+        ("AUD-CUP-HYBRID", "Hybrid", "Silicone", "N/A"),
+        ("AUD-CUP-MECHANICAL", "Mechanical / Gripper", "N/A", "N/A"),
+        ("AUD-CUP-MISC", "Miscellaneous", "N/A", "N/A"),
+    ]:
+        result = save_audit_entry(
+            fake_project,
+            {
+                "Audit ID": audit_id,
+                "Audit Date": "2026-05-18",
+                "Auditor": "KG",
+                "Plant/Area": "Plant 4",
+                "Press/Machine #": f"Press {audit_id}",
+                "Robot Type": "Wittmann R9",
+                "EOAT Type": eoat_type,
+                "Status": "In Progress",
+            },
+        )
+        assert result.success, result.errors
+
+    workbook = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    rows = {
+        row[headers.index("Audit ID")]: {headers[index]: value for index, value in enumerate(row)}
+        for row in ws.iter_rows(min_row=2, values_only=True)
+    }
+    assert rows["AUD-CUP-VACUUM"]["Cup Type/Material"] == "Silicone"
+    assert rows["AUD-CUP-HYBRID"]["Cup Type/Material"] == "Silicone"
+    assert rows["AUD-CUP-MECHANICAL"]["Cup Type/Material"] == "N/A"
+    assert rows["AUD-CUP-MECHANICAL"]["Cup Diameter/Size"] == "N/A"
+    assert rows["AUD-CUP-MECHANICAL"]["Number of Vacuum Cups"] == "N/A"
+    assert rows["AUD-CUP-MISC"]["Cup Type/Material"] == "N/A"
+    workbook.close()
+
+
+def test_existing_nonblank_values_are_not_overwritten_by_missing_partial_update(fake_project):
+    entry = {
+        "Audit ID": "AUD-PARTIAL-001",
+        "Audit Date": "2026-05-18",
+        "Auditor": "KG",
+        "Plant/Area": "Plant 4",
+        "Press/Machine #": "Press 12",
+        "Tool #": "DEMO-PN-1200",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Connection Type": "ATI",
+        "Known Issues": "Keep this observation.",
+        "Status": "In Progress",
+    }
+    assert save_audit_entry(fake_project, entry).success
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-PARTIAL-001",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "Complete",
+        },
+        allow_update=True,
+    )
+
+    assert result.success is True
+    loaded = load_audit_entry(fake_project, "AUD-PARTIAL-001")
+    assert loaded["Tool #"] == "DEMO-PN-1200"
+    assert loaded["Connection Type"] == "ATI"
+    assert loaded["Known Issues"] == "Keep this observation."
+    assert loaded["Status"] == "Complete"
+
+
+def test_audit_entry_required_field_errors(fake_project):
+    result = save_audit_entry(fake_project, {"Audit Date": "2026-05-18"})
+
+    assert result.success is False
+    assert any("Auditor" in error for error in result.errors)
+
+
+def test_save_migrates_legacy_tool_header_and_preserves_data(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        ws = workbook.create_sheet(sheet_name)
+        headers = get_expected_headers(sheet_name)
+        headers = [LEGACY_TOOL_FIELD if header == "Tool #" else header for header in headers]
+        ws.append(headers)
+    inventory = workbook["EOAT Inventory"]
+    legacy_headers = [cell.value for cell in inventory[1]]
+    inventory.append([""] * len(legacy_headers))
+    inventory.cell(row=2, column=legacy_headers.index("Audit ID") + 1).value = "AUD-20260518-LEG"
+    inventory.cell(row=2, column=legacy_headers.index("Audit Date") + 1).value = "2026-05-18"
+    inventory.cell(row=2, column=legacy_headers.index("Auditor") + 1).value = "KG"
+    inventory.cell(row=2, column=legacy_headers.index("Plant/Area") + 1).value = "Plant 4"
+    inventory.cell(row=2, column=legacy_headers.index("Press/Machine #") + 1).value = "Press 12"
+    inventory.cell(row=2, column=legacy_headers.index(LEGACY_TOOL_FIELD) + 1).value = "PN-LEGACY"
+    inventory.cell(row=2, column=legacy_headers.index("Robot Type") + 1).value = "Wittmann R9"
+    inventory.cell(row=2, column=legacy_headers.index("EOAT Type") + 1).value = "Vacuum"
+    inventory.cell(row=2, column=legacy_headers.index("Status") + 1).value = "Audited"
+    workbook.save(workbook_path)
+    workbook.close()
+
+    loaded = load_audit_entry(fake_project, "AUD-20260518-LEG")
+    assert loaded is not None
+    assert loaded["Tool #"] == "PN-LEGACY"
+
+    result = save_audit_entry(fake_project, {**loaded, "Priority": "High"}, allow_update=True)
+    assert result.success is True
+
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
+    assert LEGACY_TOOL_FIELD not in headers
+    assert values["Tool #"] == "PN-LEGACY"
+    assert "Setup ID" not in headers
+    assert "Tool-Press Map" not in workbook.sheetnames
+    for sheet in workbook.worksheets:
+        assert LEGACY_TOOL_FIELD not in [cell.value for cell in sheet[1]]
+    workbook.close()
+
+
+def test_save_migrates_missing_connection_type_without_overwriting_existing_data(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        ws = workbook.create_sheet(sheet_name)
+        headers = [header for header in get_expected_headers(sheet_name) if header != "Connection Type"]
+        ws.append(headers)
+    inventory = workbook["EOAT Inventory"]
+    legacy_headers = [cell.value for cell in inventory[1]]
+    inventory.append([""] * len(legacy_headers))
+    inventory.cell(row=2, column=legacy_headers.index("Audit ID") + 1).value = "AUD-CONNECTION-MIGRATE"
+    inventory.cell(row=2, column=legacy_headers.index("Audit Date") + 1).value = "2026-05-18"
+    inventory.cell(row=2, column=legacy_headers.index("Auditor") + 1).value = "KG"
+    inventory.cell(row=2, column=legacy_headers.index("Plant/Area") + 1).value = "Plant 4"
+    inventory.cell(row=2, column=legacy_headers.index("Press/Machine #") + 1).value = "Press 12"
+    inventory.cell(row=2, column=legacy_headers.index("Tool #") + 1).value = "DEMO-PN-1200"
+    inventory.cell(row=2, column=legacy_headers.index("Robot Type") + 1).value = "Wittmann R9"
+    inventory.cell(row=2, column=legacy_headers.index("EOAT Type") + 1).value = "Vacuum"
+    inventory.cell(row=2, column=legacy_headers.index("Cup Type/Material") + 1).value = "Nitrile"
+    inventory.cell(row=2, column=legacy_headers.index("Status") + 1).value = "Audited"
+    workbook.save(workbook_path)
+    workbook.close()
+
+    loaded = load_audit_entry(fake_project, "AUD-CONNECTION-MIGRATE")
+    assert loaded is not None
+    assert "Connection Type" not in loaded
+    assert loaded["Cup Type/Material"] == "Nitrile"
+
+    result = save_audit_entry(fake_project, {**loaded, "Connection Type": "Lever Lock"}, allow_update=True)
+    assert result.success is True
+
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    assert headers[headers.index("EOAT Type") + 1] == "Connection Type"
+    assert values["Connection Type"] == "Lever Lock"
+    assert values["Cup Type/Material"] == "Nitrile"
+    assert "Setup ID" not in headers
+    assert "Tool-Press Map" not in workbook.sheetnames
+    workbook.close()
+
+
+def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        ws = workbook.create_sheet(sheet_name)
+        headers = [
+            header
+            for header in get_expected_headers(sheet_name)
+            if header not in {"Gripper Model", "Gripper Size"}
+        ]
+        ws.append(headers)
+    inventory = workbook["EOAT Inventory"]
+    legacy_headers = [cell.value for cell in inventory[1]]
+    inventory.append([""] * len(legacy_headers))
+    inventory.cell(row=2, column=legacy_headers.index("Audit ID") + 1).value = "AUD-GRIPPER-MIGRATE"
+    inventory.cell(row=2, column=legacy_headers.index("Audit Date") + 1).value = "2026-05-18"
+    inventory.cell(row=2, column=legacy_headers.index("Auditor") + 1).value = "KG"
+    inventory.cell(row=2, column=legacy_headers.index("Plant/Area") + 1).value = "Plant 4"
+    inventory.cell(row=2, column=legacy_headers.index("Press/Machine #") + 1).value = "Press 12"
+    inventory.cell(row=2, column=legacy_headers.index("Tool #") + 1).value = "DEMO-PN-1200"
+    inventory.cell(row=2, column=legacy_headers.index("Robot Type") + 1).value = "Wittmann R9"
+    inventory.cell(row=2, column=legacy_headers.index("Cleanroom/Non-Cleanroom") + 1).value = "Cleanroom"
+    inventory.cell(row=2, column=legacy_headers.index("EOAT Type") + 1).value = "Mechanical / Gripper"
+    inventory.cell(row=2, column=legacy_headers.index("Cup Type/Material") + 1).value = "Nitrile"
+    inventory.cell(row=2, column=legacy_headers.index("Cup Diameter/Size") + 1).value = "20 mm"
+    inventory.cell(row=2, column=legacy_headers.index("Status") + 1).value = "Audited"
+    workbook.save(workbook_path)
+    workbook.close()
+
+    loaded = load_audit_entry(fake_project, "AUD-GRIPPER-MIGRATE")
+    assert loaded is not None
+    assert "Gripper Model" not in loaded
+    assert loaded["Cup Type/Material"] == "Nitrile"
+    assert loaded["Cleanroom/Non-Cleanroom"] == "Cleanroom"
+
+    result = save_audit_entry(
+        fake_project,
+        {**loaded, "Gripper Model": "Zimmer GPP", "Gripper Size": "25 mm"},
+        allow_update=True,
+    )
+    assert result.success is True
+
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    tooling_start = headers.index("EOAT Type")
+    assert headers[tooling_start : tooling_start + 6] == [
+        "EOAT Type",
+        "Connection Type",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
+        "Gripper Model",
+        "Gripper Size",
+    ]
+    assert values["Gripper Model"] == "Zimmer GPP"
+    assert values["Gripper Size"] == "25 mm"
+    assert values["Cup Type/Material"] == "Nitrile"
+    assert values["Cup Diameter/Size"] == "20 mm"
+    assert values["Cleanroom/Non-Cleanroom"] == "Cleanroom"
+    assert "Setup ID" not in headers
+    assert "Tool-Press Map" not in workbook.sheetnames
+    workbook.close()
+
+
+def test_setup_generated_master_tracker_uses_tool_header(tmp_path):
+    import setup_eoat_project
+
+    project_root = tmp_path / "EOAT_Standardization_Project"
+    setup_eoat_project.configure_project_root(project_root)
+    setup_eoat_project.create_workbook()
+
+    workbook_path = project_root / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
+    workbook = load_workbook(workbook_path, read_only=True)
+    headers = [cell.value for cell in workbook["EOAT Inventory"][1]]
+    assert headers[:6] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Tool #"]
+    assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
+    tooling_start = headers.index("EOAT Type")
+    assert headers[tooling_start : tooling_start + 6] == [
+        "EOAT Type",
+        "Connection Type",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
+        "Gripper Model",
+        "Gripper Size",
+    ]
+    assert LEGACY_TOOL_FIELD not in headers
+    assert "Setup ID" not in headers
+    assert "Tool-Press Map" not in workbook.sheetnames
+    workbook.close()
+
+
+def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_path):
+    import setup_eoat_project
+
+    project_root = tmp_path / "EOAT_Standardization_Project"
+    setup_eoat_project.configure_project_root(project_root)
+    setup_eoat_project.create_workbook()
+    workbook_path = project_root / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
+
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    for header in ["Connection Type", "Gripper Model", "Gripper Size"]:
+        ws.delete_cols(headers.index(header) + 1)
+        headers = [cell.value for cell in ws[1]]
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = save_audit_entry(
+        project_root,
+        {
+            "Audit ID": "AUD-FORMAT-001",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Mechanical / Gripper",
+            "Status": "In Progress",
+        },
+    )
+    assert result.success, result.errors
+
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    assert ws.auto_filter.ref == f"A1:{get_column_letter(len(headers))}1"
+
+    def style_signature(cell):
+        return (
+            cell._style,
+            cell.number_format,
+            cell.alignment.horizontal,
+            cell.alignment.vertical,
+            cell.alignment.wrap_text,
+            cell.fill.fill_type,
+            cell.fill.fgColor.rgb,
+            cell.font.bold,
+            cell.border.left.style,
+        )
+
+    pairs = [
+        ("Connection Type", "EOAT Type"),
+        ("Gripper Model", "Cup Type/Material"),
+        ("Gripper Size", "Cup Diameter/Size"),
+    ]
+    for target, source in pairs:
+        target_col = headers.index(target) + 1
+        source_col = headers.index(source) + 1
+        assert ws.column_dimensions[ws.cell(row=1, column=target_col).column_letter].width == ws.column_dimensions[ws.cell(row=1, column=source_col).column_letter].width
+        assert style_signature(ws.cell(row=1, column=target_col)) == style_signature(ws.cell(row=1, column=source_col))
+        assert style_signature(ws.cell(row=2, column=target_col)) == style_signature(ws.cell(row=2, column=source_col))
+
+    connection_col = headers.index("Connection Type") + 1
+    connection_validations = [
+        validation
+        for validation in ws.data_validations.dataValidation
+        for cell_range in validation.sqref.ranges
+        if cell_range.min_col == connection_col and cell_range.max_col == connection_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+    ]
+    assert connection_validations
+    assert "ATI" in connection_validations[0].formula1
+    workbook.close()
+
+
+def _save_press_audit(project_root, audit_id, press, tool, plant="Plant 4", audit_date="2026-05-18"):
+    result = save_audit_entry(
+        project_root,
+        {
+            "Audit ID": audit_id,
+            "Audit Date": audit_date,
+            "Auditor": "KG",
+            "Plant/Area": plant,
+            "Press/Machine #": press,
+            "Tool #": tool,
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Connection Type": "ATI",
+            "Cleanroom/Non-Cleanroom": "Whiteroom",
+            "Status": "In Progress",
+            "Priority": "Medium",
+            "Known Issues": "Review during audit.",
+        },
+    )
+    assert result.success, result.errors
+    return result
+
+
+def _group_headers(ws):
+    return [cell.value for cell in ws["A"] if isinstance(cell.value, str) and "audit entr" in cell.value]
+
+
+def test_audit_by_press_view_is_created_grouped_sorted_and_collapsible(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    _save_press_audit(fake_project, "AUD-PRESS-010", "10", "TOOL-10")
+    _save_press_audit(fake_project, "AUD-PRESS-002B", "2", "TOOL-2B")
+    _save_press_audit(fake_project, "AUD-PRESS-001A", "1", "TOOL-1A")
+    _save_press_audit(fake_project, "AUD-PRESS-002A", "2", "TOOL-2A")
+    _save_press_audit(fake_project, "AUD-PRESS-MISSING", "N/A", "TOOL-X")
+
+    workbook = load_workbook(workbook_path)
+    inventory = workbook["EOAT Inventory"]
+    inventory_headers = [cell.value for cell in inventory[1]]
+    assert inventory.max_row == 6
+    assert "Setup ID" not in inventory_headers
+    assert "Tool-Press Map" not in workbook.sheetnames
+    assert not list(inventory.merged_cells.ranges)
+
+    assert AUDIT_BY_PRESS_SHEET in workbook.sheetnames
+    view = workbook[AUDIT_BY_PRESS_SHEET]
+    assert view.freeze_panes == "A4"
+    assert view.auto_filter.ref == "A3:N3"
+    assert view["A2"].value.startswith("Last refreshed:")
+
+    headers = _group_headers(view)
+    assert headers == [
+        "Plant 4 / Press 1 - 1 audit entry",
+        "Plant 4 / Press 2 - 2 audit entries",
+        "Plant 4 / Press 10 - 1 audit entry",
+        f"{UNASSIGNED_PRESS_GROUP} - 1 audit entry",
+    ]
+
+    press_2_row = next(row for row in range(1, view.max_row + 1) if view.cell(row=row, column=1).value == "Plant 4 / Press 2 - 2 audit entries")
+    detail_rows = [press_2_row + 1, press_2_row + 2]
+    assert [view.cell(row=row, column=6).value for row in detail_rows] == ["TOOL-2A", "TOOL-2B"]
+    assert all(view.row_dimensions[row].outlineLevel == 1 for row in detail_rows)
+    assert all(view.row_dimensions[row].hidden is True for row in detail_rows)
+    assert view.row_dimensions[press_2_row].hidden is False
+    assert view.row_dimensions[press_2_row].collapsed is True
+    assert view.sheet_properties.outlinePr.summaryBelow is False
+
+    assert view["A1"].fill.fgColor.rgb == "001F4E78"
+    assert view["A3"].fill.fgColor.rgb == "00D9EAF7"
+    assert view.cell(row=press_2_row, column=1).fill.fgColor.rgb == "00BDD7EE"
+    workbook.close()
+
+
+def test_audit_by_press_view_refreshes_after_new_update_and_duplicate_saves(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    _save_press_audit(fake_project, "AUD-REFRESH-001", "1", "TOOL-1")
+
+    update = {
+        "Audit ID": "AUD-REFRESH-001",
+        "Audit Date": "2026-05-18",
+        "Auditor": "KG",
+        "Plant/Area": "Plant 4",
+        "Press/Machine #": "2",
+        "Tool #": "TOOL-2",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Connection Type": "ATI",
+        "Cleanroom/Non-Cleanroom": "Whiteroom",
+        "Status": "Complete",
+        "Priority": "Medium",
+        "Known Issues": "Updated press assignment.",
+    }
+    assert save_audit_entry(fake_project, update, allow_update=True).success
+    _save_press_audit(fake_project, "AUD-REFRESH-002", "2", "TOOL-2B")
+
+    workbook = load_workbook(workbook_path)
+    view = workbook[AUDIT_BY_PRESS_SHEET]
+    headers = _group_headers(view)
+    assert "Plant 4 / Press 1 - 1 audit entry" not in headers
+    assert "Plant 4 / Press 2 - 2 audit entries" in headers
+    detail_audit_ids = [cell.value for cell in view["A"] if isinstance(cell.value, str) and cell.value.startswith("AUD-REFRESH")]
+    assert detail_audit_ids == ["AUD-REFRESH-001", "AUD-REFRESH-002"]
+    workbook.close()
+
+
+def test_setup_generated_master_tracker_includes_audit_by_press_view(tmp_path):
+    import setup_eoat_project
+
+    project_root = tmp_path / "EOAT_Standardization_Project"
+    setup_eoat_project.configure_project_root(project_root)
+    setup_eoat_project.create_workbook()
+
+    workbook_path = project_root / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
+    workbook = load_workbook(workbook_path)
+    assert AUDIT_BY_PRESS_SHEET in workbook.sheetnames
+    view = workbook[AUDIT_BY_PRESS_SHEET]
+    assert view["A1"].value == "EOAT Audit by Press"
+    assert view["A2"].value.startswith("Last refreshed:")
+    assert view["A4"].value == "No audit rows found."
+    assert "Setup ID" not in [cell.value for cell in workbook["EOAT Inventory"][1]]
+    assert "Tool-Press Map" not in workbook.sheetnames
+    workbook.close()
+
+
+def test_explicit_refresh_audit_by_press_view_action(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    _save_press_audit(fake_project, "AUD-MANUAL-001", "1", "TOOL-1")
+
+    workbook = load_workbook(workbook_path)
+    del workbook[AUDIT_BY_PRESS_SHEET]
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = refresh_audit_by_press_view_action(fake_project, log_activity=False)
+
+    assert result.success, result.errors
+    assert result.tool_name == REFRESH_ACTION_NAME
+    assert result.files_created
+    workbook = load_workbook(workbook_path, read_only=True)
+    assert AUDIT_BY_PRESS_SHEET in workbook.sheetnames
+    workbook.close()
+
