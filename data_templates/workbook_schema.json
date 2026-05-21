@@ -15,6 +15,7 @@
         "Part Name/Description",
         "Cleanroom/Non-Cleanroom",
         "EOAT Type",
+        "EOAT Moves",
         "Connection Type",
         "Cup Type/Material",
         "Cup Diameter/Size",
@@ -55,7 +56,10 @@
         "Priority",
         "Pilot Candidate?",
         "Follow-Up Needed",
-        "Notes"
+        "Notes",
+        "Entry Type",
+        "Source Audit ID",
+        "Compatibility Source"
       ]
     },
     "Issue Log": {

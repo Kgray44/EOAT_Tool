@@ -25,6 +25,7 @@ FIELD_ARG_MAP = {
     "Part Family": "part_family",
     "Part Name/Description": "part_name",
     "EOAT Type": "eoat_type",
+    "EOAT Moves": "eoat_moves",
     "Status": "status",
     "Priority": "priority",
     "Known Issues": "known_issues",

@@ -60,6 +60,9 @@ def test_auditor_and_plant_defaults(qapp, fake_config):
     page = AuditPage(fake_config)
 
     assert page.audit_fields["Auditor"].text() == "Kato Gray"
+    assert page.audit_fields["Known Issues"].toPlainText() == "None"
+    assert page.audit_fields["Drop/Mis-Pick History"].toPlainText() == "None"
+    assert page.audit_fields["Maintenance Frequency"].text() == "None"
     assert page.audit_fields["Cleanroom/Non-Cleanroom"].currentText() == "Whiteroom"
     assert page.audit_fields["Cup Type/Material"].text() == "Silicone"
     plant = page.audit_fields["Plant/Area"]
@@ -67,13 +70,21 @@ def test_auditor_and_plant_defaults(qapp, fake_config):
     assert plant.isEditable() is False
     assert _combo_items(plant) == ["Plant 4", "Cleanroom"]
     assert plant.currentText() == "Plant 4"
+    assert page.audit_fields["Vacuum Confirmation Present?"].currentText() == "Yes"
+    assert page.audit_fields["Part-Present Detection Present?"].currentText() == "No"
+    assert page.audit_fields["Spare Parts Identified?"].currentText() == "No"
+    assert page.audit_fields["Drawing/CAD Available?"].currentText() == "No"
+    assert page.audit_fields["BOM Available?"].currentText() == "No"
+    assert page.audit_fields["Process Binder Complete?"].currentText() == "No"
+    assert page.audit_fields["Photos Taken?"].currentText() == "No"
 
 
 def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config):
     page = AuditPage(fake_config)
 
     assert REFERENCE_ONLY_FIELDS.isdisjoint(page.audit_fields)
-    assert set(get_expected_headers("EOAT Inventory")).issubset(page.audit_fields)
+    workflow_metadata = {"Entry Type", "Source Audit ID", "Compatibility Source"}
+    assert (set(get_expected_headers("EOAT Inventory")) - workflow_metadata).issubset(page.audit_fields)
     assert {"Tool #", "Connection Type", "Gripper Model", "Gripper Size", "Number of Vacuum Cups", "Tubing Condition", "Cable Management Condition", "BOM Available?", "Photos Taken?"}.issubset(page.audit_fields)
     assert LEGACY_TOOL_FIELD not in page.audit_fields
     label_texts = {label.text() for label in page.findChildren(QLabel)}
@@ -84,6 +95,12 @@ def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config
 
 def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     page = AuditPage(fake_config)
+
+    eoat_moves = page.audit_fields["EOAT Moves"]
+    assert isinstance(eoat_moves, QComboBox)
+    assert eoat_moves.isEditable() is False
+    assert _combo_items(eoat_moves) == ["", "Part", "Sprue", "Both"]
+    assert eoat_moves.currentText() == ""
 
     connection = page.audit_fields["Connection Type"]
     assert isinstance(connection, QComboBox)
@@ -100,7 +117,7 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     assert "Whiteroom" in _combo_items(cleanroom)
 
     tooling_fields = list(page.audit_fields)
-    assert tooling_fields.index("EOAT Type") < tooling_fields.index("Connection Type") < tooling_fields.index("Cup Type/Material") < tooling_fields.index("Gripper Model") < tooling_fields.index("Gripper Size")
+    assert tooling_fields.index("EOAT Type") < tooling_fields.index("EOAT Moves") < tooling_fields.index("Connection Type") < tooling_fields.index("Cup Type/Material") < tooling_fields.index("Gripper Model") < tooling_fields.index("Gripper Size")
 
 
 @pytest.mark.parametrize(
@@ -148,6 +165,46 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
     assert page.audit_fields["Gripper Size"].isHidden() is True
     assert page.audit_fields["Gripper Model"].text() == "Zimmer GPP"
     assert page.audit_fields["Gripper Size"].text() == "25 mm"
+
+
+def test_sensors_present_controls_sensor_electrical_visibility(qapp, fake_config):
+    page = AuditPage(fake_config)
+
+    _set_field(page, "Sensor Type", "Vacuum switch")
+    _set_field(page, "Sensor Brand/Model", "SMC ZSE20")
+    _set_field(page, "Electrical Quick Disconnect Type", "M12")
+    _set_field(page, "Cable Management Condition", "OK")
+    _set_field(page, "Sensors Present?", "No")
+
+    for field in [
+        "Sensor Type",
+        "Sensor Brand/Model",
+        "Vacuum Confirmation Present?",
+        "Part-Present Detection Present?",
+        "Electrical Quick Disconnect Type",
+        "Cable Management Condition",
+    ]:
+        assert page.audit_fields[field].isHidden() is True
+
+    assert page.audit_fields["Known Issues"].isHidden() is False
+    _set_field(page, "Known Issues", "Unrelated value survives.")
+
+    _set_field(page, "Sensors Present?", "Yes")
+
+    for field in [
+        "Sensor Type",
+        "Sensor Brand/Model",
+        "Vacuum Confirmation Present?",
+        "Part-Present Detection Present?",
+        "Electrical Quick Disconnect Type",
+        "Cable Management Condition",
+    ]:
+        assert page.audit_fields[field].isHidden() is False
+    assert page.audit_fields["Sensor Type"].text() == "Vacuum switch"
+    assert page.audit_fields["Sensor Brand/Model"].text() == "SMC ZSE20"
+    assert page.audit_fields["Electrical Quick Disconnect Type"].text() == "M12"
+    assert page.audit_fields["Cable Management Condition"].currentText() == "OK"
+    assert page.audit_fields["Known Issues"].toPlainText() == "Unrelated value survives."
 
 
 def test_ui_lookup_runs_on_editing_finished_and_fills_clean_fields(qapp, fake_config, fake_project):
