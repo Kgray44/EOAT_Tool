@@ -16,6 +16,7 @@ def test_audit_progress_metrics_and_report(fake_project):
             "Press/Machine #": "Press 12",
             "Robot Type": "Wittmann R9",
             "EOAT Type": "Vacuum",
+            "EOAT Moves": "Part",
             "Status": "Audited",
             "Pilot Candidate?": "Yes",
         },
@@ -34,10 +35,31 @@ def test_audit_progress_metrics_and_report(fake_project):
     assert summary.metrics["audited_eoat_count"] == 1
     assert summary.metrics["photos_indexed_count"] == 1
     assert summary.metrics["interviews_logged_count"] == 1
+    assert summary.missing_field_counts["EOAT Moves"] == 0
 
     result = generate_audit_progress_report(fake_project)
     assert result.success is True
     assert result.output_reports
+
+
+def test_audit_progress_tracks_missing_eoat_moves(fake_project):
+    assert save_audit_entry(
+        fake_project,
+        {
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "Audited",
+        },
+    ).success
+
+    summary, error = calculate_audit_progress(fake_project)
+
+    assert error is None
+    assert summary.missing_field_counts["EOAT Moves"] == 1
 
 
 def test_audit_progress_missing_workbook(tmp_path):
@@ -46,4 +68,3 @@ def test_audit_progress_missing_workbook(tmp_path):
     assert summary is None
     assert error is not None
     assert error.success is False
-

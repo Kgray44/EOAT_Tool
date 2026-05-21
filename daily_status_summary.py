@@ -46,6 +46,7 @@ IMPORTANT_INVENTORY_COLUMNS = [
     "Press/Machine #",
     "Robot Type",
     "EOAT Type",
+    "EOAT Moves",
     "Sensors Present?",
     "Tubing Condition",
     "Cable Management Condition",

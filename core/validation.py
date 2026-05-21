@@ -14,8 +14,11 @@ from .audit_entries import (
     CLEANROOM_DROPDOWN_VALUES,
     CONNECTION_TYPE_FIELD,
     CONNECTION_TYPE_VALUES,
+    EOAT_MOVES_FIELD,
+    EOAT_MOVES_VALUES,
     EOAT_TYPE_DROPDOWN_VALUES,
     NA_VALUE,
+    audit_field_applies,
     is_na_value,
     tooling_field_applies,
 )
@@ -42,10 +45,11 @@ MAJOR_AUDIT_COLUMNS = {
     "Known Issues",
     *AUDIT_REQUIRED_FIELDS,
     *AUDIT_IMPORTANT_FIELDS,
-}
+} - {EOAT_MOVES_FIELD}
 
 AUDIT_DROPDOWN_ALLOWED_VALUES = {
     "EOAT Type": {*EOAT_TYPE_DROPDOWN_VALUES, NA_VALUE},
+    EOAT_MOVES_FIELD: set(EOAT_MOVES_VALUES),
     CONNECTION_TYPE_FIELD: {*CONNECTION_TYPE_VALUES, NA_VALUE},
     "Cleanroom/Non-Cleanroom": {*CLEANROOM_DROPDOWN_VALUES, NA_VALUE},
 }
@@ -230,6 +234,15 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
     blank_cells = 0
     major_na_examples: list[str] = []
     invalid_dropdown_examples: list[str] = []
+    missing_eoat_moves_examples: list[str] = []
+    source_eoat_moves_by_audit_id: dict[str, str] = {}
+
+    if EOAT_MOVES_FIELD in header_positions:
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            row_data = {header: row[index] for header, index in header_positions.items() if index < len(row)}
+            audit_id = _cell_text(row_data.get("Audit ID"))
+            if audit_id:
+                source_eoat_moves_by_audit_id[audit_id] = _cell_text(row_data.get(EOAT_MOVES_FIELD))
 
     for row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         row_data = {header: row[index] for header, index in header_positions.items() if index < len(row)}
@@ -245,36 +258,49 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         elif "Audit ID" in headers:
             major_na_examples.append(f"row {row_number} Audit ID")
 
-        eoat_type = row_data.get("EOAT Type")
         for header in get_expected_headers("EOAT Inventory"):
             if header not in header_positions:
                 continue
             value = row_data.get(header)
             if _cell_text(value) == "":
                 blank_cells += 1
-            if header in MAJOR_AUDIT_COLUMNS and is_na_value(value):
+            if (
+                header in MAJOR_AUDIT_COLUMNS
+                and is_na_value(value)
+                and audit_field_applies(row_data, header)
+                and tooling_field_applies(row_data.get("EOAT Type"), header)
+            ):
                 major_na_examples.append(f"row {row_number} {header}")
             if (
                 header in AUDIT_DROPDOWN_ALLOWED_VALUES
                 and _cell_text(value)
-                and not is_na_value(value)
+                and (header == EOAT_MOVES_FIELD or not is_na_value(value))
                 and _cell_text(value) not in AUDIT_DROPDOWN_ALLOWED_VALUES[header]
             ):
                 invalid_dropdown_examples.append(f"row {row_number} {header}={_cell_text(value)}")
-            if is_na_value(value) and not tooling_field_applies(eoat_type, header):
-                continue
+        if EOAT_MOVES_FIELD in header_positions and _is_missing_eoat_moves(row_data.get(EOAT_MOVES_FIELD)):
+            entry_type = _cell_text(row_data.get("Entry Type")).lower()
+            source_id = _cell_text(row_data.get("Source Audit ID"))
+            source_missing = source_id and _is_missing_eoat_moves(source_eoat_moves_by_audit_id.get(source_id))
+            if entry_type == "compatible" and source_missing:
+                missing_eoat_moves_examples.append(f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD} inherited from source audit {source_id}")
+            else:
+                missing_eoat_moves_examples.append(f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD}")
 
     metrics["duplicate_audit_id_count"] = len(duplicate_ids)
     metrics["blank_saved_audit_cell_count"] = blank_cells
     metrics["major_na_cell_count"] = len(major_na_examples)
     metrics["invalid_dropdown_value_count"] = len(invalid_dropdown_examples)
+    metrics["missing_eoat_moves_count"] = len(missing_eoat_moves_examples)
 
     if duplicate_ids:
         warnings.append(f"Duplicate Audit ID value(s): {', '.join(sorted(duplicate_ids))}")
     if major_na_examples:
-        warnings.append(f"{len(major_na_examples)} major EOAT Inventory cell(s) contain {NA_VALUE}: {', '.join(major_na_examples[:5])}")
+        warnings.append(f"{len(major_na_examples)} major EOAT Inventory cell(s) contain {NA_VALUE}: {', '.join(major_na_examples[:10])}")
     if invalid_dropdown_examples:
         warnings.append(f"{len(invalid_dropdown_examples)} invalid EOAT Inventory dropdown value(s): {', '.join(invalid_dropdown_examples[:5])}")
+    if missing_eoat_moves_examples:
+        warnings.append(f"{len(missing_eoat_moves_examples)} EOAT Inventory row(s) are missing EOAT Moves: {', '.join(missing_eoat_moves_examples[:5])}")
     if blank_cells:
         warnings.append(f"{blank_cells} saved EOAT Inventory cell(s) are blank; new saves should write {NA_VALUE} for unanswered audit fields.")
     return warnings, metrics
@@ -291,6 +317,11 @@ def _is_audit_data_row(row_data: dict[str, object]) -> bool:
 
 def _cell_text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _is_missing_eoat_moves(value: object) -> bool:
+    text = _cell_text(value)
+    return not text or text.upper() == NA_VALUE
 
 
 def write_validation_report(project_root: str | Path, result: ToolResult) -> Path:

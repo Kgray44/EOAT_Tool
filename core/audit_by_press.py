@@ -34,6 +34,7 @@ VIEW_COLUMNS = [
     TOOL_FIELD,
     "Robot Type",
     "EOAT Type",
+    "EOAT Moves",
     "Connection Type",
     "Cleanroom/Non-Cleanroom",
     "Status",

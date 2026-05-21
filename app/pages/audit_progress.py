@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 try:
-    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget
 except ImportError:  # pragma: no cover
-    QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTableWidgetItem = QTabWidget = QVBoxLayout = QWidget = None
 
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.status_card import StatusCard
@@ -36,22 +36,30 @@ class AuditProgressPage(QWidget):
         layout.addLayout(buttons)
 
         grid = QGridLayout()
-        for index, key in enumerate(["EOATs Audited", "Photos Indexed", "Interviews Logged", "Issues Logged", "Pilot Candidates", "Open Actions"]):
+        for index, key in enumerate(["Physically Audited", "Compatible", "Covered", "Remaining", "Opportunities", "Open Actions"]):
             card = StatusCard(key, "Not checked")
             self.cards[key] = card
             grid.addWidget(card, index // 3, index % 3)
+        self.cards["EOATs Audited"] = StatusCard("EOATs Audited", "Not checked")
+        self.cards["Issues Logged"] = StatusCard("Issues Logged", "Not checked")
+        grid.addWidget(self.cards["EOATs Audited"], 2, 0)
+        grid.addWidget(self.cards["Issues Logged"], 2, 1)
         layout.addLayout(grid)
 
-        tables = QHBoxLayout()
+        tables = QTabWidget()
         self.counts_table = QTableWidget()
         self.counts_table.setColumnCount(2)
         self.counts_table.setHorizontalHeaderLabels(["Metric", "Count"])
-        tables.addWidget(self.counts_table)
+        tables.addTab(self.counts_table, "Coverage Summary")
         self.missing_table = QTableWidget()
-        self.missing_table.setColumnCount(2)
-        self.missing_table.setHorizontalHeaderLabels(["Missing Field", "Count"])
-        tables.addWidget(self.missing_table)
-        layout.addLayout(tables, stretch=1)
+        tables.addTab(self.missing_table, "Missing Relationships")
+        self.opportunities_table = QTableWidget()
+        tables.addTab(self.opportunities_table, "Compatibility Opportunities")
+        self.machine_table = QTableWidget()
+        tables.addTab(self.machine_table, "Machine Coverage")
+        self.entry_type_table = QTableWidget()
+        tables.addTab(self.entry_type_table, "Existing Entries by Type")
+        layout.addWidget(tables, stretch=1)
 
         self.preview = ReportViewer()
         layout.addWidget(self.preview, stretch=1)
@@ -66,28 +74,42 @@ class AuditProgressPage(QWidget):
             return
         assert summary is not None
         metrics = summary.metrics
-        self.cards["EOATs Audited"].set_value(str(metrics.get("audited_eoat_count", 0)))
-        self.cards["Photos Indexed"].set_value(str(metrics.get("photos_indexed_count", 0)))
-        self.cards["Interviews Logged"].set_value(str(metrics.get("interviews_logged_count", 0)))
-        self.cards["Issues Logged"].set_value(str(metrics.get("issues_logged_count", 0)))
-        self.cards["Pilot Candidates"].set_value(
-            f"Yes: {metrics.get('pilot_candidate_yes_count', 0)}, Maybe: {metrics.get('pilot_candidate_maybe_count', 0)}"
-        )
+        self.cards["Physically Audited"].set_value(str(metrics.get("physically_audited_relationships", 0)))
+        self.cards["Compatible"].set_value(str(metrics.get("compatible_relationships", 0)))
+        self.cards["Covered"].set_value(str(metrics.get("total_covered_relationships", 0)))
+        self.cards["Remaining"].set_value(str(metrics.get("remaining_relationships", 0)))
+        self.cards["Opportunities"].set_value(str(metrics.get("compatibility_opportunities_available", 0)))
         self.cards["Open Actions"].set_value(str(metrics.get("open_action_items_count", 0)))
+        self.cards["EOATs Audited"].set_value(str(metrics.get("audited_eoat_count", 0)))
+        self.cards["Issues Logged"].set_value(str(metrics.get("issues_logged_count", 0)))
 
-        rows = list(metrics.items())
-        self.counts_table.setRowCount(len(rows))
-        for row, (key, value) in enumerate(rows):
-            self.counts_table.setItem(row, 0, QTableWidgetItem(str(key)))
-            self.counts_table.setItem(row, 1, QTableWidgetItem(str(value)))
-        missing_rows = list(summary.missing_field_counts.items())
-        self.missing_table.setRowCount(len(missing_rows))
-        for row, (key, value) in enumerate(missing_rows):
-            self.missing_table.setItem(row, 0, QTableWidgetItem(str(key)))
-            self.missing_table.setItem(row, 1, QTableWidgetItem(str(value)))
-        self.counts_table.resizeColumnsToContents()
-        self.missing_table.resizeColumnsToContents()
+        self._fill_table(self.counts_table, ["Metric", "Count"], [{"Metric": label, "Count": value} for label, value in summary.coverage_summary])
+        self._fill_table(
+            self.missing_table,
+            ["Machine No.", "NGW Part Number", "NGW Part Description", "Reason Missing", "Suggested Next Action"],
+            summary.missing_relationships,
+        )
+        self._fill_table(
+            self.opportunities_table,
+            ["NGW Part Number", "NGW Part Description", "Source Audited Machine", "Compatible Missing Machines", "Suggested Action"],
+            summary.compatibility_opportunities,
+        )
+        self._fill_table(
+            self.machine_table,
+            ["Machine No.", "Required Relationships", "Audited", "Compatible", "Covered Total", "Remaining", "Coverage %"],
+            summary.machine_coverage,
+        )
+        self._fill_table(self.entry_type_table, ["Entry Type", "Count"], [{"Entry Type": key, "Count": value} for key, value in summary.entry_type_counts.items()])
         self.preview.show_markdown_text(summary.to_markdown())
+
+    def _fill_table(self, table: QTableWidget, columns: list[str], rows: list[dict[str, object]]) -> None:
+        table.setColumnCount(len(columns))
+        table.setHorizontalHeaderLabels(columns)
+        table.setRowCount(len(rows))
+        for row_index, row_data in enumerate(rows):
+            for col_index, column in enumerate(columns):
+                table.setItem(row_index, col_index, QTableWidgetItem(str(row_data.get(column, ""))))
+        table.resizeColumnsToContents()
 
     def generate_report(self) -> None:
         run_tool_background(

@@ -115,6 +115,7 @@ def _checks_for_type(eoat_type: str) -> list[str]:
 def _missing_data_warnings(row: dict[str, Any]) -> list[str]:
     fields = [
         "EOAT Type",
+        "EOAT Moves",
         "Robot Type",
         "Tubing Condition",
         "Cable Management Condition",
@@ -149,6 +150,7 @@ def build_pm_checklist_markdown(row: dict[str, Any] | None = None, eoat_type: st
         f"- Plant/Area: {_clean(row.get('Plant/Area')) or 'N/A'}",
         f"- Robot Type: {_clean(row.get('Robot Type')) or 'N/A'}",
         f"- EOAT Type: {type_name}",
+        f"- EOAT Moves: {_clean(row.get('EOAT Moves')) or 'N/A'}",
         f"- Known Issues: {_clean(row.get('Known Issues')) or 'None documented'}",
         "",
         "## Checklist",

@@ -165,6 +165,7 @@ class DashboardWindow(QMainWindow):
 
     def _show_page(self, page_key: str) -> None:
         index = self.page_indexes[page_key]
+        created = False
         if page_key not in self.pages:
             page = self.page_factories[page_key]()
             old = self.stack.widget(index)
@@ -172,7 +173,11 @@ class DashboardWindow(QMainWindow):
             old.deleteLater()
             self.stack.insertWidget(index, page)
             self.pages[page_key] = page
+            created = True
+        page = self.pages[page_key]
         self.stack.setCurrentIndex(index)
+        if page_key == "audit_progress" and not created and hasattr(page, "refresh_metrics"):
+            page.refresh_metrics()
 
     def _navigate_to_page(self, page_key: str) -> None:
         self._select_nav_item(page_key)
