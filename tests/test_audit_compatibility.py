@@ -10,7 +10,7 @@ from core.audit_compatibility import (
     parse_machine_tokens,
     sync_compatible_rows_from_source,
 )
-from core.audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
 from core.audit_entries import save_audit_entry
 from core.audit_progress import calculate_audit_progress
 from core.paths import get_press_capacity_file, resolve_project_paths
@@ -46,6 +46,8 @@ def _save_audit(project_root, audit_id, machine, part_number, *, description="Pa
         "Entry Type": entry_type,
         "Source Audit ID": source_id,
     }
+    if entry_type == ENTRY_TYPE_COMPATIBLE:
+        entry[COMPATIBILITY_SOURCE_FIELD] = "Synthetic test link"
     result = save_audit_entry(project_root, entry)
     assert result.success, result.errors
     return result

@@ -19,7 +19,9 @@ def test_workbook_validation_generates_report_updates_cards_and_stubs_open(qapp,
     wait_for_background_tasks()
 
     assert page.cards["Workbook Status"].value_label.text() in {"OK", "Needs attention"}
-    assert page.cards["Schedule Files"].value_label.text() == "2"
+    assert page.cards["Missing Major Headers"].value_label.text() == "0"
+    assert page.cards["Duplicate Audit IDs"].value_label.text() == "0"
+    assert page.cards["Semantic Warnings"].value_label.text() == "0"
     assert list((fake_project / "00_Project_Admin" / "Validation_Reports").glob("Foundation_Validation_*.md"))
 
     click_button(page, "Open Validation Reports Folder")

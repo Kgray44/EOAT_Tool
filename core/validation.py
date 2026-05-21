@@ -20,8 +20,15 @@ from .audit_entries import (
     NA_VALUE,
     audit_field_applies,
     is_na_value,
-    tooling_field_applies,
 )
+from .audit_field_rules import (
+    entry_type_requirements,
+    field_applies,
+    hybrid_completeness_warnings,
+    is_meaningful_value,
+    semantic_consistency_warnings,
+)
+from .audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
 from .git_activity import is_git_repo
 from .logging import log_tool_run
 from .paths import resolve_project_paths
@@ -222,6 +229,13 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         "duplicate_audit_id_count": 0,
         "blank_saved_audit_cell_count": 0,
         "major_na_cell_count": 0,
+        "missing_applicable_major_cell_count": 0,
+        "non_applicable_na_cell_count": 0,
+        "stale_hidden_value_count": 0,
+        "hybrid_warning_count": 0,
+        "semantic_warning_count": 0,
+        "physical_audit_row_count": 0,
+        "compatible_row_count": 0,
         "invalid_dropdown_value_count": 0,
         "audit_row_count": 0,
     }
@@ -233,6 +247,10 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
     duplicate_ids: set[str] = set()
     blank_cells = 0
     major_na_examples: list[str] = []
+    non_applicable_na_examples: list[str] = []
+    stale_hidden_value_examples: list[str] = []
+    hybrid_warning_examples: list[str] = []
+    semantic_warning_examples: list[str] = []
     invalid_dropdown_examples: list[str] = []
     missing_eoat_moves_examples: list[str] = []
     source_eoat_moves_by_audit_id: dict[str, str] = {}
@@ -249,6 +267,11 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         if not _is_audit_data_row(row_data):
             continue
         metrics["audit_row_count"] += 1
+        entry_type = _cell_text(row_data.get(ENTRY_TYPE_FIELD)).lower()
+        if entry_type == ENTRY_TYPE_COMPATIBLE.lower():
+            metrics["compatible_row_count"] += 1
+        else:
+            metrics["physical_audit_row_count"] += 1
         audit_id = _cell_text(row_data.get("Audit ID"))
         if audit_id and not is_na_value(audit_id):
             if audit_id in audit_ids:
@@ -258,19 +281,28 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         elif "Audit ID" in headers:
             major_na_examples.append(f"row {row_number} Audit ID")
 
+        requirements = entry_type_requirements(row_data)
+        for required_field in requirements["required"]:
+            if required_field in header_positions and field_applies(row_data, required_field) and _is_missing_audit_value(row_data.get(required_field)):
+                major_na_examples.append(f"row {row_number} {required_field}")
+
         for header in get_expected_headers("EOAT Inventory"):
             if header not in header_positions:
                 continue
             value = row_data.get(header)
             if _cell_text(value) == "":
                 blank_cells += 1
+            applies = audit_field_applies(row_data, header)
             if (
                 header in MAJOR_AUDIT_COLUMNS
-                and is_na_value(value)
-                and audit_field_applies(row_data, header)
-                and tooling_field_applies(row_data.get("EOAT Type"), header)
+                and _is_missing_audit_value(value)
+                and applies
             ):
                 major_na_examples.append(f"row {row_number} {header}")
+            if not applies and is_na_value(value):
+                non_applicable_na_examples.append(f"row {row_number} {header}")
+            if not applies and is_meaningful_value(value):
+                stale_hidden_value_examples.append(f"row {row_number} {header}")
             if (
                 header in AUDIT_DROPDOWN_ALLOWED_VALUES
                 and _cell_text(value)
@@ -286,17 +318,32 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 missing_eoat_moves_examples.append(f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD} inherited from source audit {source_id}")
             else:
                 missing_eoat_moves_examples.append(f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD}")
+        for warning in hybrid_completeness_warnings(row_data):
+            hybrid_warning_examples.append(f"row {row_number}: {warning}")
+        for warning in semantic_consistency_warnings(row_data):
+            semantic_warning_examples.append(f"row {row_number}: {warning}")
 
     metrics["duplicate_audit_id_count"] = len(duplicate_ids)
     metrics["blank_saved_audit_cell_count"] = blank_cells
     metrics["major_na_cell_count"] = len(major_na_examples)
+    metrics["missing_applicable_major_cell_count"] = len(major_na_examples)
+    metrics["non_applicable_na_cell_count"] = len(non_applicable_na_examples)
+    metrics["stale_hidden_value_count"] = len(stale_hidden_value_examples)
+    metrics["hybrid_warning_count"] = len(hybrid_warning_examples)
+    metrics["semantic_warning_count"] = len(semantic_warning_examples)
     metrics["invalid_dropdown_value_count"] = len(invalid_dropdown_examples)
     metrics["missing_eoat_moves_count"] = len(missing_eoat_moves_examples)
 
     if duplicate_ids:
         warnings.append(f"Duplicate Audit ID value(s): {', '.join(sorted(duplicate_ids))}")
     if major_na_examples:
-        warnings.append(f"{len(major_na_examples)} major EOAT Inventory cell(s) contain {NA_VALUE}: {', '.join(major_na_examples[:10])}")
+        warnings.append(f"{len(major_na_examples)} applicable major EOAT Inventory cell(s) are blank or contain {NA_VALUE}: {', '.join(major_na_examples[:10])}")
+    if stale_hidden_value_examples:
+        warnings.append(f"{len(stale_hidden_value_examples)} non-applicable EOAT Inventory cell(s) contain stale values: {', '.join(stale_hidden_value_examples[:10])}")
+    if hybrid_warning_examples:
+        warnings.append(f"{len(hybrid_warning_examples)} Hybrid EOAT completeness warning(s): {', '.join(hybrid_warning_examples[:5])}")
+    if semantic_warning_examples:
+        warnings.append(f"{len(semantic_warning_examples)} semantic EOAT warning(s): {', '.join(semantic_warning_examples[:5])}")
     if invalid_dropdown_examples:
         warnings.append(f"{len(invalid_dropdown_examples)} invalid EOAT Inventory dropdown value(s): {', '.join(invalid_dropdown_examples[:5])}")
     if missing_eoat_moves_examples:
@@ -322,6 +369,11 @@ def _cell_text(value: object) -> str:
 def _is_missing_eoat_moves(value: object) -> bool:
     text = _cell_text(value)
     return not text or text.upper() == NA_VALUE
+
+
+def _is_missing_audit_value(value: object) -> bool:
+    text = _cell_text(value)
+    return not text or is_na_value(text)
 
 
 def write_validation_report(project_root: str | Path, result: ToolResult) -> Path:

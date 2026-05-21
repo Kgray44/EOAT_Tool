@@ -187,7 +187,7 @@ def test_workbook_health_flags_na_in_major_columns(fake_project):
     result = validate_project_foundation(fake_project)
 
     assert result.metrics["major_na_cell_count"] >= 4
-    assert any("major EOAT Inventory cell(s) contain N/A" in warning for warning in result.warnings)
+    assert any("applicable major EOAT Inventory cell(s) are blank or contain N/A" in warning for warning in result.warnings)
 
 
 def test_workbook_health_allows_na_for_non_applicable_tooling_fields(fake_project):
@@ -211,6 +211,7 @@ def test_workbook_health_allows_na_for_non_applicable_tooling_fields(fake_projec
             "Known Issues": "No issues observed.",
             "Part Family": "Housing",
             "Sensors Present?": "No",
+            "Quick Disconnects Present?": "No",
             "Tubing Condition": "OK",
             "Cable Management Condition": "OK",
             "Photos Taken?": "No",
@@ -246,6 +247,7 @@ def test_workbook_health_allows_na_for_no_sensor_wiring_fields(fake_project):
             "Connection Type": "ATI",
             "Cleanroom/Non-Cleanroom": "Whiteroom",
             "Sensors Present?": "No",
+            "Electrical/Wiring Present?": "No",
             "Part Family": "Housing",
             "Tubing Condition": "OK",
             "Known Issues": "No sensor package.",

@@ -12,6 +12,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from .logging import log_tool_run
+from .audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
@@ -38,6 +39,8 @@ VIEW_COLUMNS = [
     "Connection Type",
     "Cleanroom/Non-Cleanroom",
     "Status",
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
     "Priority",
     "Known Issues",
     "Photo Folder/Link",
@@ -171,9 +174,12 @@ def _write_view(sheet, rows: list[dict[str, Any]], view_columns: list[str], refr
     grouped_rows = _group_rows(rows)
     for group in grouped_rows:
         header_row = current_row
-        header_text = _group_header_text(group["plant"], group["press"], len(group["rows"]))
+        counts = _entry_counts(group["rows"])
+        header_text = _group_header_text(group["plant"], group["press"], counts)
         sheet.cell(row=header_row, column=1).value = header_text
-        sheet.cell(row=header_row, column=max_col).value = f"{len(group['rows'])} audit entries"
+        sheet.cell(row=header_row, column=max_col).value = (
+            f"{counts['physical']} physical / {counts['compatible']} compatible / {counts['total']} total"
+        )
         current_row += 1
 
         detail_start = current_row
@@ -241,14 +247,22 @@ def _natural_sort_key(value: Any) -> tuple[Any, ...]:
     return (0, *key)
 
 
-def _group_header_text(plant: str, press: str, count: int) -> str:
+def _entry_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    compatible = sum(1 for row in rows if _cell_text(row.get(ENTRY_TYPE_FIELD)).casefold() == ENTRY_TYPE_COMPATIBLE.casefold())
+    total = len(rows)
+    return {"physical": total - compatible, "compatible": compatible, "total": total}
+
+
+def _group_header_text(plant: str, press: str, counts: dict[str, int]) -> str:
+    count = counts["total"]
     entry_word = "entry" if count == 1 else "entries"
+    count_text = f"{counts['physical']} physical, {counts['compatible']} compatible, {count} total {entry_word}"
     if press == UNASSIGNED_PRESS_GROUP:
-        return f"{UNASSIGNED_PRESS_GROUP} - {count} audit {entry_word}"
+        return f"{UNASSIGNED_PRESS_GROUP} - {count_text}"
     press_label = _press_label(press)
     if plant and not _is_na_text(plant):
-        return f"{plant} / {press_label} - {count} audit {entry_word}"
-    return f"Press/Machine # {press} - {count} audit {entry_word}"
+        return f"{plant} / {press_label} - {count_text}"
+    return f"Press/Machine # {press} - {count_text}"
 
 
 def _press_label(press: str) -> str:
