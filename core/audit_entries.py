@@ -20,6 +20,7 @@ from .audit_constants import (
     SOURCE_AUDIT_ID_FIELD,
 )
 from .audit_by_press import refresh_audit_by_press_view
+from . import audit_field_rules as field_rules
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
@@ -81,6 +82,8 @@ VACUUM_TOOLING_FIELDS = {
     "Vacuum Zones",
 }
 GRIPPER_TOOLING_FIELDS = {"Gripper Type", GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD}
+SENSOR_DETAIL_FIELDS = field_rules.SENSOR_DETAIL_FIELDS
+QUICK_DISCONNECT_DETAIL_FIELDS = field_rules.QUICK_DISCONNECT_DETAIL_FIELDS
 
 
 @dataclass(frozen=True)
@@ -94,6 +97,7 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     "Sensor Brand/Model": AuditFieldMetadata(frozenset({"sensor"})),
     "Vacuum Confirmation Present?": AuditFieldMetadata(frozenset({"sensor"}), "Yes"),
     "Part-Present Detection Present?": AuditFieldMetadata(frozenset({"sensor"}), "No"),
+    "Electrical/Wiring Present?": AuditFieldMetadata(frozenset({"electrical"})),
     "Electrical Quick Disconnect Type": AuditFieldMetadata(frozenset({"electrical"})),
     "Cable Management Condition": AuditFieldMetadata(frozenset({"wiring", "cable_management"})),
     "Spare Parts Identified?": AuditFieldMetadata(frozenset({"documentation"}), "No"),
@@ -104,7 +108,7 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     "Photo Folder/Link": AuditFieldMetadata(frozenset({"photo_link"})),
 }
 
-SENSOR_ELECTRICAL_TAGS = frozenset({"sensor", "electrical", "wiring", "cable_management"})
+SENSOR_ELECTRICAL_TAGS = frozenset({"sensor"})
 SENSOR_ELECTRICAL_FIELDS = frozenset(
     field_name
     for field_name, metadata in AUDIT_FIELD_METADATA.items()
@@ -126,6 +130,7 @@ AUDIT_DROPDOWNS = {
     "YesNoUnknown": ["Yes", "No", "Unknown / Not Checked"],
     "YesNoUnknownNA": ["Yes", "No", "Unknown / Not Checked", "Not Applicable"],
     "YesNoPartialUnknown": ["Yes", "No", "Partial", "Unknown / Not Checked"],
+    "Electrical/Wiring Present?": ["Yes", "No", "Unknown / Not Checked"],
     "Quick Disconnects Present?": ["Yes", "No", "Partial", "Unknown / Not Checked"],
     "Tubing Condition": ["OK", "Worn", "Damaged", "Poor Routing", "Needs Follow-Up", "Unknown / Not Checked"],
     "Cable Management Condition": ["OK", "Loose", "Damaged", "Poor Routing", "Needs Follow-Up", "Unknown / Not Checked"],
@@ -327,22 +332,32 @@ def generate_audit_id(project_root: str | Path, audit_date: str | None = None) -
 
 
 def normalize_audit_entry(project_root: str | Path, entry: dict[str, Any]) -> dict[str, Any]:
+    normalized, _details = normalize_audit_entry_with_details(project_root, entry)
+    return normalized
+
+
+def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     headers = get_expected_headers("EOAT Inventory")
     if TOOL_FIELD not in entry and LEGACY_TOOL_FIELD in entry:
         entry = {**entry, TOOL_FIELD: entry.get(LEGACY_TOOL_FIELD, "")}
     normalized = {header: entry.get(header, "") for header in headers}
     if ENTRY_TYPE_FIELD in normalized and not _text(normalized.get(ENTRY_TYPE_FIELD)):
         normalized[ENTRY_TYPE_FIELD] = ENTRY_TYPE_AUDITED
-    if not normalized.get("Audit Date"):
+    entry_type = _text(normalized.get(ENTRY_TYPE_FIELD)).lower()
+    if entry_type != ENTRY_TYPE_COMPATIBLE.lower() and not normalized.get("Audit Date"):
         normalized["Audit Date"] = date.today().isoformat()
     if not normalized.get("Audit ID"):
-        normalized["Audit ID"] = generate_audit_id(project_root, str(normalized["Audit Date"]))
+        normalized["Audit ID"] = generate_audit_id(project_root, str(normalized.get("Audit Date") or date.today().isoformat()))
     if not normalized.get("Cleanroom/Non-Cleanroom"):
         normalized["Cleanroom/Non-Cleanroom"] = CLEANROOM_DEFAULT
     eoat_type = normalized.get("EOAT Type")
+    cleared_as_na: dict[str, str] = {}
     for header in headers:
         if not audit_field_applies(normalized, header):
+            if _text(normalized.get(header)) != NA_VALUE:
+                cleared_as_na[header] = field_rules.non_applicable_reason(normalized, header)
             normalized[header] = NA_VALUE
+    pre_default_normalized = dict(normalized)
     for header in headers:
         if audit_field_applies(normalized, header) and not _text(normalized.get(header)):
             default = audit_field_default(header)
@@ -358,18 +373,28 @@ def normalize_audit_entry(project_root: str | Path, entry: dict[str, Any]) -> di
                 normalized[header] = ""
             else:
                 normalized[header] = NA_VALUE
-    return normalized
+    details = {
+        "fields_auto_set_to_na": cleared_as_na,
+        "hybrid_warnings": field_rules.hybrid_completeness_warnings(pre_default_normalized),
+        "semantic_warnings": field_rules.semantic_consistency_warnings(normalized),
+    }
+    return normalized, details
 
 
 def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
-    for field in AUDIT_REQUIRED_FIELDS:
+    requirements = field_rules.entry_type_requirements(entry)
+    for field in requirements["required"]:
         if audit_field_applies(entry, field) and not _text(entry.get(field)):
             errors.append(f"Missing required field: {field}")
-    for field in AUDIT_IMPORTANT_FIELDS:
+        elif audit_field_applies(entry, field) and is_na_value(entry.get(field)):
+            warnings.append(f"Required field is marked {NA_VALUE} and needs review: {field}")
+    for field in requirements["important"]:
         if audit_field_applies(entry, field) and _is_missing_audit_value(entry.get(field)):
             warnings.append(f"Missing important audit field: {field}")
+    warnings.extend(field_rules.hybrid_completeness_warnings(entry))
+    warnings.extend(field_rules.semantic_consistency_warnings(entry))
     return errors, warnings
 
 
@@ -396,9 +421,7 @@ def sensor_electrical_fields_apply(entry: dict[str, Any]) -> bool:
 
 
 def audit_field_applies(entry: dict[str, Any], field_name: str) -> bool:
-    if field_name in SENSOR_ELECTRICAL_FIELDS and not sensor_electrical_fields_apply(entry):
-        return False
-    return True
+    return field_rules.field_applies(entry, field_name)
 
 
 def _is_missing_audit_value(value: Any) -> bool:
@@ -406,21 +429,17 @@ def _is_missing_audit_value(value: Any) -> bool:
 
 
 def tooling_field_applies(eoat_type: Any, field: str) -> bool:
-    text = _text(eoat_type).lower()
-    if not text or text.startswith("unknown") or text == "miscellaneous":
-        return True
-    if text == "vacuum":
-        return field not in GRIPPER_TOOLING_FIELDS
-    if text == "hybrid":
-        return True
-    if "mechanical" in text and "gripper" in text:
-        return field not in VACUUM_TOOLING_FIELDS
-    return True
+    return field_rules.field_applies({"EOAT Type": eoat_type}, field)
 
 
 def cup_type_default_applies(eoat_type: Any) -> bool:
-    text = _text(eoat_type).lower()
-    return not text or text == "vacuum" or text == "hybrid" or text.startswith("unknown")
+    normalized = field_rules.normalized_eoat_type(eoat_type)
+    return normalized in {
+        field_rules.EOAT_TYPE_BLANK,
+        field_rules.EOAT_TYPE_VACUUM,
+        field_rules.EOAT_TYPE_HYBRID,
+        field_rules.EOAT_TYPE_UNKNOWN,
+    }
 
 
 def load_audit_entry(project_root: str | Path, audit_id: str) -> dict[str, Any] | None:
@@ -443,6 +462,10 @@ def _ensure_inventory_headers(ws, required_headers: list[str]) -> list[str]:
             ws.cell(row=1, column=existing.index("Press/Machine #") + 2).value = header
         elif header in TOOLING_COLUMN_ORDER and _tooling_insert_index(existing, header):
             target_idx = _tooling_insert_index(existing, header)
+            ws.insert_cols(target_idx)
+            ws.cell(row=1, column=target_idx).value = header
+        elif header == "Electrical/Wiring Present?" and "Part-Present Detection Present?" in existing:
+            target_idx = existing.index("Part-Present Detection Present?") + 2
             ws.insert_cols(target_idx)
             ws.cell(row=1, column=target_idx).value = header
         else:
@@ -612,6 +635,7 @@ def _apply_inventory_validations(ws) -> None:
         EOAT_MOVES_FIELD: EOAT_MOVES_VALUES,
         CONNECTION_TYPE_FIELD: [*CONNECTION_TYPE_VALUES, NA_VALUE],
         "Cleanroom/Non-Cleanroom": [*CLEANROOM_DROPDOWN_VALUES, NA_VALUE],
+        "Electrical/Wiring Present?": ["Yes", "No", "Unknown / Not Checked", NA_VALUE],
         ENTRY_TYPE_FIELD: [ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE],
     }
     columns = {headers.index(header) + 1 for header in desired if header in headers}
@@ -670,8 +694,9 @@ def save_audit_entry(
     if not workbook_path.exists():
         return ToolResult.fail("eoat_audit_form", "EOAT Audit Form Tool", "Master workbook is missing.", errors=[str(workbook_path)])
 
-    validation_entry = normalize_audit_entry(project_root, entry)
-    for field in AUDIT_REQUIRED_FIELDS:
+    validation_entry, validation_details = normalize_audit_entry_with_details(project_root, entry)
+    requirements = field_rules.entry_type_requirements(validation_entry)
+    for field in requirements["required"]:
         if field != "Audit Date" and not _text(entry.get(field)):
             validation_entry[field] = ""
     errors, warnings = validate_audit_entry(validation_entry)
@@ -684,7 +709,13 @@ def save_audit_entry(
             warnings=warnings,
             duration_seconds=time.perf_counter() - started,
         )
-    data = normalize_audit_entry(project_root, entry)
+    data, normalization_details = normalize_audit_entry_with_details(project_root, entry)
+    for warning in validation_details.get("hybrid_warnings", []):
+        if warning not in warnings:
+            warnings.append(warning)
+    for warning in validation_details.get("semantic_warnings", []):
+        if warning not in warnings:
+            warnings.append(warning)
 
     workbook = None
     try:
@@ -713,8 +744,16 @@ def save_audit_entry(
             headers = worksheet_headers(ws)
             for column, header in enumerate(headers, start=1):
                 existing_value = ws.cell(row=existing_row, column=column).value
-                if header in data and header not in supplied_fields and _text(existing_value):
+                if (
+                    header in data
+                    and header not in supplied_fields
+                    and audit_field_applies(data, header)
+                    and _text(existing_value)
+                ):
                     data[header] = existing_value
+                elif header in data and not audit_field_applies(data, header):
+                    data[header] = NA_VALUE
+                    normalization_details.setdefault("fields_auto_set_to_na", {})[header] = field_rules.non_applicable_reason(data, header)
         row_number = existing_row or next_empty_row(ws)
         write_row_by_headers(ws, row_number, data)
         refresh_audit_by_press_view(workbook)
@@ -750,6 +789,17 @@ def save_audit_entry(
     ]
     if added_headers:
         details.append(f"Added missing EOAT Inventory headers: {', '.join(added_headers)}")
+    auto_na_fields = sorted(normalization_details.get("fields_auto_set_to_na", {}))
+    if auto_na_fields:
+        details.append(f"Auto-set non-applicable field(s) to {NA_VALUE}: {', '.join(auto_na_fields)}")
+    hybrid_warnings = normalization_details.get("hybrid_warnings", [])
+    semantic_warnings = normalization_details.get("semantic_warnings", [])
+    for warning in hybrid_warnings:
+        if warning not in warnings:
+            warnings.append(warning)
+    for warning in semantic_warnings:
+        if warning not in warnings:
+            warnings.append(warning)
     summary = f"Saved audit entry {data['Audit ID']}."
     files_created = [str(backup)]
     if sync_result is not None:
@@ -801,6 +851,9 @@ def save_audit_entry(
             "updated": bool(existing_row),
             "compatibility_rows_synced": sync_result.updated_count if sync_result else 0,
             "compatibility_rows_skipped": sync_result.skipped_count if sync_result else 0,
+            "fields_auto_set_to_na": len(auto_na_fields),
+            "hybrid_warning_count": len(hybrid_warnings),
+            "semantic_warning_count": len(semantic_warnings),
         },
         duration_seconds=time.perf_counter() - started,
     )

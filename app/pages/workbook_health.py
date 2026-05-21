@@ -37,7 +37,17 @@ class WorkbookHealthPage(QWidget):
 
         grid = QGridLayout()
         self.cards = {}
-        for index, key in enumerate(["Workbook Status", "Missing Sheets", "Missing Headers", "Schedule Files", "Last Validation"]):
+        for index, key in enumerate(
+            [
+                "Workbook Status",
+                "Missing Major Headers",
+                "Missing Detail Headers",
+                "Duplicate Audit IDs",
+                "Applicable N/A Warnings",
+                "Semantic Warnings",
+                "Last Validation",
+            ]
+        ):
             card = StatusCard(key)
             self.cards[key] = card
             grid.addWidget(card, index // 5, index % 5)
@@ -69,10 +79,13 @@ class WorkbookHealthPage(QWidget):
 
     def _validation_finished(self, result) -> None:
         self.cards["Workbook Status"].set_value("OK" if result.success else "Needs attention")
-        missing_sheets = max(0, int(result.metrics.get("expected_sheet_count", 0)) - int(result.metrics.get("actual_sheet_count", 0)))
-        self.cards["Missing Sheets"].set_value(str(missing_sheets))
-        self.cards["Missing Headers"].set_value(str(result.metrics.get("missing_key_inventory_header_count", 0)))
-        self.cards["Schedule Files"].set_value(str(result.metrics.get("schedule_week_count", 0)))
+        self.cards["Missing Major Headers"].set_value(str(result.metrics.get("missing_major_inventory_header_count", 0)))
+        self.cards["Missing Detail Headers"].set_value(
+            str(max(0, int(result.metrics.get("missing_full_inventory_header_count", 0)) - int(result.metrics.get("missing_major_inventory_header_count", 0))))
+        )
+        self.cards["Duplicate Audit IDs"].set_value(str(result.metrics.get("duplicate_audit_id_count", 0)))
+        self.cards["Applicable N/A Warnings"].set_value(str(result.metrics.get("missing_applicable_major_cell_count", 0)))
+        self.cards["Semantic Warnings"].set_value(str(result.metrics.get("semantic_warning_count", 0)))
         self.cards["Last Validation"].set_value("Just now")
 
     def open_validation_reports(self) -> None:

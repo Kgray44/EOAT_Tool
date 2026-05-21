@@ -42,7 +42,9 @@ Edit `project_root` to point to your private local project folder. Do not commit
 python tools/validate_project_foundation.py --project-root "examples/demo_project"
 ```
 
-In the app, use Workbook Health or Home > Validate Project Foundation. Missing folders or missing workbook sheets are reported as user-facing warnings.
+In the app, use Workbook Health or Home > Validate Project Foundation. Workbook Health distinguishes physical audit rows from compatibility entries, ignores `N/A` in fields that truly do not apply, and warns when applicable major fields are `N/A`, hidden fields contain stale values, or Hybrid EOATs are missing vacuum-side or gripper-side details.
+
+On the EOAT Audit page, hidden non-applicable fields save as `N/A`. Hybrid EOATs keep both vacuum and gripper fields visible and use warnings instead of blocking save.
 
 ## Run Reports
 

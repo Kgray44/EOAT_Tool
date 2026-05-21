@@ -29,6 +29,10 @@ On a clean checkout, the default project root is `examples/demo_project/`. Use t
 
 The folder `examples/demo_project/` contains fake machines, fake press IDs, fake robot names, fake EOAT types, fake issue categories, fake KPI values, fake placeholder images, fake audit entries, and fake reference workbooks. It is safe for tests, screenshots, and GitHub examples.
 
+## Audit Truth Rules
+
+Audit field visibility is rule-driven. Fields hidden because they do not apply to the selected EOAT type, sensor state, wiring state, or quick-disconnect state save as `N/A` instead of keeping stale hidden values. Physical audit rows and compatibility-derived rows are counted separately in progress metrics, and Workbook Health reports applicable `N/A` warnings, stale hidden values, Hybrid completeness warnings, and semantic consistency warnings.
+
 ## Data Safety / NDA Boundary
 
 This repository should contain source code, generic docs, sanitized templates, tests, and synthetic demo data only.
