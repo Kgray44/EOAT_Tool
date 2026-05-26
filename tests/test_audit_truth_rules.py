@@ -94,7 +94,7 @@ def test_hybrid_and_semantic_warnings_are_non_blocking(fake_project):
 
 
 def test_sensor_electrical_and_quick_disconnect_rules_are_separate():
-    no_sensors = {"EOAT Type": "Vacuum", "Sensors Present?": "No"}
+    no_sensors = {"EOAT Type": "Vacuum", "Sensors Present?": "No", "Electrical/Wiring Present?": "Unknown / Not Checked"}
     assert not field_applies(no_sensors, "Sensor Type")
     assert not field_applies(no_sensors, "Sensor Brand/Model")
     assert not field_applies(no_sensors, "Part-Present Detection Present?")
@@ -103,6 +103,11 @@ def test_sensor_electrical_and_quick_disconnect_rules_are_separate():
     no_wiring = {**no_sensors, "Electrical/Wiring Present?": "No"}
     assert not field_applies(no_wiring, "Cable Management Condition")
     assert not field_applies(no_wiring, "Electrical Quick Disconnect Type")
+
+    old_schema_no_wiring_control = {"EOAT Type": "Vacuum", "Sensors Present?": "No", "Cable Management Condition": "N/A"}
+    assert not field_applies(old_schema_no_wiring_control, "Cable Management Condition")
+    old_schema_with_evidence = {"EOAT Type": "Vacuum", "Sensors Present?": "No", "Cable Management Condition": "OK"}
+    assert field_applies(old_schema_with_evidence, "Cable Management Condition")
 
     no_qd = {"Quick Disconnects Present?": "No"}
     assert not field_applies(no_qd, "Pneumatic Quick Disconnect Type")
@@ -169,6 +174,7 @@ def test_empty_only_filters_to_applicable_empty_fields():
         "Gripper Model": "N/A",
         "Cup Type/Material": "N/A",
         "Sensors Present?": "No",
+        "Electrical/Wiring Present?": "Unknown / Not Checked",
         "Sensor Type": "N/A",
         "Cable Management Condition": "N/A",
     }

@@ -19,7 +19,12 @@ from .audit_constants import (
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from .audit_entries import _ensure_inventory_headers, normalize_audit_entry
+from .audit_entries import (
+    ELECTRICAL_WIRING_PRESENT_FIELD,
+    _ensure_inventory_headers,
+    _migrate_electrical_wiring_presence_rows,
+    normalize_audit_entry,
+)
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
@@ -365,7 +370,9 @@ def sync_compatible_rows_from_source(master_audit_path: str | Path, source_audit
             result.warning_messages.append("EOAT Inventory sheet is missing.")
             return result
         ws = workbook["EOAT Inventory"]
-        _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        if ELECTRICAL_WIRING_PRESENT_FIELD in added_headers:
+            _migrate_electrical_wiring_presence_rows(ws)
         headers = worksheet_headers(ws)
         source_row_number = _find_audit_row_number(ws, headers, source_audit_id)
         if source_row_number is None:
@@ -465,7 +472,9 @@ def create_compatibility_entries(
         if "EOAT Inventory" not in workbook.sheetnames:
             raise ValueError("EOAT Inventory sheet is missing.")
         ws = workbook["EOAT Inventory"]
-        _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        if ELECTRICAL_WIRING_PRESENT_FIELD in added_headers:
+            _migrate_electrical_wiring_presence_rows(ws)
         headers = worksheet_headers(ws)
         existing_ids = {
             text_value(ws.cell(row=row_number, column=headers.index("Audit ID") + 1).value)

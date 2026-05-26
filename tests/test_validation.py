@@ -3,6 +3,7 @@
 from openpyxl import Workbook
 
 from core.audit_by_press import AUDIT_BY_PRESS_SHEET
+from core.audit_field_rules import ELECTRICAL_WIRING_PRESENT_FIELD
 from core.constants import EXPECTED_NUMBERED_FOLDERS
 from core.validation import validate_project_foundation
 from core.paths import resolve_project_paths
@@ -63,6 +64,24 @@ def _create_schema_workbook(project_root):
     for sheet_name in get_expected_sheets():
         sheet = workbook.create_sheet(sheet_name)
         sheet.append(get_expected_headers(sheet_name))
+    workbook.save(workbook_path)
+    workbook.close()
+    return workbook_path
+
+
+def _create_inventory_workbook_without_electrical_wiring_header(project_root):
+    workbook_path = resolve_project_paths(project_root).master_workbook
+    workbook_path.parent.mkdir(parents=True, exist_ok=True)
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        sheet = workbook.create_sheet(sheet_name)
+        headers = [
+            header
+            for header in get_expected_headers(sheet_name)
+            if sheet_name != "EOAT Inventory" or header != ELECTRICAL_WIRING_PRESENT_FIELD
+        ]
+        sheet.append(headers)
     workbook.save(workbook_path)
     workbook.close()
     return workbook_path
@@ -300,6 +319,83 @@ def test_workbook_health_allows_na_for_no_sensor_wiring_fields(fake_project):
     warning_text = "\n".join(result.warnings)
     assert "Sensor Type" not in warning_text
     assert "Sensor Brand/Model" not in warning_text
+    assert "Electrical Quick Disconnect Type" not in warning_text
+    assert "Cable Management Condition" not in warning_text
+
+
+def test_old_workbook_missing_electrical_wiring_header_gets_schema_warning_not_electrical_na_cascade(tmp_path):
+    workbook_path = _create_inventory_workbook_without_electrical_wiring_header(tmp_path)
+    _append_inventory_row(
+        workbook_path,
+        {
+            "Audit ID": "AUD-OLD-SCHEMA-NO-WIRING",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Tool #": "DEMO-PN-1200",
+            "Robot Type": "Wittmann R9",
+            "Part Family": "Housing",
+            "EOAT Type": "Vacuum",
+            "Connection Type": "ATI",
+            "Cleanroom/Non-Cleanroom": "Whiteroom",
+            "Sensors Present?": "No",
+            "Sensor Type": "N/A",
+            "Sensor Brand/Model": "N/A",
+            "Part-Present Detection Present?": "N/A",
+            "Electrical Quick Disconnect Type": "N/A",
+            "Cable Management Condition": "N/A",
+            "Tubing Condition": "OK",
+            "Known Issues": "No sensor or wiring package.",
+            "Photos Taken?": "No",
+            "Status": "In Progress",
+            "Priority": "Medium",
+        },
+    )
+
+    result = validate_project_foundation(tmp_path)
+
+    warning_text = "\n".join(result.warnings)
+    assert result.success
+    assert warning_text.count("Workbook is missing Electrical/Wiring Present?") == 1
+    major_warnings = [warning for warning in result.warnings if "applicable major EOAT Inventory cell" in warning]
+    assert not any("Electrical Quick Disconnect Type" in warning for warning in major_warnings)
+    assert not any("Cable Management Condition" in warning for warning in major_warnings)
+    assert result.metrics["missing_applicable_major_cell_count"] == 0
+
+
+def test_migrated_no_wiring_rows_do_not_count_electrical_na_as_major_missing(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    _append_inventory_row(
+        workbook_path,
+        {
+            "Audit ID": "AUD-MIGRATED-NO-WIRING-HEALTH",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Tool #": "DEMO-PN-1200",
+            "Robot Type": "Wittmann R9",
+            "Part Family": "Housing",
+            "EOAT Type": "Vacuum",
+            "Connection Type": "ATI",
+            "Cleanroom/Non-Cleanroom": "Whiteroom",
+            "Sensors Present?": "No",
+            "Electrical/Wiring Present?": "No",
+            "Electrical Quick Disconnect Type": "N/A",
+            "Cable Management Condition": "N/A",
+            "Tubing Condition": "OK",
+            "Known Issues": "No wiring package.",
+            "Photos Taken?": "No",
+            "Status": "In Progress",
+            "Priority": "Medium",
+        },
+    )
+
+    result = validate_project_foundation(fake_project)
+
+    warning_text = "\n".join(result.warnings)
+    assert result.metrics["major_na_cell_count"] == 0
     assert "Electrical Quick Disconnect Type" not in warning_text
     assert "Cable Management Condition" not in warning_text
 
