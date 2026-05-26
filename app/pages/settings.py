@@ -17,6 +17,7 @@ from core.git_activity import find_git_executable, is_git_repo
 from core.logging import log_tool_run
 from core.openers import open_path
 from core.paths import resolve_project_paths
+from core.project_root_status import validate_project_root
 from core.project_backup import backup_project
 from core.result import ToolResult
 from core.system_audit import run_system_audit
@@ -33,6 +34,14 @@ class SettingsPage(QWidget):
         self.config_path_label = QLabel(str(DEFAULT_CONFIG_PATH))
         self.config_path_label.setWordWrap(True)
         self.project_root_edit = QLineEdit(config.project_root)
+        self.project_mode_label = QLabel()
+        self.project_mode_label.setWordWrap(True)
+        self.master_workbook_label = QLabel()
+        self.master_workbook_label.setWordWrap(True)
+        self.project_help_label = QLabel(
+            "Real project files stay outside GitHub. The selected root is saved only in ignored local config. Demo data is for tests and screenshots."
+        )
+        self.project_help_label.setWordWrap(True)
         self.git_edit = QLineEdit(config.git_executable)
         self.debug_check = QCheckBox()
         self.debug_check.setChecked(config.debug_mode)
@@ -66,11 +75,16 @@ class SettingsPage(QWidget):
         form = QFormLayout()
         project_row = QHBoxLayout()
         project_row.addWidget(self.project_root_edit)
-        project_button = QPushButton("Browse")
+        project_button = QPushButton("Choose Real Project Folder")
         project_button.clicked.connect(self.browse_project_root)
         project_row.addWidget(project_button)
         form.addRow("Project root", project_row)
         project_layout.addLayout(form)
+        project_layout.addWidget(QLabel("Data mode"))
+        project_layout.addWidget(self.project_mode_label)
+        project_layout.addWidget(QLabel("Master workbook path"))
+        project_layout.addWidget(self.master_workbook_label)
+        project_layout.addWidget(self.project_help_label)
         content_layout.addWidget(project_box)
 
         tools_box = QGroupBox("Git / External Tools")
@@ -108,11 +122,13 @@ class SettingsPage(QWidget):
         checks_layout.addWidget(self.status_label)
         content_layout.addWidget(checks_box)
         content_layout.addStretch(1)
+        self.update_project_status_labels()
 
     def browse_project_root(self) -> None:
         selected = select_directory(self, "Select EOAT Project Root", self.project_root_edit.text())
         if selected:
             self.project_root_edit.setText(selected)
+            self.update_project_status_labels()
 
     def browse_git(self) -> None:
         selected = select_file(self, "Select Git Executable", self.git_edit.text())
@@ -135,19 +151,30 @@ class SettingsPage(QWidget):
         self.config.debug_mode = self.debug_check.isChecked()
         self.config.theme = self.theme_combo.currentData() or "light"
         path = save_config(self.config)
-        validation = validate_project_foundation(self.config.project_root)
+        root_status = validate_project_root(self.config.project_root)
+        validation = validate_project_foundation(self.config.project_root) if root_status.is_usable else None
+        warnings = list(root_status.missing_items)
+        if validation is not None:
+            warnings.extend(validation.warnings)
         result = ToolResult.ok(
             "settings",
             "Settings",
             "Settings saved.",
-            details=[f"Config file: {path}", f"Project root: {self.config.project_root}"],
-            warnings=validation.warnings[:],
+            details=[
+                f"Config file: {path}",
+                f"Project root: {self.config.project_root}",
+                f"Data mode: {root_status.mode_label}",
+                f"Master workbook: {root_status.master_workbook}",
+                root_status.message,
+            ],
+            warnings=warnings,
         )
         if old_root != self.config.project_root and Path(self.config.project_root).exists():
             warning = log_tool_run(result, self.config.project_root)
             if warning:
                 result.warnings.append(warning)
         self.status_label.setText(result.to_markdown())
+        self.update_project_status_labels()
         self.settings_saved.emit()
         self.theme_changed.emit(self.config.theme)
 
@@ -163,8 +190,14 @@ class SettingsPage(QWidget):
         theme_index = self.theme_combo.findData((loaded.theme or "light").lower())
         self.theme_combo.setCurrentIndex(theme_index if theme_index >= 0 else 0)
         self.status_label.setText("Settings reloaded from disk.")
+        self.update_project_status_labels()
         self.settings_saved.emit()
         self.theme_changed.emit(self.config.theme)
+
+    def update_project_status_labels(self) -> None:
+        status = validate_project_root(self.project_root_edit.text())
+        self.project_mode_label.setText(f"{status.mode_label}: {status.message}")
+        self.master_workbook_label.setText(str(status.master_workbook))
 
     def theme_preview_changed(self) -> None:
         theme = self.theme_combo.currentData() or "light"
