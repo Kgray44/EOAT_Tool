@@ -34,6 +34,7 @@ from core.paths import resolve_project_paths, validate_looks_like_eoat_project_r
 from core.pilot_scoring import generate_pilot_ranking_report, rank_pilot_candidates
 from core.pm_checklists import generate_pm_checklists
 from core.presentation_export import export_presentation_assets
+from core.project_root_status import validate_project_root
 from core.project_setup import run_project_setup_safe
 from core.reports import list_recent_files
 from core.schedule import available_schedule_weeks, load_week_schedule, resolve_project_day_for_project
@@ -48,6 +49,7 @@ from core.workbook_io import row_dicts
 def collect_home_status_snapshot(project_root: str, git_executable: str, project_start_date: str = "", skip_weekends: bool = True, holidays: list[str] | None = None) -> dict:
     root = Path(project_root)
     paths = resolve_project_paths(root)
+    root_status = validate_project_root(root)
     valid, missing = validate_looks_like_eoat_project_root(root)
     git_repo, git_warning = is_git_repo(root, git_executable) if root.exists() else (False, "Project root missing")
     status_lines, status_warning = get_git_status_short(root, git_executable) if git_repo else ([], git_warning)
@@ -63,6 +65,9 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     bom_data, _bom_warnings, _bom_details = analyze_bom_standardization(root)
 
     cards: dict[str, str] = {}
+    cards["Active Project Root"] = str(root)
+    cards["Data Mode"] = root_status.mode_label
+    cards["Master Workbook Path"] = str(root_status.master_workbook)
     cards["Project Root"] = "OK" if valid else f"Warning: {len(missing)} issue(s)"
     cards["Master Workbook"] = "OK" if paths.master_workbook.exists() else "Missing"
     git_text = "OK"
@@ -136,6 +141,10 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     photos_count = progress.metrics.get("photos_indexed_count", 0) if progress else 0
     issues_count = progress.metrics.get("issues_logged_count", 0) if progress else 0
     fmea_rows = fmea_summary.metrics.get("existing_fmea_rows", 0) if fmea_summary else 0
+    if root_status.mode == "demo":
+        recommendations.append("Demo project is active. Choose your real EOAT project folder before entering real audit data.")
+    elif not root_status.is_usable:
+        recommendations.append(root_status.message)
     if not valid:
         recommendations.append("Run foundation validation or select the correct project root.")
     if audited_count == 0:
@@ -159,6 +168,7 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
         )
     if activity_warning:
         lines.append(f"Activity warning: {activity_warning}")
+    lines.extend(["", f"Data mode: {root_status.mode_label}", root_status.message])
     if not valid:
         lines.extend(["", "Project root issues:", *[f"- {item}" for item in missing]])
     if not activities and valid:
@@ -169,6 +179,7 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
         "cards": cards,
         "recommendations": recommendations[:6],
         "activity_text": "\n".join(lines),
+        "root_status_message": root_status.message,
         "resolved_week": resolved_day.week,
         "resolved_day": resolved_day.day,
         "resolved_source": resolved_day.source,
@@ -208,7 +219,7 @@ class HomePage(QWidget):
 
         top_actions = QHBoxLayout()
         for label, callback in [
-            ("Select Project Root", self.select_project_root),
+            ("Choose Real Project Folder", self.select_project_root),
             ("Refresh Dashboard", self.refresh_status),
             ("Open Project Folder", lambda: self.open_path(resolve_project_paths(self.config.project_root).project_root)),
             ("Open Activity Log Folder", lambda: self.open_path(resolve_project_paths(self.config.project_root).activity_logs)),
@@ -239,7 +250,11 @@ class HomePage(QWidget):
         daily_actions.addStretch(1)
         content_layout.addLayout(daily_actions)
 
-        self._add_card_section(content_layout, "Project Health", ["Project Root", "Master Workbook", "Git Status", "Workbook Health", "Tool Registry", "Activity Log"])
+        self._add_card_section(
+            content_layout,
+            "Project Health",
+            ["Data Mode", "Active Project Root", "Master Workbook Path", "Project Root", "Master Workbook", "Git Status", "Workbook Health", "Tool Registry", "Activity Log"],
+        )
         self._add_card_section(content_layout, "Data Progress", ["EOATs Audited", "Photos Indexed", "Interviews Logged", "Issues Logged", "Documentation Gaps", "KPI Rows", "Pilot Candidates"])
 
         workflow_grid = QGridLayout()
@@ -294,7 +309,8 @@ class HomePage(QWidget):
         self.result_panel.setMaximumHeight(230)
         content_layout.addWidget(QLabel("Recent Activity"))
         content_layout.addWidget(self.result_panel)
-        self.project_root_label.setText(f"Project root: {self.config.project_root}")
+        root_status = validate_project_root(self.config.project_root)
+        self.project_root_label.setText(f"Active project root: {self.config.project_root}\nData mode: {root_status.mode_label}\n{root_status.message}")
         self.result_panel.show_text("Dashboard loaded. Refreshing project status...")
         if QTimer is not None:
             QTimer.singleShot(100, self.refresh_status)
@@ -332,7 +348,11 @@ class HomePage(QWidget):
             self.result_panel.show_text(task_result.message)
             return
         snapshot = task_result.result_data
-        self.project_root_label.setText(f"Project root: {snapshot['project_root']}")
+        self.project_root_label.setText(
+            f"Active project root: {snapshot['project_root']}\n"
+            f"Data mode: {snapshot['cards'].get('Data Mode', 'Unknown')}\n"
+            f"{snapshot.get('root_status_message', '')}"
+        )
         for key, value in snapshot["cards"].items():
             self._set_card(key, value)
         self.morning_plan_button.setText(f"Generate Morning Plan for Week {snapshot['resolved_week']} Day {snapshot['resolved_day']}")
@@ -344,6 +364,8 @@ class HomePage(QWidget):
         if selected:
             self.config.project_root = selected
             save_config(self.config)
+            status = validate_project_root(selected)
+            self.result_panel.show_text(status.message)
             self.project_root_changed.emit(selected)
             self.refresh_status()
 

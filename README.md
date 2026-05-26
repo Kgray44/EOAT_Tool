@@ -23,11 +23,17 @@ python -m pip install -r requirements.txt
 python run_dashboard.py
 ```
 
-On a clean checkout, the default project root is `examples/demo_project/`. Use the Home or Settings page to select a different local project root. Saved project-root settings are written to ignored local config files such as `config/local_config.json`.
+On a clean checkout, the default project root is `examples/demo_project/`. The app labels this as Demo mode and shows a warning that the data is synthetic. Use **Home > Choose Real Project Folder** or **Settings > Choose Real Project Folder** to select your private EOAT project root. Saved project-root settings are written to ignored local config files such as `config/local_config.json`.
 
 ## Demo Data
 
 The folder `examples/demo_project/` contains fake machines, fake press IDs, fake robot names, fake EOAT types, fake issue categories, fake KPI values, fake placeholder images, fake audit entries, and fake reference workbooks. It is safe for tests, screenshots, and GitHub examples.
+
+The Home and Settings pages display the active project root, data mode, and master workbook path. If Demo mode is active, the app warns: "Demo project is active. This is synthetic sample data, not your real EOAT project."
+
+## Audit Truth Rules
+
+Audit field visibility is rule-driven. Fields hidden because they do not apply to the selected EOAT type, sensor state, wiring state, or quick-disconnect state save as `N/A` instead of keeping stale hidden values. Physical audit rows and compatibility-derived rows are counted separately in progress metrics, and Workbook Health reports applicable `N/A` warnings, stale hidden values, Hybrid completeness warnings, and semantic consistency warnings.
 
 ## Data Safety / NDA Boundary
 

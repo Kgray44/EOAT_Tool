@@ -60,9 +60,9 @@ def test_auditor_and_plant_defaults(qapp, fake_config):
     page = AuditPage(fake_config)
 
     assert page.audit_fields["Auditor"].text() == "Kato Gray"
-    assert page.audit_fields["Known Issues"].toPlainText() == "None"
-    assert page.audit_fields["Drop/Mis-Pick History"].toPlainText() == "None"
-    assert page.audit_fields["Maintenance Frequency"].text() == "None"
+    assert page.audit_fields["Known Issues"].toPlainText() == "Unknown / Not Checked"
+    assert page.audit_fields["Drop/Mis-Pick History"].toPlainText() == "Unknown / Not Checked"
+    assert page.audit_fields["Maintenance Frequency"].text() == "Unknown / Not Checked"
     assert page.audit_fields["Cleanroom/Non-Cleanroom"].currentText() == "Whiteroom"
     assert page.audit_fields["Cup Type/Material"].text() == "Silicone"
     plant = page.audit_fields["Plant/Area"]
@@ -181,10 +181,10 @@ def test_sensors_present_controls_sensor_electrical_visibility(qapp, fake_config
         "Sensor Brand/Model",
         "Vacuum Confirmation Present?",
         "Part-Present Detection Present?",
-        "Electrical Quick Disconnect Type",
-        "Cable Management Condition",
     ]:
         assert page.audit_fields[field].isHidden() is True
+    assert page.audit_fields["Electrical Quick Disconnect Type"].isHidden() is False
+    assert page.audit_fields["Cable Management Condition"].isHidden() is False
 
     assert page.audit_fields["Known Issues"].isHidden() is False
     _set_field(page, "Known Issues", "Unrelated value survives.")
@@ -196,8 +196,6 @@ def test_sensors_present_controls_sensor_electrical_visibility(qapp, fake_config
         "Sensor Brand/Model",
         "Vacuum Confirmation Present?",
         "Part-Present Detection Present?",
-        "Electrical Quick Disconnect Type",
-        "Cable Management Condition",
     ]:
         assert page.audit_fields[field].isHidden() is False
     assert page.audit_fields["Sensor Type"].text() == "Vacuum switch"
@@ -216,7 +214,7 @@ def test_ui_lookup_runs_on_editing_finished_and_fills_clean_fields(qapp, fake_co
     page.audit_fields["Press/Machine #"].editingFinished.emit()
 
     assert page.audit_fields["Press/Machine #"].text() == "12"
-    assert page.audit_fields["Robot Type"].text() == "Wittmann W833"
+    assert page.audit_fields["Robot Type"].currentText() == "Wittmann W833"
     assert page.audit_fields["Robot Model/Controller"].text() == "W833"
     assert page.audit_fields["Tool #"].text() == "DEMO-PN-1200"
     assert page.audit_fields["Part Family"].text() == "DEMO-PN-1200 - Demo housing cap"
@@ -232,7 +230,7 @@ def test_manual_lookup_button_uses_same_lookup_path(qapp, fake_config, fake_proj
     click_button(page, "Lookup")
 
     assert page.audit_fields["Press/Machine #"].text() == "12"
-    assert page.audit_fields["Robot Type"].text() == "Wittmann W833"
+    assert page.audit_fields["Robot Type"].currentText() == "Wittmann W833"
 
 
 def test_multiple_capacity_rows_show_selector_without_autofilling_part(qapp, fake_config, fake_project):
@@ -307,11 +305,11 @@ def test_lookup_does_not_overwrite_manual_robot_type(qapp, fake_config, fake_pro
     create_press_reference_workbooks(fake_project / "reference-data")
     page = AuditPage(fake_config)
 
-    page.audit_fields["Robot Type"].setText("Manual robot")
+    page.audit_fields["Robot Type"].setEditText("Manual robot")
     page.audit_fields["Press/Machine #"].setText("12")
     page.audit_fields["Press/Machine #"].editingFinished.emit()
 
-    assert page.audit_fields["Robot Type"].text() == "Manual robot"
+    assert page.audit_fields["Robot Type"].currentText() == "Manual robot"
     assert "different Robot Type suggestion" in page.lookup_note_label.text()
 
 

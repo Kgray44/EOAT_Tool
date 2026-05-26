@@ -134,9 +134,9 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     assert optional_row["Cup Diameter/Size"] == "N/A"
     assert optional_row["Number of Vacuum Cups"] == "N/A"
     assert optional_row["Connection Type"] == "N/A"
-    assert optional_row["Known Issues"] == "None"
-    assert optional_row["Drop/Mis-Pick History"] == "None"
-    assert optional_row["Maintenance Frequency"] == "None"
+    assert optional_row["Known Issues"] == "Unknown / Not Checked"
+    assert optional_row["Drop/Mis-Pick History"] == "Unknown / Not Checked"
+    assert optional_row["Maintenance Frequency"] == "Unknown / Not Checked"
 
     activity_log = fake_project / "00_Project_Admin" / "Activity_Logs" / "activity_log.jsonl"
     entries = [json.loads(line) for line in activity_log.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -258,7 +258,8 @@ def test_existing_audit_load_preserves_saved_quick_disconnect_fields(qapp, fake_
     click_button(page, "Load Existing Audit ID")
 
     assert page.audit_fields["Quick Disconnects Present?"].currentText() == "No"
-    assert page.audit_fields["Pneumatic Quick Disconnect Type"].text() == "Barb"
+    assert page.audit_fields["Pneumatic Quick Disconnect Type"].text() == ""
+    assert page.audit_fields["Pneumatic Quick Disconnect Type"].isHidden() is True
 
 
 def test_connection_type_smart_defaults_changeover_difficulty_when_unset(qapp, fake_config, fake_project, frozen_project_date):
@@ -423,8 +424,8 @@ def test_duplicate_audit_creates_new_unsaved_copy_and_saves_without_overwriting_
     assert page.audit_fields["Connection Type"].currentText() == original["Connection Type"]
     assert page.audit_fields["Cleanroom/Non-Cleanroom"].currentText() == original["Cleanroom/Non-Cleanroom"]
     assert page.audit_fields["Cup Type/Material"].text() == original["Cup Type/Material"]
-    assert page.audit_fields["Gripper Model"].text() == original["Gripper Model"]
-    assert page.audit_fields["Gripper Size"].text() == original["Gripper Size"]
+    assert page.audit_fields["Gripper Model"].text() == ""
+    assert page.audit_fields["Gripper Size"].text() == ""
     assert page.audit_fields["Photo Folder/Link"].text() == ""
     assert "new unsaved" in page.lookup_note_label.text()
 
@@ -441,8 +442,8 @@ def test_duplicate_audit_creates_new_unsaved_copy_and_saves_without_overwriting_
     assert duplicate_row["Connection Type"] == original["Connection Type"]
     assert duplicate_row["Cleanroom/Non-Cleanroom"] == original["Cleanroom/Non-Cleanroom"]
     assert duplicate_row["Cup Type/Material"] == original["Cup Type/Material"]
-    assert duplicate_row["Gripper Model"] == original["Gripper Model"]
-    assert duplicate_row["Gripper Size"] == original["Gripper Size"]
+    assert duplicate_row["Gripper Model"] == "N/A"
+    assert duplicate_row["Gripper Size"] == "N/A"
     assert duplicate_row["Photo Folder/Link"] == "N/A"
 
 
@@ -503,7 +504,7 @@ def test_loaded_na_field_displays_blank_and_can_be_filled(qapp, fake_config, fak
     rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
     updated_row = next(row for row in rows if row["Audit ID"] == original["Audit ID"])
     assert updated_row["Known Issues"] == "Added after review."
-    assert updated_row["Gripper Model"] == "Zimmer GPP"
+    assert updated_row["Gripper Model"] == "N/A"
 
 
 def test_load_existing_audit_defaults_to_empty_only_and_preserves_edits_when_switching_views(qapp, fake_config, fake_project, frozen_project_date):
@@ -572,14 +573,14 @@ def test_empty_only_respects_no_sensor_not_applicable_fields(qapp, fake_config, 
     assert page.audit_fields["Known Issues"].isHidden() is False
     assert page.audit_fields["Sensor Type"].isHidden() is True
     assert page.audit_fields["Sensor Brand/Model"].isHidden() is True
-    assert page.audit_fields["Electrical Quick Disconnect Type"].isHidden() is True
-    assert page.audit_fields["Cable Management Condition"].isHidden() is True
+    assert page.audit_fields["Electrical Quick Disconnect Type"].isHidden() is False
+    assert page.audit_fields["Cable Management Condition"].isHidden() is False
 
     page.audit_view_mode_combo.setCurrentText("Full Audit")
 
     assert page.audit_fields["Known Issues"].isHidden() is False
     assert page.audit_fields["Sensor Type"].isHidden() is True
-    assert page.audit_fields["Cable Management Condition"].isHidden() is True
+    assert page.audit_fields["Cable Management Condition"].isHidden() is False
 
 
 def test_empty_only_info_count_matches_visible_fields_and_ignores_hidden_irrelevant_fields(qapp, fake_config, fake_project, frozen_project_date):
@@ -612,7 +613,7 @@ def test_empty_only_info_count_matches_visible_fields_and_ignores_hidden_irrelev
     assert "Drop/Mis-Pick History" in visible_empty_fields
     assert "Maintenance Frequency" in visible_empty_fields
     assert "Sensor Type" not in visible_empty_fields
-    assert "Electrical Quick Disconnect Type" not in visible_empty_fields
+    assert "Electrical Quick Disconnect Type" in visible_empty_fields
     assert "Cup Type/Material" not in visible_empty_fields
 
 
@@ -693,8 +694,8 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
     row = next(row for row in rows if row["Audit ID"] == audit_id)
     assert row["EOAT Type"] == "Mechanical / Gripper"
-    assert row["Cup Type/Material"] == "Nitrile"
-    assert row["Cup Diameter/Size"] == "20 mm"
+    assert row["Cup Type/Material"] == "N/A"
+    assert row["Cup Diameter/Size"] == "N/A"
     assert row["Gripper Model"] == "Zimmer GPP"
     assert row["Gripper Size"] == "25 mm"
 

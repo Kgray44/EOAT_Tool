@@ -57,8 +57,8 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values["Tool #"] == "DEMO-PN-1200"
     assert row_values["EOAT Moves"] == "Both"
     assert row_values["Connection Type"] == "ATI"
-    assert row_values["Gripper Model"] == "DESTACO-GRIP"
-    assert row_values["Gripper Size"] == "40 mm"
+    assert row_values["Gripper Model"] == "N/A"
+    assert row_values["Gripper Size"] == "N/A"
     assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
     wb.close()
 
@@ -271,12 +271,10 @@ def test_no_sensor_audit_saves_sensor_electrical_fields_as_na_without_named_warn
     assert result.success, result.errors
     warning_text = "\n".join(result.warnings)
     for field in [
-        "Cable Management Condition",
         "Sensor Type",
         "Sensor Brand/Model",
         "Vacuum Confirmation Present?",
         "Part-Present Detection Present?",
-        "Electrical Quick Disconnect Type",
     ]:
         assert field not in warning_text
     loaded = load_audit_entry(fake_project, "AUD-NO-SENSORS-001")
@@ -284,7 +282,6 @@ def test_no_sensor_audit_saves_sensor_electrical_fields_as_na_without_named_warn
     assert loaded["Sensor Brand/Model"] == "N/A"
     assert loaded["Vacuum Confirmation Present?"] == "N/A"
     assert loaded["Part-Present Detection Present?"] == "N/A"
-    assert loaded["Electrical Quick Disconnect Type"] == "N/A"
     assert loaded["Cable Management Condition"] == "N/A"
     assert loaded["Photos Taken?"] == "No"
 
@@ -547,8 +544,8 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     ]
     assert values["Gripper Model"] == "Zimmer GPP"
     assert values["Gripper Size"] == "25 mm"
-    assert values["Cup Type/Material"] == "Nitrile"
-    assert values["Cup Diameter/Size"] == "20 mm"
+    assert values["Cup Type/Material"] == "N/A"
+    assert values["Cup Diameter/Size"] == "N/A"
     assert values["Cleanroom/Non-Cleanroom"] == "Cleanroom"
     assert "Setup ID" not in headers
     assert "Tool-Press Map" not in workbook.sheetnames
@@ -691,7 +688,7 @@ def _save_press_audit(project_root, audit_id, press, tool, plant="Plant 4", audi
 
 
 def _group_headers(ws):
-    return [cell.value for cell in ws["A"] if isinstance(cell.value, str) and "audit entr" in cell.value]
+    return [cell.value for cell in ws["A"] if isinstance(cell.value, str) and "total entr" in cell.value]
 
 
 def test_audit_by_press_view_is_created_grouped_sorted_and_collapsible(fake_project):
@@ -713,18 +710,18 @@ def test_audit_by_press_view_is_created_grouped_sorted_and_collapsible(fake_proj
     assert AUDIT_BY_PRESS_SHEET in workbook.sheetnames
     view = workbook[AUDIT_BY_PRESS_SHEET]
     assert view.freeze_panes == "A4"
-    assert view.auto_filter.ref == "A3:O3"
+    assert view.auto_filter.ref == "A3:Q3"
     assert view["A2"].value.startswith("Last refreshed:")
 
     headers = _group_headers(view)
     assert headers == [
-        "Plant 4 / Press 1 - 1 audit entry",
-        "Plant 4 / Press 2 - 2 audit entries",
-        "Plant 4 / Press 10 - 1 audit entry",
-        f"{UNASSIGNED_PRESS_GROUP} - 1 audit entry",
+        "Plant 4 / Press 1 - 1 physical, 0 compatible, 1 total entry",
+        "Plant 4 / Press 2 - 2 physical, 0 compatible, 2 total entries",
+        "Plant 4 / Press 10 - 1 physical, 0 compatible, 1 total entry",
+        f"{UNASSIGNED_PRESS_GROUP} - 1 physical, 0 compatible, 1 total entry",
     ]
 
-    press_2_row = next(row for row in range(1, view.max_row + 1) if view.cell(row=row, column=1).value == "Plant 4 / Press 2 - 2 audit entries")
+    press_2_row = next(row for row in range(1, view.max_row + 1) if view.cell(row=row, column=1).value == "Plant 4 / Press 2 - 2 physical, 0 compatible, 2 total entries")
     detail_rows = [press_2_row + 1, press_2_row + 2]
     assert [view.cell(row=row, column=6).value for row in detail_rows] == ["TOOL-2A", "TOOL-2B"]
     assert all(view.row_dimensions[row].outlineLevel == 1 for row in detail_rows)
@@ -764,8 +761,8 @@ def test_audit_by_press_view_refreshes_after_new_update_and_duplicate_saves(fake
     workbook = load_workbook(workbook_path)
     view = workbook[AUDIT_BY_PRESS_SHEET]
     headers = _group_headers(view)
-    assert "Plant 4 / Press 1 - 1 audit entry" not in headers
-    assert "Plant 4 / Press 2 - 2 audit entries" in headers
+    assert "Plant 4 / Press 1 - 1 physical, 0 compatible, 1 total entry" not in headers
+    assert "Plant 4 / Press 2 - 2 physical, 0 compatible, 2 total entries" in headers
     detail_audit_ids = [cell.value for cell in view["A"] if isinstance(cell.value, str) and cell.value.startswith("AUD-REFRESH")]
     assert detail_audit_ids == ["AUD-REFRESH-001", "AUD-REFRESH-002"]
     workbook.close()
