@@ -22,6 +22,8 @@ from .audit_entries import (
     is_na_value,
 )
 from .audit_field_rules import (
+    ELECTRICAL_DETAIL_FIELDS,
+    ELECTRICAL_WIRING_PRESENT_FIELD,
     entry_type_requirements,
     field_applies,
     hybrid_completeness_warnings,
@@ -150,7 +152,14 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         missing_full_headers = [header for header in required_headers if header not in headers]
         missing_key_headers = [header for header in get_key_inventory_headers() if header not in headers]
         missing_major_headers = [header for header in MAJOR_AUDIT_COLUMNS if header in required_headers and header not in headers]
-        missing_detail_headers = [header for header in missing_full_headers if header not in missing_major_headers]
+        schema_upgrade_headers = []
+        if ELECTRICAL_WIRING_PRESENT_FIELD in missing_full_headers:
+            schema_upgrade_headers.append(ELECTRICAL_WIRING_PRESENT_FIELD)
+        missing_detail_headers = [
+            header
+            for header in missing_full_headers
+            if header not in missing_major_headers and header not in schema_upgrade_headers
+        ]
         unexpected_headers = [header for header in headers if header and header not in required_headers]
         duplicate_headers = sorted({header for header in headers if header and headers.count(header) > 1})
         metrics["eoat_inventory_header_count"] = len(headers)
@@ -167,6 +176,10 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
             details.append("Key EOAT Inventory headers are present.")
         if missing_detail_headers:
             warnings.extend(f"Missing detail EOAT Inventory header: {header}" for header in missing_detail_headers)
+        if ELECTRICAL_WIRING_PRESENT_FIELD in schema_upgrade_headers:
+            warnings.append(
+                "Workbook is missing Electrical/Wiring Present?. Run Repair Workbook Schema to upgrade old workbooks."
+            )
         if unexpected_headers:
             warnings.extend(f"Unexpected EOAT Inventory header: {header}" for header in unexpected_headers)
         if duplicate_headers:
@@ -243,6 +256,7 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         return warnings, metrics
 
     header_positions = {header: index for index, header in enumerate(headers)}
+    missing_electrical_wiring_control = ELECTRICAL_WIRING_PRESENT_FIELD not in header_positions
     audit_ids: dict[str, int] = {}
     duplicate_ids: set[str] = set()
     blank_cells = 0
@@ -293,6 +307,8 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
             if _cell_text(value) == "":
                 blank_cells += 1
             applies = audit_field_applies(row_data, header)
+            if missing_electrical_wiring_control and header in ELECTRICAL_DETAIL_FIELDS and not is_meaningful_value(value):
+                applies = False
             if (
                 header in MAJOR_AUDIT_COLUMNS
                 and _is_missing_audit_value(value)

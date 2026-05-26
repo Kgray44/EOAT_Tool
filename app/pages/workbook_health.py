@@ -9,6 +9,7 @@ from app.widgets.status_card import StatusCard
 from app.widgets.tool_run_panel import ToolRunPanel
 from app.page_tasks import run_tool_background
 from core.audit_by_press import REFRESH_ACTION_NAME, refresh_audit_by_press_view_action
+from core.audit_entries import repair_workbook_schema
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.validation import run_foundation_validation
@@ -26,6 +27,7 @@ class WorkbookHealthPage(QWidget):
         button_row = QHBoxLayout()
         for label, callback in [
             ("Run Foundation Validation", self.run_validation),
+            ("Repair Workbook Schema", self.repair_workbook_schema),
             (REFRESH_ACTION_NAME, self.refresh_audit_by_press_view),
             ("Open Validation Reports Folder", self.open_validation_reports),
             ("Open Master Workbook", self.open_master_workbook),
@@ -73,6 +75,16 @@ class WorkbookHealthPage(QWidget):
             "audit_by_press_refresh",
             REFRESH_ACTION_NAME,
             lambda: refresh_audit_by_press_view_action(self.config.project_root),
+            modifies_files=True,
+            workbook_lock=True,
+        )
+
+    def repair_workbook_schema(self) -> None:
+        run_tool_background(
+            self.result_panel,
+            "workbook_schema_repair",
+            "Repair Workbook Schema",
+            lambda: repair_workbook_schema(self.config.project_root),
             modifies_files=True,
             workbook_lock=True,
         )

@@ -59,6 +59,8 @@ EOAT_MOVES_FIELD = "EOAT Moves"
 GRIPPER_MODEL_FIELD = "Gripper Model"
 GRIPPER_SIZE_FIELD = "Gripper Size"
 NA_VALUE = "N/A"
+UNKNOWN_NOT_CHECKED = "Unknown / Not Checked"
+ELECTRICAL_WIRING_PRESENT_FIELD = field_rules.ELECTRICAL_WIRING_PRESENT_FIELD
 CONNECTION_TYPE_VALUES = ["ATI", "DoveTail", "Direct Mount", "Lever Lock"]
 EOAT_MOVES_VALUES = ["Part", "Sprue", "Both"]
 EOAT_TYPE_DROPDOWN_VALUES = ["Vacuum", "Mechanical / Gripper", "Hybrid", "Unknown / Needs Review", "Miscellaneous"]
@@ -83,6 +85,7 @@ VACUUM_TOOLING_FIELDS = {
 }
 GRIPPER_TOOLING_FIELDS = {"Gripper Type", GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD}
 SENSOR_DETAIL_FIELDS = field_rules.SENSOR_DETAIL_FIELDS
+ELECTRICAL_DETAIL_FIELDS = field_rules.ELECTRICAL_DETAIL_FIELDS
 QUICK_DISCONNECT_DETAIL_FIELDS = field_rules.QUICK_DISCONNECT_DETAIL_FIELDS
 
 
@@ -97,7 +100,7 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     "Sensor Brand/Model": AuditFieldMetadata(frozenset({"sensor"})),
     "Vacuum Confirmation Present?": AuditFieldMetadata(frozenset({"sensor"}), "Yes"),
     "Part-Present Detection Present?": AuditFieldMetadata(frozenset({"sensor"}), "No"),
-    "Electrical/Wiring Present?": AuditFieldMetadata(frozenset({"electrical"})),
+    ELECTRICAL_WIRING_PRESENT_FIELD: AuditFieldMetadata(frozenset({"electrical"})),
     "Electrical Quick Disconnect Type": AuditFieldMetadata(frozenset({"electrical"})),
     "Cable Management Condition": AuditFieldMetadata(frozenset({"wiring", "cable_management"})),
     "Spare Parts Identified?": AuditFieldMetadata(frozenset({"documentation"}), "No"),
@@ -127,16 +130,16 @@ AUDIT_DROPDOWNS = {
     EOAT_MOVES_FIELD: EOAT_MOVES_VALUES,
     CONNECTION_TYPE_FIELD: CONNECTION_TYPE_VALUES,
     "Robot Type": ["Wittmann R8", "Wittmann R9", "Engel Viper", "Other", "Unknown"],
-    "YesNoUnknown": ["Yes", "No", "Unknown / Not Checked"],
-    "YesNoUnknownNA": ["Yes", "No", "Unknown / Not Checked", "Not Applicable"],
-    "YesNoPartialUnknown": ["Yes", "No", "Partial", "Unknown / Not Checked"],
-    "Electrical/Wiring Present?": ["Yes", "No", "Unknown / Not Checked"],
-    "Quick Disconnects Present?": ["Yes", "No", "Partial", "Unknown / Not Checked"],
-    "Tubing Condition": ["OK", "Worn", "Damaged", "Poor Routing", "Needs Follow-Up", "Unknown / Not Checked"],
-    "Cable Management Condition": ["OK", "Loose", "Damaged", "Poor Routing", "Needs Follow-Up", "Unknown / Not Checked"],
-    "Mounting Hardware Condition": ["OK", "Loose", "Missing Hardware", "Damaged", "Needs Follow-Up", "Unknown / Not Checked"],
-    "EOAT Alignment Condition": ["OK", "Slightly Off", "Misaligned", "Needs Follow-Up", "Unknown / Not Checked"],
-    "Changeover Difficulty": ["Easy", "Low", "Medium", "High", "Unknown / Not Checked"],
+    "YesNoUnknown": ["Yes", "No", UNKNOWN_NOT_CHECKED],
+    "YesNoUnknownNA": ["Yes", "No", UNKNOWN_NOT_CHECKED, "Not Applicable"],
+    "YesNoPartialUnknown": ["Yes", "No", "Partial", UNKNOWN_NOT_CHECKED],
+    ELECTRICAL_WIRING_PRESENT_FIELD: ["Yes", "No", UNKNOWN_NOT_CHECKED],
+    "Quick Disconnects Present?": ["Yes", "No", "Partial", UNKNOWN_NOT_CHECKED],
+    "Tubing Condition": ["OK", "Worn", "Damaged", "Poor Routing", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
+    "Cable Management Condition": ["OK", "Loose", "Damaged", "Poor Routing", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
+    "Mounting Hardware Condition": ["OK", "Loose", "Missing Hardware", "Damaged", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
+    "EOAT Alignment Condition": ["OK", "Slightly Off", "Misaligned", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
+    "Changeover Difficulty": ["Easy", "Low", "Medium", "High", UNKNOWN_NOT_CHECKED],
     "Photos Taken?": ["Yes", "No"],
     "Status": ["Not Started", "In Progress", "Complete", "Needs Follow-Up", "Blocked"],
     "Priority": ["Low", "Medium", "High", "Critical"],
@@ -458,18 +461,17 @@ def _ensure_inventory_headers(ws, required_headers: list[str]) -> list[str]:
     missing = [header for header in required_headers if header not in existing]
     for header in missing:
         if header == TOOL_FIELD and "Press/Machine #" in existing:
-            ws.insert_cols(existing.index("Press/Machine #") + 2)
-            ws.cell(row=1, column=existing.index("Press/Machine #") + 2).value = header
+            target_idx = existing.index("Press/Machine #") + 2
+            _insert_inventory_header(ws, target_idx, header, style_from_col=target_idx - 1)
         elif header in TOOLING_COLUMN_ORDER and _tooling_insert_index(existing, header):
             target_idx = _tooling_insert_index(existing, header)
-            ws.insert_cols(target_idx)
-            ws.cell(row=1, column=target_idx).value = header
-        elif header == "Electrical/Wiring Present?" and "Part-Present Detection Present?" in existing:
+            _insert_inventory_header(ws, target_idx, header, style_from_col=max(1, target_idx - 1))
+        elif header == ELECTRICAL_WIRING_PRESENT_FIELD and "Part-Present Detection Present?" in existing:
             target_idx = existing.index("Part-Present Detection Present?") + 2
-            ws.insert_cols(target_idx)
-            ws.cell(row=1, column=target_idx).value = header
+            _insert_inventory_header(ws, target_idx, header, style_from_col=target_idx - 1)
         else:
-            ws.cell(row=1, column=ws.max_column + 1).value = header
+            target_idx = ws.max_column + 1
+            _insert_inventory_header(ws, target_idx, header, style_from_col=max(1, target_idx - 1))
         existing = worksheet_headers(ws)
     _move_tool_after_press(ws)
     _order_tooling_columns(ws)
@@ -477,6 +479,128 @@ def _ensure_inventory_headers(ws, required_headers: list[str]) -> list[str]:
     _refresh_inventory_ranges(ws)
     _apply_inventory_validations(ws)
     return missing
+
+
+def _insert_inventory_header(ws, target_idx: int, header: str, *, style_from_col: int | None = None) -> None:
+    ws.insert_cols(target_idx)
+    if style_from_col is not None and style_from_col >= 1 and ws.max_column > 1:
+        source_col = min(style_from_col, ws.max_column)
+        if source_col != target_idx:
+            _copy_column_style(ws, source_col, target_idx, max_row=max(ws.max_row, 2))
+    ws.cell(row=1, column=target_idx).value = header
+
+
+def _migrate_electrical_wiring_presence_rows(ws) -> dict[str, int]:
+    headers = worksheet_headers(ws)
+    if ELECTRICAL_WIRING_PRESENT_FIELD not in headers:
+        return {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
+
+    positions = {header: headers.index(header) + 1 for header in headers}
+    stats = {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
+    electrical_col = positions[ELECTRICAL_WIRING_PRESENT_FIELD]
+    sensor_detail_fields = {"Sensor Type", "Sensor Brand/Model"}
+    electrical_evidence_fields = {"Electrical Quick Disconnect Type", "Cable Management Condition"}
+
+    for row_number in range(2, ws.max_row + 1):
+        row_values = [ws.cell(row=row_number, column=column).value for column in range(1, len(headers) + 1)]
+        if not any(_text(value) for value in row_values):
+            continue
+        current_value = ws.cell(row=row_number, column=electrical_col).value
+        if _text(current_value) and _text(current_value).upper() != NA_VALUE:
+            continue
+
+        row_data = {header: ws.cell(row=row_number, column=column).value for header, column in positions.items()}
+        stats["rows_reviewed"] += 1
+        sensors_present = _text(row_data.get("Sensors Present?")).casefold()
+        sensor_details_blank = not any(field_rules.is_meaningful_value(row_data.get(field)) for field in sensor_detail_fields)
+        electrical_values_blank = not any(field_rules.is_meaningful_value(row_data.get(field)) for field in electrical_evidence_fields)
+
+        if sensors_present == "no" and sensor_details_blank and electrical_values_blank:
+            ws.cell(row=row_number, column=electrical_col).value = "No"
+            for field in electrical_evidence_fields:
+                if field in positions:
+                    ws.cell(row=row_number, column=positions[field]).value = NA_VALUE
+            stats["set_no"] += 1
+        elif sensors_present == "yes" and not electrical_values_blank:
+            ws.cell(row=row_number, column=electrical_col).value = "Yes"
+            stats["set_yes"] += 1
+        else:
+            ws.cell(row=row_number, column=electrical_col).value = UNKNOWN_NOT_CHECKED
+            stats["set_unknown"] += 1
+    return stats
+
+
+def repair_workbook_schema(project_root: str | Path, log_activity: bool = True) -> ToolResult:
+    started = time.perf_counter()
+    paths = resolve_project_paths(project_root)
+    workbook_path = paths.master_workbook
+    if not workbook_path.exists():
+        return ToolResult.fail(
+            "workbook_schema_repair",
+            "Workbook Schema Repair",
+            "Master workbook is missing.",
+            errors=[str(workbook_path)],
+            duration_seconds=time.perf_counter() - started,
+        )
+
+    workbook = None
+    try:
+        backup = backup_file(workbook_path, workbook_path.parent / "_backups")
+        workbook = load_workbook(workbook_path)
+        if "EOAT Inventory" not in workbook.sheetnames:
+            raise ValueError("EOAT Inventory sheet is missing.")
+        _migrate_workbook_tool_headers(workbook)
+        ws = workbook["EOAT Inventory"]
+        added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        electrical_stats = _migrate_electrical_wiring_presence_rows(ws)
+        refresh_audit_by_press_view(workbook)
+        workbook.save(workbook_path)
+        workbook.close()
+    except Exception as exc:
+        if workbook is not None:
+            try:
+                workbook.close()
+            except Exception:
+                pass
+        return ToolResult.fail(
+            "workbook_schema_repair",
+            "Workbook Schema Repair",
+            "Could not repair workbook schema.",
+            errors=[str(exc)],
+            duration_seconds=time.perf_counter() - started,
+        )
+
+    details = [f"Workbook backup: {backup}"]
+    if added_headers:
+        details.append(f"Added EOAT Inventory header(s): {', '.join(added_headers)}")
+    else:
+        details.append("EOAT Inventory already had all expected headers.")
+    details.append(
+        "Electrical/Wiring Present? migration: "
+        f"{electrical_stats['set_no']} row(s) set to No, "
+        f"{electrical_stats['set_yes']} row(s) set to Yes, "
+        f"{electrical_stats['set_unknown']} row(s) set to {UNKNOWN_NOT_CHECKED}."
+    )
+    result = ToolResult.ok(
+        "workbook_schema_repair",
+        "Workbook Schema Repair",
+        "Workbook schema repair completed.",
+        details=details,
+        files_created=[str(backup)],
+        files_modified=[str(workbook_path)],
+        metrics={
+            "added_header_count": len(added_headers),
+            "electrical_wiring_set_no_count": electrical_stats["set_no"],
+            "electrical_wiring_set_yes_count": electrical_stats["set_yes"],
+            "electrical_wiring_set_unknown_count": electrical_stats["set_unknown"],
+        },
+        duration_seconds=time.perf_counter() - started,
+    )
+    if log_activity:
+        warning = log_tool_run(result, project_root)
+        if warning:
+            result.warnings.append(warning)
+    return result
 
 
 def _migrate_workbook_tool_headers(workbook) -> None:
@@ -726,6 +850,11 @@ def save_audit_entry(
         _migrate_workbook_tool_headers(workbook)
         ws = workbook["EOAT Inventory"]
         added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        electrical_migration_stats = (
+            _migrate_electrical_wiring_presence_rows(ws)
+            if ELECTRICAL_WIRING_PRESENT_FIELD in added_headers
+            else {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
+        )
         existing_row = find_row_by_value(ws, "Audit ID", str(data["Audit ID"]))
         if existing_row and not allow_update:
             workbook.close()
@@ -789,6 +918,13 @@ def save_audit_entry(
     ]
     if added_headers:
         details.append(f"Added missing EOAT Inventory headers: {', '.join(added_headers)}")
+    if electrical_migration_stats["rows_reviewed"]:
+        details.append(
+            "Electrical/Wiring Present? migration: "
+            f"{electrical_migration_stats['set_no']} row(s) set to No, "
+            f"{electrical_migration_stats['set_yes']} row(s) set to Yes, "
+            f"{electrical_migration_stats['set_unknown']} row(s) set to {UNKNOWN_NOT_CHECKED}."
+        )
     auto_na_fields = sorted(normalization_details.get("fields_auto_set_to_na", {}))
     if auto_na_fields:
         details.append(f"Auto-set non-applicable field(s) to {NA_VALUE}: {', '.join(auto_na_fields)}")
