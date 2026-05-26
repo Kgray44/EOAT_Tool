@@ -33,8 +33,10 @@ from core.audit_compatibility import (
     create_compatibility_entries,
     list_audit_options,
     list_audited_source_options,
+    normalize_entry_type,
     parse_machine_tokens,
 )
+from core.audit_constants import ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
 from core.audit_entries import (
     AUDIT_DROPDOWNS,
     CUP_TYPE_DEFAULT,
@@ -228,6 +230,7 @@ class AuditPage(QWidget):
         self._programmatic_field_update = False
         self._changeover_user_modified = False
         self._generated_audit_ids: set[str] = set()
+        self._machine_lookup_extra_note = ""
 
         layout = QVBoxLayout(self)
         heading = QLabel("EOAT Audit")
@@ -923,6 +926,7 @@ class AuditPage(QWidget):
     def run_machine_lookup(self) -> None:
         machine_text = self._field_value(self.audit_fields["Press/Machine #"])
         self._clear_copied_tool_if_duplicate_press_changed(machine_text)
+        self._machine_lookup_extra_note = ""
         if self._load_or_offer_existing_audit_for_machine(machine_text):
             return
         try:
@@ -952,39 +956,66 @@ class AuditPage(QWidget):
             option = result.part_options[0]
             part_filled = self._apply_part_suggestion(option, force=False)
         warnings = [*result.warnings, *self._lookup_conflict_warnings]
-        self.lookup_note_label.setText(self._lookup_status_message(result, robot_type_filled or robot_model_filled, part_filled or tool_filled, warnings))
+        lookup_message = self._lookup_status_message(result, robot_type_filled or robot_model_filled, part_filled or tool_filled, warnings)
+        if self._machine_lookup_extra_note:
+            lookup_message = f"{lookup_message} {self._machine_lookup_extra_note}"
+        self.lookup_note_label.setText(lookup_message)
         self._set_capacity_choices(result.capacity_part_rows)
         self._set_machine_audit_matches([])
         self._log_machine_lookup(machine_text, result, warnings, result.errors, robot_type_filled, robot_model_filled, part_filled, tool_filled)
 
     def _load_or_offer_existing_audit_for_machine(self, machine_text: str) -> bool:
+        self._machine_lookup_extra_note = ""
         machine_tokens = parse_machine_tokens(machine_text)
         if not machine_tokens:
             self._set_machine_audit_matches([])
             return False
         requested = set(machine_tokens)
-        matches = [
+        all_matches = [
             option
             for option in list_audit_options(self.config.project_root)
             if requested & set(self._audit_option_machine_tokens(option))
         ]
+        matches = [
+            option
+            for option in all_matches
+            if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
+        ]
+        compatible_matches = [
+            option
+            for option in all_matches
+            if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_COMPATIBLE
+        ]
+        machine = ", ".join(machine_tokens)
+        compatible_note = ""
+        if compatible_matches:
+            count = len(compatible_matches)
+            noun = "entry" if count == 1 else "entries"
+            compatible_note = f" Machine {machine} also has {count} compatible coverage {noun}."
         current_id = self._field_value(self.audit_fields["Audit ID"])
         if len(matches) == 1 and matches[0].audit_id == current_id and self._current_audit_mode == "edit":
             self._set_machine_audit_matches([])
             return False
         if len(matches) == 1:
             audit_id = matches[0].audit_id
-            machine = ", ".join(machine_tokens)
             self.load_existing_audit(
                 audit_id,
-                loaded_message=f"Existing audit found for Machine {machine}. Loaded {audit_id}.",
+                loaded_message=f"Existing physical audit found for Machine {machine}. Loaded {audit_id}.{compatible_note}",
             )
             return True
         if len(matches) > 1:
             self._set_machine_audit_matches(matches)
-            self.lookup_note_label.setText("Multiple existing audits found for this machine. Select the audit to load.")
-            self.result_panel.show_text("Multiple existing audits found for this machine. Select one from the audit match list; no audit was loaded automatically.")
+            self.lookup_note_label.setText(f"Multiple existing physical audits found for this machine. Select the audit to load.{compatible_note}")
+            self.result_panel.show_text(
+                "Multiple existing physical audits found for this machine. Select one from the audit match list; no audit was loaded automatically."
+            )
             return True
+        if compatible_matches:
+            note = f"Machine {machine} has compatible coverage entries, but no physical audit yet. Continuing with a new physical audit."
+            self._machine_lookup_extra_note = note
+            self.lookup_note_label.setText(note)
+            self._set_machine_audit_matches([])
+            return False
         self._set_machine_audit_matches([])
         return False
 
@@ -1000,7 +1031,7 @@ class AuditPage(QWidget):
         self.machine_audit_match_combo.blockSignals(True)
         self.machine_audit_match_combo.clear()
         if matches:
-            self.machine_audit_match_combo.addItem("Select existing audit to load...", None)
+            self.machine_audit_match_combo.addItem("Select existing physical audit to load...", None)
             for option in matches:
                 self.machine_audit_match_combo.addItem(option.label, option.audit_id)
             self.machine_audit_match_combo.setCurrentIndex(0)
