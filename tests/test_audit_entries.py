@@ -6,7 +6,7 @@ from openpyxl.utils import get_column_letter
 from core.audit_by_press import AUDIT_BY_PRESS_SHEET, REFRESH_ACTION_NAME, UNASSIGNED_PRESS_GROUP, refresh_audit_by_press_view_action
 from core.audit_compatibility import create_compatibility_entries
 from core.audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
-from core.audit_entries import validate_audit_entry, generate_audit_id, load_audit_entry, save_audit_entry
+from core.audit_entries import validate_audit_entry, generate_audit_id, load_audit_entry, repair_workbook_schema, save_audit_entry
 from core.paths import resolve_project_paths
 from core.tool_fields import LEGACY_TOOL_FIELD
 from core.workbook_schema import get_expected_headers, get_expected_sheets
@@ -296,6 +296,7 @@ def test_sensor_fields_are_important_when_sensors_are_applicable():
             "Robot Type": "Wittmann R9",
             "EOAT Type": "Vacuum",
             "Sensors Present?": "Yes",
+            "Electrical/Wiring Present?": "Yes",
             "Sensor Type": "N/A",
             "Sensor Brand/Model": "",
             "Electrical Quick Disconnect Type": "",
@@ -311,6 +312,95 @@ def test_sensor_fields_are_important_when_sensors_are_applicable():
     assert "Missing important audit field: Sensor Brand/Model" in warning_text
     assert "Missing important audit field: Electrical Quick Disconnect Type" in warning_text
     assert "Missing important audit field: Cable Management Condition" in warning_text
+
+
+def test_new_audit_with_no_electrical_wiring_saves_electrical_fields_as_na(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-NO-WIRING-001",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Tool #": "DEMO-PN-1200",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Sensors Present?": "No",
+            "Electrical/Wiring Present?": "No",
+            "Electrical Quick Disconnect Type": "M12 stale",
+            "Cable Management Condition": "Loose stale",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    loaded = load_audit_entry(fake_project, "AUD-NO-WIRING-001")
+    assert loaded["Electrical/Wiring Present?"] == "No"
+    assert loaded["Electrical Quick Disconnect Type"] == "N/A"
+    assert loaded["Cable Management Condition"] == "N/A"
+
+
+def test_repair_workbook_schema_adds_electrical_header_and_migrates_rows(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        ws = workbook.create_sheet(sheet_name)
+        headers = [
+            header
+            for header in get_expected_headers(sheet_name)
+            if sheet_name != "EOAT Inventory" or header != "Electrical/Wiring Present?"
+        ]
+        ws.append(headers)
+    inventory = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in inventory[1]]
+    quiet_no_wiring = {
+        "Audit ID": "AUD-OLD-NO-WIRING",
+        "Audit Date": "2026-05-18",
+        "Auditor": "KG",
+        "Plant/Area": "Plant 4",
+        "Press/Machine #": "Press 12",
+        "Tool #": "DEMO-PN-1200",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Sensors Present?": "No",
+        "Sensor Type": "N/A",
+        "Sensor Brand/Model": "Unknown / Not Checked",
+        "Electrical Quick Disconnect Type": "",
+        "Cable Management Condition": "N/A",
+        "Status": "In Progress",
+    }
+    meaningful_wiring = {
+        **quiet_no_wiring,
+        "Audit ID": "AUD-OLD-WIRING-EVIDENCE",
+        "Press/Machine #": "Press 13",
+        "Electrical Quick Disconnect Type": "M12",
+        "Cable Management Condition": "OK",
+    }
+    for values in [quiet_no_wiring, meaningful_wiring]:
+        inventory.append([values.get(header, "") for header in headers])
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = repair_workbook_schema(fake_project, log_activity=False)
+
+    assert result.success, result.errors
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    assert headers[headers.index("Part-Present Detection Present?") + 1] == "Electrical/Wiring Present?"
+    rows = {
+        row[headers.index("Audit ID")]: {headers[index]: value for index, value in enumerate(row)}
+        for row in ws.iter_rows(min_row=2, values_only=True)
+    }
+    assert rows["AUD-OLD-NO-WIRING"]["Electrical/Wiring Present?"] == "No"
+    assert rows["AUD-OLD-NO-WIRING"]["Electrical Quick Disconnect Type"] == "N/A"
+    assert rows["AUD-OLD-NO-WIRING"]["Cable Management Condition"] == "N/A"
+    assert rows["AUD-OLD-WIRING-EVIDENCE"]["Electrical/Wiring Present?"] == "Unknown / Not Checked"
+    assert rows["AUD-OLD-WIRING-EVIDENCE"]["Electrical Quick Disconnect Type"] == "M12"
+    assert rows["AUD-OLD-WIRING-EVIDENCE"]["Cable Management Condition"] == "OK"
+    workbook.close()
 
 
 def test_cup_defaults_are_eoat_type_aware(fake_project):

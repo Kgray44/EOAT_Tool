@@ -34,6 +34,7 @@ SENSOR_DETAIL_FIELDS = {
     "Vacuum Confirmation Present?",
     "Part-Present Detection Present?",
 }
+ELECTRICAL_WIRING_PRESENT_FIELD = "Electrical/Wiring Present?"
 ELECTRICAL_DETAIL_FIELDS = {"Electrical Quick Disconnect Type", "Cable Management Condition"}
 QUICK_DISCONNECT_DETAIL_FIELDS = {"Pneumatic Quick Disconnect Type", "Electrical Quick Disconnect Type"}
 
@@ -66,7 +67,7 @@ FIELD_GROUPS = {
     "Sensor Brand/Model": "sensor",
     "Vacuum Confirmation Present?": "sensor",
     "Part-Present Detection Present?": "sensor",
-    "Electrical/Wiring Present?": "electrical",
+    ELECTRICAL_WIRING_PRESENT_FIELD: "electrical",
     "Quick Disconnects Present?": "quick_disconnect",
     "Pneumatic Quick Disconnect Type": "pneumatic",
     "Electrical Quick Disconnect Type": "electrical",
@@ -205,8 +206,11 @@ def field_applies(entry: dict[str, Any], field_name: str) -> bool:
             return False
         if field_name == "Vacuum Confirmation Present?" and not (_broad_tooling_type(entry) or eoat_type_uses_vacuum(entry)):
             return False
-    if field_name in ELECTRICAL_DETAIL_FIELDS and "Electrical/Wiring Present?" in entry and _is_no(entry.get("Electrical/Wiring Present?")):
-        return False
+    if field_name in ELECTRICAL_DETAIL_FIELDS:
+        if ELECTRICAL_WIRING_PRESENT_FIELD not in entry:
+            return is_meaningful_value(entry.get(field_name))
+        if _is_no(entry.get(ELECTRICAL_WIRING_PRESENT_FIELD)):
+            return False
     if field_name in QUICK_DISCONNECT_DETAIL_FIELDS and _is_no(entry.get("Quick Disconnects Present?")):
         return False
     return True
@@ -224,6 +228,8 @@ def non_applicable_reason(entry: dict[str, Any], field_name: str) -> str:
     if field_name in SENSOR_DETAIL_FIELDS:
         return "Sensor detail fields do not apply when sensors are not present or not relevant."
     if field_name in ELECTRICAL_DETAIL_FIELDS:
+        if ELECTRICAL_WIRING_PRESENT_FIELD not in entry:
+            return "Electrical detail applicability is unknown until the workbook schema includes Electrical/Wiring Present?."
         return "Electrical detail fields do not apply when electrical/wiring is marked No."
     if field_name in QUICK_DISCONNECT_DETAIL_FIELDS:
         return "Quick disconnect detail fields do not apply when quick disconnects are marked No."

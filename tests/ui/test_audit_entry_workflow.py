@@ -337,7 +337,7 @@ def test_typing_machine_with_one_existing_audit_loads_that_audit(qapp, fake_conf
 
     assert page.audit_fields["Audit ID"].text() == original["Audit ID"]
     assert page.audit_fields["Tool #"].text() == "PN-26"
-    assert "Existing audit found for Machine 26" in page.result_panel.viewer.toPlainText()
+    assert "Existing physical audit found for Machine 26" in page.result_panel.viewer.toPlainText()
 
 
 def test_machine_lookup_uses_exact_normalized_machine_match(qapp, fake_config, fake_project, frozen_project_date):
@@ -366,7 +366,7 @@ def test_machine_lookup_multiple_existing_audits_requires_selection(qapp, fake_c
     audit_ids = [page.machine_audit_match_combo.itemData(index) for index in range(page.machine_audit_match_combo.count())]
     assert first["Audit ID"] in audit_ids
     assert second["Audit ID"] in audit_ids
-    assert "Multiple existing audits found" in page.result_panel.viewer.toPlainText()
+    assert "Multiple existing physical audits found" in page.result_panel.viewer.toPlainText()
 
 
 def test_empty_only_count_ignores_fields_filled_by_new_defaults(qapp, fake_config, fake_project, frozen_project_date):
