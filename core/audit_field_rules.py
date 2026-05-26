@@ -52,7 +52,7 @@ FIELD_GROUPS = {
     "Cleanroom/Non-Cleanroom": "machine_context",
     "EOAT Type": "machine_context",
     "EOAT Moves": "machine_context",
-    "Connection Type": "quick_disconnect",
+    "Connection Type": "tool_mounting_connection",
     "Number of Vacuum Cups": "vacuum_tooling",
     "Cup Type/Material": "vacuum_tooling",
     "Cup Diameter/Size": "vacuum_tooling",
@@ -109,6 +109,7 @@ AUDITED_REQUIRED_FIELDS = [
 ]
 COMPATIBLE_REQUIRED_FIELDS = ["Press/Machine #", TOOL_FIELD, SOURCE_AUDIT_ID_FIELD, COMPATIBILITY_SOURCE_FIELD]
 IMPORTANT_FIELDS = [
+    TOOL_FIELD,
     "Part Family",
     "EOAT Moves",
     "Sensor Type",

@@ -9,6 +9,7 @@ from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIB
 from core.audit_entries import load_audit_entry, save_audit_entry, validate_audit_entry
 from core.audit_field_rules import (
     field_applies,
+    field_group,
     hybrid_completeness_warnings,
     semantic_consistency_warnings,
 )
@@ -134,6 +135,34 @@ def test_compatible_rows_validate_differently_from_physical_audits(fake_project)
     assert "Missing required field: Compatibility Source" in errors
 
 
+def test_physical_audit_blank_tool_number_is_high_priority_warning(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-MISSING-TOOL",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    assert "Missing important audit field: Tool #" in "\n".join(result.warnings)
+
+
+def test_connection_type_is_mounting_connection_not_qd_detail():
+    entry = {"Quick Disconnects Present?": "No"}
+
+    assert field_group("Connection Type") == "tool_mounting_connection"
+    assert field_applies(entry, "Connection Type")
+    assert not field_applies(entry, "Pneumatic Quick Disconnect Type")
+    assert not field_applies(entry, "Electrical Quick Disconnect Type")
+
+
 def test_empty_only_filters_to_applicable_empty_fields():
     row = {
         "EOAT Type": "Mechanical / Gripper",
@@ -186,3 +215,24 @@ def test_audit_by_press_counts_physical_and_compatible_rows(fake_project):
         assert any("0 physical, 1 compatible, 1 total entry" in value for value in group_headers)
     finally:
         workbook.close()
+
+    rows = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
+    try:
+        ws = rows["EOAT Inventory"]
+        headers = [cell.value for cell in ws[1]]
+        data_rows = [
+            {headers[index]: value for index, value in enumerate(row)}
+            for row in ws.iter_rows(min_row=2, values_only=True)
+        ]
+        compatible = next(row for row in data_rows if row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE)
+        assert compatible["Audit ID"]
+        assert compatible["Press/Machine #"] == "70"
+        assert compatible["Tool #"] == "DEMO-PN-0170"
+        assert compatible[ENTRY_TYPE_FIELD] == ENTRY_TYPE_COMPATIBLE
+        assert compatible[SOURCE_AUDIT_ID_FIELD] == "AUD-PRESS-SOURCE"
+        assert compatible[COMPATIBILITY_SOURCE_FIELD]
+        assert compatible["Audit Date"] == "N/A"
+        assert compatible["Auditor"] == "N/A"
+        assert compatible["Gripper Model"] == "N/A"
+    finally:
+        rows.close()

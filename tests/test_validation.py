@@ -190,6 +190,42 @@ def test_workbook_health_flags_na_in_major_columns(fake_project):
     assert any("applicable major EOAT Inventory cell(s) are blank or contain N/A" in warning for warning in result.warnings)
 
 
+def test_workbook_health_deduplicates_missing_major_row_field_pairs(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    headers = get_expected_headers("EOAT Inventory")
+    values = {header: "Filled" for header in headers}
+    values.update(
+        {
+            "Audit ID": "AUD-DEDUPE-MAJOR",
+            "Audit Date": "N/A",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Tool #": "DEMO-PN-1200",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Unknown / Needs Review",
+            "EOAT Moves": "Part",
+            "Connection Type": "ATI",
+            "Cleanroom/Non-Cleanroom": "Whiteroom",
+            "Sensors Present?": "Yes",
+            "Vacuum Confirmation Present?": "Yes",
+            "Part-Present Detection Present?": "No",
+            "Electrical/Wiring Present?": "Yes",
+            "Quick Disconnects Present?": "Yes",
+            "Status": "In Progress",
+            "Priority": "Medium",
+            "Photos Taken?": "No",
+        }
+    )
+    _append_inventory_row(workbook_path, values)
+
+    result = validate_project_foundation(fake_project)
+
+    assert result.metrics["missing_applicable_major_cell_count"] == 1
+    warning_text = "\n".join(result.warnings)
+    assert warning_text.count("row 2 Audit Date") == 1
+
+
 def test_workbook_health_allows_na_for_non_applicable_tooling_fields(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     headers = get_expected_headers("EOAT Inventory")

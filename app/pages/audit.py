@@ -55,7 +55,7 @@ from core.paths import resolve_project_paths
 from core.press_lookup import PressLookupResult, lookup_machine
 
 CLEANROOM_DEFAULT = "Whiteroom"
-RELIABILITY_NONE_DEFAULT_FIELDS = {
+RELIABILITY_UNKNOWN_DEFAULT_FIELDS = {
     "Known Issues",
     "Drop/Mis-Pick History",
     "Maintenance Frequency",
@@ -573,9 +573,9 @@ class AuditPage(QWidget):
         self._set_field_value(self.audit_fields["Follow-Up Needed"], "No")
         self._set_field_value(self.audit_fields["Cleanroom/Non-Cleanroom"], CLEANROOM_DEFAULT)
         self._set_field_value(self.audit_fields["Cup Type/Material"], CUP_TYPE_DEFAULT)
-        for field in RELIABILITY_NONE_DEFAULT_FIELDS:
+        for field in RELIABILITY_UNKNOWN_DEFAULT_FIELDS:
             if field in self.audit_fields:
-                self._set_field_value(self.audit_fields[field], "None")
+                self._set_field_value(self.audit_fields[field], "Unknown / Not Checked")
         for field in UNKNOWN_DEFAULT_FIELDS:
             if field in self.audit_fields:
                 self._set_field_value(self.audit_fields[field], "Unknown / Not Checked")

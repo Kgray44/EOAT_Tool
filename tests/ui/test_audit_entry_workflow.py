@@ -134,9 +134,9 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     assert optional_row["Cup Diameter/Size"] == "N/A"
     assert optional_row["Number of Vacuum Cups"] == "N/A"
     assert optional_row["Connection Type"] == "N/A"
-    assert optional_row["Known Issues"] == "None"
-    assert optional_row["Drop/Mis-Pick History"] == "None"
-    assert optional_row["Maintenance Frequency"] == "None"
+    assert optional_row["Known Issues"] == "Unknown / Not Checked"
+    assert optional_row["Drop/Mis-Pick History"] == "Unknown / Not Checked"
+    assert optional_row["Maintenance Frequency"] == "Unknown / Not Checked"
 
     activity_log = fake_project / "00_Project_Admin" / "Activity_Logs" / "activity_log.jsonl"
     entries = [json.loads(line) for line in activity_log.read_text(encoding="utf-8").splitlines() if line.strip()]
