@@ -1,9 +1,18 @@
 ﻿from __future__ import annotations
 
 import pytest
+from openpyxl import load_workbook
 from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QTextEdit
 
 from app.pages.audit import AuditPage
+from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
+    ENTRY_TYPE_AUDITED,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
+from core.paths import resolve_project_paths
 from core.tool_fields import LEGACY_TOOL_FIELD
 from core.workbook_io import row_dicts
 from core.workbook_schema import get_expected_headers
@@ -54,6 +63,42 @@ def _set_field(page: AuditPage, field: str, value: str) -> None:
         widget.setPlainText(value)
     else:
         widget.setText(value)
+
+
+def _append_inventory_row(project_root, values: dict[str, str]) -> None:
+    workbook_path = resolve_project_paths(project_root).master_workbook
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    ws.append([values.get(header, "") for header in headers])
+    workbook.save(workbook_path)
+    workbook.close()
+
+
+def _machine_audit_row(audit_id: str, machine: str, entry_type: str = ENTRY_TYPE_AUDITED, **overrides) -> dict[str, str]:
+    row = {
+        "Audit ID": audit_id,
+        "Audit Date": "2026-05-18",
+        "Auditor": "Synthetic Auditor",
+        "Plant/Area": "Plant 4",
+        "Press/Machine #": machine,
+        "Tool #": f"DEMO-PN-{machine}",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Status": "Complete",
+        ENTRY_TYPE_FIELD: entry_type,
+    }
+    if entry_type == ENTRY_TYPE_COMPATIBLE:
+        row.update(
+            {
+                "Audit Date": "",
+                "Auditor": "",
+                SOURCE_AUDIT_ID_FIELD: "AUD-SOURCE-PHYSICAL",
+                COMPATIBILITY_SOURCE_FIELD: "Synthetic compatibility test",
+            }
+        )
+    row.update(overrides)
+    return row
 
 
 def test_auditor_and_plant_defaults(qapp, fake_config):
@@ -261,6 +306,76 @@ def test_missing_machine_number_lookup_does_not_crash(qapp, fake_config):
     page.audit_fields["Press/Machine #"].editingFinished.emit()
 
     assert "Invalid machine number" in page.lookup_note_label.text()
+
+
+def test_machine_lookup_ignores_compatible_only_existing_rows(qapp, fake_config, fake_project):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-COMPAT-044", "44", ENTRY_TYPE_COMPATIBLE))
+    page = AuditPage(fake_config)
+    current_audit_id = page.audit_fields["Audit ID"].text()
+
+    loaded = page._load_or_offer_existing_audit_for_machine("44")
+
+    assert loaded is False
+    assert page._current_audit_mode == "new"
+    assert page.audit_fields["Audit ID"].text() == current_audit_id
+    assert page.machine_audit_match_combo.isHidden()
+    assert "Machine 44 has compatible coverage entries, but no physical audit yet" in page.lookup_note_label.text()
+
+
+def test_machine_lookup_loads_single_physical_audit(qapp, fake_config, fake_project):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-045", "45", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+
+    loaded = page._load_or_offer_existing_audit_for_machine("45")
+
+    assert loaded is True
+    assert page._current_loaded_audit_id == "AUD-PHYSICAL-045"
+    assert page.audit_fields["Audit ID"].text() == "AUD-PHYSICAL-045"
+    assert "Existing physical audit found for Machine 45" in page.lookup_note_label.text()
+
+
+def test_machine_lookup_uses_physical_row_when_compatible_also_exists(qapp, fake_config, fake_project):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-COMPAT-046", "46", ENTRY_TYPE_COMPATIBLE))
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-046", "46", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+
+    loaded = page._load_or_offer_existing_audit_for_machine("46")
+
+    assert loaded is True
+    assert page._current_loaded_audit_id == "AUD-PHYSICAL-046"
+    assert page.audit_fields["Audit ID"].text() == "AUD-PHYSICAL-046"
+    assert "AUD-COMPAT-046" not in page.load_audit_id_combo.currentText()
+
+
+def test_machine_lookup_treats_blank_entry_type_as_physical_audit(qapp, fake_config, fake_project):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-BLANK-TYPE-047", "47", ""))
+    page = AuditPage(fake_config)
+
+    loaded = page._load_or_offer_existing_audit_for_machine("47")
+
+    assert loaded is True
+    assert page._current_loaded_audit_id == "AUD-BLANK-TYPE-047"
+    assert page.audit_fields["Audit ID"].text() == "AUD-BLANK-TYPE-047"
+
+
+def test_machine_lookup_multiple_physical_selector_excludes_compatible_rows(qapp, fake_config, fake_project):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-COMPAT-048", "48", ENTRY_TYPE_COMPATIBLE))
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-048-A", "48", ENTRY_TYPE_AUDITED))
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-048-B", "48", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+
+    loaded = page._load_or_offer_existing_audit_for_machine("48")
+
+    assert loaded is True
+    assert page._current_audit_mode == "new"
+    assert page.machine_audit_match_combo.isHidden() is False
+    assert page.machine_audit_match_combo.itemText(0) == "Select existing physical audit to load..."
+    audit_ids = [
+        page.machine_audit_match_combo.itemData(index)
+        for index in range(1, page.machine_audit_match_combo.count())
+    ]
+    assert audit_ids == ["AUD-PHYSICAL-048-A", "AUD-PHYSICAL-048-B"]
+    assert "AUD-COMPAT-048" not in audit_ids
 
 
 def test_save_writes_clean_audit_fields_not_reference_values(qapp, fake_config, fake_project, frozen_project_date):
