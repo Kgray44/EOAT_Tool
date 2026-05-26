@@ -39,16 +39,15 @@ from core.audit_entries import (
     AUDIT_DROPDOWNS,
     CUP_TYPE_DEFAULT,
     DOCUMENTATION_PHOTO_DEFAULT_FIELDS,
-    GRIPPER_TOOLING_FIELDS,
     NA_VALUE,
     SENSOR_ELECTRICAL_FIELDS,
-    VACUUM_TOOLING_FIELDS,
     audit_field_default,
     cup_type_default_applies,
     generate_audit_id,
     load_audit_entry,
     save_audit_entry,
 )
+from core.audit_field_rules import field_applies
 from core.interview_entries import INTERVIEW_QUESTIONS, generate_interview_id, save_interview_entry
 from core.logging import log_activity_event
 from core.openers import open_path
@@ -56,7 +55,7 @@ from core.paths import resolve_project_paths
 from core.press_lookup import PressLookupResult, lookup_machine
 
 CLEANROOM_DEFAULT = "Whiteroom"
-RELIABILITY_NONE_DEFAULT_FIELDS = {
+RELIABILITY_UNKNOWN_DEFAULT_FIELDS = {
     "Known Issues",
     "Drop/Mis-Pick History",
     "Maintenance Frequency",
@@ -128,6 +127,7 @@ AUDIT_SECTIONS = {
         "Sensor Brand/Model",
         "Vacuum Confirmation Present?",
         "Part-Present Detection Present?",
+        "Electrical/Wiring Present?",
     ],
     "Connections / Routing / Mechanical": [
         "Quick Disconnects Present?",
@@ -178,6 +178,7 @@ QUICK_DISCONNECTS_PRESENT_FIELD = "Quick Disconnects Present?"
 PNEUMATIC_QUICK_DISCONNECT_TYPE_FIELD = "Pneumatic Quick Disconnect Type"
 QUICK_DISCONNECT_DETAIL_FIELDS = {
     PNEUMATIC_QUICK_DISCONNECT_TYPE_FIELD,
+    "Electrical Quick Disconnect Type",
 }
 
 CHANGEOVER_DIFFICULTY_FIELD = "Changeover Difficulty"
@@ -322,6 +323,12 @@ class AuditPage(QWidget):
         self.lookup_note_label.setWordWrap(True)
         outer.addWidget(self.lookup_note_label)
 
+        self.audit_visibility_note_label = QLabel(
+            "Fields are hidden when they do not apply to the selected EOAT type or configuration. Hidden non-applicable fields save as N/A."
+        )
+        self.audit_visibility_note_label.setWordWrap(True)
+        outer.addWidget(self.audit_visibility_note_label)
+
         self.capacity_part_combo = QComboBox()
         self.capacity_part_combo.setEnabled(False)
         self.capacity_part_combo.currentIndexChanged.connect(self.apply_selected_capacity_part)
@@ -445,11 +452,15 @@ class AuditPage(QWidget):
             edit.editingFinished.connect(self.run_machine_lookup)
             return edit
         if field == "Robot Type":
-            return self._line()
+            return self._combo(AUDIT_DROPDOWNS.get("Robot Type", []), editable=True)
         if field in {"Sensors Present?", "Cycle Time Concern?", "Scrap/Quality Concern?", "Drawing/CAD Available?", "BOM Available?"}:
             combo = self._combo(AUDIT_DROPDOWNS["YesNoUnknown"], editable=False)
             if field == "Sensors Present?":
                 combo.currentTextChanged.connect(self._on_sensors_present_changed)
+            return combo
+        if field == "Electrical/Wiring Present?":
+            combo = self._combo(AUDIT_DROPDOWNS.get(field, AUDIT_DROPDOWNS["YesNoUnknown"]), editable=False)
+            combo.currentTextChanged.connect(self._on_electrical_wiring_present_changed)
             return combo
         if field in {"Vacuum Confirmation Present?", "Part-Present Detection Present?"}:
             return self._combo(AUDIT_DROPDOWNS["YesNoUnknownNA"], editable=False)
@@ -562,14 +573,16 @@ class AuditPage(QWidget):
         self._set_field_value(self.audit_fields["Follow-Up Needed"], "No")
         self._set_field_value(self.audit_fields["Cleanroom/Non-Cleanroom"], CLEANROOM_DEFAULT)
         self._set_field_value(self.audit_fields["Cup Type/Material"], CUP_TYPE_DEFAULT)
-        for field in RELIABILITY_NONE_DEFAULT_FIELDS:
+        for field in RELIABILITY_UNKNOWN_DEFAULT_FIELDS:
             if field in self.audit_fields:
-                self._set_field_value(self.audit_fields[field], "None")
+                self._set_field_value(self.audit_fields[field], "Unknown / Not Checked")
         for field in UNKNOWN_DEFAULT_FIELDS:
             if field in self.audit_fields:
                 self._set_field_value(self.audit_fields[field], "Unknown / Not Checked")
         if QUICK_DISCONNECTS_PRESENT_FIELD in self.audit_fields:
             self._set_field_value(self.audit_fields[QUICK_DISCONNECTS_PRESENT_FIELD], "Yes")
+        if "Electrical/Wiring Present?" in self.audit_fields:
+            self._set_field_value(self.audit_fields["Electrical/Wiring Present?"], "Unknown / Not Checked")
         self._apply_quick_disconnect_defaults()
         for field in DOCUMENTATION_PHOTO_DEFAULT_FIELDS:
             if field in self.audit_fields:
@@ -685,21 +698,8 @@ class AuditPage(QWidget):
             self._set_audit_field_visible(field, visible)
 
     def _audit_field_applies_in_current_form(self, field: str) -> bool:
-        eoat_type = self._field_value(self.audit_fields["EOAT Type"]).lower()
-        show_all_tooling = not eoat_type or eoat_type.startswith("unknown") or eoat_type == "miscellaneous"
-        show_vacuum = show_all_tooling or eoat_type == "vacuum" or eoat_type == "hybrid"
-        show_gripper = show_all_tooling or eoat_type == "hybrid" or ("mechanical" in eoat_type and "gripper" in eoat_type)
-        sensors_apply = self._field_value(self.audit_fields["Sensors Present?"]).lower() != "no"
-        if field in VACUUM_TOOLING_FIELDS and not show_vacuum:
-            return False
-        if field in GRIPPER_TOOLING_FIELDS and not show_gripper:
-            return False
-        if field in SENSOR_ELECTRICAL_FIELDS and not sensors_apply:
-            return False
-        quick_disconnects_present = self._field_value(self.audit_fields[QUICK_DISCONNECTS_PRESENT_FIELD]).lower()
-        if field in QUICK_DISCONNECT_DETAIL_FIELDS and quick_disconnects_present == "no":
-            return False
-        return True
+        current_entry = {name: self._field_value(widget) for name, widget in self.audit_fields.items()}
+        return field_applies(current_entry, field)
 
     def _apply_eoat_type_defaults(self) -> None:
         eoat_type = self._field_value(self.audit_fields["EOAT Type"])
@@ -720,6 +720,11 @@ class AuditPage(QWidget):
             self._apply_sensor_defaults()
         self._update_audit_field_visibility()
 
+    def _on_electrical_wiring_present_changed(self, *_args) -> None:
+        if self._loading_audit:
+            return
+        self._update_audit_field_visibility()
+
     def _on_connection_type_changed(self, *_args) -> None:
         if self._loading_audit or self._programmatic_field_update:
             return
@@ -736,7 +741,9 @@ class AuditPage(QWidget):
         if self._field_value(self.audit_fields[QUICK_DISCONNECTS_PRESENT_FIELD]).lower() == "yes":
             self._apply_quick_disconnect_defaults()
         elif self._field_value(self.audit_fields[QUICK_DISCONNECTS_PRESENT_FIELD]).lower() == "no":
-            self._set_field_value(self.audit_fields[PNEUMATIC_QUICK_DISCONNECT_TYPE_FIELD], "")
+            for field in QUICK_DISCONNECT_DETAIL_FIELDS:
+                if field in self.audit_fields:
+                    self._set_field_value(self.audit_fields[field], "")
         self._update_audit_field_visibility()
 
     def _apply_quick_disconnect_defaults(self) -> None:

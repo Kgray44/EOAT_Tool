@@ -17,6 +17,7 @@ from .audit_compatibility import (
     text_value,
 )
 from .audit_constants import ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from .audit_field_rules import field_applies, is_na_value
 from .logging import log_tool_run
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
@@ -56,9 +57,12 @@ class AuditProgressSummary:
             "# EOAT Audit Progress Report",
             "",
             "## Summary",
+            "Physical audit rows are direct audit observations. Compatible relationship rows extend coverage from a source physical audit without implying the EOAT was physically audited on that press.",
             f"- Required Machine/Part Relationships: {self.metrics.get('required_relationships', 0)}",
+            f"- Physical Audit Rows: {self.metrics.get('physical_audit_rows', 0)}",
             f"- Physically Audited Relationships: {self.metrics.get('physically_audited_relationships', 0)}",
-            f"- Compatible Relationships: {self.metrics.get('compatible_relationships', 0)}",
+            f"- Compatible Relationship Rows: {self.metrics.get('compatible_relationships', 0)}",
+            f"- Covered Relationships: {self.metrics.get('total_covered_relationships', 0)}",
             f"- Remaining Relationships: {self.metrics.get('remaining_relationships', 0)}",
             f"- Pilot candidates: {self.metrics.get('pilot_candidate_yes_count', 0)} yes, {self.metrics.get('pilot_candidate_maybe_count', 0)} maybe",
             "",
@@ -130,7 +134,7 @@ METRIC_LABELS = {
     "total_covered_relationships": "Total Covered Relationships",
     "remaining_relationships": "Remaining Relationships",
     "physical_audit_rows": "Physical Audit Rows",
-    "compatibility_rows": "Compatibility Rows",
+    "compatibility_rows": "Compatible Relationship Rows",
     "duplicate_relationship_rows": "Duplicate Relationship Rows",
     "conflict_rows": "Conflict Rows",
     "machines_with_full_coverage": "Machines With Full Coverage",
@@ -256,7 +260,7 @@ def calculate_audit_progress_from_rows(
     audited_parts = set(audited_part_sources) & required_parts if required_parts else set(audited_part_sources)
 
     missing_counts = {
-        field: sum(1 for row in inventory if not text_value(row.get(field)))
+        field: sum(1 for row in inventory if field_applies(row, field) and _missing_applicable_value(row.get(field)))
         for field in MISSING_DATA_FIELDS
     }
     open_statuses = {"open", "not started", "needs follow-up", "in progress", "blocked"}
@@ -278,9 +282,7 @@ def calculate_audit_progress_from_rows(
         "compatibility_opportunities_available": len([row for row in missing_relationships if row["Suggested Next Action"] == "Use Compatibility Entry"]),
         "total_eoat_inventory_rows": len(inventory),
         "audited_eoat_count": len(audited_keys) if required_keys else physical_audit_rows,
-        "not_audited_count": _count_status(inventory, "Not audited"),
         "needs_followup_count": _count_status(inventory, "Needs follow-up"),
-        "candidate_for_pilot_count": _count_status(inventory, "Candidate for pilot"),
         "pilot_candidate_yes_count": sum(1 for row in inventory if str(row.get("Pilot Candidate?") or "").lower() == "yes"),
         "pilot_candidate_maybe_count": sum(1 for row in inventory if str(row.get("Pilot Candidate?") or "").lower() == "maybe"),
         "photos_indexed_count": len(photos),
@@ -312,6 +314,10 @@ def calculate_audit_progress_from_rows(
         missing_field_counts=missing_counts,
     )
     return summary
+
+
+def _missing_applicable_value(value: Any) -> bool:
+    return not text_value(value) or is_na_value(value)
 
 
 def _duplicate_relationship_rows(master_by_key: dict[tuple[str, str], list[dict[str, Any]]]) -> int:

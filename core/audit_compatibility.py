@@ -19,7 +19,7 @@ from .audit_constants import (
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from .audit_entries import _ensure_inventory_headers
+from .audit_entries import _ensure_inventory_headers, normalize_audit_entry
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
@@ -488,6 +488,7 @@ def create_compatibility_entries(
             new_row[ENTRY_TYPE_FIELD] = ENTRY_TYPE_COMPATIBLE
             new_row[SOURCE_AUDIT_ID_FIELD] = source.audit_id
             new_row[COMPATIBILITY_SOURCE_FIELD] = COMPATIBILITY_SOURCE_PRESS_CAPACITY
+            new_row = normalize_audit_entry(project_root, new_row)
             write_row_by_headers(ws, next_empty_row(ws), new_row)
             created += 1
         refresh_audit_by_press_view(workbook)

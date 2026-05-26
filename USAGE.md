@@ -6,7 +6,7 @@
 python run_dashboard.py
 ```
 
-The default project root is `examples/demo_project/` when no ignored local config exists. This demo root contains synthetic workbooks, reports, schedules, reference data, and placeholder photos.
+The default project root is `examples/demo_project/` when no ignored local config exists. This demo root contains synthetic workbooks, reports, schedules, reference data, and placeholder photos. The app shows Demo mode on Home and Settings so synthetic data is not mistaken for real project files.
 
 CLI tools can also run directly against the demo root:
 
@@ -19,7 +19,15 @@ python tools/build_kpi_dashboard.py --project-root "examples/demo_project"
 
 ## Run With A Real Local Project Folder
 
-Keep real project data outside this repository. In the app, open Home or Settings, choose **Select Project Root**, and pick the private local project folder. The saved root is stored in an ignored local config file.
+Keep real project data outside this repository. In the app, open Home or Settings, choose **Choose Real Project Folder**, and pick the private local project folder. The saved root is stored in ignored `config/local_config.json`.
+
+The selected real project root should contain the numbered EOAT folders and this workbook:
+
+```text
+01_EOAT_Audit/EOAT_Audit_Database/EOAT_Master_Tracker.xlsx
+```
+
+If the selected root is missing folders or the workbook, Home and Settings show Missing or Invalid mode instead of silently switching back to demo data.
 
 PowerShell example:
 
@@ -32,8 +40,8 @@ Edit `project_root` to point to your private local project folder. Do not commit
 
 ## Switch Project Roots
 
-- Use Home > Select Project Root for quick switching.
-- Use Settings > Project root > Browse to update and save the root.
+- Use Home > Choose Real Project Folder for quick switching.
+- Use Settings > Choose Real Project Folder, then Save Settings, to update and persist the root.
 - Switch back to demo data by selecting `examples/demo_project/`.
 
 ## Validate Workbook Health
@@ -42,7 +50,9 @@ Edit `project_root` to point to your private local project folder. Do not commit
 python tools/validate_project_foundation.py --project-root "examples/demo_project"
 ```
 
-In the app, use Workbook Health or Home > Validate Project Foundation. Missing folders or missing workbook sheets are reported as user-facing warnings.
+In the app, use Workbook Health or Home > Validate Project Foundation. Workbook Health distinguishes physical audit rows from compatibility entries, ignores `N/A` in fields that truly do not apply, and warns when applicable major fields are `N/A`, hidden fields contain stale values, or Hybrid EOATs are missing vacuum-side or gripper-side details.
+
+On the EOAT Audit page, hidden non-applicable fields save as `N/A`. Hybrid EOATs keep both vacuum and gripper fields visible and use warnings instead of blocking save.
 
 ## Run Reports
 

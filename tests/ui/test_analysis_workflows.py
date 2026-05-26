@@ -21,7 +21,7 @@ def test_audit_progress_metrics_and_report(qapp, fake_config, fake_project):
     page = AuditProgressPage(fake_config)
     page.show()
 
-    assert int(page.cards["EOATs Audited"].value_label.text()) > 0
+    assert int(page.cards["Physical Audit Rows"].value_label.text()) > 0
     assert int(page.cards["Issues Logged"].value_label.text()) > 0
     click_button(page, "Generate Progress Report")
     wait_for_background_tasks()

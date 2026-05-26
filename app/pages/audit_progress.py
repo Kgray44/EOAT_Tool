@@ -36,14 +36,21 @@ class AuditProgressPage(QWidget):
         layout.addLayout(buttons)
 
         grid = QGridLayout()
-        for index, key in enumerate(["Physically Audited", "Compatible", "Covered", "Remaining", "Opportunities", "Open Actions"]):
+        for index, key in enumerate(
+            [
+                "Physical Audit Rows",
+                "Audited Required Relationships",
+                "Compatible Relationships",
+                "Total Covered Relationships",
+                "Remaining Relationships",
+                "Compatibility Opportunities",
+                "Open Actions",
+                "Issues Logged",
+            ]
+        ):
             card = StatusCard(key, "Not checked")
             self.cards[key] = card
             grid.addWidget(card, index // 3, index % 3)
-        self.cards["EOATs Audited"] = StatusCard("EOATs Audited", "Not checked")
-        self.cards["Issues Logged"] = StatusCard("Issues Logged", "Not checked")
-        grid.addWidget(self.cards["EOATs Audited"], 2, 0)
-        grid.addWidget(self.cards["Issues Logged"], 2, 1)
         layout.addLayout(grid)
 
         tables = QTabWidget()
@@ -74,13 +81,13 @@ class AuditProgressPage(QWidget):
             return
         assert summary is not None
         metrics = summary.metrics
-        self.cards["Physically Audited"].set_value(str(metrics.get("physically_audited_relationships", 0)))
-        self.cards["Compatible"].set_value(str(metrics.get("compatible_relationships", 0)))
-        self.cards["Covered"].set_value(str(metrics.get("total_covered_relationships", 0)))
-        self.cards["Remaining"].set_value(str(metrics.get("remaining_relationships", 0)))
-        self.cards["Opportunities"].set_value(str(metrics.get("compatibility_opportunities_available", 0)))
+        self.cards["Physical Audit Rows"].set_value(str(metrics.get("physical_audit_rows", 0)))
+        self.cards["Audited Required Relationships"].set_value(str(metrics.get("physically_audited_relationships", 0)))
+        self.cards["Compatible Relationships"].set_value(str(metrics.get("compatible_relationships", 0)))
+        self.cards["Total Covered Relationships"].set_value(str(metrics.get("total_covered_relationships", 0)))
+        self.cards["Remaining Relationships"].set_value(str(metrics.get("remaining_relationships", 0)))
+        self.cards["Compatibility Opportunities"].set_value(str(metrics.get("compatibility_opportunities_available", 0)))
         self.cards["Open Actions"].set_value(str(metrics.get("open_action_items_count", 0)))
-        self.cards["EOATs Audited"].set_value(str(metrics.get("audited_eoat_count", 0)))
         self.cards["Issues Logged"].set_value(str(metrics.get("issues_logged_count", 0)))
 
         self._fill_table(self.counts_table, ["Metric", "Count"], [{"Metric": label, "Count": value} for label, value in summary.coverage_summary])
