@@ -11,7 +11,7 @@ from core.audit_compatibility import (
     sync_compatible_rows_from_source,
 )
 from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
-from core.audit_entries import save_audit_entry
+from core.audit_entries import save_audit_entry, save_audit_entry_with_compatibility_autorun
 from core.audit_progress import calculate_audit_progress
 from core.paths import get_press_capacity_file, resolve_project_paths
 from core.workbook_schema import get_expected_headers, get_expected_sheets
@@ -176,6 +176,36 @@ def test_compatibility_entry_skips_audited_and_compatible_duplicates(fake_projec
     assert len(compatible_rows) == 1
     assert compatible_rows[0][SOURCE_AUDIT_ID_FIELD] == "AUD-SOURCE-001"
     workbook.close()
+
+
+def test_save_with_compatibility_autorun_creates_compatible_entries(fake_project):
+    _write_press_capacity(fake_project, [("1, 2", "PN-X", "Part X")])
+
+    result = save_audit_entry_with_compatibility_autorun(
+        fake_project,
+        {
+            "Audit ID": "AUD-AUTORUN-SOURCE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "1",
+            "Tool #": "PN-X",
+            "Part Name/Description": "Part X",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    assert "Audit Save Summary" in result.summary
+    assert "Compatibility Entry Summary" in result.summary
+    assert result.metrics["compatibility_autorun_success"] is True
+    assert result.metrics["compatibility_created"] == 1
+    rows = _inventory_rows(fake_project)
+    compatible = next(row for row in rows if row.get("Press/Machine #") == "2")
+    assert compatible[ENTRY_TYPE_FIELD] == ENTRY_TYPE_COMPATIBLE
+    assert compatible[SOURCE_AUDIT_ID_FIELD] == "AUD-AUTORUN-SOURCE"
 
 
 def test_progress_separates_covered_remaining_and_missing_reasons(fake_project):

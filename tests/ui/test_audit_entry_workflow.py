@@ -2,13 +2,15 @@
 
 import json
 import re
+from collections import Counter
 
 import pytest
 from openpyxl import load_workbook
-from PySide6.QtWidgets import QComboBox, QTextEdit
+from PySide6.QtWidgets import QComboBox, QGroupBox, QTextEdit
 
-from app.pages.audit import AuditPage
+from app.pages.audit import AUDIT_SECTIONS, AUDIT_SECTION_GROUPS, AuditPage
 from core.audit_entries import save_audit_entry
+from core.robot_info import load_robot_info_for_audit_entry, robot_info_workbook_path, upsert_robot_info_from_audit
 from core.workbook_io import row_dicts, workbook_sheet_names
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
@@ -28,6 +30,10 @@ def _set_field(page: AuditPage, field: str, value: str) -> None:
         widget.setPlainText(value)
     else:
         widget.setText(value)
+
+
+def _field_value(page: AuditPage, field: str) -> str:
+    return page._field_value(page.audit_fields[field])
 
 
 def _seed_audit(project_root, audit_id: str, **overrides):
@@ -110,6 +116,8 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     assert saved_row["EOAT Moves"] == "Part"
     assert saved_row["Cup Type/Material"] == "Silicone"
     assert saved_row["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    assert saved_row["# of Grippers"] == "N/A"
+    assert saved_row["Gripper Type"] == "N/A"
     assert saved_row["Gripper Model"] == "N/A"
     assert saved_row["Notes"] == "Complete audit entry from usability test."
     assert "Saved audit entry" in page.result_panel.viewer.toPlainText()
@@ -132,7 +140,9 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     assert optional_row["Cleanroom/Non-Cleanroom"] == "Whiteroom"
     assert optional_row["Cup Type/Material"] == "N/A"
     assert optional_row["Cup Diameter/Size"] == "N/A"
-    assert optional_row["Number of Vacuum Cups"] == "N/A"
+    assert optional_row["Number of Parts Picked"] == "N/A"
+    assert optional_row["# of Grippers"] == "N/A"
+    assert optional_row["Gripper Type"] == "N/A"
     assert optional_row["Connection Type"] == "N/A"
     assert optional_row["Known Issues"] == "Unknown / Not Checked"
     assert optional_row["Drop/Mis-Pick History"] == "Unknown / Not Checked"
@@ -243,6 +253,28 @@ def test_new_audit_defaults_quick_disconnect_fields(qapp, fake_config, fake_proj
     assert page.audit_fields["Pneumatic Quick Disconnect Type"].text() == "PTC"
 
 
+def test_part_present_detection_yes_autofills_sensor_fields(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    _set_field(page, "Part-Present Detection Present?", "Yes")
+
+    assert page.audit_fields["Sensor Type"].text() == "Reed Switch"
+    assert page.audit_fields["Sensor Brand/Model"].text() == "SMC"
+
+
+def test_part_present_detection_autofill_preserves_custom_sensor_values(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    _set_field(page, "Sensor Type", "Photoelectric")
+    _set_field(page, "Sensor Brand/Model", "Keyence PX")
+    _set_field(page, "Part-Present Detection Present?", "Yes")
+
+    assert page.audit_fields["Sensor Type"].text() == "Photoelectric"
+    assert page.audit_fields["Sensor Brand/Model"].text() == "Keyence PX"
+
+
 def test_existing_audit_load_preserves_saved_quick_disconnect_fields(qapp, fake_config, fake_project, frozen_project_date):
     original = _seed_audit(
         fake_project,
@@ -267,7 +299,7 @@ def test_connection_type_smart_defaults_changeover_difficulty_when_unset(qapp, f
     page.show()
 
     _set_field(page, "Connection Type", "ATI")
-    assert page.audit_fields["Changeover Difficulty"].currentText() == "Easy"
+    assert page.audit_fields["Changeover Difficulty"].currentText() == "Low"
 
     second_page = AuditPage(fake_config)
     second_page.show()
@@ -424,7 +456,7 @@ def test_duplicate_audit_creates_new_unsaved_copy_and_saves_without_overwriting_
     assert page.audit_fields["Connection Type"].currentText() == original["Connection Type"]
     assert page.audit_fields["Cleanroom/Non-Cleanroom"].currentText() == original["Cleanroom/Non-Cleanroom"]
     assert page.audit_fields["Cup Type/Material"].text() == original["Cup Type/Material"]
-    assert page.audit_fields["Gripper Model"].text() == ""
+    assert _field_value(page, "Gripper Model") == ""
     assert page.audit_fields["Gripper Size"].text() == ""
     assert page.audit_fields["Photo Folder/Link"].text() == ""
     assert "new unsaved" in page.lookup_note_label.text()
@@ -442,6 +474,8 @@ def test_duplicate_audit_creates_new_unsaved_copy_and_saves_without_overwriting_
     assert duplicate_row["Connection Type"] == original["Connection Type"]
     assert duplicate_row["Cleanroom/Non-Cleanroom"] == original["Cleanroom/Non-Cleanroom"]
     assert duplicate_row["Cup Type/Material"] == original["Cup Type/Material"]
+    assert duplicate_row["# of Grippers"] == "N/A"
+    assert duplicate_row["Gripper Type"] == "N/A"
     assert duplicate_row["Gripper Model"] == "N/A"
     assert duplicate_row["Gripper Size"] == "N/A"
     assert duplicate_row["Photo Folder/Link"] == "N/A"
@@ -466,12 +500,12 @@ def test_load_and_duplicate_audit_with_na_values(qapp, fake_config, fake_project
 
     assert page.audit_fields["Connection Type"].currentText() == ""
     assert page.audit_fields["Known Issues"].toPlainText() == ""
-    assert page.audit_fields["Gripper Model"].text() == ""
+    assert _field_value(page, "Gripper Model") == ""
 
     click_button(page, "Duplicate Audit")
     assert page.audit_fields["Connection Type"].currentText() == ""
     assert page.audit_fields["Known Issues"].toPlainText() == ""
-    assert page.audit_fields["Gripper Model"].text() == ""
+    assert _field_value(page, "Gripper Model") == ""
     duplicate_id = page.audit_fields["Audit ID"].text()
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
@@ -480,6 +514,8 @@ def test_load_and_duplicate_audit_with_na_values(qapp, fake_config, fake_project
     duplicate_row = next(row for row in rows if row["Audit ID"] == duplicate_id)
     assert duplicate_row["Connection Type"] == "N/A"
     assert duplicate_row["Known Issues"] == "N/A"
+    assert duplicate_row["# of Grippers"] == "N/A"
+    assert duplicate_row["Gripper Type"] == "N/A"
     assert duplicate_row["Gripper Model"] == "N/A"
     assert duplicate_row["Gripper Size"] == "N/A"
 
@@ -494,7 +530,7 @@ def test_loaded_na_field_displays_blank_and_can_be_filled(qapp, fake_config, fak
 
     assert page.audit_fields["EOAT Moves"].currentText() == "Both"
     assert page.audit_fields["Known Issues"].toPlainText() == ""
-    assert page.audit_fields["Gripper Model"].text() == ""
+    assert _field_value(page, "Gripper Model") == ""
 
     _set_field(page, "Known Issues", "Added after review.")
     _set_field(page, "Gripper Model", "Zimmer GPP")
@@ -505,6 +541,61 @@ def test_loaded_na_field_displays_blank_and_can_be_filled(qapp, fake_config, fak
     updated_row = next(row for row in rows if row["Audit ID"] == original["Audit ID"])
     assert updated_row["Known Issues"] == "Added after review."
     assert updated_row["Gripper Model"] == "N/A"
+
+
+def test_gripper_model_workbook_values_load_as_friendly_labels(qapp, fake_config, fake_project, frozen_project_date):
+    for audit_id, workbook_value, expected_ui_value in [
+        ("AUD-GRIPPER-LOAD-LARGE", "MHZL2-16D", "Large Double Gripper"),
+        ("AUD-GRIPPER-LOAD-SMALL", "MHZL2-10S", "Small Double Gripper"),
+        ("AUD-GRIPPER-LOAD-CUSTOM", "CUSTOM-GRIP-42", "CUSTOM-GRIP-42"),
+        ("AUD-GRIPPER-LOAD-NA", "N/A", ""),
+    ]:
+        result = save_audit_entry(
+            fake_project,
+            {
+                "Audit ID": audit_id,
+                "Audit Date": "2026-05-18",
+                "Auditor": "KG",
+                "Plant/Area": "Plant 4",
+                "Press/Machine #": f"Press {audit_id}",
+                "Robot Type": "Wittmann R9",
+                "EOAT Type": "Mechanical / Gripper",
+                "# of Grippers": "2",
+                "Gripper Type": "Double Pressure",
+                "Gripper Model": workbook_value,
+                "Status": "In Progress",
+            },
+        )
+        assert result.success, result.errors
+
+        page = AuditPage(fake_config)
+        page.show()
+        page.load_audit_id_edit.setText(audit_id)
+        click_button(page, "Load Existing Audit ID")
+
+        assert _field_value(page, "Gripper Model") == expected_ui_value
+
+
+def test_vacuum_only_audit_loads_stale_gripper_values_as_blank(qapp, fake_config, fake_project, frozen_project_date):
+    original = _seed_audit(fake_project, "AUD-VACUUM-STALE-GRIPPER-001")
+    workbook_path = fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    row_number = next(row for row in range(2, ws.max_row + 1) if ws.cell(row=row, column=headers.index("Audit ID") + 1).value == original["Audit ID"])
+    ws.cell(row=row_number, column=headers.index("# of Grippers") + 1).value = "2"
+    ws.cell(row=row_number, column=headers.index("Gripper Type") + 1).value = "Double Pressure"
+    ws.cell(row=row_number, column=headers.index("Gripper Model") + 1).value = "MHZL2-16D"
+    workbook.save(workbook_path)
+    workbook.close()
+
+    page = AuditPage(fake_config)
+    page.show()
+    page.load_existing_audit(original["Audit ID"])
+
+    assert _field_value(page, "# of Grippers") == ""
+    assert _field_value(page, "Gripper Type") == ""
+    assert _field_value(page, "Gripper Model") == ""
 
 
 def test_load_existing_audit_defaults_to_empty_only_and_preserves_edits_when_switching_views(qapp, fake_config, fake_project, frozen_project_date):
@@ -598,7 +689,7 @@ def test_empty_only_info_count_matches_visible_fields_and_ignores_hidden_irrelev
             "Electrical Quick Disconnect Type": "",
             "Cup Type/Material": "",
             "Cup Diameter/Size": "",
-            "Number of Vacuum Cups": "",
+            "Number of Parts Picked": "",
         },
     )
     page = AuditPage(fake_config)
@@ -659,7 +750,7 @@ def test_loaded_blank_workbook_values_display_blank_and_save_na(qapp, fake_confi
 
     assert page.audit_fields["EOAT Moves"].currentText() == ""
     assert page.audit_fields["Known Issues"].toPlainText() == ""
-    assert page.audit_fields["Gripper Model"].text() == ""
+    assert _field_value(page, "Gripper Model") == ""
 
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
@@ -683,6 +774,8 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     _set_field(page, "Connection Type", "ATI")
     _set_field(page, "Cup Type/Material", "Nitrile")
     _set_field(page, "Cup Diameter/Size", "20 mm")
+    _set_field(page, "# of Grippers", "2")
+    _set_field(page, "Gripper Type", "Double Pressure")
     _set_field(page, "Gripper Model", "Zimmer GPP")
     _set_field(page, "Gripper Size", "25 mm")
     _set_field(page, "EOAT Type", "Mechanical / Gripper")
@@ -696,6 +789,8 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     assert row["EOAT Type"] == "Mechanical / Gripper"
     assert row["Cup Type/Material"] == "N/A"
     assert row["Cup Diameter/Size"] == "N/A"
+    assert row["# of Grippers"] == "2"
+    assert row["Gripper Type"] == "Double Pressure"
     assert row["Gripper Model"] == "Zimmer GPP"
     assert row["Gripper Size"] == "25 mm"
 
@@ -761,4 +856,145 @@ def test_manual_audit_id_change_saves_new_row_and_existing_id_collision_is_block
     headers = set(rows[0].keys())
     assert "Setup ID" not in headers
     assert "Tool-Press Map" not in workbook_sheet_names(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx")
+
+
+def test_pneumatic_circuits_tab_groups_fields_defaults_and_tag_buttons(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    tab_titles = [page.audit_section_tabs.tabText(index) for index in range(page.audit_section_tabs.count())]
+    assert "Pneumatic Circuits" in tab_titles
+    group_titles = {group.title() for group in page.findChildren(QGroupBox)}
+    assert {"EOAT Side", "Robot Side"}.issubset(group_titles)
+    for field in [
+        "EOAT Vacuum Circuits",
+        "EOAT Pressure Circuits",
+        "EOAT Interchangeable Circuits",
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+    ]:
+        assert field in page.audit_fields
+        assert field in page._field_tag_buttons
+    assert page.audit_fields["EOAT Interchangeable Circuits"].text() == "0"
+    assert page.audit_fields["Robot Interchangeable Circuits"].text() == "0"
+
+
+def test_audit_form_uses_grouped_panels_without_losing_fields(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    tab_titles = [page.audit_section_tabs.tabText(index) for index in range(page.audit_section_tabs.count())]
+    assert tab_titles == list(AUDIT_SECTIONS)
+
+    expected_fields = [field for fields in AUDIT_SECTIONS.values() for field in fields]
+    grouped_fields = [field for groups in AUDIT_SECTION_GROUPS.values() for _group_title, fields in groups for field in fields]
+    assert Counter(expected_fields) == Counter(grouped_fields)
+    assert set(page.audit_fields) == set(expected_fields)
+
+    group_titles = {group.title() for group in page.findChildren(QGroupBox)}
+    expected_group_titles = {group_title for groups in AUDIT_SECTION_GROUPS.values() for group_title, _fields in groups}
+    assert expected_group_titles.issubset(group_titles)
+
+    for field in expected_fields:
+        assert field in page._field_tag_buttons
+        assert field in page._audit_field_rows
+        assert field in page._audit_field_group_keys
+
+
+def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, fake_project, frozen_project_date):
+    page = AuditPage(fake_config)
+    page.show()
+    audit_id = page.audit_fields["Audit ID"].text()
+    values = {
+        "Press/Machine #": "Press 212",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "EOAT Vacuum Circuits": "2",
+        "EOAT Pressure Circuits": "1",
+        "EOAT Interchangeable Circuits": "0",
+        "Robot Vacuum Circuits": "3",
+        "Robot Pressure Circuits": "2",
+        "Robot Interchangeable Circuits": "0",
+    }
+    for field, value in values.items():
+        _set_field(page, field, value)
+
+    result = page._save_audit_workflow(
+        {field: page._field_value(widget) for field, widget in page.audit_fields.items()},
+        allow_update=False,
+        create_followup_action=False,
+    )
+
+    assert result.success, result.errors
+    assert "Robot Info Summary" in result.summary
+    assert "Updated Robot_Info.xlsx for Machine Press 212" in result.summary
+    assert robot_info_workbook_path(fake_project).exists()
+    robot_info = load_robot_info_for_audit_entry(
+        fake_project,
+        {
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 212",
+            "Robot Type": "Wittmann R9",
+        },
+    )
+    assert robot_info is not None
+    assert robot_info["Robot Vacuum Circuits"] == 3
+    rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
+    saved_row = next(row for row in rows if row["Audit ID"] == audit_id)
+    assert saved_row["EOAT Vacuum Circuits"] == "2"
+    assert "Robot Vacuum Circuits" not in saved_row
+
+
+def test_load_existing_audit_restores_eoat_and_robot_pneumatic_fields(qapp, fake_config, fake_project):
+    entry = _seed_audit(
+        fake_project,
+        "AUD-PNEUMATIC-LOAD-001",
+        **{
+            "Press/Machine #": "Press 88",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "EOAT Vacuum Circuits": "2",
+            "EOAT Pressure Circuits": "1",
+            "EOAT Interchangeable Circuits": "0",
+        },
+    )
+    assert upsert_robot_info_from_audit(
+        fake_project,
+        {
+            **entry,
+            "Robot Vacuum Circuits": "4",
+            "Robot Pressure Circuits": "3",
+            "Robot Interchangeable Circuits": "0",
+        },
+    ).success
+    page = AuditPage(fake_config)
+    page.show()
+
+    page.load_existing_audit("AUD-PNEUMATIC-LOAD-001")
+
+    assert page.audit_fields["EOAT Vacuum Circuits"].text() == "2"
+    assert page.audit_fields["EOAT Pressure Circuits"].text() == "1"
+    assert page.audit_fields["EOAT Interchangeable Circuits"].text() == "0"
+    assert page.audit_fields["Robot Vacuum Circuits"].text() == "4"
+    assert page.audit_fields["Robot Pressure Circuits"].text() == "3"
+    assert page.audit_fields["Robot Interchangeable Circuits"].text() == "0"
+
+
+def test_pneumatic_target_navigation_selects_pneumatic_tab(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    page.focus_annotation_target(
+        {
+            "target_type": "audit_field",
+            "audit_id": "AUD-NAV-PNEUMATIC-001",
+            "field_label": "Robot Pressure Circuits",
+            "field_key": "Robot Pressure Circuits",
+        }
+    )
+
+    current_title = page.audit_section_tabs.tabText(page.audit_section_tabs.currentIndex())
+    assert current_title == "Pneumatic Circuits"
+    assert "Target field: Robot Pressure Circuits" in page.result_panel.viewer.toPlainText()
 

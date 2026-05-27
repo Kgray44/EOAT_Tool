@@ -22,18 +22,22 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
     vacuum = {"EOAT Type": "Vacuum"}
     assert field_applies(vacuum, "Cup Type/Material")
     assert not field_applies(vacuum, "Gripper Model")
+    assert not field_applies(vacuum, "# of Grippers")
 
     mechanical = {"EOAT Type": "Mechanical / Gripper"}
     assert field_applies(mechanical, "Gripper Model")
+    assert field_applies(mechanical, "# of Grippers")
     assert not field_applies(mechanical, "Cup Type/Material")
 
     hybrid = {"EOAT Type": "Hybrid"}
     assert field_applies(hybrid, "Cup Type/Material")
     assert field_applies(hybrid, "Gripper Model")
+    assert field_applies(hybrid, "# of Grippers")
 
     unknown = {"EOAT Type": "Unknown / Needs Review"}
     assert field_applies(unknown, "Cup Type/Material")
-    assert field_applies(unknown, "Gripper Model")
+    assert not field_applies(unknown, "Gripper Model")
+    assert not field_applies(unknown, "# of Grippers")
 
     result = save_audit_entry(
         fake_project,
@@ -46,6 +50,8 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
             "Tool #": "DEMO-PN-1200",
             "Robot Type": "Wittmann R9",
             "EOAT Type": "Vacuum",
+            "# of Grippers": "2",
+            "Gripper Type": "Single Pressure",
             "Gripper Model": "STALE-GRIPPER",
             "Gripper Size": "25 mm",
             "Status": "In Progress",
@@ -55,6 +61,8 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
     assert result.success, result.errors
     assert result.metrics["fields_auto_set_to_na"] >= 2
     loaded = load_audit_entry(fake_project, "AUD-TRUTH-VACUUM")
+    assert loaded["# of Grippers"] == "N/A"
+    assert loaded["Gripper Type"] == "N/A"
     assert loaded["Gripper Model"] == "N/A"
     assert loaded["Gripper Size"] == "N/A"
     health = validate_project_foundation(fake_project)
@@ -136,8 +144,7 @@ def test_compatible_rows_validate_differently_from_physical_audits(fake_project)
             "Tool #": "DEMO-PN-0170",
         }
     )
-    assert "Missing required field: Source Audit ID" in errors
-    assert "Missing required field: Compatibility Source" in errors
+    assert not errors
 
 
 def test_physical_audit_blank_tool_number_is_high_priority_warning(fake_project):

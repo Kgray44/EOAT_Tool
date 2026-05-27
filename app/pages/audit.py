@@ -2,16 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import time
 
 try:
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtGui import QIntValidator
     from PySide6.QtWidgets import (
         QCheckBox,
         QComboBox,
         QFormLayout,
+        QGroupBox,
         QHBoxLayout,
         QLabel,
         QLineEdit,
+        QMessageBox,
         QPushButton,
         QScrollArea,
         QTableWidget,
@@ -22,11 +26,16 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    Qt = None
-    QCheckBox = QComboBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QScrollArea = QTableWidget = QTableWidgetItem = QTabWidget = QTextEdit = QVBoxLayout = QWidget = None
+    Qt = QTimer = None
+    QIntValidator = None
+    QCheckBox = QComboBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QScrollArea = QTableWidget = QTableWidgetItem = QTabWidget = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
+from app.widgets.field_tag_button import FieldTagButton, FieldTagDialog
 from app.widgets.tool_run_panel import ToolRunPanel
+from core.annotations.service import AnnotationService
+from core.annotations.tag_colors import TAG_COLOR_PALETTE, highest_priority_tag
+from core.annotations.targets import target_id_for
 from core.audit_compatibility import (
     MASTER_MACHINE_FIELDS,
     build_compatibility_candidates,
@@ -41,20 +50,34 @@ from core.audit_entries import (
     AUDIT_DROPDOWNS,
     CUP_TYPE_DEFAULT,
     DOCUMENTATION_PHOTO_DEFAULT_FIELDS,
+    EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
     NA_VALUE,
+    NUMBER_OF_PARTS_PICKED_FIELD,
+    PART_PRESENT_DETECTION_FIELD,
+    PART_PRESENT_SENSOR_DEFAULTS,
     SENSOR_ELECTRICAL_FIELDS,
     audit_field_default,
     cup_type_default_applies,
     generate_audit_id,
     load_audit_entry,
-    save_audit_entry,
+    part_present_sensor_value_allows_default,
+    save_audit_entry_with_compatibility_autorun,
 )
-from core.audit_field_rules import field_applies
+from core.audit_field_rules import PNEUMATIC_CIRCUIT_FIELDS, field_applies
+from core.gripper_fields import (
+    GRIPPER_COUNT_FIELD,
+    GRIPPER_MODEL_FIELD,
+    GRIPPER_MODEL_PRESET_LABELS,
+    GRIPPER_TYPE_FIELD,
+    GRIPPER_TYPE_VALUES,
+    gripper_model_to_ui,
+)
 from core.interview_entries import INTERVIEW_QUESTIONS, generate_interview_id, save_interview_entry
 from core.logging import log_activity_event
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.press_lookup import PressLookupResult, lookup_machine
+from core.robot_info import ROBOT_INFO_SHEET, load_robot_info_for_audit_entry, upsert_robot_info_from_audit
 
 CLEANROOM_DEFAULT = "Whiteroom"
 RELIABILITY_UNKNOWN_DEFAULT_FIELDS = {
@@ -62,11 +85,30 @@ RELIABILITY_UNKNOWN_DEFAULT_FIELDS = {
     "Drop/Mis-Pick History",
     "Maintenance Frequency",
 }
+PNEUMATIC_CIRCUITS_SECTION = "Pneumatic Circuits"
+EOAT_PNEUMATIC_FIELDS = [
+    "EOAT Vacuum Circuits",
+    "EOAT Pressure Circuits",
+    EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
+]
+ROBOT_PNEUMATIC_FIELDS = [
+    "Robot Vacuum Circuits",
+    "Robot Pressure Circuits",
+    "Robot Interchangeable Circuits",
+]
+ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD = "Robot Interchangeable Circuits"
+GRIPPER_UI_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD}
 
 
-def workbook_to_ui_value(value) -> str:
+def workbook_to_ui_value(value, field: str = "") -> str:
     text = "" if value is None else str(value)
-    return "" if text.strip().upper() == NA_VALUE else text
+    if text.strip().upper() == NA_VALUE:
+        return ""
+    if field == GRIPPER_MODEL_FIELD:
+        return gripper_model_to_ui(text)
+    if field == GRIPPER_TYPE_FIELD and text.strip() not in GRIPPER_TYPE_VALUES:
+        return ""
+    return text
 
 
 def _is_empty_workbook_value(value) -> bool:
@@ -113,15 +155,19 @@ AUDIT_SECTIONS = {
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
+        NUMBER_OF_PARTS_PICKED_FIELD,
+        GRIPPER_COUNT_FIELD,
+        GRIPPER_TYPE_FIELD,
+        GRIPPER_MODEL_FIELD,
+        "Gripper Size",
         "Cup Type/Material",
         "Cup Diameter/Size",
-        "Gripper Model",
-        "Gripper Size",
-        "Number of Vacuum Cups",
-        "Gripper Type",
         "Vacuum Generator Type",
-        "Vacuum Zones",
         "Estimated EOAT Weight",
+    ],
+    PNEUMATIC_CIRCUITS_SECTION: [
+        *EOAT_PNEUMATIC_FIELDS,
+        *ROBOT_PNEUMATIC_FIELDS,
     ],
     "Sensors and Detection": [
         "Sensors Present?",
@@ -163,6 +209,81 @@ AUDIT_SECTIONS = {
         "Notes",
     ],
 }
+
+AUDIT_SECTION_GROUPS = {
+    "Audit Header": [
+        ("Audit Identity", ["Audit ID", "Audit Date", "Auditor"]),
+        ("Location / Machine", ["Plant/Area", "Press/Machine #"]),
+        ("Audit Status", ["Status", "Priority", "Follow-Up Needed"]),
+    ],
+    "Machine / Robot / Tool Context": [
+        ("Robot Information", ["Robot Type", "Robot Model/Controller"]),
+        ("Tool / Part Information", ["Tool #", "Part Family", "Part Name/Description"]),
+        ("Production Environment", ["Cleanroom/Non-Cleanroom"]),
+    ],
+    "EOAT Type and Tooling": [
+        ("EOAT Classification", ["EOAT Type", "EOAT Moves", "Connection Type"]),
+        ("Part Pickup", [NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, "Gripper Size"]),
+        ("Vacuum / Cup Details", ["Cup Type/Material", "Cup Diameter/Size", "Vacuum Generator Type"]),
+        ("Physical Details", ["Estimated EOAT Weight"]),
+    ],
+    PNEUMATIC_CIRCUITS_SECTION: [
+        ("EOAT Side", EOAT_PNEUMATIC_FIELDS),
+        ("Robot Side", ROBOT_PNEUMATIC_FIELDS),
+    ],
+    "Sensors and Detection": [
+        ("Detection Presence", ["Sensors Present?", "Vacuum Confirmation Present?", "Part-Present Detection Present?"]),
+        ("Sensor Details", ["Sensor Type", "Sensor Brand/Model"]),
+        ("Electrical / Wiring", ["Electrical/Wiring Present?"]),
+    ],
+    "Connections / Routing / Mechanical": [
+        ("Quick Disconnects", ["Quick Disconnects Present?", "Pneumatic Quick Disconnect Type", "Electrical Quick Disconnect Type"]),
+        ("Tubing / Routing", ["Tubing Condition", "Tubing Routing Notes"]),
+        ("Cable Management", ["Cable Management Condition"]),
+        ("Mechanical Condition", ["Mounting Hardware Condition", "EOAT Alignment Condition", "Fastener/Locking Hardware Present?"]),
+    ],
+    "Performance / Reliability / Maintenance": [
+        ("Known Problems", ["Known Issues", "Drop/Mis-Pick History"]),
+        ("Maintenance", ["Maintenance Frequency"]),
+        ("Production Impact", ["Cycle Time Concern?", "Scrap/Quality Concern?"]),
+        ("Changeover", ["Changeover Difficulty"]),
+    ],
+    "Documentation / Photos": [
+        ("Documentation Status", ["Drawing/CAD Available?", "BOM Available?", "Process Binder Complete?"]),
+        ("Photo Evidence", ["Photos Taken?", "Photo Folder/Link"]),
+        ("Spare Parts", ["Spare Parts Identified?"]),
+    ],
+    "Pilot / Final Notes": [
+        ("Pilot Evaluation", ["Pilot Candidate?"]),
+        ("Final Notes", ["Notes"]),
+    ],
+}
+
+FIELD_ANNOTATION_TINTS = {
+    "yellow": "#fefce8",
+    "red": "#fef2f2",
+    "green": "#f0fdf4",
+    "blue": "#eff6ff",
+    "purple": "#faf5ff",
+    "orange": "#fff7ed",
+    "gray": "#f9fafb",
+    "teal": "#f0fdfa",
+    "pink": "#fdf2f8",
+}
+
+
+def audit_section_for_field(field: str) -> str | None:
+    normalized = str(field or "").strip()
+    if not normalized:
+        return None
+    for section, fields in AUDIT_SECTIONS.items():
+        if normalized in fields:
+            return section
+    folded = normalized.casefold()
+    for section, fields in AUDIT_SECTIONS.items():
+        if any(item.casefold() == folded for item in fields):
+            return section
+    return None
 
 UNKNOWN_DEFAULT_FIELDS = {
     "Sensors Present?",
@@ -231,13 +352,26 @@ class AuditPage(QWidget):
         self._changeover_user_modified = False
         self._generated_audit_ids: set[str] = set()
         self._machine_lookup_extra_note = ""
+        self._part_present_autofilled_sensor_fields: set[str] = set()
+        self.annotation_service = AnnotationService(config.project_root)
+        self._field_tag_buttons = {}
+        self._audit_field_rows = {}
+        self._audit_field_sections = {}
+        self._audit_field_scroll_areas = {}
+        self._audit_field_group_keys = {}
+        self._audit_field_visibility_state = {}
+        self._audit_group_boxes = {}
+        self._audit_group_fields = {}
+        self._navigation_highlight_row = None
+        self._suppress_clear_confirm_this_session = False
 
         layout = QVBoxLayout(self)
         heading = QLabel("EOAT Audit")
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
 
-        tabs = QTabWidget()
+        self.main_tabs = QTabWidget()
+        tabs = self.main_tabs
         tabs.addTab(self._build_audit_tab(), "Audit Entry")
         tabs.addTab(self._build_compatibility_tab(), "Compatibility Entry")
         tabs.addTab(self._build_interview_tab(), "Interview Notes")
@@ -258,6 +392,8 @@ class AuditPage(QWidget):
         return combo
 
     def _field_value(self, widget) -> str:
+        if widget is None:
+            return ""
         if isinstance(widget, QComboBox):
             return widget.currentText().strip()
         if isinstance(widget, QTextEdit):
@@ -347,24 +483,28 @@ class AuditPage(QWidget):
         self.machine_audit_match_combo.activated.connect(self._on_machine_audit_match_selected)
         outer.addWidget(self.machine_audit_match_combo)
 
-        section_tabs = QTabWidget()
+        self.audit_section_tabs = QTabWidget()
         for title, fields in AUDIT_SECTIONS.items():
-            section_tabs.addTab(self._build_section_tab(fields), title)
-        outer.addWidget(section_tabs, stretch=1)
+            section_tab = self._build_section_tab(fields, section_title=title)
+            self.audit_section_tabs.addTab(section_tab, title)
+        outer.addWidget(self.audit_section_tabs, stretch=1)
 
         self.audit_followup_check = QCheckBox("Create Follow-Up Action")
         outer.addWidget(self.audit_followup_check)
 
         button_row = QHBoxLayout()
+        suggestions_button = QPushButton("Review Suggestions")
+        suggestions_button.clicked.connect(self.review_annotation_suggestions)
         save_button = QPushButton("Save Audit Entry")
         save_button.clicked.connect(self.save_audit)
         clear_button = QPushButton("Clear Form")
-        clear_button.clicked.connect(self.clear_audit_form)
+        clear_button.clicked.connect(lambda: self.clear_audit_form(confirm=True))
+        button_row.addWidget(suggestions_button)
         button_row.addWidget(save_button)
         button_row.addWidget(clear_button)
         outer.addLayout(button_row)
 
-        self.clear_audit_form()
+        self.clear_audit_form(confirm=False, clear_summary=False)
         self.refresh_audit_selector()
         return container
 
@@ -418,30 +558,62 @@ class AuditPage(QWidget):
         self.refresh_compatibility_sources()
         return container
 
-    def _build_section_tab(self, fields: list[str]) -> QWidget:
+    def _build_section_tab(self, fields: list[str], *, section_title: str = "") -> QWidget:
         content = QWidget()
-        form_layout = QFormLayout(content)
-        for field in fields:
-            widget = self._widget_for_audit_field(field)
-            self.audit_fields[field] = widget
-            if field == "Press/Machine #":
-                label = QLabel(field)
-                machine_row = QHBoxLayout()
-                machine_row.addWidget(widget, stretch=1)
-                lookup_button = QPushButton("Lookup")
-                lookup_button.clicked.connect(self.run_machine_lookup)
-                machine_row.addWidget(lookup_button)
-                form_layout.addRow(label, machine_row)
-                self._audit_field_labels[field] = label
-            else:
-                label = QLabel(field)
-                form_layout.addRow(label, widget)
-                self._audit_field_labels[field] = label
-
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setSpacing(10)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        groups = AUDIT_SECTION_GROUPS.get(section_title) or [(section_title or "Fields", fields)]
+        for group_title, group_fields in groups:
+            group = self._build_audit_field_group(group_title, group_fields, scroll, section_title=section_title)
+            content_layout.addWidget(group)
+        content_layout.addStretch(1)
+
         scroll.setWidget(content)
         return scroll
+
+    def _build_audit_field_group(self, group_title: str, fields: list[str], scroll: QScrollArea, *, section_title: str) -> QGroupBox:
+        group = QGroupBox(group_title)
+        group.setObjectName("AuditFieldGroup")
+        group_layout = QFormLayout(group)
+        group_layout.setContentsMargins(10, 8, 10, 10)
+        group_layout.setHorizontalSpacing(12)
+        group_layout.setVerticalSpacing(6)
+        group_key = f"{section_title}::{group_title}"
+        self._audit_group_boxes[group_key] = group
+        self._audit_group_fields[group_key] = list(fields)
+        for field in fields:
+            self._add_audit_field_row(group_layout, field, scroll, section_title=section_title, group_key=group_key)
+        return group
+
+    def _add_audit_field_row(self, form_layout: QFormLayout, field: str, scroll: QScrollArea, *, section_title: str, group_key: str = "") -> None:
+        widget = self._widget_for_audit_field(field)
+        self.audit_fields[field] = widget
+        label = QLabel(field)
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(5)
+        if field == "Press/Machine #":
+            row_layout.addWidget(widget, stretch=1)
+            lookup_button = QPushButton("Lookup")
+            lookup_button.clicked.connect(self.run_machine_lookup)
+            row_layout.addWidget(lookup_button)
+        else:
+            row_layout.addWidget(widget, stretch=1)
+        tag_button = FieldTagButton()
+        tag_button.clicked.connect(lambda _checked=False, field_name=field: self.open_field_tag_dialog(field_name))
+        row_layout.addWidget(tag_button)
+        form_layout.addRow(label, row_widget)
+        self._field_tag_buttons[field] = tag_button
+        self._audit_field_rows[field] = row_widget
+        self._audit_field_labels[field] = label
+        self._audit_field_sections[field] = section_title
+        self._audit_field_scroll_areas[field] = scroll
+        self._audit_field_group_keys[field] = group_key
+        self._audit_field_visibility_state[field] = True
 
     def _widget_for_audit_field(self, field: str):
         if field in {"Known Issues", "Drop/Mis-Pick History", "Tubing Routing Notes", "Notes", "Part Name/Description"}:
@@ -456,6 +628,13 @@ class AuditPage(QWidget):
             return edit
         if field == "Robot Type":
             return self._combo(AUDIT_DROPDOWNS.get("Robot Type", []), editable=True)
+        if field == GRIPPER_MODEL_FIELD:
+            return self._combo(GRIPPER_MODEL_PRESET_LABELS, editable=True)
+        if field in PNEUMATIC_CIRCUIT_FIELDS or field in {NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD}:
+            edit = self._line()
+            if QIntValidator is not None:
+                edit.setValidator(QIntValidator(0, 9999, edit))
+            return edit
         if field in {"Sensors Present?", "Cycle Time Concern?", "Scrap/Quality Concern?", "Drawing/CAD Available?", "BOM Available?"}:
             combo = self._combo(AUDIT_DROPDOWNS["YesNoUnknown"], editable=False)
             if field == "Sensors Present?":
@@ -465,8 +644,11 @@ class AuditPage(QWidget):
             combo = self._combo(AUDIT_DROPDOWNS.get(field, AUDIT_DROPDOWNS["YesNoUnknown"]), editable=False)
             combo.currentTextChanged.connect(self._on_electrical_wiring_present_changed)
             return combo
-        if field in {"Vacuum Confirmation Present?", "Part-Present Detection Present?"}:
-            return self._combo(AUDIT_DROPDOWNS["YesNoUnknownNA"], editable=False)
+        if field in {"Vacuum Confirmation Present?", PART_PRESENT_DETECTION_FIELD}:
+            combo = self._combo(AUDIT_DROPDOWNS["YesNoUnknownNA"], editable=False)
+            if field == PART_PRESENT_DETECTION_FIELD:
+                combo.currentTextChanged.connect(self._on_part_present_detection_changed)
+            return combo
         if field in {"Fastener/Locking Hardware Present?", "Spare Parts Identified?", "Process Binder Complete?"}:
             return self._combo(AUDIT_DROPDOWNS["YesNoPartialUnknown"], editable=False)
         if field in AUDIT_DROPDOWNS:
@@ -531,7 +713,7 @@ class AuditPage(QWidget):
         if self.load_audit_id_combo.currentData():
             self.load_existing_audit(str(self.load_audit_id_combo.currentData()))
 
-    def generate_new_audit_id(self) -> None:
+    def generate_new_audit_id(self, _checked: bool = False, *, show_message: bool = True) -> None:
         audit_date = self._field_value(self.audit_fields["Audit Date"]) or date.today().isoformat()
         audit_id = generate_audit_id(self.config.project_root, audit_date)
         while audit_id in self._generated_audit_ids:
@@ -555,10 +737,38 @@ class AuditPage(QWidget):
         self.audit_view_mode_combo.blockSignals(False)
         self._update_audit_field_visibility()
         self._set_machine_audit_matches([])
-        if hasattr(self, "result_panel"):
+        self._refresh_field_tag_indicators()
+        if show_message and hasattr(self, "result_panel"):
             self.result_panel.show_text(f"Generated new audit ID {audit_id}. Save will create a new audit row.")
 
-    def clear_audit_form(self) -> None:
+    def clear_audit_form(self, *, confirm: bool = False, clear_summary: bool = True) -> None:
+        if confirm and not self._suppress_clear_confirm_this_session and not self._confirm_clear_audit_form():
+            return
+        self._reset_audit_form_fields(show_generated_message=False)
+        if clear_summary and hasattr(self, "result_panel"):
+            self.result_panel.show_text("")
+
+    def _confirm_clear_audit_form(self) -> bool:
+        box = QMessageBox(self)
+        box.setWindowTitle("Clear Form")
+        box.setText("Clear this form?")
+        box.setInformativeText(
+            "This will erase the current on-screen entries and clear the summary panel.\n"
+            "It will not delete any audit entries already saved to the workbook."
+        )
+        box.setStandardButtons(QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Ok)
+        clear_button = box.button(QMessageBox.StandardButton.Ok)
+        if clear_button is not None:
+            clear_button.setText("Clear Form")
+        checkbox = QCheckBox("Do not ask again this session")
+        box.setCheckBox(checkbox)
+        result = box.exec()
+        accepted = result == QMessageBox.StandardButton.Ok
+        if accepted and checkbox.isChecked():
+            self._suppress_clear_confirm_this_session = True
+        return accepted
+
+    def _reset_audit_form_fields(self, *, show_generated_message: bool = True) -> None:
         self._editing_audit_id = None
         self._current_loaded_audit_id = None
         self._current_audit_mode = "new"
@@ -566,6 +776,7 @@ class AuditPage(QWidget):
         self._duplicated_tool_value = None
         self._loaded_empty_only_fields = None
         self._changeover_user_modified = False
+        self._part_present_autofilled_sensor_fields.clear()
         for widget in self.audit_fields.values():
             self._set_field_value(widget, "")
         self._set_field_value(self.audit_fields["Audit Date"], date.today().isoformat())
@@ -584,6 +795,12 @@ class AuditPage(QWidget):
                 self._set_field_value(self.audit_fields[field], "Unknown / Not Checked")
         if QUICK_DISCONNECTS_PRESENT_FIELD in self.audit_fields:
             self._set_field_value(self.audit_fields[QUICK_DISCONNECTS_PRESENT_FIELD], "Yes")
+        if "Vacuum Generator Type" in self.audit_fields:
+            self._set_field_value(self.audit_fields["Vacuum Generator Type"], "Venturi")
+        if EOAT_INTERCHANGEABLE_CIRCUITS_FIELD in self.audit_fields:
+            self._set_field_value(self.audit_fields[EOAT_INTERCHANGEABLE_CIRCUITS_FIELD], "0")
+        if ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD in self.audit_fields:
+            self._set_field_value(self.audit_fields[ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD], "0")
         if "Electrical/Wiring Present?" in self.audit_fields:
             self._set_field_value(self.audit_fields["Electrical/Wiring Present?"], "Unknown / Not Checked")
         self._apply_quick_disconnect_defaults()
@@ -599,7 +816,8 @@ class AuditPage(QWidget):
             self.lookup_note_label.setText("Enter a machine number to look up robot and part info.")
             self._set_capacity_choices([])
             self._set_machine_audit_matches([])
-        self.generate_new_audit_id()
+        self.generate_new_audit_id(show_message=show_generated_message)
+        self._refresh_field_tag_indicators()
 
     def load_existing_audit(self, audit_id: str | None = None, *, loaded_message: str | None = None) -> None:
         audit_id = audit_id or self._audit_selector_audit_id()
@@ -609,9 +827,17 @@ class AuditPage(QWidget):
             return
         self._set_audit_selector_text(audit_id)
         self._loading_audit = True
+        self._part_present_autofilled_sensor_fields.clear()
         try:
             for field, widget in self.audit_fields.items():
-                self._set_field_value(widget, workbook_to_ui_value(entry.get(field, "")))
+                if field in GRIPPER_UI_FIELDS and not field_applies(entry, field):
+                    self._set_field_value(widget, "")
+                else:
+                    self._set_field_value(widget, workbook_to_ui_value(entry.get(field, ""), field))
+            self._load_robot_info_fields(entry, force=True)
+            for field in ROBOT_PNEUMATIC_FIELDS:
+                if field in self.audit_fields:
+                    entry[field] = self._field_value(self.audit_fields[field])
         finally:
             self._loading_audit = False
         self.audit_view_mode_combo.blockSignals(True)
@@ -648,6 +874,23 @@ class AuditPage(QWidget):
         self._duplicated_press_value = None
         self._duplicated_tool_value = None
         self._changeover_user_modified = False
+        self._refresh_field_tag_indicators()
+
+    def _load_robot_info_fields(self, entry: dict[str, object], *, force: bool) -> bool:
+        robot_info = load_robot_info_for_audit_entry(self.config.project_root, entry)
+        if not robot_info:
+            if ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD in self.audit_fields:
+                widget = self.audit_fields[ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD]
+                if force or not self._field_value(widget):
+                    self._set_field_value(widget, "0")
+            return False
+        for field in ROBOT_PNEUMATIC_FIELDS:
+            if field not in self.audit_fields:
+                continue
+            widget = self.audit_fields[field]
+            if force or not self._field_value(widget):
+                self._set_field_value(widget, workbook_to_ui_value(robot_info.get(field, "")))
+        return True
 
     def duplicate_audit(self) -> None:
         original_press = self._field_value(self.audit_fields["Press/Machine #"])
@@ -682,6 +925,7 @@ class AuditPage(QWidget):
         self.lookup_note_label.setText("Duplicated audit as a new unsaved entry. Adjust Press/Machine # or Tool #, then save.")
         self.result_panel.show_text(f"Duplicated current audit into new unsaved Audit ID {audit_id}. Original audit will not be overwritten.")
         self._update_tooling_visibility(apply_defaults=False)
+        self._refresh_field_tag_indicators()
 
     def _update_tooling_visibility(self, *, apply_defaults: bool = True) -> None:
         if not hasattr(self, "audit_fields") or "EOAT Type" not in self.audit_fields:
@@ -728,6 +972,13 @@ class AuditPage(QWidget):
             return
         self._update_audit_field_visibility()
 
+    def _on_part_present_detection_changed(self, *_args) -> None:
+        if self._loading_audit or self._programmatic_field_update:
+            return
+        if self._field_value(self.audit_fields[PART_PRESENT_DETECTION_FIELD]).lower() == "yes":
+            self._apply_part_present_sensor_autofill()
+        self._update_audit_field_visibility()
+
     def _on_connection_type_changed(self, *_args) -> None:
         if self._loading_audit or self._programmatic_field_update:
             return
@@ -767,7 +1018,7 @@ class AuditPage(QWidget):
             return
         connection_type = self._field_value(self.audit_fields[CONNECTION_TYPE_FIELD]).lower()
         if "ati" in connection_type:
-            self._set_field_value(difficulty_widget, "Easy")
+            self._set_field_value(difficulty_widget, "Low")
         elif "dovetail" in connection_type or "dove tail" in connection_type:
             self._set_field_value(difficulty_widget, "Medium")
 
@@ -782,6 +1033,20 @@ class AuditPage(QWidget):
             widget = self.audit_fields[field]
             if not self._field_value(widget):
                 self._set_field_value(widget, default)
+        if (
+            PART_PRESENT_DETECTION_FIELD in self.audit_fields
+            and self._field_value(self.audit_fields[PART_PRESENT_DETECTION_FIELD]).lower() == "yes"
+        ):
+            self._apply_part_present_sensor_autofill()
+
+    def _apply_part_present_sensor_autofill(self) -> None:
+        for field, default in PART_PRESENT_SENSOR_DEFAULTS.items():
+            if field not in self.audit_fields:
+                continue
+            widget = self.audit_fields[field]
+            if part_present_sensor_value_allows_default(self._field_value(widget), default):
+                self._set_field_value(widget, default)
+                self._part_present_autofilled_sensor_fields.add(field)
 
     def _empty_only_mode_active(self) -> bool:
         return (
@@ -791,12 +1056,192 @@ class AuditPage(QWidget):
         )
 
     def _set_audit_field_visible(self, field: str, visible: bool) -> None:
+        self._audit_field_visibility_state[field] = visible
         widget = self.audit_fields.get(field)
         if widget is not None:
             widget.setVisible(visible)
+        row = self._audit_field_rows.get(field)
+        if row is not None:
+            row.setVisible(visible)
         label = self._audit_field_labels.get(field)
         if label is not None:
             label.setVisible(visible)
+        self._refresh_audit_group_visibility(field)
+
+    def _refresh_audit_group_visibility(self, field: str) -> None:
+        group_key = self._audit_field_group_keys.get(field)
+        if not group_key:
+            return
+        group = self._audit_group_boxes.get(group_key)
+        if group is None:
+            return
+        group_fields = self._audit_group_fields.get(group_key, [])
+        group.setVisible(any(self._audit_field_visibility_state.get(group_field, True) for group_field in group_fields))
+
+    def _field_tag_target_id(self, field: str) -> str:
+        existing = self.annotation_service.find_audit_field_target(
+            self._field_value(self.audit_fields.get("Audit ID")),
+            field,
+        )
+        if existing is not None:
+            return existing.id
+        return target_id_for(
+            target_type="audit_field",
+            audit_id=self._field_value(self.audit_fields.get("Audit ID")),
+            machine_id=self._field_value(self.audit_fields.get("Press/Machine #")),
+            field_key=field,
+            object_ref="",
+        )
+
+    def _create_or_get_field_tag_target(self, field: str):
+        audit_id = self._field_value(self.audit_fields.get("Audit ID"))
+        machine = self._field_value(self.audit_fields.get("Press/Machine #"))
+        paths = resolve_project_paths(self.config.project_root)
+        workbook_path = paths.robot_info_workbook if field in ROBOT_PNEUMATIC_FIELDS else paths.master_workbook
+        sheet_name = ROBOT_INFO_SHEET if field in ROBOT_PNEUMATIC_FIELDS else "EOAT Inventory"
+        return self.annotation_service.create_or_get_target(
+            "audit_field",
+            target_label=f"{audit_id} / {field}" if audit_id else field,
+            audit_id=audit_id,
+            machine_id=machine,
+            field_key=field,
+            field_label=field,
+            sheet_name=sheet_name,
+            header_name=field,
+            workbook_path=workbook_path,
+        )
+
+    def open_field_tag_dialog(self, field: str) -> None:
+        audit_id = self._field_value(self.audit_fields.get("Audit ID"))
+        if not audit_id:
+            QMessageBox.information(
+                self,
+                "Tag Audit Field",
+                "Generate or save an Audit ID before tagging this field so the annotation can be linked safely.",
+            )
+            return
+        target = self._create_or_get_field_tag_target(field)
+        dialog = FieldTagDialog(
+            self.annotation_service,
+            target,
+            field_label=field,
+            current_value=self._field_value(self.audit_fields[field]),
+            parent=self,
+        )
+        dialog.exec()
+        self._refresh_field_tag_indicators()
+
+    def focus_annotation_target(self, target: dict[str, object]) -> None:
+        field = str(target.get("field_label") or target.get("field_key") or target.get("header_name") or "").strip()
+        audit_id = str(target.get("audit_id") or "").strip()
+        section = audit_section_for_field(field)
+        if hasattr(self, "main_tabs"):
+            self.main_tabs.setCurrentIndex(0)
+        if hasattr(self, "audit_view_mode_combo"):
+            self.audit_view_mode_combo.blockSignals(True)
+            self.audit_view_mode_combo.setCurrentText("Full Audit")
+            self.audit_view_mode_combo.setEnabled(True)
+            self.audit_view_mode_combo.blockSignals(False)
+            self._update_audit_field_visibility()
+        if section and hasattr(self, "audit_section_tabs"):
+            for index in range(self.audit_section_tabs.count()):
+                if self.audit_section_tabs.tabText(index) == section:
+                    self.audit_section_tabs.setCurrentIndex(index)
+                    break
+        if field and field in self.audit_fields:
+            widget = self.audit_fields[field]
+            widget.setFocus(Qt.FocusReason.OtherFocusReason)
+            row = self._audit_field_rows.get(field)
+            scroll = self._audit_field_scroll_areas.get(field)
+            if scroll is not None and row is not None:
+                scroll.ensureWidgetVisible(row, 0, 90)
+            self._show_navigation_highlight(field)
+            widget.setToolTip(f"Target field: {field}")
+        if hasattr(self, "result_panel"):
+            if audit_id and field and section:
+                self.result_panel.show_text(f"Opened {audit_id}. Target field: {field}. Section: {section}.")
+            elif audit_id and field:
+                self.result_panel.show_text(f"Opened {audit_id}. Target field: {field}. Could not determine section.")
+            elif audit_id:
+                self.result_panel.show_text(f"Opened {audit_id}.")
+
+    def _show_navigation_highlight(self, field: str) -> None:
+        self._clear_navigation_highlight()
+        row = self._audit_field_rows.get(field)
+        if row is None:
+            return
+        row.setProperty("previous_navigation_style", row.styleSheet())
+        row.setObjectName("AuditFieldNavigationHighlight")
+        row.setStyleSheet("#AuditFieldNavigationHighlight { border: 2px solid #2563eb; border-radius: 4px; padding: 1px; }")
+        self._navigation_highlight_row = row
+        if QTimer is not None:
+            QTimer.singleShot(3500, self._clear_navigation_highlight)
+
+    def _clear_navigation_highlight(self) -> None:
+        row = self._navigation_highlight_row
+        if row is None:
+            return
+        previous = str(row.property("previous_navigation_style") or "")
+        row.setStyleSheet(previous)
+        row.setProperty("previous_navigation_style", None)
+        self._navigation_highlight_row = None
+
+    def _refresh_field_tag_indicators(self) -> None:
+        if not hasattr(self, "audit_fields"):
+            return
+        audit_id = self._field_value(self.audit_fields.get("Audit ID"))
+        for field, widget in self.audit_fields.items():
+            button = self._field_tag_buttons.get(field)
+            if button is None:
+                continue
+            tags = []
+            notes = []
+            if audit_id:
+                target_id = self._field_tag_target_id(field)
+                tags = self.annotation_service.get_tags_for_target(target_id)
+                notes = self.annotation_service.get_notes_for_target(target_id)
+            tag_names = [str(tag["name"]) for tag in tags]
+            note_subjects = [str(note["subject"]) for note in notes]
+            button.set_annotation_state(tag_names, note_subjects)
+            if tag_names or note_subjects:
+                tooltip_parts = []
+                if tag_names:
+                    tooltip_parts.append("Tags: " + ", ".join(tag_names))
+                if note_subjects:
+                    tooltip_parts.append("Notes: " + ", ".join(note_subjects[:3]))
+                widget.setToolTip("\n".join(tooltip_parts))
+                priority_tag = highest_priority_tag(tags)
+                color_key = str(priority_tag.get("color_key") or "blue") if priority_tag else "blue"
+                color = TAG_COLOR_PALETTE.get(color_key, TAG_COLOR_PALETTE["blue"])
+                tint = FIELD_ANNOTATION_TINTS.get(color_key, "#eff6ff")
+                widget.setStyleSheet(f"border: 1px solid {color.ui_hex}; background: {tint};")
+            else:
+                widget.setToolTip("")
+                widget.setStyleSheet("")
+
+    def _sync_annotation_colors_for_audit(self, audit_id: str) -> None:
+        if not audit_id:
+            return
+        self.annotation_service.sync_tag_colors_to_workbook_for_audit(audit_id)
+
+    def review_annotation_suggestions(self) -> None:
+        entry = {field: self._field_value(widget) for field, widget in self.audit_fields.items()}
+        suggestions = self.annotation_service.get_suggested_annotations(entry)
+        if not suggestions:
+            self.result_panel.show_text("No annotation suggestions for the current audit form.")
+            return
+        lines = ["Suggested Annotations", "---------------------"]
+        for suggestion in suggestions:
+            lines.extend(
+                [
+                    f"Suggested Tag: {suggestion['tag_name']}",
+                    f"Target: {suggestion.get('audit_id') or entry.get('Audit ID') or '(unsaved)'} / {suggestion['field_key']}",
+                    f"Reason: {suggestion['reason']}",
+                    "Use the field tag button to confirm and apply this annotation.",
+                    "",
+                ]
+            )
+        self.result_panel.show_text("\n".join(lines).strip())
 
     def save_audit(self) -> None:
         entry = {field: self._field_value(widget) for field, widget in self.audit_fields.items()}
@@ -806,22 +1251,103 @@ class AuditPage(QWidget):
             self.result_panel,
             "audit_save_entry",
             "Save Audit Entry",
-            lambda: save_audit_entry(
-                self.config.project_root,
-                entry,
-                allow_update=allow_update,
-                create_followup_action=self.audit_followup_check.isChecked(),
-            ),
+            lambda: self._save_audit_workflow(entry, allow_update=allow_update, create_followup_action=self.audit_followup_check.isChecked()),
             on_tool_result=lambda result: self._after_save_audit(result, current_audit_id),
             modifies_files=True,
             workbook_lock=True,
+            progress_text="Saving audit...\nUpdating robot circuit info...\nUpdating compatibility...\nSyncing annotations if needed...",
         )
 
+    def _save_audit_workflow(self, entry: dict[str, str], *, allow_update: bool, create_followup_action: bool):
+        started = time.perf_counter()
+        result = save_audit_entry_with_compatibility_autorun(
+            self.config.project_root,
+            entry,
+            allow_update=allow_update,
+            create_followup_action=create_followup_action,
+        )
+        robot_info_seconds = 0.0
+        if result.success:
+            robot_started = time.perf_counter()
+            robot_result = upsert_robot_info_from_audit(self.config.project_root, entry)
+            robot_info_seconds = time.perf_counter() - robot_started
+            result.summary = self._insert_robot_info_summary(result.summary, robot_result)
+            result.details.extend(robot_result.details)
+            result.files_created = sorted(set([*result.files_created, *robot_result.files_created]))
+            result.files_modified = sorted(set([*result.files_modified, *robot_result.files_modified]))
+            result.metrics["robot_info_save_success"] = robot_result.success
+            result.metrics["robot_info_save_seconds"] = round(robot_info_seconds, 3)
+            if robot_result.success:
+                result.warnings.extend(robot_result.warnings)
+            else:
+                result.warnings.append("Robot_Info.xlsx was not updated. The EOAT audit save still completed.")
+                log_activity_event(
+                    self.config.project_root,
+                    "robot_info_save_failed",
+                    {"audit_id": entry.get("Audit ID", ""), "errors": robot_result.errors, "warnings": robot_result.warnings},
+                )
+        annotation_sync_seconds = 0.0
+        if result.success:
+            audit_id = str(result.metrics.get("audit_id") or entry.get("Audit ID") or "").strip()
+            if audit_id:
+                sync_started = time.perf_counter()
+                sync_result = AnnotationService(self.config.project_root).sync_tag_colors_to_workbook_for_audit(audit_id)
+                annotation_sync_seconds = time.perf_counter() - sync_started
+                result.warnings.extend(str(warning) for warning in sync_result.get("warnings", []))
+                result.files_created = sorted(set([*result.files_created, *[str(path) for path in sync_result.get("files_created", [])]]))
+                result.files_modified = sorted(set([*result.files_modified, *[str(path) for path in sync_result.get("files_modified", [])]]))
+                result.details.append(
+                    "Annotation color sync: "
+                    f"{sync_result.get('synced_count', 0)} of {sync_result.get('target_count', 0)} tagged audit field target(s) "
+                    f"in {annotation_sync_seconds:.2f}s."
+                )
+                result.metrics["annotation_color_sync_targets"] = sync_result.get("target_count", 0)
+                result.metrics["annotation_color_sync_synced"] = sync_result.get("synced_count", 0)
+        total_seconds = time.perf_counter() - started
+        timing = {
+            "audit_save": result.metrics.get("audit_save_seconds"),
+            "robot_info_save": round(robot_info_seconds, 3),
+            "compatibility_autorun": result.metrics.get("compatibility_autorun_seconds"),
+            "annotation_color_sync": round(annotation_sync_seconds, 3),
+            "total": round(total_seconds, 3),
+        }
+        result.metrics["audit_save_timing"] = timing
+        result.duration_seconds = total_seconds
+        result.details.append(
+            "Audit save timing: "
+            f"audit save {timing['audit_save']}s; "
+            f"robot info {timing['robot_info_save']}s; "
+            f"compatibility {timing['compatibility_autorun']}s; "
+            f"annotation sync {timing['annotation_color_sync']}s; "
+            f"total {timing['total']}s."
+        )
+        log_activity_event(self.config.project_root, "audit_save_timing", timing)
+        return result
+
+    def _insert_robot_info_summary(self, summary: str, robot_result) -> str:
+        robot_lines = [
+            "Robot Info Summary",
+            "------------------",
+            robot_result.summary if robot_result.success else "Robot_Info.xlsx was not updated. The EOAT audit save still completed.",
+        ]
+        if robot_result.success:
+            for field in ROBOT_PNEUMATIC_FIELDS:
+                value = robot_result.metrics.get(field.lower().replace(" ", "_"))
+                if value is not None:
+                    robot_lines.append(f"{field}: {value}")
+        elif robot_result.warnings:
+            robot_lines.append("; ".join(robot_result.warnings))
+
+        compatibility_header = "Compatibility Entry Summary"
+        if compatibility_header in summary:
+            before, after = summary.split(compatibility_header, 1)
+            return before.rstrip() + "\n\n" + "\n".join(robot_lines) + "\n\n" + compatibility_header + after
+        return summary.rstrip() + "\n\n" + "\n".join(robot_lines)
+
     def _after_save_audit(self, result, audit_id: str) -> None:
-        if result.success and audit_id:
-            self._editing_audit_id = audit_id
-            self._current_loaded_audit_id = audit_id
-            self._current_audit_mode = "edit"
+        saved_audit_id = str(result.metrics.get("audit_id") or audit_id or "").strip()
+        if result.success and saved_audit_id:
+            self._reset_audit_form_fields(show_generated_message=False)
             self._duplicated_press_value = None
             self._duplicated_tool_value = None
             self.refresh_audit_selector()
@@ -950,6 +1476,10 @@ class AuditPage(QWidget):
         robot_type_filled = self._apply_suggestion("Robot Type", result.robot_type_suggestion)
         robot_model_filled = self._apply_suggestion("Robot Model/Controller", result.robot_model_controller_suggestion)
         tool_filled = self._apply_tool_number_suggestion(result, force=False)
+        robot_info_loaded = self._load_robot_info_fields(
+            {field: self._field_value(widget) for field, widget in self.audit_fields.items()},
+            force=False,
+        )
         part_filled = False
         if len(result.part_options) == 1:
             self._lookup_part_index = 0
@@ -959,6 +1489,8 @@ class AuditPage(QWidget):
         lookup_message = self._lookup_status_message(result, robot_type_filled or robot_model_filled, part_filled or tool_filled, warnings)
         if self._machine_lookup_extra_note:
             lookup_message = f"{lookup_message} {self._machine_lookup_extra_note}"
+        if robot_info_loaded:
+            lookup_message = f"{lookup_message} Robot circuit info loaded from Robot_Info.xlsx."
         self.lookup_note_label.setText(lookup_message)
         self._set_capacity_choices(result.capacity_part_rows)
         self._set_machine_audit_matches([])

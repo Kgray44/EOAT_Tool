@@ -54,6 +54,8 @@ In the app, use Workbook Health or Home > Validate Project Foundation. Workbook 
 
 On the EOAT Audit page, hidden non-applicable fields save as `N/A`. Hybrid EOATs keep both vacuum and gripper fields visible and use warnings instead of blocking save.
 
+The EOAT Audit workflow includes a `Pneumatic Circuits` tab. EOAT-side circuit counts are saved to the EOAT Master Tracker, while robot-side circuit counts are saved to `Robot_Info.xlsx` beside the master tracker and upserted by plant, machine, and robot identity. The legacy `Number of Vacuum Cups` column is migrated to `Number of Parts Picked` so the audit tracks parts picked per cycle rather than tooling components.
+
 ## Run Reports
 
 Use the app workflow buttons or run individual tools:
@@ -68,6 +70,64 @@ python tools/final_deliverable_check.py --project-root "examples/demo_project"
 ```
 
 Reports generated from real project data must remain in the private project root and must not be committed.
+
+## Scheduled Daily And Weekly Summaries
+
+Open **Scheduled Reports** in the dashboard to view task status, run a catch-up summary, install/repair the Windows Scheduled Tasks, or open the scheduled tool log.
+
+Schedule:
+
+- Daily Summary runs Monday through Thursday at 7:00 PM.
+- Weekly Summary runs every Friday at 7:00 PM.
+
+Install or repair the tasks:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install_summary_schedules.ps1
+```
+
+Uninstall the tasks without deleting reports or logs:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/uninstall_summary_schedules.ps1
+```
+
+Run manually:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_daily_summary.ps1
+powershell -ExecutionPolicy Bypass -File scripts/run_weekly_summary.ps1
+```
+
+Check task status from a terminal:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check_summary_schedules.ps1
+```
+
+Scheduled tool logs are saved under the active project root at:
+
+```text
+00_Project_Admin/logs/scheduled_tools.log
+```
+
+If reports do not run, confirm the active project root is correct, run the check script above, inspect `scheduled_tools.log`, and verify Windows Task Scheduler is allowed to run PowerShell for your user account.
+
+## Dashboard Refresh And Cache
+
+The Home dashboard uses cached last-known values so the app shell can appear quickly.
+
+- **Refresh** performs cheap status checks and loads cached dashboard data.
+- **Deep Refresh** recalculates workbook-backed metrics and updates the cache in the background.
+
+Cache and timing files are stored under the active project root:
+
+```text
+00_Project_Admin/cache/dashboard_snapshot.json
+00_Project_Admin/logs/performance.log
+```
+
+If the project root is temporarily unavailable, the app can still show cached values and a clear warning instead of blocking startup.
 
 ## Run The Repo Safety Audit
 

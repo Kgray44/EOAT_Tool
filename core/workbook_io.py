@@ -7,6 +7,9 @@ from openpyxl import load_workbook
 
 from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
 
+LEGACY_VACUUM_CUPS_FIELD = "Number of Vacuum Cups"
+NUMBER_OF_PARTS_PICKED_FIELD = "Number of Parts Picked"
+
 
 def workbook_sheet_names(workbook_path: str | Path) -> list[str]:
     workbook = load_workbook(Path(workbook_path), read_only=True, data_only=False)
@@ -38,6 +41,8 @@ def row_dicts(workbook_path: str | Path, sheet_name: str) -> list[dict[str, obje
             row_data = {headers[index]: value for index, value in enumerate(row) if index < len(headers)}
             if TOOL_FIELD not in row_data and LEGACY_TOOL_FIELD in row_data:
                 row_data[TOOL_FIELD] = row_data.get(LEGACY_TOOL_FIELD)
+            if NUMBER_OF_PARTS_PICKED_FIELD not in row_data and LEGACY_VACUUM_CUPS_FIELD in row_data:
+                row_data[NUMBER_OF_PARTS_PICKED_FIELD] = row_data.get(LEGACY_VACUUM_CUPS_FIELD)
             rows.append(row_data)
         return rows
     finally:

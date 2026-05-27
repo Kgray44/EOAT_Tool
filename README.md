@@ -7,6 +7,7 @@ EOAT Command Center is a local-first toolkit for EOAT standardization, audit tra
 - Runs a PySide desktop dashboard for EOAT project workflows.
 - Creates and validates an EOAT project folder structure.
 - Maintains an EOAT master tracker workbook.
+- Tracks EOAT-side pneumatic circuit data in the master tracker and robot-side circuit data separately in `Robot_Info.xlsx`.
 - Supports audit entry, photo indexing, interview notes, issue analysis, FMEA-lite analysis, KPI summaries, pilot-candidate scoring, PM checklist generation, and final handoff packaging.
 - Loads real project data from a user-selected project root outside the repository.
 - Ships with `examples/demo_project/` so the app can run without any private operational data.
@@ -34,6 +35,37 @@ The Home and Settings pages display the active project root, data mode, and mast
 ## Audit Truth Rules
 
 Audit field visibility is rule-driven. Fields hidden because they do not apply to the selected EOAT type, sensor state, wiring state, or quick-disconnect state save as `N/A` instead of keeping stale hidden values. Physical audit rows and compatibility-derived rows are counted separately in progress metrics, and Workbook Health reports applicable `N/A` warnings, stale hidden values, Hybrid completeness warnings, and semantic consistency warnings.
+
+## Scheduled Summaries
+
+The app can install Windows Task Scheduler jobs so summaries run even when the dashboard is closed:
+
+- Daily summary: Monday-Thursday at 7:00 PM local machine time.
+- Weekly summary: Friday at 7:00 PM local machine time.
+
+Install or repair the tasks from **Scheduled Reports > Install/Repair Scheduled Tasks**, or run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/install_summary_schedules.ps1
+```
+
+Manual runs are also safe:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run_daily_summary.ps1
+powershell -ExecutionPolicy Bypass -File scripts/run_weekly_summary.ps1
+```
+
+Scheduled runs log to `00_Project_Admin/logs/scheduled_tools.log` inside the active project root. Existing same-day reports are detected and not overwritten.
+
+## Performance And Refresh
+
+The dashboard now opens with cached last-known data first, then lets you choose between:
+
+- **Refresh**: quick cache/status refresh with cheap file checks.
+- **Deep Refresh**: background recalculation of workbook health, audit progress, KPI, documentation, and other heavier dashboard metrics.
+
+Dashboard cache lives at `00_Project_Admin/cache/dashboard_snapshot.json`. Performance timings are written to `00_Project_Admin/logs/performance.log`.
 
 ## Data Safety / NDA Boundary
 

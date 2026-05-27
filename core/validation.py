@@ -17,10 +17,14 @@ from .audit_entries import (
     EOAT_MOVES_FIELD,
     EOAT_MOVES_VALUES,
     EOAT_TYPE_DROPDOWN_VALUES,
+    LEGACY_VACUUM_CUPS_FIELD,
     NA_VALUE,
+    NUMBER_OF_PARTS_PICKED_FIELD,
+    apply_part_present_sensor_defaults,
     audit_field_applies,
     is_na_value,
 )
+from .gripper_fields import GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 from .audit_field_rules import (
     ELECTRICAL_DETAIL_FIELDS,
     ELECTRICAL_WIRING_PRESENT_FIELD,
@@ -30,11 +34,17 @@ from .audit_field_rules import (
     is_meaningful_value,
     semantic_consistency_warnings,
 )
-from .audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from .audit_constants import (
+    AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from .git_activity import is_git_repo
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
+from .robot_info import validate_robot_info_workbook
 from .safe_files import ensure_directory, safe_write_text
 from .schedule import available_schedule_weeks
 from .workbook_schema import get_expected_headers, get_expected_sheets, get_key_inventory_headers
@@ -60,8 +70,13 @@ AUDIT_DROPDOWN_ALLOWED_VALUES = {
     "EOAT Type": {*EOAT_TYPE_DROPDOWN_VALUES, NA_VALUE},
     EOAT_MOVES_FIELD: set(EOAT_MOVES_VALUES),
     CONNECTION_TYPE_FIELD: {*CONNECTION_TYPE_VALUES, NA_VALUE},
+    GRIPPER_TYPE_FIELD: {*GRIPPER_TYPE_VALUES, NA_VALUE},
     "Cleanroom/Non-Cleanroom": {*CLEANROOM_DROPDOWN_VALUES, NA_VALUE},
 }
+AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD}
+
+BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS
+BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = "Source Audit ID and Compatibility Source"
 
 
 def validate_project_foundation(project_root: str | Path) -> ToolResult:
@@ -160,14 +175,21 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
             for header in missing_full_headers
             if header not in missing_major_headers and header not in schema_upgrade_headers
         ]
-        unexpected_headers = [header for header in headers if header and header not in required_headers]
+        unexpected_headers = [
+            header
+            for header in headers
+            if header and header not in required_headers and header != LEGACY_VACUUM_CUPS_FIELD
+        ]
         duplicate_headers = sorted({header for header in headers if header and headers.count(header) > 1})
+        legacy_vacuum_header_present = LEGACY_VACUUM_CUPS_FIELD in headers
+        has_parts_picked_header = NUMBER_OF_PARTS_PICKED_FIELD in headers
         metrics["eoat_inventory_header_count"] = len(headers)
         metrics["missing_full_inventory_header_count"] = len(missing_full_headers)
         metrics["missing_key_inventory_header_count"] = len(missing_key_headers)
         metrics["missing_major_inventory_header_count"] = len(missing_major_headers)
         metrics["unexpected_inventory_header_count"] = len(unexpected_headers)
         metrics["duplicate_inventory_header_count"] = len(duplicate_headers)
+        metrics["legacy_vacuum_cups_header_present"] = int(legacy_vacuum_header_present)
         if missing_major_headers:
             errors.extend(f"Missing major EOAT Inventory header: {header}" for header in missing_major_headers)
         elif missing_key_headers:
@@ -180,10 +202,26 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
             warnings.append(
                 "Workbook is missing Electrical/Wiring Present?. Run Repair Workbook Schema to upgrade old workbooks."
             )
+        if legacy_vacuum_header_present and has_parts_picked_header:
+            warnings.append(
+                "EOAT Inventory has both Number of Vacuum Cups and Number of Parts Picked. "
+                "Run Repair Workbook Schema to merge values into Number of Parts Picked and remove the legacy header."
+            )
+        elif legacy_vacuum_header_present:
+            warnings.append(
+                "EOAT Inventory still uses legacy header Number of Vacuum Cups. "
+                "Run Repair Workbook Schema to rename it to Number of Parts Picked."
+            )
         if unexpected_headers:
             warnings.extend(f"Unexpected EOAT Inventory header: {header}" for header in unexpected_headers)
         if duplicate_headers:
             warnings.extend(f"Duplicate EOAT Inventory header: {header}" for header in duplicate_headers)
+        if any(header in headers for header in BLANK_CELL_VALIDATION_IGNORED_FIELDS):
+            details.append(
+                f"Blank {BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL} cells are intentionally ignored during "
+                "blank-cell validation because they are autofilled/system-managed compatibility metadata; "
+                "the columns still remain part of the workbook schema."
+            )
         inventory_warnings, inventory_metrics = _validate_inventory_rows(ws, headers)
         warnings.extend(inventory_warnings)
         metrics.update(inventory_metrics)
@@ -191,6 +229,13 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         errors.append("EOAT Inventory sheet is missing, so headers could not be checked.")
 
     workbook.close()
+
+    robot_warnings, robot_errors, robot_metrics = validate_robot_info_workbook(paths.project_root)
+    warnings.extend(robot_warnings)
+    errors.extend(robot_errors)
+    metrics.update(robot_metrics)
+    if not robot_warnings and not robot_errors:
+        details.append("Robot Info workbook is present and valid.")
 
     weeks = available_schedule_weeks(paths.project_root)
     metrics["schedule_week_count"] = len(weeks)
@@ -250,6 +295,7 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         "physical_audit_row_count": 0,
         "compatible_row_count": 0,
         "invalid_dropdown_value_count": 0,
+        "invalid_numeric_value_count": 0,
         "audit_row_count": 0,
     }
     if not headers:
@@ -266,6 +312,7 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
     hybrid_warning_examples: list[str] = []
     semantic_warning_examples: list[str] = []
     invalid_dropdown_examples: list[str] = []
+    invalid_numeric_examples: list[str] = []
     missing_eoat_moves_examples: list[str] = []
     source_eoat_moves_by_audit_id: dict[str, str] = {}
 
@@ -280,6 +327,7 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         row_data = {header: row[index] for header, index in header_positions.items() if index < len(row)}
         if not _is_audit_data_row(row_data):
             continue
+        row_data = apply_part_present_sensor_defaults(row_data)
         metrics["audit_row_count"] += 1
         entry_type = _cell_text(row_data.get(ENTRY_TYPE_FIELD)).lower()
         if entry_type == ENTRY_TYPE_COMPATIBLE.lower():
@@ -297,11 +345,15 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
 
         requirements = entry_type_requirements(row_data)
         for required_field in requirements["required"]:
+            if required_field in BLANK_CELL_VALIDATION_IGNORED_FIELDS:
+                continue
             if required_field in header_positions and field_applies(row_data, required_field) and _is_missing_audit_value(row_data.get(required_field)):
                 major_na_examples.add(f"row {row_number} {required_field}")
 
         for header in get_expected_headers("EOAT Inventory"):
             if header not in header_positions:
+                continue
+            if header in BLANK_CELL_VALIDATION_IGNORED_FIELDS:
                 continue
             value = row_data.get(header)
             if _cell_text(value) == "":
@@ -326,9 +378,17 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 and _cell_text(value) not in AUDIT_DROPDOWN_ALLOWED_VALUES[header]
             ):
                 invalid_dropdown_examples.append(f"row {row_number} {header}={_cell_text(value)}")
+            if (
+                header in AUDIT_NUMERIC_FIELDS
+                and applies
+                and _cell_text(value)
+                and not is_na_value(value)
+                and not _is_non_negative_whole_number(value)
+            ):
+                invalid_numeric_examples.append(f"row {row_number} {header}={_cell_text(value)}")
         if EOAT_MOVES_FIELD in header_positions and _is_missing_eoat_moves(row_data.get(EOAT_MOVES_FIELD)):
             entry_type = _cell_text(row_data.get("Entry Type")).lower()
-            source_id = _cell_text(row_data.get("Source Audit ID"))
+            source_id = _cell_text(row_data.get(SOURCE_AUDIT_ID_FIELD))
             source_missing = source_id and _is_missing_eoat_moves(source_eoat_moves_by_audit_id.get(source_id))
             if entry_type == "compatible" and source_missing:
                 missing_eoat_moves_examples.append(f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD} inherited from source audit {source_id}")
@@ -349,6 +409,7 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
     metrics["hybrid_warning_count"] = len(hybrid_warning_examples)
     metrics["semantic_warning_count"] = len(semantic_warning_examples)
     metrics["invalid_dropdown_value_count"] = len(invalid_dropdown_examples)
+    metrics["invalid_numeric_value_count"] = len(invalid_numeric_examples)
     metrics["missing_eoat_moves_count"] = len(missing_eoat_moves_examples)
 
     if duplicate_ids:
@@ -363,10 +424,16 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         warnings.append(f"{len(semantic_warning_examples)} semantic EOAT warning(s): {', '.join(semantic_warning_examples[:5])}")
     if invalid_dropdown_examples:
         warnings.append(f"{len(invalid_dropdown_examples)} invalid EOAT Inventory dropdown value(s): {', '.join(invalid_dropdown_examples[:5])}")
+    if invalid_numeric_examples:
+        warnings.append(f"{len(invalid_numeric_examples)} invalid EOAT Inventory whole-number value(s): {', '.join(invalid_numeric_examples[:5])}")
     if missing_eoat_moves_examples:
         warnings.append(f"{len(missing_eoat_moves_examples)} EOAT Inventory row(s) are missing EOAT Moves: {', '.join(missing_eoat_moves_examples[:5])}")
     if blank_cells:
-        warnings.append(f"{blank_cells} saved EOAT Inventory cell(s) are blank; new saves should write {NA_VALUE} for unanswered audit fields.")
+        warnings.append(
+            f"{blank_cells} saved EOAT Inventory cell(s) are blank; new saves should write {NA_VALUE} "
+            "for unanswered user-entered audit fields. Autofilled/system-managed compatibility metadata fields "
+            "are intentionally ignored."
+        )
     return warnings, metrics
 
 
@@ -391,6 +458,17 @@ def _is_missing_eoat_moves(value: object) -> bool:
 def _is_missing_audit_value(value: object) -> bool:
     text = _cell_text(value)
     return not text or is_na_value(text)
+
+
+def _is_non_negative_whole_number(value: object) -> bool:
+    text = _cell_text(value)
+    if not text:
+        return False
+    try:
+        parsed = int(text)
+    except ValueError:
+        return False
+    return parsed >= 0 and str(parsed) == text
 
 
 def write_validation_report(project_root: str | Path, result: ToolResult) -> Path:
