@@ -43,15 +43,19 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert ws["A2"].value == audit_id
     headers = [cell.value for cell in ws[1]]
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
+    assert "Vacuum Zones" not in headers
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 7] == [
+    assert headers[tooling_start : tooling_start + 10] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
-        "Cup Type/Material",
-        "Cup Diameter/Size",
+        "Number of Parts Picked",
+        "# of Grippers",
+        "Gripper Type",
         "Gripper Model",
         "Gripper Size",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
     ]
     row_values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
     assert row_values["Tool #"] == "DEMO-PN-1200"
@@ -59,6 +63,8 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values["Connection Type"] == "ATI"
     assert row_values["Gripper Model"] == "N/A"
     assert row_values["Gripper Size"] == "N/A"
+    assert row_values["# of Grippers"] == "N/A"
+    assert row_values["Gripper Type"] == "N/A"
     assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
     wb.close()
 
@@ -211,6 +217,8 @@ def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_
     assert values["Cup Type/Material"] == "Silicone"
     assert values["Known Issues"] == "N/A"
     assert values["Notes"] == "N/A"
+    assert values["# of Grippers"] == "N/A"
+    assert values["Gripper Type"] == "N/A"
     assert values["Gripper Model"] == "N/A"
     assert values["Entry Type"] == "Audited"
     assert values["Source Audit ID"] in (None, "")
@@ -221,6 +229,71 @@ def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_
         if header not in {"EOAT Moves", "Source Audit ID", "Compatibility Source"}
     )
     workbook.close()
+
+
+def test_gripper_model_presets_save_actual_model_numbers(fake_project):
+    for audit_id, ui_value, workbook_value in [
+        ("AUD-GRIPPER-LARGE", "Large Double Gripper", "MHZL2-16D"),
+        ("AUD-GRIPPER-SMALL", "Small Double Gripper", "MHZL2-10S"),
+        ("AUD-GRIPPER-CUSTOM", "CUSTOM-GRIP-42", "CUSTOM-GRIP-42"),
+    ]:
+        result = save_audit_entry(
+            fake_project,
+            {
+                "Audit ID": audit_id,
+                "Audit Date": "2026-05-18",
+                "Auditor": "KG",
+                "Plant/Area": "Plant 4",
+                "Press/Machine #": f"Press {audit_id}",
+                "Robot Type": "Wittmann R9",
+                "EOAT Type": "Mechanical / Gripper",
+                "# of Grippers": "2",
+                "Gripper Type": "Double Pressure",
+                "Gripper Model": ui_value,
+                "Status": "In Progress",
+            },
+        )
+        assert result.success, result.errors
+        loaded = load_audit_entry(fake_project, audit_id)
+        assert loaded["Gripper Model"] == workbook_value
+
+
+def test_gripper_count_and_pressure_type_validation(fake_project):
+    bad_count = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-GRIPPER-COUNT-BAD",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press bad count",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Mechanical / Gripper",
+            "# of Grippers": "two",
+            "Gripper Type": "Single Pressure",
+            "Status": "In Progress",
+        },
+    )
+    assert bad_count.success is False
+    assert any("# of Grippers must be a non-negative whole number" in error for error in bad_count.errors)
+
+    bad_type = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-GRIPPER-TYPE-BAD",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press bad type",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Hybrid",
+            "# of Grippers": "1",
+            "Gripper Type": "Parallel jaw",
+            "Status": "In Progress",
+        },
+    )
+    assert bad_type.success is False
+    assert any("Gripper Type must be one of: Single Pressure, Double Pressure" in error for error in bad_type.errors)
 
 
 def test_new_audit_sensor_and_documentation_defaults(fake_project):
@@ -248,6 +321,59 @@ def test_new_audit_sensor_and_documentation_defaults(fake_project):
     assert loaded["BOM Available?"] == "No"
     assert loaded["Process Binder Complete?"] == "No"
     assert loaded["Photos Taken?"] == "No"
+
+
+def test_part_present_detection_defaults_blank_sensor_fields_on_save(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-PART-PRESENT-DEFAULTS",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Sensors Present?": "Yes",
+            "Sensor Type": "",
+            "Sensor Brand/Model": "",
+            "Part-Present Detection Present?": "Yes",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    warning_text = "\n".join(result.warnings)
+    assert "Missing important audit field: Sensor Type" not in warning_text
+    assert "Missing important audit field: Sensor Brand/Model" not in warning_text
+    loaded = load_audit_entry(fake_project, "AUD-PART-PRESENT-DEFAULTS")
+    assert loaded["Sensor Type"] == "Reed Switch"
+    assert loaded["Sensor Brand/Model"] == "SMC"
+
+
+def test_part_present_detection_preserves_custom_sensor_values_on_save(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-PART-PRESENT-CUSTOM",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 13",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Sensors Present?": "Yes",
+            "Sensor Type": "Photoelectric",
+            "Sensor Brand/Model": "Keyence PX",
+            "Part-Present Detection Present?": "Yes",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    loaded = load_audit_entry(fake_project, "AUD-PART-PRESENT-CUSTOM")
+    assert loaded["Sensor Type"] == "Photoelectric"
+    assert loaded["Sensor Brand/Model"] == "Keyence PX"
 
 
 def test_no_sensor_audit_saves_sensor_electrical_fields_as_na_without_named_warnings(fake_project):
@@ -403,6 +529,169 @@ def test_repair_workbook_schema_adds_electrical_header_and_migrates_rows(fake_pr
     workbook.close()
 
 
+def test_repair_workbook_schema_adds_gripper_count_and_normalizes_blank_gripper_fields(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        ws = workbook.create_sheet(sheet_name)
+        headers = [
+            header
+            for header in get_expected_headers(sheet_name)
+            if sheet_name != "EOAT Inventory" or header != "# of Grippers"
+        ]
+        ws.append(headers)
+    inventory = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in inventory[1]]
+    for values in [
+        {
+            "Audit ID": "AUD-GRIPPER-REPAIR-VACUUM",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+        {
+            "Audit ID": "AUD-GRIPPER-REPAIR-PRESET",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 13",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Mechanical / Gripper",
+            "Gripper Model": "Large Double Gripper",
+            "Status": "In Progress",
+        },
+        {
+            "Audit ID": "AUD-GRIPPER-REPAIR-CUSTOM",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 14",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Mechanical / Gripper",
+            "Gripper Model": "CUSTOM-GRIP-42",
+            "Status": "In Progress",
+        },
+    ]:
+        inventory.append([values.get(header, "") for header in headers])
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = repair_workbook_schema(fake_project, log_activity=False)
+
+    assert result.success, result.errors
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    rows = {
+        row[headers.index("Audit ID")]: {headers[index]: value for index, value in enumerate(row)}
+        for row in ws.iter_rows(min_row=2, values_only=True)
+    }
+    workbook.close()
+    assert "# of Grippers" in headers
+    assert rows["AUD-GRIPPER-REPAIR-VACUUM"]["# of Grippers"] == "N/A"
+    assert rows["AUD-GRIPPER-REPAIR-VACUUM"]["Gripper Type"] == "N/A"
+    assert rows["AUD-GRIPPER-REPAIR-VACUUM"]["Gripper Model"] == "N/A"
+    assert rows["AUD-GRIPPER-REPAIR-PRESET"]["Gripper Model"] == "MHZL2-16D"
+    assert rows["AUD-GRIPPER-REPAIR-PRESET"]["# of Grippers"] == "N/A"
+    assert rows["AUD-GRIPPER-REPAIR-CUSTOM"]["Gripper Model"] == "CUSTOM-GRIP-42"
+
+
+def test_repair_workbook_schema_removes_vacuum_zones_with_backup_and_preserves_circuits(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        ws = workbook.create_sheet(sheet_name)
+        headers = list(get_expected_headers(sheet_name))
+        if sheet_name == "EOAT Inventory":
+            headers.insert(headers.index("Vacuum Generator Type") + 1, "Vacuum Zones")
+        ws.append(headers)
+    inventory = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in inventory[1]]
+    values = {
+        "Audit ID": "AUD-VACUUM-ZONES-REMOVE",
+        "Audit Date": "2026-05-18",
+        "Auditor": "KG",
+        "Plant/Area": "Plant 4",
+        "Press/Machine #": "Press 12",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Vacuum Zones": "legacy value to delete",
+        "EOAT Vacuum Circuits": "2",
+        "EOAT Pressure Circuits": "1",
+        "EOAT Interchangeable Circuits": "0",
+        "Status": "In Progress",
+    }
+    inventory.append([values.get(header, "") for header in headers])
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = repair_workbook_schema(fake_project, log_activity=False)
+
+    assert result.success, result.errors
+    assert result.metrics["vacuum_zones_columns_removed"] == 1
+    backup_paths = list((workbook_path.parent / "_backups").glob("EOAT_Master_Tracker_backup_before_removing_vacuum_zones_*.xlsx"))
+    assert backup_paths
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    rows = {
+        row[headers.index("Audit ID")]: {headers[index]: value for index, value in enumerate(row)}
+        for row in ws.iter_rows(min_row=2, values_only=True)
+    }
+    workbook.close()
+    assert "Vacuum Zones" not in headers
+    assert rows["AUD-VACUUM-ZONES-REMOVE"]["EOAT Vacuum Circuits"] == "2"
+    assert rows["AUD-VACUUM-ZONES-REMOVE"]["EOAT Pressure Circuits"] == "1"
+    assert rows["AUD-VACUUM-ZONES-REMOVE"]["EOAT Interchangeable Circuits"] == "0"
+    assert rows["AUD-VACUUM-ZONES-REMOVE"]["Status"] == "In Progress"
+
+
+def test_save_audit_entry_removes_legacy_vacuum_zones_column_with_backup(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    insert_at = headers.index("Vacuum Generator Type") + 2
+    ws.insert_cols(insert_at)
+    ws.cell(row=1, column=insert_at).value = "Vacuum Zones"
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-SAVE-REMOVES-VACUUM-ZONES",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    assert result.metrics["vacuum_zones_columns_removed"] == 1
+    assert any("backup_before_removing_vacuum_zones" in path for path in result.files_created)
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    rows = {
+        row[headers.index("Audit ID")]: {headers[index]: value for index, value in enumerate(row)}
+        for row in ws.iter_rows(min_row=2, values_only=True)
+    }
+    workbook.close()
+    assert "Vacuum Zones" not in headers
+    assert rows["AUD-SAVE-REMOVES-VACUUM-ZONES"]["EOAT Type"] == "Vacuum"
+
+
 def test_cup_defaults_are_eoat_type_aware(fake_project):
     for audit_id, eoat_type, expected_cup, expected_size in [
         ("AUD-CUP-VACUUM", "Vacuum", "Silicone", "N/A"),
@@ -436,7 +725,8 @@ def test_cup_defaults_are_eoat_type_aware(fake_project):
     assert rows["AUD-CUP-HYBRID"]["Cup Type/Material"] == "Silicone"
     assert rows["AUD-CUP-MECHANICAL"]["Cup Type/Material"] == "N/A"
     assert rows["AUD-CUP-MECHANICAL"]["Cup Diameter/Size"] == "N/A"
-    assert rows["AUD-CUP-MECHANICAL"]["Number of Vacuum Cups"] == "N/A"
+    assert rows["AUD-CUP-MECHANICAL"]["Number of Parts Picked"] == "N/A"
+    assert rows["AUD-CUP-MECHANICAL"]["# of Grippers"] == "N/A"
     assert rows["AUD-CUP-MISC"]["Cup Type/Material"] == "N/A"
     workbook.close()
 
@@ -584,7 +874,7 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
         headers = [
             header
             for header in get_expected_headers(sheet_name)
-            if header not in {"Gripper Model", "Gripper Size"}
+            if header not in {"# of Grippers", "Gripper Model", "Gripper Size"}
         ]
         ws.append(headers)
     inventory = workbook["EOAT Inventory"]
@@ -607,13 +897,14 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
 
     loaded = load_audit_entry(fake_project, "AUD-GRIPPER-MIGRATE")
     assert loaded is not None
+    assert "# of Grippers" not in loaded
     assert "Gripper Model" not in loaded
     assert loaded["Cup Type/Material"] == "Nitrile"
     assert loaded["Cleanroom/Non-Cleanroom"] == "Cleanroom"
 
     result = save_audit_entry(
         fake_project,
-        {**loaded, "Gripper Model": "Zimmer GPP", "Gripper Size": "25 mm"},
+        {**loaded, "# of Grippers": "2", "Gripper Type": "Single Pressure", "Gripper Model": "Zimmer GPP", "Gripper Size": "25 mm"},
         allow_update=True,
     )
     assert result.success is True
@@ -623,15 +914,20 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     headers = [cell.value for cell in ws[1]]
     values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 7] == [
+    assert headers[tooling_start : tooling_start + 10] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
-        "Cup Type/Material",
-        "Cup Diameter/Size",
+        "Number of Parts Picked",
+        "# of Grippers",
+        "Gripper Type",
         "Gripper Model",
         "Gripper Size",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
     ]
+    assert values["# of Grippers"] == "2"
+    assert values["Gripper Type"] == "Single Pressure"
     assert values["Gripper Model"] == "Zimmer GPP"
     assert values["Gripper Size"] == "25 mm"
     assert values["Cup Type/Material"] == "N/A"
@@ -655,14 +951,17 @@ def test_setup_generated_master_tracker_uses_tool_header(tmp_path):
     assert headers[:6] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Tool #"]
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 7] == [
+    assert headers[tooling_start : tooling_start + 10] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
-        "Cup Type/Material",
-        "Cup Diameter/Size",
+        "Number of Parts Picked",
+        "# of Grippers",
+        "Gripper Type",
         "Gripper Model",
         "Gripper Size",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
     ]
     assert LEGACY_TOOL_FIELD not in headers
     assert "Setup ID" not in headers
@@ -681,7 +980,7 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     workbook = load_workbook(workbook_path)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    for header in ["Connection Type", "Gripper Model", "Gripper Size"]:
+    for header in ["Connection Type", "# of Grippers", "Gripper Type", "Gripper Model", "Gripper Size"]:
         ws.delete_cols(headers.index(header) + 1)
         headers = [cell.value for cell in ws[1]]
     workbook.save(workbook_path)
@@ -723,8 +1022,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     pairs = [
         ("EOAT Moves", "EOAT Type"),
         ("Connection Type", "EOAT Type"),
-        ("Gripper Model", "Cup Type/Material"),
-        ("Gripper Size", "Cup Diameter/Size"),
+        ("# of Grippers", "Number of Parts Picked"),
+        ("Gripper Type", "Connection Type"),
+        ("Gripper Model", "Gripper Type"),
+        ("Gripper Size", "Gripper Model"),
     ]
     for target, source in pairs:
         target_col = headers.index(target) + 1
@@ -751,6 +1052,25 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     ]
     assert moves_validations
     assert moves_validations[0].formula1 == '"Part,Sprue,Both"'
+    count_col = headers.index("# of Grippers") + 1
+    count_validations = [
+        validation
+        for validation in ws.data_validations.dataValidation
+        for cell_range in validation.sqref.ranges
+        if cell_range.min_col == count_col and cell_range.max_col == count_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+    ]
+    assert count_validations
+    assert count_validations[0].type == "whole"
+    gripper_type_col = headers.index("Gripper Type") + 1
+    gripper_type_validations = [
+        validation
+        for validation in ws.data_validations.dataValidation
+        for cell_range in validation.sqref.ranges
+        if cell_range.min_col == gripper_type_col and cell_range.max_col == gripper_type_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+    ]
+    assert gripper_type_validations
+    assert "Single Pressure" in gripper_type_validations[0].formula1
+    assert "Double Pressure" in gripper_type_validations[0].formula1
     workbook.close()
 
 

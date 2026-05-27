@@ -3,12 +3,14 @@ from __future__ import annotations
 from typing import Any
 
 from .audit_constants import (
+    AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
     COMPATIBILITY_SOURCE_FIELD,
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
+from .gripper_fields import GRIPPER_COUNT_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD, GRIPPER_TYPE_FIELD
 from .tool_fields import TOOL_FIELD
 
 NA_VALUE = "N/A"
@@ -21,13 +23,19 @@ EOAT_TYPE_MISC = "Miscellaneous"
 EOAT_TYPE_BLANK = "Blank/unknown"
 
 VACUUM_TOOLING_FIELDS = {
-    "Number of Vacuum Cups",
     "Cup Type/Material",
     "Cup Diameter/Size",
     "Vacuum Generator Type",
-    "Vacuum Zones",
 }
-GRIPPER_TOOLING_FIELDS = {"Gripper Type", "Gripper Model", "Gripper Size"}
+PNEUMATIC_CIRCUIT_FIELDS = {
+    "EOAT Vacuum Circuits",
+    "EOAT Pressure Circuits",
+    "EOAT Interchangeable Circuits",
+    "Robot Vacuum Circuits",
+    "Robot Pressure Circuits",
+    "Robot Interchangeable Circuits",
+}
+GRIPPER_TOOLING_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD}
 SENSOR_DETAIL_FIELDS = {
     "Sensor Type",
     "Sensor Brand/Model",
@@ -54,14 +62,14 @@ FIELD_GROUPS = {
     "EOAT Type": "machine_context",
     "EOAT Moves": "machine_context",
     "Connection Type": "tool_mounting_connection",
-    "Number of Vacuum Cups": "vacuum_tooling",
+    "Number of Parts Picked": "tooling",
     "Cup Type/Material": "vacuum_tooling",
     "Cup Diameter/Size": "vacuum_tooling",
     "Vacuum Generator Type": "vacuum_tooling",
-    "Vacuum Zones": "vacuum_tooling",
-    "Gripper Type": "gripper_tooling",
-    "Gripper Model": "gripper_tooling",
-    "Gripper Size": "gripper_tooling",
+    GRIPPER_COUNT_FIELD: "gripper_tooling",
+    GRIPPER_TYPE_FIELD: "gripper_tooling",
+    GRIPPER_MODEL_FIELD: "gripper_tooling",
+    GRIPPER_SIZE_FIELD: "gripper_tooling",
     "Sensors Present?": "sensor",
     "Sensor Type": "sensor",
     "Sensor Brand/Model": "sensor",
@@ -70,6 +78,12 @@ FIELD_GROUPS = {
     ELECTRICAL_WIRING_PRESENT_FIELD: "electrical",
     "Quick Disconnects Present?": "quick_disconnect",
     "Pneumatic Quick Disconnect Type": "pneumatic",
+    "EOAT Vacuum Circuits": "pneumatic_circuit",
+    "EOAT Pressure Circuits": "pneumatic_circuit",
+    "EOAT Interchangeable Circuits": "pneumatic_circuit",
+    "Robot Vacuum Circuits": "pneumatic_circuit",
+    "Robot Pressure Circuits": "pneumatic_circuit",
+    "Robot Interchangeable Circuits": "pneumatic_circuit",
     "Electrical Quick Disconnect Type": "electrical",
     "Tubing Condition": "pneumatic",
     "Tubing Routing Notes": "routing",
@@ -108,7 +122,7 @@ AUDITED_REQUIRED_FIELDS = [
     "EOAT Type",
     "Status",
 ]
-COMPATIBLE_REQUIRED_FIELDS = ["Press/Machine #", TOOL_FIELD, SOURCE_AUDIT_ID_FIELD, COMPATIBILITY_SOURCE_FIELD]
+COMPATIBLE_REQUIRED_FIELDS = ["Press/Machine #", TOOL_FIELD]
 IMPORTANT_FIELDS = [
     TOOL_FIELD,
     "Part Family",
@@ -199,7 +213,7 @@ def field_applies(entry: dict[str, Any], field_name: str) -> bool:
         return False
     if field_name in VACUUM_TOOLING_FIELDS and not (_broad_tooling_type(entry) or eoat_type_uses_vacuum(entry)):
         return False
-    if field_name in GRIPPER_TOOLING_FIELDS and not (_broad_tooling_type(entry) or eoat_type_uses_gripper(entry)):
+    if field_name in GRIPPER_TOOLING_FIELDS and not eoat_type_uses_gripper(entry):
         return False
     if field_name in SENSOR_DETAIL_FIELDS:
         if _is_no(entry.get("Sensors Present?")):
@@ -266,8 +280,8 @@ def hybrid_completeness_warnings(entry: dict[str, Any]) -> list[str]:
 def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
     warnings: list[str] = []
     eoat_type = normalized_eoat_type(entry)
-    gripper_type = normalize_text(entry.get("Gripper Type")).casefold()
-    gripper_model = normalize_text(entry.get("Gripper Model")).casefold()
+    gripper_type = normalize_text(entry.get(GRIPPER_TYPE_FIELD)).casefold()
+    gripper_model = normalize_text(entry.get(GRIPPER_MODEL_FIELD)).casefold()
     cup_material = normalize_text(entry.get("Cup Type/Material"))
     if eoat_type == EOAT_TYPE_GRIPPER and "vacuum" in gripper_type:
         warnings.append("Mechanical / Gripper EOAT has Gripper Type that appears to be Vacuum.")
@@ -288,7 +302,11 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
 
 def entry_type_requirements(entry: dict[str, Any]) -> dict[str, list[str]]:
     if _entry_type(entry) == ENTRY_TYPE_COMPATIBLE.casefold():
-        required = [field for field in COMPATIBLE_REQUIRED_FIELDS if field in entry or field in {TOOL_FIELD, SOURCE_AUDIT_ID_FIELD, COMPATIBILITY_SOURCE_FIELD}]
+        required = [
+            field
+            for field in COMPATIBLE_REQUIRED_FIELDS
+            if field not in AUTOFILLED_COMPATIBILITY_METADATA_FIELDS and (field in entry or field == TOOL_FIELD)
+        ]
         return {"entry_type": ENTRY_TYPE_COMPATIBLE, "required": required, "important": [field for field in IMPORTANT_FIELDS if field_applies(entry, field)]}
     required = [field for field in AUDITED_REQUIRED_FIELDS if field in entry or field != TOOL_FIELD]
     return {"entry_type": ENTRY_TYPE_AUDITED, "required": required, "important": [field for field in IMPORTANT_FIELDS if field_applies(entry, field)]}

@@ -130,7 +130,19 @@ def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config
     assert REFERENCE_ONLY_FIELDS.isdisjoint(page.audit_fields)
     workflow_metadata = {"Entry Type", "Source Audit ID", "Compatibility Source"}
     assert (set(get_expected_headers("EOAT Inventory")) - workflow_metadata).issubset(page.audit_fields)
-    assert {"Tool #", "Connection Type", "Gripper Model", "Gripper Size", "Number of Vacuum Cups", "Tubing Condition", "Cable Management Condition", "BOM Available?", "Photos Taken?"}.issubset(page.audit_fields)
+    assert {
+        "Tool #",
+        "Connection Type",
+        "# of Grippers",
+        "Gripper Type",
+        "Gripper Model",
+        "Gripper Size",
+        "Number of Parts Picked",
+        "Tubing Condition",
+        "Cable Management Condition",
+        "BOM Available?",
+        "Photos Taken?",
+    }.issubset(page.audit_fields)
     assert LEGACY_TOOL_FIELD not in page.audit_fields
     label_texts = {label.text() for label in page.findChildren(QLabel)}
     assert "Tool #" in label_texts
@@ -153,6 +165,17 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     assert _combo_items(connection) == ["ATI", "DoveTail", "Direct Mount", "Lever Lock"]
     assert connection.currentText() == ""
 
+    gripper_type = page.audit_fields["Gripper Type"]
+    assert isinstance(gripper_type, QComboBox)
+    assert gripper_type.isEditable() is False
+    assert _combo_items(gripper_type) == ["", "Single Pressure", "Double Pressure"]
+
+    gripper_model = page.audit_fields["Gripper Model"]
+    assert isinstance(gripper_model, QComboBox)
+    assert gripper_model.isEditable() is True
+    assert "Large Double Gripper" in _combo_items(gripper_model)
+    assert "Small Double Gripper" in _combo_items(gripper_model)
+
     eoat_type = page.audit_fields["EOAT Type"]
     assert isinstance(eoat_type, QComboBox)
     assert "Miscellaneous" in _combo_items(eoat_type)
@@ -162,7 +185,11 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     assert "Whiteroom" in _combo_items(cleanroom)
 
     tooling_fields = list(page.audit_fields)
-    assert tooling_fields.index("EOAT Type") < tooling_fields.index("EOAT Moves") < tooling_fields.index("Connection Type") < tooling_fields.index("Cup Type/Material") < tooling_fields.index("Gripper Model") < tooling_fields.index("Gripper Size")
+    assert tooling_fields.index("EOAT Type") < tooling_fields.index("EOAT Moves") < tooling_fields.index("Connection Type")
+    assert tooling_fields.index("Number of Parts Picked") < tooling_fields.index("# of Grippers") < tooling_fields.index("Gripper Type") < tooling_fields.index("Gripper Model")
+    assert tooling_fields.index("Cup Type/Material") < tooling_fields.index("Cup Diameter/Size") < tooling_fields.index("Vacuum Generator Type")
+    assert "Vacuum Zones" not in page.audit_fields
+    assert tooling_fields.index("Connection Type") < tooling_fields.index("Number of Parts Picked") < tooling_fields.index("Cup Type/Material")
 
 
 @pytest.mark.parametrize(
@@ -171,8 +198,8 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
         ("Vacuum", True, False),
         ("Mechanical / Gripper", False, True),
         ("Hybrid", True, True),
-        ("Unknown / Needs Review", True, True),
-        ("Miscellaneous", True, True),
+        ("Unknown / Needs Review", True, False),
+        ("Miscellaneous", True, False),
     ],
 )
 def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vacuum_visible, gripper_visible):
@@ -182,7 +209,8 @@ def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vac
 
     assert page.audit_fields["Cup Type/Material"].isHidden() is (not vacuum_visible)
     assert page.audit_fields["Cup Diameter/Size"].isHidden() is (not vacuum_visible)
-    assert page.audit_fields["Number of Vacuum Cups"].isHidden() is (not vacuum_visible)
+    assert page.audit_fields["Number of Parts Picked"].isHidden() is False
+    assert page.audit_fields["# of Grippers"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Model"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Size"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Type"].isHidden() is (not gripper_visible)
@@ -196,20 +224,28 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
     _set_field(page, "Cup Diameter/Size", "20 mm")
     _set_field(page, "Gripper Model", "Zimmer GPP")
     _set_field(page, "Gripper Size", "25 mm")
+    _set_field(page, "# of Grippers", "2")
+    _set_field(page, "Gripper Type", "Single Pressure")
     _set_field(page, "EOAT Type", "Mechanical / Gripper")
 
     assert page.audit_fields["Cup Type/Material"].isHidden() is True
     assert page.audit_fields["Cup Diameter/Size"].isHidden() is True
     assert page.audit_fields["Gripper Model"].isHidden() is False
     assert page.audit_fields["Gripper Size"].isHidden() is False
+    assert page.audit_fields["# of Grippers"].isHidden() is False
+    assert page.audit_fields["Gripper Type"].isHidden() is False
     assert page.audit_fields["Cup Type/Material"].text() == "Nitrile"
     assert page.audit_fields["Cup Diameter/Size"].text() == "20 mm"
 
     _set_field(page, "EOAT Type", "Vacuum")
     assert page.audit_fields["Gripper Model"].isHidden() is True
     assert page.audit_fields["Gripper Size"].isHidden() is True
-    assert page.audit_fields["Gripper Model"].text() == "Zimmer GPP"
+    assert page.audit_fields["# of Grippers"].isHidden() is True
+    assert page.audit_fields["Gripper Type"].isHidden() is True
+    assert page._field_value(page.audit_fields["Gripper Model"]) == "Zimmer GPP"
     assert page.audit_fields["Gripper Size"].text() == "25 mm"
+    assert page.audit_fields["# of Grippers"].text() == "2"
+    assert page._field_value(page.audit_fields["Gripper Type"]) == "Single Pressure"
 
 
 def test_sensors_present_controls_sensor_electrical_visibility(qapp, fake_config):

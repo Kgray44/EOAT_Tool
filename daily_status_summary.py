@@ -129,9 +129,13 @@ def parse_args() -> argparse.Namespace:
     """Read command-line arguments."""
     parser = argparse.ArgumentParser(description="Create one EOAT daily status report.")
     parser.add_argument("--project-root", default=str(DEFAULT_PROJECT_ROOT), help="Path to EOAT_Standardization_Project.")
-    parser.add_argument("--week", type=int, default=1, help="Project week number. Defaults to 1.")
+    parser.add_argument("--week", type=int, help="Project week number. Defaults to 1, or the resolved project week in scheduled mode.")
     parser.add_argument("--day", type=int, help="Project day number, such as 1 or 2.")
     parser.add_argument("--date", dest="report_date", default=date.today().isoformat(), help="Report date in YYYY-MM-DD format.")
+    parser.add_argument("--scheduled", action="store_true", help="Run in scheduled/noninteractive mode.")
+    parser.add_argument("--dry-run", action="store_true", help="Write test output only; do not persist task progress or activity snapshots.")
+    parser.add_argument("--output-dir", help="Optional output folder for generated daily summary files.")
+    parser.add_argument("--verbose", action="store_true", help="Print extra execution details.")
     parser.add_argument("--interactive", action="store_true", help="Force interactive prompts.")
     parser.add_argument("--include-git", action="store_true", help="Include Git status/log/diff summary if available.")
     parser.add_argument("--include-snapshot", action="store_true", help="Include local file snapshot comparison.")
@@ -245,15 +249,16 @@ def progress_path(project_root: Path, week: int) -> Path:
     return admin_dir(project_root) / f"task_progress_week{week}.json"
 
 
-def load_json(path: Path, default: dict) -> dict:
+def load_json(path: Path, default: dict, *, repair_invalid: bool = True) -> dict:
     """Load JSON with a safe default."""
     if not path.exists():
         return default
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        backup = path.with_name(f"{path.stem}_invalid_{datetime.now().strftime('%Y%m%d_%H%M%S')}{path.suffix}")
-        path.rename(backup)
+        if repair_invalid:
+            backup = path.with_name(f"{path.stem}_invalid_{datetime.now().strftime('%Y%m%d_%H%M%S')}{path.suffix}")
+            path.rename(backup)
         return default
 
 
@@ -341,21 +346,23 @@ def build_schedule_from_help_files(project_root: Path, week: int) -> dict:
     return schedule
 
 
-def ensure_schedule(project_root: Path, week: int) -> dict:
+def ensure_schedule(project_root: Path, week: int, *, persist: bool = True) -> dict:
     """Create or load the local schedule definition for the requested week."""
     path = schedule_path(project_root, week)
     default = build_schedule_from_help_files(project_root, week)
     if path.exists():
-        schedule = load_json(path, default)
+        schedule = load_json(path, default, repair_invalid=persist)
         existing_days = schedule.get("days", {})
         has_existing_tasks = any(existing_days.get(day) for day in existing_days)
         default_days = default.get("days", {})
         has_default_tasks = any(default_days.get(day) for day in default_days)
         if not existing_days or (not has_existing_tasks and has_default_tasks):
             schedule = default
-            save_json(path, schedule)
+            if persist:
+                save_json(path, schedule)
         return schedule
-    save_json(path, default)
+    if persist:
+        save_json(path, default)
     return default
 
 
@@ -381,15 +388,50 @@ def initial_progress(schedule: dict) -> dict:
     return {"tasks": tasks}
 
 
-def ensure_progress(project_root: Path, week: int, schedule: dict) -> dict:
+def normalize_progress_schema(progress: dict, week: int) -> dict:
+    """Accept older/dashboard task-progress keys used elsewhere in the app."""
+    normalized_tasks: list[dict[str, Any]] = []
+    for index, task in enumerate(progress.get("tasks", []), start=1):
+        if not isinstance(task, dict):
+            continue
+        normalized = dict(task)
+        task_id = normalized.get("task_id") or normalized.get("id") or f"W{week}D{normalized.get('day', 1)}T{index}"
+        task_text = normalized.get("task_text") or normalized.get("task") or normalized.get("description") or ""
+        try:
+            task_day = int(normalized.get("day", 1))
+        except (TypeError, ValueError):
+            task_day = 1
+        evidence = normalized.get("evidence", [])
+        if isinstance(evidence, str):
+            evidence = [evidence] if evidence else []
+        elif not isinstance(evidence, list):
+            evidence = []
+        normalized.update(
+            {
+                "task_id": str(task_id),
+                "task_text": str(task_text),
+                "day": task_day,
+                "status": normalized.get("status") or "Not started",
+                "completed_date": normalized.get("completed_date") or "",
+                "evidence": evidence,
+                "notes": normalized.get("notes") or "",
+            }
+        )
+        normalized_tasks.append(normalized)
+    progress["tasks"] = normalized_tasks
+    return progress
+
+
+def ensure_progress(project_root: Path, week: int, schedule: dict, *, persist: bool = True) -> dict:
     """Create or load task progress."""
     path = progress_path(project_root, week)
-    progress = load_json(path, initial_progress(schedule))
+    progress = normalize_progress_schema(load_json(path, initial_progress(schedule), repair_invalid=persist), week)
     existing_ids = {task["task_id"] for task in progress.get("tasks", [])}
     for task in initial_progress(schedule)["tasks"]:
         if task["task_id"] not in existing_ids:
             progress.setdefault("tasks", []).append(task)
-    save_json(path, progress)
+    if persist:
+        save_json(path, progress)
     return progress
 
 
@@ -1289,8 +1331,32 @@ def init_snapshot(project_root: Path, report_date: str) -> None:
     print(f"Created baseline snapshot: {path}")
 
 
+def log_dry_run_activity(project_root: Path, report_path: Path, summary_path: Path, duration_seconds: float | None = None) -> None:
+    """Record a dry-run activity entry without requiring the dashboard wrappers."""
+    try:
+        from core.result import ToolResult
+        from core.logging import log_tool_run
+
+        result = ToolResult.ok(
+            "daily_status_summary",
+            "Daily Status Summary Generator",
+            "Daily summary dry run completed.",
+            details=["Dry-run/test output only; project task progress was not persisted."],
+            files_created=[str(report_path), str(summary_path)],
+            output_reports=[str(report_path)],
+            metrics={"dry_run": True},
+            duration_seconds=duration_seconds,
+        )
+        warning = log_tool_run(result, project_root)
+        if warning:
+            print(warning)
+    except Exception as exc:
+        print(f"Dry-run activity logging failed: {exc}")
+
+
 def main() -> None:
     """Create exactly one daily status report."""
+    started = datetime.now()
     args = parse_args()
     if args.docx:
         args.output_format = "docx"
@@ -1300,14 +1366,33 @@ def main() -> None:
     else:
         project_root = project_root.resolve()
     report_date = validate_date(args.report_date)
+    report_day = date.fromisoformat(report_date)
+    if args.week is None:
+        if args.scheduled:
+            try:
+                from core.schedule import resolve_project_day_for_project
+
+                resolved = resolve_project_day_for_project(project_root, current_date=report_day)
+                args.week = resolved.week
+                if args.day is None:
+                    args.day = resolved.day
+            except Exception:
+                args.week = 1
+        else:
+            args.week = 1
 
     if args.init_snapshot:
         init_snapshot(project_root, report_date)
         return
 
-    day = args.day if args.day is not None else ask_int("Project day number", 1)
-    schedule = ensure_schedule(project_root, args.week)
-    progress = ensure_progress(project_root, args.week, schedule)
+    if args.day is not None:
+        day = args.day
+    elif args.scheduled:
+        day = min(report_day.isoweekday(), 5)
+    else:
+        day = ask_int("Project day number", 1)
+    schedule = ensure_schedule(project_root, args.week, persist=not args.dry_run)
+    progress = ensure_progress(project_root, args.week, schedule, persist=not args.dry_run)
 
     activity = build_activity_summary(
         project_root=project_root,
@@ -1348,9 +1433,17 @@ def main() -> None:
     if args.interactive:
         include_activity_section = ask_yes_no("Do you want to include a repository activity section in the report?", True)
 
-    output_directory = report_dir(project_root)
+    if args.output_dir:
+        output_directory = Path(args.output_dir).expanduser()
+    elif args.dry_run:
+        output_directory = admin_dir(project_root) / "Test_Reports" / "Daily_Status_Reports"
+    else:
+        output_directory = report_dir(project_root)
+    if not output_directory.is_absolute():
+        output_directory = (SCRIPT_DIR / output_directory).resolve()
     output_directory.mkdir(parents=True, exist_ok=True)
-    report_path = output_directory / f"Week{args.week}_Day{day}_Status_{report_date}.md"
+    dry_run_suffix = "_DRY_RUN" if args.dry_run else ""
+    report_path = output_directory / f"Week{args.week}_Day{day}_Status_{report_date}{dry_run_suffix}.md"
     markdown_text = build_markdown(
         args.week,
         day,
@@ -1363,26 +1456,62 @@ def main() -> None:
         notes,
         progress_counts,
     )
+    if args.dry_run:
+        markdown_text = (
+            "> DRY RUN / TEST OUTPUT: This report was generated by the automation test harness. "
+            "It did not persist project task progress or activity snapshots.\n\n"
+            + markdown_text
+        )
+
+    if (args.scheduled or args.dry_run) and report_path.exists():
+        print(f"Daily status report already exists; no duplicate was created: {report_path}")
+        return
 
     if not confirm_overwrite(report_path, args.yes):
         print("No report was overwritten. Exiting.")
         return
 
     report_path.write_text(markdown_text, encoding="utf-8")
-    save_json(progress_path(project_root, args.week), progress)
+    if args.dry_run:
+        save_json(output_directory / f"task_progress_week{args.week}_{report_date}_DRY_RUN.json", progress)
+    else:
+        save_json(progress_path(project_root, args.week), progress)
     if activity.get("_current_snapshot"):
-        save_snapshot(project_root, activity["_current_snapshot"], report_date)
+        if args.dry_run:
+            save_json(output_directory / f"snapshot_{report_date}_DRY_RUN.json", activity["_current_snapshot"])
+        else:
+            save_snapshot(project_root, activity["_current_snapshot"], report_date)
 
     if args.output_format == "docx":
         docx_path = report_path.with_suffix(".docx")
         if confirm_overwrite(docx_path, args.yes):
             create_docx(docx_path, markdown_text)
 
-    summary_path = output_directory / f"Week{args.week}_Day{day}_Activity_Summary_{report_date}.json"
+    summary_path = output_directory / f"Week{args.week}_Day{day}_Activity_Summary_{report_date}{dry_run_suffix}.json"
     public_summary = {key: value for key, value in activity.items() if not key.startswith("_") and key != "raw"}
+    if args.dry_run:
+        public_summary["dry_run"] = True
+        public_summary["test_output"] = True
     save_json(summary_path, public_summary)
+    if args.dry_run:
+        elapsed = (datetime.now() - started).total_seconds()
+        log_dry_run_activity(project_root, report_path, summary_path, elapsed)
     print(f"Created daily status report: {report_path}")
     print(f"Saved activity summary: {summary_path}")
+    if args.verbose:
+        print(
+            json.dumps(
+                {
+                    "success": True,
+                    "report_type": "daily",
+                    "scheduled": bool(args.scheduled),
+                    "dry_run": bool(args.dry_run),
+                    "output_path": str(report_path),
+                    "activity_summary_path": str(summary_path),
+                },
+                indent=2,
+            )
+        )
 
 
 if __name__ == "__main__":

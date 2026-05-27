@@ -10,6 +10,7 @@ if str(TOOLKIT_ROOT) not in sys.path:
 
 from core.audit_entries import load_audit_entry, save_audit_entry
 from core.constants import DEFAULT_PROJECT_ROOT
+from core.robot_info import upsert_robot_info_from_audit
 from core.workbook_schema import get_expected_headers
 
 
@@ -26,6 +27,16 @@ FIELD_ARG_MAP = {
     "Part Name/Description": "part_name",
     "EOAT Type": "eoat_type",
     "EOAT Moves": "eoat_moves",
+    "Number of Parts Picked": "parts_picked",
+    "# of Grippers": "gripper_count",
+    "Gripper Type": "gripper_type",
+    "Gripper Model": "gripper_model",
+    "EOAT Vacuum Circuits": "eoat_vacuum_circuits",
+    "EOAT Pressure Circuits": "eoat_pressure_circuits",
+    "EOAT Interchangeable Circuits": "eoat_interchangeable_circuits",
+    "Robot Vacuum Circuits": "robot_vacuum_circuits",
+    "Robot Pressure Circuits": "robot_pressure_circuits",
+    "Robot Interchangeable Circuits": "robot_interchangeable_circuits",
     "Status": "status",
     "Priority": "priority",
     "Known Issues": "known_issues",
@@ -76,6 +87,16 @@ def main() -> int:
         allow_update=args.update,
         create_followup_action=args.create_followup_action,
     )
+    if result.success:
+        robot_result = upsert_robot_info_from_audit(args.project_root, entry)
+        result.summary = f"{result.summary} {robot_result.summary}"
+        result.details.extend(robot_result.details)
+        result.files_created = sorted(set([*result.files_created, *robot_result.files_created]))
+        result.files_modified = sorted(set([*result.files_modified, *robot_result.files_modified]))
+        if robot_result.success:
+            result.warnings.extend(robot_result.warnings)
+        else:
+            result.warnings.append("Robot_Info.xlsx was not updated. The EOAT audit save still completed.")
     print(result.to_markdown())
     return 0 if result.success else 1
 

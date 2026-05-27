@@ -13,29 +13,12 @@ from .task_runner import get_task_manager
 from .theme import app_stylesheet, theme_tokens
 from .navigation import NAV_SECTIONS
 from .ui_constants import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SIDEBAR_WIDTH
-from .pages.audit import AuditPage
-from .pages.audit_progress import AuditProgressPage
-from .pages.bom_spares import BomSparesPage
-from .pages.fmea import FmeaPage
-from .pages.handoff import HandoffPage
-from .pages.home import HomePage
-from .pages.issue_analysis import IssueAnalysisPage
-from .pages.kpi_dashboard import KpiDashboardPage
-from .pages.photos import PhotosPage
-from .pages.pilot_candidates import PilotCandidatesPage
-from .pages.pm_checklists import PmChecklistsPage
-from .pages.reports import ReportsPage
-from .pages.schedule import SchedulePage
-from .pages.settings import SettingsPage
-from .pages.standards_docs import StandardsDocsPage
-from .pages.tool_registry import ToolRegistryPage
-from .pages.workbook_health import WorkbookHealthPage
 
 
 class DashboardWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, config=None):
         super().__init__()
-        self.config = load_config()
+        self.config = config or load_config()
         self.setWindowTitle(APP_NAME)
         self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         self.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
@@ -95,31 +78,79 @@ class DashboardWindow(QMainWindow):
     def _build_page_factories(self) -> dict[str, object]:
         return {
             "home": lambda: self._create_home_page(),
-            "schedule": lambda: SchedulePage(self.config),
-            "audit": lambda: AuditPage(self.config),
-            "photos": lambda: PhotosPage(self.config),
-            "workbook_health": lambda: WorkbookHealthPage(self.config),
-            "audit_progress": lambda: AuditProgressPage(self.config),
-            "issue_analysis": lambda: IssueAnalysisPage(self.config),
-            "fmea": lambda: FmeaPage(self.config),
-            "pilot_candidates": lambda: PilotCandidatesPage(self.config),
-            "kpi_dashboard": lambda: KpiDashboardPage(self.config),
-            "standards_docs": lambda: StandardsDocsPage(self.config),
-            "pm_checklists": lambda: PmChecklistsPage(self.config),
-            "bom_spares": lambda: BomSparesPage(self.config),
-            "reports": lambda: ReportsPage(self.config),
-            "tool_registry": lambda: ToolRegistryPage(),
-            "handoff": lambda: HandoffPage(self.config),
+            "schedule": lambda: self._create_config_page("schedule", self.config),
+            "audit": lambda: self._create_config_page("audit", self.config),
+            "notes": lambda: self._create_config_page("notes", self.config),
+            "tags": lambda: self._create_config_page("tags", self.config),
+            "photos": lambda: self._create_config_page("photos", self.config),
+            "workbook_health": lambda: self._create_config_page("workbook_health", self.config),
+            "audit_progress": lambda: self._create_config_page("audit_progress", self.config),
+            "issue_analysis": lambda: self._create_config_page("issue_analysis", self.config),
+            "fmea": lambda: self._create_config_page("fmea", self.config),
+            "pilot_candidates": lambda: self._create_config_page("pilot_candidates", self.config),
+            "kpi_dashboard": lambda: self._create_config_page("kpi_dashboard", self.config),
+            "standards_docs": lambda: self._create_config_page("standards_docs", self.config),
+            "pm_checklists": lambda: self._create_config_page("pm_checklists", self.config),
+            "bom_spares": lambda: self._create_config_page("bom_spares", self.config),
+            "reports": lambda: self._create_config_page("reports", self.config),
+            "scheduled_reports": lambda: self._create_config_page("scheduled_reports", self.config),
+            "tool_registry": lambda: self._create_config_page("tool_registry"),
+            "handoff": lambda: self._create_config_page("handoff", self.config),
             "settings": lambda: self._create_settings_page(),
         }
 
     def _create_home_page(self):
+        from .pages.home import HomePage
+
         home = HomePage(self.config)
         home.project_root_changed.connect(self._project_root_changed)
         home.navigate_requested.connect(self._navigate_to_page)
         return home
 
+    def _create_config_page(self, page_key: str, *args):
+        if page_key == "schedule":
+            from .pages.schedule import SchedulePage as Page
+        elif page_key == "audit":
+            from .pages.audit import AuditPage as Page
+        elif page_key == "notes":
+            from .pages.notes import NotesPage as Page
+        elif page_key == "tags":
+            from .pages.tags import TagsPage as Page
+        elif page_key == "photos":
+            from .pages.photos import PhotosPage as Page
+        elif page_key == "workbook_health":
+            from .pages.workbook_health import WorkbookHealthPage as Page
+        elif page_key == "audit_progress":
+            from .pages.audit_progress import AuditProgressPage as Page
+        elif page_key == "issue_analysis":
+            from .pages.issue_analysis import IssueAnalysisPage as Page
+        elif page_key == "fmea":
+            from .pages.fmea import FmeaPage as Page
+        elif page_key == "pilot_candidates":
+            from .pages.pilot_candidates import PilotCandidatesPage as Page
+        elif page_key == "kpi_dashboard":
+            from .pages.kpi_dashboard import KpiDashboardPage as Page
+        elif page_key == "standards_docs":
+            from .pages.standards_docs import StandardsDocsPage as Page
+        elif page_key == "pm_checklists":
+            from .pages.pm_checklists import PmChecklistsPage as Page
+        elif page_key == "bom_spares":
+            from .pages.bom_spares import BomSparesPage as Page
+        elif page_key == "reports":
+            from .pages.reports import ReportsPage as Page
+        elif page_key == "scheduled_reports":
+            from .pages.scheduled_reports import ScheduledReportsPage as Page
+        elif page_key == "tool_registry":
+            from .pages.tool_registry import ToolRegistryPage as Page
+        elif page_key == "handoff":
+            from .pages.handoff import HandoffPage as Page
+        else:
+            raise KeyError(page_key)
+        return Page(*args)
+
     def _create_settings_page(self):
+        from .pages.settings import SettingsPage
+
         settings = SettingsPage(self.config)
         settings.settings_saved.connect(self._settings_saved)
         settings.theme_changed.connect(self.apply_theme)
@@ -178,10 +209,27 @@ class DashboardWindow(QMainWindow):
         self.stack.setCurrentIndex(index)
         if page_key == "audit_progress" and not created and hasattr(page, "refresh_metrics"):
             page.refresh_metrics()
+        elif page_key in {"notes", "tags"} and not created and hasattr(page, "refresh"):
+            page.refresh()
 
     def _navigate_to_page(self, page_key: str) -> None:
         self._select_nav_item(page_key)
         self._show_page(page_key)
+
+    def open_annotation_target(self, target) -> bool:
+        from .widgets.annotation_target_navigator import AnnotationTargetNavigator
+
+        return AnnotationTargetNavigator(self).open_target(target)
+
+    def open_annotation_targets(self, targets, *, title: str = "Select Target for Tag") -> bool:
+        from .widgets.annotation_target_navigator import AnnotationTargetNavigator
+
+        return AnnotationTargetNavigator(self).open_targets(list(targets), title=title)
+
+    def open_annotation_tag(self, *, tag_id: str | None = None, assignment_id: str | None = None) -> bool:
+        from .widgets.annotation_target_navigator import AnnotationTargetNavigator
+
+        return AnnotationTargetNavigator(self).open_tag(tag_id=tag_id, assignment_id=assignment_id)
 
     def _select_nav_item(self, page_key: str) -> None:
         for top_index in range(self.nav.topLevelItemCount()):

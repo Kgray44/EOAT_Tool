@@ -13,9 +13,10 @@ def run_tool_background(
     workbook_lock: bool = False,
     project_lock: bool | None = None,
     button=None,
+    progress_text: str | None = None,
 ) -> None:
     if panel is not None:
-        panel.show_text(f"Running: {name}...")
+        panel.show_text(progress_text or f"Running: {name}...")
 
     def _finished(task_result):
         tool_result = task_result.to_tool_result()

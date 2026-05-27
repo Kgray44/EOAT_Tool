@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
+from core.gripper_fields import GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
+
 try:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -166,14 +168,17 @@ SHEETS: dict[str, list[str]] = {
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
-        "Cup Type/Material",
-        "Cup Diameter/Size",
+        "Number of Parts Picked",
+        GRIPPER_COUNT_FIELD,
+        GRIPPER_TYPE_FIELD,
         "Gripper Model",
         "Gripper Size",
-        "Number of Vacuum Cups",
-        "Gripper Type",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
         "Vacuum Generator Type",
-        "Vacuum Zones",
+        "EOAT Vacuum Circuits",
+        "EOAT Pressure Circuits",
+        "EOAT Interchangeable Circuits",
         "Sensors Present?",
         "Sensor Type",
         "Sensor Brand/Model",
@@ -339,9 +344,10 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
         "Plant/Area": ["Plant 4", "Cleanroom"],
         "Cleanroom/Non-Cleanroom": ["Cleanroom", "Non-Cleanroom", "Whiteroom", "Unknown / Not Checked", "N/A"],
         "EOAT Type": ["Vacuum", "Mechanical / Gripper", "Hybrid", "Unknown / Needs Review", "Miscellaneous", "N/A"],
-    "EOAT Moves": ["Part", "Sprue", "Both"],
-    "Entry Type": ["Audited", "Compatible"],
+        "EOAT Moves": ["Part", "Sprue", "Both"],
+        "Entry Type": ["Audited", "Compatible"],
         "Connection Type": ["ATI", "DoveTail", "Direct Mount", "Lever Lock", "N/A"],
+        GRIPPER_TYPE_FIELD: [*GRIPPER_TYPE_VALUES, "N/A"],
         "Sensors Present?": YES_NO_UNKNOWN,
         "Vacuum Confirmation Present?": YES_NO_UNKNOWN_NA,
         "Part-Present Detection Present?": YES_NO_UNKNOWN_NA,
@@ -420,6 +426,16 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
             "Other",
         ],
     },
+}
+
+WHOLE_NUMBER_VALIDATIONS: dict[str, list[str]] = {
+    "EOAT Inventory": [
+        "Number of Parts Picked",
+        GRIPPER_COUNT_FIELD,
+        "EOAT Vacuum Circuits",
+        "EOAT Pressure Circuits",
+        "EOAT Interchangeable Circuits",
+    ],
 }
 
 
@@ -771,6 +787,18 @@ def add_validation(ws, column_number: int, values: list[str]) -> None:
     validation.add(f"{column_letter}2:{column_letter}1000")
 
 
+def add_whole_number_validation(ws, column_number: int) -> None:
+    """Add non-negative whole-number validation to a worksheet column."""
+    column_letter = get_column_letter(column_number)
+    validation = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
+    validation.error = "Enter a non-negative whole number, or leave blank if not known yet."
+    validation.errorTitle = "Invalid whole number"
+    validation.prompt = "Use a non-negative whole number."
+    validation.promptTitle = "Whole number"
+    ws.add_data_validation(validation)
+    validation.add(f"{column_letter}2:{column_letter}1000")
+
+
 def width_for_header(header: str) -> int:
     """Choose practical column widths without letting long notes columns get huge."""
     if "Notes" in header or "Description" in header or "Observation" in header:
@@ -813,6 +841,9 @@ def add_sheet_validations(ws, sheet_name: str, headers: list[str]) -> None:
     for header, values in VALIDATIONS.get(sheet_name, {}).items():
         if header in header_positions:
             add_validation(ws, header_positions[header], values)
+    for header in WHOLE_NUMBER_VALIDATIONS.get(sheet_name, []):
+        if header in header_positions:
+            add_whole_number_validation(ws, header_positions[header])
 
 
 def add_fmea_formulas(ws, headers: list[str]) -> None:

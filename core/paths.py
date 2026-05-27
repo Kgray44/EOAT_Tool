@@ -19,6 +19,10 @@ class EOATProjectPaths:
         return self.project_root.joinpath(*EXPECTED_WORKBOOK_RELATIVE)
 
     @property
+    def robot_info_workbook(self) -> Path:
+        return self.master_workbook.parent / "Robot_Info.xlsx"
+
+    @property
     def project_admin(self) -> Path:
         return self.project_root / "00_Project_Admin"
 
@@ -37,6 +41,26 @@ class EOATProjectPaths:
     @property
     def activity_logs(self) -> Path:
         return self.project_admin / "Activity_Logs"
+
+    @property
+    def logs(self) -> Path:
+        return self.project_admin / "logs"
+
+    @property
+    def cache(self) -> Path:
+        return self.project_admin / "cache"
+
+    @property
+    def project_data(self) -> Path:
+        return self.project_root / "project_data"
+
+    @property
+    def annotations_database(self) -> Path:
+        return self.project_data / "annotations.sqlite"
+
+    @property
+    def annotation_exports(self) -> Path:
+        return self.project_root / "reports" / "exports"
 
     @property
     def mentor_briefs(self) -> Path:

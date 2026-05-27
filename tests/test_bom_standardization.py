@@ -19,8 +19,34 @@ def test_bom_standardization_common_parts_and_missing_data(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     wb = load_workbook(workbook_path)
     ws = wb["EOAT Inventory"]
-    ws.append(["AUD-1", "2026-05-18", "KG", "Plant 4", "Press 12", "Wittmann R9", "", "", "", "", "", "Vacuum", 4, "Silicone", "20mm"])
-    ws.append(["AUD-2", "2026-05-18", "KG", "Plant 4", "Press 13", "Wittmann R9", "", "", "", "", "", "Vacuum", 6, "Silicone", "20mm"])
+    headers = [cell.value for cell in ws[1]]
+    for row in [
+        {
+            "Audit ID": "AUD-1",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Number of Parts Picked": 4,
+            "Cup Type/Material": "Silicone",
+            "Cup Diameter/Size": "20mm",
+        },
+        {
+            "Audit ID": "AUD-2",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 13",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Number of Parts Picked": 6,
+            "Cup Type/Material": "Silicone",
+            "Cup Diameter/Size": "20mm",
+        },
+    ]:
+        ws.append([row.get(header, "") for header in headers])
     wb.save(workbook_path)
     wb.close()
 
