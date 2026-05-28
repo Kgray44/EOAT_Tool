@@ -15,6 +15,7 @@ from .paths import resolve_project_paths
 from .photo_evidence import evidence_coverage_for_project
 from .reports import list_recent_files
 from .result import ToolResult
+from .risk_insights import build_risk_insight_summary
 from .safe_files import ensure_directory, safe_write_text
 from .standards_compliance import analyze_standards_compliance
 from .validation import validate_project_foundation
@@ -122,6 +123,7 @@ def build_leadership_summary_markdown(project_root: str | Path) -> str:
     metrics, warnings = workbook_metrics(project_root)
     issues = top_issue_categories(project_root)
     risks = top_fmea_risks(project_root)
+    risk_insights = _safe_risk_insights(project_root)
     readiness = build_final_handoff_readiness(project_root)
     open_summary = _safe_open_summary(project_root)
     kpi, _kpi_error = analyze_kpis(project_root)
@@ -142,6 +144,9 @@ def build_leadership_summary_markdown(project_root: str | Path) -> str:
         "",
         "## FMEA / Risk Review",
         *table_from_rows(risks, ["Press/Machine #", "Failure Mode", "RPN", "Recommended Action"]),
+        "",
+        "## Integrated Risk Insight",
+        *_risk_insight_summary_lines(risk_insights),
         "",
         "## Pilot Recommendation / Results",
         pilot_status,
@@ -169,6 +174,7 @@ def build_technical_appendix_markdown(project_root: str | Path) -> str:
     validation_findings = findings_from_result(validation)
     standards, standards_error = analyze_standards_compliance(project_root)
     kpi, kpi_error = analyze_kpis(project_root)
+    risk_insights = _safe_risk_insights(project_root)
     compatibility = validate_compatibility_health(resolve_project_paths(project_root).master_workbook)
     open_items = _safe_open_items(project_root)
     photo_coverages = _safe_photo_coverages(project_root)
@@ -226,8 +232,11 @@ def build_technical_appendix_markdown(project_root: str | Path) -> str:
         "## FMEA Details",
         *table_from_rows(top_fmea_risks(project_root, limit=20), ["Press/Machine #", "Failure Mode", "RPN", "Recommended Action"]),
         "",
+        "## Integrated Risk Insight",
+        *_risk_insight_summary_lines(risk_insights),
+        "",
         "## PM/BOM Findings",
-        *report_references_markdown({"PM Checklists": reports["PM Checklists"], "BOM": reports["BOM"]}),
+        *report_references_markdown({"PM Checklists": reports["PM Checklists"], "BOM": reports["BOM"], "Risk Insights": reports["Risk Insights"]}),
         "",
         "## KPI Dashboard / Export",
         "KPI analysis unavailable." if kpi_error else f"- KPI rows: {kpi.metrics.get('kpi_rows', 0) if kpi else 0}",
@@ -493,6 +502,31 @@ def _safe_photo_coverages(project_root: str | Path):
         return []
 
 
+def _safe_risk_insights(project_root: str | Path):
+    try:
+        return build_risk_insight_summary(project_root)
+    except Exception:
+        return None
+
+
+def _risk_insight_summary_lines(summary: Any) -> list[str]:
+    if summary is None:
+        return ["Risk insight summary unavailable."]
+    lines = [
+        f"- Top FMEA risks shown: {summary.metrics.get('top_risk_count', 0)}",
+        f"- Pilot candidates shown: {summary.metrics.get('pilot_candidate_count', 0)}",
+        f"- KPI rows available: {summary.metrics.get('kpi_rows', 0)}",
+        f"- Missing KPI fields: {summary.metrics.get('missing_kpi_fields_total', 0)}",
+    ]
+    if summary.recommended_actions:
+        lines.extend(["", "Recommended actions:"])
+        lines.extend(f"- {action}" for action in summary.recommended_actions[:5])
+    if summary.warnings:
+        lines.extend(["", "Source warnings:"])
+        lines.extend(f"- {warning}" for warning in summary.warnings[:5])
+    return lines
+
+
 def _open_item_row(item: OpenItem) -> dict[str, Any]:
     return {
         "Source": item.source,
@@ -539,6 +573,7 @@ def _report_map(project_root: str | Path) -> dict[str, list[Path]]:
         "FMEA": list_recent_files(paths.fmea_reports, 5),
         "Pilot Candidates": list_recent_files(paths.pilot_project / "Candidate_Cells", 5),
         "KPI": list_recent_files(paths.kpi_dashboard_exports, 5),
+        "Risk Insights": list_recent_files(paths.risk_insights_reports, 5),
         "PM Checklists": list_recent_files(paths.pm_generated_checklists, 5),
         "BOM": list_recent_files(paths.bom_standardization_reports, 5),
         "Validation": list_recent_files(paths.validation_reports, 5),

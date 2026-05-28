@@ -141,3 +141,14 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_risk_insights.py tests/test_fmea_analysis.py tests/test_pilot_scoring.py tests/test_kpi_analysis.py`
   - Result: 7 passed.
+
+## Checkpoint 14 - Workflow/Reporting/Final Handoff Improvements
+
+- Added a safe generated Markdown report path for integrated risk insights under final handoff outputs.
+- Added Risk Insight Reports to the Reports folder browser and final handoff source collection.
+- Wired weekly-review and final-review workflows to generate risk insight reports without workbook modification.
+- Added integrated risk insight sections to the leadership summary and technical appendix.
+- Updated tests for risk report generation, report folder visibility, and final handoff headings.
+- Focused verification:
+  - `python -m pytest -q tests/test_risk_insights.py tests/test_final_handoff_readiness.py tests/test_reports.py tests/test_workflows.py`
+  - Result: 13 passed.

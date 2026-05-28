@@ -151,6 +151,10 @@ class EOATProjectPaths:
         return self.final_handoff / "Final_Report"
 
     @property
+    def risk_insights_reports(self) -> Path:
+        return self.final_handoff / "Risk_Insights"
+
+    @property
     def executive_summary(self) -> Path:
         return self.final_handoff / "Executive_Summary"
 
