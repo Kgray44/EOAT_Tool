@@ -59,3 +59,14 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_audit_coach.py -k manual tests/ui/test_audit_entry_workflow.py -k manual tests/test_audit_completion.py -k override`
   - Result: 5 passed, 57 deselected.
+
+## Checkpoint 6 - Settings Overhaul Foundation
+
+- Added config schema versioning and migration defaults for scheduled reports, backup policy, audit coach exclusions, and smart default rules.
+- Added migration of legacy connection defaults into structured smart-rule records while preserving the existing connection default map.
+- Reworked Settings into tabbed sections: Project & Data, Audit Defaults, Smart Rules, Scheduled Reports, Backups & Safety, UI & Tools, and Diagnostics.
+- Added settings search, dirty-state tracking, and a `can_close` guard for unsaved settings changes.
+- Added editable scheduled-report and backup-policy controls while preserving the existing save/reload/system-audit/backup actions.
+- Focused verification:
+  - `python -m pytest -q tests/test_config.py tests/ui/test_settings_workflow.py tests/test_ui_smoke.py -k settings`
+  - Result: 3 passed, 8 deselected.

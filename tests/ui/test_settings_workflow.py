@@ -33,13 +33,22 @@ def test_settings_save_reload_theme_audit_backups_and_open_stub(qapp, fake_confi
     page.show()
 
     assert page.project_root_edit.text() == str(fake_project)
+    assert page.settings_tabs.count() >= 7
+    assert page.has_unsaved_changes() is False
+    page.settings_search_edit.setText("backup")
+    assert page.settings_tabs.tabText(page.settings_tabs.currentIndex()) == "Backups & Safety"
+    page.daily_report_time_edit.setText("18:30")
+    assert page.has_unsaved_changes() is True
     page.theme_combo.setCurrentIndex(page.theme_combo.findData("dark"))
     click_button(page, "Save Settings")
     assert saved["config"].theme == "dark"
+    assert saved["config"].scheduled_reports["daily_time"] == "18:30"
+    assert page.has_unsaved_changes() is False
 
     page.theme_combo.setCurrentIndex(page.theme_combo.findData("light"))
     click_button(page, "Reload Settings")
     assert page.theme_combo.currentData() == "dark"
+    assert page.daily_report_time_edit.text() == "18:30"
 
     click_button(page, "Run Full System Audit")
     wait_for_background_tasks()
