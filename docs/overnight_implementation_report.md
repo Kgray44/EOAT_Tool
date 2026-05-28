@@ -131,3 +131,13 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_compatibility_matrix.py tests/test_bom_standardization.py tests/test_audit_compatibility.py -k "compatibility or standardization"`
   - Result: 17 passed.
+
+## Checkpoint 13 - Risk/FMEA/Pilot/KPI Insights
+
+- Added `core/risk_insights.py` as a read-only risk insight layer across FMEA, pilot ranking, and KPI analysis.
+- The summary keeps FMEA top risks, top pilot candidates, KPI data gaps, source warnings, and recommended next actions in one stable object.
+- No workbook writes are performed by this phase.
+- Added `tests/test_risk_insights.py`.
+- Focused verification:
+  - `python -m pytest -q tests/test_risk_insights.py tests/test_fmea_analysis.py tests/test_pilot_scoring.py tests/test_kpi_analysis.py`
+  - Result: 7 passed.
