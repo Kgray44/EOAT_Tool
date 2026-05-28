@@ -3,18 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from core.gripper_fields import CUP_COUNT_FIELD
 from core.audit_field_rules import (
+    cylinder_optional_reason,
+    cylinder_section_in_use,
     field_applies,
     field_group,
     hybrid_completeness_warnings,
+    ignored_empty_fields_at_override,
     is_meaningful_value,
     is_na_value,
+    manual_completion_override_enabled,
     non_applicable_reason,
     normalize_text,
     semantic_consistency_warnings,
     entry_type_requirements,
 )
+from core.audit_constants import CYLINDER_FIELDS, MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD, MANUAL_COMPLETION_OVERRIDE_USER_FIELD
+from core.gripper_fields import CUP_COUNT_FIELD
 
 STATE_VERIFIED_COMPLETE = "verified_complete"
 STATE_MISSING = "missing"
@@ -42,6 +47,8 @@ EOAT_TOOLING_FIELDS = {
     "Gripper Type",
     "Gripper Model",
     "Gripper Size",
+    "# of Cylinders",
+    "Cylinder Type",
     "Cup Type/Material",
     "Cup Diameter/Size",
     "Vacuum Generator Type",
@@ -136,6 +143,10 @@ class AuditCoachSummary:
     can_finish: bool
     missing_required_fields: tuple[str, ...] = ()
     missing_important_fields: tuple[str, ...] = ()
+    manual_completion_override: bool = False
+    manual_completion_override_timestamp: str = ""
+    manual_completion_override_user: str = ""
+    ignored_empty_fields_at_override: tuple[str, ...] = ()
 
 
 def calculate_audit_coach_summary(
@@ -169,6 +180,16 @@ def calculate_audit_coach_summary(
         section_statuses.append(_section_summary(str(section_name), field_statuses))
 
     findings.extend(_cross_field_findings(current_entry))
+    override_enabled = manual_completion_override_enabled(current_entry)
+    ignored_override_fields = ignored_empty_fields_at_override(current_entry)
+    if override_enabled:
+        findings.append(
+            AuditCoachFinding(
+                severity="info",
+                category="manual_completion_override",
+                message="Manual completion override is applied. Blank fields recorded at override time are ignored for completion percentage.",
+            )
+        )
 
     missing_fields = tuple(status.field for status in all_statuses if status.state == STATE_MISSING)
     unknown_fields = tuple(status.field for status in all_statuses if status.state == STATE_UNKNOWN_NOT_CHECKED)
@@ -195,6 +216,17 @@ def calculate_audit_coach_summary(
         for status in all_statuses
         if status.important and status.state in {STATE_MISSING, STATE_UNKNOWN_NOT_CHECKED, STATE_FOLLOW_UP_NEEDED, STATE_STALE_CONFLICT}
     )
+    if override_enabled:
+        section_statuses = [_manual_override_section(section) for section in section_statuses]
+        verified_count = applicable_count
+        missing_fields = ()
+        unknown_fields = ()
+        follow_up_fields = ()
+        stale_conflict_fields = ()
+        guided_fields = ()
+        next_status = None
+        missing_required = ()
+        missing_important = ()
 
     return AuditCoachSummary(
         audit_id=current_entry.get("Audit ID", ""),
@@ -210,12 +242,16 @@ def calculate_audit_coach_summary(
         sections=tuple(section_statuses),
         findings=tuple(findings),
         next_best_field=next_status.field if next_status else "",
-        next_best_reason=_next_best_reason(next_status) if next_status else "No applicable missing fields remain.",
+        next_best_reason="Manual completion override is applied." if override_enabled else _next_best_reason(next_status) if next_status else "No applicable missing fields remain.",
         guided_fields=guided_fields,
-        percent_complete=_percent(verified_count, applicable_count),
-        can_finish=not guided_statuses and not blocking_findings,
+        percent_complete=100 if override_enabled else _percent(verified_count, applicable_count),
+        can_finish=True if override_enabled else not guided_statuses and not blocking_findings,
         missing_required_fields=missing_required,
         missing_important_fields=missing_important,
+        manual_completion_override=override_enabled,
+        manual_completion_override_timestamp=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD)),
+        manual_completion_override_user=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_USER_FIELD)),
+        ignored_empty_fields_at_override=ignored_override_fields,
     )
 
 
@@ -234,6 +270,19 @@ def classify_audit_field(
     required = field in required_fields or field in IDENTITY_FIELDS
     important = field in important_fields
     priority = _field_priority(field, required=required, important=important)
+
+    if field in CYLINDER_FIELDS and not cylinder_section_in_use(current_entry):
+        return AuditCoachFieldStatus(
+            field=field,
+            section=section,
+            state=STATE_NOT_APPLICABLE,
+            value=value,
+            applies=False,
+            reason=cylinder_optional_reason(),
+            priority=priority,
+            required=False,
+            important=False,
+        )
 
     if not field_applies(current_entry, field):
         reason = non_applicable_reason(current_entry, field)
@@ -341,6 +390,21 @@ def _section_summary(section_name: str, statuses: tuple[AuditCoachFieldStatus, .
         stale_conflict_count=sum(1 for status in statuses if status.state == STATE_STALE_CONFLICT),
         percent_complete=_percent(verified_count, len(applicable)),
         fields=statuses,
+    )
+
+
+def _manual_override_section(section: AuditCoachSectionStatus) -> AuditCoachSectionStatus:
+    return AuditCoachSectionStatus(
+        name=section.name,
+        applicable_count=section.applicable_count,
+        verified_complete_count=section.applicable_count,
+        missing_count=0,
+        unknown_count=0,
+        not_applicable_count=section.not_applicable_count,
+        follow_up_count=0,
+        stale_conflict_count=0,
+        percent_complete=100,
+        fields=section.fields,
     )
 
 

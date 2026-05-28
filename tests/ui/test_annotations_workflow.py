@@ -38,6 +38,9 @@ def test_tags_page_opens_and_creates_custom_tag(qapp, fake_config):
     page = TagsPage(fake_config)
     page.show()
 
+    names = [page.tag_table.item(row, 0).text() for row in range(page.tag_table.rowCount())]
+    assert "Info" in names
+
     click_button(page, "+ New Tag")
     page.name_edit.setText("Fixture Trial")
     page.color_combo.setCurrentText("Pink")
@@ -155,6 +158,7 @@ def test_field_tag_popup_uses_read_only_tag_color_preview(qapp, fake_config):
 
     assert not hasattr(dialog, "color_combo")
     assert dialog.add_tag_panel.isHidden()
+    assert dialog.tag_combo.findText("Info") >= 0
     index = dialog.tag_combo.findText("Needs Review")
     dialog.tag_combo.setCurrentIndex(index)
 

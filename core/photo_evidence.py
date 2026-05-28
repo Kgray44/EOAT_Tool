@@ -14,7 +14,7 @@ from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .validation_findings import ValidationFinding, ValidationSeverity, make_finding
-from .workbook_io import row_dicts
+from .workbook_cache import row_dicts_cached as row_dicts
 
 PHOTO_EVIDENCE_TOOL_NAME = "EOAT Photo Evidence Coverage"
 

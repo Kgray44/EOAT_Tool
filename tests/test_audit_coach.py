@@ -9,6 +9,15 @@ from core.audit.coach import (
     STATE_VERIFIED_COMPLETE,
     calculate_audit_coach_summary,
 )
+from core.audit_constants import (
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_DEFAULT,
+    CYLINDER_TYPE_FIELD,
+    IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+)
 
 
 SECTIONS = {
@@ -29,6 +38,8 @@ SECTIONS = {
         "Cup Type/Material",
         "Cup Diameter/Size",
         "Vacuum Generator Type",
+        CYLINDER_COUNT_FIELD,
+        CYLINDER_TYPE_FIELD,
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
@@ -64,6 +75,8 @@ def _base_entry(**overrides):
         "Cup Type/Material": "Demo Cup",
         "Cup Diameter/Size": "20",
         "Vacuum Generator Type": "Venturi",
+        CYLINDER_COUNT_FIELD: "",
+        CYLINDER_TYPE_FIELD: CYLINDER_TYPE_DEFAULT,
         "# of Grippers": "N/A",
         "Gripper Type": "N/A",
         "Gripper Model": "N/A",
@@ -295,3 +308,50 @@ def test_miscellaneous_eoat_counts_gripper_fields_as_applicable():
 
     assert _status(summary, "Gripper Model").state == STATE_MISSING
     assert "Gripper Model" in summary.missing_fields
+
+
+def test_cylinder_default_section_is_ignored_until_intentionally_used():
+    summary = calculate_audit_coach_summary(_base_entry(), SECTIONS)
+
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_NOT_APPLICABLE
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_NOT_APPLICABLE
+    assert CYLINDER_COUNT_FIELD not in summary.missing_fields
+    assert CYLINDER_TYPE_FIELD not in summary.missing_fields
+
+
+def test_cylinder_count_makes_cylinder_fields_participate_in_progress():
+    summary = calculate_audit_coach_summary(_base_entry(**{CYLINDER_COUNT_FIELD: "2"}), SECTIONS)
+
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_VERIFIED_COMPLETE
+
+
+def test_cylinder_type_change_without_count_requires_count():
+    summary = calculate_audit_coach_summary(_base_entry(**{CYLINDER_TYPE_FIELD: "Rotary"}), SECTIONS)
+
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_MISSING
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_VERIFIED_COMPLETE
+    assert CYLINDER_COUNT_FIELD in summary.missing_fields
+
+
+def test_manual_completion_override_forces_completion_for_current_audit():
+    summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                "Press/Machine #": "",
+                "Sensor Brand/Model": "",
+                MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes",
+                MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD: "2026-05-28T12:00:00+00:00",
+                MANUAL_COMPLETION_OVERRIDE_USER_FIELD: "KG",
+                IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD: "Press/Machine #; Sensor Brand/Model",
+            }
+        ),
+        SECTIONS,
+    )
+
+    assert summary.manual_completion_override is True
+    assert summary.percent_complete == 100
+    assert summary.can_finish is True
+    assert summary.guided_fields == ()
+    assert summary.missing_fields == ()
+    assert summary.ignored_empty_fields_at_override == ("Press/Machine #", "Sensor Brand/Model")

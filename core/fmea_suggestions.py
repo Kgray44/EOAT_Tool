@@ -21,6 +21,7 @@ from .result import ToolResult
 from .safe_files import backup_file, ensure_directory, safe_write_text
 from .standards_compliance import analyze_standards_compliance
 from .validation_findings import ValidationFinding
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import next_empty_row, row_dicts, write_row_by_headers
 from .workbook_schema import get_expected_headers
 
@@ -219,6 +220,7 @@ def accept_fmea_suggestions(project_root: str | Path, reviewed_suggestions: Iter
             rows_written.append(row_number)
         workbook.save(workbook_path)
         workbook.close()
+        invalidate_workbook_cache(workbook_path)
         workbook = None
         _record_decisions(project_root, suggestions, "accepted")
     except Exception as exc:

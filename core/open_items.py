@@ -10,15 +10,17 @@ from typing import Any, Iterable
 from core.annotations.exports import unique_export_path
 from core.annotations.migrations import utc_now
 from core.annotations.service import AnnotationService
+from core.annotations.tag_colors import is_neutral_context_tag
 from core.paths import resolve_project_paths
 from core.photo_evidence import evidence_coverage_for_project
 from core.safe_files import ensure_directory, safe_write_text
 from core.validation import validate_project_foundation
 from core.validation_findings import findings_from_result
-from core.workbook_io import row_dicts
+from core.workbook_cache import row_dicts_cached as row_dicts
 
 STATUS_DISMISSED = "Dismissed / Overridden"
 STATUS_FIXED_AT_SOURCE = "Fixed at Source"
+OPEN_ITEMS_SUMMARY_CACHE_SCHEMA_VERSION = 1
 OPEN_ITEM_STATUSES = ("Open", "In Progress", "Waiting on Info", "Blocked", STATUS_DISMISSED, STATUS_FIXED_AT_SOURCE)
 UNRESOLVED_STATUSES = {"Open", "In Progress", "Waiting on Info", "Blocked"}
 ACTION_OPEN_STATUSES = {"", "open", "not started", "needs follow-up", "in progress", "blocked", "new", "waiting on info"}
@@ -124,6 +126,50 @@ def open_items_summary(project_root: str | Path, *, today: date | None = None) -
     today = today or date.today()
     items = list_open_items(project_root, include_resolved=True, today=today)
     return summarize_open_items(items, today=today)
+
+
+def open_items_summary_cache_path(project_root: str | Path) -> Path:
+    return resolve_project_paths(project_root).cache / "open_items_summary.json"
+
+
+def load_cached_open_items_summary(project_root: str | Path) -> tuple[dict[str, int] | None, str | None]:
+    path = open_items_summary_cache_path(project_root)
+    if not path.exists():
+        return None, None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    if payload.get("schema") != OPEN_ITEMS_SUMMARY_CACHE_SCHEMA_VERSION:
+        return None, None
+    raw_summary = payload.get("summary")
+    if not isinstance(raw_summary, dict):
+        return None, None
+    summary: dict[str, int] = {}
+    for key, value in raw_summary.items():
+        try:
+            summary[str(key)] = int(value or 0)
+        except (TypeError, ValueError):
+            summary[str(key)] = 0
+    generated_at = str(payload.get("generated_at") or "") or None
+    return summary, generated_at
+
+
+def save_cached_open_items_summary(project_root: str | Path, summary: dict[str, int]) -> Path:
+    path = open_items_summary_cache_path(project_root)
+    ensure_directory(path.parent)
+    payload = {
+        "schema": OPEN_ITEMS_SUMMARY_CACHE_SCHEMA_VERSION,
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "summary": {str(key): int(value or 0) for key, value in summary.items()},
+        "source": {
+            "project_root": str(Path(project_root)),
+        },
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+    return path
 
 
 def summarize_open_items(items: Iterable[OpenItem], *, today: date | None = None) -> dict[str, int]:
@@ -283,6 +329,8 @@ def _tag_items(service: AnnotationService) -> list[OpenItem]:
     items: list[OpenItem] = []
     for assignment in service.list_tag_assignments(sort_by="updated"):
         tag_name = str(assignment.get("tag_name") or assignment.get("name") or "Tag")
+        if is_neutral_context_tag(tag_name):
+            continue
         category = _category_for_tag(tag_name)
         items.append(
             OpenItem(
@@ -790,8 +838,11 @@ __all__ = [
     "dismiss_open_item",
     "export_open_items_report",
     "load_cached_open_items",
+    "load_cached_open_items_summary",
     "list_open_items",
     "open_items_summary",
+    "open_items_summary_cache_path",
+    "save_cached_open_items_summary",
     "set_open_item_status",
     "summarize_open_items",
 ]

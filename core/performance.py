@@ -170,6 +170,8 @@ def summarize_performance(events: list[dict], *, slow_limit: int = 10) -> dict:
             "operation": operation,
             "count": len(values),
             "avg_duration_seconds": round(sum(values) / len(values), 4),
+            "p50_duration_seconds": round(_percentile(values, 50), 4),
+            "p95_duration_seconds": round(_percentile(values, 95), 4),
             "max_duration_seconds": round(max(values), 4),
         }
         for operation, values in sorted(by_operation.items())
@@ -200,6 +202,19 @@ def _latest_event(events: list[dict], prefix: str) -> dict | None:
         if str(event.get("operation") or "").startswith(prefix):
             return event
     return None
+
+
+def _percentile(values: list[float], percentile: int) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (len(ordered) - 1) * (percentile / 100)
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = rank - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
 
 def _latest_operation_contains(events: list[dict], words: tuple[str, ...]) -> dict | None:

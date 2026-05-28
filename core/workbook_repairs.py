@@ -25,6 +25,7 @@ from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
 from .validation import validate_project_foundation
 from .validation_findings import summarize_findings, findings_from_result
 from .workbook_io import worksheet_headers
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_locks import detect_workbook_lock
 from .workbook_schema import get_expected_headers
 
@@ -415,6 +416,7 @@ def _apply_clear_stale_hidden_na(project_root: str | Path, preview: SafeFixPrevi
             audit_changes[audit_key]["after"][change.column_name] = NA_VALUE
         refresh_audit_by_press_view(workbook)
         workbook.save(workbook_path)
+        invalidate_workbook_cache(workbook_path)
     except Exception as exc:
         return ToolResult.fail(
             "workbook_repair",

@@ -52,6 +52,12 @@ class AuditCoachPanel(QWidget):
         self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
 
+        self.override_label = QLabel("")
+        self.override_label.setWordWrap(True)
+        self.override_label.setStyleSheet("color: #92400e; font-weight: 600;")
+        self.override_label.hide()
+        layout.addWidget(self.override_label)
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setTextVisible(True)
@@ -112,10 +118,28 @@ class AuditCoachPanel(QWidget):
         elif self._guided_index >= len(self._guided_fields):
             self._guided_index = 0
         self.progress_bar.setValue(summary.percent_complete)
-        self.summary_label.setText(
-            f"{summary.percent_complete}% verified complete. "
-            f"{summary.verified_complete_count}/{summary.applicable_field_count} applicable fields verified."
-        )
+        if summary.manual_completion_override:
+            self.summary_label.setText(
+                f"{summary.percent_complete}% complete by manual override. "
+                f"{summary.verified_complete_count}/{summary.applicable_field_count} applicable fields treated complete."
+            )
+            detail = "Manual completion override applied"
+            if summary.manual_completion_override_timestamp:
+                detail += f" at {summary.manual_completion_override_timestamp}"
+            if summary.manual_completion_override_user:
+                detail += f" by {summary.manual_completion_override_user}"
+            ignored = len(summary.ignored_empty_fields_at_override)
+            if ignored:
+                detail += f". {ignored} blank field(s) ignored."
+            self.override_label.setText(detail)
+            self.override_label.show()
+        else:
+            self.summary_label.setText(
+                f"{summary.percent_complete}% verified complete. "
+                f"{summary.verified_complete_count}/{summary.applicable_field_count} applicable fields verified."
+            )
+            self.override_label.setText("")
+            self.override_label.hide()
         self.next_label.setText(self._next_text())
         self.section_text.setPlainText(self._section_lines(summary))
         self.findings_text.setPlainText(self._finding_lines(summary))
@@ -170,6 +194,8 @@ class AuditCoachPanel(QWidget):
     def _next_text(self) -> str:
         if not self.summary:
             return "Coach summary is not ready yet."
+        if self.summary.manual_completion_override:
+            return "Manual completion override is applied. Blank fields from this audit no longer drive the completion percentage."
         field = self.current_field()
         if not field:
             if self.summary.can_finish:

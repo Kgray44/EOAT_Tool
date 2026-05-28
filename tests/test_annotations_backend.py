@@ -9,6 +9,7 @@ from core.annotations.migrations import LATEST_SCHEMA_VERSION
 from core.annotations.service import AnnotationService
 from core.annotations.tag_colors import DEFAULT_TAG_DEFINITIONS
 from core.audit_entries import save_audit_entry
+from core.open_items import list_open_items, open_items_summary
 from core.paths import resolve_project_paths
 
 
@@ -32,6 +33,7 @@ def test_annotation_database_initializes_migrates_and_seeds_defaults(fake_projec
 
     assert before == len(DEFAULT_TAG_DEFINITIONS)
     assert after == before
+    assert "Info" in {definition["name"] for definition in DEFAULT_TAG_DEFINITIONS}
 
 
 def test_note_crud_search_filter_sort_and_links(fake_project):
@@ -96,6 +98,29 @@ def test_tag_crud_search_filter_sort_and_multiple_tags_per_target(fake_project):
     service.remove_tag_from_target(review.id, target.id, sync_workbook=False)
     service.remove_tag_from_target(custom.id, target.id, sync_workbook=False)
     assert service.highest_priority_color_for_target(target.id) is None
+
+
+def test_info_tag_is_neutral_searchable_and_not_an_open_issue(fake_project):
+    service = AnnotationService(fake_project)
+    target = service.create_or_get_target("audit_field", audit_id="AUD-INFO-001", machine_id="26", field_key="Notes", field_label="Notes")
+    info = service.get_tag_by_name("Info")
+    before_open_items = open_items_summary(fake_project, today=date(2026, 5, 26))["total_open_items"]
+
+    assert info is not None
+    assert info.name == "Info"
+    service.assign_tag_to_target(info.id, target.id, comment="Has spare EOAT nearby.", sync_workbook=False)
+
+    tags = service.get_tags_for_target(target.id)
+    assert any(tag["name"] == "Info" and tag["comment"] == "Has spare EOAT nearby." for tag in tags)
+    assert service.search_tags("info")[0].name == "Info"
+    assert service.list_tag_assignments(query="spare")[0]["tag_name"] == "Info"
+
+    service_summary = service.get_open_items_summary(today=date(2026, 5, 26))
+    assert service_summary["info_tags"] == 1
+    assert service_summary["fields_needing_review"] == 0
+    assert service_summary["data_conflicts"] == 0
+    assert not any(item.source == "tag" and item.title.startswith("Info:") for item in list_open_items(fake_project, include_resolved=True))
+    assert open_items_summary(fake_project, today=date(2026, 5, 26))["total_open_items"] == before_open_items
 
 
 def test_note_and_tag_exports_markdown_and_excel(fake_project):

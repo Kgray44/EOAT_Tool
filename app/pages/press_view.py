@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 try:
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import Qt, QTimer
     from PySide6.QtWidgets import (
         QComboBox,
         QGridLayout,
@@ -18,7 +18,7 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    Qt = None
+    Qt = QTimer = None
     QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
 from app.page_async import AsyncRefreshMixin, log_page_performance
@@ -27,6 +27,7 @@ from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from app.widgets.status_card import StatusCard
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.press_view import PressAuditEntry, PressViewGroup, build_press_view_groups, export_press_summary, load_cached_press_view_groups, save_press_view_cache
+from core.performance import log_performance
 
 
 class PressViewPage(AsyncRefreshMixin, QWidget):
@@ -55,6 +56,11 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.groups: list[PressViewGroup] = []
         self.current_entries: list[PressAuditEntry] = []
         self.navigator = AnnotationTargetNavigator(self)
+        self._filter_timer = QTimer(self) if QTimer is not None else None
+        if self._filter_timer is not None:
+            self._filter_timer.setSingleShot(True)
+            self._filter_timer.setInterval(150)
+            self._filter_timer.timeout.connect(self.apply_filters)
 
         layout = QVBoxLayout(self)
         heading = QLabel("Press View")
@@ -64,7 +70,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         controls = QHBoxLayout()
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Search press, audit ID, tool, EOAT type, issue...")
-        self.search_edit.textChanged.connect(self.apply_filters)
+        self.search_edit.textChanged.connect(self._schedule_filter)
         self.status_filter = QComboBox()
         self.status_filter.addItems(["All"])
         self.status_filter.currentTextChanged.connect(self.apply_filters)
@@ -73,6 +79,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             controls.addWidget(widget)
         for label, callback in [
             ("Refresh", lambda: self.refresh(force=True)),
+            ("Auto Size Columns", self.auto_size_columns),
             ("Open Audit", self.open_selected_audit),
             ("Open Machine Group", self.open_machine_group),
             ("Export Press Summary", self.export_selected_press_summary),
@@ -111,6 +118,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.group_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.group_table.setAlternatingRowColors(True)
         self.group_table.itemSelectionChanged.connect(self.populate_entries)
+        self._apply_default_table_widths(self.group_table)
         left_layout.addWidget(self.group_table)
         splitter.addWidget(left)
 
@@ -122,6 +130,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.physical_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.physical_table.setAlternatingRowColors(True)
         self.physical_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.physical_table))
+        self._apply_default_table_widths(self.physical_table)
         right_layout.addWidget(self.physical_table)
         right_layout.addWidget(QLabel("Compatible entries assigned to this machine"))
         self.compatible_table = QTableWidget(0, len(self.ENTRY_COLUMNS))
@@ -129,6 +138,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.compatible_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.compatible_table.setAlternatingRowColors(True)
         self.compatible_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.compatible_table))
+        self._apply_default_table_widths(self.compatible_table)
         right_layout.addWidget(self.compatible_table)
         right_layout.addWidget(QLabel("Compatible entries from this machine's source audits"))
         self.linked_compatible_table = QTableWidget(0, len(self.ENTRY_COLUMNS))
@@ -136,6 +146,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.linked_compatible_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.linked_compatible_table.setAlternatingRowColors(True)
         self.linked_compatible_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.linked_compatible_table))
+        self._apply_default_table_widths(self.linked_compatible_table)
         right_layout.addWidget(self.linked_compatible_table)
         splitter.addWidget(right)
         splitter.setSizes([430, 760])
@@ -150,8 +161,17 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
 
     def refresh(self, *_args, force: bool = False) -> bool:
         def _load() -> dict:
+            started = time.perf_counter()
             groups = build_press_view_groups(self.config.project_root)
             save_press_view_cache(self.config.project_root, groups)
+            log_performance(
+                self.config.project_root,
+                "press_view.background_rebuild",
+                time.perf_counter() - started,
+                source="press_view",
+                page_tool="press_view",
+                details={"group_count": len(groups)},
+            )
             return {
                 "groups": groups,
                 "source_counts": {
@@ -190,6 +210,12 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             self._populate_entry_table(self.compatible_table, [])
             self._populate_entry_table(self.linked_compatible_table, [])
             self.result_panel.show_text("No press/machine audit rows matched the current filters.")
+
+    def _schedule_filter(self, *_args) -> None:
+        if self._filter_timer is None:
+            self.apply_filters()
+            return
+        self._filter_timer.start()
 
     def refresh_data(self) -> None:
         self.refresh()
@@ -257,7 +283,16 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         return None
 
     def _show_cached_groups(self) -> None:
+        started = time.perf_counter()
         groups, generated_at, warning = load_cached_press_view_groups(self.config.project_root)
+        log_performance(
+            self.config.project_root,
+            "press_view.cached_load",
+            time.perf_counter() - started,
+            source="press_view",
+            page_tool="press_view",
+            details={"cache_status": "hit" if groups else "miss", "group_count": len(groups)},
+        )
         if not groups:
             self.result_panel.show_text(f"{warning or 'No cached press view yet.'} Loading press data in background...")
             return
@@ -376,7 +411,6 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                     if col == 0:
                         item.setData(Qt.ItemDataRole.UserRole, group.machine)
                     self.group_table.setItem(row, col, item)
-            self.group_table.resizeColumnsToContents()
         finally:
             self.group_table.setUpdatesEnabled(True)
             self.group_table.blockSignals(False)
@@ -395,13 +429,23 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                     item = QTableWidgetItem(str(value or ""))
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     table.setItem(row, col, item)
-            table.resizeColumnsToContents()
         finally:
             table.setUpdatesEnabled(True)
             table.blockSignals(False)
             table.setSortingEnabled(sorting)
         if entries:
             table.selectRow(0)
+
+    def auto_size_columns(self) -> None:
+        for table in [self.group_table, self.physical_table, self.compatible_table, self.linked_compatible_table]:
+            table.resizeColumnsToContents()
+        self.result_panel.show_text("Columns auto-sized.")
+
+    def _apply_default_table_widths(self, table: QTableWidget) -> None:
+        for column in range(table.columnCount()):
+            table.setColumnWidth(column, 130)
+        if table.columnCount():
+            table.setColumnWidth(0, 170)
 
     def _entry_selection_changed(self, active_table: QTableWidget) -> None:
         if active_table.currentRow() >= 0:
@@ -433,6 +477,8 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
     @staticmethod
     def _matches_group_query(group: PressViewGroup, query: str) -> bool:
         needle = query.casefold().strip()
+        if group.search_blob:
+            return needle in group.search_blob
         haystack = " ".join(
             [
                 group.machine,
