@@ -70,3 +70,14 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_config.py tests/ui/test_settings_workflow.py tests/test_ui_smoke.py -k settings`
   - Result: 3 passed, 8 deselected.
+
+## Checkpoint 7 - Default Rules And Smart Rules
+
+- Added `core.audit.smart_rules` with structured rule normalization, default rules, conflict warnings, and safe application that preserves user-entered values by default.
+- Default smart rules now cover part-present sensor defaults and connection-type changeover defaults.
+- `UserConfig` now initializes missing smart rules with the default rules and still migrates legacy connection defaults into rule records.
+- `AuditDefaultsController` exposes configured smart defaults for Audit page workflows.
+- Added `tests/test_smart_rules.py`.
+- Focused verification:
+  - `python -m pytest -q tests/test_smart_rules.py tests/test_config.py tests/test_audit_workflow_stabilization.py -k defaults`
+  - Result: 6 passed, 25 deselected.
