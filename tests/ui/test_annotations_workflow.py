@@ -572,7 +572,7 @@ def test_save_audit_autoclears_form_and_preserves_combined_summary(qapp, fake_co
     assert page.audit_fields["Audit ID"].text() != audit_id
 
 
-def test_save_audit_workflow_records_timing_and_uses_targeted_annotation_sync(qapp, fake_config, monkeypatch, frozen_project_date):
+def test_save_audit_workflow_records_timing_and_defers_annotation_sync(qapp, fake_config, monkeypatch, frozen_project_date):
     page = AuditPage(fake_config)
     page.show()
     audit_id = page.audit_fields["Audit ID"].text()
@@ -581,11 +581,9 @@ def test_save_audit_workflow_records_timing_and_uses_targeted_annotation_sync(qa
     page.audit_fields["EOAT Type"].setCurrentText("Vacuum")
     calls = {"targeted": 0, "full": 0}
 
-    original_targeted = AnnotationService.sync_tag_colors_to_workbook_for_audit
-
     def targeted_sync(self, sync_audit_id):
         calls["targeted"] += 1
-        return original_targeted(self, sync_audit_id)
+        raise AssertionError("Normal audit save should not sync workbook annotation colors.")
 
     def full_sync(self):
         calls["full"] += 1
@@ -602,7 +600,8 @@ def test_save_audit_workflow_records_timing_and_uses_targeted_annotation_sync(qa
 
     assert result.success, result.errors
     assert result.metrics["audit_id"] == audit_id
-    assert calls == {"targeted": 1, "full": 0}
+    assert calls == {"targeted": 0, "full": 0}
+    assert result.metrics["annotation_color_sync_deferred"] is True
     assert "audit_save_timing" in result.metrics
     assert "audit_save" in result.metrics["audit_save_timing"]
     assert "robot_info_save" in result.metrics["audit_save_timing"]

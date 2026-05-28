@@ -23,11 +23,13 @@ from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .workbook_io import row_dicts
+from .gripper_fields import CUP_COUNT_FIELD
 
 MISSING_DATA_FIELDS = [
     "Robot Type",
     "EOAT Type",
     "EOAT Moves",
+    CUP_COUNT_FIELD,
     "Tubing Condition",
     "Cable Management Condition",
     "Known Issues",

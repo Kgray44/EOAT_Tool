@@ -149,7 +149,14 @@ class AnnotationTargetNavigator:
             audit_id = str(data.get("audit_id") or "").strip()
             if audit_id:
                 return self._open_audit_target(data)
-            return self._open_page_with_message("audit_progress", f"Machine target opened as far as possible: {data.get('target_label') or data.get('machine_id') or 'machine'}.")
+            machine = str(data.get("machine_id") or data.get("target_label") or "").strip()
+            if self._navigate_to_page("press_view"):
+                page = self._page("press_view")
+                if hasattr(page, "select_machine"):
+                    page.select_machine(machine)
+                self._page_message("press_view", f"Machine target opened: {data.get('target_label') or machine or 'machine'}.")
+                return True
+            return self._open_page_with_message("audit_progress", f"Machine target opened as far as possible: {data.get('target_label') or machine or 'machine'}.")
         if target_type == "note":
             note_id = str(data.get("object_ref") or data.get("id") or "").strip()
             self._navigate_to_page("notes")
@@ -157,6 +164,9 @@ class AnnotationTargetNavigator:
             if note_id and hasattr(page, "select_note"):
                 page.select_note(note_id)
             return True
+        if target_type == "tag_assignment":
+            assignment_id = str(data.get("object_ref") or data.get("id") or "").strip()
+            return self.open_tag(assignment_id=assignment_id)
         if target_type == "compatibility_entry":
             self._navigate_to_page("audit")
             self._page_message("audit", f"Opened EOAT Audit. Compatibility target: {data.get('target_label') or data.get('object_ref') or 'entry'}.")

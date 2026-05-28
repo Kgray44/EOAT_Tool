@@ -1394,6 +1394,19 @@ def main() -> None:
     schedule = ensure_schedule(project_root, args.week, persist=not args.dry_run)
     progress = ensure_progress(project_root, args.week, schedule, persist=not args.dry_run)
 
+    if args.scheduled or args.dry_run:
+        try:
+            from core.report_context import build_daily_report_context, daily_summary_cli_items
+
+            report_context = build_daily_report_context(project_root, target_date=report_date, week=args.week, day=day)
+            context_items = daily_summary_cli_items(report_context)
+            args.completed = dedupe(context_items.get("completed", []) + normalize_list(args.completed))
+            args.need = dedupe(context_items.get("need", []) + normalize_list(args.need))
+            args.plan = dedupe(context_items.get("plan", []) + normalize_list(args.plan))
+            args.note = dedupe(context_items.get("notes", []) + normalize_list(args.note))
+        except Exception as exc:
+            args.note = dedupe(normalize_list(args.note) + [f"Report context builder warning: {exc}"])
+
     activity = build_activity_summary(
         project_root=project_root,
         report_date=report_date,

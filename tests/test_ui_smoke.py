@@ -21,9 +21,9 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-def test_main_window_smoke_short_default_size():
+def test_main_window_smoke_short_default_size(fake_config):
     _app()
-    window = DashboardWindow()
+    window = DashboardWindow(fake_config)
 
     assert window.windowTitle() == "EOAT Command Center"
     assert window.width() == DEFAULT_WINDOW_WIDTH
@@ -31,19 +31,27 @@ def test_main_window_smoke_short_default_size():
     assert window.nav.minimumWidth() >= SIDEBAR_WIDTH
 
 
-def test_main_window_smoke_dark_mode():
+def test_main_window_smoke_dark_mode(fake_config):
     app = _app()
     app.setStyleSheet("")
-    window = DashboardWindow()
+    window = DashboardWindow(fake_config)
     window.apply_theme("dark")
 
     assert window.config.theme == "dark"
     assert "QTableWidget" in app.styleSheet()
 
 
-def test_grouped_navigation_pages_can_be_created():
+def test_grouped_navigation_pages_can_be_created(fake_config, monkeypatch):
     _app()
-    window = DashboardWindow()
+    original_hook = DashboardWindow._call_optional_page_hook
+
+    def skip_show_hooks(page, hook_name: str, *args):
+        if hook_name == "on_show":
+            return True
+        return original_hook(page, hook_name, *args)
+
+    monkeypatch.setattr(DashboardWindow, "_call_optional_page_hook", staticmethod(skip_show_hooks))
+    window = DashboardWindow(fake_config)
 
     section_names = [section.label for section in NAV_SECTIONS]
     assert section_names == ["Overview", "Capture", "Analysis", "Standards", "Output", "System"]

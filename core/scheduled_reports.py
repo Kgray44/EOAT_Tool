@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import platform
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -14,6 +16,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .constants import TOOLKIT_ROOT
 from .logging import log_tool_run
 from .paths import resolve_project_paths
+from .report_context import build_daily_report_context, daily_summary_cli_items
 from .result import ToolResult
 from .safe_files import ensure_directory
 from .schedule import resolve_project_day_for_project
@@ -66,6 +69,43 @@ class SummaryScheduleDecision:
             "week": self.week,
             "day": self.day,
         }
+
+
+@dataclass(frozen=True)
+class SummarySchedulePreviewRow:
+    date: date
+    weekday: str
+    expected_automation_type: str
+    scheduled_time: str
+    status: str
+    existing_report_path: str = ""
+    decision_reason: str = ""
+    week: int | None = None
+    day: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "date": self.date.isoformat(),
+            "weekday": self.weekday,
+            "expected_automation_type": self.expected_automation_type,
+            "scheduled_time": self.scheduled_time,
+            "status": self.status,
+            "existing_report_path": self.existing_report_path,
+            "decision_reason": self.decision_reason,
+            "week": self.week,
+            "day": self.day,
+        }
+
+
+@dataclass(frozen=True)
+class SchedulerPreflightCheck:
+    name: str
+    status: str
+    message: str
+    details: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        return {"name": self.name, "status": self.status, "message": self.message, "details": self.details}
 
 
 def scheduled_tools_log_path(project_root: str | Path) -> Path:
@@ -151,6 +191,14 @@ def weekly_summary_exists_for_date(project_root: str | Path, target_date: date) 
     return any(info.report_date == target_date for info in _weekly_report_infos(project_root))
 
 
+def _daily_report_for_date(project_root: str | Path, target_date: date) -> ReportFileInfo | None:
+    return next((info for info in _daily_report_infos(project_root) if info.report_date == target_date), None)
+
+
+def _weekly_report_for_date(project_root: str | Path, target_date: date) -> ReportFileInfo | None:
+    return next((info for info in _weekly_report_infos(project_root) if info.report_date == target_date), None)
+
+
 def expected_daily_summary_day(target_date: date) -> bool:
     return target_date.weekday() in DAILY_EXPECTED_WEEKDAYS
 
@@ -191,6 +239,19 @@ def dry_run_weekly_reports_dir(project_root: str | Path) -> Path:
 
 def _scheduled_time_reached(local_now: datetime) -> bool:
     return local_now.time() >= datetime_time(SCHEDULE_HOUR, SCHEDULE_MINUTE)
+
+
+def _parse_date_list(items: list[str | date]) -> list[date]:
+    dates: list[date] = []
+    for item in items:
+        if isinstance(item, date):
+            dates.append(item)
+            continue
+        try:
+            dates.append(date.fromisoformat(str(item)[:10]))
+        except ValueError:
+            continue
+    return sorted(set(dates))
 
 
 def _daily_expected_report_path(project_root: str | Path, target_date: date, *, dry_run: bool, resolved_week: int, resolved_day: int, output_dir: str | Path | None = None) -> Path:
@@ -258,6 +319,120 @@ def evaluate_summary_schedule(
         return SummaryScheduleDecision(automation, "run", "Friday at or after 19:00", target_date, local_now, timezone_name, output_path, target_week, 5)
 
     return SummaryScheduleDecision(automation, "skip", f"unknown automation: {automation}", target_date, local_now, timezone_name)
+
+
+def preview_summary_schedule(
+    project_root: str | Path,
+    start_date: date | str | None = None,
+    days: int = 14,
+    timezone_name: str = DEFAULT_SCHEDULE_TIMEZONE,
+    *,
+    current_datetime: datetime | None = None,
+    project_start_date: str = "",
+    skip_weekends: bool = True,
+    holidays: list[str] | None = None,
+) -> list[SummarySchedulePreviewRow]:
+    local_now = local_scheduler_datetime(current_datetime, timezone_name)
+    today = local_now.date()
+    if isinstance(start_date, date):
+        cursor = start_date
+    elif start_date:
+        cursor = date.fromisoformat(str(start_date)[:10])
+    else:
+        cursor = today
+    day_count = max(1, min(int(days or 14), 30))
+    holiday_dates = set(_parse_date_list(list(holidays or [])))
+    rows: list[SummarySchedulePreviewRow] = []
+    for offset in range(day_count):
+        target = cursor + timedelta(days=offset)
+        weekday = target.strftime("%A")
+        scheduled_time = f"{SCHEDULE_TIME_LABEL} {timezone_name}"
+
+        if target in holiday_dates:
+            rows.append(
+                SummarySchedulePreviewRow(
+                    date=target,
+                    weekday=weekday,
+                    expected_automation_type="",
+                    scheduled_time="",
+                    status="skipped",
+                    decision_reason="Configured holiday/non-workday.",
+                )
+            )
+            continue
+
+        if expected_daily_summary_day(target):
+            resolved = resolve_project_day_for_project(
+                project_root,
+                current_date=target,
+                project_start_date=project_start_date,
+                skip_weekends=skip_weekends,
+                holidays=holidays or [],
+            )
+            existing = _daily_report_for_date(project_root, target)
+            status, reason = _preview_status(target, today, local_now, bool(existing), "daily summary")
+            rows.append(
+                SummarySchedulePreviewRow(
+                    date=target,
+                    weekday=weekday,
+                    expected_automation_type="daily_summary",
+                    scheduled_time=scheduled_time,
+                    status=status,
+                    existing_report_path=str(existing.path) if existing else "",
+                    decision_reason=reason,
+                    week=resolved.week,
+                    day=resolved.day,
+                )
+            )
+            continue
+
+        if expected_weekly_summary_day(target):
+            resolved = resolve_project_day_for_project(
+                project_root,
+                current_date=target,
+                project_start_date=project_start_date,
+                skip_weekends=skip_weekends,
+                holidays=holidays or [],
+                manual_day=5,
+            )
+            existing = _weekly_report_for_date(project_root, target)
+            status, reason = _preview_status(target, today, local_now, bool(existing), "weekly summary")
+            rows.append(
+                SummarySchedulePreviewRow(
+                    date=target,
+                    weekday=weekday,
+                    expected_automation_type="weekly_summary",
+                    scheduled_time=scheduled_time,
+                    status=status,
+                    existing_report_path=str(existing.path) if existing else "",
+                    decision_reason=reason,
+                    week=resolved.week,
+                    day=5,
+                )
+            )
+            continue
+
+        rows.append(
+            SummarySchedulePreviewRow(
+                date=target,
+                weekday=weekday,
+                expected_automation_type="",
+                scheduled_time="",
+                status="not scheduled",
+                decision_reason="No daily or weekly summary is scheduled for this weekday.",
+            )
+        )
+    return rows
+
+
+def _preview_status(target: date, today: date, local_now: datetime, exists: bool, report_label: str) -> tuple[str, str]:
+    if exists:
+        return "already exists", f"{report_label.title()} already exists for this date."
+    if target < today:
+        return "missed", f"Scheduled {report_label} date passed and no report was found."
+    if target == today and _scheduled_time_reached(local_now):
+        return "due", f"Scheduled time has passed and no {report_label} was found."
+    return "future", f"{report_label.title()} is scheduled for this future time."
 
 
 def log_scheduled_attempt(
@@ -396,6 +571,7 @@ def get_scheduled_report_status(project_root: str | Path, today: date | None = N
     current_date = today or date.today()
     next_daily = next_expected_run(current_date, "daily_summary")
     next_weekly = next_expected_run(current_date, "weekly_summary")
+    paths = resolve_project_paths(project_root)
     return {
         "daily": {
             "schedule": f"Monday-Thursday at {SCHEDULE_TIME_LABEL}",
@@ -416,6 +592,12 @@ def get_scheduled_report_status(project_root: str | Path, today: date | None = N
             **weekly_log,
         },
         "scheduled_log": str(scheduled_tools_log_path(project_root)),
+        "paths": {
+            "daily_reports": str(paths.daily_reports),
+            "weekly_reports": str(paths.weekly_reports),
+            "logs": str(paths.logs),
+            "scheduled_log": str(scheduled_tools_log_path(project_root)),
+        },
     }
 
 
@@ -444,6 +626,40 @@ def _tool_result_from_subprocess(tool_id: str, tool_name: str, completed: subpro
         files = [output_path] if output_path else []
         return ToolResult.ok(tool_id, tool_name, f"{tool_name} completed.", details=details, files_created=files, output_reports=files, duration_seconds=elapsed)
     return ToolResult.fail(tool_id, tool_name, f"{tool_name} failed.", errors=[output or f"Exit code {completed.returncode}"], duration_seconds=elapsed)
+
+
+def _context_cli_values(project_root: str | Path, target_date: date, week: int, day: int, run_mode: str) -> dict[str, list[str]]:
+    try:
+        context = build_daily_report_context(project_root, target_date=target_date, week=week, day=day)
+        values = daily_summary_cli_items(context)
+    except Exception as exc:
+        values = {"completed": [], "need": [], "plan": [], "notes": [f"Report context builder warning: {exc}"]}
+    if not values.get("completed"):
+        values["completed"] = ["Reviewed EOAT Command Center dashboard status"]
+    if not values.get("need"):
+        values["need"] = ["Confirm next EOAT project priority with mentor or supervisor"]
+    if not values.get("plan"):
+        values["plan"] = ["Continue EOAT project execution from the current schedule"]
+    notes = values.setdefault("notes", [])
+    notes.append("Generated by EOAT scheduled summary automation.")
+    if run_mode == "catch-up":
+        notes.append(f"Catch-up summary generated for target date {target_date.isoformat()}.")
+    return {key: _dedupe_text(items)[:10] for key, items in values.items()}
+
+
+def _dedupe_text(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for item in items:
+        text = " ".join(str(item).split())
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(text)
+    return output
 
 
 def run_daily_summary_now(
@@ -520,6 +736,7 @@ def run_daily_summary_now(
         output_path=expected_report,
     )
     script = TOOLKIT_ROOT / "daily_status_summary.py"
+    context_values = _context_cli_values(project_root, target_date, resolved.week, resolved.day, run_mode)
     args = [
         sys.executable,
         str(script),
@@ -535,13 +752,13 @@ def run_daily_summary_now(
         "--output-dir",
         str(output_folder),
         "--completed",
-        "Reviewed EOAT Command Center dashboard status",
+        *context_values["completed"],
         "--need",
-        "Confirm next EOAT project priority with mentor or supervisor",
+        *context_values["need"],
         "--plan",
-        "Continue EOAT project execution from the current schedule",
+        *context_values["plan"],
         "--note",
-        "Generated by EOAT scheduled summary automation.",
+        *context_values["notes"],
     ]
     if dry_run:
         args.append("--dry-run")
@@ -582,6 +799,215 @@ def run_daily_summary_now(
     if warning:
         result.warnings.append(warning)
     return result
+
+
+def run_catch_up_summaries(
+    project_root: str | Path,
+    dates: list[str | date],
+    *,
+    automation: str = "daily_summary",
+    dry_run: bool = False,
+    timezone_name: str = DEFAULT_SCHEDULE_TIMEZONE,
+    project_start_date: str = "",
+    skip_weekends: bool = True,
+    holidays: list[str] | None = None,
+) -> ToolResult:
+    started = time.perf_counter()
+    targets = _parse_date_list(dates)
+    results: list[ToolResult] = []
+    skipped: list[str] = []
+    details: list[str] = []
+    for target in targets:
+        requested = automation.strip().lower()
+        if requested in {"all", "auto"}:
+            requested = "weekly_summary" if expected_weekly_summary_day(target) else "daily_summary"
+        if requested == "daily_summary" and not expected_daily_summary_day(target):
+            skipped.append(target.isoformat())
+            details.append(f"{target.isoformat()}: skipped because daily summaries run Monday-Thursday.")
+            continue
+        if requested == "weekly_summary" and not expected_weekly_summary_day(target):
+            skipped.append(target.isoformat())
+            details.append(f"{target.isoformat()}: skipped because weekly summaries run Friday.")
+            continue
+        if requested == "daily_summary":
+            resolved = resolve_project_day_for_project(
+                project_root,
+                current_date=target,
+                project_start_date=project_start_date,
+                skip_weekends=skip_weekends,
+                holidays=holidays or [],
+            )
+            result = run_daily_summary_now(
+                project_root,
+                scheduled=False,
+                dry_run=dry_run,
+                report_date=target,
+                week=resolved.week,
+                day=resolved.day,
+                mode="catch-up",
+                decision_reason="catch-up daily summary generation",
+                timezone_name=timezone_name,
+                project_start_date=project_start_date,
+                skip_weekends=skip_weekends,
+                holidays=holidays,
+            )
+        elif requested == "weekly_summary":
+            resolved = resolve_project_day_for_project(
+                project_root,
+                current_date=target,
+                project_start_date=project_start_date,
+                skip_weekends=skip_weekends,
+                holidays=holidays or [],
+                manual_day=5,
+            )
+            result = run_weekly_summary_now(
+                project_root,
+                scheduled=False,
+                dry_run=dry_run,
+                report_date=target,
+                week=resolved.week,
+                notes=f"Catch-up summary generated for target date {target.isoformat()}.",
+                mode="catch-up",
+                decision_reason="catch-up weekly summary generation",
+                timezone_name=timezone_name,
+                project_start_date=project_start_date,
+                skip_weekends=skip_weekends,
+                holidays=holidays,
+            )
+        else:
+            skipped.append(target.isoformat())
+            details.append(f"{target.isoformat()}: skipped unknown automation {automation!r}.")
+            continue
+        results.append(result)
+        details.append(f"{target.isoformat()}: {result.summary}")
+
+    success = all(result.success for result in results)
+    errors = [error for result in results for error in result.errors]
+    warnings = [warning for result in results for warning in result.warnings]
+    output_reports = [path for result in results for path in result.output_reports]
+    files_created = [path for result in results for path in result.files_created]
+    result = ToolResult(
+        tool_id="scheduled_report_catch_up",
+        tool_name="Scheduled Report Catch-Up",
+        success=success,
+        summary=f"Catch-up processed {len(results)} run(s) and skipped {len(skipped)} date(s).",
+        details=details,
+        warnings=warnings,
+        errors=errors,
+        files_created=files_created,
+        output_reports=output_reports,
+        metrics={"automation": automation, "dry_run": dry_run, "skipped_dates": skipped},
+        structured_data={"runs": [item.to_dict() for item in results], "skipped_dates": skipped},
+        duration_seconds=time.perf_counter() - started,
+    )
+    warning = log_tool_run(result, project_root)
+    if warning:
+        result.warnings.append(warning)
+    return result
+
+
+def run_scheduler_preflight(project_root: str | Path, *, check_tasks: bool = True) -> ToolResult:
+    started = time.perf_counter()
+    root = Path(project_root)
+    paths = resolve_project_paths(root)
+    checks: list[SchedulerPreflightCheck] = []
+
+    def add(name: str, status: str, message: str, details: str = "") -> None:
+        checks.append(SchedulerPreflightCheck(name, status, message, details))
+
+    add(
+        "Windows platform",
+        "PASS" if platform.system().casefold() == "windows" else "WARNING",
+        f"Detected platform: {platform.system() or 'unknown'}.",
+        "Windows Task Scheduler automation only installs on Windows.",
+    )
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+    add(
+        "PowerShell executable",
+        "PASS" if powershell else "WARNING",
+        f"PowerShell executable {'found' if powershell else 'not found'}.",
+        powershell or "Install/repair and uninstall buttons require PowerShell.",
+    )
+    if powershell:
+        completed = subprocess.run(
+            [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Get-Command Get-ScheduledTask -ErrorAction Stop | Out-Null; 'OK'"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+        add(
+            "Task Scheduler commands",
+            "PASS" if completed.returncode == 0 else "WARNING",
+            "Task Scheduler commands are accessible." if completed.returncode == 0 else "Task Scheduler commands were not accessible.",
+            (completed.stderr or completed.stdout).strip(),
+        )
+    else:
+        add("Task Scheduler commands", "WARNING", "Task Scheduler commands could not be checked without PowerShell.")
+
+    scripts = [
+        TOOLKIT_ROOT / "scripts" / "install_summary_schedules.ps1",
+        TOOLKIT_ROOT / "scripts" / "uninstall_summary_schedules.ps1",
+        TOOLKIT_ROOT / "scripts" / "check_summary_schedules.ps1",
+        TOOLKIT_ROOT / "scripts" / "run_daily_summary.ps1",
+        TOOLKIT_ROOT / "scripts" / "run_weekly_summary.ps1",
+    ]
+    missing_scripts = [str(path) for path in scripts if not path.exists()]
+    add(
+        "Scheduled report scripts",
+        "ERROR" if missing_scripts else "PASS",
+        "All scheduled report scripts exist." if not missing_scripts else "One or more scheduled report scripts are missing.",
+        "; ".join(missing_scripts),
+    )
+    add("Python executable", "PASS" if Path(sys.executable).exists() else "ERROR", f"Python executable: {sys.executable}.")
+    add("Project root", "PASS" if root.exists() else "ERROR", f"Project root {'exists' if root.exists() else 'does not exist'}: {root}.")
+
+    for label, folder in [("Daily output folder", paths.daily_reports), ("Weekly output folder", paths.weekly_reports), ("Log folder", paths.logs)]:
+        try:
+            ensure_directory(folder)
+            probe = folder / ".scheduled_preflight_write_test.tmp"
+            probe.write_text("preflight\n", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            add(label, "PASS", f"{folder} is writable.")
+        except Exception as exc:
+            add(label, "ERROR", f"{folder} is not writable.", str(exc))
+
+    log_path = scheduled_tools_log_path(root)
+    if log_path.exists():
+        try:
+            log_path.read_text(encoding="utf-8").splitlines()[-5:]
+            add("Scheduled log readable", "PASS", f"{log_path} is readable.")
+        except Exception as exc:
+            add("Scheduled log readable", "ERROR", f"{log_path} could not be read.", str(exc))
+    else:
+        add("Scheduled log readable", "WARNING", f"{log_path} does not exist yet; it will be created on first run.")
+
+    if check_tasks:
+        for label, task_name in [("Daily scheduled task", DAILY_TASK_NAME), ("Weekly scheduled task", WEEKLY_TASK_NAME)]:
+            task = _task_status(task_name) if powershell else {"installed": "Unknown", "warning": "PowerShell unavailable."}
+            installed = task.get("installed")
+            if installed is True:
+                add(label, "PASS", f"{task_name} is installed.", json.dumps(task, ensure_ascii=True))
+            elif installed is False:
+                add(label, "WARNING", f"{task_name} is not installed.", json.dumps(task, ensure_ascii=True))
+            else:
+                add(label, "WARNING", f"{task_name} status is unknown.", str(task.get("warning") or ""))
+
+    rows = [check.to_dict() for check in checks]
+    errors = [f"{check.name}: {check.message}" for check in checks if check.status == "ERROR"]
+    warnings = [f"{check.name}: {check.message}" for check in checks if check.status == "WARNING"]
+    return ToolResult(
+        tool_id="scheduled_report_preflight",
+        tool_name="Scheduled Report Preflight",
+        success=not errors,
+        summary="Scheduled report preflight completed." if not errors else "Scheduled report preflight found blocking issues.",
+        details=[f"{check.status}: {check.name} - {check.message}" for check in checks],
+        warnings=warnings,
+        errors=errors,
+        metrics={"pass": sum(1 for check in checks if check.status == "PASS"), "warning": len(warnings), "error": len(errors)},
+        structured_data={"checks": rows},
+        duration_seconds=time.perf_counter() - started,
+    )
 
 
 def run_weekly_summary_now(

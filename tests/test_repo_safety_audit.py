@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.repo_safety_audit import audit_repo
+from scripts.repo_safety_audit import audit_paths, audit_repo
 
 
 def _messages(findings):
@@ -29,6 +29,16 @@ def test_safety_audit_flags_local_config_files(tmp_path: Path):
     assert any(finding.severity == "BLOCKER" and "Local config" in finding.message for finding in findings)
 
 
+def test_safety_audit_flags_workbooks_outside_allowed_paths(tmp_path: Path):
+    workbook = tmp_path / "scratch" / "EOAT_Master_Tracker.xlsx"
+    workbook.parent.mkdir()
+    workbook.write_bytes(b"not a real workbook")
+
+    findings = audit_repo(tmp_path)
+
+    assert any(finding.severity == "BLOCKER" and "Workbook file" in finding.message for finding in findings)
+
+
 def test_safety_audit_allows_sanitized_demo_files(tmp_path: Path):
     demo = tmp_path / "examples" / "demo_project"
     demo.mkdir(parents=True)
@@ -36,10 +46,31 @@ def test_safety_audit_allows_sanitized_demo_files(tmp_path: Path):
         "Nolato public company context is allowed here. Customer: Demo Customer A. Part Number: DEMO-PN-001.\n",
         encoding="utf-8",
     )
+    (demo / "EOAT_Master_Tracker.xlsx").write_bytes(b"synthetic workbook")
 
     findings = audit_repo(tmp_path)
 
     assert findings == []
+
+
+def test_safety_audit_allows_template_workbooks(tmp_path: Path):
+    template = tmp_path / "data_templates" / "template.xlsx"
+    template.parent.mkdir()
+    template.write_bytes(b"template workbook")
+
+    findings = audit_repo(tmp_path)
+
+    assert findings == []
+
+
+def test_staged_scanner_helper_flags_generated_outputs(tmp_path: Path):
+    report = tmp_path / "reports" / "generated" / "daily.md"
+    report.parent.mkdir(parents=True)
+    report.write_text("# Generated\n", encoding="utf-8")
+
+    findings = audit_paths(tmp_path, [report])
+
+    assert any(finding.severity == "BLOCKER" and "Generated reports" in finding.message for finding in findings)
 
 
 def test_safety_audit_allows_public_company_reference_without_private_data(tmp_path: Path):

@@ -17,6 +17,7 @@ class ToolResult:
     files_modified: list[str] = field(default_factory=list)
     output_reports: list[str] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
+    structured_data: dict[str, Any] = field(default_factory=dict)
     duration_seconds: float | None = None
 
     @classmethod
@@ -70,4 +71,3 @@ class ToolResult:
             lines.extend(["", "## Metrics"])
             lines.extend(f"- {key}: {value}" for key, value in self.metrics.items())
         return "\n".join(lines) + "\n"
-

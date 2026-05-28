@@ -103,7 +103,9 @@ def test_legacy_vacuum_cups_header_migrates_to_parts_picked(fake_project):
     workbook.close()
     assert "Number of Vacuum Cups" not in migrated_headers
     assert "Number of Parts Picked" in migrated_headers
+    assert "# of Cups" in migrated_headers
     assert rows["AUD-LEGACY-CUPS-001"]["Number of Parts Picked"] == 6
+    assert rows["AUD-LEGACY-CUPS-001"]["# of Cups"] in (None, "")
     migrated_col = migrated_headers.index("Number of Parts Picked") + 1
     migrated_cell = ws.cell(row=1, column=migrated_col)
     assert ws.column_dimensions[migrated_cell.column_letter].width == 23.5
@@ -121,6 +123,7 @@ def test_expected_workbook_schema_uses_parts_picked_not_vacuum_cups():
     headers = get_expected_headers("EOAT Inventory")
 
     assert "Number of Parts Picked" in headers
+    assert "# of Cups" in headers
     assert "Number of Vacuum Cups" not in headers
 
 

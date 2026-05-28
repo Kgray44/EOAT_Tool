@@ -4,8 +4,16 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-from .deliverable_check import check_deliverables
-from .final_common import unique_package_dir
+from .final_handoff_readiness import (
+    MISSING,
+    NEEDS_REVIEW,
+    FinalHandoffReadinessSummary,
+    build_final_handoff_readiness,
+    export_deliverable_readiness,
+    export_leadership_summary,
+    export_open_items_carryover,
+    export_technical_appendix,
+)
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .reports import list_recent_files
@@ -30,6 +38,29 @@ HANDOFF_FOLDERS = {
     "admin": "10_Project_Admin",
     "reference": "11_Reference_Reports",
 }
+
+PACKAGE_FOLDERS = {
+    "database": "EOAT_Database",
+    "standards": "Standards",
+    "pm": "PM_Checklists",
+    "fmea": "FMEA",
+    "kpi": "KPI",
+    "pilot": "Pilot_Candidates",
+    "training": "Training_Materials",
+    "executive": "Executive_Backup",
+    "presentation": "Presentation",
+    "admin": "Validation",
+    "reference": "Reference",
+}
+
+REQUIRED_PACKAGE_FOLDERS = (
+    "FMEA",
+    "KPI",
+    "PM_Checklists",
+    "Pilot_Candidates",
+    "Standards",
+    "Validation",
+)
 
 
 def _existing(files: Iterable[Path]) -> list[Path]:
@@ -80,11 +111,30 @@ def collect_handoff_sources(
     return sources
 
 
+def _package_dir_name(key: str, *, dry_run: bool = False) -> str:
+    if dry_run:
+        return PACKAGE_FOLDERS.get(key, HANDOFF_FOLDERS.get(key, "Reference"))
+    return PACKAGE_FOLDERS.get(key, "Reference")
+
+
+def _unique_final_handoff_package_dir(parent: Path) -> Path:
+    root = ensure_directory(parent)
+    stamp = time.strftime("%Y%m%d_%H%M")
+    candidate = root / f"Final_Handoff_Package_{stamp}"
+    if not candidate.exists():
+        return ensure_directory(candidate)
+    for index in range(2, 1000):
+        indexed = root / f"Final_Handoff_Package_{stamp}_{index}"
+        if not indexed.exists():
+            return ensure_directory(indexed)
+    return ensure_directory(root / f"Final_Handoff_Package_{int(time.time())}")
+
+
 def _copy_sources(package: Path, sources: dict[str, list[Path]]) -> tuple[list[str], list[dict[str, str]]]:
     files_created: list[str] = []
     manifest: list[dict[str, str]] = []
     for key, files in sources.items():
-        target_dir = ensure_directory(package / HANDOFF_FOLDERS[key])
+        target_dir = ensure_directory(package / _package_dir_name(key))
         used_names: set[str] = set()
         for source in files:
             name = source.name
@@ -97,7 +147,22 @@ def _copy_sources(package: Path, sources: dict[str, list[Path]]) -> tuple[list[s
     return files_created, manifest
 
 
-def _index_markdown(package: Path | None, manifest: list[dict[str, str]], missing: list[str], dry_run: bool) -> str:
+def _readiness_gaps(readiness: FinalHandoffReadinessSummary) -> list[str]:
+    return [
+        f"{item.label}: {item.status}; {item.recommended_action}"
+        for item in readiness.deliverables
+        if item.status in {MISSING, NEEDS_REVIEW}
+    ]
+
+
+def _readiness_warnings(readiness: FinalHandoffReadinessSummary) -> list[str]:
+    warnings: list[str] = []
+    for item in readiness.deliverables:
+        warnings.extend(f"{item.label}: {warning}" for warning in item.warnings)
+    return warnings
+
+
+def _index_markdown(package: Path | None, manifest: list[dict[str, str]], readiness: FinalHandoffReadinessSummary, dry_run: bool) -> str:
     package_name = package.name if package else "Dry run only"
     lines = [
         "# Final Handoff Package Index",
@@ -108,38 +173,36 @@ def _index_markdown(package: Path | None, manifest: list[dict[str, str]], missin
         "## Project Objective",
         "Support EOAT standardization, documentation, PM readiness, risk review, KPI tracking, and final project handoff.",
         "",
+        "## Root Deliverables",
+        "- Executive_Summary.md",
+        "- Technical_Appendix.md",
+        "- Open_Items_Carryover.md",
+        "- Deliverable_Readiness.md",
+        "",
         "## Contents Overview",
     ]
-    for folder in HANDOFF_FOLDERS.values():
+    for folder in REQUIRED_PACKAGE_FOLDERS:
         lines.append(f"- {folder}")
-    lines.extend(["", "## Deliverable Checklist"])
-    checklist = [
-        "EOAT inventory database",
-        "EOAT standard design guideline",
-        "PM checklist",
-        "FMEA-lite risk assessment",
-        "Pilot optimization report/results",
-        "KPI dashboard/report",
-        "Training materials",
-        "BOM/spare parts standardization report",
-        "Documentation gap report",
-        "Executive summary",
-        "Final presentation assets",
-        "Final recommendations",
-    ]
-    lines.extend(f"- {item}" for item in checklist)
+    optional_folders = sorted({folder for folder in PACKAGE_FOLDERS.values()} - set(REQUIRED_PACKAGE_FOLDERS))
+    if optional_folders:
+        lines.extend(["", "## Additional Evidence Folders"])
+        lines.extend(f"- {folder}" for folder in optional_folders)
+    lines.extend(["", "## Deliverable Readiness"])
+    for item in readiness.deliverables:
+        lines.append(f"- {item.label}: {item.status}")
     lines.extend(["", "## Files Included"])
     if manifest:
         lines.extend(f"- {Path(row['Package Path']).name} from {row['Source']}" for row in manifest)
     else:
         lines.append("- No files copied." if dry_run else "- No files were available to copy.")
-    lines.extend(["", "## Missing or Not Yet Available"])
-    lines.extend([f"- {item}" for item in missing] or ["- None flagged by deliverable check."])
+    lines.extend(["", "## Missing or Needs Review"])
+    lines.extend([f"- {item}" for item in _readiness_gaps(readiness)] or ["- None flagged by final readiness model."])
     lines.extend(
         [
             "",
             "## How to Use This Handoff Package",
-            "- Start with this index and the final project summary draft.",
+            "- Start with Executive_Summary.md for leadership-facing context.",
+            "- Use Technical_Appendix.md for evidence, validation, standards, FMEA, KPI, and compatibility details.",
             "- Use the EOAT database as the structured source of audit data.",
             "- Use report folders as supporting evidence, not as unsupported claims.",
             "- Review missing deliverables before final submission.",
@@ -147,6 +210,7 @@ def _index_markdown(package: Path | None, manifest: list[dict[str, str]], missin
             "## Known Limitations",
             "- This package copies available files only; it does not certify that missing data is complete.",
             "- KPI and pilot results should not be claimed without before/after evidence.",
+            "- Generated outputs are local/private project artifacts and should not be committed to the repository.",
             "",
             "## Recommended Next Steps",
             "- Fill missing deliverables or document why they are not applicable.",
@@ -173,38 +237,52 @@ def build_final_handoff_package(
     start = time.perf_counter()
     paths = resolve_project_paths(project_root)
     ensure_directory(paths.handoff_package_root)
+    ensure_directory(paths.final_handoff)
     sources = collect_handoff_sources(project_root, include_daily_reports, include_weekly_reports, include_mentor_briefs, include_photo_files)
-    statuses, warnings = check_deliverables(project_root)
-    missing = [item.name for item in statuses if item.status == "Missing"]
+    readiness = build_final_handoff_readiness(project_root)
     manifest: list[dict[str, str]] = []
     files_created: list[str] = []
     package: Path | None = None
     if dry_run:
         index_path = paths.handoff_package_root / f"Final_Handoff_Dry_Run_{time.strftime('%Y-%m-%d_%H%M%S')}.md"
-        index = _index_markdown(None, [{"Source": str(src), "Package Path": f"DRY-RUN/{HANDOFF_FOLDERS[key]}/{src.name}"} for key, files in sources.items() for src in files], missing, dry_run=True)
+        dry_manifest = [
+            {"Source": str(src), "Package Path": f"DRY-RUN/{_package_dir_name(key, dry_run=True)}/{src.name}"}
+            for key, files in sources.items()
+            for src in files
+        ]
+        index = _index_markdown(None, dry_manifest, readiness, dry_run=True)
         safe_write_text(index_path, index, overwrite=False)
         files_created.append(str(index_path))
         output_reports = [str(index_path)]
     else:
-        package = unique_package_dir(paths.handoff_package_root, "Final_Handoff")
-        missing = [item for item in missing if item != "Handoff package"]
-        for folder in HANDOFF_FOLDERS.values():
+        package = _unique_final_handoff_package_dir(paths.final_handoff)
+        for folder in (*REQUIRED_PACKAGE_FOLDERS, *PACKAGE_FOLDERS.values()):
             ensure_directory(package / folder)
+        for export_result in [
+            export_leadership_summary(project_root, output_dir=package, log_activity=False),
+            export_technical_appendix(project_root, output_dir=package, log_activity=False),
+            export_open_items_carryover(project_root, output_dir=package, log_activity=False),
+        ]:
+            files_created.extend(export_result.files_created)
+        readiness = build_final_handoff_readiness(project_root)
+        readiness_result = export_deliverable_readiness(project_root, output_dir=package, log_activity=False)
+        files_created.extend(readiness_result.files_created)
         copied, manifest = _copy_sources(package, sources)
         files_created.extend(copied)
-        index_path = safe_write_text(package / "HANDOFF_INDEX.md", _index_markdown(package, manifest, missing, dry_run=False), overwrite=False)
+        index_path = safe_write_text(package / "HANDOFF_INDEX.md", _index_markdown(package, manifest, readiness, dry_run=False), overwrite=False)
         files_created.append(str(index_path))
-        output_reports = [str(index_path)]
+        output_reports = [str(index_path), *(path for path in files_created if Path(path).name in {"Executive_Summary.md", "Technical_Appendix.md", "Open_Items_Carryover.md", "Deliverable_Readiness.md"})]
 
+    missing = _readiness_gaps(readiness)
     result = ToolResult.ok(
         TOOL_ID,
         TOOL_NAME,
         "Built final handoff package dry-run." if dry_run else "Built final handoff package.",
         details=[f"Dry run: {dry_run}", f"Files considered: {sum(len(files) for files in sources.values())}"],
-        warnings=warnings + ([f"Missing deliverables: {', '.join(missing)}"] if missing else []),
+        warnings=_readiness_warnings(readiness) + ([f"Missing or needs-review deliverables: {', '.join(missing)}"] if missing else []),
         files_created=files_created,
         output_reports=output_reports,
-        metrics={"dry_run": dry_run, "files_copied": len(manifest), "missing_deliverables": len(missing), "package": str(package) if package else ""},
+        metrics={"dry_run": dry_run, "files_copied": len(manifest), "missing_or_needs_review_deliverables": len(missing), "package": str(package) if package else ""},
         duration_seconds=time.perf_counter() - start,
     )
     warning = log_tool_run(result, project_root)

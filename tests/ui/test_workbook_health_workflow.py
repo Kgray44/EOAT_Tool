@@ -22,7 +22,9 @@ def test_workbook_validation_generates_report_updates_cards_and_stubs_open(qapp,
     assert page.cards["Missing Major Headers"].value_label.text() == "0"
     assert page.cards["Duplicate Audit IDs"].value_label.text() == "0"
     assert page.cards["Semantic Warnings"].value_label.text() == "0"
+    assert page.findings_table.rowCount() >= 1
     assert list((fake_project / "00_Project_Admin" / "Validation_Reports").glob("Foundation_Validation_*.md"))
+    assert list((fake_project / "00_Project_Admin" / "Validation_Reports").glob("Foundation_Validation_*.json"))
 
     click_button(page, "Open Validation Reports Folder")
     assert captured_open_requests[-1] == fake_project / "00_Project_Admin" / "Validation_Reports"

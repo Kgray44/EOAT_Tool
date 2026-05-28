@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover
 
 from app.widgets.file_picker import select_directory, select_file
 from app.task_runner import TaskRequest, get_task_manager
+from core.audit.defaults import DEFAULT_AUDIT_DEFAULTS, DEFAULT_CONNECTION_DEFAULTS
 from core.config import load_config, save_config
 from core.constants import DEFAULT_CONFIG_PATH
 from core.git_activity import find_git_executable, is_git_repo
@@ -22,6 +23,23 @@ from core.project_backup import backup_project
 from core.result import ToolResult
 from core.system_audit import run_system_audit
 from core.validation import validate_project_foundation
+
+AUDIT_DEFAULT_SETTING_FIELDS = [
+    "Auditor",
+    "Plant/Area",
+    "Cleanroom/Non-Cleanroom",
+    "Status",
+    "Priority",
+    "Follow-Up Needed",
+    "Quick Disconnects Present?",
+    "Pneumatic Quick Disconnect Type",
+    "Vacuum Generator Type",
+    "EOAT Interchangeable Circuits",
+    "Robot Interchangeable Circuits",
+    "Photos Taken?",
+]
+
+CONNECTION_DEFAULT_SETTING_FIELDS = ["ATI", "DoveTail"]
 
 
 class SettingsPage(QWidget):
@@ -53,6 +71,8 @@ class SettingsPage(QWidget):
         self.theme_combo.currentIndexChanged.connect(self.theme_preview_changed)
         self.status_label = QLabel("")
         self.status_label.setWordWrap(True)
+        self.audit_default_edits: dict[str, QLineEdit] = {}
+        self.connection_default_edits: dict[str, QLineEdit] = {}
 
         layout = QVBoxLayout(self)
         heading = QLabel("Settings")
@@ -103,6 +123,36 @@ class SettingsPage(QWidget):
         ui_form.addRow("Theme", self.theme_combo)
         content_layout.addWidget(ui_box)
 
+        audit_defaults_box = QGroupBox("Audit Defaults")
+        audit_defaults_form = QFormLayout(audit_defaults_box)
+        for field_name in AUDIT_DEFAULT_SETTING_FIELDS:
+            edit = QLineEdit(str(config.audit_defaults.get(field_name, DEFAULT_AUDIT_DEFAULTS.get(field_name, ""))))
+            self.audit_default_edits[field_name] = edit
+            audit_defaults_form.addRow(field_name, edit)
+        content_layout.addWidget(audit_defaults_box)
+
+        connection_defaults_box = QGroupBox("Connection Defaults")
+        connection_defaults_form = QFormLayout(connection_defaults_box)
+        for field_name in CONNECTION_DEFAULT_SETTING_FIELDS:
+            edit = QLineEdit(str(config.connection_defaults.get(field_name, DEFAULT_CONNECTION_DEFAULTS.get(field_name, ""))))
+            self.connection_default_edits[field_name] = edit
+            connection_defaults_form.addRow(f"{field_name} changeover difficulty", edit)
+        content_layout.addWidget(connection_defaults_box)
+
+        scheduled_box = QGroupBox("Scheduled Reports")
+        scheduled_layout = QVBoxLayout(scheduled_box)
+        scheduled_label = QLabel("Scheduled report editing is not part of this phase. Existing daily and weekly summary tools remain available.")
+        scheduled_label.setWordWrap(True)
+        scheduled_layout.addWidget(scheduled_label)
+        content_layout.addWidget(scheduled_box)
+
+        safety_box = QGroupBox("Safety / Backups")
+        safety_layout = QVBoxLayout(safety_box)
+        safety_label = QLabel("Project-root data, draft recovery files, backups, generated reports, logs, and cache files stay in ignored local/project-output locations.")
+        safety_label.setWordWrap(True)
+        safety_layout.addWidget(safety_label)
+        content_layout.addWidget(safety_box)
+
         checks_box = QGroupBox("System Checks / Backups")
         checks_layout = QVBoxLayout(checks_box)
         button_row = QHBoxLayout()
@@ -150,6 +200,14 @@ class SettingsPage(QWidget):
         self.config.git_executable = self.git_edit.text()
         self.config.debug_mode = self.debug_check.isChecked()
         self.config.theme = self.theme_combo.currentData() or "light"
+        self.config.audit_defaults = {
+            **DEFAULT_AUDIT_DEFAULTS,
+            **{field: edit.text().strip() for field, edit in self.audit_default_edits.items()},
+        }
+        self.config.connection_defaults = {
+            **DEFAULT_CONNECTION_DEFAULTS,
+            **{field: edit.text().strip() for field, edit in self.connection_default_edits.items()},
+        }
         path = save_config(self.config)
         root_status = validate_project_root(self.config.project_root)
         validation = validate_project_foundation(self.config.project_root) if root_status.is_usable else None
@@ -184,9 +242,15 @@ class SettingsPage(QWidget):
         self.config.git_executable = loaded.git_executable
         self.config.debug_mode = loaded.debug_mode
         self.config.theme = loaded.theme
+        self.config.audit_defaults = loaded.audit_defaults
+        self.config.connection_defaults = loaded.connection_defaults
         self.project_root_edit.setText(loaded.project_root)
         self.git_edit.setText(loaded.git_executable)
         self.debug_check.setChecked(loaded.debug_mode)
+        for field, edit in self.audit_default_edits.items():
+            edit.setText(str(self.config.audit_defaults.get(field, DEFAULT_AUDIT_DEFAULTS.get(field, ""))))
+        for field, edit in self.connection_default_edits.items():
+            edit.setText(str(self.config.connection_defaults.get(field, DEFAULT_CONNECTION_DEFAULTS.get(field, ""))))
         theme_index = self.theme_combo.findData((loaded.theme or "light").lower())
         self.theme_combo.setCurrentIndex(theme_index if theme_index >= 0 else 0)
         self.status_label.setText("Settings reloaded from disk.")

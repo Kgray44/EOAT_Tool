@@ -81,8 +81,9 @@ def check_deliverables(project_root: str | Path) -> tuple[list[DeliverableStatus
     doc_gap = _files(paths.documentation_gap_reports)
     statuses.append(DeliverableStatus("Documentation gap report", "Found" if doc_gap else "Missing", [str(p) for p in doc_gap[:3]], "Looked in Documentation_Gap_Reports."))
 
-    exec_files = _files(paths.executive_summary)
-    statuses.append(DeliverableStatus("Executive summary", "Found" if exec_files else "Missing", [str(p) for p in exec_files[:3]], "Looked in 06_Final_Handoff/Executive_Summary."))
+    package_exec_files = [path for path in paths.final_handoff.glob("Final_Handoff_Package_*/Executive_Summary.md") if path.is_file()] if paths.final_handoff.exists() else []
+    exec_files = _files(paths.executive_summary) + sorted(package_exec_files, key=lambda path: path.stat().st_mtime, reverse=True)
+    statuses.append(DeliverableStatus("Executive summary", "Found" if exec_files else "Missing", [str(p) for p in exec_files[:3]], "Looked in 06_Final_Handoff/Executive_Summary and Phase 11 packages."))
 
     pres_packages = [path for path in paths.presentation_assets_root.glob("Presentation_Assets_*") if path.is_dir()] if paths.presentation_assets_root.exists() else []
     statuses.append(DeliverableStatus("Final presentation assets", "Found" if pres_packages else "Missing", [str(p) for p in pres_packages[:3]], "Looked for Auto_Exported_Content packages."))
@@ -90,8 +91,10 @@ def check_deliverables(project_root: str | Path) -> tuple[list[DeliverableStatus
     recommendation_files = _files(paths.final_report) + _files(paths.presentation_assets_root, ("final_recommendations.md", "*.md"))
     statuses.append(DeliverableStatus("Final recommendations", "Found" if recommendation_files else "Missing", [str(p) for p in recommendation_files[:3]], "Recommendations must remain evidence-based."))
 
-    handoff_packages = [path for path in paths.handoff_package_root.glob("Final_Handoff_*") if path.is_dir()] if paths.handoff_package_root.exists() else []
-    statuses.append(DeliverableStatus("Handoff package", "Found" if handoff_packages else "Missing", [str(p) for p in handoff_packages[:3]], "Looked in 06_Final_Handoff/Handoff_Package."))
+    legacy_packages = [path for path in paths.handoff_package_root.glob("Final_Handoff_*") if path.is_dir()] if paths.handoff_package_root.exists() else []
+    phase11_packages = [path for path in paths.final_handoff.glob("Final_Handoff_Package_*") if path.is_dir()] if paths.final_handoff.exists() else []
+    handoff_packages = sorted([*phase11_packages, *legacy_packages], key=lambda path: path.stat().st_mtime, reverse=True)
+    statuses.append(DeliverableStatus("Handoff package", "Found" if handoff_packages else "Missing", [str(p) for p in handoff_packages[:3]], "Looked in 06_Final_Handoff for Phase 11 packages and legacy Handoff_Package outputs."))
     return statuses, warnings
 
 

@@ -21,24 +21,36 @@ SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic"}
 
 PHOTO_VIEW_FOLDERS = {
     "Overall": "Overall",
+    "Overall EOAT": "Overall",
+    "Robot Connection": "Robot_Connection",
+    "EOAT-Side Pneumatic Circuits": "EOAT_Side_Pneumatic_Circuits",
     "Vacuum Cups / Grippers": "Vacuum_Cups_Grippers",
+    "Grippers": "Grippers",
+    "Vacuum Cups": "Vacuum_Cups",
     "Tubing Routing": "Tubing_Routing",
     "Sensors": "Sensors",
     "Quick Disconnects": "Quick_Disconnects",
     "Mounting Hardware": "Mounting_Hardware",
     "Cable Management": "Cable_Management",
     "Wear / Damage": "Wear_Damage",
+    "Process Binder Reference": "Process_Binder_Reference",
 }
 
 PHOTO_VIEW_FILENAME = {
     "Overall": "Overall",
+    "Overall EOAT": "OverallEOAT",
+    "Robot Connection": "RobotConnection",
+    "EOAT-Side Pneumatic Circuits": "EOATPneumaticCircuits",
     "Vacuum Cups / Grippers": "VacuumCupsGrippers",
+    "Grippers": "Grippers",
+    "Vacuum Cups": "VacuumCups",
     "Tubing Routing": "TubingRouting",
     "Sensors": "Sensors",
     "Quick Disconnects": "QuickDisconnects",
     "Mounting Hardware": "MountingHardware",
     "Cable Management": "CableManagement",
     "Wear / Damage": "WearDamage",
+    "Process Binder Reference": "ProcessBinderReference",
 }
 
 
@@ -268,4 +280,3 @@ def intake_photos(
         if warning:
             result.warnings.append(warning)
     return result
-

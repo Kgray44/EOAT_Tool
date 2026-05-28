@@ -132,16 +132,24 @@ If the project root is temporarily unavailable, the app can still show cached va
 ## Run The Repo Safety Audit
 
 ```powershell
-python scripts/repo_safety_audit.py
+python scripts/repo_safety_audit.py --staged
 ```
 
 Fix every `BLOCKER` before committing. Review every `WARNING`. Public company references are allowed, but private operational data and internal paths are not.
+
+The full working-tree scan is useful before publishing:
+
+```powershell
+python scripts/repo_safety_audit.py --root .
+```
+
+The app also includes Release Readiness and Backup Manager pages. Release Readiness shows staged-file safety checks, git status, branch status, README/USAGE presence, demo project presence, and a copyable commit checklist. Backup Manager previews workbook backup cleanup candidates before any confirmed deletion.
 
 ## Prepare A Clean Commit
 
 ```powershell
 python -m pytest
-python scripts/repo_safety_audit.py
+python scripts/repo_safety_audit.py --staged
 git status --short
 git diff --stat
 git diff --cached --name-only

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
+from core import scheduled_reports
 from core.paths import resolve_project_paths
+from core.result import ToolResult
 from core.scheduled_reports import (
     DAILY_TASK_NAME,
     WEEKLY_TASK_NAME,
@@ -15,8 +17,12 @@ from core.scheduled_reports import (
     expected_weekly_summary_day,
     find_latest_daily_summary,
     get_scheduled_report_status,
+    preview_summary_schedule,
+    run_catch_up_summaries,
     run_daily_summary_now,
+    run_scheduler_preflight,
     run_weekly_summary_now,
+    scheduler_timezone,
 )
 
 
@@ -56,6 +62,81 @@ def test_status_check_can_skip_windows_task_query(fake_project):
     assert status["daily"]["schedule"] == "Monday-Thursday at 7:00 PM"
     assert status["weekly"]["schedule"] == "Friday at 7:00 PM"
     assert "scheduled_tools.log" in status["scheduled_log"]
+    assert "daily_reports" in status["paths"]
+
+
+def test_calendar_preview_marks_weekday_daily_friday_weekly_and_missed(fake_project):
+    paths = resolve_project_paths(fake_project)
+    existing = paths.daily_reports / "Week1_Day1_Status_2026-05-18.md"
+    existing.write_text("# Existing\n", encoding="utf-8")
+
+    rows = preview_summary_schedule(
+        fake_project,
+        start_date=date(2026, 5, 18),
+        days=7,
+        current_datetime=datetime(2026, 5, 20, 20, 0, tzinfo=scheduler_timezone()),
+        project_start_date="2026-05-18",
+    )
+    by_date = {row.date.isoformat(): row for row in rows}
+
+    assert by_date["2026-05-18"].expected_automation_type == "daily_summary"
+    assert by_date["2026-05-18"].status == "already exists"
+    assert by_date["2026-05-19"].status == "missed"
+    assert by_date["2026-05-20"].status == "due"
+    assert by_date["2026-05-21"].expected_automation_type == "daily_summary"
+    assert by_date["2026-05-22"].expected_automation_type == "weekly_summary"
+    assert by_date["2026-05-23"].status == "not scheduled"
+
+
+def test_catch_up_daily_and_weekly_use_target_dates_and_no_overwrite_paths(fake_project, monkeypatch):
+    calls: list[tuple[str, dict]] = []
+
+    def fake_daily(*args, **kwargs):
+        calls.append(("daily", kwargs))
+        return ToolResult.ok("daily_status_summary", "Daily", "daily ok", output_reports=["daily.md"])
+
+    def fake_weekly(*args, **kwargs):
+        calls.append(("weekly", kwargs))
+        return ToolResult.ok("weekly_summary", "Weekly", "weekly ok", output_reports=["weekly.md"])
+
+    monkeypatch.setattr(scheduled_reports, "run_daily_summary_now", fake_daily)
+    monkeypatch.setattr(scheduled_reports, "run_weekly_summary_now", fake_weekly)
+
+    daily_result = run_catch_up_summaries(
+        fake_project,
+        [date(2026, 5, 20)],
+        automation="daily_summary",
+        project_start_date="2026-05-18",
+    )
+    weekly_result = run_catch_up_summaries(
+        fake_project,
+        [date(2026, 5, 22)],
+        automation="weekly_summary",
+        project_start_date="2026-05-18",
+    )
+
+    assert daily_result.success is True
+    assert weekly_result.success is True
+    assert calls[0][0] == "daily"
+    assert calls[0][1]["report_date"] == date(2026, 5, 20)
+    assert calls[0][1]["week"] == 1
+    assert calls[0][1]["day"] == 3
+    assert calls[0][1]["mode"] == "catch-up"
+    assert calls[1][0] == "weekly"
+    assert calls[1][1]["report_date"] == date(2026, 5, 22)
+    assert calls[1][1]["week"] == 1
+    assert calls[1][1]["mode"] == "catch-up"
+
+
+def test_preflight_reports_missing_powershell_as_warning(fake_project, monkeypatch):
+    monkeypatch.setattr(scheduled_reports.shutil, "which", lambda _name: None)
+
+    result = run_scheduler_preflight(fake_project, check_tasks=False)
+    checks = {row["name"]: row for row in result.structured_data["checks"]}
+
+    assert result.success is True
+    assert checks["PowerShell executable"]["status"] == "WARNING"
+    assert checks["Task Scheduler commands"]["status"] == "WARNING"
 
 
 def test_existing_daily_or_weekly_report_is_not_duplicated(fake_project):

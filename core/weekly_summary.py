@@ -9,6 +9,7 @@ from typing import Any
 from .audit_progress import calculate_audit_progress
 from .logging import log_tool_run, read_recent_activity
 from .paths import resolve_project_paths
+from .report_context import build_weekly_report_context
 from .reports import list_recent_files, read_report_preview
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
@@ -77,6 +78,8 @@ def build_weekly_summary_markdown(
     bullets = _extract_bullets(reports)
     schedule = load_week_schedule(project_root, week)
     metrics = _workbook_metrics(project_root)
+    context = build_weekly_report_context(project_root, week=week)
+    warnings.extend(context.get("warnings", []))
     activity, activity_warning = read_recent_activity(project_root, limit=50)
     if activity_warning:
         warnings.append(activity_warning)
@@ -115,8 +118,10 @@ def build_weekly_summary_markdown(
     lines.extend(["", "## Key Observations"])
     if bullets:
         lines.extend(f"- {bullet}" for bullet in bullets[:8])
+    elif context.get("daily_report_bullets"):
+        lines.extend(f"- {bullet}" for bullet in context["daily_report_bullets"][:8])
     else:
-        lines.append("- Add observations from daily reports or manual notes as the week develops.")
+        lines.append("- No daily-report observations were found yet.")
 
     lines.extend(["", "## Issues/Risks"])
     blocked = [task for task in schedule.tasks if task.status == "Blocked"]
@@ -130,6 +135,34 @@ def build_weekly_summary_markdown(
         lines.extend(f"- {warning}" for warning in warnings)
     else:
         lines.append("- No major missing inputs were detected for this weekly summary.")
+
+    open_summary = context.get("open_items_summary") or {}
+    open_items = context.get("open_items") or []
+    lines.extend(["", "## Open Items / Follow-Ups"])
+    if open_items:
+        if open_summary:
+            lines.append(
+                "- Summary: "
+                f"{open_summary.get('total_open_items', 0)} open, "
+                f"{open_summary.get('blocked_items', 0)} blocked, "
+                f"{open_summary.get('overdue_followups', 0)} overdue follow-up(s)."
+            )
+        for item in open_items[:10]:
+            lines.append(f"- {item.get('severity', 'INFO')}: {item.get('title')} ({item.get('status', 'Open')})")
+    else:
+        lines.append("- No open item records were available.")
+
+    validation = context.get("validation") or {}
+    lines.extend(["", "## Validation Signals"])
+    if validation.get("available"):
+        counts = validation.get("counts") or {}
+        count_text = ", ".join(f"{key}: {value}" for key, value in counts.items() if value) or "no findings counted"
+        lines.append(f"- Latest validation JSON: {count_text}.")
+        findings = validation.get("findings") or []
+        for finding in findings[:5]:
+            lines.append(f"- {finding.get('severity', 'WARNING')}: {finding.get('message', '')}")
+    else:
+        lines.append("- No JSON workbook validation output was available.")
 
     lines.extend(["", "## Reports/Files Created"])
     if recent_files:
@@ -152,6 +185,8 @@ def build_weekly_summary_markdown(
     lines.extend(["", "## Activity Log Signals"])
     if activity:
         lines.extend(f"- {entry.get('tool_name', 'Tool')}: {entry.get('summary', '')}" for entry in activity[:10])
+    elif context.get("activity_lines"):
+        lines.extend(f"- {line}" for line in context["activity_lines"][:10])
     else:
         lines.append("- No activity log entries were found.")
 
@@ -159,6 +194,8 @@ def build_weekly_summary_markdown(
         "daily_reports_found": len(reports),
         "activity_entries_considered": len(activity),
         "open_or_carryover_tasks": len(open_tasks),
+        "open_items_considered": len(open_items),
+        "validation_json_available": bool(validation.get("available")),
         **metrics,
     }
     return "\n".join(lines) + "\n", warnings, output_metrics

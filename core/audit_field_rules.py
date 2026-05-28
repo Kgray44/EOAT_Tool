@@ -10,7 +10,7 @@ from .audit_constants import (
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from .gripper_fields import GRIPPER_COUNT_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD, GRIPPER_TYPE_FIELD
+from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD, GRIPPER_TYPE_FIELD
 from .tool_fields import TOOL_FIELD
 
 NA_VALUE = "N/A"
@@ -23,6 +23,7 @@ EOAT_TYPE_MISC = "Miscellaneous"
 EOAT_TYPE_BLANK = "Blank/unknown"
 
 VACUUM_TOOLING_FIELDS = {
+    CUP_COUNT_FIELD,
     "Cup Type/Material",
     "Cup Diameter/Size",
     "Vacuum Generator Type",
@@ -63,6 +64,7 @@ FIELD_GROUPS = {
     "EOAT Moves": "machine_context",
     "Connection Type": "tool_mounting_connection",
     "Number of Parts Picked": "tooling",
+    CUP_COUNT_FIELD: "vacuum_tooling",
     "Cup Type/Material": "vacuum_tooling",
     "Cup Diameter/Size": "vacuum_tooling",
     "Vacuum Generator Type": "vacuum_tooling",
@@ -127,6 +129,7 @@ IMPORTANT_FIELDS = [
     TOOL_FIELD,
     "Part Family",
     "EOAT Moves",
+    CUP_COUNT_FIELD,
     "Sensor Type",
     "Sensor Brand/Model",
     "Vacuum Confirmation Present?",
@@ -230,6 +233,12 @@ def field_applies(entry: dict[str, Any], field_name: str) -> bool:
     return True
 
 
+def important_field_applies(entry: dict[str, Any], field_name: str) -> bool:
+    if field_name == CUP_COUNT_FIELD:
+        return field_applies(entry, field_name) and eoat_type_uses_vacuum(entry)
+    return field_applies(entry, field_name)
+
+
 def non_applicable_reason(entry: dict[str, Any], field_name: str) -> str:
     if field_applies(entry, field_name):
         return ""
@@ -282,6 +291,7 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
     eoat_type = normalized_eoat_type(entry)
     gripper_type = normalize_text(entry.get(GRIPPER_TYPE_FIELD)).casefold()
     gripper_model = normalize_text(entry.get(GRIPPER_MODEL_FIELD)).casefold()
+    cup_count = normalize_text(entry.get(CUP_COUNT_FIELD))
     cup_material = normalize_text(entry.get("Cup Type/Material"))
     if eoat_type == EOAT_TYPE_GRIPPER and "vacuum" in gripper_type:
         warnings.append("Mechanical / Gripper EOAT has Gripper Type that appears to be Vacuum.")
@@ -291,6 +301,8 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
         warnings.append("Vacuum EOAT has meaningful gripper/mechanical-side field values.")
     if gripper_model and any(material in gripper_model for material in MATERIAL_LIKE_VALUES):
         warnings.append("Gripper Model appears to contain a material value; check whether it belongs in Cup Type/Material.")
+    if eoat_type == EOAT_TYPE_GRIPPER and is_meaningful_value(cup_count):
+        warnings.append(f"{CUP_COUNT_FIELD} contains a meaningful value on a Mechanical / Gripper row.")
     if eoat_type == EOAT_TYPE_GRIPPER and is_meaningful_value(cup_material):
         warnings.append("Cup Type/Material contains a meaningful value on a Mechanical / Gripper row.")
     if _is_no(entry.get("Sensors Present?")) and _any_meaningful(entry, SENSOR_DETAIL_FIELDS):
@@ -307,6 +319,14 @@ def entry_type_requirements(entry: dict[str, Any]) -> dict[str, list[str]]:
             for field in COMPATIBLE_REQUIRED_FIELDS
             if field not in AUTOFILLED_COMPATIBILITY_METADATA_FIELDS and (field in entry or field == TOOL_FIELD)
         ]
-        return {"entry_type": ENTRY_TYPE_COMPATIBLE, "required": required, "important": [field for field in IMPORTANT_FIELDS if field_applies(entry, field)]}
+        return {
+            "entry_type": ENTRY_TYPE_COMPATIBLE,
+            "required": required,
+            "important": [field for field in IMPORTANT_FIELDS if important_field_applies(entry, field)],
+        }
     required = [field for field in AUDITED_REQUIRED_FIELDS if field in entry or field != TOOL_FIELD]
-    return {"entry_type": ENTRY_TYPE_AUDITED, "required": required, "important": [field for field in IMPORTANT_FIELDS if field_applies(entry, field)]}
+    return {
+        "entry_type": ENTRY_TYPE_AUDITED,
+        "required": required,
+        "important": [field for field in IMPORTANT_FIELDS if important_field_applies(entry, field)],
+    }
