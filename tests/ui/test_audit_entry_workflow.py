@@ -201,6 +201,7 @@ def test_audit_id_dropdown_includes_all_audits_and_selection_loads_row(qapp, fak
     second = _seed_audit(fake_project, "AUD-DROPDOWN-002", **{"Press/Machine #": "Press 2", "Tool #": "PN-02", "Part Name/Description": "Clip", "Notes": "Second row."})
     page = AuditPage(fake_config)
     page.show()
+    page._load_lazy_audit_indexes()
 
     audit_ids = [page.load_audit_id_combo.itemData(index) for index in range(page.load_audit_id_combo.count())]
     labels = [page.load_audit_id_combo.itemText(index) for index in range(page.load_audit_id_combo.count())]
@@ -239,6 +240,7 @@ def test_audit_and_compatibility_dropdowns_sort_by_machine_number(qapp, fake_con
     _seed_audit(fake_project, "AUD-UI-SORT-WEIRD", **{"Press/Machine #": "Bench A", "Tool #": "PN-WEIRD"})
     page = AuditPage(fake_config)
     page.show()
+    page._load_lazy_audit_indexes()
 
     audit_ids = [page.load_audit_id_combo.itemData(index) for index in range(page.load_audit_id_combo.count())]
     source_ids = [page.compatibility_source_combo.itemData(index) for index in range(page.compatibility_source_combo.count())]
@@ -797,6 +799,34 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     assert row["Gripper Type"] == "Double Pressure"
     assert row["Gripper Model"] == "Zimmer GPP"
     assert row["Gripper Size"] == "25 mm"
+
+
+def test_miscellaneous_audit_saves_and_loads_gripper_fields(qapp, fake_config, fake_project, frozen_project_date):
+    page = AuditPage(fake_config)
+    page.show()
+
+    _set_field(page, "Press/Machine #", "Press 107")
+    _set_field(page, "Robot Type", "Wittmann R9")
+    _set_field(page, "EOAT Type", "Miscellaneous")
+    _set_field(page, "Connection Type", "ATI")
+    _set_field(page, "# of Grippers", "1")
+    _set_field(page, "Gripper Type", "Single Pressure")
+    _set_field(page, "Gripper Model", "Zimmer GPP")
+    _set_field(page, "Gripper Size", "25 mm")
+
+    audit_id = page.audit_fields["Audit ID"].text()
+    click_button(page, "Save Audit Entry")
+    wait_for_background_tasks()
+
+    loaded = AuditPage(fake_config)
+    loaded.show()
+    assert loaded.load_existing_audit(audit_id) is True
+
+    assert loaded.audit_fields["EOAT Type"].currentText() == "Miscellaneous"
+    assert loaded.audit_fields["# of Grippers"].text() == "1"
+    assert loaded.audit_fields["Gripper Type"].currentText() == "Single Pressure"
+    assert loaded.audit_fields["Gripper Model"].currentText() == "Zimmer GPP"
+    assert loaded.audit_fields["Gripper Model"].isHidden() is False
 
 
 def test_duplicate_audit_can_change_press_and_autofill_tool_from_new_part_number(qapp, fake_config, fake_project, frozen_project_date):

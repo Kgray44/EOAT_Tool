@@ -43,6 +43,8 @@ SECTIONS = {
         "Electrical/Wiring Present?",
     ],
     "Documentation / Photos": ["Photos Taken?", "Photo Folder/Link"],
+    "Connections / Routing / Mechanical": ["Tubing Condition", "Tubing Routing Notes"],
+    "Pilot / Final Notes": ["Notes"],
 }
 
 
@@ -74,6 +76,9 @@ def _base_entry(**overrides):
         "Electrical/Wiring Present?": "Unknown / Not Checked",
         "Photos Taken?": "No",
         "Photo Folder/Link": "",
+        "Tubing Condition": "OK",
+        "Tubing Routing Notes": "",
+        "Notes": "",
     }
     entry.update(overrides)
     return entry
@@ -221,3 +226,72 @@ def test_vacuum_summary_marks_missing_cup_count_as_applicable_guided_field():
     assert "# of Cups" in summary.missing_fields
     assert "# of Cups" in summary.missing_important_fields
     assert "# of Cups" in summary.guided_fields
+
+
+def test_optional_notes_do_not_reduce_completion_or_missing_fields():
+    complete = _base_entry(
+        **{
+            "Electrical/Wiring Present?": "Yes",
+            "Photos Taken?": "Yes",
+            "Photo Folder/Link": "photos/demo",
+            "Tubing Routing Notes": "",
+            "Notes": "",
+        }
+    )
+
+    summary = calculate_audit_coach_summary(complete, SECTIONS)
+
+    assert summary.percent_complete == 100
+    assert "Tubing Routing Notes" not in summary.missing_fields
+    assert "Notes" not in summary.missing_fields
+    assert _status(summary, "Tubing Routing Notes").state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, "Notes").state == STATE_VERIFIED_COMPLETE
+
+
+def test_filled_optional_notes_are_saved_in_completion_display_without_changing_required_math():
+    blank_summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                "Electrical/Wiring Present?": "Yes",
+                "Photos Taken?": "Yes",
+                "Photo Folder/Link": "photos/demo",
+                "Tubing Routing Notes": "",
+                "Notes": "",
+            }
+        ),
+        SECTIONS,
+    )
+    filled_summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                "Electrical/Wiring Present?": "Yes",
+                "Photos Taken?": "Yes",
+                "Photo Folder/Link": "photos/demo",
+                "Tubing Routing Notes": "Route behind wrist.",
+                "Notes": "Final context.",
+            }
+        ),
+        SECTIONS,
+    )
+
+    assert filled_summary.percent_complete == blank_summary.percent_complete == 100
+    assert _status(filled_summary, "Tubing Routing Notes").value == "Route behind wrist."
+    assert _status(filled_summary, "Notes").value == "Final context."
+
+
+def test_miscellaneous_eoat_counts_gripper_fields_as_applicable():
+    summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                "EOAT Type": "Miscellaneous",
+                "# of Grippers": "",
+                "Gripper Type": "",
+                "Gripper Model": "",
+                "Gripper Size": "",
+            }
+        ),
+        SECTIONS,
+    )
+
+    assert _status(summary, "Gripper Model").state == STATE_MISSING
+    assert "Gripper Model" in summary.missing_fields

@@ -362,16 +362,25 @@ def generate_audit_id(project_root: str | Path, audit_date: str | None = None) -
     audit_date = audit_date or date.today().isoformat()
     compact = audit_date.replace("-", "")
     workbook_path = resolve_project_paths(project_root).master_workbook
-    rows = row_dicts(workbook_path, "EOAT Inventory") if workbook_path.exists() else []
     prefix = f"AUD-{compact}-"
     max_number = 0
-    for row in rows:
-        value = str(row.get("Audit ID") or "")
-        if value.startswith(prefix):
-            try:
-                max_number = max(max_number, int(value.rsplit("-", 1)[1]))
-            except ValueError:
-                continue
+    if workbook_path.exists():
+        workbook = load_workbook(workbook_path, read_only=True, data_only=True)
+        try:
+            if "EOAT Inventory" in workbook.sheetnames:
+                ws = workbook["EOAT Inventory"]
+                headers = worksheet_headers(ws)
+                if "Audit ID" in headers:
+                    audit_id_column = headers.index("Audit ID") + 1
+                    for row in ws.iter_rows(min_row=2, min_col=audit_id_column, max_col=audit_id_column, values_only=True):
+                        value = str((row[0] if row else "") or "")
+                        if value.startswith(prefix):
+                            try:
+                                max_number = max(max_number, int(value.rsplit("-", 1)[1]))
+                            except ValueError:
+                                continue
+        finally:
+            workbook.close()
     return f"{prefix}{max_number + 1:03d}"
 
 
@@ -1091,10 +1100,15 @@ def save_audit_entry(
     press_view_refresh_seconds = 0.0
     write_started = time.perf_counter()
     try:
+        backup_started = time.perf_counter()
         backup = backup_file(workbook_path, workbook_path.parent / "_backups")
+        timing_metrics["audit_save.backup_seconds"] = round(time.perf_counter() - backup_started, 3)
+        workbook_open_started = time.perf_counter()
         workbook = load_workbook(workbook_path)
+        timing_metrics["audit_save.workbook_open_load_seconds"] = round(time.perf_counter() - workbook_open_started, 3)
         if "EOAT Inventory" not in workbook.sheetnames:
             raise ValueError("EOAT Inventory sheet is missing.")
+        header_started = time.perf_counter()
         _migrate_workbook_tool_headers(workbook)
         ws = workbook["EOAT Inventory"]
         if VACUUM_ZONES_FIELD in worksheet_headers(ws):
@@ -1106,7 +1120,10 @@ def save_audit_entry(
             if ELECTRICAL_WIRING_PRESENT_FIELD in added_headers
             else {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
         )
+        timing_metrics["audit_save.sheet_header_mapping_seconds"] = round(time.perf_counter() - header_started, 3)
+        row_lookup_started = time.perf_counter()
         existing_row = find_row_by_value(ws, "Audit ID", str(data["Audit ID"]))
+        timing_metrics["audit_save.audit_row_lookup_seconds"] = round(time.perf_counter() - row_lookup_started, 3)
         if existing_row:
             headers = worksheet_headers(ws)
             previous_data = {
@@ -1143,12 +1160,16 @@ def save_audit_entry(
                     data[header] = NA_VALUE
                     normalization_details.setdefault("fields_auto_set_to_na", {})[header] = field_rules.non_applicable_reason(data, header)
         row_number = existing_row or next_empty_row(ws)
+        row_write_started = time.perf_counter()
         write_row_by_headers(ws, row_number, data)
+        timing_metrics["audit_save.row_write_update_seconds"] = round(time.perf_counter() - row_write_started, 3)
         if refresh_press_view:
             press_view_started = time.perf_counter()
             refresh_audit_by_press_view(workbook)
             press_view_refresh_seconds = time.perf_counter() - press_view_started
+        workbook_save_started = time.perf_counter()
         workbook.save(workbook_path)
+        timing_metrics["audit_save.workbook_save_seconds"] = round(time.perf_counter() - workbook_save_started, 3)
         workbook.close()
         timing_metrics["audit_save.write_master_seconds"] = round(time.perf_counter() - write_started, 3)
         timing_metrics["audit_save.audit_by_press_refresh_seconds"] = round(press_view_refresh_seconds, 3)

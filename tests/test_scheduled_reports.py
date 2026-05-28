@@ -13,6 +13,7 @@ from core.scheduled_reports import (
     WEEKLY_TASK_NAME,
     detect_missed_daily_summaries,
     detect_missed_weekly_summary,
+    describe_task_result,
     expected_daily_summary_day,
     expected_weekly_summary_day,
     find_latest_daily_summary,
@@ -63,6 +64,36 @@ def test_status_check_can_skip_windows_task_query(fake_project):
     assert status["weekly"]["schedule"] == "Friday at 7:00 PM"
     assert "scheduled_tools.log" in status["scheduled_log"]
     assert "daily_reports" in status["paths"]
+    assert "eoat_scheduled_task_emergency.log" in status["emergency_log"]
+
+
+def test_task_result_one_is_translated_as_script_error():
+    assert describe_task_result("1") == "Task failed / script returned error"
+
+
+def test_status_success_requires_confirmed_report_file(fake_project):
+    paths = resolve_project_paths(fake_project)
+    log_path = paths.logs / "scheduled_tools.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    missing_report = paths.daily_reports / "missing.md"
+    log_path.write_text(
+        f'[2026-05-27 19:00:00] SUCCESS daily_summary report_created=true output="{missing_report}" elapsed=1.0s\n',
+        encoding="utf-8",
+    )
+
+    status = get_scheduled_report_status(fake_project, today=date(2026, 5, 28), check_tasks=False)
+
+    assert status["daily"]["report_generation_result"] == "No report file confirmed"
+
+    report = paths.daily_reports / "Week1_Day1_Status_2026-05-18.md"
+    report.write_text("# Daily\n", encoding="utf-8")
+    log_path.write_text(
+        f'[2026-05-27 19:00:00] SUCCESS daily_summary report_created=true output="{report}" elapsed=1.0s\n',
+        encoding="utf-8",
+    )
+
+    status = get_scheduled_report_status(fake_project, today=date(2026, 5, 28), check_tasks=False)
+    assert status["daily"]["report_generation_result"] == "Success - report file created"
 
 
 def test_calendar_preview_marks_weekday_daily_friday_weekly_and_missed(fake_project):

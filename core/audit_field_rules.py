@@ -192,7 +192,7 @@ def eoat_type_uses_vacuum(entry_or_value: dict[str, Any] | Any) -> bool:
 
 
 def eoat_type_uses_gripper(entry_or_value: dict[str, Any] | Any) -> bool:
-    return normalized_eoat_type(entry_or_value) in {EOAT_TYPE_GRIPPER, EOAT_TYPE_HYBRID}
+    return normalized_eoat_type(entry_or_value) in {EOAT_TYPE_GRIPPER, EOAT_TYPE_HYBRID, EOAT_TYPE_MISC}
 
 
 def is_unknown_or_review_eoat_type(entry_or_value: dict[str, Any] | Any) -> bool:

@@ -552,7 +552,7 @@ def test_clear_form_confirmation_can_be_suppressed_and_clears_summary(qapp, fake
     assert page.result_panel.viewer.toPlainText() == ""
 
 
-def test_save_audit_autoclears_form_and_preserves_combined_summary(qapp, fake_config, fake_project, frozen_project_date):
+def test_save_audit_preserves_form_and_combined_summary(qapp, fake_config, fake_project, frozen_project_date):
     page = AuditPage(fake_config)
     page.show()
     audit_id = page.audit_fields["Audit ID"].text()
@@ -568,8 +568,9 @@ def test_save_audit_autoclears_form_and_preserves_combined_summary(qapp, fake_co
     assert "Robot Info Summary" in text
     assert "Compatibility Entry Summary" in text
     assert f"Saved audit entry {audit_id}" in text
-    assert page.audit_fields["Press/Machine #"].text() == ""
-    assert page.audit_fields["Audit ID"].text() != audit_id
+    assert page.audit_fields["Press/Machine #"].text() == "12"
+    assert page.audit_fields["Audit ID"].text() == audit_id
+    assert page.has_unsaved_changes() is False
 
 
 def test_save_audit_workflow_records_timing_and_defers_annotation_sync(qapp, fake_config, monkeypatch, frozen_project_date):

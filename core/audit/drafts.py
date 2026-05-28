@@ -45,6 +45,30 @@ def form_values_changed(current: MappingLike | None, baseline: MappingLike | Non
     return any(current_values.get(key, "") != baseline_values.get(key, "") for key in keys)
 
 
+def _is_blank_draft_value(value: Any) -> bool:
+    return not str(value or "").strip()
+
+
+def merge_draft_form_values(
+    existing_values: MappingLike | None,
+    incoming_values: MappingLike | None,
+    *,
+    changed_fields: set[str] | frozenset[str] | None = None,
+) -> dict[str, str]:
+    existing = normalize_form_values(existing_values)
+    incoming = normalize_form_values(incoming_values)
+    if changed_fields is None:
+        return {**existing, **incoming}
+    changed = {str(field) for field in changed_fields}
+    merged = dict(existing)
+    for field, incoming_value in incoming.items():
+        existing_value = existing.get(field, "")
+        if field not in changed and _is_blank_draft_value(incoming_value) and not _is_blank_draft_value(existing_value):
+            continue
+        merged[field] = incoming_value
+    return merged
+
+
 def save_audit_draft(
     project_root: str | Path,
     *,
@@ -52,16 +76,23 @@ def save_audit_draft(
     mode: str,
     form_values: dict[str, Any],
     baseline_values: dict[str, Any],
+    changed_fields: set[str] | frozenset[str] | None = None,
 ) -> Path:
     path = audit_draft_path(project_root)
     ensure_directory(path.parent)
+    existing = load_audit_draft(project_root)
+    normalized_form_values = merge_draft_form_values(
+        existing.form_values if existing is not None else None,
+        form_values,
+        changed_fields=changed_fields,
+    )
     draft = AuditDraft(
         version=DRAFT_VERSION,
         saved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         project_root=str(project_root),
         audit_id=str(audit_id or ""),
         mode=str(mode or "new"),
-        form_values=normalize_form_values(form_values),
+        form_values=normalized_form_values,
         baseline_values=normalize_form_values(baseline_values),
     )
     path.write_text(json.dumps(asdict(draft), indent=2), encoding="utf-8")

@@ -206,7 +206,7 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
         ("Mechanical / Gripper", False, True),
         ("Hybrid", True, True),
         ("Unknown / Needs Review", True, False),
-        ("Miscellaneous", True, False),
+        ("Miscellaneous", True, True),
     ],
 )
 def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vacuum_visible, gripper_visible):
@@ -257,6 +257,14 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
     assert page.audit_fields["Gripper Size"].text() == "25 mm"
     assert page.audit_fields["# of Grippers"].text() == "2"
     assert page._field_value(page.audit_fields["Gripper Type"]) == "Single Pressure"
+
+    _set_field(page, "EOAT Type", "Miscellaneous")
+    assert page.audit_fields["Gripper Model"].isHidden() is False
+    assert page.audit_fields["Gripper Size"].isHidden() is False
+    assert page.audit_fields["# of Grippers"].isHidden() is False
+    assert page.audit_fields["Gripper Type"].isHidden() is False
+    assert page._field_value(page.audit_fields["Gripper Model"]) == "Zimmer GPP"
+    assert page.audit_fields["# of Grippers"].text() == "2"
 
 
 def test_sensors_present_controls_sensor_electrical_visibility(qapp, fake_config):

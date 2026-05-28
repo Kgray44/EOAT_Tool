@@ -19,20 +19,21 @@ def test_scheduled_reports_page_shows_preview_actions_and_preflight(qapp, fake_c
             "daily": {
                 "schedule": "Monday-Thursday at 7:00 PM",
                 "task": {"installed": False},
-                "last_status": "Skipped",
+                "report_generation_result": "Skipped",
                 "last_report": "",
                 "missed_dates": ["2026-05-19"],
                 "next_expected_run": "2026-05-20T19:00:00-04:00",
             },
             "weekly": {
                 "schedule": "Friday at 7:00 PM",
-                "task": {"installed": True, "state": "Ready"},
-                "last_status": "Success",
+                "task": {"installed": True, "state": "Ready", "last_result_raw": "1", "last_result_description": "Task failed / script returned error"},
+                "report_generation_result": "No report file confirmed",
                 "last_report": "",
                 "missed_dates": [],
                 "next_expected_run": "2026-05-22T19:00:00-04:00",
             },
             "scheduled_log": str(paths.logs / "scheduled_tools.log"),
+            "emergency_log": str(paths.logs / "eoat_scheduled_task_emergency.log"),
             "paths": {
                 "daily_reports": str(paths.daily_reports),
                 "weekly_reports": str(paths.weekly_reports),
@@ -56,7 +57,9 @@ def test_scheduled_reports_page_shows_preview_actions_and_preflight(qapp, fake_c
 
     assert page.cards["Daily Task Installed"].value_label.text() == "No"
     assert page.cards["Weekly Task Installed"].value_label.text() == "Yes (Ready)"
+    assert page.cards["Weekly Task Result"].value_label.text() == "1 - Task failed / script returned error"
     assert find_button(page, "Run Daily Dry Run")
     assert find_button(page, "Generate Weekly Now")
+    assert find_button(page, "Run Actual Scheduled Task Now")
     assert "daily_summary" in table_text(page.preview_table)
     assert "PowerShell executable" in table_text(page.preflight_table)

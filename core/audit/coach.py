@@ -27,6 +27,7 @@ UNKNOWN_NOT_CHECKED_VALUE = "Unknown / Not Checked"
 
 UNKNOWN_VALUES = {"unknown / not checked", "unknown", "not checked"}
 IDENTITY_FIELDS = {"Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Status"}
+OPTIONAL_COMPLETION_FIELDS = {"Tubing Routing Notes", "Notes", "Final Notes"}
 VISIBILITY_CONTROLLER_FIELDS = {"EOAT Type", "Sensors Present?", "Electrical/Wiring Present?", "Quick Disconnects Present?"}
 EOAT_TOOLING_FIELDS = {
     "Tool #",
@@ -258,6 +259,19 @@ def classify_audit_field(
             priority=priority,
             required=required,
             important=important,
+        )
+
+    if field in OPTIONAL_COMPLETION_FIELDS and (not value or is_na_value(value)):
+        return AuditCoachFieldStatus(
+            field=field,
+            section=section,
+            state=STATE_VERIFIED_COMPLETE,
+            value=value,
+            applies=True,
+            reason="Optional narrative field; blank is accepted.",
+            priority=priority,
+            required=False,
+            important=False,
         )
 
     if _is_unknown_not_checked(value):

@@ -37,6 +37,10 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
     assert field_applies(hybrid, "Gripper Model")
     assert field_applies(hybrid, "# of Grippers")
 
+    miscellaneous = {"EOAT Type": "Miscellaneous"}
+    assert field_applies(miscellaneous, "Gripper Model")
+    assert field_applies(miscellaneous, "# of Grippers")
+
     unknown = {"EOAT Type": "Unknown / Needs Review"}
     assert field_applies(unknown, "# of Cups")
     assert field_applies(unknown, "Cup Type/Material")
