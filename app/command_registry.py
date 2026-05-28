@@ -87,6 +87,7 @@ def build_dashboard_command_registry(window) -> CommandRegistry:
         ("home", "Open Home"),
         ("audit", "Open EOAT Audit"),
         ("press_view", "Open Press View"),
+        ("machine_360", "Open Machine 360"),
         ("open_items", "Open Open Items"),
         ("workbook_health", "Open Workbook Health"),
         ("scheduled_reports", "Open Scheduled Reports"),
