@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit.defaults import DEFAULT_AUDIT_DEFAULTS, DEFAULT_CONNECTION_DEFAULTS
+from .audit.smart_rules import default_smart_default_rules
 from .constants import DEFAULT_CONFIG_PATH, DEFAULT_GIT_EXECUTABLE, DEFAULT_PROJECT_ROOT, LEGACY_CONFIG_PATH
 from .safe_files import ensure_directory
 
@@ -26,7 +27,7 @@ class UserConfig:
     scheduled_reports: dict[str, Any] = field(default_factory=lambda: default_scheduled_reports_config())
     backup_policy: dict[str, Any] = field(default_factory=lambda: default_backup_policy_config())
     audit_coach_exclusions: list[str] = field(default_factory=list)
-    smart_default_rules: list[dict[str, Any]] = field(default_factory=list)
+    smart_default_rules: list[dict[str, Any]] = field(default_factory=lambda: default_smart_default_rules())
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "UserConfig":
@@ -102,7 +103,7 @@ def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
     if "audit_coach_exclusions" not in migrated:
         migrated["audit_coach_exclusions"] = []
     if "smart_default_rules" not in migrated:
-        migrated["smart_default_rules"] = []
+        migrated["smart_default_rules"] = default_smart_default_rules()
     if "connection_defaults" in migrated and "smart_default_rules" in migrated:
         migrated["smart_default_rules"] = _migrate_connection_defaults_to_rules(
             migrated.get("connection_defaults"),

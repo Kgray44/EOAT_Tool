@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.audit.defaults import audit_default, connection_changeover_default, merged_audit_defaults
+from core.audit.smart_rules import SmartDefaultResult, apply_configured_smart_defaults
 
 
 class AuditDefaultsController:
@@ -20,3 +21,6 @@ class AuditDefaultsController:
 
     def changeover_default(self, connection_type: str) -> str | None:
         return connection_changeover_default(connection_type, self.config)
+
+    def smart_defaults(self, entry: dict[str, Any], *, only_unset: bool = True) -> SmartDefaultResult:
+        return apply_configured_smart_defaults(entry, self.config, only_unset=only_unset)
