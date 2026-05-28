@@ -91,3 +91,14 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_guided_audit.py tests/test_audit_completion.py tests/ui/test_audit_coach_workflow.py`
   - Result: 9 passed.
+
+## Checkpoint 9 - Machine 360 And Project Data Service
+
+- Added `core/project_data_service.py` with `build_machine_360_context(project_root, machine_number)`.
+- The Machine 360 context aggregates physical audits, compatible rows, linked compatible rows, open items, photo evidence coverage, guided audit plans, robot info, metrics, warnings, and recommended actions.
+- Added `app.pages.machine_360:Machine360Page` and registered it in navigation and the command registry.
+- Added `tests/test_project_data_service.py` and `tests/ui/test_machine_360_page.py`.
+- Broad mixed UI/core run surfaced an existing PySide teardown issue in `OpenItemsPanel.refresh_async` after widgets are deleted. A smaller focused verification for this phase passed.
+- Focused verification:
+  - `python -m pytest -q tests/test_project_data_service.py tests/ui/test_machine_360_page.py tests/test_app_architecture_foundation.py::test_page_registry_defines_existing_navigation tests/test_command_registry.py::test_command_registry_contains_expected_commands`
+  - Result: 5 passed.

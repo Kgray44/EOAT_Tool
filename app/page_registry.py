@@ -66,6 +66,15 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         description="App-native press/machine grouping of physical audits, compatible entries, and follow-ups.",
     ),
     PageSpec(
+        "machine_360",
+        "Machine 360",
+        "Capture",
+        "app.pages.machine_360:Machine360Page",
+        refresh_on_show=True,
+        listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED, EVENT_OPEN_ITEMS_CHANGED, EVENT_WORKBOOK_VALIDATED),
+        description="Machine-centered audit, compatibility, evidence, and open-item context.",
+    ),
+    PageSpec(
         "notes",
         "Notes",
         "Capture",
