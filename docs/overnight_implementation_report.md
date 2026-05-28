@@ -50,3 +50,12 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_audit_coach.py -k cylinder tests/test_audit_entries.py -k cylinder tests/ui/test_audit_lookup.py -k cylinder`
   - Result: 4 passed, 69 deselected.
+
+## Checkpoint 5 - Manual Completion Override
+
+- Manual completion override was present in the copied baseline and preserved.
+- Verified that the audit coach treats override records as complete while retaining truthful override metadata.
+- Verified the completion engine can either honor or reject manual override depending on policy.
+- Focused verification:
+  - `python -m pytest -q tests/test_audit_coach.py -k manual tests/ui/test_audit_entry_workflow.py -k manual tests/test_audit_completion.py -k override`
+  - Result: 5 passed, 57 deselected.
