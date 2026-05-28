@@ -89,6 +89,7 @@ from core.audit.compatibility_preview import CompatibilityImpactPreview, build_c
 from core.audit.coach import STATE_MISSING, calculate_audit_coach_summary, unknown_not_checked_value_for_field
 from core.audit.drafts import discard_audit_draft, form_values_changed, load_audit_draft, save_audit_draft
 from core.audit_field_rules import PNEUMATIC_CIRCUIT_FIELDS, field_applies, manual_completion_override_enabled, non_applicable_reason
+from core.audit_field_registry import audit_section_groups as registry_audit_section_groups, audit_sections as registry_audit_sections
 from core.gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
@@ -190,136 +191,8 @@ def get_empty_only_visible_fields(row_data, form_fields, current_visibility_rule
             fields.append(FieldInfo(name=field, label=label))
     return fields
 
-AUDIT_SECTIONS = {
-    "Audit Header": [
-        "Audit ID",
-        "Audit Date",
-        "Auditor",
-        "Plant/Area",
-        "Press/Machine #",
-        "Status",
-        "Priority",
-        "Follow-Up Needed",
-    ],
-    "Machine / Robot / Tool Context": [
-        "Robot Type",
-        "Robot Model/Controller",
-        "Tool #",
-        "Part Family",
-        "Part Name/Description",
-        "Cleanroom/Non-Cleanroom",
-    ],
-    "EOAT Type and Tooling": [
-        "EOAT Type",
-        "EOAT Moves",
-        "Connection Type",
-        NUMBER_OF_PARTS_PICKED_FIELD,
-        CYLINDER_COUNT_FIELD,
-        CYLINDER_TYPE_FIELD,
-        GRIPPER_COUNT_FIELD,
-        GRIPPER_TYPE_FIELD,
-        GRIPPER_MODEL_FIELD,
-        "Gripper Size",
-        CUP_COUNT_FIELD,
-        "Cup Type/Material",
-        "Cup Diameter/Size",
-        "Vacuum Generator Type",
-        "Estimated EOAT Weight",
-    ],
-    PNEUMATIC_CIRCUITS_SECTION: [
-        *EOAT_PNEUMATIC_FIELDS,
-        *ROBOT_PNEUMATIC_FIELDS,
-    ],
-    "Sensors and Detection": [
-        "Sensors Present?",
-        "Sensor Type",
-        "Sensor Brand/Model",
-        "Vacuum Confirmation Present?",
-        "Part-Present Detection Present?",
-        "Electrical/Wiring Present?",
-    ],
-    "Connections / Routing / Mechanical": [
-        "Quick Disconnects Present?",
-        "Pneumatic Quick Disconnect Type",
-        "Electrical Quick Disconnect Type",
-        "Tubing Condition",
-        "Tubing Routing Notes",
-        "Cable Management Condition",
-        "Mounting Hardware Condition",
-        "EOAT Alignment Condition",
-        "Fastener/Locking Hardware Present?",
-    ],
-    "Performance / Reliability / Maintenance": [
-        "Known Issues",
-        "Drop/Mis-Pick History",
-        "Maintenance Frequency",
-        "Cycle Time Concern?",
-        "Scrap/Quality Concern?",
-        "Changeover Difficulty",
-    ],
-    "Documentation / Photos": [
-        "Spare Parts Identified?",
-        "Drawing/CAD Available?",
-        "BOM Available?",
-        "Process Binder Complete?",
-        "Photos Taken?",
-        "Photo Folder/Link",
-    ],
-    "Pilot / Final Notes": [
-        "Pilot Candidate?",
-        "Notes",
-    ],
-}
-
-AUDIT_SECTION_GROUPS = {
-    "Audit Header": [
-        ("Audit Identity", ["Audit ID", "Audit Date", "Auditor"]),
-        ("Location / Machine", ["Plant/Area", "Press/Machine #"]),
-        ("Audit Status", ["Status", "Priority", "Follow-Up Needed"]),
-    ],
-    "Machine / Robot / Tool Context": [
-        ("Robot Information", ["Robot Type", "Robot Model/Controller"]),
-        ("Tool / Part Information", ["Tool #", "Part Family", "Part Name/Description"]),
-        ("Production Environment", ["Cleanroom/Non-Cleanroom"]),
-    ],
-    "EOAT Type and Tooling": [
-        ("EOAT Classification", ["EOAT Type", "EOAT Moves", "Connection Type"]),
-        ("Part Pickup", [NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, "Gripper Size"]),
-        ("Cylinders", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]),
-        ("Vacuum / Cup Details", [CUP_COUNT_FIELD, "Cup Type/Material", "Cup Diameter/Size", "Vacuum Generator Type"]),
-        ("Physical Details", ["Estimated EOAT Weight"]),
-    ],
-    PNEUMATIC_CIRCUITS_SECTION: [
-        ("EOAT Side", EOAT_PNEUMATIC_FIELDS),
-        ("Robot Side", ROBOT_PNEUMATIC_FIELDS),
-    ],
-    "Sensors and Detection": [
-        ("Detection Presence", ["Sensors Present?", "Vacuum Confirmation Present?", "Part-Present Detection Present?"]),
-        ("Sensor Details", ["Sensor Type", "Sensor Brand/Model"]),
-        ("Electrical / Wiring", ["Electrical/Wiring Present?"]),
-    ],
-    "Connections / Routing / Mechanical": [
-        ("Quick Disconnects", ["Quick Disconnects Present?", "Pneumatic Quick Disconnect Type", "Electrical Quick Disconnect Type"]),
-        ("Tubing / Routing", ["Tubing Condition", "Tubing Routing Notes"]),
-        ("Cable Management", ["Cable Management Condition"]),
-        ("Mechanical Condition", ["Mounting Hardware Condition", "EOAT Alignment Condition", "Fastener/Locking Hardware Present?"]),
-    ],
-    "Performance / Reliability / Maintenance": [
-        ("Known Problems", ["Known Issues", "Drop/Mis-Pick History"]),
-        ("Maintenance", ["Maintenance Frequency"]),
-        ("Production Impact", ["Cycle Time Concern?", "Scrap/Quality Concern?"]),
-        ("Changeover", ["Changeover Difficulty"]),
-    ],
-    "Documentation / Photos": [
-        ("Documentation Status", ["Drawing/CAD Available?", "BOM Available?", "Process Binder Complete?"]),
-        ("Photo Evidence", ["Photos Taken?", "Photo Folder/Link"]),
-        ("Spare Parts", ["Spare Parts Identified?"]),
-    ],
-    "Pilot / Final Notes": [
-        ("Pilot Evaluation", ["Pilot Candidate?"]),
-        ("Final Notes", ["Notes"]),
-    ],
-}
+AUDIT_SECTIONS = registry_audit_sections()
+AUDIT_SECTION_GROUPS = registry_audit_section_groups()
 
 FIELD_ANNOTATION_TINTS = {
     "yellow": "#fefce8",
