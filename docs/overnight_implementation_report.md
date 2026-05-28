@@ -41,3 +41,12 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_audit_completion.py tests/test_audit_coach.py tests/test_audit_field_registry.py`
   - Result: 22 passed.
+
+## Checkpoint 4 - Cylinder Support
+
+- Cylinder support was present in the copied baseline and preserved.
+- Verified audit coach behavior for optional/default cylinder fields and intentional cylinder usage.
+- Verified workbook save/load migration coverage for cylinder fields and UI lookup behavior.
+- Focused verification:
+  - `python -m pytest -q tests/test_audit_coach.py -k cylinder tests/test_audit_entries.py -k cylinder tests/ui/test_audit_lookup.py -k cylinder`
+  - Result: 4 passed, 69 deselected.
