@@ -32,3 +32,12 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `python -m pytest -q tests/test_audit_field_registry.py tests/test_audit_coach.py tests/ui/test_audit_lookup.py`
   - Result: 42 passed.
 
+## Checkpoint 3 - Completion Engine
+
+- Added `core/audit_completion.py` as a policy-oriented completion layer over the existing audit coach rules.
+- The completion engine returns stable machine-readable results for finish eligibility, guided fields, manual override state, missing required/important fields, and ignored override fields.
+- Added ranked next-action extraction for Guided Audit Mode and future reporting surfaces.
+- Added `tests/test_audit_completion.py`.
+- Focused verification:
+  - `python -m pytest -q tests/test_audit_completion.py tests/test_audit_coach.py tests/test_audit_field_registry.py`
+  - Result: 22 passed.
