@@ -135,6 +135,8 @@ def _base_inventory_values(audit_id: str, eoat_moves: str) -> dict[str, str]:
         "EOAT Type": "Vacuum",
         "EOAT Moves": eoat_moves,
         "Connection Type": "ATI",
+        "# of Cylinders": "N/A",
+        "Cylinder Type": "Linear",
         "Cleanroom/Non-Cleanroom": "Whiteroom",
         "Status": "In Progress",
         "Priority": "Medium",
@@ -158,6 +160,8 @@ def _complete_inventory_values(audit_id: str, entry_type: str = "Audited") -> di
             "Connection Type": "ATI",
             "Cleanroom/Non-Cleanroom": "Whiteroom",
             "Number of Parts Picked": "2",
+            "# of Cylinders": "1",
+            "Cylinder Type": "Linear",
             "# of Cups": "4",
             "# of Grippers": "2",
             "Gripper Type": "Double Pressure",
@@ -169,6 +173,10 @@ def _complete_inventory_values(audit_id: str, entry_type: str = "Audited") -> di
             "Priority": "Medium",
             "Known Issues": "No issue observed.",
             "Photos Taken?": "No",
+            "Manual Completion Override": "No",
+            "Manual Completion Override Timestamp": "N/A",
+            "Manual Completion Override User": "N/A",
+            "Ignored Empty Fields At Override": "N/A",
             "Entry Type": entry_type,
             SOURCE_AUDIT_ID_FIELD: "",
             COMPATIBILITY_SOURCE_FIELD: "",
@@ -274,7 +282,7 @@ def test_workbook_health_ignores_blank_autofilled_metadata_cells(tmp_path):
     assert SOURCE_AUDIT_ID_FIELD not in warning_text
     assert COMPATIBILITY_SOURCE_FIELD not in warning_text
     assert any(
-        "Blank Source Audit ID and Compatibility Source cells are intentionally ignored during blank-cell validation"
+        "Blank Source Audit ID, Compatibility Source, and manual completion override metadata cells are intentionally ignored during blank-cell validation"
         in detail
         for detail in result.details
     )

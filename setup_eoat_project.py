@@ -16,6 +16,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
+from core.audit_constants import (
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
+    CYLINDER_TYPE_VALUES,
+    IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+)
 from core.gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 
 try:
@@ -169,6 +178,8 @@ SHEETS: dict[str, list[str]] = {
         "EOAT Moves",
         "Connection Type",
         "Number of Parts Picked",
+        CYLINDER_COUNT_FIELD,
+        CYLINDER_TYPE_FIELD,
         GRIPPER_COUNT_FIELD,
         GRIPPER_TYPE_FIELD,
         "Gripper Model",
@@ -212,6 +223,10 @@ SHEETS: dict[str, list[str]] = {
         "Pilot Candidate?",
         "Follow-Up Needed",
         "Notes",
+        MANUAL_COMPLETION_OVERRIDE_FIELD,
+        MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
+        MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+        IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
         "Entry Type",
         "Source Audit ID",
         "Compatibility Source",
@@ -348,7 +363,9 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
         "EOAT Moves": ["Part", "Sprue", "Both"],
         "Entry Type": ["Audited", "Compatible"],
         "Connection Type": ["ATI", "DoveTail", "Direct Mount", "Lever Lock", "N/A"],
+        CYLINDER_TYPE_FIELD: [*CYLINDER_TYPE_VALUES, "N/A"],
         GRIPPER_TYPE_FIELD: [*GRIPPER_TYPE_VALUES, "N/A"],
+        MANUAL_COMPLETION_OVERRIDE_FIELD: ["Yes", "No", "N/A"],
         "Sensors Present?": YES_NO_UNKNOWN,
         "Vacuum Confirmation Present?": YES_NO_UNKNOWN_NA,
         "Part-Present Detection Present?": YES_NO_UNKNOWN_NA,
@@ -432,6 +449,7 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
 WHOLE_NUMBER_VALIDATIONS: dict[str, list[str]] = {
     "EOAT Inventory": [
         "Number of Parts Picked",
+        CYLINDER_COUNT_FIELD,
         CUP_COUNT_FIELD,
         GRIPPER_COUNT_FIELD,
         "EOAT Vacuum Circuits",

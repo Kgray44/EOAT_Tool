@@ -14,6 +14,7 @@ from core.openers import open_path
 from core.config import load_config, save_config
 from core.constants import APP_NAME
 from core.performance import log_performance
+from core.workbook_cache import invalidate_all_workbook_cache
 from core.search import SearchResult
 from .command_registry import build_dashboard_command_registry
 from .event_bus import EVENT_ANY, EVENT_AUDIT_SAVED, EVENT_PROJECT_ROOT_CHANGED, EVENT_SETTINGS_CHANGED, AppEvent, get_event_bus
@@ -130,6 +131,7 @@ class DashboardWindow(QMainWindow):
     def _publish_project_root_changed(self, project_root: str, *, source: str) -> None:
         old_project_root = self._last_project_root
         self._last_project_root = project_root
+        invalidate_all_workbook_cache()
         for page in list(self.pages.values()):
             self._call_optional_page_hook(page, "on_project_root_changed", self.config)
         self.event_bus.emit(

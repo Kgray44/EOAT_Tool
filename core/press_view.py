@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -23,7 +23,7 @@ from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .standards_compliance import analyze_standards_compliance
 from .tool_fields import TOOL_FIELD
-from .workbook_io import row_dicts
+from .workbook_cache import row_dicts_cached as row_dicts
 
 
 @dataclass(frozen=True)
@@ -59,6 +59,7 @@ class PressViewGroup:
     average_compliance_score: int = 0
     worst_compliance_category: str = ""
     open_standards_issues: int = 0
+    search_blob: str = ""
 
     @property
     def total_entries(self) -> int:
@@ -133,6 +134,7 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
             worst_compliance_category=compliance_rollups.get(machine, {}).get("worst_category", ""),
             open_standards_issues=compliance_rollups.get(machine, {}).get("open_standards_issues", 0),
         )
+        group = replace(group, search_blob=_search_blob(group))
         if query and not _matches_group(group, query):
             continue
         groups.append(group)
@@ -274,7 +276,7 @@ def _group_from_dict(data: dict[str, Any]) -> PressViewGroup:
     physical = [_entry_from_dict(item) for item in data.get("physical_audits", []) if isinstance(item, dict)]
     compatible = [_entry_from_dict(item) for item in data.get("compatible_entries", []) if isinstance(item, dict)]
     linked_compatible = [_entry_from_dict(item) for item in data.get("linked_compatible_entries", []) if isinstance(item, dict)]
-    return PressViewGroup(
+    group = PressViewGroup(
         machine=str(data.get("machine") or ""),
         display_name=str(data.get("display_name") or ""),
         physical_audits=physical,
@@ -289,7 +291,11 @@ def _group_from_dict(data: dict[str, Any]) -> PressViewGroup:
         average_compliance_score=int(data.get("average_compliance_score") or 0),
         worst_compliance_category=str(data.get("worst_compliance_category") or ""),
         open_standards_issues=int(data.get("open_standards_issues") or 0),
+        search_blob=str(data.get("search_blob") or ""),
     )
+    if not group.search_blob:
+        group = replace(group, search_blob=_search_blob(group))
+    return group
 
 
 def _open_item_counts(project_root: str | Path) -> dict[str, int]:
@@ -369,7 +375,11 @@ def _entry_lines(entries: list[PressAuditEntry]) -> list[str]:
 
 def _matches_group(group: PressViewGroup, query: str) -> bool:
     needle = query.casefold().strip()
-    haystack = " ".join(
+    return needle in (group.search_blob or _search_blob(group))
+
+
+def _search_blob(group: PressViewGroup) -> str:
+    return " ".join(
         [
             group.machine,
             group.display_name,
@@ -381,7 +391,6 @@ def _matches_group(group: PressViewGroup, query: str) -> bool:
             ),
         ]
     ).casefold()
-    return needle in haystack
 
 
 def _pilot_summary(values: list[str]) -> str:

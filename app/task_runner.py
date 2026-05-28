@@ -13,6 +13,8 @@ except ImportError:  # pragma: no cover
 
 from core.result import ToolResult
 
+BACKGROUND_TASK_MAX_THREADS = 3
+
 
 @dataclass(frozen=True)
 class TaskRequest:
@@ -176,6 +178,7 @@ class BackgroundTaskManager(QObject):
         super().__init__(parent)
         self.guard = ActiveTaskGuard()
         self.pool = QThreadPool.globalInstance()
+        self.pool.setMaxThreadCount(BACKGROUND_TASK_MAX_THREADS)
         self._active_runnables: list[_TaskRunnable] = []
 
     def run_task(self, request: TaskRequest, on_finished: Callable[[TaskResult], None] | None = None, button=None) -> bool:

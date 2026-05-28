@@ -14,6 +14,7 @@ from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file, ensure_directory, safe_copy_file
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import next_empty_row, row_dicts, write_row_by_headers
 from .workbook_schema import get_expected_headers
 
@@ -249,6 +250,7 @@ def intake_photos(
             rows_written.append(row_number)
         workbook.save(workbook_path)
         workbook.close()
+        invalidate_workbook_cache(workbook_path)
     except Exception as exc:
         if workbook is not None:
             try:

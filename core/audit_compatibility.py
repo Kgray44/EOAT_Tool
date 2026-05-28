@@ -29,7 +29,8 @@ from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
 from .tool_fields import TOOL_FIELD
-from .workbook_io import next_empty_row, row_dicts, worksheet_headers, write_row_by_headers
+from .workbook_cache import invalidate_workbook_cache, row_dicts_cached as row_dicts
+from .workbook_io import next_empty_row, worksheet_headers, write_row_by_headers
 from .workbook_schema import get_expected_headers
 
 CAPACITY_SHEET_NAME = "Capacity"
@@ -423,6 +424,7 @@ def sync_compatible_rows_from_source(master_audit_path: str | Path, source_audit
             result.updated_count += 1
         refresh_audit_by_press_view(workbook)
         workbook.save(master_path)
+        invalidate_workbook_cache(master_path)
         return result
     except Exception as exc:
         result.warning_messages.append(f"Could not update linked compatibility rows: {exc}")
@@ -514,6 +516,7 @@ def create_compatibility_entries(
         refresh_audit_by_press_view(workbook)
         workbook.save(master_path)
         workbook.close()
+        invalidate_workbook_cache(master_path)
     except Exception as exc:
         if workbook is not None:
             try:

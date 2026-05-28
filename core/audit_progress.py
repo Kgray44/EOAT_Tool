@@ -17,12 +17,12 @@ from .audit_compatibility import (
     text_value,
 )
 from .audit_constants import ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
-from .audit_field_rules import field_applies, is_na_value
+from .audit_field_rules import field_applies, is_na_value, manual_completion_override_enabled
 from .logging import log_tool_run
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
-from .workbook_io import row_dicts
+from .workbook_cache import row_dicts_cached as row_dicts
 from .gripper_fields import CUP_COUNT_FIELD
 
 MISSING_DATA_FIELDS = [
@@ -262,7 +262,13 @@ def calculate_audit_progress_from_rows(
     audited_parts = set(audited_part_sources) & required_parts if required_parts else set(audited_part_sources)
 
     missing_counts = {
-        field: sum(1 for row in inventory if field_applies(row, field) and _missing_applicable_value(row.get(field)))
+        field: sum(
+            1
+            for row in inventory
+            if not manual_completion_override_enabled(row)
+            and field_applies(row, field)
+            and _missing_applicable_value(row.get(field))
+        )
         for field in MISSING_DATA_FIELDS
     }
     open_statuses = {"open", "not started", "needs follow-up", "in progress", "blocked"}

@@ -24,6 +24,7 @@ TAG_COLOR_PALETTE: dict[str, TagColor] = {
 }
 
 DEFAULT_TAG_DEFINITIONS: tuple[dict[str, object], ...] = (
+    {"name": "Info", "color_key": "gray", "description": "Neutral context or useful information; does not imply a problem."},
     {"name": "Needs Review", "color_key": "yellow", "description": "Field or item needs engineering review."},
     {"name": "Question", "color_key": "purple", "description": "Open question or unclear observation."},
     {"name": "Verified", "color_key": "green", "description": "Information has been checked and confirmed."},
@@ -52,8 +53,15 @@ TAG_PRIORITY_BY_NAME: dict[str, int] = {
     "maintenance concern": 80,
     "follow up": 90,
     "verified": 100,
+    "info": 105,
     "neutral": 110,
 }
+
+NEUTRAL_CONTEXT_TAG_NAMES = frozenset({"info", "neutral", "verified"})
+
+
+def is_neutral_context_tag(name: str) -> bool:
+    return (name or "").strip().casefold() in NEUTRAL_CONTEXT_TAG_NAMES
 
 COLOR_PRIORITY: dict[str, int] = {
     "red": 10,

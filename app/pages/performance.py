@@ -52,6 +52,7 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
             [
                 "Events Logged",
                 "Cache Hits",
+                "Cache Hit Rate",
                 "Cache Stale",
                 "Cache Misses",
                 "Warnings",
@@ -109,6 +110,8 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         summary = summarize_performance(events)
         self.cards["Events Logged"].set_value(str(summary["event_count"]))
         self.cards["Cache Hits"].set_value(str(summary["cache"]["hit"]))
+        cache_total = summary["cache"]["hit"] + summary["cache"]["miss"]
+        self.cards["Cache Hit Rate"].set_value(f"{round(summary['cache']['hit'] * 100 / cache_total)}%" if cache_total else "n/a")
         self.cards["Cache Stale"].set_value(str(summary["cache"]["stale"]))
         self.cards["Cache Misses"].set_value(str(summary["cache"]["miss"]))
         self.cards["Warnings"].set_value(str(summary["warning_count"]))
@@ -130,6 +133,11 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
             lines.append("No performance events logged yet. Run a dashboard refresh or tool action to populate diagnostics.")
         else:
             lines.append(f"Slowest displayed operation: {slowest[0].get('operation', '') if slowest else 'n/a'}.")
+            for item in summary.get("operation_summary", [])[:5]:
+                lines.append(
+                    f"{item['operation']}: p50 {item['p50_duration_seconds']:.2f}s, "
+                    f"p95 {item['p95_duration_seconds']:.2f}s, max {item['max_duration_seconds']:.2f}s"
+                )
         lines.append(f"Loaded {len(events)} performance event(s) in {data_load_seconds:.1f}s.")
         self.result_panel.show_text("\n".join(lines))
         log_page_performance(

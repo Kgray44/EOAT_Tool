@@ -61,3 +61,6 @@ def test_performance_summary_identifies_slowest_and_cache_counts(fake_project):
     assert summary["cache"]["stale"] == 1
     assert summary["warning_count"] == 2
     assert summary["error_count"] == 1
+    quick = next(item for item in summary["operation_summary"] if item["operation"] == "dashboard.quick_refresh")
+    assert quick["p50_duration_seconds"] == 0.15
+    assert quick["p95_duration_seconds"] == 0.195

@@ -16,7 +16,7 @@ from .photo_evidence import evidence_coverage_for_audit
 from .pm_bom_coverage import is_bom_available, is_spare_parts_info_missing, missing_documentation_fields
 from .result import ToolResult
 from .safe_files import ensure_directory
-from .workbook_io import row_dicts
+from .workbook_cache import row_dicts_cached as row_dicts
 
 STATUS_COMPLIANT = "compliant"
 STATUS_WARNING = "warning"

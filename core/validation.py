@@ -37,8 +37,13 @@ from .audit_field_rules import (
 )
 from .audit_constants import (
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
+    CYLINDER_TYPE_VALUES,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELDS,
     SOURCE_AUDIT_ID_FIELD,
 )
 from .git_activity import is_git_repo
@@ -79,13 +84,15 @@ AUDIT_DROPDOWN_ALLOWED_VALUES = {
     "EOAT Type": {*EOAT_TYPE_DROPDOWN_VALUES, NA_VALUE},
     EOAT_MOVES_FIELD: set(EOAT_MOVES_VALUES),
     CONNECTION_TYPE_FIELD: {*CONNECTION_TYPE_VALUES, NA_VALUE},
+    CYLINDER_TYPE_FIELD: {*CYLINDER_TYPE_VALUES, NA_VALUE},
     GRIPPER_TYPE_FIELD: {*GRIPPER_TYPE_VALUES, NA_VALUE},
     "Cleanroom/Non-Cleanroom": {*CLEANROOM_DROPDOWN_VALUES, NA_VALUE},
+    MANUAL_COMPLETION_OVERRIDE_FIELD: {"Yes", "No", NA_VALUE},
 }
-AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD}
+AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, CYLINDER_COUNT_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD}
 
-BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS
-BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = "Source Audit ID and Compatibility Source"
+BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS | frozenset(MANUAL_COMPLETION_OVERRIDE_FIELDS)
+BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = "Source Audit ID, Compatibility Source, and manual completion override metadata"
 
 
 def validate_project_foundation(project_root: str | Path) -> ToolResult:
@@ -429,7 +436,7 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         if any(header in headers for header in BLANK_CELL_VALIDATION_IGNORED_FIELDS):
             details.append(
                 f"Blank {BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL} cells are intentionally ignored during "
-                "blank-cell validation because they are autofilled/system-managed compatibility metadata; "
+                "blank-cell validation because they are autofilled or system-managed metadata; "
                 "the columns still remain part of the workbook schema."
             )
         inventory_warnings, inventory_metrics, inventory_findings = _validate_inventory_rows(ws, headers)
