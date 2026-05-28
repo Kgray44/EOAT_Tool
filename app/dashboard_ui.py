@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import time
 
 try:
@@ -185,7 +186,7 @@ class DashboardWindow(QMainWindow):
         index = self.page_indexes[page_key]
         if self._current_page_key and self._current_page_key != page_key:
             current_page = self.pages.get(self._current_page_key)
-            allowed, reason = self._page_can_close(current_page)
+            allowed, reason = self._page_can_close(current_page, destination_page=page_key)
             if not allowed:
                 message = reason or "The current page is not ready to close."
                 self.statusBar().showMessage(message, 9000)
@@ -388,10 +389,18 @@ class DashboardWindow(QMainWindow):
         return None
 
     @classmethod
-    def _page_can_close(cls, page) -> tuple[bool, str]:
+    def _page_can_close(cls, page, destination_page: str | None = None) -> tuple[bool, str]:
         if page is None:
             return True, ""
-        result = cls._call_optional_page_hook(page, "can_close")
+        method = getattr(page, "can_close", None)
+        if not callable(method):
+            result = None
+        else:
+            try:
+                parameters = inspect.signature(method).parameters
+                result = method(destination_page) if parameters else method()
+            except (TypeError, ValueError):
+                result = method()
         if result is None:
             return True, ""
         if isinstance(result, tuple):

@@ -14,6 +14,7 @@ def build_compatibility_tab(page) -> QWidget:
     source_row.addWidget(QLabel("Source Audit"))
     page.compatibility_source_combo = QComboBox()
     page.compatibility_source_combo.setMinimumWidth(520)
+    page.compatibility_source_combo.addItem("Source audits will load after the form opens.", None)
     source_row.addWidget(page.compatibility_source_combo, stretch=1)
     refresh_sources = QPushButton("Refresh Compatible Machines")
     refresh_sources.clicked.connect(page.refresh_compatible_machines)
@@ -53,5 +54,4 @@ def build_compatibility_tab(page) -> QWidget:
     button_row.addWidget(create)
     layout.addLayout(button_row)
 
-    page.refresh_compatibility_sources()
     return container

@@ -269,6 +269,17 @@ def list_audit_options(project_root_or_master_path: str | Path) -> list[SourceAu
     return sorted(options, key=lambda option: (audit_row_machine_sort_key(option.row), option.audit_id.lower()))
 
 
+def compatible_rows_by_source_audit_id(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        if normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) != ENTRY_TYPE_COMPATIBLE:
+            continue
+        source_audit_id = text_value(row.get(SOURCE_AUDIT_ID_FIELD))
+        if source_audit_id:
+            by_source[source_audit_id].append(row)
+    return dict(by_source)
+
+
 def build_compatibility_candidates(
     project_root_or_master_path: str | Path,
     source_audit_id: str,

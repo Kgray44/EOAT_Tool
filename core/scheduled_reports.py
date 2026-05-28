@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
@@ -31,6 +32,7 @@ SCHEDULE_HOUR = 19
 SCHEDULE_MINUTE = 0
 DEFAULT_SCHEDULE_TIMEZONE = "America/New_York"
 TEST_REPORTS_FOLDER = "Test_Reports"
+EMERGENCY_LOG_FILE_NAME = "eoat_scheduled_task_emergency.log"
 
 
 @dataclass(frozen=True)
@@ -110,6 +112,29 @@ class SchedulerPreflightCheck:
 
 def scheduled_tools_log_path(project_root: str | Path) -> Path:
     return resolve_project_paths(project_root).logs / "scheduled_tools.log"
+
+
+def scheduled_task_emergency_log_path() -> Path:
+    return Path(tempfile.gettempdir()) / EMERGENCY_LOG_FILE_NAME
+
+
+def describe_task_result(raw_result: Any) -> str:
+    raw = str(raw_result or "").strip()
+    if not raw:
+        return "No run recorded"
+    try:
+        normalized = str(int(raw, 16) if raw.lower().startswith("0x") else int(raw))
+    except ValueError:
+        normalized = raw
+    descriptions = {
+        "0": "Task completed successfully",
+        "1": "Task failed / script returned error",
+        "267008": "Task is ready",
+        "267009": "Task is currently running",
+        "267010": "Task is disabled",
+        "267011": "Task has not yet run",
+    }
+    return descriptions.get(normalized, f"Task returned code {raw}")
 
 
 def _timestamp() -> str:
@@ -505,31 +530,79 @@ def _last_scheduled_log_status(project_root: str | Path, tool_name: str) -> dict
     if not lines:
         return {}
     latest = lines[-1]
+
+    def existing_path(path_text: str) -> str:
+        if not path_text:
+            return ""
+        try:
+            candidate = Path(path_text.strip().strip('"'))
+            return str(candidate) if candidate.exists() else ""
+        except OSError:
+            return ""
+
+    def output_from_plain_text(line: str) -> str:
+        match = re.search(r'output="([^"]+)"', line)
+        return match.group(1).strip() if match else ""
+
     try:
         parsed = json.loads(latest)
     except json.JSONDecodeError:
         parsed = None
     if isinstance(parsed, dict):
+        if parsed.get("event") == "launch_diagnostic":
+            return {
+                "last_log_line": latest,
+                "last_status": "Launch confirmed - report result pending",
+                "report_generation_result": "Launch confirmed - report result pending",
+                "last_error": "",
+                "last_generated_report": "",
+            }
         status_map = {
-            "success": "Success",
             "failed": "Failed",
             "failure": "Failed",
             "skipped": "Skipped",
             "started": "Started",
         }
         raw_status = str(parsed.get("status") or "").lower()
+        output_path = str(parsed.get("output_path") or "")
+        if raw_status == "success":
+            status = "Success - report file created" if existing_path(output_path) else "No report file confirmed"
+        elif raw_status == "skipped":
+            status = "Skipped - report already existed"
+        else:
+            status = status_map.get(raw_status, raw_status.title() if raw_status else "Unknown")
         return {
             "last_log_line": latest,
-            "last_status": status_map.get(raw_status, raw_status.title() if raw_status else "Unknown"),
+            "last_status": status,
+            "report_generation_result": status,
             "last_error": str(parsed.get("error") or ""),
-            "last_generated_report": str(parsed.get("output_path") or ""),
+            "last_generated_report": existing_path(output_path),
         }
     status = "Unknown"
-    if " SUCCESS " in f" {latest} ":
-        status = "Success"
-    elif " FAILURE " in f" {latest} ":
+    output_path = output_from_plain_text(latest)
+    output_exists = bool(existing_path(output_path))
+    padded = f" {latest} "
+    if " SUCCESS " in padded:
+        if "report_created=true" in latest and output_exists:
+            status = "Success - report file created"
+        elif "already exists" in latest.lower() or "report_created=false" in latest:
+            status = "Skipped - report already existed"
+        elif output_exists:
+            status = "Success - report file confirmed"
+        else:
+            status = "No report file confirmed"
+    elif " SKIPPED " in padded:
+        status = "Skipped - report already existed"
+    elif " FAILURE " in padded:
         status = "Failed"
-    return {"last_log_line": latest, "last_status": status}
+    elif " START " in padded:
+        status = "Started - report result pending"
+    return {
+        "last_log_line": latest,
+        "last_status": status,
+        "report_generation_result": status,
+        "last_generated_report": existing_path(output_path),
+    }
 
 
 def _task_status(task_name: str) -> dict[str, Any]:
@@ -554,9 +627,14 @@ def _task_status(task_name: str) -> dict[str, Any]:
     if completed.returncode != 0:
         return {"installed": "Unknown", "warning": completed.stderr.strip() or completed.stdout.strip()}
     try:
-        return json.loads(completed.stdout.strip() or "{}")
+        data = json.loads(completed.stdout.strip() or "{}")
     except json.JSONDecodeError:
         return {"installed": "Unknown", "warning": "Could not parse scheduled task status."}
+    if data.get("installed") is True:
+        raw_result = str(data.get("last_result") or "")
+        data["last_result_raw"] = raw_result
+        data["last_result_description"] = describe_task_result(raw_result)
+    return data
 
 
 def get_scheduled_report_status(project_root: str | Path, today: date | None = None, check_tasks: bool = True) -> dict[str, Any]:
@@ -580,6 +658,7 @@ def get_scheduled_report_status(project_root: str | Path, today: date | None = N
             "last_report_date": daily.report_date.isoformat() if daily and daily.report_date else "",
             "missed_dates": [item.isoformat() for item in missed_daily],
             "next_expected_run": next_daily.isoformat(timespec="seconds"),
+            "report_generation_result": daily_log.get("report_generation_result", ""),
             **daily_log,
         },
         "weekly": {
@@ -589,14 +668,17 @@ def get_scheduled_report_status(project_root: str | Path, today: date | None = N
             "last_report_date": weekly.report_date.isoformat() if weekly and weekly.report_date else "",
             "missed_dates": [item.isoformat() for item in missed_weekly],
             "next_expected_run": next_weekly.isoformat(timespec="seconds"),
+            "report_generation_result": weekly_log.get("report_generation_result", ""),
             **weekly_log,
         },
         "scheduled_log": str(scheduled_tools_log_path(project_root)),
+        "emergency_log": str(scheduled_task_emergency_log_path()),
         "paths": {
             "daily_reports": str(paths.daily_reports),
             "weekly_reports": str(paths.weekly_reports),
             "logs": str(paths.logs),
             "scheduled_log": str(scheduled_tools_log_path(project_root)),
+            "emergency_log": str(scheduled_task_emergency_log_path()),
         },
     }
 
@@ -1238,6 +1320,227 @@ def run_due_scheduled_summaries(
             "decisions": decisions,
         },
         duration_seconds=time.perf_counter() - started,
+    )
+
+
+def _task_name_for_automation(automation: str) -> tuple[str, str]:
+    requested = automation.strip().casefold()
+    if requested in {"daily", "daily_summary", DAILY_TASK_NAME.casefold()}:
+        return DAILY_TASK_NAME, "daily_summary"
+    if requested in {"weekly", "weekly_summary", WEEKLY_TASK_NAME.casefold()}:
+        return WEEKLY_TASK_NAME, "weekly_summary"
+    raise ValueError(f"Unknown scheduled report automation: {automation}")
+
+
+def _file_offset(path: Path) -> int:
+    try:
+        return path.stat().st_size if path.exists() else 0
+    except OSError:
+        return 0
+
+
+def _read_new_log_lines(path: Path, offset: int) -> list[str]:
+    try:
+        if not path.exists():
+            return []
+        if path.stat().st_size < offset:
+            offset = 0
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            handle.seek(offset)
+            return [line.strip() for line in handle.readlines() if line.strip()]
+    except OSError:
+        return []
+
+
+def _line_mentions_automation(line: str, automation: str) -> bool:
+    return automation in line or ("daily_summary" in line if automation == "daily_summary" else "weekly_summary" in line)
+
+
+def _log_line_output_path(line: str) -> str:
+    match = re.search(r'output="([^"]+)"', line)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r'"output_path"\s*:\s*"([^"]+)"', line)
+    return match.group(1).strip() if match else ""
+
+
+def _confirmed_created_report_from_lines(lines: list[str], automation: str) -> str:
+    for line in reversed(lines):
+        if not _line_mentions_automation(line, automation):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            if parsed.get("automation") == automation and str(parsed.get("status") or "").casefold() == "success":
+                output_path = str(parsed.get("output_path") or "")
+                if output_path and Path(output_path).exists():
+                    return str(Path(output_path))
+            continue
+        if " SUCCESS " in f" {line} " and "report_created=true" in line:
+            output_path = _log_line_output_path(line)
+            if output_path and Path(output_path).exists():
+                return str(Path(output_path))
+    return ""
+
+
+def _report_result_from_lines(lines: list[str], automation: str) -> str:
+    launch_seen = False
+    for line in reversed(lines):
+        if not _line_mentions_automation(line, automation):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            if parsed.get("event") == "launch_diagnostic":
+                launch_seen = True
+                continue
+            status = str(parsed.get("status") or "").casefold()
+            if status == "success" and _confirmed_created_report_from_lines([line], automation):
+                return "Success - report file created"
+            if status == "skipped":
+                return "Skipped - report already existed"
+            if status in {"failed", "failure"}:
+                return "Failed"
+            if status == "started":
+                return "Started - report result pending"
+            continue
+        padded = f" {line} "
+        if " SUCCESS " in padded and "report_created=true" in line:
+            return "Success - report file created"
+        if " SKIPPED " in padded:
+            return "Skipped - report already existed"
+        if " FAILURE " in padded:
+            return "Failed"
+        if " START " in padded:
+            return "Started - report result pending"
+    return "Launch confirmed - report result pending" if launch_seen else ""
+
+
+def run_actual_scheduled_task_now(
+    project_root: str | Path,
+    automation: str = "daily_summary",
+    *,
+    timeout_seconds: float = 60.0,
+    poll_interval_seconds: float = 0.5,
+) -> ToolResult:
+    started = time.perf_counter()
+    try:
+        task_name, automation_name = _task_name_for_automation(automation)
+    except ValueError as exc:
+        return ToolResult.fail("actual_scheduled_task", "Run Actual Scheduled Task", str(exc), errors=[str(exc)])
+
+    powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+    if not powershell:
+        return ToolResult.fail("actual_scheduled_task", "Run Actual Scheduled Task", "PowerShell is not available.", errors=["PowerShell executable was not found."])
+
+    scheduled_log = scheduled_tools_log_path(project_root)
+    emergency_log = scheduled_task_emergency_log_path()
+    scheduled_offset = _file_offset(scheduled_log)
+    emergency_offset = _file_offset(emergency_log)
+    command = [
+        powershell,
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        f"Start-ScheduledTask -TaskName '{task_name}' -ErrorAction Stop",
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
+    except Exception as exc:
+        return ToolResult.fail("actual_scheduled_task", "Run Actual Scheduled Task", "Could not start the scheduled task.", errors=[str(exc)], duration_seconds=time.perf_counter() - started)
+    if completed.returncode != 0:
+        output = "\n".join(part for part in [completed.stdout.strip(), completed.stderr.strip()] if part)
+        return ToolResult.fail("actual_scheduled_task", "Run Actual Scheduled Task", "Task Scheduler rejected the start request.", errors=[output or f"Exit code {completed.returncode}"], duration_seconds=time.perf_counter() - started)
+
+    scheduled_lines: list[str] = []
+    emergency_lines: list[str] = []
+    launch_confirmed = False
+    report_created = ""
+    report_result = ""
+    deadline = time.time() + max(1.0, timeout_seconds)
+    while time.time() < deadline:
+        scheduled_lines = _read_new_log_lines(scheduled_log, scheduled_offset)
+        emergency_lines = _read_new_log_lines(emergency_log, emergency_offset)
+        combined = scheduled_lines + emergency_lines
+        launch_confirmed = any("launch_diagnostic" in line and _line_mentions_automation(line, automation_name) for line in combined)
+        report_created = _confirmed_created_report_from_lines(combined, automation_name)
+        report_result = _report_result_from_lines(combined, automation_name)
+        if report_created or report_result in {"Failed", "Skipped - report already existed"}:
+            break
+        if launch_confirmed and time.time() + poll_interval_seconds >= deadline:
+            break
+        time.sleep(max(0.1, poll_interval_seconds))
+
+    task_after = _task_status(task_name)
+    raw_result = str(task_after.get("last_result_raw") or task_after.get("last_result") or "")
+    result_description = task_after.get("last_result_description") or describe_task_result(raw_result)
+    combined_lines = scheduled_lines + emergency_lines
+    if not report_result:
+        report_result = _report_result_from_lines(combined_lines, automation_name) or "No report result confirmed"
+
+    details = [
+        f"Task: {task_name}",
+        f"Raw Task Scheduler result: {raw_result or 'No run recorded'} ({result_description})",
+        f"Launch diagnostic confirmed: {'yes' if launch_confirmed else 'no'}",
+        f"Report generation result: {report_result}",
+        f"Scheduled log: {scheduled_log}",
+        f"Emergency log: {emergency_log}",
+    ]
+    if scheduled_lines:
+        details.append("New scheduled log lines:")
+        details.extend(scheduled_lines[-6:])
+    if emergency_lines:
+        details.append("New emergency log lines:")
+        details.extend(emergency_lines[-6:])
+
+    structured_data = {
+        "task_name": task_name,
+        "automation": automation_name,
+        "raw_task_result": raw_result,
+        "task_result_description": result_description,
+        "launch_confirmed": launch_confirmed,
+        "report_generation_result": report_result,
+        "scheduled_log": str(scheduled_log),
+        "emergency_log": str(emergency_log),
+        "scheduled_log_lines": scheduled_lines,
+        "emergency_log_lines": emergency_lines,
+    }
+    duration = time.perf_counter() - started
+    if report_created:
+        return ToolResult.ok(
+            "actual_scheduled_task",
+            "Run Actual Scheduled Task",
+            f"{task_name} launched and created a report file.",
+            details=details,
+            files_created=[report_created],
+            output_reports=[report_created],
+            structured_data=structured_data,
+            duration_seconds=duration,
+        )
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not launch_confirmed:
+        errors.append("No launch diagnostic line appeared in the emergency or scheduled log during the polling window.")
+    elif report_result == "Failed" or raw_result == "1":
+        errors.append("The task launched, but the script reported a failure.")
+    else:
+        warnings.append("The task launched, but no newly created report file was confirmed during the polling window.")
+    return ToolResult(
+        tool_id="actual_scheduled_task",
+        tool_name="Run Actual Scheduled Task",
+        success=False,
+        summary=f"{task_name} was started, but no new report file was confirmed.",
+        details=details,
+        warnings=warnings,
+        errors=errors,
+        structured_data=structured_data,
+        duration_seconds=duration,
     )
 
 
