@@ -152,3 +152,17 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_risk_insights.py tests/test_final_handoff_readiness.py tests/test_reports.py tests/test_workflows.py`
   - Result: 13 passed.
+
+## Checkpoint 15 - Feature Registry/Search/Routes/Event/CI Cleanup
+
+- Added `app/feature_registry.py` to derive feature/page routes from the dashboard page registry and available tool metadata.
+- Updated command registration to generate navigation commands from the feature registry, including routes that were not previously command-palette addressable.
+- Added an `open_page` search-result route handler for future feature search integrations.
+- Added event-bus subscriber diagnostics for architecture tests and troubleshooting.
+- Added `scripts/ci_smoke_check.py` for local registry validation and optional repo safety checks.
+- Hardened `OpenItemsPanel` against queued refresh callbacks after widget teardown, fixing the PySide lifecycle failure seen during focused architecture tests.
+- Focused verification:
+  - `python -m pytest -q tests/test_feature_registry.py tests/test_command_registry.py tests/test_app_architecture_foundation.py tests/test_ci_smoke_check.py tests/test_search.py tests/test_tool_registry.py tests/ui/test_open_items_panel_performance.py`
+  - Result: 23 passed.
+  - `python scripts/ci_smoke_check.py --registry-only`
+  - Result: passed.

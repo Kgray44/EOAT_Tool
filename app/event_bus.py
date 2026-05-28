@@ -78,6 +78,14 @@ class EventBus:
     def clear(self) -> None:
         self._subscribers.clear()
 
+    def subscriber_count(self, event_type: str | None = None) -> int:
+        if event_type is not None:
+            return len(self._subscribers.get(event_type or EVENT_ANY, ()))
+        return sum(len(handlers) for handlers in self._subscribers.values())
+
+    def subscribed_event_types(self) -> tuple[str, ...]:
+        return tuple(sorted(self._subscribers))
+
 
 _event_bus = EventBus()
 

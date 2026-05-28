@@ -255,6 +255,12 @@ class DashboardWindow(QMainWindow):
     def open_search_result(self, result: SearchResult | dict) -> bool:
         data = result.to_dict() if isinstance(result, SearchResult) else dict(result)
         action = str(data.get("action") or "")
+        if action == "open_page":
+            page_key = str(data.get("target_id") or data.get("page_key") or "")
+            if page_key in self.page_specs:
+                self._navigate_to_page(page_key)
+                return True
+            return False
         if action == "open_audit":
             self._navigate_to_page("audit")
             page = self.pages.get("audit")

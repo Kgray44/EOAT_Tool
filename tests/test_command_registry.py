@@ -27,6 +27,8 @@ def test_command_registry_contains_expected_commands(fake_project):
     assert "nav.home" in ids
     assert "nav.audit" in ids
     assert "nav.press_view" in ids
+    assert "nav.fmea" in ids
+    assert "nav.tool_registry" in ids
     assert "validation.run_foundation" in ids
     assert "scheduled_reports.generate_daily" in ids
     assert "scheduled_reports.generate_weekly" in ids

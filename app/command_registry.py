@@ -6,6 +6,7 @@ from typing import Callable
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.reports import report_folders
+from .feature_registry import build_feature_registry
 
 
 CommandHandler = Callable[[], None]
@@ -83,26 +84,18 @@ def build_dashboard_command_registry(window) -> CommandRegistry:
 
         return _handler
 
-    for page_key, label in [
-        ("home", "Open Home"),
-        ("audit", "Open EOAT Audit"),
-        ("press_view", "Open Press View"),
-        ("machine_360", "Open Machine 360"),
-        ("open_items", "Open Open Items"),
-        ("workbook_health", "Open Workbook Health"),
-        ("scheduled_reports", "Open Scheduled Reports"),
-        ("reports", "Open Reports"),
-        ("backup_manager", "Open Backup Manager"),
-        ("release_readiness", "Open Release Readiness"),
-        ("settings", "Open Settings"),
-    ]:
+    for feature in build_feature_registry().list_features():
+        if not feature.route.startswith("page:"):
+            continue
+        page_key = feature.route.split(":", 1)[1]
         registry.register(
             CommandSpec(
                 command_id=f"nav.{page_key}",
-                display_name=label,
-                aliases=(page_key.replace("_", " "), label.replace("Open ", "")),
+                display_name=f"Open {feature.label}",
+                aliases=(page_key.replace("_", " "), feature.label, *feature.tool_ids),
                 category="Navigation",
                 handler=navigate(page_key),
+                description=feature.description,
             )
         )
 

@@ -30,7 +30,9 @@ class OpenItemsPanel(QWidget):
         self.navigate_callback = navigate_callback
         self._last_summary: dict[str, int] = {}
         self._refresh_running = False
+        self._destroyed = False
         self.buttons: dict[str, QPushButton] = {}
+        self.destroyed.connect(lambda *_args: setattr(self, "_destroyed", True))
         layout = QVBoxLayout(self)
         title = QLabel("Open Items")
         title.setStyleSheet("font-size: 12pt; font-weight: 700;")
@@ -64,7 +66,7 @@ class OpenItemsPanel(QWidget):
 
     def _apply_summary(self, summary: dict[str, int], *, tooltip: str = "", loading: bool = False) -> None:
         self._last_summary = dict(summary)
-        for key, button in self.buttons.items():
+        for key, button in self._live_buttons():
             label, _page_key = self.LABELS[key]
             value = "Loading..." if loading and key not in summary else str(summary.get(key, 0))
             button.setText(f"{label}: {value}")
@@ -77,7 +79,11 @@ class OpenItemsPanel(QWidget):
         if self._refresh_running:
             return False
         self._refresh_running = True
-        for button in self.buttons.values():
+        live_buttons = self._live_buttons()
+        if not live_buttons:
+            self._refresh_running = False
+            return False
+        for _key, button in live_buttons:
             button.setToolTip("Refreshing open item counts in the background.")
 
         def _refresh() -> dict[str, int]:
@@ -96,11 +102,13 @@ class OpenItemsPanel(QWidget):
 
         def _finished(task_result) -> None:
             self._refresh_running = False
+            if not self._live_buttons():
+                return
             if task_result.ok:
                 self._apply_summary(task_result.result_data, tooltip="Open item counts refreshed.")
             else:
                 message = task_result.error or task_result.message or "Open items refresh failed."
-                for button in self.buttons.values():
+                for _key, button in self._live_buttons():
                     button.setToolTip(f"Open items unavailable: {message}")
 
         return get_task_manager().run_task(
@@ -116,3 +124,15 @@ class OpenItemsPanel(QWidget):
     def _navigate(self, page_key: str) -> None:
         if self.navigate_callback is not None:
             self.navigate_callback(page_key)
+
+    def _live_buttons(self) -> list[tuple[str, QPushButton]]:
+        if self._destroyed:
+            return []
+        live: list[tuple[str, QPushButton]] = []
+        for key, button in list(self.buttons.items()):
+            try:
+                button.text()
+            except RuntimeError:
+                continue
+            live.append((key, button))
+        return live
