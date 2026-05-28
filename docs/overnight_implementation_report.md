@@ -166,3 +166,21 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - Result: 23 passed.
   - `python scripts/ci_smoke_check.py --registry-only`
   - Result: passed.
+
+## Final Verification And Handoff Notes
+
+- Worktree used for all implementation after the copy step:
+  - Sibling Git worktree copy named `EOAT_Command_Center_Overnight_Copy`.
+- Branch:
+  - `feature/full-overnight-expansion`
+- Checkpoint commits created:
+  - `1d26b85` through `d56777c`, one for each requested stable phase.
+- Final smoke verification:
+  - `python -m pytest -q tests/test_ui_smoke.py`
+  - Result: 6 passed.
+- Final repo safety verification:
+  - `python scripts\repo_safety_audit.py --root .`
+  - Result: no blocking or warning findings.
+- The broad full-suite pytest run was attempted during baseline and timed out in this network worktree environment; focused phase tests were used for each checkpoint instead.
+- Git recorded each commit successfully, but after commits Git repeatedly reported an automatic geometric repack permission warning against the shared original `.git` object store. Working-tree status was clean after commits.
+- No real project data, real workbooks, generated private reports, logs, caches, real photos, or local config files were intentionally added to commits.
