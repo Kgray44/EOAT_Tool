@@ -81,3 +81,13 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_smart_rules.py tests/test_config.py tests/test_audit_workflow_stabilization.py -k defaults`
   - Result: 6 passed, 25 deselected.
+
+## Checkpoint 8 - Guided Audit Mode
+
+- Added `core/guided_audit.py` to build reusable guided-audit plans from the completion engine.
+- Guided plans expose ordered steps, sections, states, reasons, recommended actions, finish eligibility, and override-aware summaries.
+- Preserved the existing Audit Coach panel guided controls while making the same sequence available to tests and future reports.
+- Added `tests/test_guided_audit.py`.
+- Focused verification:
+  - `python -m pytest -q tests/test_guided_audit.py tests/test_audit_completion.py tests/ui/test_audit_coach_workflow.py`
+  - Result: 9 passed.
