@@ -112,3 +112,13 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_workbook_truth.py tests/test_validation.py -k workbook_health`
   - Result: 17 passed, 9 deselected.
+
+## Checkpoint 11 - PM Due And Photo Evidence
+
+- Photo evidence coverage was present in the copied baseline and preserved.
+- Added `core/pm_due.py` as a read-only PM due/readiness analyzer that scores audits from maintenance frequency, priority, known issues, and missing photo evidence.
+- PM due output provides ranked items, reasons, evidence gap counts, and summary metrics for future PM dashboard/report surfaces.
+- Added `tests/test_pm_due.py`.
+- Focused verification:
+  - `python -m pytest -q tests/test_pm_due.py tests/test_photo_evidence.py tests/test_pm_checklists.py`
+  - Result: 9 passed.
