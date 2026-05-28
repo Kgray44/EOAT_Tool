@@ -102,3 +102,13 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_project_data_service.py tests/ui/test_machine_360_page.py tests/test_app_architecture_foundation.py::test_page_registry_defines_existing_navigation tests/test_command_registry.py::test_command_registry_contains_expected_commands`
   - Result: 5 passed.
+
+## Checkpoint 10 - Workbook Truth Engine
+
+- Added `core/workbook_truth.py` for read-only classification of workbook values.
+- Truth states distinguish missing, unknown/not checked, not applicable, compatibility-derived, estimated, user-entered/measured, and system metadata values.
+- Added row/field summary counts for future Workbook Health, KPI, and reporting surfaces.
+- Added `tests/test_workbook_truth.py`.
+- Focused verification:
+  - `python -m pytest -q tests/test_workbook_truth.py tests/test_validation.py -k workbook_health`
+  - Result: 17 passed, 9 deselected.
