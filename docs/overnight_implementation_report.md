@@ -122,3 +122,12 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Focused verification:
   - `python -m pytest -q tests/test_pm_due.py tests/test_photo_evidence.py tests/test_pm_checklists.py`
   - Result: 9 passed.
+
+## Checkpoint 12 - Standardization/BOM And Compatibility Matrix
+
+- Added `core/compatibility_matrix.py` to build a read-only machine-by-tool compatibility matrix from EOAT Inventory.
+- Matrix rows distinguish audited, compatible, and missing machine/tool cells and include standardization opportunities from the existing BOM analyzer.
+- Added `tests/test_compatibility_matrix.py`.
+- Focused verification:
+  - `python -m pytest -q tests/test_compatibility_matrix.py tests/test_bom_standardization.py tests/test_audit_compatibility.py -k "compatibility or standardization"`
+  - Result: 17 passed.
