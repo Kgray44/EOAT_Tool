@@ -1,15 +1,25 @@
 from __future__ import annotations
 
+import time
+
 try:
     from PySide6.QtWidgets import QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSplitter, QTableWidget, QTextEdit, QVBoxLayout, QWidget
 except ImportError:  # pragma: no cover
     QCheckBox = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QPushButton = QScrollArea = QSplitter = QTableWidget = QTextEdit = QVBoxLayout = QWidget = None
 
+from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
 from app.page_tasks import run_tool_background
-from core.deliverable_check import check_deliverables, run_final_deliverable_check
+from core.deliverable_check import run_final_deliverable_check
 from core.final_handoff import build_final_handoff_package
+from core.final_handoff_readiness import (
+    build_final_handoff_readiness,
+    export_deliverable_readiness,
+    export_leadership_summary,
+    export_open_items_carryover,
+    export_technical_appendix,
+)
 from core.final_summary import generate_final_project_summary
 from core.openers import open_path
 from core.paths import resolve_project_paths
@@ -19,10 +29,12 @@ from core.workflows import run_workflow
 from .analysis_widgets import populate_table
 
 
-class HandoffPage(QWidget):
+class HandoffPage(AsyncRefreshMixin, QWidget):
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.config = config
+        self._init_async_refresh("handoff")
+        self._quiet_readiness_refresh = False
         layout = QVBoxLayout(self)
         heading = QLabel("Final Handoff")
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
@@ -56,7 +68,14 @@ class HandoffPage(QWidget):
         splitter.addWidget(right)
         splitter.setSizes([430, 760])
         layout.addWidget(splitter, stretch=1)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.on_show()
+
+    def on_show(self) -> None:
         self.refresh_status()
+        return True
 
     def _deliverable_group(self) -> QGroupBox:
         box = QGroupBox("Final Deliverable Status")
@@ -67,7 +86,7 @@ class HandoffPage(QWidget):
         open_folder = QPushButton("Open Handoff Package Folder")
         open_folder.clicked.connect(lambda: self.open_folder("handoff"))
         refresh = QPushButton("Refresh Status")
-        refresh.clicked.connect(self.refresh_status)
+        refresh.clicked.connect(lambda: self.refresh_status(force=True))
         row.addWidget(run)
         row.addWidget(open_folder)
         row.addWidget(refresh)
@@ -99,9 +118,23 @@ class HandoffPage(QWidget):
         open_folder.clicked.connect(lambda: self.open_folder("final_report"))
         row.addWidget(button)
         row.addWidget(open_folder)
+        export_row = QHBoxLayout()
+        leadership = QPushButton("Export Leadership Summary")
+        leadership.clicked.connect(self.export_leadership_summary)
+        appendix = QPushButton("Export Technical Appendix")
+        appendix.clicked.connect(self.export_technical_appendix)
+        carryover = QPushButton("Export Open Items Carryover")
+        carryover.clicked.connect(self.export_open_items_carryover)
+        readiness = QPushButton("Export Readiness Checklist")
+        readiness.clicked.connect(self.export_readiness_checklist)
+        export_row.addWidget(leadership)
+        export_row.addWidget(appendix)
+        export_row.addWidget(carryover)
+        export_row.addWidget(readiness)
         layout.addWidget(self.summary_notes)
         layout.addWidget(self.summary_docx)
         layout.addLayout(row)
+        layout.addLayout(export_row)
         return box
 
     def _handoff_group(self) -> QGroupBox:
@@ -142,18 +175,55 @@ class HandoffPage(QWidget):
         layout.addWidget(light)
         return box
 
-    def refresh_status(self) -> None:
-        statuses, warnings = check_deliverables(self.config.project_root)
-        rows = [{"Deliverable": item.name, "Status": item.status, "Evidence": "; ".join(item.evidence[:2]), "Notes": item.notes} for item in statuses]
-        populate_table(self.status_table, rows, ["Deliverable", "Status", "Evidence", "Notes"])
-        if warnings:
-            self.result_panel.show_text("\n".join(warnings))
+    def refresh_status(self, *_args, force: bool = False, quiet: bool = False) -> bool:
+        self._quiet_readiness_refresh = quiet
+        return self._begin_background_refresh(
+            task_id="handoff_readiness_refresh",
+            name="Final Handoff Readiness Refresh",
+            load=lambda: build_final_handoff_readiness(self.config.project_root),
+            apply_result=self._apply_readiness_result,
+            force=force,
+            loading_text="" if quiet else "Loading final handoff readiness in background...",
+        )
+
+    def _apply_readiness_result(self, readiness, data_load_seconds: float) -> None:
+        render_started = time.perf_counter()
+        rows = [
+            {
+                "Deliverable": item.label,
+                "Status": item.status,
+                "Evidence": "; ".join(item.evidence[:2]),
+                "Warnings": "; ".join(item.warnings),
+                "Recommended Action": item.recommended_action,
+            }
+            for item in readiness.deliverables
+        ]
+        populate_table(self.status_table, rows, ["Deliverable", "Status", "Evidence", "Warnings", "Recommended Action"])
+        render_seconds = time.perf_counter() - render_started
+        log_page_performance(
+            self.config.project_root,
+            "handoff",
+            "data_load",
+            data_load_seconds,
+            details={"row_count": len(rows)},
+        )
+        log_page_performance(
+            self.config.project_root,
+            "handoff",
+            "table_render",
+            render_seconds,
+            details={"row_count": len(rows)},
+        )
+        if self._quiet_readiness_refresh:
+            self._quiet_readiness_refresh = False
+        else:
+            self.result_panel.show_text(f"Loaded final handoff readiness in {data_load_seconds:.1f}s.")
 
     def _show_result(self, result) -> None:
         self.result_panel.show_result(result)
         if result.output_reports:
             self.preview.load_report_file(result.output_reports[0])
-        self.refresh_status()
+        self.refresh_status(force=True, quiet=True)
 
     def run_deliverable_check(self) -> None:
         self._run_background("handoff_deliverable_check", "Final Deliverable Check", lambda: run_final_deliverable_check(self.config.project_root), modifies_files=True)
@@ -173,6 +243,18 @@ class HandoffPage(QWidget):
             modifies_files=True,
         )
 
+    def export_leadership_summary(self) -> None:
+        self._run_background("handoff_leadership_summary", "Leadership Summary Export", lambda: export_leadership_summary(self.config.project_root), modifies_files=True)
+
+    def export_technical_appendix(self) -> None:
+        self._run_background("handoff_technical_appendix", "Technical Appendix Export", lambda: export_technical_appendix(self.config.project_root), modifies_files=True)
+
+    def export_open_items_carryover(self) -> None:
+        self._run_background("handoff_open_items_carryover", "Open Items Carryover Export", lambda: export_open_items_carryover(self.config.project_root), modifies_files=True)
+
+    def export_readiness_checklist(self) -> None:
+        self._run_background("handoff_readiness_checklist", "Readiness Checklist Export", lambda: export_deliverable_readiness(self.config.project_root), modifies_files=True)
+
     def build_handoff_package(self) -> None:
         self._run_background(
             "handoff_build_package",
@@ -191,7 +273,7 @@ class HandoffPage(QWidget):
     def open_folder(self, folder: str) -> None:
         paths = resolve_project_paths(self.config.project_root)
         lookup = {
-            "handoff": paths.handoff_package_root,
+            "handoff": paths.final_handoff,
             "presentation": paths.presentation_assets_root,
             "final_report": paths.final_report,
         }

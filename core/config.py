@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .audit.defaults import DEFAULT_AUDIT_DEFAULTS, DEFAULT_CONNECTION_DEFAULTS
 from .constants import DEFAULT_CONFIG_PATH, DEFAULT_GIT_EXECUTABLE, DEFAULT_PROJECT_ROOT, LEGACY_CONFIG_PATH
 from .safe_files import ensure_directory
 
@@ -19,11 +20,19 @@ class UserConfig:
     workdays: list[str] = field(default_factory=lambda: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"])
     skip_weekends: bool = True
     holidays: list[str] = field(default_factory=list)
+    audit_defaults: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_AUDIT_DEFAULTS))
+    connection_defaults: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_CONNECTION_DEFAULTS))
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "UserConfig":
         defaults = asdict(cls())
         defaults.update({key: value for key, value in data.items() if key in defaults})
+        audit_defaults = dict(DEFAULT_AUDIT_DEFAULTS)
+        audit_defaults.update(_string_dict(defaults.get("audit_defaults")))
+        connection_defaults = dict(DEFAULT_CONNECTION_DEFAULTS)
+        connection_defaults.update(_string_dict(defaults.get("connection_defaults")))
+        defaults["audit_defaults"] = audit_defaults
+        defaults["connection_defaults"] = connection_defaults
         return cls(**defaults)
 
     def to_dict(self) -> dict[str, Any]:
@@ -50,3 +59,9 @@ def save_config(config: UserConfig, config_path: str | Path = DEFAULT_CONFIG_PAT
     ensure_directory(path.parent)
     path.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
     return path
+
+
+def _string_dict(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): "" if item is None else str(item) for key, item in value.items()}

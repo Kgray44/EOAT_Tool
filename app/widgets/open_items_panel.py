@@ -5,19 +5,19 @@ try:
 except ImportError:  # pragma: no cover
     QGridLayout = QLabel = QPushButton = QVBoxLayout = QWidget = None
 
-from core.annotations.service import AnnotationService
+from core.open_items import open_items_summary
 
 
 class OpenItemsPanel(QWidget):
     LABELS = {
-        "critical_notes": ("Critical Notes", "notes"),
-        "important_notes": ("Important Notes", "notes"),
-        "fields_needing_review": ("Fields Needing Review", "tags"),
-        "data_conflicts": ("Data Conflicts", "tags"),
-        "missing_evidence": ("Missing Evidence", "tags"),
-        "compatibility_concerns": ("Compatibility Concerns", "tags"),
-        "documentation_gaps": ("Documentation Gaps", "tags"),
-        "followups_due_soon": ("Follow-Ups Due Soon", "notes"),
+        "total_open_items": ("Total Open", "open_items"),
+        "critical_open_items": ("Critical", "open_items"),
+        "overdue_followups": ("Overdue Follow-Ups", "open_items"),
+        "missing_evidence_count": ("Missing Evidence", "open_items"),
+        "data_conflict_count": ("Data Conflicts", "open_items"),
+        "blocked_items": ("Blocked", "open_items"),
+        "dismissed_overridden_count": ("Dismissed / Overridden", "open_items"),
+        "items_fixed_at_source_this_week": ("Fixed at Source This Week", "open_items"),
     }
 
     def __init__(self, config, navigate_callback=None, parent=None):
@@ -41,7 +41,7 @@ class OpenItemsPanel(QWidget):
 
     def refresh(self) -> None:
         try:
-            summary = AnnotationService(self.config.project_root).get_open_items_summary()
+            summary = open_items_summary(self.config.project_root)
         except Exception as exc:
             summary = {}
             for button in self.buttons.values():

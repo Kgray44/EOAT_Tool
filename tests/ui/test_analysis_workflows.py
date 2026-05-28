@@ -51,8 +51,9 @@ def test_fmea_lite_refresh_run_and_disabled_planned_button(qapp, fake_config, fa
     click_button(page, "Suggest FMEA Entries")
     assert int(page.cards["Existing Rows"].value_label.text()) >= 1
     assert int(page.cards["Top RPN"].value_label.text()) >= 200
-    disabled = [button for button in page.findChildren(type(click_button(page, "Run FMEA Analysis"))) if "Coming Soon" in button.text()]
-    assert disabled and not disabled[0].isEnabled()
+    assert click_button(page, "Edit Before Accepting").isEnabled()
+    assert page.suggest_table.horizontalHeaderItem(0).text() == "Accept"
+    click_button(page, "Run FMEA Analysis")
     wait_for_background_tasks()
     assert list((fake_project / "04_FMEA" / "FMEA_Reports").glob("FMEA_Lite_Report_*.md"))
 
@@ -64,7 +65,10 @@ def test_pilot_ranking_includes_candidate_and_empty_state(qapp, fake_config, fak
     click_button(page, "Run Pilot Ranking")
     wait_for_background_tasks()
     assert "PILOT-001" in table_text(page.table)
+    click_button(page, "Generate Evidence Packet")
+    wait_for_background_tasks()
     assert list((fake_project / "05_Pilot_Project" / "Candidate_Cells").glob("Pilot_Candidate_Ranking_*.md"))
+    assert list((fake_project / "05_Pilot_Project" / "Candidate_Cells").glob("Pilot_Evidence_Packet_*.md"))
 
     empty_project = create_fake_eoat_project(tmp_path / "empty_candidate_case")
     from openpyxl import load_workbook
@@ -109,6 +113,7 @@ def test_standards_documentation_gap_scan(qapp, fake_config, fake_project):
     wait_for_background_tasks()
     assert int(page.cards["EOATs Scanned"].value_label.text()) > 0
     assert int(page.cards["Total Gaps"].value_label.text()) > 0
+    assert int(page.cards["Avg Compliance"].value_label.text()) >= 0
     assert "Press 102" in table_text(page.top_table)
     assert list((fake_project / "03_Standards" / "Documentation_Gap_Reports").glob("Documentation_Gap_Report_*.md"))
 

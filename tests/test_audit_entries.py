@@ -45,7 +45,7 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     assert "Vacuum Zones" not in headers
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 10] == [
+    assert headers[tooling_start : tooling_start + 11] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
@@ -54,6 +54,7 @@ def test_generate_audit_id_and_add_row(fake_project):
         "Gripper Type",
         "Gripper Model",
         "Gripper Size",
+        "# of Cups",
         "Cup Type/Material",
         "Cup Diameter/Size",
     ]
@@ -214,6 +215,7 @@ def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_
     assert values["Tool #"] == "N/A"
     assert values["Connection Type"] == "N/A"
     assert values["EOAT Moves"] in (None, "")
+    assert values["# of Cups"] == "N/A"
     assert values["Cup Type/Material"] == "Silicone"
     assert values["Known Issues"] == "N/A"
     assert values["Notes"] == "N/A"
@@ -259,6 +261,40 @@ def test_gripper_model_presets_save_actual_model_numbers(fake_project):
 
 
 def test_gripper_count_and_pressure_type_validation(fake_project):
+    bad_cups = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-CUP-COUNT-BAD",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press bad cup count",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "# of Cups": "two",
+            "Status": "In Progress",
+        },
+    )
+    assert bad_cups.success is False
+    assert any("# of Cups must be a non-negative whole number" in error for error in bad_cups.errors)
+
+    valid_cups = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-CUP-COUNT-VALID",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press valid cup count",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "# of Cups": "0",
+            "Status": "In Progress",
+        },
+    )
+    assert valid_cups.success, valid_cups.errors
+    assert load_audit_entry(fake_project, "AUD-CUP-COUNT-VALID")["# of Cups"] == "0"
+
     bad_count = save_audit_entry(
         fake_project,
         {
@@ -601,6 +637,54 @@ def test_repair_workbook_schema_adds_gripper_count_and_normalizes_blank_gripper_
     assert rows["AUD-GRIPPER-REPAIR-CUSTOM"]["Gripper Model"] == "CUSTOM-GRIP-42"
 
 
+def test_repair_workbook_schema_adds_cup_count_before_cup_details_without_overwriting_data(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    for sheet_name in get_expected_sheets():
+        ws = workbook.create_sheet(sheet_name)
+        headers = [
+            header
+            for header in get_expected_headers(sheet_name)
+            if sheet_name != "EOAT Inventory" or header != "# of Cups"
+        ]
+        ws.append(headers)
+    inventory = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in inventory[1]]
+    values = {
+        "Audit ID": "AUD-CUP-COUNT-UPGRADE",
+        "Audit Date": "2026-05-18",
+        "Auditor": "KG",
+        "Plant/Area": "Plant 4",
+        "Press/Machine #": "Press 12",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Cup Type/Material": "Nitrile",
+        "Cup Diameter/Size": "20 mm",
+        "Vacuum Generator Type": "Venturi",
+        "Status": "In Progress",
+    }
+    inventory.append([values.get(header, "") for header in headers])
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = repair_workbook_schema(fake_project, log_activity=False)
+
+    assert result.success, result.errors
+    workbook = load_workbook(workbook_path, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    rows = {
+        row[headers.index("Audit ID")]: {headers[index]: value for index, value in enumerate(row)}
+        for row in ws.iter_rows(min_row=2, values_only=True)
+    }
+    workbook.close()
+    assert headers.index("# of Cups") < headers.index("Cup Type/Material")
+    assert rows["AUD-CUP-COUNT-UPGRADE"]["Cup Type/Material"] == "Nitrile"
+    assert rows["AUD-CUP-COUNT-UPGRADE"]["Cup Diameter/Size"] == "20 mm"
+    assert rows["AUD-CUP-COUNT-UPGRADE"]["# of Cups"] in (None, "")
+
+
 def test_repair_workbook_schema_removes_vacuum_zones_with_backup_and_preserves_circuits(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     workbook = Workbook()
@@ -722,7 +806,10 @@ def test_cup_defaults_are_eoat_type_aware(fake_project):
         for row in ws.iter_rows(min_row=2, values_only=True)
     }
     assert rows["AUD-CUP-VACUUM"]["Cup Type/Material"] == "Silicone"
+    assert rows["AUD-CUP-VACUUM"]["# of Cups"] == "N/A"
     assert rows["AUD-CUP-HYBRID"]["Cup Type/Material"] == "Silicone"
+    assert rows["AUD-CUP-HYBRID"]["# of Cups"] == "N/A"
+    assert rows["AUD-CUP-MECHANICAL"]["# of Cups"] == "N/A"
     assert rows["AUD-CUP-MECHANICAL"]["Cup Type/Material"] == "N/A"
     assert rows["AUD-CUP-MECHANICAL"]["Cup Diameter/Size"] == "N/A"
     assert rows["AUD-CUP-MECHANICAL"]["Number of Parts Picked"] == "N/A"
@@ -914,7 +1001,7 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     headers = [cell.value for cell in ws[1]]
     values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 10] == [
+    assert headers[tooling_start : tooling_start + 11] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
@@ -923,6 +1010,7 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
         "Gripper Type",
         "Gripper Model",
         "Gripper Size",
+        "# of Cups",
         "Cup Type/Material",
         "Cup Diameter/Size",
     ]
@@ -951,7 +1039,7 @@ def test_setup_generated_master_tracker_uses_tool_header(tmp_path):
     assert headers[:6] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Tool #"]
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 10] == [
+    assert headers[tooling_start : tooling_start + 11] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
@@ -960,6 +1048,7 @@ def test_setup_generated_master_tracker_uses_tool_header(tmp_path):
         "Gripper Type",
         "Gripper Model",
         "Gripper Size",
+        "# of Cups",
         "Cup Type/Material",
         "Cup Diameter/Size",
     ]
@@ -1023,6 +1112,7 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         ("EOAT Moves", "EOAT Type"),
         ("Connection Type", "EOAT Type"),
         ("# of Grippers", "Number of Parts Picked"),
+        ("# of Cups", "Number of Parts Picked"),
         ("Gripper Type", "Connection Type"),
         ("Gripper Model", "Gripper Type"),
         ("Gripper Size", "Gripper Model"),
@@ -1061,6 +1151,15 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     ]
     assert count_validations
     assert count_validations[0].type == "whole"
+    cup_count_col = headers.index("# of Cups") + 1
+    cup_count_validations = [
+        validation
+        for validation in ws.data_validations.dataValidation
+        for cell_range in validation.sqref.ranges
+        if cell_range.min_col == cup_count_col and cell_range.max_col == cup_count_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+    ]
+    assert cup_count_validations
+    assert cup_count_validations[0].type == "whole"
     gripper_type_col = headers.index("Gripper Type") + 1
     gripper_type_validations = [
         validation

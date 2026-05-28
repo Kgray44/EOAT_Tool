@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from .action_items import add_action_item
+from .audit.history import append_audit_history
 from .audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
     ENTRY_TYPE_AUDITED,
@@ -26,7 +27,9 @@ from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
+from .workbook_locks import detect_workbook_lock
 from .gripper_fields import (
+    CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
     GRIPPER_MODEL_FIELD,
     GRIPPER_SIZE_FIELD,
@@ -51,6 +54,7 @@ AUDIT_REQUIRED_FIELDS = [
 AUDIT_IMPORTANT_FIELDS = [
     "Part Family",
     "EOAT Moves",
+    CUP_COUNT_FIELD,
     "Sensor Type",
     "Sensor Brand/Model",
     "Vacuum Confirmation Present?",
@@ -101,6 +105,7 @@ TOOLING_COLUMN_ORDER = [
     GRIPPER_TYPE_FIELD,
     GRIPPER_MODEL_FIELD,
     GRIPPER_SIZE_FIELD,
+    CUP_COUNT_FIELD,
     "Cup Type/Material",
     "Cup Diameter/Size",
     "Vacuum Generator Type",
@@ -109,6 +114,7 @@ TOOLING_COLUMN_ORDER = [
     EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
 ]
 VACUUM_TOOLING_FIELDS = {
+    CUP_COUNT_FIELD,
     "Cup Type/Material",
     "Cup Diameter/Size",
     "Vacuum Generator Type",
@@ -131,6 +137,7 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     "Vacuum Confirmation Present?": AuditFieldMetadata(frozenset({"sensor"}), "Yes"),
     PART_PRESENT_DETECTION_FIELD: AuditFieldMetadata(frozenset({"sensor"}), "No"),
     ELECTRICAL_WIRING_PRESENT_FIELD: AuditFieldMetadata(frozenset({"electrical"})),
+    CUP_COUNT_FIELD: AuditFieldMetadata(frozenset({"vacuum"})),
     "Vacuum Generator Type": AuditFieldMetadata(frozenset({"vacuum"}), "Venturi"),
     EOAT_INTERCHANGEABLE_CIRCUITS_FIELD: AuditFieldMetadata(frozenset({"pneumatic_circuit"}), "0"),
     "Quick Disconnects Present?": AuditFieldMetadata(frozenset({"quick_disconnect"}), "Yes"),
@@ -381,7 +388,7 @@ def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str
         entry = {**entry, NUMBER_OF_PARTS_PICKED_FIELD: entry.get(LEGACY_VACUUM_CUPS_FIELD, "")}
     normalized = {header: entry.get(header, "") for header in headers}
     if GRIPPER_MODEL_FIELD in normalized:
-        normalized[GRIPPER_MODEL_FIELD] = gripper_model_to_workbook(normalized.get(GRIPPER_MODEL_FIELD))
+        normalized[GRIPPER_MODEL_FIELD] = gripper_model_to_workbook(normalized.get(GRIPPER_MODEL_FIELD), project_root)
     if ENTRY_TYPE_FIELD in normalized and not _text(normalized.get(ENTRY_TYPE_FIELD)):
         normalized[ENTRY_TYPE_FIELD] = ENTRY_TYPE_AUDITED
     entry_type = _text(normalized.get(ENTRY_TYPE_FIELD)).lower()
@@ -453,7 +460,7 @@ def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
         and gripper_type not in GRIPPER_TYPE_VALUES
     ):
         errors.append(f"{GRIPPER_TYPE_FIELD} must be one of: {', '.join(GRIPPER_TYPE_VALUES)}.")
-    for field in {NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD, *EOAT_PNEUMATIC_CIRCUIT_FIELDS}:
+    for field in {NUMBER_OF_PARTS_PICKED_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, *EOAT_PNEUMATIC_CIRCUIT_FIELDS}:
         if field in entry and _text(entry.get(field)) and not is_na_value(entry.get(field)) and _parse_non_negative_int(entry.get(field)) is None:
             errors.append(f"{field} must be a non-negative whole number.")
     return errors, warnings
@@ -702,6 +709,18 @@ def repair_workbook_schema(project_root: str | Path, log_activity: bool = True) 
             errors=[str(workbook_path)],
             duration_seconds=time.perf_counter() - started,
         )
+    lock_status = detect_workbook_lock(workbook_path)
+    if not lock_status.can_write:
+        return ToolResult.fail(
+            "workbook_schema_repair",
+            "Workbook Schema Repair",
+            "Workbook repair was blocked by the workbook lock detector.",
+            errors=[lock_status.message],
+            warnings=[lock_status.error] if lock_status.error else [],
+            metrics={"workbook_locked": lock_status.locked},
+            structured_data={"workbook_lock": lock_status.__dict__},
+            duration_seconds=time.perf_counter() - started,
+        )
 
     workbook = None
     vacuum_zones_backup: Path | None = None
@@ -858,6 +877,7 @@ def _style_inventory_tooling_columns(ws) -> None:
         EOAT_MOVES_FIELD: "EOAT Type",
         CONNECTION_TYPE_FIELD: "EOAT Type",
         GRIPPER_COUNT_FIELD: NUMBER_OF_PARTS_PICKED_FIELD,
+        CUP_COUNT_FIELD: NUMBER_OF_PARTS_PICKED_FIELD,
         GRIPPER_TYPE_FIELD: CONNECTION_TYPE_FIELD,
         GRIPPER_MODEL_FIELD: GRIPPER_TYPE_FIELD,
         GRIPPER_SIZE_FIELD: GRIPPER_MODEL_FIELD,
@@ -970,6 +990,7 @@ def _apply_inventory_validations(ws) -> None:
     }
     numeric_headers = {
         NUMBER_OF_PARTS_PICKED_FIELD,
+        CUP_COUNT_FIELD,
         GRIPPER_COUNT_FIELD,
         *EOAT_PNEUMATIC_CIRCUIT_FIELDS,
     }
@@ -1026,8 +1047,12 @@ def save_audit_entry(
     allow_update: bool = False,
     create_followup_action: bool = False,
     log_activity: bool = True,
+    refresh_press_view: bool = True,
+    sync_linked_compatibility: bool = True,
 ) -> ToolResult:
     started = time.perf_counter()
+    validate_started = time.perf_counter()
+    timing_metrics: dict[str, float] = {}
     paths = resolve_project_paths(project_root)
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
@@ -1039,6 +1064,7 @@ def save_audit_entry(
         if field != "Audit Date" and not _text(entry.get(field)):
             validation_entry[field] = ""
     errors, warnings = validate_audit_entry(validation_entry)
+    timing_metrics["audit_save.validate_form_seconds"] = round(time.perf_counter() - validate_started, 3)
     if errors:
         return ToolResult.fail(
             "eoat_audit_form",
@@ -1046,6 +1072,7 @@ def save_audit_entry(
             "Audit entry failed validation.",
             errors=errors,
             warnings=warnings,
+            metrics=timing_metrics,
             duration_seconds=time.perf_counter() - started,
         )
     data, normalization_details = normalize_audit_entry_with_details(project_root, entry)
@@ -1057,8 +1084,12 @@ def save_audit_entry(
             warnings.append(warning)
 
     workbook = None
+    existing_row = None
+    previous_data: dict[str, Any] | None = None
     vacuum_zones_backup: Path | None = None
     vacuum_zones_removed_count = 0
+    press_view_refresh_seconds = 0.0
+    write_started = time.perf_counter()
     try:
         backup = backup_file(workbook_path, workbook_path.parent / "_backups")
         workbook = load_workbook(workbook_path)
@@ -1076,6 +1107,12 @@ def save_audit_entry(
             else {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
         )
         existing_row = find_row_by_value(ws, "Audit ID", str(data["Audit ID"]))
+        if existing_row:
+            headers = worksheet_headers(ws)
+            previous_data = {
+                header: ws.cell(row=existing_row, column=column).value
+                for column, header in enumerate(headers, start=1)
+            }
         if existing_row and not allow_update:
             workbook.close()
             return ToolResult.fail(
@@ -1107,9 +1144,14 @@ def save_audit_entry(
                     normalization_details.setdefault("fields_auto_set_to_na", {})[header] = field_rules.non_applicable_reason(data, header)
         row_number = existing_row or next_empty_row(ws)
         write_row_by_headers(ws, row_number, data)
-        refresh_audit_by_press_view(workbook)
+        if refresh_press_view:
+            press_view_started = time.perf_counter()
+            refresh_audit_by_press_view(workbook)
+            press_view_refresh_seconds = time.perf_counter() - press_view_started
         workbook.save(workbook_path)
         workbook.close()
+        timing_metrics["audit_save.write_master_seconds"] = round(time.perf_counter() - write_started, 3)
+        timing_metrics["audit_save.audit_by_press_refresh_seconds"] = round(press_view_refresh_seconds, 3)
     except Exception as exc:
         if workbook is not None:
             try:
@@ -1122,15 +1164,18 @@ def save_audit_entry(
             "Could not save audit entry.",
             errors=[str(exc)],
             warnings=warnings,
+            metrics=timing_metrics,
             duration_seconds=time.perf_counter() - started,
         )
 
     sync_result = None
-    if _text(data.get(ENTRY_TYPE_FIELD)).lower() == ENTRY_TYPE_AUDITED.lower():
+    compatibility_started = time.perf_counter()
+    if sync_linked_compatibility and _text(data.get(ENTRY_TYPE_FIELD)).lower() == ENTRY_TYPE_AUDITED.lower():
         from .audit_compatibility import sync_compatible_rows_from_source
 
         sync_result = sync_compatible_rows_from_source(workbook_path, str(data["Audit ID"]))
         warnings.extend(sync_result.warning_messages)
+    timing_metrics["audit_save.compatibility_seconds"] = round(time.perf_counter() - compatibility_started, 3)
 
     details = [
         f"Audit ID: {data['Audit ID']}",
@@ -1199,6 +1244,35 @@ def save_audit_entry(
         files_modified.extend(action_result.files_modified)
         files_created.extend(action_result.files_created)
 
+    history_started = time.perf_counter()
+    try:
+        history_path = append_audit_history(
+            project_root,
+            str(data["Audit ID"]),
+            "audit_updated" if existing_row else "audit_created",
+            previous_data,
+            data,
+            files_modified=[str(workbook_path)],
+        )
+        files_modified.append(str(history_path))
+    except Exception as exc:
+        warnings.append(f"Audit history was not updated: {exc}")
+    if sync_result is not None and sync_result.updated_count:
+        try:
+            history_path = append_audit_history(
+                project_root,
+                str(data["Audit ID"]),
+                "compatibility_regenerated",
+                {"linked_compatibility_rows": "0"},
+                {"linked_compatibility_rows": str(sync_result.updated_count)},
+                source="compatibility_sync",
+                files_modified=files_modified,
+            )
+            files_modified.append(str(history_path))
+        except Exception as exc:
+            warnings.append(f"Compatibility history was not updated: {exc}")
+    timing_metrics["audit_save.history_seconds"] = round(time.perf_counter() - history_started, 3)
+
     result = ToolResult.ok(
         "eoat_audit_form",
         "EOAT Audit Form Tool",
@@ -1211,12 +1285,15 @@ def save_audit_entry(
             "audit_id": data["Audit ID"],
             "row": row_number,
             "updated": bool(existing_row),
+            "audit_by_press_refreshed": bool(refresh_press_view),
+            "linked_compatibility_sync_requested": bool(sync_linked_compatibility),
             "compatibility_rows_synced": sync_result.updated_count if sync_result else 0,
             "compatibility_rows_skipped": sync_result.skipped_count if sync_result else 0,
             "fields_auto_set_to_na": len(auto_na_fields),
             "hybrid_warning_count": len(hybrid_warnings),
             "semantic_warning_count": len(semantic_warnings),
             "vacuum_zones_columns_removed": vacuum_zones_removed_count,
+            **timing_metrics,
         },
         duration_seconds=time.perf_counter() - started,
     )

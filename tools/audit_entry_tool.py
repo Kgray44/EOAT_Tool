@@ -28,6 +28,7 @@ FIELD_ARG_MAP = {
     "EOAT Type": "eoat_type",
     "EOAT Moves": "eoat_moves",
     "Number of Parts Picked": "parts_picked",
+    "# of Cups": "cup_count",
     "# of Grippers": "gripper_count",
     "Gripper Type": "gripper_type",
     "Gripper Model": "gripper_model",

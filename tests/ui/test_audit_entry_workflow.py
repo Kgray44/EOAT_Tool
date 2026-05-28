@@ -6,7 +6,8 @@ from collections import Counter
 
 import pytest
 from openpyxl import load_workbook
-from PySide6.QtWidgets import QComboBox, QGroupBox, QTextEdit
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QComboBox, QGroupBox, QPushButton, QTextEdit
 
 from app.pages.audit import AUDIT_SECTIONS, AUDIT_SECTION_GROUPS, AuditPage
 from core.audit_entries import save_audit_entry
@@ -141,6 +142,7 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     assert optional_row["Cup Type/Material"] == "N/A"
     assert optional_row["Cup Diameter/Size"] == "N/A"
     assert optional_row["Number of Parts Picked"] == "N/A"
+    assert optional_row["# of Cups"] == "N/A"
     assert optional_row["# of Grippers"] == "N/A"
     assert optional_row["Gripper Type"] == "N/A"
     assert optional_row["Connection Type"] == "N/A"
@@ -774,6 +776,7 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     _set_field(page, "Connection Type", "ATI")
     _set_field(page, "Cup Type/Material", "Nitrile")
     _set_field(page, "Cup Diameter/Size", "20 mm")
+    _set_field(page, "# of Cups", "4")
     _set_field(page, "# of Grippers", "2")
     _set_field(page, "Gripper Type", "Double Pressure")
     _set_field(page, "Gripper Model", "Zimmer GPP")
@@ -787,6 +790,7 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
     row = next(row for row in rows if row["Audit ID"] == audit_id)
     assert row["EOAT Type"] == "Mechanical / Gripper"
+    assert row["# of Cups"] == "N/A"
     assert row["Cup Type/Material"] == "N/A"
     assert row["Cup Diameter/Size"] == "N/A"
     assert row["# of Grippers"] == "2"
@@ -902,6 +906,18 @@ def test_audit_form_uses_grouped_panels_without_losing_fields(qapp, fake_config)
         assert field in page._audit_field_group_keys
 
 
+def test_audit_output_panel_has_readable_splitter_and_controls(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    assert page.audit_output_splitter.orientation() == Qt.Orientation.Vertical
+    assert page.result_panel.minimumHeight() >= 180
+    assert page.result_panel.viewer.minimumHeight() >= 160
+
+    buttons = {button.text() for button in page.findChildren(QPushButton)}
+    assert {"Expand Output", "Collapse Output", "Copy Output", "Clear Output"}.issubset(buttons)
+
+
 def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, fake_project, frozen_project_date):
     page = AuditPage(fake_config)
     page.show()
@@ -944,6 +960,59 @@ def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, f
     saved_row = next(row for row in rows if row["Audit ID"] == audit_id)
     assert saved_row["EOAT Vacuum Circuits"] == "2"
     assert "Robot Vacuum Circuits" not in saved_row
+
+
+def test_save_audit_workflow_skips_robot_info_when_circuit_values_are_default(qapp, fake_config, fake_project, monkeypatch, frozen_project_date):
+    page = AuditPage(fake_config)
+    page.show()
+    _set_field(page, "Press/Machine #", "Press 213")
+    _set_field(page, "Robot Type", "Wittmann R9")
+    _set_field(page, "EOAT Type", "Vacuum")
+
+    def fail_upsert(*_args, **_kwargs):
+        raise AssertionError("Robot_Info.xlsx should not be opened for write when only default robot circuit values exist.")
+
+    monkeypatch.setattr("app.pages.audit_save_workflow.upsert_robot_info_from_audit", fail_upsert)
+    result = page._save_audit_workflow(
+        {field: page._field_value(widget) for field, widget in page.audit_fields.items()},
+        allow_update=False,
+        create_followup_action=False,
+    )
+
+    assert result.success, result.errors
+    assert result.metrics["robot_info_save_skipped"] is True
+    assert "Robot Info skipped" in result.summary
+    assert not robot_info_workbook_path(fake_project).exists()
+
+
+def test_save_audit_workflow_skips_heavy_derived_systems(qapp, fake_config, monkeypatch, frozen_project_date):
+    page = AuditPage(fake_config)
+    page.show()
+    _set_field(page, "Press/Machine #", "Press 214")
+    _set_field(page, "Robot Type", "Wittmann R9")
+    _set_field(page, "EOAT Type", "Vacuum")
+
+    def fail_heavy(*_args, **_kwargs):
+        raise AssertionError("Normal audit save should not run heavy derived aggregation or scans.")
+
+    monkeypatch.setattr("core.audit_entries.refresh_audit_by_press_view", fail_heavy)
+    monkeypatch.setattr("core.open_items.list_open_items", fail_heavy)
+    monkeypatch.setattr("core.standards_compliance.analyze_standards_compliance", fail_heavy)
+    monkeypatch.setattr("core.fmea_suggestions.build_fmea_suggestions", fail_heavy)
+    monkeypatch.setattr("core.photo_evidence.evidence_coverage_for_project", fail_heavy)
+    monkeypatch.setattr("core.search.search_project", fail_heavy)
+    monkeypatch.setattr("core.final_handoff_readiness.build_final_handoff_readiness", fail_heavy)
+
+    result = page._save_audit_workflow(
+        {field: page._field_value(widget) for field, widget in page.audit_fields.items()},
+        allow_update=False,
+        create_followup_action=False,
+    )
+
+    assert result.success, result.errors
+    assert result.metrics["audit_by_press_refreshed"] is False
+    assert result.metrics["linked_compatibility_sync_requested"] is False
+    assert result.metrics["compatibility_autorun_skipped"] is True
 
 
 def test_load_existing_audit_restores_eoat_and_robot_pneumatic_fields(qapp, fake_config, fake_project):

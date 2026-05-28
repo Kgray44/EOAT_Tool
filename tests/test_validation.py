@@ -158,6 +158,7 @@ def _complete_inventory_values(audit_id: str, entry_type: str = "Audited") -> di
             "Connection Type": "ATI",
             "Cleanroom/Non-Cleanroom": "Whiteroom",
             "Number of Parts Picked": "2",
+            "# of Cups": "4",
             "# of Grippers": "2",
             "Gripper Type": "Double Pressure",
             "Gripper Model": "MHZL2-16D",
@@ -335,6 +336,7 @@ def test_workbook_health_recognizes_gripper_headers_and_validates_values(tmp_pat
     valid.update(
         {
             "EOAT Type": "Mechanical / Gripper",
+            "# of Cups": "N/A",
             "# of Grippers": "2",
             "Gripper Type": "Single Pressure",
             "Gripper Model": "MHZL2-16D",
@@ -344,7 +346,7 @@ def test_workbook_health_recognizes_gripper_headers_and_validates_values(tmp_pat
     )
     invalid = {**valid, "Audit ID": "AUD-GRIPPER-INVALID", "# of Grippers": "two", "Gripper Type": "Parallel jaw"}
     vacuum = _base_inventory_values("AUD-GRIPPER-VACUUM-NA", "Part")
-    vacuum.update({"# of Grippers": "N/A", "Gripper Type": "N/A", "Gripper Model": "N/A"})
+    vacuum.update({"# of Cups": "4", "# of Grippers": "N/A", "Gripper Type": "N/A", "Gripper Model": "N/A"})
     _append_inventory_row(workbook_path, valid)
     _append_inventory_row(workbook_path, invalid)
     _append_inventory_row(workbook_path, vacuum)
@@ -490,6 +492,7 @@ def test_workbook_health_allows_na_for_non_applicable_tooling_fields(fake_projec
             "Tubing Condition": "OK",
             "Cable Management Condition": "OK",
             "Photos Taken?": "No",
+            "# of Cups": "N/A",
             "Cup Type/Material": "N/A",
             "Cup Diameter/Size": "N/A",
             "# of Grippers": "2",
@@ -503,6 +506,7 @@ def test_workbook_health_allows_na_for_non_applicable_tooling_fields(fake_projec
     result = validate_project_foundation(fake_project)
 
     assert result.metrics["major_na_cell_count"] == 0
+    assert not any("# of Cups" in warning for warning in result.warnings)
     assert not any("Cup Diameter/Size" in warning for warning in result.warnings)
     assert not any("Cup Type/Material" in warning for warning in result.warnings)
 
@@ -521,6 +525,7 @@ def test_workbook_health_allows_na_for_no_sensor_wiring_fields(fake_project):
             "Tool #": "DEMO-PN-1200",
             "Robot Type": "Wittmann R9",
             "EOAT Type": "Vacuum",
+            "# of Cups": "4",
             "Connection Type": "ATI",
             "Cleanroom/Non-Cleanroom": "Whiteroom",
             "Sensors Present?": "No",
@@ -559,6 +564,7 @@ def test_old_workbook_missing_electrical_wiring_header_gets_schema_warning_not_e
             "Robot Type": "Wittmann R9",
             "Part Family": "Housing",
             "EOAT Type": "Vacuum",
+            "# of Cups": "4",
             "Connection Type": "ATI",
             "Cleanroom/Non-Cleanroom": "Whiteroom",
             "Sensors Present?": "No",
@@ -600,6 +606,7 @@ def test_migrated_no_wiring_rows_do_not_count_electrical_na_as_major_missing(fak
             "Robot Type": "Wittmann R9",
             "Part Family": "Housing",
             "EOAT Type": "Vacuum",
+            "# of Cups": "4",
             "Connection Type": "ATI",
             "Cleanroom/Non-Cleanroom": "Whiteroom",
             "Sensors Present?": "No",

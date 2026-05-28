@@ -11,13 +11,14 @@ except ImportError:  # pragma: no cover
     QGridLayout = QGroupBox = QHBoxLayout = QLabel = QMessageBox = QPushButton = QScrollArea = QVBoxLayout = QWidget = None
 
 from app.widgets.file_picker import select_directory
+from app.event_bus import EVENT_AUDIT_SAVED
 from app.widgets.open_items_panel import OpenItemsPanel
 from app.widgets.status_card import StatusCard
 from app.task_runner import TaskRequest, get_task_manager
 from app.widgets.tool_run_panel import ToolRunPanel
 from app.widgets.workflow_card import WorkflowCard
 from app.ui_constants import PAGE_MARGIN, SECTION_SPACING
-from core.dashboard_cache import cached_snapshot, save_dashboard_cache
+from core.dashboard_cache import cached_snapshot_status, save_dashboard_cache
 from core.config import save_config
 from core.git_activity import get_git_status_short, is_git_repo
 from core.logging import read_recent_activity
@@ -136,7 +137,9 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     cards["Presentation Assets"] = presentation[-1].name if presentation else "No package yet"
     final_reports = list_recent_files(paths.final_report, limit=1)
     cards["Final Summary Draft"] = final_reports[0].name if final_reports else "No summary yet"
-    handoffs = [path for path in paths.handoff_package_root.glob("Final_Handoff_*") if path.is_dir()] if paths.handoff_package_root.exists() else []
+    legacy_handoffs = [path for path in paths.handoff_package_root.glob("Final_Handoff_*") if path.is_dir()] if paths.handoff_package_root.exists() else []
+    phase11_handoffs = [path for path in paths.final_handoff.glob("Final_Handoff_Package_*") if path.is_dir()] if paths.final_handoff.exists() else []
+    handoffs = sorted([*phase11_handoffs, *legacy_handoffs], key=lambda path: path.stat().st_mtime)
     cards["Handoff Package"] = handoffs[-1].name if handoffs else "No handoff package yet"
 
     recommendations: list[str] = []
@@ -193,7 +196,14 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
         snapshot["cards"]["Dashboard Cache"] = f"Updated {cache_path.name}"
     except Exception as exc:
         snapshot["cards"]["Dashboard Cache"] = f"Cache update failed: {exc}"
-    log_performance(root, "dashboard.deep_refresh", time.perf_counter() - started)
+    log_performance(
+        root,
+        "dashboard.deep_refresh",
+        time.perf_counter() - started,
+        source="home",
+        page_tool="home",
+        details={"cache_updated": True, "card_count": len(cards), "recommendation_count": len(recommendations[:6])},
+    )
     return snapshot
 
 
@@ -202,7 +212,9 @@ def collect_home_quick_status_snapshot(project_root: str, git_executable: str, p
     root = Path(project_root)
     paths = resolve_project_paths(root)
     root_status = validate_project_root(root)
-    snapshot, stale, cache_warning = cached_snapshot(root)
+    cache_status = cached_snapshot_status(root)
+    snapshot = cache_status.snapshot
+    stale = cache_status.stale
     if snapshot:
         cards = dict(snapshot.get("cards", {}))
         cards["Dashboard Cache"] = "Stale; deep refresh available" if stale else "Fresh"
@@ -222,7 +234,7 @@ def collect_home_quick_status_snapshot(project_root: str, git_executable: str, p
             "Project Root": "OK" if valid else f"Warning: {len(missing)} issue(s)",
             "Master Workbook": "OK" if paths.master_workbook.exists() else "Missing",
             "Activity Log": "OK" if activities else ("Warning" if activity_warning else "Not checked"),
-            "Dashboard Cache": cache_warning or "No cache yet",
+            "Dashboard Cache": cache_status.warning or "No cache yet",
             "Daily Summary Schedule": scheduled_status.get("daily", {}).get("schedule", "Monday-Thursday at 7:00 PM"),
             "Latest Daily Summary": scheduled_status.get("daily", {}).get("last_report_date") or "No daily summary yet",
             "Missed Daily Summaries": ", ".join(scheduled_status.get("daily", {}).get("missed_dates", [])) or "None detected",
@@ -240,6 +252,9 @@ def collect_home_quick_status_snapshot(project_root: str, git_executable: str, p
                 f"{'OK' if entry.get('success') else 'Failed'} | {entry.get('summary', '')}"
             )
         activity_text = "\n".join(lines)
+
+    if cache_status.stale:
+        activity_text = f"{cache_status.stale_explanation}\n\n{activity_text}"
 
     scheduled_status = get_scheduled_report_status(root, check_tasks=False)
     cards["Daily Summary Schedule"] = scheduled_status.get("daily", {}).get("schedule", "Monday-Thursday at 7:00 PM")
@@ -261,7 +276,19 @@ def collect_home_quick_status_snapshot(project_root: str, git_executable: str, p
         "resolved_source": resolved_day.source,
         "resolved_warning": resolved_day.warning,
     }
-    log_performance(root, "dashboard.quick_refresh", time.perf_counter() - started, "stale_cache=true" if stale else "")
+    cache_state = "stale" if cache_status.cache_hit and stale else "hit" if cache_status.cache_hit else "miss"
+    log_performance(
+        root,
+        "dashboard.quick_refresh",
+        time.perf_counter() - started,
+        source="home",
+        page_tool="home",
+        details={
+            "cache_status": cache_state,
+            "stale_reason_count": len(cache_status.stale_reasons),
+            "quick_metadata_only": True,
+        },
+    )
     return snapshot_out
 
 
@@ -380,6 +407,8 @@ class HomePage(QWidget):
                 ("Run Weekly Review Workflow", lambda: self.run_workflow_action("weekly-review")),
                 ("Run Final Review Workflow", lambda: self.run_workflow_action("final-review")),
                 ("Open Tool Registry", lambda: self.navigate_requested.emit("tool_registry")),
+                ("Open Backup Manager", lambda: self.navigate_requested.emit("backup_manager")),
+                ("Open Release Readiness", lambda: self.navigate_requested.emit("release_readiness")),
             ]),
         ]
         for index, card in enumerate(workflow_cards):
@@ -430,6 +459,13 @@ class HomePage(QWidget):
             ),
             on_finished=self._apply_status_result,
         )
+
+    def on_event(self, event) -> bool:
+        if getattr(event, "event_type", "") == EVENT_AUDIT_SAVED:
+            self.result_panel.show_text("Audit saved. Dashboard cache marked stale; use Refresh when you want updated overview metrics.")
+            return True
+        self.refresh_status()
+        return True
 
     def deep_refresh_status(self) -> None:
         self.result_panel.show_text("Running deep dashboard refresh. Workbook metrics will update in the background...")

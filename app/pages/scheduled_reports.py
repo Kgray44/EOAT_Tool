@@ -1,10 +1,26 @@
 from __future__ import annotations
 
 try:
-    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import (
+        QApplication,
+        QAbstractItemView,
+        QComboBox,
+        QGridLayout,
+        QHBoxLayout,
+        QLabel,
+        QPushButton,
+        QScrollArea,
+        QTableWidget,
+        QTableWidgetItem,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
-    QGridLayout = QHBoxLayout = QLabel = QPushButton = QScrollArea = QVBoxLayout = QWidget = None
+    QApplication = QAbstractItemView = QComboBox = QGridLayout = QHBoxLayout = QLabel = QPushButton = QScrollArea = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    Qt = None
 
+from app.event_bus import EVENT_REPORT_GENERATED, EVENT_SCHEDULED_REPORT_RAN, get_event_bus
 from app.page_tasks import run_tool_background
 from app.task_runner import TaskRequest, get_task_manager
 from app.ui_constants import PAGE_MARGIN, SECTION_SPACING
@@ -15,7 +31,10 @@ from core.paths import resolve_project_paths
 from core.scheduled_reports import (
     get_scheduled_report_status,
     install_or_repair_schedules,
+    preview_summary_schedule,
+    run_catch_up_summaries,
     run_daily_summary_now,
+    run_scheduler_preflight,
     run_weekly_summary_now,
     scheduled_tools_log_path,
     uninstall_schedules,
@@ -27,6 +46,9 @@ class ScheduledReportsPage(QWidget):
         super().__init__(parent)
         self.config = config
         self.cards: dict[str, StatusCard] = {}
+        self.preview_rows: list[dict] = []
+        self.preflight_rows: list[dict] = []
+        self.latest_output_report = ""
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -44,52 +66,116 @@ class ScheduledReportsPage(QWidget):
         content_layout.addWidget(heading)
         help_label = QLabel(
             "Windows Task Scheduler runs daily summaries Monday-Thursday at 7:00 PM and weekly summaries Friday at 7:00 PM. "
-            "The dashboard shows status and lets you run safe catch-up summaries without keeping the app open."
+            "The page previews upcoming/missed runs, checks the task setup, and runs duplicate-safe catch-up summaries."
         )
         help_label.setWordWrap(True)
         content_layout.addWidget(help_label)
 
-        button_row = QHBoxLayout()
-        actions = [
+        top_row = QHBoxLayout()
+        for label, callback in [
             ("Refresh Scheduled Status", self.refresh_status),
-            ("Run Daily Summary Now", self.run_daily_now),
-            ("Run Weekly Summary Now", self.run_weekly_now),
-            ("Install/Repair Scheduled Tasks", self.install_schedules),
-            ("Uninstall Scheduled Tasks", self.uninstall_schedules),
-            ("Open Reports Folder", self.open_reports_folder),
+            ("Run Preflight Diagnostics", self.run_preflight),
             ("Open Scheduled Tool Log", self.open_scheduled_log),
-        ]
-        for label, callback in actions:
+            ("Copy Diagnostics", self.copy_diagnostics),
+        ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
-            button_row.addWidget(button)
-        button_row.addStretch(1)
-        content_layout.addLayout(button_row)
+            top_row.addWidget(button)
+        top_row.addStretch(1)
+        content_layout.addLayout(top_row)
+
+        action_row = QHBoxLayout()
+        for label, callback in [
+            ("Run Daily Dry Run", self.run_daily_dry_run),
+            ("Run Weekly Dry Run", self.run_weekly_dry_run),
+            ("Generate Daily Now", self.run_daily_now),
+            ("Generate Weekly Now", self.run_weekly_now),
+            ("Install/Repair Tasks", self.install_schedules),
+            ("Uninstall Tasks", self.uninstall_schedules),
+            ("Open Reports Folder", self.open_reports_folder),
+            ("Open Latest Generated Report", self.open_latest_generated_report),
+        ]:
+            button = QPushButton(label)
+            button.clicked.connect(callback)
+            action_row.addWidget(button)
+        action_row.addStretch(1)
+        content_layout.addLayout(action_row)
 
         grid = QGridLayout()
-        for index, key in enumerate(
-            [
-                "Daily Schedule",
-                "Daily Task Installed",
-                "Daily Last Run",
-                "Daily Last Report",
-                "Daily Missed",
-                "Weekly Schedule",
-                "Weekly Task Installed",
-                "Weekly Last Run",
-                "Weekly Last Report",
-                "Weekly Missed",
-                "Scheduled Tool Log",
-            ]
-        ):
+        card_names = [
+            "Daily Schedule",
+            "Daily Task Installed",
+            "Daily Last Status",
+            "Daily Last Run",
+            "Daily Last Report",
+            "Daily Next Run",
+            "Daily Missed",
+            "Weekly Schedule",
+            "Weekly Task Installed",
+            "Weekly Last Status",
+            "Weekly Last Run",
+            "Weekly Last Report",
+            "Weekly Next Run",
+            "Weekly Missed",
+            "Reports Folders",
+            "Scheduled Tool Log",
+        ]
+        for index, key in enumerate(card_names):
             card = StatusCard(key)
             self.cards[key] = card
-            grid.addWidget(card, index // 3, index % 3)
+            grid.addWidget(card, index // 4, index % 4)
         content_layout.addLayout(grid)
+
+        preview_heading = QLabel("Calendar Preview")
+        preview_heading.setStyleSheet("font-size: 13pt; font-weight: 600;")
+        content_layout.addWidget(preview_heading)
+
+        preview_controls = QHBoxLayout()
+        self.days_combo = QComboBox()
+        self.days_combo.addItems(["14 days", "30 days"])
+        preview_controls.addWidget(QLabel("Window"))
+        preview_controls.addWidget(self.days_combo)
+        for label, callback in [
+            ("Refresh Preview", self.refresh_preview),
+            ("Catch Up Selected Daily", lambda: self.catch_up_selected("daily_summary")),
+            ("Catch Up Selected Weekly", lambda: self.catch_up_selected("weekly_summary")),
+            ("Catch Up All Missed", lambda: self.catch_up_selected("all")),
+        ]:
+            button = QPushButton(label)
+            button.clicked.connect(callback)
+            preview_controls.addWidget(button)
+        preview_controls.addStretch(1)
+        content_layout.addLayout(preview_controls)
+
+        self.preview_table = QTableWidget(0, 9)
+        self.preview_table.setHorizontalHeaderLabels(["Date", "Weekday", "Automation", "Time", "Status", "Week", "Day", "Existing Report", "Reason"])
+        self.preview_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.preview_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.preview_table.setMinimumHeight(240)
+        content_layout.addWidget(self.preview_table)
+
+        diagnostics_heading = QLabel("Preflight Diagnostics")
+        diagnostics_heading.setStyleSheet("font-size: 13pt; font-weight: 600;")
+        content_layout.addWidget(diagnostics_heading)
+        self.preflight_table = QTableWidget(0, 4)
+        self.preflight_table.setHorizontalHeaderLabels(["Check", "Status", "Message", "Details"])
+        self.preflight_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.preflight_table.setMinimumHeight(180)
+        content_layout.addWidget(self.preflight_table)
 
         self.result_panel = ToolRunPanel()
         content_layout.addWidget(self.result_panel)
         self.refresh_status()
+        self.refresh_preview()
+        self.run_preflight()
+
+    def on_show(self) -> None:
+        self.refresh_status()
+        self.refresh_preview()
+
+    def on_event(self, _event) -> None:
+        self.refresh_status()
+        self.refresh_preview()
 
     def _set_card(self, key: str, value: str) -> None:
         card = self.cards.get(key)
@@ -109,6 +195,29 @@ class ScheduledReportsPage(QWidget):
             on_finished=self._apply_status_result,
         )
 
+    def refresh_preview(self) -> None:
+        days = 30 if self.days_combo.currentText().startswith("30") else 14
+        rows = preview_summary_schedule(self.config.project_root, days=days)
+        self.preview_rows = [row.to_dict() for row in rows]
+        self._populate_table(
+            self.preview_table,
+            self.preview_rows,
+            ["date", "weekday", "expected_automation_type", "scheduled_time", "status", "week", "day", "existing_report_path", "decision_reason"],
+        )
+
+    def run_preflight(self) -> None:
+        self.result_panel.show_text("Running scheduled report preflight diagnostics...")
+        get_task_manager().run_task(
+            TaskRequest(
+                id="scheduled_reports_preflight",
+                name="Scheduled Reports Preflight",
+                category="scheduled_reports",
+                callable=run_scheduler_preflight,
+                args=(self.config.project_root,),
+            ),
+            on_finished=self._apply_preflight_result,
+        )
+
     def _task_text(self, task: dict) -> str:
         installed = task.get("installed")
         if installed is True:
@@ -124,26 +233,76 @@ class ScheduledReportsPage(QWidget):
         status = task_result.result_data
         daily = status.get("daily", {})
         weekly = status.get("weekly", {})
+        paths = status.get("paths", {})
         self._set_card("Daily Schedule", daily.get("schedule", "Monday-Thursday at 7:00 PM"))
         self._set_card("Daily Task Installed", self._task_text(daily.get("task", {})))
+        self._set_card("Daily Last Status", daily.get("last_status") or daily.get("task", {}).get("last_result") or "No run recorded")
         self._set_card("Daily Last Run", daily.get("task", {}).get("last_run_time") or daily.get("last_log_line") or "No run recorded")
         self._set_card("Daily Last Report", daily.get("last_report") or "No daily summary found")
+        self._set_card("Daily Next Run", daily.get("next_expected_run") or "")
         self._set_card("Daily Missed", ", ".join(daily.get("missed_dates", [])) or "None detected")
         self._set_card("Weekly Schedule", weekly.get("schedule", "Friday at 7:00 PM"))
         self._set_card("Weekly Task Installed", self._task_text(weekly.get("task", {})))
+        self._set_card("Weekly Last Status", weekly.get("last_status") or weekly.get("task", {}).get("last_result") or "No run recorded")
         self._set_card("Weekly Last Run", weekly.get("task", {}).get("last_run_time") or weekly.get("last_log_line") or "No run recorded")
         self._set_card("Weekly Last Report", weekly.get("last_report") or "No weekly summary found")
+        self._set_card("Weekly Next Run", weekly.get("next_expected_run") or "")
         self._set_card("Weekly Missed", ", ".join(weekly.get("missed_dates", [])) or "None detected")
+        self._set_card("Reports Folders", f"Daily: {paths.get('daily_reports', '')}\nWeekly: {paths.get('weekly_reports', '')}")
         self._set_card("Scheduled Tool Log", status.get("scheduled_log", "Not configured"))
         self.result_panel.show_text("Scheduled report status refreshed.")
+
+    def _apply_preflight_result(self, task_result) -> None:
+        tool_result = task_result.to_tool_result()
+        self.result_panel.show_result(tool_result)
+        self.preflight_rows = list((tool_result.structured_data or {}).get("checks") or [])
+        self._populate_table(self.preflight_table, self.preflight_rows, ["name", "status", "message", "details"])
+
+    def _populate_table(self, table: QTableWidget, rows: list[dict], columns: list[str]) -> None:
+        table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            for col_index, key in enumerate(columns):
+                item = QTableWidgetItem(str(row.get(key, "") or ""))
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table.setItem(row_index, col_index, item)
+        table.resizeColumnsToContents()
+
+    def _after_report_action(self, result) -> None:
+        if result.output_reports:
+            self.latest_output_report = result.output_reports[0]
+        if result.success:
+            get_event_bus().emit(EVENT_SCHEDULED_REPORT_RAN, {"outputs": result.output_reports}, source="ScheduledReportsPage")
+            get_event_bus().emit(EVENT_REPORT_GENERATED, {"outputs": result.output_reports}, source="ScheduledReportsPage")
+        self.refresh_status()
+        self.refresh_preview()
+
+    def run_daily_dry_run(self) -> None:
+        run_tool_background(
+            self.result_panel,
+            "scheduled_reports_daily_dry_run",
+            "Run Daily Dry Run",
+            lambda: run_daily_summary_now(self.config.project_root, scheduled=False, dry_run=True, decision_reason="manual daily dry run"),
+            self._after_report_action,
+            modifies_files=True,
+        )
+
+    def run_weekly_dry_run(self) -> None:
+        run_tool_background(
+            self.result_panel,
+            "scheduled_reports_weekly_dry_run",
+            "Run Weekly Dry Run",
+            lambda: run_weekly_summary_now(self.config.project_root, scheduled=False, dry_run=True, notes="Manual dry run from Scheduled Reports page."),
+            self._after_report_action,
+            modifies_files=True,
+        )
 
     def run_daily_now(self) -> None:
         run_tool_background(
             self.result_panel,
             "scheduled_reports_daily_now",
-            "Run Daily Summary Now",
+            "Generate Daily Now",
             lambda: run_daily_summary_now(self.config.project_root, scheduled=False),
-            lambda _result: self.refresh_status(),
+            self._after_report_action,
             modifies_files=True,
         )
 
@@ -151,19 +310,46 @@ class ScheduledReportsPage(QWidget):
         run_tool_background(
             self.result_panel,
             "scheduled_reports_weekly_now",
-            "Run Weekly Summary Now",
+            "Generate Weekly Now",
             lambda: run_weekly_summary_now(self.config.project_root, scheduled=False),
-            lambda _result: self.refresh_status(),
+            self._after_report_action,
             modifies_files=True,
         )
+
+    def catch_up_selected(self, automation: str) -> None:
+        dates = self._selected_preview_dates(automation)
+        if not dates:
+            self.result_panel.show_text("Select one or more missed preview rows, or refresh the preview to detect missed report dates.")
+            return
+        run_tool_background(
+            self.result_panel,
+            "scheduled_reports_catch_up",
+            "Scheduled Report Catch-Up",
+            lambda: run_catch_up_summaries(self.config.project_root, dates, automation=automation),
+            self._after_report_action,
+            modifies_files=True,
+        )
+
+    def _selected_preview_dates(self, automation: str) -> list[str]:
+        selected_rows = sorted({index.row() for index in self.preview_table.selectionModel().selectedRows()})
+        rows = [self.preview_rows[index] for index in selected_rows] if selected_rows else self.preview_rows
+        dates: list[str] = []
+        for row in rows:
+            if row.get("status") != "missed":
+                continue
+            row_automation = str(row.get("expected_automation_type") or "")
+            if automation != "all" and row_automation != automation:
+                continue
+            dates.append(str(row.get("date")))
+        return dates
 
     def install_schedules(self) -> None:
         run_tool_background(
             self.result_panel,
             "scheduled_reports_install",
-            "Install/Repair Scheduled Tasks",
+            "Install/Repair Tasks",
             lambda: install_or_repair_schedules(self.config.project_root),
-            lambda _result: self.refresh_status(),
+            lambda _result: (self.refresh_status(), self.run_preflight()),
             modifies_files=False,
         )
 
@@ -171,9 +357,9 @@ class ScheduledReportsPage(QWidget):
         run_tool_background(
             self.result_panel,
             "scheduled_reports_uninstall",
-            "Uninstall Scheduled Tasks",
+            "Uninstall Tasks",
             lambda: uninstall_schedules(self.config.project_root),
-            lambda _result: self.refresh_status(),
+            lambda _result: (self.refresh_status(), self.run_preflight()),
             modifies_files=False,
         )
 
@@ -186,3 +372,28 @@ class ScheduledReportsPage(QWidget):
         result = open_path(scheduled_tools_log_path(self.config.project_root))
         if not result.success:
             self.result_panel.show_result(result)
+
+    def open_latest_generated_report(self) -> None:
+        if not self.latest_output_report:
+            self.result_panel.show_text("No generated report path has been recorded in this session yet.")
+            return
+        result = open_path(self.latest_output_report)
+        if not result.success:
+            self.result_panel.show_result(result)
+
+    def copy_diagnostics(self) -> None:
+        lines = ["Scheduled Reports Diagnostics", ""]
+        for key, card in self.cards.items():
+            lines.append(f"{key}: {card.value_label.text()}")
+        lines.extend(["", "Calendar Preview:"])
+        lines.extend(
+            f"{row.get('date')} {row.get('expected_automation_type') or 'none'} {row.get('status')}: {row.get('decision_reason')}"
+            for row in self.preview_rows
+        )
+        lines.extend(["", "Preflight:"])
+        lines.extend(f"{row.get('status')}: {row.get('name')} - {row.get('message')}" for row in self.preflight_rows)
+        text = "\n".join(lines)
+        app = QApplication.instance()
+        if app is not None:
+            app.clipboard().setText(text)
+        self.result_panel.show_text("Scheduled report diagnostics copied to the clipboard.")

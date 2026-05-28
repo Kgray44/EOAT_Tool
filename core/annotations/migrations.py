@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-LATEST_SCHEMA_VERSION = 1
+LATEST_SCHEMA_VERSION = 2
 
 
 def utc_now() -> str:
@@ -27,6 +27,9 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
     if 1 not in versions:
         _create_v1_schema(conn)
         conn.execute("INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)", (1, utc_now()))
+    if 2 not in versions:
+        _create_v2_phase4_schema(conn)
+        conn.execute("INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)", (2, utc_now()))
     conn.commit()
 
 
@@ -131,5 +134,36 @@ def _create_v1_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_note_targets_target ON note_targets(target_id);
         CREATE INDEX IF NOT EXISTS idx_note_tags_note ON note_tags(note_id);
         CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag_id);
+        """
+    )
+
+
+def _create_v2_phase4_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS annotation_suggestion_ignores (
+            id TEXT PRIMARY KEY,
+            suggestion_id TEXT NOT NULL UNIQUE,
+            audit_id TEXT,
+            field_key TEXT,
+            tag_name TEXT,
+            reason TEXT,
+            data_fingerprint TEXT,
+            ignored_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_suggestion_ignores_audit ON annotation_suggestion_ignores(audit_id);
+        CREATE INDEX IF NOT EXISTS idx_suggestion_ignores_field ON annotation_suggestion_ignores(field_key);
+
+        CREATE TABLE IF NOT EXISTS open_item_states (
+            item_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            reason TEXT,
+            resolved_at TEXT,
+            dismissed_at TEXT,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_open_item_states_status ON open_item_states(status);
         """
     )

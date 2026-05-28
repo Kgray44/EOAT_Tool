@@ -1,2 +1,2 @@
-Audit ID,Audit Date,Auditor,Plant/Area,Press/Machine #,EOAT Type,EOAT Moves,Number of Parts Picked,# of Grippers,Gripper Type,Gripper Model,Tubing Condition,Cable Management Condition,Mounting Hardware Condition,Photos Taken?,Photo Folder/Link,Notes,Entry Type,Source Audit ID,Compatibility Source
-DEMO-AUD-001,2026-05-18,Demo User,Demo Area,DEMO-PRESS-001,Vacuum,Part,1,N/A,N/A,N/A,Good,Good,Good,No,examples/demo_project/01_EOAT_Audit/Cell_Photos,Synthetic template row,Audited,,
+Audit ID,Audit Date,Auditor,Plant/Area,Press/Machine #,EOAT Type,EOAT Moves,Number of Parts Picked,# of Cups,# of Grippers,Gripper Type,Gripper Model,Tubing Condition,Cable Management Condition,Mounting Hardware Condition,Photos Taken?,Photo Folder/Link,Notes,Entry Type,Source Audit ID,Compatibility Source
+DEMO-AUD-001,2026-05-18,Demo User,Demo Area,DEMO-PRESS-001,Vacuum,Part,1,4,N/A,N/A,N/A,Good,Good,Good,No,examples/demo_project/01_EOAT_Audit/Cell_Photos,Synthetic template row,Audited,,

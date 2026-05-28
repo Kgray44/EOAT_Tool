@@ -6,6 +6,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from .compatibility_health import validate_compatibility_health
 from .audit_by_press import AUDIT_BY_PRESS_SHEET, audit_by_press_last_refreshed
 from .constants import TOOLKIT_ROOT
 from .audit_entries import (
@@ -24,7 +25,7 @@ from .audit_entries import (
     audit_field_applies,
     is_na_value,
 )
-from .gripper_fields import GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
+from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 from .audit_field_rules import (
     ELECTRICAL_DETAIL_FIELDS,
     ELECTRICAL_WIRING_PRESENT_FIELD,
@@ -43,10 +44,18 @@ from .audit_constants import (
 from .git_activity import is_git_repo
 from .logging import log_tool_run
 from .paths import resolve_project_paths
+from .photo_evidence import validate_photo_evidence
 from .result import ToolResult
 from .robot_info import validate_robot_info_workbook
 from .safe_files import ensure_directory, safe_write_text
 from .schedule import available_schedule_weeks
+from .validation_findings import (
+    ValidationFinding,
+    ValidationSeverity,
+    attach_findings,
+    make_finding,
+    write_validation_json_report,
+)
 from .workbook_schema import get_expected_headers, get_expected_sheets, get_key_inventory_headers
 
 MAJOR_AUDIT_COLUMNS = {
@@ -73,7 +82,7 @@ AUDIT_DROPDOWN_ALLOWED_VALUES = {
     GRIPPER_TYPE_FIELD: {*GRIPPER_TYPE_VALUES, NA_VALUE},
     "Cleanroom/Non-Cleanroom": {*CLEANROOM_DROPDOWN_VALUES, NA_VALUE},
 }
-AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD}
+AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD}
 
 BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS
 BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = "Source Audit ID and Compatibility Source"
@@ -85,16 +94,27 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
     details: list[str] = []
     warnings: list[str] = []
     errors: list[str] = []
-    metrics: dict[str, int | bool] = {}
+    metrics: dict[str, object] = {}
+    findings: list[ValidationFinding] = []
 
     if not paths.project_root.exists():
-        return ToolResult.fail(
+        findings.append(
+            make_finding(
+                ValidationSeverity.BLOCKER,
+                "project_foundation",
+                f"Missing project root: {paths.project_root}",
+                expected_behavior="The selected project root should exist before validation runs.",
+                recommended_action="Select an existing EOAT project root in Settings.",
+                source_validator="foundation",
+            )
+        )
+        return attach_findings(ToolResult.fail(
             "workbook_validator",
             "EOAT Project Foundation Validation",
             "Project root does not exist.",
             errors=[f"Missing project root: {paths.project_root}"],
             duration_seconds=time.perf_counter() - started,
-        )
+        ), findings)
 
     details.append(f"Project root exists: {paths.project_root}")
 
@@ -116,8 +136,19 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
 
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
-        errors.append(f"Missing master workbook: {workbook_path}")
-        return ToolResult.fail(
+        message = f"Missing master workbook: {workbook_path}"
+        errors.append(message)
+        findings.append(
+            make_finding(
+                ValidationSeverity.BLOCKER,
+                "workbook_schema",
+                message,
+                expected_behavior="The master tracker workbook should exist at the project workbook path.",
+                recommended_action="Restore the workbook from backup or select the correct project root.",
+                source_validator="foundation",
+            )
+        )
+        return attach_findings(ToolResult.fail(
             "workbook_validator",
             "EOAT Project Foundation Validation",
             "Master workbook is missing.",
@@ -126,14 +157,25 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
             errors=errors,
             metrics=metrics,
             duration_seconds=time.perf_counter() - started,
-        )
+        ), findings)
 
     details.append(f"Found master workbook: {workbook_path}")
     try:
         workbook = load_workbook(workbook_path, read_only=True, data_only=False)
     except Exception as exc:
-        errors.append(f"Could not open workbook with openpyxl: {exc}")
-        return ToolResult.fail(
+        message = f"Could not open workbook with openpyxl: {exc}"
+        errors.append(message)
+        findings.append(
+            make_finding(
+                ValidationSeverity.BLOCKER,
+                "workbook_lock",
+                message,
+                expected_behavior="Validation needs read access to the master workbook.",
+                recommended_action="Close the workbook in Excel or check file permissions, then retry validation.",
+                source_validator="foundation",
+            )
+        )
+        return attach_findings(ToolResult.fail(
             "workbook_validator",
             "EOAT Project Foundation Validation",
             "Master workbook exists but could not be opened.",
@@ -142,20 +184,61 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
             errors=errors,
             metrics=metrics,
             duration_seconds=time.perf_counter() - started,
-        )
+        ), findings)
 
     expected_sheets = get_expected_sheets()
     missing_sheets = [sheet for sheet in expected_sheets if sheet not in workbook.sheetnames]
     metrics["expected_sheet_count"] = len(expected_sheets)
     metrics["actual_sheet_count"] = len(workbook.sheetnames)
     if missing_sheets:
-        errors.extend(f"Missing expected sheet: {sheet}" for sheet in missing_sheets)
+        for sheet in missing_sheets:
+            message = f"Missing expected sheet: {sheet}"
+            errors.append(message)
+            findings.append(
+                make_finding(
+                    ValidationSeverity.ERROR,
+                    "workbook_schema",
+                    message,
+                    sheet_name=sheet,
+                    expected_behavior="All expected workbook sheets should be present.",
+                    recommended_action="Restore the missing sheet from the template or a trusted backup.",
+                    source_validator="foundation",
+                )
+            )
     else:
         details.append("All expected workbook sheets are present.")
     if AUDIT_BY_PRESS_SHEET not in workbook.sheetnames:
-        warnings.append("Audit by Press view missing or stale; refresh generated view.")
+        message = "Audit by Press view missing or stale; refresh generated view."
+        warnings.append(message)
+        findings.append(
+            make_finding(
+                ValidationSeverity.AUTO_FIXABLE,
+                "generated_view",
+                message,
+                sheet_name=AUDIT_BY_PRESS_SHEET,
+                expected_behavior="Generated Audit by Press view should be present and carry a refresh timestamp.",
+                recommended_action="Preview and apply the Refresh Generated Views safe fix.",
+                fix_available=True,
+                fix_id="refresh_generated_views",
+                source_validator="foundation",
+            )
+        )
     elif audit_by_press_last_refreshed(workbook) is None:
-        warnings.append("Audit by Press view missing or stale; refresh generated view.")
+        message = "Audit by Press view missing or stale; refresh generated view."
+        warnings.append(message)
+        findings.append(
+            make_finding(
+                ValidationSeverity.AUTO_FIXABLE,
+                "generated_view",
+                message,
+                sheet_name=AUDIT_BY_PRESS_SHEET,
+                expected_behavior="Generated Audit by Press view should carry a refresh timestamp.",
+                recommended_action="Preview and apply the Refresh Generated Views safe fix.",
+                fix_available=True,
+                fix_id="refresh_generated_views",
+                source_validator="foundation",
+            )
+        )
     else:
         details.append("Audit by Press generated view is present.")
 
@@ -191,44 +274,194 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         metrics["duplicate_inventory_header_count"] = len(duplicate_headers)
         metrics["legacy_vacuum_cups_header_present"] = int(legacy_vacuum_header_present)
         if missing_major_headers:
-            errors.extend(f"Missing major EOAT Inventory header: {header}" for header in missing_major_headers)
+            for header in missing_major_headers:
+                message = f"Missing major EOAT Inventory header: {header}"
+                errors.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.ERROR,
+                        "workbook_schema",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=1,
+                        column_name=header,
+                        expected_behavior="Major EOAT Inventory headers must be present for audit save/load workflows.",
+                        recommended_action="Preview and apply the Repair Legacy Headers safe fix or restore the header from the workbook template.",
+                        fix_available=True,
+                        fix_id="repair_legacy_headers",
+                        source_validator="foundation",
+                    )
+                )
         elif missing_key_headers:
-            warnings.extend(f"Missing key EOAT Inventory header: {header}" for header in missing_key_headers)
+            for header in missing_key_headers:
+                message = f"Missing key EOAT Inventory header: {header}"
+                warnings.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.AUTO_FIXABLE,
+                        "workbook_schema",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=1,
+                        column_name=header,
+                        expected_behavior="Key EOAT Inventory headers should be present.",
+                        recommended_action="Preview and apply the Repair Legacy Headers safe fix.",
+                        fix_available=True,
+                        fix_id="repair_legacy_headers",
+                        source_validator="foundation",
+                    )
+                )
         else:
             details.append("Key EOAT Inventory headers are present.")
         if missing_detail_headers:
-            warnings.extend(f"Missing detail EOAT Inventory header: {header}" for header in missing_detail_headers)
+            for header in missing_detail_headers:
+                message = f"Missing detail EOAT Inventory header: {header}"
+                warnings.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.AUTO_FIXABLE,
+                        "workbook_schema",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=1,
+                        column_name=header,
+                        expected_behavior="Detail EOAT Inventory headers should match the current workbook schema.",
+                        recommended_action="Preview and apply the Repair Legacy Headers safe fix.",
+                        fix_available=True,
+                        fix_id="repair_legacy_headers",
+                        source_validator="foundation",
+                    )
+                )
         if ELECTRICAL_WIRING_PRESENT_FIELD in schema_upgrade_headers:
-            warnings.append(
-                "Workbook is missing Electrical/Wiring Present?. Run Repair Workbook Schema to upgrade old workbooks."
+            message = "Workbook is missing Electrical/Wiring Present?. Run Repair Workbook Schema to upgrade old workbooks."
+            warnings.append(message)
+            findings.append(
+                make_finding(
+                    ValidationSeverity.AUTO_FIXABLE,
+                    "workbook_schema",
+                    message,
+                    sheet_name="EOAT Inventory",
+                    row_number=1,
+                    column_name=ELECTRICAL_WIRING_PRESENT_FIELD,
+                    expected_behavior="Current workbooks include Electrical/Wiring Present? to control electrical field applicability.",
+                    recommended_action="Preview and apply the Repair Legacy Headers safe fix.",
+                    fix_available=True,
+                    fix_id="repair_legacy_headers",
+                    source_validator="foundation",
+                )
             )
         if legacy_vacuum_header_present and has_parts_picked_header:
-            warnings.append(
+            message = (
                 "EOAT Inventory has both Number of Vacuum Cups and Number of Parts Picked. "
                 "Run Repair Workbook Schema to merge values into Number of Parts Picked and remove the legacy header."
             )
+            warnings.append(message)
+            findings.append(
+                make_finding(
+                    ValidationSeverity.AUTO_FIXABLE,
+                    "workbook_schema",
+                    message,
+                    sheet_name="EOAT Inventory",
+                    row_number=1,
+                    column_name=LEGACY_VACUUM_CUPS_FIELD,
+                    expected_behavior="Legacy vacuum-cup header should be migrated to Number of Parts Picked.",
+                    recommended_action="Preview and apply the Repair Legacy Headers safe fix.",
+                    fix_available=True,
+                    fix_id="repair_legacy_headers",
+                    source_validator="foundation",
+                )
+            )
         elif legacy_vacuum_header_present:
-            warnings.append(
+            message = (
                 "EOAT Inventory still uses legacy header Number of Vacuum Cups. "
                 "Run Repair Workbook Schema to rename it to Number of Parts Picked."
             )
+            warnings.append(message)
+            findings.append(
+                make_finding(
+                    ValidationSeverity.AUTO_FIXABLE,
+                    "workbook_schema",
+                    message,
+                    sheet_name="EOAT Inventory",
+                    row_number=1,
+                    column_name=LEGACY_VACUUM_CUPS_FIELD,
+                    expected_behavior="Legacy vacuum-cup header should be renamed to Number of Parts Picked.",
+                    recommended_action="Preview and apply the Repair Legacy Headers safe fix.",
+                    fix_available=True,
+                    fix_id="repair_legacy_headers",
+                    source_validator="foundation",
+                )
+            )
         if unexpected_headers:
-            warnings.extend(f"Unexpected EOAT Inventory header: {header}" for header in unexpected_headers)
+            for header in unexpected_headers:
+                message = f"Unexpected EOAT Inventory header: {header}"
+                warnings.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "workbook_schema",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=1,
+                        column_name=header,
+                        expected_behavior="Workbook headers should match the expected local schema.",
+                        recommended_action="Review whether this is a local-only note column or an accidental workbook edit.",
+                        source_validator="foundation",
+                    )
+                )
         if duplicate_headers:
-            warnings.extend(f"Duplicate EOAT Inventory header: {header}" for header in duplicate_headers)
+            for header in duplicate_headers:
+                message = f"Duplicate EOAT Inventory header: {header}"
+                warnings.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.ERROR,
+                        "workbook_schema",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=1,
+                        column_name=header,
+                        expected_behavior="Each EOAT Inventory header should appear once.",
+                        recommended_action="Review the duplicate header manually before saving more audit rows.",
+                        source_validator="foundation",
+                    )
+                )
         if any(header in headers for header in BLANK_CELL_VALIDATION_IGNORED_FIELDS):
             details.append(
                 f"Blank {BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL} cells are intentionally ignored during "
                 "blank-cell validation because they are autofilled/system-managed compatibility metadata; "
                 "the columns still remain part of the workbook schema."
             )
-        inventory_warnings, inventory_metrics = _validate_inventory_rows(ws, headers)
+        inventory_warnings, inventory_metrics, inventory_findings = _validate_inventory_rows(ws, headers)
         warnings.extend(inventory_warnings)
         metrics.update(inventory_metrics)
+        findings.extend(inventory_findings)
     else:
-        errors.append("EOAT Inventory sheet is missing, so headers could not be checked.")
+        message = "EOAT Inventory sheet is missing, so headers could not be checked."
+        errors.append(message)
+        findings.append(
+            make_finding(
+                ValidationSeverity.ERROR,
+                "workbook_schema",
+                message,
+                sheet_name="EOAT Inventory",
+                expected_behavior="EOAT Inventory sheet must exist for audit save/load workflows.",
+                recommended_action="Restore EOAT Inventory from the template or a trusted backup.",
+                source_validator="foundation",
+            )
+        )
 
     workbook.close()
+    compatibility_findings = validate_compatibility_health(workbook_path)
+    findings.extend(compatibility_findings)
+    metrics["compatibility_health_finding_count"] = len(compatibility_findings)
+
+    evidence_warnings, evidence_metrics, evidence_findings = validate_photo_evidence(paths.project_root)
+    warnings.extend(evidence_warnings)
+    metrics.update(evidence_metrics)
+    findings.extend(evidence_findings)
+    if evidence_metrics.get("photo_evidence_audit_count", 0):
+        details.append("Photo evidence coverage checked.")
 
     robot_warnings, robot_errors, robot_metrics = validate_robot_info_workbook(paths.project_root)
     warnings.extend(robot_warnings)
@@ -268,7 +501,7 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         summary = "Project foundation validation completed with warnings."
     if errors:
         summary = "Project foundation validation failed."
-    return ToolResult(
+    return attach_findings(ToolResult(
         tool_id="workbook_validator",
         tool_name="EOAT Project Foundation Validation",
         success=not errors,
@@ -278,11 +511,12 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         errors=errors,
         metrics=metrics,
         duration_seconds=time.perf_counter() - started,
-    )
+    ), findings)
 
 
-def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[str, int]]:
+def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
     warnings: list[str] = []
+    findings: list[ValidationFinding] = []
     metrics = {
         "duplicate_audit_id_count": 0,
         "blank_saved_audit_cell_count": 0,
@@ -299,7 +533,7 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         "audit_row_count": 0,
     }
     if not headers:
-        return warnings, metrics
+        return warnings, metrics, findings
 
     header_positions = {header: index for index, header in enumerate(headers)}
     missing_electrical_wiring_control = ELECTRICAL_WIRING_PRESENT_FIELD not in header_positions
@@ -315,6 +549,29 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
     invalid_numeric_examples: list[str] = []
     missing_eoat_moves_examples: list[str] = []
     source_eoat_moves_by_audit_id: dict[str, str] = {}
+    major_na_seen: set[tuple[int, str]] = set()
+
+    def add_major_na(row_number: int, field_name: str, row_data: dict[str, object]) -> None:
+        if (row_number, field_name) in major_na_seen:
+            return
+        major_na_seen.add((row_number, field_name))
+        major_na_examples.add(f"row {row_number} {field_name}")
+        findings.append(
+            make_finding(
+                ValidationSeverity.WARNING,
+                "audit_data",
+                f"Applicable major EOAT Inventory cell is blank or contains {NA_VALUE}: row {row_number} {field_name}",
+                sheet_name="EOAT Inventory",
+                row_number=row_number,
+                column_name=field_name,
+                audit_id=_cell_text(row_data.get("Audit ID")),
+                machine_number=_cell_text(row_data.get("Press/Machine #")),
+                current_value=row_data.get(field_name),
+                expected_behavior="Applicable major audit fields should contain a verified value or Unknown / Not Checked when appropriate.",
+                recommended_action="Open the audit row and complete the field; do not treat N/A as complete when the field applies.",
+                source_validator="inventory_rows",
+            )
+        )
 
     if EOAT_MOVES_FIELD in header_positions:
         for row in ws.iter_rows(min_row=2, values_only=True):
@@ -338,17 +595,33 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         if audit_id and not is_na_value(audit_id):
             if audit_id in audit_ids:
                 duplicate_ids.add(audit_id)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.ERROR,
+                        "audit_data",
+                        f"Duplicate Audit ID value: {audit_id}",
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name="Audit ID",
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=audit_id,
+                        expected_behavior="Audit IDs must be unique across EOAT Inventory rows.",
+                        recommended_action=f"Compare this row with row {audit_ids[audit_id]} and assign a unique Audit ID before saving updates.",
+                        source_validator="inventory_rows",
+                    )
+                )
             else:
                 audit_ids[audit_id] = row_number
         elif "Audit ID" in headers:
-            major_na_examples.add(f"row {row_number} Audit ID")
+            add_major_na(row_number, "Audit ID", row_data)
 
         requirements = entry_type_requirements(row_data)
         for required_field in requirements["required"]:
             if required_field in BLANK_CELL_VALIDATION_IGNORED_FIELDS:
                 continue
             if required_field in header_positions and field_applies(row_data, required_field) and _is_missing_audit_value(row_data.get(required_field)):
-                major_na_examples.add(f"row {row_number} {required_field}")
+                add_major_na(row_number, required_field, row_data)
 
         for header in get_expected_headers("EOAT Inventory"):
             if header not in header_positions:
@@ -363,14 +636,33 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 applies = False
             if (
                 header in MAJOR_AUDIT_COLUMNS
+                and (header != CUP_COUNT_FIELD or header in requirements["important"])
                 and _is_missing_audit_value(value)
                 and applies
             ):
-                major_na_examples.add(f"row {row_number} {header}")
+                add_major_na(row_number, header, row_data)
             if not applies and is_na_value(value):
                 non_applicable_na_examples.append(f"row {row_number} {header}")
             if not applies and is_meaningful_value(value):
                 stale_hidden_value_examples.append(f"row {row_number} {header}")
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.AUTO_FIXABLE,
+                        "audit_data",
+                        f"Non-applicable EOAT Inventory cell contains a stale value: row {row_number} {header}",
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=header,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=value,
+                        expected_behavior=f"Non-applicable fields should be saved as {NA_VALUE}.",
+                        recommended_action="Preview and apply the Clear Stale Hidden Values safe fix.",
+                        fix_available=True,
+                        fix_id="clear_stale_hidden_na",
+                        source_validator="inventory_rows",
+                    )
+                )
             if (
                 header in AUDIT_DROPDOWN_ALLOWED_VALUES
                 and _cell_text(value)
@@ -378,6 +670,22 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 and _cell_text(value) not in AUDIT_DROPDOWN_ALLOWED_VALUES[header]
             ):
                 invalid_dropdown_examples.append(f"row {row_number} {header}={_cell_text(value)}")
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "audit_data",
+                        f"Invalid EOAT Inventory dropdown value: row {row_number} {header}={_cell_text(value)}",
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=header,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=value,
+                        expected_behavior=f"Value should be one of: {', '.join(sorted(AUDIT_DROPDOWN_ALLOWED_VALUES[header]))}.",
+                        recommended_action="Open the audit field and choose a valid dropdown value; rebuild dropdown validation if Excel validation is missing.",
+                        source_validator="inventory_rows",
+                    )
+                )
             if (
                 header in AUDIT_NUMERIC_FIELDS
                 and applies
@@ -386,18 +694,80 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 and not _is_non_negative_whole_number(value)
             ):
                 invalid_numeric_examples.append(f"row {row_number} {header}={_cell_text(value)}")
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.ERROR,
+                        "audit_data",
+                        f"Invalid EOAT Inventory whole-number value: row {row_number} {header}={_cell_text(value)}",
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=header,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=value,
+                        expected_behavior="Applicable count fields must be non-negative whole numbers.",
+                        recommended_action="Open the audit field and correct the count; do not guess the engineering value.",
+                        source_validator="inventory_rows",
+                    )
+                )
         if EOAT_MOVES_FIELD in header_positions and _is_missing_eoat_moves(row_data.get(EOAT_MOVES_FIELD)):
             entry_type = _cell_text(row_data.get("Entry Type")).lower()
             source_id = _cell_text(row_data.get(SOURCE_AUDIT_ID_FIELD))
             source_missing = source_id and _is_missing_eoat_moves(source_eoat_moves_by_audit_id.get(source_id))
             if entry_type == "compatible" and source_missing:
-                missing_eoat_moves_examples.append(f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD} inherited from source audit {source_id}")
+                message = f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD} inherited from source audit {source_id}"
+                missing_eoat_moves_examples.append(message)
             else:
-                missing_eoat_moves_examples.append(f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD}")
+                message = f"row {row_number} Missing important audit field: {EOAT_MOVES_FIELD}"
+                missing_eoat_moves_examples.append(message)
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "audit_data",
+                    message,
+                    sheet_name="EOAT Inventory",
+                    row_number=row_number,
+                    column_name=EOAT_MOVES_FIELD,
+                    audit_id=audit_id,
+                    machine_number=_cell_text(row_data.get("Press/Machine #")),
+                    current_value=row_data.get(EOAT_MOVES_FIELD),
+                    expected_behavior="EOAT Moves should be known for source audits and inherited compatibility rows.",
+                    recommended_action="Open the audit row and verify whether the EOAT moves parts, sprues, or both.",
+                    source_validator="inventory_rows",
+                )
+            )
         for warning in hybrid_completeness_warnings(row_data):
             hybrid_warning_examples.append(f"row {row_number}: {warning}")
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "audit_data",
+                    f"row {row_number}: {warning}",
+                    sheet_name="EOAT Inventory",
+                    row_number=row_number,
+                    audit_id=audit_id,
+                    machine_number=_cell_text(row_data.get("Press/Machine #")),
+                    expected_behavior="Hybrid audits should capture both vacuum-side and gripper/mechanical-side details.",
+                    recommended_action="Open the audit row and complete the missing hybrid section.",
+                    source_validator="inventory_rows",
+                )
+            )
         for warning in semantic_consistency_warnings(row_data):
             semantic_warning_examples.append(f"row {row_number}: {warning}")
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "audit_data",
+                    f"row {row_number}: {warning}",
+                    sheet_name="EOAT Inventory",
+                    row_number=row_number,
+                    audit_id=audit_id,
+                    machine_number=_cell_text(row_data.get("Press/Machine #")),
+                    expected_behavior="Audit field values should be internally consistent with field applicability rules.",
+                    recommended_action="Open the audit row and resolve the conflicting field values.",
+                    source_validator="inventory_rows",
+                )
+            )
 
     metrics["duplicate_audit_id_count"] = len(duplicate_ids)
     metrics["blank_saved_audit_cell_count"] = blank_cells
@@ -434,7 +804,7 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
             "for unanswered user-entered audit fields. Autofilled/system-managed compatibility metadata fields "
             "are intentionally ignored."
         )
-    return warnings, metrics
+    return warnings, metrics, findings
 
 
 def _is_audit_data_row(row_data: dict[str, object]) -> bool:
@@ -490,6 +860,9 @@ def run_foundation_validation(
             report_path = write_validation_report(project_root, result)
             result.output_reports.append(str(report_path))
             result.files_created.append(str(report_path))
+            json_report_path = write_validation_json_report(project_root, result)
+            result.output_reports.append(str(json_report_path))
+            result.files_created.append(str(json_report_path))
         except FileExistsError:
             # Minute-level names can collide during rapid tests; retry with seconds.
             paths = resolve_project_paths(project_root)
@@ -501,6 +874,9 @@ def run_foundation_validation(
             )
             result.output_reports.append(str(report_path))
             result.files_created.append(str(report_path))
+            json_report_path = write_validation_json_report(project_root, result)
+            result.output_reports.append(str(json_report_path))
+            result.files_created.append(str(json_report_path))
         except Exception as exc:
             result.warnings.append(f"Could not write validation report: {exc}")
     if log_activity:

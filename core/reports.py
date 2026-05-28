@@ -48,7 +48,7 @@ def report_folders(project_root: str | Path, limit: int = 8) -> list[ReportFolde
         ("Morning Plans", paths.morning_plans),
         ("Presentation Assets", paths.presentation_assets_root),
         ("Final Report Drafts", paths.final_report),
-        ("Handoff Packages", paths.handoff_package_root),
+        ("Handoff Packages", paths.final_handoff),
         ("Executive Summary", paths.executive_summary),
         ("Training Materials", paths.training_materials),
         ("Backups", paths.project_admin / "Backups"),

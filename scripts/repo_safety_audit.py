@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,7 +25,8 @@ TEXT_SUFFIXES = {
     ".yml",
 }
 
-DATA_SUFFIXES = {".csv", ".tsv", ".xlsx", ".xls", ".xlsm", ".xlsb", ".jsonl", ".zip"}
+WORKBOOK_SUFFIXES = {".xlsx", ".xls", ".xlsm", ".xlsb"}
+DATA_SUFFIXES = {".csv", ".tsv", *WORKBOOK_SUFFIXES, ".jsonl", ".zip"}
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".heic", ".tif", ".tiff", ".webp"}
 IGNORED_DIRS = {
     ".git",
@@ -47,6 +49,19 @@ IGNORED_TOP_LEVEL = {
     "local_data",
 }
 ALLOW_PREFIXES = (
+    ("examples", "demo_project"),
+    ("templates",),
+    ("tests",),
+    ("data_templates",),
+    ("docs",),
+)
+DATA_ALLOW_PREFIXES = (
+    ("examples", "demo_project"),
+    ("templates",),
+    ("tests",),
+    ("data_templates",),
+)
+IMAGE_ALLOW_PREFIXES = (
     ("examples", "demo_project"),
     ("templates",),
     ("tests",),
@@ -101,13 +116,21 @@ LINE_RULES: list[tuple[str, str, re.Pattern[str]]] = [
         "Customer field detected outside an allowed demo/template/test area.",
         re.compile(r"(?i)\b(?:bill-to|customer name|customer)\b\s*[:=]\s*[A-Z][A-Za-z0-9 ._-]{3,}"),
     ),
+    (
+        "WARNING",
+        "Public company reference appears near operational context; review before publishing.",
+        re.compile(r"(?i)\b(?:nolato|gw\s*plastics|gwplastics)\b.{0,120}\b(?:capacity|cycle\s*time|downtime|scrap|mold|part\s*(?:number|no\.?|#)|customer|press|maintenance)\b"),
+    ),
 ]
 
 PATH_BLOCKERS = [
     ("config/local_config.json", "Local config file must not be committed."),
     ("config/user_config.json", "Local config file must not be committed."),
     ("config/config.json", "Local config file must not be committed."),
+    ("local_config.json", "Local config file must not be committed."),
+    ("user_config.json", "Local config file must not be committed."),
     (".env", "Environment file must not be committed."),
+    (".env.*", "Environment file must not be committed."),
 ]
 
 SENSITIVE_PATH_WORDS = [
@@ -135,6 +158,45 @@ SENSITIVE_PATH_WORDS = [
     "weekly_status_reports",
 ]
 
+GENERATED_PATH_PARTS = {
+    "reports",
+    "logs",
+    "cache",
+    "activity_logs",
+    "daily_status_reports",
+    "weekly_status_reports",
+    "validation_reports",
+    "mentor_briefs",
+    "dashboard_exports",
+    "audit_progress_reports",
+    "issue_analysis_reports",
+    "documentation_gap_reports",
+    "bom_standardization_reports",
+    "fmea_reports",
+    "candidate_cells",
+    "auto_exported_content",
+    "handoff_package",
+    "final_report",
+    "backups",
+    "_backups",
+    "snapshots",
+    "exports",
+}
+
+REAL_PROJECT_ROOT_PARTS = {
+    "eoat_standardization_project",
+    "real_project",
+    "real_projects",
+    "private_data",
+    "local_data",
+}
+
+LOCAL_CONFIG_NAMES = {
+    "local_config.json",
+    "user_config.json",
+    "config.json",
+}
+
 LEGACY_PRIVATE_FILENAMES = [
     re.compile(r"Royalton.*Master Press List", re.IGNORECASE),
     re.compile(r"Plant\s*4.*Press Capacity", re.IGNORECASE),
@@ -151,6 +213,16 @@ def _rel_parts(path: Path, root: Path) -> tuple[str, ...]:
 def is_allowed_repo_artifact(path: Path, root: Path) -> bool:
     parts = _rel_parts(path, root)
     return any(parts[: len(prefix)] == prefix for prefix in ALLOW_PREFIXES)
+
+
+def is_allowed_data_artifact(path: Path, root: Path) -> bool:
+    parts = _rel_parts(path, root)
+    return any(parts[: len(prefix)] == prefix for prefix in DATA_ALLOW_PREFIXES)
+
+
+def is_allowed_image_artifact(path: Path, root: Path) -> bool:
+    parts = _rel_parts(path, root)
+    return any(parts[: len(prefix)] == prefix for prefix in IMAGE_ALLOW_PREFIXES)
 
 
 def should_skip_dir(path: Path, root: Path) -> bool:
@@ -180,6 +252,46 @@ def iter_files(root: Path) -> list[Path]:
     return files
 
 
+def git_staged_files(root: str | Path, git_executable: str = "git") -> tuple[list[Path], str | None]:
+    root_path = Path(root).resolve()
+    try:
+        completed = subprocess.run(
+            [git_executable, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"],
+            cwd=root_path,
+            check=False,
+            capture_output=True,
+            text=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return [], f"Could not list staged files: {exc}"
+    if completed.returncode != 0:
+        error = completed.stderr.decode("utf-8", errors="replace").strip()
+        return [], f"Could not list staged files: {error or completed.returncode}"
+    names = [name.decode("utf-8", errors="replace") for name in completed.stdout.split(b"\0") if name]
+    return [root_path / name for name in names], None
+
+
+def audit_paths(root: str | Path, paths: list[str | Path]) -> list[Finding]:
+    root_path = Path(root).resolve()
+    findings: list[Finding] = []
+    for raw in paths:
+        path = Path(raw)
+        if not path.is_absolute():
+            path = root_path / path
+        if path.exists() and path.is_file():
+            findings.extend(audit_file(path.resolve(), root_path))
+    return findings
+
+
+def audit_staged_files(root: str | Path, git_executable: str = "git") -> list[Finding]:
+    root_path = Path(root).resolve()
+    files, warning = git_staged_files(root_path, git_executable)
+    if warning:
+        return [Finding("BLOCKER", root_path, warning)]
+    return audit_paths(root_path, files)
+
+
 def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000) -> list[Finding]:
     findings: list[Finding] = []
     if path.resolve() == Path(__file__).resolve():
@@ -187,24 +299,43 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
     rel = path.relative_to(root).as_posix()
     rel_lower = rel.lower()
     allowed = is_allowed_repo_artifact(path, root)
+    allowed_data = is_allowed_data_artifact(path, root)
+    allowed_image = is_allowed_image_artifact(path, root)
     is_test_file = _rel_parts(path, root)[:1] == ("tests",)
+    parts_lower = tuple(part.lower().replace("-", "_").replace(" ", "_") for part in _rel_parts(path, root))
 
     for pattern, message in PATH_BLOCKERS:
         if _path_matches_blocker(rel_lower, pattern.lower()):
             findings.append(Finding("BLOCKER", path, message))
+    if (
+        path.name.lower() in LOCAL_CONFIG_NAMES
+        or path.name.lower().endswith(".local.json")
+    ) and not any(finding.message == "Local config file must not be committed." for finding in findings):
+        findings.append(Finding("BLOCKER", path, "Local config file must not be committed."))
 
     if not allowed:
+        if any(part in REAL_PROJECT_ROOT_PARTS for part in parts_lower):
+            findings.append(Finding("BLOCKER", path, "Real project root path is outside the committed repo boundary."))
+
         for pattern in LEGACY_PRIVATE_FILENAMES:
             if pattern.search(path.name):
                 findings.append(Finding("BLOCKER", path, "Private reference workbook filename detected."))
 
         normalized = rel_lower.replace("-", "_").replace(" ", "_")
+        if any(part in GENERATED_PATH_PARTS for part in parts_lower):
+            findings.append(Finding("BLOCKER", path, "Generated reports/logs/cache/backups/exports path is outside the demo/template/test allowlist."))
+
         if any(word.replace(" ", "_") in normalized for word in SENSITIVE_PATH_WORDS):
             if path.suffix.lower() in DATA_SUFFIXES | IMAGE_SUFFIXES or "reports" in normalized or "logs" in normalized:
                 findings.append(Finding("BLOCKER", path, "Operational data/output path is outside the demo/template/test allowlist."))
 
         if path.suffix.lower() in DATA_SUFFIXES | IMAGE_SUFFIXES and path.stat().st_size > max_large_file_bytes:
             findings.append(Finding("WARNING", path, "Large data/media file found outside the allowlist; review for real operational content."))
+
+    if path.suffix.lower() in WORKBOOK_SUFFIXES and not allowed_data:
+        findings.append(Finding("BLOCKER", path, "Workbook file is outside allowed demo/template/test/data-template paths."))
+    if path.suffix.lower() in IMAGE_SUFFIXES and not allowed_image:
+        findings.append(Finding("BLOCKER", path, "Photo/image file is outside allowed demo/template/test/docs paths."))
 
     if path.suffix.lower() not in TEXT_SUFFIXES:
         return findings
@@ -248,10 +379,12 @@ def print_findings(findings: list[Finding], root: Path) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Scan the EOAT toolkit repository for NDA-sensitive files or content before commit.")
     parser.add_argument("--root", default=".", help="Repository root to scan. Defaults to the current directory.")
+    parser.add_argument("--staged", action="store_true", help="Scan only staged files using git diff --cached.")
+    parser.add_argument("--git", default="git", help="Git executable to use with --staged.")
     args = parser.parse_args(argv)
 
     root = Path(args.root).resolve()
-    findings = audit_repo(root)
+    findings = audit_staged_files(root, args.git) if args.staged else audit_repo(root)
     print_findings(findings, root)
     return 1 if any(finding.severity == "BLOCKER" for finding in findings) else 0
 

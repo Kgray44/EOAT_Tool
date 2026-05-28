@@ -18,13 +18,22 @@ def add_cards(layout: QGridLayout, names: list[str]) -> dict[str, StatusCard]:
 
 
 def populate_table(table: QTableWidget, rows: list[dict], columns: list[str]) -> None:
-    table.setColumnCount(len(columns))
-    table.setHorizontalHeaderLabels(columns)
-    table.setRowCount(len(rows))
-    for row_index, row in enumerate(rows):
-        for col_index, column in enumerate(columns):
-            table.setItem(row_index, col_index, QTableWidgetItem(str(row.get(column, ""))))
-    table.resizeColumnsToContents()
+    sorting = table.isSortingEnabled()
+    table.setSortingEnabled(False)
+    table.blockSignals(True)
+    table.setUpdatesEnabled(False)
+    try:
+        table.setColumnCount(len(columns))
+        table.setHorizontalHeaderLabels(columns)
+        table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            for col_index, column in enumerate(columns):
+                table.setItem(row_index, col_index, QTableWidgetItem(str(row.get(column, ""))))
+        table.resizeColumnsToContents()
+    finally:
+        table.setUpdatesEnabled(True)
+        table.blockSignals(False)
+        table.setSortingEnabled(sorting)
 
 
 def counts_to_rows(counts: dict[str, int], key_name: str = "Item") -> list[dict[str, object]]:
@@ -32,4 +41,3 @@ def counts_to_rows(counts: dict[str, int], key_name: str = "Item") -> list[dict[
         {key_name: key, "Count": value}
         for key, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     ]
-

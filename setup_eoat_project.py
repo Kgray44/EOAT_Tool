@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from core.gripper_fields import GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
+from core.gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 
 try:
     from openpyxl import Workbook
@@ -173,6 +173,7 @@ SHEETS: dict[str, list[str]] = {
         GRIPPER_TYPE_FIELD,
         "Gripper Model",
         "Gripper Size",
+        CUP_COUNT_FIELD,
         "Cup Type/Material",
         "Cup Diameter/Size",
         "Vacuum Generator Type",
@@ -431,6 +432,7 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
 WHOLE_NUMBER_VALIDATIONS: dict[str, list[str]] = {
     "EOAT Inventory": [
         "Number of Parts Picked",
+        CUP_COUNT_FIELD,
         GRIPPER_COUNT_FIELD,
         "EOAT Vacuum Circuits",
         "EOAT Pressure Circuits",

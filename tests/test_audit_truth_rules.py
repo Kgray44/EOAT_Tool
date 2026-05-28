@@ -20,6 +20,7 @@ from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 
 def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project):
     vacuum = {"EOAT Type": "Vacuum"}
+    assert field_applies(vacuum, "# of Cups")
     assert field_applies(vacuum, "Cup Type/Material")
     assert not field_applies(vacuum, "Gripper Model")
     assert not field_applies(vacuum, "# of Grippers")
@@ -27,14 +28,17 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
     mechanical = {"EOAT Type": "Mechanical / Gripper"}
     assert field_applies(mechanical, "Gripper Model")
     assert field_applies(mechanical, "# of Grippers")
+    assert not field_applies(mechanical, "# of Cups")
     assert not field_applies(mechanical, "Cup Type/Material")
 
     hybrid = {"EOAT Type": "Hybrid"}
+    assert field_applies(hybrid, "# of Cups")
     assert field_applies(hybrid, "Cup Type/Material")
     assert field_applies(hybrid, "Gripper Model")
     assert field_applies(hybrid, "# of Grippers")
 
     unknown = {"EOAT Type": "Unknown / Needs Review"}
+    assert field_applies(unknown, "# of Cups")
     assert field_applies(unknown, "Cup Type/Material")
     assert not field_applies(unknown, "Gripper Model")
     assert not field_applies(unknown, "# of Grippers")
@@ -82,6 +86,7 @@ def test_hybrid_and_semantic_warnings_are_non_blocking(fake_project):
         "Status": "In Progress",
     }
     assert len(hybrid_completeness_warnings(entry)) == 2
+    assert "vacuum-side" not in " ".join(hybrid_completeness_warnings({**entry, "# of Cups": "4"}))
     result = save_audit_entry(fake_project, entry)
     assert result.success, result.errors
     assert result.metrics["hybrid_warning_count"] == 2
@@ -90,6 +95,7 @@ def test_hybrid_and_semantic_warnings_are_non_blocking(fake_project):
         {
             "EOAT Type": "Mechanical / Gripper",
             "Gripper Type": "Vacuum",
+            "# of Cups": "4",
             "Cup Type/Material": "Silicone",
             "Gripper Model": "Rubber",
             "Sensors Present?": "No",
@@ -164,6 +170,16 @@ def test_physical_audit_blank_tool_number_is_high_priority_warning(fake_project)
 
     assert result.success, result.errors
     assert "Missing important audit field: Tool #" in "\n".join(result.warnings)
+
+
+def test_cup_count_is_important_for_vacuum_and_hybrid_but_not_gripper():
+    _errors, vacuum_warnings = validate_audit_entry({"EOAT Type": "Vacuum", "# of Cups": ""})
+    _errors, hybrid_warnings = validate_audit_entry({"EOAT Type": "Hybrid", "# of Cups": ""})
+    _errors, gripper_warnings = validate_audit_entry({"EOAT Type": "Mechanical / Gripper", "# of Cups": "N/A"})
+
+    assert "Missing important audit field: # of Cups" in "\n".join(vacuum_warnings)
+    assert "Missing important audit field: # of Cups" in "\n".join(hybrid_warnings)
+    assert "Missing important audit field: # of Cups" not in "\n".join(gripper_warnings)
 
 
 def test_connection_type_is_mounting_connection_not_qd_detail():

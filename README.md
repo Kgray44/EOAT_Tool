@@ -103,7 +103,7 @@ Example:
 Run before committing:
 
 ```powershell
-python scripts/repo_safety_audit.py
+python scripts/repo_safety_audit.py --staged
 ```
 
 The audit reports `BLOCKER`, `WARNING`, and `INFO` findings. Blockers must be fixed before publishing.
@@ -114,6 +114,14 @@ Optional local pre-commit check:
 powershell -ExecutionPolicy Bypass -File scripts/pre_commit_check.ps1
 ```
 
+Optional local hook installer:
+
+```powershell
+python scripts/install_pre_commit_hook.py
+```
+
+Use the app's **Release Readiness** page for staged-file checks, git status, safety-audit status, README/USAGE checks, and the safe commit checklist. Use **Backup Manager** to preview old workbook backup cleanup before deleting anything.
+
 ## Tests
 
 ```powershell
@@ -123,7 +131,8 @@ python -m pytest
 ## GitHub Publishing Checklist
 
 - Run `python -m pytest`.
-- Run `python scripts/repo_safety_audit.py`.
+- Run `python scripts/repo_safety_audit.py --staged`.
+- Run the full audit `python scripts/repo_safety_audit.py --root .` before publishing.
 - Confirm `EOAT_Standardization_Project/` and any real project root are ignored or outside the repo.
 - Confirm local config files are not staged.
 - Confirm no real workbooks, reports, logs, photos, backups, snapshots, exports, capacity files, audit entries, customer names, mold numbers, part numbers, or internal paths are staged.

@@ -4,6 +4,7 @@ from datetime import date
 
 try:
     from PySide6.QtWidgets import (
+        QApplication,
         QCheckBox,
         QComboBox,
         QFormLayout,
@@ -13,17 +14,25 @@ try:
         QListWidget,
         QListWidgetItem,
         QPushButton,
+        QTableWidget,
+        QTableWidgetItem,
         QTextEdit,
         QVBoxLayout,
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QCheckBox = QComboBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QPushButton = QTextEdit = QVBoxLayout = QWidget = None
+    QApplication = QCheckBox = QComboBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.widgets.tool_run_panel import ToolRunPanel
 from app.page_tasks import run_tool_background
 from core.openers import open_path
 from core.paths import resolve_project_paths
+from core.photo_evidence import (
+    audit_photo_intake_folder,
+    create_audit_photo_intake_folder,
+    evidence_coverage_for_audit,
+    export_photo_checklist,
+)
 from core.photo_indexing import PHOTO_VIEW_FOLDERS, intake_photos, list_incoming_photos, preview_photo_intake
 
 
@@ -94,6 +103,25 @@ class PhotosPage(QWidget):
         form.addRow(preview_button, confirm_button)
         top.addWidget(form_container, stretch=1)
         layout.addLayout(top, stretch=2)
+
+        evidence_heading = QLabel("Audit Photo Evidence")
+        evidence_heading.setStyleSheet("font-size: 13pt; font-weight: 600;")
+        layout.addWidget(evidence_heading)
+        evidence_actions = QHBoxLayout()
+        for label, callback in [
+            ("Refresh Evidence Coverage", self.refresh_evidence_coverage),
+            ("Create Audit Intake Folder", self.create_audit_intake_folder),
+            ("Export Photo Checklist", self.export_audit_photo_checklist),
+            ("Copy Intake Path", self.copy_audit_intake_path),
+            ("Open Audit Intake Folder", self.open_audit_intake_folder),
+        ]:
+            button = QPushButton(label)
+            button.clicked.connect(callback)
+            evidence_actions.addWidget(button)
+        layout.addLayout(evidence_actions)
+        self.evidence_table = QTableWidget(0, 7)
+        self.evidence_table.setHorizontalHeaderLabels(["Category", "Applies", "Required", "Present", "Photos", "Status", "Warning"])
+        layout.addWidget(self.evidence_table, stretch=1)
 
         self.result_panel = ToolRunPanel()
         layout.addWidget(self.result_panel, stretch=1)
@@ -174,6 +202,7 @@ class PhotosPage(QWidget):
     def _intake_finished(self, result) -> None:
         if result.success:
             self.refresh_incoming()
+            self.refresh_evidence_coverage()
 
     def open_incoming(self) -> None:
         result = open_path(resolve_project_paths(self.config.project_root).incoming_photos)
@@ -182,5 +211,65 @@ class PhotosPage(QWidget):
 
     def open_cell_photos(self) -> None:
         result = open_path(resolve_project_paths(self.config.project_root).cell_photos)
+        if not result.success:
+            self.result_panel.show_result(result)
+
+    def refresh_evidence_coverage(self) -> None:
+        audit_id = self.audit_id_edit.text().strip()
+        self.evidence_table.setRowCount(0)
+        if not audit_id:
+            self.result_panel.show_text("Enter a Related Audit ID to review photo evidence coverage.")
+            return
+        coverage = evidence_coverage_for_audit(self.config.project_root, audit_id)
+        if coverage is None:
+            self.result_panel.show_text(f"No audit row found for {audit_id}. You can still create an intake folder for phone photos.")
+            return
+        self.evidence_table.setRowCount(len(coverage.statuses))
+        for row_index, status in enumerate(coverage.statuses):
+            values = [
+                status.label,
+                "Yes" if status.applies else "No",
+                "Yes" if status.required else "No",
+                "Yes" if status.present else "No",
+                str(status.photo_count),
+                status.status,
+                status.warning,
+            ]
+            for column, value in enumerate(values):
+                self.evidence_table.setItem(row_index, column, QTableWidgetItem(value))
+        self.result_panel.show_text(
+            f"Evidence coverage for {coverage.audit_id}: "
+            f"{coverage.complete_count} complete, {coverage.missing_required_count} required missing."
+        )
+
+    def create_audit_intake_folder(self) -> None:
+        audit_id = self.audit_id_edit.text().strip()
+        result = create_audit_photo_intake_folder(self.config.project_root, audit_id)
+        self.result_panel.show_result(result)
+
+    def export_audit_photo_checklist(self) -> None:
+        audit_id = self.audit_id_edit.text().strip()
+        result = export_photo_checklist(self.config.project_root, audit_id)
+        self.result_panel.show_result(result)
+
+    def copy_audit_intake_path(self) -> None:
+        audit_id = self.audit_id_edit.text().strip()
+        if not audit_id:
+            self.result_panel.show_text("Enter a Related Audit ID before copying the intake path.")
+            return
+        path = audit_photo_intake_folder(self.config.project_root, audit_id)
+        app = QApplication.instance() if QApplication is not None else None
+        if app is None:
+            self.result_panel.show_text(str(path))
+            return
+        app.clipboard().setText(str(path))
+        self.result_panel.show_text(f"Copied intake path:\n{path}")
+
+    def open_audit_intake_folder(self) -> None:
+        audit_id = self.audit_id_edit.text().strip()
+        if not audit_id:
+            self.result_panel.show_text("Enter a Related Audit ID before opening the intake folder.")
+            return
+        result = open_path(audit_photo_intake_folder(self.config.project_root, audit_id))
         if not result.success:
             self.result_panel.show_result(result)

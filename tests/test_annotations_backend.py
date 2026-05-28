@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from openpyxl import load_workbook
 
 from core.annotations.database import connect_annotation_database, current_schema_version, initialize_annotation_database, seed_default_tags
+from core.annotations.migrations import LATEST_SCHEMA_VERSION
 from core.annotations.service import AnnotationService
 from core.annotations.tag_colors import DEFAULT_TAG_DEFINITIONS
 from core.audit_entries import save_audit_entry
@@ -18,7 +19,10 @@ def test_annotation_database_initializes_migrates_and_seeds_defaults(fake_projec
 
     conn = connect_annotation_database(db_path)
     try:
-        assert current_schema_version(conn) == 1
+        assert current_schema_version(conn) == LATEST_SCHEMA_VERSION
+        tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()}
+        assert "annotation_suggestion_ignores" in tables
+        assert "open_item_states" in tables
         before = conn.execute("SELECT COUNT(*) AS count FROM tags WHERE is_default = 1").fetchone()["count"]
         seed_default_tags(conn)
         conn.commit()

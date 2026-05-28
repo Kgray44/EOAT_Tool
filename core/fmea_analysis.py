@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .analysis_common import parse_score, table_from_rows, write_timestamped_report
+from .fmea_suggestions import build_fmea_suggestions
 from .issue_analysis import FMEA_CATEGORY_SUGGESTIONS
 from .logging import log_tool_run
 from .paths import resolve_project_paths
@@ -50,7 +51,10 @@ class FmeaSummary:
                 *table_from_rows(self.missing_risk_rows, ["FMEA ID", "Failure Mode", "Missing Fields"]),
                 "",
                 "## Suggested New FMEA Entries",
-                *table_from_rows(self.suggestions, ["Failure Mode", "Issue Category", "Issue Count", "Recommended Action"]),
+                *table_from_rows(
+                    self.suggestions,
+                    ["Failure Mode", "Evidence", "Suggested Severity", "Suggested Frequency", "Suggested Detectability", "Suggested Mitigation", "Review Status"],
+                ),
                 "",
                 "## Recommended Mitigations",
                 "- Fill missing severity/frequency/detectability values.",
@@ -88,25 +92,7 @@ def analyze_fmea(project_root: str | Path) -> tuple[FmeaSummary | None, ToolResu
         if not str(row.get("Recommended Action") or "").strip():
             missing_action.append({"FMEA ID": row.get("FMEA ID", ""), "Failure Mode": row.get("Failure Mode", ""), "Missing Fields": "Recommended Action"})
     ranked.sort(key=lambda item: int(item.get("RPN") or 0), reverse=True)
-    existing_modes = {str(row.get("Failure Mode") or "").strip().lower() for row in fmea_rows}
-    category_counts = Counter(str(row.get("Issue Category") or "Other") for row in issues if row.get("Issue Category"))
-    suggestions = []
-    for category, count in category_counts.items():
-        mode, effect, cause, controls, action = FMEA_MAPPINGS.get(category, (category, FMEA_CATEGORY_SUGGESTIONS.get(category, ""), "Recurring issue from Issue Log", "Current controls not documented", "Review and define standard corrective action"))
-        if mode.lower() in existing_modes:
-            continue
-        suggestions.append(
-            {
-                "Issue Category": category,
-                "Issue Count": count,
-                "Failure Mode": mode,
-                "Failure Effect": effect,
-                "Potential Cause": cause,
-                "Current Controls": controls,
-                "Recommended Action": action,
-                "Status": "Suggested",
-            }
-        )
+    suggestions = build_fmea_suggestions(project_root)
     summary = FmeaSummary(
         metrics={
             "existing_fmea_rows": len(fmea_rows),
@@ -149,4 +135,3 @@ def generate_fmea_report(project_root: str | Path, log_activity: bool = True) ->
         if warning:
             result.warnings.append(warning)
     return result
-

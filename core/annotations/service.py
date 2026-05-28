@@ -922,8 +922,61 @@ class AnnotationService:
                 "followups_due_soon": int(followups),
             }
 
-    def get_suggested_annotations(self, audit_entry: dict[str, Any]) -> list[dict[str, object]]:
-        return [suggestion.__dict__ for suggestion in suggested_annotations_for_audit(audit_entry)]
+    def get_suggested_annotations(self, audit_entry: dict[str, Any], *, include_ignored: bool = False) -> list[dict[str, object]]:
+        suggestions: list[dict[str, object]] = []
+        for suggestion in suggested_annotations_for_audit(audit_entry):
+            row = dict(suggestion.__dict__)
+            ignored = self.is_suggested_annotation_ignored(row)
+            row["ignored"] = ignored
+            row["existing_status"] = self._suggestion_existing_status(row)
+            if include_ignored or not ignored:
+                suggestions.append(row)
+        return suggestions
+
+    def is_suggested_annotation_ignored(self, suggestion: dict[str, object]) -> bool:
+        suggestion_id = str(suggestion.get("suggestion_id") or "").strip()
+        if not suggestion_id:
+            return False
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM annotation_suggestion_ignores WHERE suggestion_id = ?",
+                (suggestion_id,),
+            ).fetchone()
+        return row is not None
+
+    def ignore_suggested_annotation(self, suggestion: dict[str, object]) -> str:
+        suggestion_id = str(suggestion.get("suggestion_id") or "").strip()
+        if not suggestion_id:
+            raise ValueError("Suggestion ID is required.")
+        ignore_id = f"ignored_{suggestion_id}"
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO annotation_suggestion_ignores(
+                    id, suggestion_id, audit_id, field_key, tag_name, reason, data_fingerprint, ignored_at
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    ignore_id,
+                    suggestion_id,
+                    _none_empty(suggestion.get("audit_id")),
+                    _none_empty(suggestion.get("field_key")),
+                    _none_empty(suggestion.get("tag_name")),
+                    _none_empty(suggestion.get("reason")),
+                    _none_empty(suggestion.get("data_fingerprint")),
+                    utc_now(),
+                ),
+            )
+        self._log("annotation_suggestion_ignored", {"suggestion_id": suggestion_id})
+        return ignore_id
+
+    def ignore_suggested_annotations(self, suggestions: Iterable[dict[str, object]]) -> int:
+        count = 0
+        for suggestion in suggestions:
+            self.ignore_suggested_annotation(suggestion)
+            count += 1
+        return count
 
     def apply_suggested_annotation(self, suggestion: dict[str, object]) -> TagAssignment:
         tag_name = str(suggestion.get("tag_name") or "")
@@ -938,7 +991,34 @@ class AnnotationService:
             header_name=str(suggestion.get("field_key") or ""),
             target_label=f"{suggestion.get('audit_id') or ''} / {suggestion.get('field_key') or ''}".strip(" /"),
         )
-        return self.assign_tag_to_target(tag.id, target.id, comment=str(suggestion.get("reason") or "Suggested annotation"))
+        return self.assign_tag_to_target(tag.id, target.id, comment=str(suggestion.get("suggested_comment") or suggestion.get("reason") or "Suggested annotation"))
+
+    def apply_suggested_annotations(self, suggestions: Iterable[dict[str, object]]) -> list[TagAssignment]:
+        return [self.apply_suggested_annotation(suggestion) for suggestion in suggestions]
+
+    def _suggestion_existing_status(self, suggestion: dict[str, object]) -> str:
+        target_type = str(suggestion.get("target_type") or "project_item")
+        field_key = str(suggestion.get("field_key") or "")
+        audit_id = str(suggestion.get("audit_id") or "")
+        machine_id = str(suggestion.get("machine_id") or "")
+        target_id = target_id_for(
+            target_type=target_type,
+            audit_id=audit_id,
+            machine_id=machine_id,
+            field_key=field_key,
+            object_ref="",
+        )
+        tags = self.get_tags_for_target(target_id)
+        notes = self.get_notes_for_target(target_id)
+        tag_name = str(suggestion.get("tag_name") or "")
+        parts: list[str] = []
+        if any(str(tag.get("name") or "").casefold() == tag_name.casefold() for tag in tags):
+            parts.append("Tag already applied")
+        elif tags:
+            parts.append(f"{len(tags)} existing tag(s)")
+        if notes:
+            parts.append(f"{len(notes)} linked note(s)")
+        return "; ".join(parts) if parts else "New"
 
     def export_notes_markdown(self, notes: Iterable[dict[str, object]] | None = None) -> Path:
         return export_notes_markdown(self.project_root, notes if notes is not None else self.search_notes())

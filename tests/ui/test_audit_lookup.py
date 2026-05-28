@@ -133,6 +133,7 @@ def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config
     assert {
         "Tool #",
         "Connection Type",
+        "# of Cups",
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
@@ -187,9 +188,15 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     tooling_fields = list(page.audit_fields)
     assert tooling_fields.index("EOAT Type") < tooling_fields.index("EOAT Moves") < tooling_fields.index("Connection Type")
     assert tooling_fields.index("Number of Parts Picked") < tooling_fields.index("# of Grippers") < tooling_fields.index("Gripper Type") < tooling_fields.index("Gripper Model")
-    assert tooling_fields.index("Cup Type/Material") < tooling_fields.index("Cup Diameter/Size") < tooling_fields.index("Vacuum Generator Type")
+    assert tooling_fields.index("# of Cups") < tooling_fields.index("Cup Type/Material") < tooling_fields.index("Cup Diameter/Size") < tooling_fields.index("Vacuum Generator Type")
     assert "Vacuum Zones" not in page.audit_fields
-    assert tooling_fields.index("Connection Type") < tooling_fields.index("Number of Parts Picked") < tooling_fields.index("Cup Type/Material")
+    assert tooling_fields.index("Connection Type") < tooling_fields.index("Number of Parts Picked") < tooling_fields.index("# of Cups")
+    cups = page.audit_fields["# of Cups"]
+    assert isinstance(cups, QLineEdit)
+    cups.setText("3")
+    assert cups.hasAcceptableInput()
+    cups.setText("-1")
+    assert not cups.hasAcceptableInput()
 
 
 @pytest.mark.parametrize(
@@ -209,6 +216,7 @@ def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vac
 
     assert page.audit_fields["Cup Type/Material"].isHidden() is (not vacuum_visible)
     assert page.audit_fields["Cup Diameter/Size"].isHidden() is (not vacuum_visible)
+    assert page.audit_fields["# of Cups"].isHidden() is (not vacuum_visible)
     assert page.audit_fields["Number of Parts Picked"].isHidden() is False
     assert page.audit_fields["# of Grippers"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Model"].isHidden() is (not gripper_visible)
@@ -222,6 +230,7 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
     _set_field(page, "EOAT Type", "Hybrid")
     _set_field(page, "Cup Type/Material", "Nitrile")
     _set_field(page, "Cup Diameter/Size", "20 mm")
+    _set_field(page, "# of Cups", "4")
     _set_field(page, "Gripper Model", "Zimmer GPP")
     _set_field(page, "Gripper Size", "25 mm")
     _set_field(page, "# of Grippers", "2")
@@ -230,12 +239,14 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
 
     assert page.audit_fields["Cup Type/Material"].isHidden() is True
     assert page.audit_fields["Cup Diameter/Size"].isHidden() is True
+    assert page.audit_fields["# of Cups"].isHidden() is True
     assert page.audit_fields["Gripper Model"].isHidden() is False
     assert page.audit_fields["Gripper Size"].isHidden() is False
     assert page.audit_fields["# of Grippers"].isHidden() is False
     assert page.audit_fields["Gripper Type"].isHidden() is False
     assert page.audit_fields["Cup Type/Material"].text() == "Nitrile"
     assert page.audit_fields["Cup Diameter/Size"].text() == "20 mm"
+    assert page.audit_fields["# of Cups"].text() == "4"
 
     _set_field(page, "EOAT Type", "Vacuum")
     assert page.audit_fields["Gripper Model"].isHidden() is True
@@ -368,6 +379,50 @@ def test_machine_lookup_loads_single_physical_audit(qapp, fake_config, fake_proj
     assert page._current_loaded_audit_id == "AUD-PHYSICAL-045"
     assert page.audit_fields["Audit ID"].text() == "AUD-PHYSICAL-045"
     assert "Existing physical audit found for Machine 45" in page.lookup_note_label.text()
+
+
+def test_machine_lookup_clean_new_form_loads_without_unsaved_prompt(qapp, fake_config, fake_project, monkeypatch):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-049", "49", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+    prompt_actions = []
+
+    def reject_unsaved_prompt(action: str) -> bool:
+        prompt_actions.append(action)
+        return False
+
+    monkeypatch.setattr(page, "_confirm_unsaved_audit_changes", reject_unsaved_prompt)
+
+    page.audit_fields["Press/Machine #"].setText("49")
+    page.audit_fields["Press/Machine #"].editingFinished.emit()
+
+    assert prompt_actions == []
+    assert page._current_loaded_audit_id == "AUD-PHYSICAL-049"
+    assert page.audit_fields["Audit ID"].text() == "AUD-PHYSICAL-049"
+    assert "Existing physical audit found for Machine 49" in page.result_panel.viewer.toPlainText()
+    assert "Machine number is required" not in page.result_panel.viewer.toPlainText()
+    assert page.has_unsaved_changes() is False
+
+
+def test_machine_lookup_dirty_new_form_still_prompts_before_existing_load(qapp, fake_config, fake_project, monkeypatch):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-051", "51", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+    generated_id = page.audit_fields["Audit ID"].text()
+    prompt_actions = []
+
+    def reject_unsaved_prompt(action: str) -> bool:
+        prompt_actions.append(action)
+        return False
+
+    monkeypatch.setattr(page, "_confirm_unsaved_audit_changes", reject_unsaved_prompt)
+
+    page.audit_fields["Known Issues"].setPlainText("Meaningful unsaved issue.")
+    page.audit_fields["Press/Machine #"].setText("51")
+    page.audit_fields["Press/Machine #"].editingFinished.emit()
+
+    assert prompt_actions == ["load another audit"]
+    assert page._current_loaded_audit_id is None
+    assert page.audit_fields["Audit ID"].text() == generated_id
+    assert page.audit_fields["Known Issues"].toPlainText() == "Meaningful unsaved issue."
 
 
 def test_machine_lookup_uses_physical_row_when_compatible_also_exists(qapp, fake_config, fake_project):

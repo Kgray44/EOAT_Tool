@@ -30,6 +30,7 @@ def test_bom_standardization_common_parts_and_missing_data(fake_project):
             "Robot Type": "Wittmann R9",
             "EOAT Type": "Vacuum",
             "Number of Parts Picked": 4,
+            "# of Cups": 4,
             "Cup Type/Material": "Silicone",
             "Cup Diameter/Size": "20mm",
         },
@@ -42,6 +43,7 @@ def test_bom_standardization_common_parts_and_missing_data(fake_project):
             "Robot Type": "Wittmann R9",
             "EOAT Type": "Vacuum",
             "Number of Parts Picked": 6,
+            "# of Cups": 4,
             "Cup Type/Material": "Silicone",
             "Cup Diameter/Size": "20mm",
         },
@@ -52,6 +54,7 @@ def test_bom_standardization_common_parts_and_missing_data(fake_project):
 
     data, warnings, _details = analyze_bom_standardization(fake_project)
     assert warnings == []
+    assert data["counts"]["vacuum cup counts"]["4"] == 2
     assert data["counts"]["vacuum cup materials"]["Silicone"] == 2
     assert data["counts"]["vacuum cup sizes"]["20mm"] == 2
     assert data["missing_rows"]

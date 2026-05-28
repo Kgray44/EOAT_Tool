@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .page_registry import PAGE_SPECS, page_specs_by_section
+
 
 @dataclass(frozen=True)
 class NavItem:
@@ -16,12 +18,10 @@ class NavSection:
 
 
 NAV_SECTIONS = [
-    NavSection("Overview", [NavItem("Home", "home"), NavItem("Schedule", "schedule")]),
-    NavSection("Capture", [NavItem("EOAT Audit", "audit"), NavItem("Notes", "notes"), NavItem("Tags", "tags"), NavItem("Photos", "photos"), NavItem("Audit Progress", "audit_progress")]),
-    NavSection("Analysis", [NavItem("Issues", "issue_analysis"), NavItem("FMEA-Lite", "fmea"), NavItem("Pilot Candidates", "pilot_candidates"), NavItem("KPI Dashboard", "kpi_dashboard")]),
-    NavSection("Standards", [NavItem("Standards Docs", "standards_docs"), NavItem("PM Checklists", "pm_checklists"), NavItem("BOM / Spare Parts", "bom_spares")]),
-    NavSection("Output", [NavItem("Reports", "reports"), NavItem("Scheduled Reports", "scheduled_reports"), NavItem("Final Handoff", "handoff")]),
-    NavSection("System", [NavItem("Tool Registry", "tool_registry"), NavItem("Workbook Health", "workbook_health"), NavItem("Settings", "settings")]),
+    NavSection(section_label, [NavItem(spec.label, spec.key) for spec in specs])
+    for section_label, specs in page_specs_by_section()
 ]
 
 NAV_ITEMS = [item for section in NAV_SECTIONS for item in section.items]
+
+assert [item.page_key for item in NAV_ITEMS] == [spec.key for spec in PAGE_SPECS]

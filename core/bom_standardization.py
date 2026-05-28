@@ -7,6 +7,7 @@ from typing import Any
 
 from .analysis_common import table_from_counts, table_from_rows, write_timestamped_csv, write_timestamped_report
 from .audit_entries import repair_legacy_audit_lookup_shift
+from .gripper_fields import CUP_COUNT_FIELD
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
@@ -33,6 +34,7 @@ def _missing_table(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "BOM Available?",
         "Drawing/CAD Available?",
         "Process Binder Complete?",
+        CUP_COUNT_FIELD,
         "Cup Type/Material",
         "Cup Diameter/Size",
         "Sensor Type",
@@ -90,6 +92,7 @@ def analyze_bom_standardization(project_root: str | Path) -> tuple[dict[str, Any
         return {"rows": [], "counts": {}, "missing_rows": [], "opportunities": []}, [f"Could not read EOAT Inventory: {exc}"], []
 
     counts = {
+        "vacuum cup counts": _count(rows, CUP_COUNT_FIELD),
         "vacuum cup materials": _count(rows, "Cup Type/Material"),
         "vacuum cup sizes": _count(rows, "Cup Diameter/Size"),
         "sensor types": _count(rows, "Sensor Type"),
@@ -120,6 +123,8 @@ def _markdown(data: dict[str, Any], warnings: list[str]) -> str:
     if warnings:
         lines.extend(f"- Warning: {warning}" for warning in warnings)
     lines.extend(["", "## Common Vacuum Cup Information"])
+    lines.extend(table_from_counts(counts.get("vacuum cup counts", {}), CUP_COUNT_FIELD))
+    lines.extend(["", "### Cup Materials"])
     lines.extend(table_from_counts(counts.get("vacuum cup materials", {}), "Cup Type/Material"))
     lines.extend(["", "### Cup Sizes"])
     lines.extend(table_from_counts(counts.get("vacuum cup sizes", {}), "Cup Diameter/Size"))

@@ -1,0 +1,20 @@
+{
+  "presets": [
+    {
+      "friendly_name": "Large Double Gripper",
+      "part_number": "MHZL2-16D",
+      "manufacturer": "SMC",
+      "default_type": "Double Pressure",
+      "notes": "Default EOAT Command Center gripper preset. Verify against the physical EOAT before using for engineering decisions.",
+      "active": true
+    },
+    {
+      "friendly_name": "Small Double Gripper",
+      "part_number": "MHZL2-10S",
+      "manufacturer": "SMC",
+      "default_type": "Single Pressure",
+      "notes": "Default EOAT Command Center gripper preset. Verify against the physical EOAT before using for engineering decisions.",
+      "active": true
+    }
+  ]
+}
