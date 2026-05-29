@@ -63,3 +63,19 @@ def test_settings_save_reload_theme_audit_backups_and_open_stub(qapp, fake_confi
 
     click_button(page, "Open Backups Folder")
     assert captured_open_requests[-1] == backups
+
+
+def test_settings_revert_restores_baseline(qapp, fake_config):
+    page = SettingsPage(fake_config)
+    page.show()
+    original_time = page.daily_report_time_edit.text()
+
+    page.daily_report_time_edit.setText("06:45")
+    assert page.has_unsaved_changes() is True
+    click_button(page, "Show Changes")
+    assert "scheduled_reports" in page.status_label.text()
+
+    click_button(page, "Revert Changes")
+
+    assert page.daily_report_time_edit.text() == original_time
+    assert page.has_unsaved_changes() is False
