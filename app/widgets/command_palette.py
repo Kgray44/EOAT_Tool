@@ -10,9 +10,9 @@ try:
         QLineEdit,
         QMessageBox,
         QPushButton,
-        QTabWidget,
         QTableWidget,
         QTableWidgetItem,
+        QTabWidget,
         QVBoxLayout,
         QWidget,
     )
@@ -26,13 +26,14 @@ from core.search import SearchFilters, SearchResult, search_project, sqlite_fts_
 
 
 class CommandPalette(QDialog):
-    COMMAND_COLUMNS = ["Command", "Category", "Safety", "Description"]
+    COMMAND_COLUMNS = ["Command", "Category", "Writes Files", "Safety", "Status", "Context", "Description"]
     SEARCH_COLUMNS = ["Type", "Title", "Subtitle", "Audit ID", "Machine", "Status/Severity"]
 
-    def __init__(self, registry: CommandRegistry, project_root: str, parent=None):
+    def __init__(self, registry: CommandRegistry, project_root: str, parent=None, *, current_page_key: str | None = None):
         super().__init__(parent)
         self.registry = registry
         self.project_root = project_root
+        self.current_page_key = current_page_key
         self.command_rows: list[CommandSpec] = []
         self.search_rows: list[SearchResult] = []
         self._search_timer = QTimer(self)
@@ -62,6 +63,12 @@ class CommandPalette(QDialog):
         self.command_category.addItems(self.registry.categories())
         self.command_category.currentTextChanged.connect(self.refresh_commands)
         command_filter_row.addWidget(self.command_category)
+        self.current_page_button = QPushButton("Current Page")
+        self.current_page_button.clicked.connect(self.show_current_page_commands)
+        command_filter_row.addWidget(self.current_page_button)
+        self.recent_button = QPushButton("Recent")
+        self.recent_button.clicked.connect(self.show_recent_commands)
+        command_filter_row.addWidget(self.recent_button)
         command_filter_row.addStretch(1)
         command_tab.addLayout(command_filter_row)
         self.command_table = QTableWidget(0, len(self.COMMAND_COLUMNS))
@@ -141,27 +148,56 @@ class CommandPalette(QDialog):
         self.schedule_search_refresh()
 
     def refresh_commands(self) -> None:
-        self.command_rows = self.registry.filter(self.query_edit.text(), category=self.command_category.currentText())
+        self.command_rows = self.registry.filter(self.query_edit.text(), category=self.command_category.currentText(), current_page_key=self.current_page_key)
+        self._populate_command_table(self.command_rows)
+
+    def show_current_page_commands(self) -> None:
+        if not self.current_page_key:
+            self.command_rows = []
+        else:
+            self.command_rows = [command for command in self.registry.filter(self.query_edit.text(), current_page_key=self.current_page_key) if command.is_context_command(self.current_page_key)]
+        self._populate_command_table(self.command_rows)
+
+    def show_recent_commands(self) -> None:
+        query = self.query_edit.text().casefold().strip()
+        self.command_rows = [command for command in self.registry.recent_commands(limit=8) if not query or query in command.searchable_text()]
+        self._populate_command_table(self.command_rows)
+
+    def _populate_command_table(self, rows: list[CommandSpec]) -> None:
         sorting = self.command_table.isSortingEnabled()
         self.command_table.setSortingEnabled(False)
         self.command_table.blockSignals(True)
         self.command_table.setUpdatesEnabled(False)
         try:
-            self.command_table.setRowCount(len(self.command_rows))
-            for row, command in enumerate(self.command_rows):
-                values = [command.display_name, command.category, command.safety_level, command.description]
+            self.command_table.setRowCount(len(rows))
+            for row, command in enumerate(rows):
+                status = "Enabled" if command.enabled else command.disabled_reason
+                context = "Current page" if command.is_context_command(self.current_page_key) else (command.page_key or "")
+                values = [
+                    command.display_name,
+                    command.category,
+                    "Yes" if command.writes_files else "No",
+                    command.safety_level,
+                    status,
+                    context,
+                    command.description,
+                ]
                 for col, value in enumerate(values):
                     item = QTableWidgetItem(str(value or ""))
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     if col == 0:
                         item.setData(Qt.ItemDataRole.UserRole, command.command_id)
+                    if command.writes_files and col == 2:
+                        item.setToolTip("This command can write local project files.")
+                    if not command.enabled:
+                        item.setToolTip(command.disabled_reason)
                     self.command_table.setItem(row, col, item)
             self.command_table.resizeColumnsToContents()
         finally:
             self.command_table.setUpdatesEnabled(True)
             self.command_table.blockSignals(False)
             self.command_table.setSortingEnabled(sorting)
-        if self.command_rows:
+        if rows:
             self.command_table.selectRow(0)
 
     def schedule_search_refresh(self, *_args) -> None:
@@ -246,6 +282,10 @@ class CommandPalette(QDialog):
         if row < 0 or row >= len(self.command_rows):
             return False
         command = self.command_rows[row]
+        if not command.enabled:
+            if QMessageBox is not None:
+                QMessageBox.information(self, "Command Unavailable", command.disabled_reason or "This command is unavailable.")
+            return False
         if command.requires_confirmation and not self._confirm_command(command):
             return False
         ok = self.registry.execute(command.command_id)

@@ -9,13 +9,18 @@ from openpyxl import load_workbook
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QGroupBox, QPushButton, QTextEdit
 
-from app.pages.audit import AUDIT_SECTIONS, AUDIT_SECTION_GROUPS, AuditPage
+from app.pages.audit import AUDIT_SECTION_GROUPS, AUDIT_SECTIONS, AuditPage
+from core.audit_constants import (
+    IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+)
 from core.audit_entries import save_audit_entry
 from core.robot_info import load_robot_info_for_audit_entry, robot_info_workbook_path, upsert_robot_info_from_audit
 from core.workbook_io import row_dicts, workbook_sheet_names
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
-
 
 pytestmark = pytest.mark.usability
 
@@ -35,6 +40,26 @@ def _set_field(page: AuditPage, field: str, value: str) -> None:
 
 def _field_value(page: AuditPage, field: str) -> str:
     return page._field_value(page.audit_fields[field])
+
+
+def _coach_field_status(page: AuditPage, field: str):
+    summary = page.audit_coach_panel.summary
+    assert summary is not None
+    for section in summary.sections:
+        for status in section.fields:
+            if status.field == field:
+                return status
+    raise AssertionError(f"Missing coach status for {field}")
+
+
+def _finish_machine_lookup(page: AuditPage) -> None:
+    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    wait_until(
+        lambda: page._machine_lookup_timer is None or not page._machine_lookup_timer.isActive(),
+        timeout_ms=5000,
+        message="machine lookup debounce timer",
+    )
+    wait_for_background_tasks()
 
 
 def _seed_audit(project_root, audit_id: str, **overrides):
@@ -60,7 +85,7 @@ def _seed_audit(project_root, audit_id: str, **overrides):
         "Known Issues": "Original known issue.",
         "Photos Taken?": "Yes",
         "Photo Folder/Link": "01_EOAT_Audit/Cell_Photos/Overall/original",
-        "Status": "Complete",
+        "Status": "In Progress",
         "Priority": "Medium",
         "Follow-Up Needed": "No",
         "Notes": "Original notes.",
@@ -78,7 +103,7 @@ def _empty_only_count_message(page: AuditPage) -> int:
 
 
 def _visible_empty_only_fields(page: AuditPage) -> list[str]:
-    return [field for field, widget in page.audit_fields.items() if not widget.isHidden()]
+    return [field for field, widget in page.audit_fields.items() if not widget.isHidden() and not _field_value(page, field).strip()]
 
 
 def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fake_project, frozen_project_date):
@@ -152,7 +177,7 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
 
     activity_log = fake_project / "00_Project_Admin" / "Activity_Logs" / "activity_log.jsonl"
     entries = [json.loads(line) for line in activity_log.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert any(entry["tool_id"] == "eoat_audit_form" and entry["success"] for entry in entries)
+    assert any(entry.get("tool_id") == "eoat_audit_form" and entry.get("success") for entry in entries)
 
 
 def test_invalid_audit_entry_shows_friendly_error_without_workbook_row(qapp, fake_config, fake_project, frozen_project_date):
@@ -201,12 +226,13 @@ def test_audit_id_dropdown_includes_all_audits_and_selection_loads_row(qapp, fak
     second = _seed_audit(fake_project, "AUD-DROPDOWN-002", **{"Press/Machine #": "Press 2", "Tool #": "PN-02", "Part Name/Description": "Clip", "Notes": "Second row."})
     page = AuditPage(fake_config)
     page.show()
+    page._load_lazy_audit_indexes()
 
     audit_ids = [page.load_audit_id_combo.itemData(index) for index in range(page.load_audit_id_combo.count())]
     labels = [page.load_audit_id_combo.itemText(index) for index in range(page.load_audit_id_combo.count())]
     assert first["Audit ID"] in audit_ids
     assert second["Audit ID"] in audit_ids
-    assert any("AUD-DROPDOWN-001 | Machine 26 | PN-26 | Latch | Audited" == label for label in labels)
+    assert any(label == "AUD-DROPDOWN-001 | Machine 26 | PN-26 | Latch | Audited" for label in labels)
 
     index = page.load_audit_id_combo.findData(second["Audit ID"])
     assert index >= 0
@@ -239,6 +265,7 @@ def test_audit_and_compatibility_dropdowns_sort_by_machine_number(qapp, fake_con
     _seed_audit(fake_project, "AUD-UI-SORT-WEIRD", **{"Press/Machine #": "Bench A", "Tool #": "PN-WEIRD"})
     page = AuditPage(fake_config)
     page.show()
+    page._load_lazy_audit_indexes()
 
     audit_ids = [page.load_audit_id_combo.itemData(index) for index in range(page.load_audit_id_combo.count())]
     source_ids = [page.compatibility_source_combo.itemData(index) for index in range(page.compatibility_source_combo.count())]
@@ -367,7 +394,7 @@ def test_typing_machine_with_one_existing_audit_loads_that_audit(qapp, fake_conf
     page = AuditPage(fake_config)
 
     page.audit_fields["Press/Machine #"].setText("26")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert page.audit_fields["Audit ID"].text() == original["Audit ID"]
     assert page.audit_fields["Tool #"].text() == "PN-26"
@@ -379,7 +406,7 @@ def test_machine_lookup_uses_exact_normalized_machine_match(qapp, fake_config, f
     page = AuditPage(fake_config)
 
     page.audit_fields["Press/Machine #"].setText("1")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert page.audit_fields["Audit ID"].text() != "AUD-MACHINE-011-001"
     assert page.audit_fields["Tool #"].text() == ""
@@ -393,7 +420,7 @@ def test_machine_lookup_multiple_existing_audits_requires_selection(qapp, fake_c
     starting_id = page.audit_fields["Audit ID"].text()
 
     page.audit_fields["Press/Machine #"].setText("50")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert page.audit_fields["Audit ID"].text() == starting_id
     assert page.machine_audit_match_combo.isHidden() is False
@@ -799,6 +826,35 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     assert row["Gripper Size"] == "25 mm"
 
 
+def test_miscellaneous_audit_saves_and_loads_gripper_fields(qapp, fake_config, fake_project, frozen_project_date):
+    page = AuditPage(fake_config)
+    page.show()
+
+    _set_field(page, "Press/Machine #", "Press 107")
+    _set_field(page, "Robot Type", "Wittmann R9")
+    _set_field(page, "EOAT Type", "Miscellaneous")
+    _set_field(page, "Connection Type", "ATI")
+    _set_field(page, "# of Grippers", "1")
+    _set_field(page, "Gripper Type", "Single Pressure")
+    _set_field(page, "Gripper Model", "Zimmer GPP")
+    _set_field(page, "Gripper Size", "25 mm")
+
+    audit_id = page.audit_fields["Audit ID"].text()
+    click_button(page, "Save Audit Entry")
+    wait_for_background_tasks()
+
+    loaded = AuditPage(fake_config)
+    loaded.show()
+    assert loaded.load_existing_audit(audit_id) is True
+
+    assert loaded.audit_fields["EOAT Type"].currentText() == "Miscellaneous"
+    assert loaded.audit_fields["# of Grippers"].text() == "1"
+    assert loaded.audit_fields["Gripper Type"].currentText() == "Single Pressure"
+    assert loaded.audit_fields["Gripper Model"].currentText() == "Zimmer GPP"
+    loaded.audit_view_mode_combo.setCurrentText("Full Audit")
+    assert loaded.audit_fields["Gripper Model"].isHidden() is False
+
+
 def test_duplicate_audit_can_change_press_and_autofill_tool_from_new_part_number(qapp, fake_config, fake_project, frozen_project_date):
     create_press_reference_workbooks(fake_project / "reference-data")
     original = _seed_audit(fake_project, "AUD-DUP-AUTOFILL-001")
@@ -810,7 +866,7 @@ def test_duplicate_audit_can_change_press_and_autofill_tool_from_new_part_number
     duplicate_id = page.audit_fields["Audit ID"].text()
 
     page.audit_fields["Press/Machine #"].setText("Press 70")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
     assert page.audit_fields["Press/Machine #"].text() == "70"
     assert page.audit_fields["Tool #"].text() == "DEMO-PN-0170"
 
@@ -983,6 +1039,132 @@ def test_save_audit_workflow_skips_robot_info_when_circuit_values_are_default(qa
     assert result.metrics["robot_info_save_skipped"] is True
     assert "Robot Info skipped" in result.summary
     assert not robot_info_workbook_path(fake_project).exists()
+
+
+def _patch_manual_override_confirmation(monkeypatch, button_text: str) -> None:
+    clicked = {}
+
+    def fake_exec(box):
+        clicked["button"] = next(button for button in box.buttons() if button.text() == button_text)
+        return 0
+
+    def fake_clicked_button(_box):
+        return clicked["button"]
+
+    monkeypatch.setattr("app.pages.audit.QMessageBox.exec", fake_exec)
+    monkeypatch.setattr("app.pages.audit.QMessageBox.clickedButton", fake_clicked_button)
+
+
+def test_manual_completion_override_button_visible(qapp, fake_config):
+    page = AuditPage(fake_config)
+
+    button = next((button for button in page.findChildren(QPushButton) if button.text() == "Manual Override: Mark Audit Complete"), None)
+
+    assert button is not None
+    assert button.isVisibleTo(page)
+
+
+def test_manual_completion_override_confirmation_copy_and_default_cancel(qapp, fake_config, monkeypatch):
+    page = AuditPage(fake_config)
+    captured = {}
+
+    def fake_exec(box):
+        captured["title"] = box.windowTitle()
+        captured["message"] = box.text()
+        captured["buttons"] = sorted(button.text() for button in box.buttons())
+        captured["default"] = box.defaultButton().text() if box.defaultButton() is not None else ""
+        captured["clicked"] = box.defaultButton()
+        return 0
+
+    monkeypatch.setattr("app.pages.audit.QMessageBox.exec", fake_exec)
+    monkeypatch.setattr("app.pages.audit.QMessageBox.clickedButton", lambda _box: captured["clicked"])
+
+    assert page._confirm_manual_completion_override() is False
+    assert captured["title"] == "Manual Completion Override"
+    assert captured["message"] == (
+        "This will manually mark this audit as complete even though some fields may still be blank.\n"
+        "Blank fields currently remaining on this audit will be ignored by the audit coach for completion percentage purposes.\n"
+        "This only affects the current audit. It does not change global validation rules.\n"
+        "Are you sure you want to continue?"
+    )
+    assert captured["buttons"] == ["Cancel", "Mark Complete"]
+    assert captured["default"] == "Cancel"
+
+
+def test_manual_completion_override_cancel_does_not_mark_complete(qapp, fake_config, fake_project, monkeypatch):
+    audit_id = "AUD-MANUAL-OVERRIDE-CANCEL"
+    _seed_audit(
+        fake_project,
+        audit_id,
+        Status="In Progress",
+        **{"Sensor Brand/Model": "", "Photos Taken?": "Yes", "Photo Folder/Link": ""},
+    )
+    page = AuditPage(fake_config)
+    page.show()
+    assert page.load_existing_audit(audit_id) is True
+    _patch_manual_override_confirmation(monkeypatch, "Cancel")
+
+    click_button(page, "Manual Override: Mark Audit Complete")
+
+    assert page.audit_coach_panel.summary.manual_completion_override is False
+    row = next(row for row in row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory") if row["Audit ID"] == audit_id)
+    assert row.get(MANUAL_COMPLETION_OVERRIDE_FIELD) != "Yes"
+
+
+def test_manual_completion_override_saves_persists_and_stays_audit_specific(qapp, fake_config, fake_project, monkeypatch):
+    audit_id = "AUD-MANUAL-OVERRIDE-YES"
+    other_id = "AUD-MANUAL-OVERRIDE-OTHER"
+    _seed_audit(
+        fake_project,
+        audit_id,
+        Status="In Progress",
+        **{"Sensor Brand/Model": "", "Photos Taken?": "Yes", "Photo Folder/Link": ""},
+    )
+    _seed_audit(fake_project, other_id, Status="In Progress")
+    page = AuditPage(fake_config)
+    page.show()
+    assert page.load_existing_audit(audit_id) is True
+    _patch_manual_override_confirmation(monkeypatch, "Mark Complete")
+
+    click_button(page, "Manual Override: Mark Audit Complete")
+    wait_for_background_tasks()
+
+    assert page.audit_coach_panel.summary.percent_complete == 100
+    assert page.audit_coach_panel.summary.manual_completion_override is True
+    assert _coach_field_status(page, "Photo Folder/Link").state == "missing"
+    assert "Manual completion override applied" in page.manual_override_status_label.text()
+    assert (
+        "Manual completion override applied. This audit is treated as 100% complete, but blank fields were not field-verified."
+        in page.result_panel.viewer.toPlainText()
+    )
+    assert page.has_unsaved_changes() is False
+    rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
+    row = next(row for row in rows if row["Audit ID"] == audit_id)
+    other = next(row for row in rows if row["Audit ID"] == other_id)
+    assert row[MANUAL_COMPLETION_OVERRIDE_FIELD] == "Yes"
+    assert row[MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD]
+    assert row[MANUAL_COMPLETION_OVERRIDE_USER_FIELD] == "Original Auditor"
+    assert "Photo Folder/Link" in row[IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD]
+    assert other.get(MANUAL_COMPLETION_OVERRIDE_FIELD) != "Yes"
+
+    loaded = AuditPage(fake_config)
+    loaded.show()
+    assert loaded.load_existing_audit(audit_id) is True
+    assert loaded.audit_coach_panel.summary.percent_complete == 100
+    assert loaded.audit_coach_panel.summary.manual_completion_override is True
+
+    _set_field(loaded, "Notes", "Edited after override.")
+    click_button(loaded, "Save Audit Entry")
+    wait_for_background_tasks()
+    reloaded_row = next(
+        row
+        for row in row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
+        if row["Audit ID"] == audit_id
+    )
+    assert reloaded_row[MANUAL_COMPLETION_OVERRIDE_FIELD] == "Yes"
+    assert reloaded_row[MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD] == row[MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD]
+    assert reloaded_row[IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD] == row[IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD]
+    assert loaded.has_unsaved_changes() is False
 
 
 def test_save_audit_workflow_skips_heavy_derived_systems(qapp, fake_config, monkeypatch, frozen_project_date):

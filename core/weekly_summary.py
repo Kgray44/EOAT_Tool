@@ -16,7 +16,6 @@ from .safe_files import ensure_directory, safe_write_text
 from .schedule import load_week_schedule
 from .task_progress import STATUS_VALUES
 
-
 TOOL_ID = "weekly_summary"
 TOOL_NAME = "Weekly Summary Generator"
 
@@ -163,6 +162,22 @@ def build_weekly_summary_markdown(
             lines.append(f"- {finding.get('severity', 'WARNING')}: {finding.get('message', '')}")
     else:
         lines.append("- No JSON workbook validation output was available.")
+
+    lines.extend(["", "## Weekly Engineering Brief"])
+    lines.append("- Evidence basis: schedule status, daily reports, activity logs, workbook metrics, open items, and validation output where available.")
+    if metrics:
+        lines.append("- Audit/data metrics are audit-observed or workbook-derived; no production impact is claimed from them alone.")
+    else:
+        lines.append("- Audit/data metrics are missing for this week.")
+    if validation.get("available"):
+        lines.append("- Validation findings are from the latest local validation JSON.")
+    else:
+        lines.append("- Validation findings are missing; run workbook validation before relying on release readiness claims.")
+    if open_items:
+        lines.append("- Open issues remain open until explicitly resolved or assigned.")
+    else:
+        lines.append("- No open item records were available for the brief.")
+    lines.append("- Estimated or subjective values must remain labeled in their source reports.")
 
     lines.extend(["", "## Reports/Files Created"])
     if recent_files:

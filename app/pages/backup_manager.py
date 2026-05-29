@@ -4,7 +4,16 @@ import json
 import time
 
 try:
-    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QMessageBox, QPushButton, QTableWidget, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import (
+        QGridLayout,
+        QHBoxLayout,
+        QLabel,
+        QMessageBox,
+        QPushButton,
+        QTableWidget,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     QGridLayout = QHBoxLayout = QLabel = QMessageBox = QPushButton = QTableWidget = QVBoxLayout = QWidget = None
 

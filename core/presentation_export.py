@@ -20,7 +20,6 @@ from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 
-
 TOOL_ID = "final_presentation_helper"
 TOOL_NAME = "Final Presentation Builder Helper"
 

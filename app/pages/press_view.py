@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 try:
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import Qt, QTimer
     from PySide6.QtWidgets import (
         QComboBox,
         QGridLayout,
@@ -18,19 +18,41 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    Qt = None
+    Qt = QTimer = None
     QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
-from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.event_bus import EVENT_AUDIT_SAVED
+from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from app.widgets.status_card import StatusCard
 from app.widgets.tool_run_panel import ToolRunPanel
-from core.press_view import PressAuditEntry, PressViewGroup, build_press_view_groups, export_press_summary, load_cached_press_view_groups, save_press_view_cache
+from core.performance import log_performance
+from core.press_view import (
+    PressAuditEntry,
+    PressViewGroup,
+    build_press_view_groups,
+    export_press_summary,
+    load_cached_press_view_groups,
+    save_press_view_cache,
+)
 
 
 class PressViewPage(AsyncRefreshMixin, QWidget):
-    GROUP_COLUMNS = ["Press/Machine", "Physical", "Compatible", "Tools", "Open Items", "Validation", "Photos", "Compliance", "Worst Standard", "Pilot", "Last Updated"]
+    GROUP_COLUMNS = [
+        "Press/Machine",
+        "Physical",
+        "Compatible Assigned Here",
+        "Linked Compatible Machines",
+        "Family Machines",
+        "Tools",
+        "Open Items",
+        "Validation",
+        "Photos",
+        "Compliance",
+        "Worst Standard",
+        "Pilot",
+        "Last Updated",
+    ]
     ENTRY_COLUMNS = ["Audit ID", "Entry Type", "Tool", "EOAT Type", "Status", "Source Audit", "Known Issues"]
 
     def __init__(self, config, parent=None):
@@ -41,6 +63,11 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.groups: list[PressViewGroup] = []
         self.current_entries: list[PressAuditEntry] = []
         self.navigator = AnnotationTargetNavigator(self)
+        self._filter_timer = QTimer(self) if QTimer is not None else None
+        if self._filter_timer is not None:
+            self._filter_timer.setSingleShot(True)
+            self._filter_timer.setInterval(150)
+            self._filter_timer.timeout.connect(self.apply_filters)
 
         layout = QVBoxLayout(self)
         heading = QLabel("Press View")
@@ -50,7 +77,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         controls = QHBoxLayout()
         self.search_edit = QLineEdit()
         self.search_edit.setPlaceholderText("Search press, audit ID, tool, EOAT type, issue...")
-        self.search_edit.textChanged.connect(self.apply_filters)
+        self.search_edit.textChanged.connect(self._schedule_filter)
         self.status_filter = QComboBox()
         self.status_filter.addItems(["All"])
         self.status_filter.currentTextChanged.connect(self.apply_filters)
@@ -59,6 +86,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             controls.addWidget(widget)
         for label, callback in [
             ("Refresh", lambda: self.refresh(force=True)),
+            ("Auto Size Columns", self.auto_size_columns),
             ("Open Audit", self.open_selected_audit),
             ("Open Machine Group", self.open_machine_group),
             ("Export Press Summary", self.export_selected_press_summary),
@@ -71,7 +99,18 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
 
         card_grid = QGridLayout()
         self.cards: dict[str, StatusCard] = {}
-        for index, name in enumerate(["Press Groups", "Physical Audits", "Compatible Entries", "Open Items", "Validation Warnings", "Indexed Photos", "Avg Compliance"]):
+        for index, name in enumerate(
+            [
+                "Press Groups",
+                "Physical Audits",
+                "Compatible Assigned Here",
+                "Links From Source",
+                "Open Items",
+                "Validation Warnings",
+                "Indexed Photos",
+                "Avg Compliance",
+            ]
+        ):
             card = StatusCard(name)
             self.cards[name] = card
             card_grid.addWidget(card, index // 6, index % 6)
@@ -86,6 +125,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.group_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.group_table.setAlternatingRowColors(True)
         self.group_table.itemSelectionChanged.connect(self.populate_entries)
+        self._apply_default_table_widths(self.group_table)
         left_layout.addWidget(self.group_table)
         splitter.addWidget(left)
 
@@ -97,14 +137,24 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.physical_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.physical_table.setAlternatingRowColors(True)
         self.physical_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.physical_table))
+        self._apply_default_table_widths(self.physical_table)
         right_layout.addWidget(self.physical_table)
-        right_layout.addWidget(QLabel("Compatible entries"))
+        right_layout.addWidget(QLabel("Compatible entries assigned to this machine"))
         self.compatible_table = QTableWidget(0, len(self.ENTRY_COLUMNS))
         self.compatible_table.setHorizontalHeaderLabels(self.ENTRY_COLUMNS)
         self.compatible_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.compatible_table.setAlternatingRowColors(True)
         self.compatible_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.compatible_table))
+        self._apply_default_table_widths(self.compatible_table)
         right_layout.addWidget(self.compatible_table)
+        right_layout.addWidget(QLabel("Compatible entries from this machine's source audits"))
+        self.linked_compatible_table = QTableWidget(0, len(self.ENTRY_COLUMNS))
+        self.linked_compatible_table.setHorizontalHeaderLabels(self.ENTRY_COLUMNS)
+        self.linked_compatible_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.linked_compatible_table.setAlternatingRowColors(True)
+        self.linked_compatible_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.linked_compatible_table))
+        self._apply_default_table_widths(self.linked_compatible_table)
+        right_layout.addWidget(self.linked_compatible_table)
         splitter.addWidget(right)
         splitter.setSizes([430, 760])
         layout.addWidget(splitter, stretch=1)
@@ -118,14 +168,24 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
 
     def refresh(self, *_args, force: bool = False) -> bool:
         def _load() -> dict:
+            started = time.perf_counter()
             groups = build_press_view_groups(self.config.project_root)
             save_press_view_cache(self.config.project_root, groups)
+            log_performance(
+                self.config.project_root,
+                "press_view.background_rebuild",
+                time.perf_counter() - started,
+                source="press_view",
+                page_tool="press_view",
+                details={"group_count": len(groups)},
+            )
             return {
                 "groups": groups,
                 "source_counts": {
                     "groups": len(groups),
                     "physical": sum(len(group.physical_audits) for group in groups),
                     "compatible": sum(len(group.compatible_entries) for group in groups),
+                    "linked_compatible": sum(len(group.linked_compatible_entries) for group in groups),
                 },
             }
 
@@ -144,7 +204,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.groups = [
             group
             for group in self.all_groups
-            if (status in {"", "All"} or any(status.casefold() in entry.status.casefold() for entry in [*group.physical_audits, *group.compatible_entries]))
+            if (status in {"", "All"} or any(status.casefold() in entry.status.casefold() for entry in self._filter_entries(group)))
             and (not query or self._matches_group_query(group, query))
         ]
         self._refresh_status_filter()
@@ -155,7 +215,14 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         else:
             self._populate_entry_table(self.physical_table, [])
             self._populate_entry_table(self.compatible_table, [])
+            self._populate_entry_table(self.linked_compatible_table, [])
             self.result_panel.show_text("No press/machine audit rows matched the current filters.")
+
+    def _schedule_filter(self, *_args) -> None:
+        if self._filter_timer is None:
+            self.apply_filters()
+            return
+        self._filter_timer.start()
 
     def refresh_data(self) -> None:
         self.refresh()
@@ -201,25 +268,38 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         return None
 
     def selected_entry(self) -> PressAuditEntry | None:
-        physical_selected = bool(self.physical_table.selectionModel().selectedRows())
-        compatible_selected = bool(self.compatible_table.selectionModel().selectedRows())
-        table = self.compatible_table if compatible_selected and not physical_selected else self.physical_table
-        if table is self.physical_table:
-            entries = self.selected_group().physical_audits if self.selected_group() else []
-        else:
-            entries = self.selected_group().compatible_entries if self.selected_group() else []
-        row = table.currentRow()
-        if 0 <= row < len(entries):
-            return entries[row]
         group = self.selected_group()
+        if group is None:
+            return None
+        for table, entries in [
+            (self.physical_table, group.physical_audits),
+            (self.compatible_table, group.compatible_entries),
+            (self.linked_compatible_table, group.linked_compatible_entries),
+        ]:
+            if not table.selectionModel().selectedRows():
+                continue
+            row = table.currentRow()
+            if 0 <= row < len(entries):
+                return entries[row]
         if group and group.physical_audits:
             return group.physical_audits[0]
         if group and group.compatible_entries:
             return group.compatible_entries[0]
+        if group and group.linked_compatible_entries:
+            return group.linked_compatible_entries[0]
         return None
 
     def _show_cached_groups(self) -> None:
+        started = time.perf_counter()
         groups, generated_at, warning = load_cached_press_view_groups(self.config.project_root)
+        log_performance(
+            self.config.project_root,
+            "press_view.cached_load",
+            time.perf_counter() - started,
+            source="press_view",
+            page_tool="press_view",
+            details={"cache_status": "hit" if groups else "miss", "group_count": len(groups)},
+        )
         if not groups:
             self.result_panel.show_text(f"{warning or 'No cached press view yet.'} Loading press data in background...")
             return
@@ -260,9 +340,12 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             return
         self._populate_entry_table(self.physical_table, group.physical_audits)
         self._populate_entry_table(self.compatible_table, group.compatible_entries)
+        self._populate_entry_table(self.linked_compatible_table, group.linked_compatible_entries)
         self.result_panel.show_text(
             f"{group.display_name}: {len(group.physical_audits)} physical audit(s), "
-            f"{len(group.compatible_entries)} compatible entrie(s), {group.open_item_count} open item(s)."
+            f"{_count_phrase(len(group.compatible_entries), 'compatible entry', 'compatible entries')} assigned to this machine, "
+            f"{_count_phrase(len(group.linked_compatible_entries), 'compatible machine link', 'compatible machine links')} from this machine's source audits, "
+            f"{group.open_item_count} open item(s)."
         )
 
     def open_selected_audit(self) -> None:
@@ -277,7 +360,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         if group is None:
             self.result_panel.show_text("Select a press/machine group first.")
             return
-        self.result_panel.show_text(f"Opened {group.display_name}. Use the audit tables to jump into physical or compatible entries.")
+        self.result_panel.show_text(f"Opened {group.display_name}. Use the audit tables to jump into physical, assigned compatible, or linked compatible entries.")
 
     def export_selected_press_summary(self) -> None:
         group = self.selected_group()
@@ -293,7 +376,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             {
                 entry.status
                 for group in self.all_groups
-                for entry in [*group.physical_audits, *group.compatible_entries]
+                for entry in self._filter_entries(group)
                 if entry.status
             },
             key=str.casefold,
@@ -318,6 +401,8 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                     group.display_name,
                     len(group.physical_audits),
                     len(group.compatible_entries),
+                    len(group.linked_compatible_entries),
+                    group.compatibility_family_machine_count,
                     ", ".join(group.tools),
                     group.open_item_count,
                     group.validation_warning_count,
@@ -333,7 +418,6 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                     if col == 0:
                         item.setData(Qt.ItemDataRole.UserRole, group.machine)
                     self.group_table.setItem(row, col, item)
-            self.group_table.resizeColumnsToContents()
         finally:
             self.group_table.setUpdatesEnabled(True)
             self.group_table.blockSignals(False)
@@ -352,7 +436,6 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                     item = QTableWidgetItem(str(value or ""))
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     table.setItem(row, col, item)
-            table.resizeColumnsToContents()
         finally:
             table.setUpdatesEnabled(True)
             table.blockSignals(False)
@@ -360,14 +443,27 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         if entries:
             table.selectRow(0)
 
+    def auto_size_columns(self) -> None:
+        for table in [self.group_table, self.physical_table, self.compatible_table, self.linked_compatible_table]:
+            table.resizeColumnsToContents()
+        self.result_panel.show_text("Columns auto-sized.")
+
+    def _apply_default_table_widths(self, table: QTableWidget) -> None:
+        for column in range(table.columnCount()):
+            table.setColumnWidth(column, 130)
+        if table.columnCount():
+            table.setColumnWidth(0, 170)
+
     def _entry_selection_changed(self, active_table: QTableWidget) -> None:
-        other = self.compatible_table if active_table is self.physical_table else self.physical_table
         if active_table.currentRow() >= 0:
-            other.clearSelection()
+            for table in [self.physical_table, self.compatible_table, self.linked_compatible_table]:
+                if table is not active_table:
+                    table.clearSelection()
 
     def _refresh_cards(self) -> None:
         physical = sum(len(group.physical_audits) for group in self.groups)
         compatible = sum(len(group.compatible_entries) for group in self.groups)
+        linked_compatible = sum(len(group.linked_compatible_entries) for group in self.groups)
         open_items = sum(group.open_item_count for group in self.groups)
         validation = sum(group.validation_warning_count for group in self.groups)
         photos = sum(group.photo_count for group in self.groups)
@@ -375,7 +471,8 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         values = {
             "Press Groups": len(self.groups),
             "Physical Audits": physical,
-            "Compatible Entries": compatible,
+            "Compatible Assigned Here": compatible,
+            "Links From Source": linked_compatible,
             "Open Items": open_items,
             "Validation Warnings": validation,
             "Indexed Photos": photos,
@@ -387,16 +484,25 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
     @staticmethod
     def _matches_group_query(group: PressViewGroup, query: str) -> bool:
         needle = query.casefold().strip()
+        if group.search_blob:
+            return needle in group.search_blob
         haystack = " ".join(
             [
                 group.machine,
                 group.display_name,
                 " ".join(group.tools),
                 group.pilot_candidacy,
-                " ".join(entry.audit_id + " " + entry.status + " " + entry.eoat_type + " " + entry.known_issues for entry in group.physical_audits + group.compatible_entries),
+                " ".join(
+                    entry.audit_id + " " + entry.status + " " + entry.eoat_type + " " + entry.known_issues
+                    for entry in PressViewPage._filter_entries(group)
+                ),
             ]
         ).casefold()
         return needle in haystack
+
+    @staticmethod
+    def _filter_entries(group: PressViewGroup) -> list[PressAuditEntry]:
+        return [*group.physical_audits, *group.compatible_entries, *group.linked_compatible_entries]
 
 
 def _time_label(value: str | None) -> str:
@@ -408,3 +514,7 @@ def _time_label(value: str | None) -> str:
         return datetime.fromisoformat(str(value)).strftime("%I:%M %p").lstrip("0")
     except ValueError:
         return str(value)
+
+
+def _count_phrase(count: int, singular: str, plural: str) -> str:
+    return f"{count} {singular if count == 1 else plural}"

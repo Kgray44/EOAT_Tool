@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import sys
 import os
+import sys
 import time
 
 from PySide6.QtCore import QTimer
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from core.config import load_config
 from core.constants import APP_NAME
 from core.performance import log_performance
+
 from .dashboard_ui import DashboardWindow
 from .single_instance import SingleInstanceGuard
 from .theme import app_stylesheet

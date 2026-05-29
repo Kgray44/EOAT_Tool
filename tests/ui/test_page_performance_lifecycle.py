@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.command_registry import CommandRegistry, CommandSpec
-from app.event_bus import AppEvent, EVENT_AUDIT_SAVED
+from app.event_bus import EVENT_AUDIT_SAVED, AppEvent
 from app.pages.backup_manager import BackupManagerPage
 from app.pages.fmea import FmeaPage
 from app.pages.handoff import HandoffPage

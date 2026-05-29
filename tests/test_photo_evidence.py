@@ -4,6 +4,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from core.paths import resolve_project_paths
 from core.photo_evidence import (
     audit_photo_intake_folder,
     create_audit_photo_intake_folder,
@@ -11,7 +12,6 @@ from core.photo_evidence import (
     export_photo_checklist,
     validate_photo_evidence,
 )
-from core.paths import resolve_project_paths
 from core.workbook_schema import get_expected_headers
 
 

@@ -5,21 +5,31 @@ from pathlib import Path
 
 try:
     from PySide6.QtCore import QTimer, Signal
-    from PySide6.QtWidgets import QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import (
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QLabel,
+        QMessageBox,
+        QPushButton,
+        QScrollArea,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     QTimer = Signal = None
     QGridLayout = QGroupBox = QHBoxLayout = QLabel = QMessageBox = QPushButton = QScrollArea = QVBoxLayout = QWidget = None
 
-from app.widgets.file_picker import select_directory
 from app.event_bus import EVENT_AUDIT_SAVED
+from app.task_runner import TaskRequest, get_task_manager
+from app.ui_constants import PAGE_MARGIN, SECTION_SPACING
+from app.widgets.file_picker import select_directory
 from app.widgets.open_items_panel import OpenItemsPanel
 from app.widgets.status_card import StatusCard
-from app.task_runner import TaskRequest, get_task_manager
 from app.widgets.tool_run_panel import ToolRunPanel
 from app.widgets.workflow_card import WorkflowCard
-from app.ui_constants import PAGE_MARGIN, SECTION_SPACING
-from core.dashboard_cache import cached_snapshot_status, save_dashboard_cache
 from core.config import save_config
+from core.dashboard_cache import cached_snapshot_status, save_dashboard_cache
 from core.git_activity import get_git_status_short, is_git_repo
 from core.logging import read_recent_activity
 from core.openers import open_path
@@ -39,7 +49,7 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     from core.kpi_analysis import analyze_kpis
     from core.tool_registry import ToolRegistry
     from core.validation import validate_project_foundation
-    from core.workbook_io import row_dicts
+    from core.workbook_cache import row_dicts_cached as row_dicts
 
     started = time.perf_counter()
     root = Path(project_root)
@@ -430,6 +440,7 @@ class HomePage(QWidget):
         self.project_root_label.setText(f"Active project root: {self.config.project_root}\nData mode: {root_status.mode_label}\n{root_status.message}")
         self.result_panel.show_text("Dashboard loaded. Showing quick cached status...")
         if QTimer is not None:
+            QTimer.singleShot(0, self.open_items_panel.refresh_async)
             QTimer.singleShot(100, self.refresh_status)
 
     def _add_card_section(self, layout: QVBoxLayout, title: str, keys: list[str]) -> None:
@@ -493,7 +504,7 @@ class HomePage(QWidget):
         for key, value in snapshot["cards"].items():
             self._set_card(key, value)
         if hasattr(self, "open_items_panel"):
-            self.open_items_panel.refresh()
+            self.open_items_panel.refresh_async()
         self.morning_plan_button.setText(f"Generate Morning Plan for Week {snapshot['resolved_week']} Day {snapshot['resolved_day']}")
         self.recommendations_label.setText("\n".join(f"- {item}" for item in snapshot["recommendations"]))
         self.result_panel.show_text(snapshot["activity_text"])

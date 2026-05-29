@@ -13,7 +13,6 @@ from core.morning_context import detect_generic_morning_report
 from core.morning_planner import build_morning_plan_details_markdown, build_morning_plan_markdown, generate_morning_plan
 from core.paths import resolve_project_paths
 
-
 FORBIDDEN_MORNING_HEADINGS = [
     "Confidence / Data Quality",
     "Source Availability",

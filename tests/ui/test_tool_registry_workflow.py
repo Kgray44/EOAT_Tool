@@ -5,7 +5,6 @@ import pytest
 from app.pages.tool_registry import ToolRegistryPage
 from tests.ui.helpers import table_text
 
-
 pytestmark = pytest.mark.usability
 
 

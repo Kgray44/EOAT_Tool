@@ -23,8 +23,8 @@ try:
 except ImportError:  # pragma: no cover
     QApplication = QCheckBox = QComboBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
-from app.widgets.tool_run_panel import ToolRunPanel
 from app.page_tasks import run_tool_background
+from app.widgets.tool_run_panel import ToolRunPanel
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.photo_evidence import (
@@ -32,6 +32,9 @@ from core.photo_evidence import (
     create_audit_photo_intake_folder,
     evidence_coverage_for_audit,
     export_photo_checklist,
+    indexed_photos_for_audit,
+    link_photo_to_audit_field,
+    resolve_indexed_photo_path,
 )
 from core.photo_indexing import PHOTO_VIEW_FOLDERS, intake_photos, list_incoming_photos, preview_photo_intake
 
@@ -78,6 +81,7 @@ class PhotosPage(QWidget):
         self.view_combo.addItems(list(PHOTO_VIEW_FOLDERS.keys()))
         self.audit_id_edit = QLineEdit()
         self.issue_id_edit = QLineEdit()
+        self.audit_field_link_edit = QLineEdit()
         self.description_edit = QTextEdit()
         self.description_edit.setFixedHeight(70)
         self.notes_edit = QTextEdit()
@@ -91,6 +95,7 @@ class PhotosPage(QWidget):
             ("EOAT Area Shown", self.view_combo),
             ("Related Audit ID", self.audit_id_edit),
             ("Related Issue ID", self.issue_id_edit),
+            ("Link to Audit Field", self.audit_field_link_edit),
             ("Description", self.description_edit),
             ("Notes", self.notes_edit),
             ("", self.copy_check),
@@ -114,14 +119,35 @@ class PhotosPage(QWidget):
             ("Export Photo Checklist", self.export_audit_photo_checklist),
             ("Copy Intake Path", self.copy_audit_intake_path),
             ("Open Audit Intake Folder", self.open_audit_intake_folder),
+            ("Refresh Indexed Photos", self.refresh_indexed_photos),
         ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
             evidence_actions.addWidget(button)
         layout.addLayout(evidence_actions)
+        self.missing_shots_label = QLabel("")
+        self.missing_shots_label.setWordWrap(True)
+        self.missing_shots_label.setStyleSheet("color: #9f1239; font-weight: 600;")
+        layout.addWidget(self.missing_shots_label)
         self.evidence_table = QTableWidget(0, 7)
         self.evidence_table.setHorizontalHeaderLabels(["Category", "Applies", "Required", "Present", "Photos", "Status", "Warning"])
         layout.addWidget(self.evidence_table, stretch=1)
+
+        indexed_heading = QLabel("Indexed Photos for Audit")
+        indexed_heading.setStyleSheet("font-weight: 600;")
+        layout.addWidget(indexed_heading)
+        indexed_actions = QHBoxLayout()
+        for label, callback in [
+            ("Open Photo", self.open_selected_indexed_photo),
+            ("Link Photo to Audit Field", self.link_selected_photo_to_field),
+        ]:
+            button = QPushButton(label)
+            button.clicked.connect(callback)
+            indexed_actions.addWidget(button)
+        layout.addLayout(indexed_actions)
+        self.indexed_photos_table = QTableWidget(0, 5)
+        self.indexed_photos_table.setHorizontalHeaderLabels(["Photo ID", "Area", "Filename", "Path", "Linked Field"])
+        layout.addWidget(self.indexed_photos_table, stretch=1)
 
         self.result_panel = ToolRunPanel()
         layout.addWidget(self.result_panel, stretch=1)
@@ -156,6 +182,7 @@ class PhotosPage(QWidget):
             "view_type": self.view_combo.currentText(),
             "related_audit_id": self.audit_id_edit.text().strip(),
             "related_issue_id": self.issue_id_edit.text().strip(),
+            "audit_field_link": self.audit_field_link_edit.text().strip(),
             "description": self.description_edit.toPlainText().strip(),
             "notes": self.notes_edit.toPlainText().strip(),
         }
@@ -191,7 +218,7 @@ class PhotosPage(QWidget):
                 related_audit_id=data["related_audit_id"],
                 related_issue_id=data["related_issue_id"],
                 description=data["description"],
-                notes=data["notes"],
+                notes=self._notes_with_field_link(data["notes"], data["audit_field_link"]),
                 copy_mode=self.copy_check.isChecked(),
             ),
             self._intake_finished,
@@ -217,6 +244,8 @@ class PhotosPage(QWidget):
     def refresh_evidence_coverage(self) -> None:
         audit_id = self.audit_id_edit.text().strip()
         self.evidence_table.setRowCount(0)
+        self.missing_shots_label.setText("")
+        self.refresh_indexed_photos(show_empty=False)
         if not audit_id:
             self.result_panel.show_text("Enter a Related Audit ID to review photo evidence coverage.")
             return
@@ -237,10 +266,93 @@ class PhotosPage(QWidget):
             ]
             for column, value in enumerate(values):
                 self.evidence_table.setItem(row_index, column, QTableWidgetItem(value))
+        missing = [status.label for status in coverage.statuses if status.required and not status.present]
+        if missing:
+            self.missing_shots_label.setText("Missing shot types: " + ", ".join(missing))
+        else:
+            self.missing_shots_label.setText("Missing shot types: none")
         self.result_panel.show_text(
             f"Evidence coverage for {coverage.audit_id}: "
             f"{coverage.complete_count} complete, {coverage.missing_required_count} required missing."
         )
+
+    def refresh_indexed_photos(self, show_empty: bool = True) -> None:
+        audit_id = self.audit_id_edit.text().strip()
+        self.indexed_photos_table.setRowCount(0)
+        if not audit_id:
+            if show_empty:
+                self.result_panel.show_text("Enter a Related Audit ID to review indexed photos.")
+            return
+        rows = indexed_photos_for_audit(self.config.project_root, audit_id)
+        self.indexed_photos_table.setRowCount(len(rows))
+        for row_index, row in enumerate(rows):
+            linked_field = self._linked_field_from_notes(str(row.get("Notes") or ""))
+            path = resolve_indexed_photo_path(self.config.project_root, row)
+            values = [
+                str(row.get("Photo ID") or ""),
+                str(row.get("EOAT Area Shown") or ""),
+                str(row.get("Photo Filename") or ""),
+                str(path),
+                linked_field,
+            ]
+            for column, value in enumerate(values):
+                self.indexed_photos_table.setItem(row_index, column, QTableWidgetItem(value))
+        if show_empty:
+            self.result_panel.show_text(f"Indexed photos for {audit_id}: {len(rows)}")
+
+    def open_selected_indexed_photo(self) -> None:
+        row_index = self.indexed_photos_table.currentRow()
+        if row_index < 0:
+            self.result_panel.show_text("Select an indexed photo first.")
+            return
+        path_item = self.indexed_photos_table.item(row_index, 3)
+        if path_item is None:
+            self.result_panel.show_text("Selected photo has no path.")
+            return
+        result = open_path(path_item.text())
+        if not result.success:
+            self.result_panel.show_result(result)
+
+    def link_selected_photo_to_field(self) -> None:
+        row_index = self.indexed_photos_table.currentRow()
+        if row_index < 0:
+            self.result_panel.show_text("Select an indexed photo first.")
+            return
+        photo_item = self.indexed_photos_table.item(row_index, 0)
+        photo_id = photo_item.text().strip() if photo_item is not None else ""
+        audit_field = self.audit_field_link_edit.text().strip()
+        if not audit_field:
+            self.result_panel.show_text("Enter an audit field to link this photo to.")
+            return
+        run_tool_background(
+            self.result_panel,
+            "photo_evidence_link_field",
+            "Photo Evidence Field Link",
+            lambda: link_photo_to_audit_field(self.config.project_root, photo_id, audit_field),
+            self._field_link_finished,
+            modifies_files=True,
+            workbook_lock=True,
+        )
+
+    def _field_link_finished(self, result) -> None:
+        if result.success:
+            self.refresh_indexed_photos(show_empty=False)
+            self.refresh_evidence_coverage()
+
+    def _notes_with_field_link(self, notes: str, audit_field: str) -> str:
+        audit_field = audit_field.strip()
+        if not audit_field:
+            return notes
+        link_note = f"Linked audit field: {audit_field}"
+        if link_note in notes:
+            return notes
+        return "\n".join(part for part in (notes, link_note) if part)
+
+    def _linked_field_from_notes(self, notes: str) -> str:
+        for line in notes.splitlines():
+            if line.casefold().startswith("linked audit field:"):
+                return line.split(":", 1)[1].strip()
+        return ""
 
     def create_audit_intake_folder(self) -> None:
         audit_id = self.audit_id_edit.text().strip()

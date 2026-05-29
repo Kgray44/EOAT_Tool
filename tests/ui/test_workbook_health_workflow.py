@@ -7,7 +7,6 @@ from core.audit_by_press import AUDIT_BY_PRESS_SHEET, REFRESH_ACTION_NAME
 from core.workbook_io import workbook_sheet_names
 from tests.ui.helpers import click_button, wait_for_background_tasks
 
-
 pytestmark = pytest.mark.usability
 
 

@@ -3,12 +3,19 @@ from __future__ import annotations
 import json
 import re
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from .audit_compatibility import machine_from_audit_row, normalize_entry_type, normalize_machine_token, part_number_from_row, text_value
+from .audit.relationships import compatibility_entries_for_source_audit, is_compatibility_row
+from .audit_compatibility import (
+    machine_from_audit_row,
+    normalize_entry_type,
+    normalize_machine_token,
+    part_number_from_row,
+    text_value,
+)
 from .logging import log_tool_run
 from .open_items import list_open_items
 from .paths import resolve_project_paths
@@ -16,7 +23,7 @@ from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .standards_compliance import analyze_standards_compliance
 from .tool_fields import TOOL_FIELD
-from .workbook_io import row_dicts
+from .workbook_cache import row_dicts_cached as row_dicts
 
 
 @dataclass(frozen=True)
@@ -42,6 +49,7 @@ class PressViewGroup:
     display_name: str
     physical_audits: list[PressAuditEntry] = field(default_factory=list)
     compatible_entries: list[PressAuditEntry] = field(default_factory=list)
+    linked_compatible_entries: list[PressAuditEntry] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     open_item_count: int = 0
     validation_warning_count: int = 0
@@ -51,14 +59,25 @@ class PressViewGroup:
     average_compliance_score: int = 0
     worst_compliance_category: str = ""
     open_standards_issues: int = 0
+    search_blob: str = ""
 
     @property
     def total_entries(self) -> int:
         return len(self.physical_audits) + len(self.compatible_entries)
 
+    @property
+    def compatibility_family_machine_count(self) -> int:
+        machines = {
+            entry.machine
+            for entry in [*self.physical_audits, *self.linked_compatible_entries]
+            if entry.machine
+        }
+        return len(machines)
+
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["total_entries"] = self.total_entries
+        data["compatibility_family_machine_count"] = self.compatibility_family_machine_count
         return data
 
 
@@ -83,7 +102,7 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
         if status_filter and status_filter != "All" and status_filter.casefold() not in entry.status.casefold():
             continue
         group = grouped.setdefault(machine, {"physical": [], "compatible": [], "tools": set(), "pilot": [], "dates": []})
-        if entry.entry_type.casefold() == "compatible":
+        if is_compatibility_row(row):
             group["compatible"].append(entry)
         else:
             group["physical"].append(entry)
@@ -97,11 +116,13 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
     groups: list[PressViewGroup] = []
     for machine, data in grouped.items():
         tools = sorted(data["tools"], key=str.casefold)
+        linked_compatible = _linked_compatible_entries_for_sources(data["physical"], rows)
         group = PressViewGroup(
             machine=machine,
             display_name=_display_name(machine),
             physical_audits=sorted(data["physical"], key=lambda item: item.audit_id.casefold()),
             compatible_entries=sorted(data["compatible"], key=lambda item: item.audit_id.casefold()),
+            linked_compatible_entries=linked_compatible,
             tools=tools,
             open_item_count=open_counts.get(machine, 0),
             validation_warning_count=validation_counts.get(machine, 0),
@@ -112,6 +133,7 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
             worst_compliance_category=compliance_rollups.get(machine, {}).get("worst_category", ""),
             open_standards_issues=compliance_rollups.get(machine, {}).get("open_standards_issues", 0),
         )
+        group = replace(group, search_blob=_search_blob(group))
         if query and not _matches_group(group, query):
             continue
         groups.append(group)
@@ -158,7 +180,10 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
         f"# {group.display_name} Summary",
         "",
         f"- Physical audits: {len(group.physical_audits)}",
-        f"- Compatible entries: {len(group.compatible_entries)}",
+        f"- Compatible entries assigned to this machine: {len(group.compatible_entries)}",
+        f"- Compatible machine links from this machine's source audits: {len(group.linked_compatible_entries)}",
+        "- Relationship rule: compatible entries do not count as physical audit verification.",
+        f"- Total machines in compatibility family: {group.compatibility_family_machine_count}",
         f"- Tools: {', '.join(group.tools) if group.tools else 'None listed'}",
         f"- Open items: {group.open_item_count}",
         f"- Validation warnings: {group.validation_warning_count}",
@@ -172,8 +197,10 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
         "## Physical Audits",
     ]
     lines.extend(_entry_lines(group.physical_audits))
-    lines.extend(["", "## Compatible Entries"])
+    lines.extend(["", "## Compatible Entries Assigned To This Machine"])
     lines.extend(_entry_lines(group.compatible_entries))
+    lines.extend(["", "## Compatible Entries Created From This Machine's Source Audits"])
+    lines.extend(_entry_lines(group.linked_compatible_entries))
     paths = resolve_project_paths(project_root)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     safe_machine = re.sub(r"[^A-Za-z0-9_-]+", "_", machine).strip("_") or "unassigned"
@@ -211,6 +238,25 @@ def _entry_from_row(row: dict[str, Any], machine: str) -> PressAuditEntry:
     )
 
 
+def _linked_compatible_entries_for_sources(
+    physical_audits: list[PressAuditEntry],
+    rows: list[dict[str, Any]],
+) -> list[PressAuditEntry]:
+    linked_entries: list[PressAuditEntry] = []
+    seen: set[tuple[str, str, str]] = set()
+    source_audit_ids = sorted({entry.audit_id for entry in physical_audits if entry.audit_id}, key=str.casefold)
+    for source_audit_id in source_audit_ids:
+        for row in compatibility_entries_for_source_audit(rows, source_audit_id):
+            machine = machine_from_audit_row(row) or "Unassigned / Missing Press"
+            entry = _entry_from_row(row, machine)
+            key = (entry.audit_id, entry.machine, entry.source_audit_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            linked_entries.append(entry)
+    return sorted(linked_entries, key=lambda item: (_machine_sort_key(item.machine), item.audit_id.casefold()))
+
+
 def _entry_from_dict(data: dict[str, Any]) -> PressAuditEntry:
     return PressAuditEntry(
         audit_id=str(data.get("audit_id") or ""),
@@ -229,11 +275,13 @@ def _entry_from_dict(data: dict[str, Any]) -> PressAuditEntry:
 def _group_from_dict(data: dict[str, Any]) -> PressViewGroup:
     physical = [_entry_from_dict(item) for item in data.get("physical_audits", []) if isinstance(item, dict)]
     compatible = [_entry_from_dict(item) for item in data.get("compatible_entries", []) if isinstance(item, dict)]
-    return PressViewGroup(
+    linked_compatible = [_entry_from_dict(item) for item in data.get("linked_compatible_entries", []) if isinstance(item, dict)]
+    group = PressViewGroup(
         machine=str(data.get("machine") or ""),
         display_name=str(data.get("display_name") or ""),
         physical_audits=physical,
         compatible_entries=compatible,
+        linked_compatible_entries=linked_compatible,
         tools=[str(item) for item in data.get("tools", []) if item],
         open_item_count=int(data.get("open_item_count") or 0),
         validation_warning_count=int(data.get("validation_warning_count") or 0),
@@ -243,7 +291,11 @@ def _group_from_dict(data: dict[str, Any]) -> PressViewGroup:
         average_compliance_score=int(data.get("average_compliance_score") or 0),
         worst_compliance_category=str(data.get("worst_compliance_category") or ""),
         open_standards_issues=int(data.get("open_standards_issues") or 0),
+        search_blob=str(data.get("search_blob") or ""),
     )
+    if not group.search_blob:
+        group = replace(group, search_blob=_search_blob(group))
+    return group
 
 
 def _open_item_counts(project_root: str | Path) -> dict[str, int]:
@@ -316,23 +368,29 @@ def _entry_lines(entries: list[PressAuditEntry]) -> list[str]:
     if not entries:
         return ["- None"]
     return [
-        f"- {entry.audit_id or '(missing audit id)'} | {entry.entry_type} | {entry.tool or 'no tool'} | {entry.eoat_type or 'no EOAT type'} | {entry.status or 'no status'}"
+        f"- {entry.audit_id or '(missing audit id)'} | Machine {entry.machine or 'missing'} | {entry.entry_type} | {entry.tool or 'no tool'} | {entry.eoat_type or 'no EOAT type'} | {entry.status or 'no status'}"
         for entry in entries
     ]
 
 
 def _matches_group(group: PressViewGroup, query: str) -> bool:
     needle = query.casefold().strip()
-    haystack = " ".join(
+    return needle in (group.search_blob or _search_blob(group))
+
+
+def _search_blob(group: PressViewGroup) -> str:
+    return " ".join(
         [
             group.machine,
             group.display_name,
             " ".join(group.tools),
             group.pilot_candidacy,
-            " ".join(entry.audit_id + " " + entry.status + " " + entry.eoat_type + " " + entry.known_issues for entry in group.physical_audits + group.compatible_entries),
+            " ".join(
+                entry.audit_id + " " + entry.status + " " + entry.eoat_type + " " + entry.known_issues
+                for entry in group.physical_audits + group.compatible_entries + group.linked_compatible_entries
+            ),
         ]
     ).casefold()
-    return needle in haystack
 
 
 def _pilot_summary(values: list[str]) -> str:

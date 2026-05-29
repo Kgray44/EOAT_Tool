@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .safe_files import ensure_directory, safe_write_text
-
 
 OPEN_STATUSES = {"open", "not started", "needs follow-up", "in progress", "blocked", "new"}
 CLOSED_STATUSES = {"closed", "complete", "completed", "resolved", "done"}

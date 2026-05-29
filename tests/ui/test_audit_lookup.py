@@ -1,15 +1,19 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import pytest
 from openpyxl import load_workbook
-from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QTextEdit
+from PySide6.QtWidgets import QComboBox, QGroupBox, QLabel, QLineEdit, QTextEdit
 
 from app.pages.audit import AuditPage
 from core.audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_DEFAULT,
+    CYLINDER_TYPE_FIELD,
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELDS,
     SOURCE_AUDIT_ID_FIELD,
 )
 from core.paths import resolve_project_paths
@@ -17,8 +21,7 @@ from core.tool_fields import LEGACY_TOOL_FIELD
 from core.workbook_io import row_dicts
 from core.workbook_schema import get_expected_headers
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
-from tests.ui.helpers import click_button, wait_for_background_tasks
-
+from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
 
 pytestmark = pytest.mark.usability
 
@@ -63,6 +66,16 @@ def _set_field(page: AuditPage, field: str, value: str) -> None:
         widget.setPlainText(value)
     else:
         widget.setText(value)
+
+
+def _finish_machine_lookup(page: AuditPage) -> None:
+    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    wait_until(
+        lambda: page._machine_lookup_timer is None or not page._machine_lookup_timer.isActive(),
+        timeout_ms=5000,
+        message="machine lookup debounce timer",
+    )
+    wait_for_background_tasks()
 
 
 def _append_inventory_row(project_root, values: dict[str, str]) -> None:
@@ -128,7 +141,7 @@ def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config
     page = AuditPage(fake_config)
 
     assert REFERENCE_ONLY_FIELDS.isdisjoint(page.audit_fields)
-    workflow_metadata = {"Entry Type", "Source Audit ID", "Compatibility Source"}
+    workflow_metadata = {"Entry Type", "Source Audit ID", "Compatibility Source", *MANUAL_COMPLETION_OVERRIDE_FIELDS}
     assert (set(get_expected_headers("EOAT Inventory")) - workflow_metadata).issubset(page.audit_fields)
     assert {
         "Tool #",
@@ -139,6 +152,8 @@ def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config
         "Gripper Model",
         "Gripper Size",
         "Number of Parts Picked",
+        CYLINDER_COUNT_FIELD,
+        CYLINDER_TYPE_FIELD,
         "Tubing Condition",
         "Cable Management Condition",
         "BOM Available?",
@@ -177,6 +192,13 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     assert "Large Double Gripper" in _combo_items(gripper_model)
     assert "Small Double Gripper" in _combo_items(gripper_model)
 
+    cylinder_type = page.audit_fields[CYLINDER_TYPE_FIELD]
+    assert isinstance(cylinder_type, QComboBox)
+    assert cylinder_type.isEditable() is False
+    assert "Linear" in _combo_items(cylinder_type)
+    assert "Rotary" in _combo_items(cylinder_type)
+    assert cylinder_type.currentText() == CYLINDER_TYPE_DEFAULT
+
     eoat_type = page.audit_fields["EOAT Type"]
     assert isinstance(eoat_type, QComboBox)
     assert "Miscellaneous" in _combo_items(eoat_type)
@@ -188,6 +210,7 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     tooling_fields = list(page.audit_fields)
     assert tooling_fields.index("EOAT Type") < tooling_fields.index("EOAT Moves") < tooling_fields.index("Connection Type")
     assert tooling_fields.index("Number of Parts Picked") < tooling_fields.index("# of Grippers") < tooling_fields.index("Gripper Type") < tooling_fields.index("Gripper Model")
+    assert tooling_fields.index("Number of Parts Picked") < tooling_fields.index(CYLINDER_COUNT_FIELD) < tooling_fields.index(CYLINDER_TYPE_FIELD)
     assert tooling_fields.index("# of Cups") < tooling_fields.index("Cup Type/Material") < tooling_fields.index("Cup Diameter/Size") < tooling_fields.index("Vacuum Generator Type")
     assert "Vacuum Zones" not in page.audit_fields
     assert tooling_fields.index("Connection Type") < tooling_fields.index("Number of Parts Picked") < tooling_fields.index("# of Cups")
@@ -197,6 +220,12 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     assert cups.hasAcceptableInput()
     cups.setText("-1")
     assert not cups.hasAcceptableInput()
+    cylinders = page.audit_fields[CYLINDER_COUNT_FIELD]
+    assert isinstance(cylinders, QLineEdit)
+    cylinders.setText("2")
+    assert cylinders.hasAcceptableInput()
+    cylinders.setText("-1")
+    assert not cylinders.hasAcceptableInput()
 
 
 @pytest.mark.parametrize(
@@ -206,7 +235,8 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
         ("Mechanical / Gripper", False, True),
         ("Hybrid", True, True),
         ("Unknown / Needs Review", True, False),
-        ("Miscellaneous", True, False),
+        ("Miscellaneous", True, True),
+        ("", True, False),
     ],
 )
 def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vacuum_visible, gripper_visible):
@@ -222,6 +252,22 @@ def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vac
     assert page.audit_fields["Gripper Model"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Size"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Type"].isHidden() is (not gripper_visible)
+    assert page.audit_fields[CYLINDER_COUNT_FIELD].isHidden() is False
+    assert page.audit_fields[CYLINDER_TYPE_FIELD].isHidden() is False
+
+
+def test_cylinder_details_group_is_always_visible(qapp, fake_config):
+    page = AuditPage(fake_config)
+    group_titles = {group.title(): group for group in page.findChildren(QGroupBox)}
+
+    assert "Cylinder Details" in group_titles
+    cylinder_group = group_titles["Cylinder Details"]
+    for eoat_type in ["Vacuum", "Mechanical / Gripper", "Hybrid", "Miscellaneous", "Unknown / Needs Review", ""]:
+        _set_field(page, "EOAT Type", eoat_type)
+
+        assert cylinder_group.isHidden() is False
+        assert page.audit_fields[CYLINDER_COUNT_FIELD].isHidden() is False
+        assert page.audit_fields[CYLINDER_TYPE_FIELD].isHidden() is False
 
 
 def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qapp, fake_config):
@@ -257,6 +303,14 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
     assert page.audit_fields["Gripper Size"].text() == "25 mm"
     assert page.audit_fields["# of Grippers"].text() == "2"
     assert page._field_value(page.audit_fields["Gripper Type"]) == "Single Pressure"
+
+    _set_field(page, "EOAT Type", "Miscellaneous")
+    assert page.audit_fields["Gripper Model"].isHidden() is False
+    assert page.audit_fields["Gripper Size"].isHidden() is False
+    assert page.audit_fields["# of Grippers"].isHidden() is False
+    assert page.audit_fields["Gripper Type"].isHidden() is False
+    assert page._field_value(page.audit_fields["Gripper Model"]) == "Zimmer GPP"
+    assert page.audit_fields["# of Grippers"].text() == "2"
 
 
 def test_sensors_present_controls_sensor_electrical_visibility(qapp, fake_config):
@@ -303,7 +357,7 @@ def test_ui_lookup_runs_on_editing_finished_and_fills_clean_fields(qapp, fake_co
     page.show()
 
     page.audit_fields["Press/Machine #"].setText("P12")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert page.audit_fields["Press/Machine #"].text() == "12"
     assert page.audit_fields["Robot Type"].currentText() == "Wittmann W833"
@@ -330,7 +384,7 @@ def test_multiple_capacity_rows_show_selector_without_autofilling_part(qapp, fak
     page = AuditPage(fake_config)
 
     page.audit_fields["Press/Machine #"].setText("Machine 12")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert page.capacity_part_combo.isEnabled()
     assert page.capacity_part_combo.count() == 3
@@ -350,7 +404,7 @@ def test_missing_machine_number_lookup_does_not_crash(qapp, fake_config):
     page = AuditPage(fake_config)
 
     page.audit_fields["Press/Machine #"].setText("")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert "Invalid machine number" in page.lookup_note_label.text()
 
@@ -393,7 +447,7 @@ def test_machine_lookup_clean_new_form_loads_without_unsaved_prompt(qapp, fake_c
     monkeypatch.setattr(page, "_confirm_unsaved_audit_changes", reject_unsaved_prompt)
 
     page.audit_fields["Press/Machine #"].setText("49")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert prompt_actions == []
     assert page._current_loaded_audit_id == "AUD-PHYSICAL-049"
@@ -417,7 +471,7 @@ def test_machine_lookup_dirty_new_form_still_prompts_before_existing_load(qapp, 
 
     page.audit_fields["Known Issues"].setPlainText("Meaningful unsaved issue.")
     page.audit_fields["Press/Machine #"].setText("51")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert prompt_actions == ["load another audit"]
     assert page._current_loaded_audit_id is None
@@ -475,7 +529,7 @@ def test_save_writes_clean_audit_fields_not_reference_values(qapp, fake_config, 
     page.show()
 
     page.audit_fields["Press/Machine #"].setText("P12")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
     _set_field(page, "EOAT Type", "Vacuum")
     _set_field(page, "Sensors Present?", "Yes")
     _set_field(page, "Vacuum Confirmation Present?", "Yes")
@@ -513,7 +567,7 @@ def test_lookup_does_not_overwrite_manual_robot_type(qapp, fake_config, fake_pro
 
     page.audit_fields["Robot Type"].setEditText("Manual robot")
     page.audit_fields["Press/Machine #"].setText("12")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert page.audit_fields["Robot Type"].currentText() == "Manual robot"
     assert "different Robot Type suggestion" in page.lookup_note_label.text()
@@ -525,7 +579,7 @@ def test_lookup_does_not_overwrite_manual_tool_number(qapp, fake_config, fake_pr
 
     page.audit_fields["Tool #"].setText("MANUAL-TOOL")
     page.audit_fields["Press/Machine #"].setText("12")
-    page.audit_fields["Press/Machine #"].editingFinished.emit()
+    _finish_machine_lookup(page)
 
     assert page.audit_fields["Tool #"].text() == "MANUAL-TOOL"
     assert "different Tool # suggestion" in page.lookup_note_label.text()

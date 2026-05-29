@@ -2,15 +2,44 @@ from __future__ import annotations
 
 import json
 import time
-from contextlib import contextmanager
 from collections import deque
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
 
 from .paths import resolve_project_paths
 from .project_root_status import project_data_mode
 from .safe_files import ensure_directory
+
+
+@dataclass(frozen=True)
+class PerformanceDoctorFinding:
+    operation: str
+    duration_seconds: float
+    likely_cause: str
+    recommendation: str
+    severity: str = "info"
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class PerformanceDoctorSummary:
+    event_count: int
+    slowest_operation: str
+    slowest_duration_seconds: float
+    findings: tuple[PerformanceDoctorFinding, ...] = field(default_factory=tuple)
+
+    def to_dict(self) -> dict:
+        return {
+            "event_count": self.event_count,
+            "slowest_operation": self.slowest_operation,
+            "slowest_duration_seconds": self.slowest_duration_seconds,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
 
 
 def performance_log_path(project_root: str | Path) -> Path:
@@ -170,6 +199,8 @@ def summarize_performance(events: list[dict], *, slow_limit: int = 10) -> dict:
             "operation": operation,
             "count": len(values),
             "avg_duration_seconds": round(sum(values) / len(values), 4),
+            "p50_duration_seconds": round(_percentile(values, 50), 4),
+            "p95_duration_seconds": round(_percentile(values, 95), 4),
             "max_duration_seconds": round(max(values), 4),
         }
         for operation, values in sorted(by_operation.items())
@@ -195,11 +226,101 @@ def summarize_performance(events: list[dict], *, slow_limit: int = 10) -> dict:
     }
 
 
+def analyze_performance_doctor(project_root: str | Path, *, limit: int = 500) -> tuple[PerformanceDoctorSummary, str | None]:
+    events, warning = read_recent_performance_events(project_root, limit=limit)
+    findings = tuple(_doctor_finding(event) for event in sorted(events, key=_duration, reverse=True)[:20] if _duration(event) >= _slow_threshold(event))
+    slowest = max(events, key=_duration, default={})
+    return (
+        PerformanceDoctorSummary(
+            event_count=len(events),
+            slowest_operation=str(slowest.get("operation") or ""),
+            slowest_duration_seconds=round(_duration(slowest), 4),
+            findings=findings,
+        ),
+        warning,
+    )
+
+
+def _doctor_finding(event: dict) -> PerformanceDoctorFinding:
+    operation = str(event.get("operation") or "unknown")
+    duration = round(_duration(event), 4)
+    lowered = operation.casefold()
+    details = event.get("details")
+    detail_text = json.dumps(details, ensure_ascii=True).casefold() if not isinstance(details, str) else details.casefold()
+    if "lock" in lowered:
+        cause = "Workbook lock wait was recorded."
+        recommendation = "Close Excel/Office lock files before save, repair, or migration operations."
+    elif "startup" in lowered or "load_config" in lowered or "config" in lowered:
+        cause = "Startup/config loading is taking longer than expected."
+        recommendation = "Check network project root latency and avoid heavy work before the main window appears."
+    elif "page" in lowered and ("create" in lowered or "constructor" in lowered):
+        cause = "Page creation may be doing expensive work in the constructor."
+        recommendation = "Move workbook reads and scans into background refresh/on-show paths."
+    elif "workbook" in lowered and ("open" in lowered or "save" in lowered):
+        cause = "Workbook IO is slow, possibly due to network storage, file size, or Excel locks."
+        recommendation = "Use cached reads where safe, close Excel before saves, and keep workbook writes batched."
+    elif "validation" in lowered:
+        cause = "Validation scan is expensive."
+        recommendation = "Run full validation on demand, cache summaries, and avoid triggering validation on page open."
+    elif "report" in lowered or "summary" in lowered:
+        cause = "Report generation is one of the slower operations."
+        recommendation = "Generate reports in background and reuse existing summaries when inputs have not changed."
+    elif "cache" in lowered or "cache_status" in detail_text:
+        cause = "Cache read/write or stale-cache handling is visible in timing."
+        recommendation = "Review cache hit rate and invalidate only affected caches."
+    elif "event" in lowered or "dispatch" in lowered:
+        cause = "Event dispatch or page refresh listeners may be doing too much work."
+        recommendation = "Keep event handlers lightweight and mark heavy pages stale instead of refreshing immediately."
+    elif "queue" in lowered or "background" in lowered:
+        cause = "Background queue wait time is elevated."
+        recommendation = "Avoid starting duplicate long-running workbook tasks and surface queue status to users."
+    else:
+        cause = "Operation duration is above the diagnostic threshold."
+        recommendation = "Inspect operation details and add finer-grained timing around this workflow."
+    severity = "warning" if duration >= 5 else "info"
+    return PerformanceDoctorFinding(operation=operation, duration_seconds=duration, likely_cause=cause, recommendation=recommendation, severity=severity)
+
+
+def _duration(event: dict) -> float:
+    try:
+        return float(event.get("duration_seconds") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _slow_threshold(event: dict) -> float:
+    operation = str(event.get("operation") or "").casefold()
+    if "lock" in operation:
+        return 0.25
+    if "startup" in operation or "config" in operation or "cache" in operation or "event" in operation:
+        return 0.5
+    if "page" in operation and ("create" in operation or "constructor" in operation):
+        return 0.75
+    if "workbook" in operation or "validation" in operation or "report" in operation:
+        return 1.0
+    if "queue" in operation:
+        return 0.25
+    return 2.0
+
+
 def _latest_event(events: list[dict], prefix: str) -> dict | None:
     for event in events:
         if str(event.get("operation") or "").startswith(prefix):
             return event
     return None
+
+
+def _percentile(values: list[float], percentile: int) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (len(ordered) - 1) * (percentile / 100)
+    lower = int(rank)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = rank - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
 
 def _latest_operation_contains(events: list[dict], words: tuple[str, ...]) -> dict | None:
@@ -228,6 +349,9 @@ def timed_operation(project_root: str | Path, operation: str, details: str = "")
 
 
 __all__ = [
+    "PerformanceDoctorFinding",
+    "PerformanceDoctorSummary",
+    "analyze_performance_doctor",
     "log_performance",
     "log_performance_event",
     "performance_jsonl_path",

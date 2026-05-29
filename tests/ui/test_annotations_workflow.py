@@ -2,21 +2,20 @@
 
 import pytest
 from openpyxl import load_workbook
-from PySide6.QtWidgets import QDialog, QMessageBox, QPushButton
+from PySide6.QtWidgets import QDialog, QMessageBox
 
 from app.dashboard_ui import DashboardWindow
 from app.pages.audit import AuditPage, audit_section_for_field
 from app.pages.notes import NotesPage
 from app.pages.tags import TagsPage
 from app.widgets import annotation_target_navigator
-from app.widgets.field_tag_button import FieldNoteDialog, FieldTagButton, FieldTagDialog
 from app.widgets.annotation_target_navigator import AnnotationTargetPickerDialog
+from app.widgets.field_tag_button import FieldNoteDialog, FieldTagButton, FieldTagDialog
 from app.widgets.note_editor import NoteEditor
 from core.annotations.service import AnnotationService
 from core.audit_entries import save_audit_entry
 from core.paths import resolve_project_paths
 from tests.ui.helpers import click_button, wait_for_background_tasks
-
 
 pytestmark = pytest.mark.usability
 
@@ -37,6 +36,9 @@ def test_notes_page_opens_and_creates_note(qapp, fake_config):
 def test_tags_page_opens_and_creates_custom_tag(qapp, fake_config):
     page = TagsPage(fake_config)
     page.show()
+
+    names = [page.tag_table.item(row, 0).text() for row in range(page.tag_table.rowCount())]
+    assert "Info" in names
 
     click_button(page, "+ New Tag")
     page.name_edit.setText("Fixture Trial")
@@ -155,6 +157,7 @@ def test_field_tag_popup_uses_read_only_tag_color_preview(qapp, fake_config):
 
     assert not hasattr(dialog, "color_combo")
     assert dialog.add_tag_panel.isHidden()
+    assert dialog.tag_combo.findText("Info") >= 0
     index = dialog.tag_combo.findText("Needs Review")
     dialog.tag_combo.setCurrentIndex(index)
 
@@ -552,7 +555,7 @@ def test_clear_form_confirmation_can_be_suppressed_and_clears_summary(qapp, fake
     assert page.result_panel.viewer.toPlainText() == ""
 
 
-def test_save_audit_autoclears_form_and_preserves_combined_summary(qapp, fake_config, fake_project, frozen_project_date):
+def test_save_audit_preserves_form_and_combined_summary(qapp, fake_config, fake_project, frozen_project_date):
     page = AuditPage(fake_config)
     page.show()
     audit_id = page.audit_fields["Audit ID"].text()
@@ -568,8 +571,9 @@ def test_save_audit_autoclears_form_and_preserves_combined_summary(qapp, fake_co
     assert "Robot Info Summary" in text
     assert "Compatibility Entry Summary" in text
     assert f"Saved audit entry {audit_id}" in text
-    assert page.audit_fields["Press/Machine #"].text() == ""
-    assert page.audit_fields["Audit ID"].text() != audit_id
+    assert page.audit_fields["Press/Machine #"].text() == "12"
+    assert page.audit_fields["Audit ID"].text() == audit_id
+    assert page.has_unsaved_changes() is False
 
 
 def test_save_audit_workflow_records_timing_and_defers_annotation_sync(qapp, fake_config, monkeypatch, frozen_project_date):

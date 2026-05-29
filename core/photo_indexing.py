@@ -6,7 +6,6 @@ import time
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 from openpyxl import load_workbook
 
@@ -14,6 +13,7 @@ from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file, ensure_directory, safe_copy_file
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import next_empty_row, row_dicts, write_row_by_headers
 from .workbook_schema import get_expected_headers
 
@@ -23,34 +23,52 @@ PHOTO_VIEW_FOLDERS = {
     "Overall": "Overall",
     "Overall EOAT": "Overall",
     "Robot Connection": "Robot_Connection",
+    "Tool Connection": "Tool_Connection",
     "EOAT-Side Pneumatic Circuits": "EOAT_Side_Pneumatic_Circuits",
+    "EOAT-Side Pneumatics": "EOAT_Side_Pneumatics",
+    "Robot-Side Pneumatics": "Robot_Side_Pneumatics",
     "Vacuum Cups / Grippers": "Vacuum_Cups_Grippers",
     "Grippers": "Grippers",
     "Vacuum Cups": "Vacuum_Cups",
+    "Cylinders": "Cylinders",
     "Tubing Routing": "Tubing_Routing",
     "Sensors": "Sensors",
+    "Sensor Mounting": "Sensor_Mounting",
     "Quick Disconnects": "Quick_Disconnects",
     "Mounting Hardware": "Mounting_Hardware",
     "Cable Management": "Cable_Management",
     "Wear / Damage": "Wear_Damage",
+    "Wear/Damage": "Wear_Damage",
+    "Tool Label / ID Plate": "Tool_Label_ID_Plate",
     "Process Binder Reference": "Process_Binder_Reference",
+    "Process Binder/Documentation Reference": "Process_Binder_Documentation_Reference",
+    "Other": "Other",
 }
 
 PHOTO_VIEW_FILENAME = {
     "Overall": "Overall",
     "Overall EOAT": "OverallEOAT",
     "Robot Connection": "RobotConnection",
+    "Tool Connection": "ToolConnection",
     "EOAT-Side Pneumatic Circuits": "EOATPneumaticCircuits",
+    "EOAT-Side Pneumatics": "EOATSidePneumatics",
+    "Robot-Side Pneumatics": "RobotSidePneumatics",
     "Vacuum Cups / Grippers": "VacuumCupsGrippers",
     "Grippers": "Grippers",
     "Vacuum Cups": "VacuumCups",
+    "Cylinders": "Cylinders",
     "Tubing Routing": "TubingRouting",
     "Sensors": "Sensors",
+    "Sensor Mounting": "SensorMounting",
     "Quick Disconnects": "QuickDisconnects",
     "Mounting Hardware": "MountingHardware",
     "Cable Management": "CableManagement",
     "Wear / Damage": "WearDamage",
+    "Wear/Damage": "WearDamage",
+    "Tool Label / ID Plate": "ToolLabelIDPlate",
     "Process Binder Reference": "ProcessBinderReference",
+    "Process Binder/Documentation Reference": "ProcessBinderDocumentationReference",
+    "Other": "Other",
 }
 
 
@@ -249,6 +267,7 @@ def intake_photos(
             rows_written.append(row_number)
         workbook.save(workbook_path)
         workbook.close()
+        invalidate_workbook_cache(workbook_path)
     except Exception as exc:
         if workbook is not None:
             try:

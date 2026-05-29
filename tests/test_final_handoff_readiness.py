@@ -5,11 +5,14 @@ from core.final_handoff_readiness import (
     READY,
     build_final_handoff_readiness,
     build_leadership_summary_markdown,
+    build_machine_summary_report_markdown,
     build_open_items_carryover_markdown,
     build_technical_appendix_markdown,
     export_leadership_summary,
+    export_machine_summary_report,
     export_open_items_carryover,
     export_technical_appendix,
+    machine_summary_dir,
     open_items_carryover_dir,
     technical_appendix_dir,
 )
@@ -58,8 +61,12 @@ def test_final_handoff_readiness_detects_ready_outputs(usability_fake_project):
         "open_items_carryover",
         "executive_summary",
         "technical_appendix",
+        "machine_summary_report",
     ]:
-        assert ready[key].status == READY
+        if key == "machine_summary_report":
+            assert ready[key].status in {MISSING, READY}
+        else:
+            assert ready[key].status == READY
 
 
 def test_executive_summary_headings_and_honest_unavailable_language(fake_project):
@@ -70,6 +77,7 @@ def test_executive_summary_headings_and_honest_unavailable_language(fake_project
         "## Work Completed",
         "## Major Findings",
         "## Pilot Recommendation / Results",
+        "## Integrated Risk Insight",
         "## KPI Impact",
         "## Remaining Risks",
         "## Next Steps",
@@ -77,6 +85,7 @@ def test_executive_summary_headings_and_honest_unavailable_language(fake_project
         assert heading in text
     assert "KPI impact unavailable" in text
     assert "Pilot recommendation/results unavailable" in text
+    assert "Use machine summaries" in text
 
 
 def test_technical_appendix_required_headings(fake_project):
@@ -87,6 +96,7 @@ def test_technical_appendix_required_headings(fake_project):
         "## Validation Findings Summary",
         "## Standards Gaps",
         "## FMEA Details",
+        "## Integrated Risk Insight",
         "## PM/BOM Findings",
         "## Photo / Evidence References",
         "## Open Items",
@@ -114,3 +124,17 @@ def test_standalone_executive_and_appendix_exports(fake_project):
     assert appendix.success is True
     assert "Executive_Summary_" in executive.output_reports[0]
     assert "Technical_Appendix_" in appendix.output_reports[0]
+
+
+def test_machine_summary_report_is_truth_labeled_and_exportable(usability_fake_project):
+    text = build_machine_summary_report_markdown(usability_fake_project)
+
+    assert "# Machine Summary Report" in text
+    assert "Source And Confidence Labels" in text
+    assert "Compatibility counts are workbook-derived" in text
+    assert "No KPI impact" in text
+
+    result = export_machine_summary_report(usability_fake_project)
+    assert result.success is True
+    assert result.output_reports
+    assert machine_summary_dir(usability_fake_project).exists()

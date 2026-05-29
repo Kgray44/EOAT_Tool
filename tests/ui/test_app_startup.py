@@ -7,7 +7,6 @@ from app.navigation import NAV_ITEMS
 from core.constants import DEFAULT_PROJECT_ROOT
 from tests.ui.helpers import wait_for_background_tasks, wait_until
 
-
 pytestmark = pytest.mark.usability
 
 

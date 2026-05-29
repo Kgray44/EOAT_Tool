@@ -8,7 +8,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from scripts.repo_safety_audit import IMAGE_SUFFIXES, WORKBOOK_SUFFIXES, audit_repo, audit_staged_files, git_staged_files, is_allowed_data_artifact
+from scripts.repo_safety_audit import (
+    IMAGE_SUFFIXES,
+    WORKBOOK_SUFFIXES,
+    audit_repo,
+    audit_staged_files,
+    git_staged_files,
+    is_allowed_data_artifact,
+)
 
 from .constants import TOOLKIT_ROOT
 from .result import ToolResult

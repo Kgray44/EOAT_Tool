@@ -11,12 +11,20 @@ from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from .audit_constants import (
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from .logging import log_tool_run
-from .audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
 from .tool_fields import TOOL_FIELD
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import worksheet_headers
 
 AUDIT_BY_PRESS_SHEET = "Audit by Press"
@@ -37,8 +45,11 @@ VIEW_COLUMNS = [
     "EOAT Type",
     "EOAT Moves",
     "Connection Type",
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
     "Cleanroom/Non-Cleanroom",
     "Status",
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
     "Priority",
@@ -62,6 +73,7 @@ def refresh_audit_by_press_view_file(workbook_path: str | Path) -> None:
     try:
         refresh_audit_by_press_view(workbook)
         workbook.save(path)
+        invalidate_workbook_cache(path)
     finally:
         workbook.close()
 

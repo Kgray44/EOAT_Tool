@@ -3,8 +3,8 @@ from __future__ import annotations
 try:
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import (
-        QApplication,
         QAbstractItemView,
+        QApplication,
         QComboBox,
         QGridLayout,
         QHBoxLayout,
@@ -32,6 +32,7 @@ from core.scheduled_reports import (
     get_scheduled_report_status,
     install_or_repair_schedules,
     preview_summary_schedule,
+    run_actual_scheduled_task_now,
     run_catch_up_summaries,
     run_daily_summary_now,
     run_scheduler_preflight,
@@ -81,6 +82,13 @@ class ScheduledReportsPage(QWidget):
             button = QPushButton(label)
             button.clicked.connect(callback)
             top_row.addWidget(button)
+        self.actual_task_combo = QComboBox()
+        self.actual_task_combo.addItem("Daily Summary", "daily_summary")
+        self.actual_task_combo.addItem("Weekly Summary", "weekly_summary")
+        top_row.addWidget(self.actual_task_combo)
+        actual_task_button = QPushButton("Run Actual Scheduled Task Now")
+        actual_task_button.clicked.connect(self.run_actual_scheduled_task)
+        top_row.addWidget(actual_task_button)
         top_row.addStretch(1)
         content_layout.addLayout(top_row)
 
@@ -105,6 +113,7 @@ class ScheduledReportsPage(QWidget):
         card_names = [
             "Daily Schedule",
             "Daily Task Installed",
+            "Daily Task Result",
             "Daily Last Status",
             "Daily Last Run",
             "Daily Last Report",
@@ -112,6 +121,7 @@ class ScheduledReportsPage(QWidget):
             "Daily Missed",
             "Weekly Schedule",
             "Weekly Task Installed",
+            "Weekly Task Result",
             "Weekly Last Status",
             "Weekly Last Run",
             "Weekly Last Report",
@@ -119,6 +129,7 @@ class ScheduledReportsPage(QWidget):
             "Weekly Missed",
             "Reports Folders",
             "Scheduled Tool Log",
+            "Emergency Log",
         ]
         for index, key in enumerate(card_names):
             card = StatusCard(key)
@@ -226,6 +237,18 @@ class ScheduledReportsPage(QWidget):
             return "No"
         return f"Unknown: {task.get('warning', '')}".strip()
 
+    def _task_result_text(self, task: dict) -> str:
+        installed = task.get("installed")
+        if installed is False:
+            return "Not installed"
+        raw = str(task.get("last_result_raw") or task.get("last_result") or "").strip()
+        description = str(task.get("last_result_description") or "").strip()
+        if not raw and not description:
+            return "No run recorded"
+        if raw and description:
+            return f"{raw} - {description}"
+        return raw or description
+
     def _apply_status_result(self, task_result) -> None:
         if not task_result.ok:
             self.result_panel.show_text(task_result.message)
@@ -236,20 +259,23 @@ class ScheduledReportsPage(QWidget):
         paths = status.get("paths", {})
         self._set_card("Daily Schedule", daily.get("schedule", "Monday-Thursday at 7:00 PM"))
         self._set_card("Daily Task Installed", self._task_text(daily.get("task", {})))
-        self._set_card("Daily Last Status", daily.get("last_status") or daily.get("task", {}).get("last_result") or "No run recorded")
+        self._set_card("Daily Task Result", self._task_result_text(daily.get("task", {})))
+        self._set_card("Daily Last Status", daily.get("report_generation_result") or daily.get("last_status") or "No report-generation log recorded")
         self._set_card("Daily Last Run", daily.get("task", {}).get("last_run_time") or daily.get("last_log_line") or "No run recorded")
         self._set_card("Daily Last Report", daily.get("last_report") or "No daily summary found")
         self._set_card("Daily Next Run", daily.get("next_expected_run") or "")
         self._set_card("Daily Missed", ", ".join(daily.get("missed_dates", [])) or "None detected")
         self._set_card("Weekly Schedule", weekly.get("schedule", "Friday at 7:00 PM"))
         self._set_card("Weekly Task Installed", self._task_text(weekly.get("task", {})))
-        self._set_card("Weekly Last Status", weekly.get("last_status") or weekly.get("task", {}).get("last_result") or "No run recorded")
+        self._set_card("Weekly Task Result", self._task_result_text(weekly.get("task", {})))
+        self._set_card("Weekly Last Status", weekly.get("report_generation_result") or weekly.get("last_status") or "No report-generation log recorded")
         self._set_card("Weekly Last Run", weekly.get("task", {}).get("last_run_time") or weekly.get("last_log_line") or "No run recorded")
         self._set_card("Weekly Last Report", weekly.get("last_report") or "No weekly summary found")
         self._set_card("Weekly Next Run", weekly.get("next_expected_run") or "")
         self._set_card("Weekly Missed", ", ".join(weekly.get("missed_dates", [])) or "None detected")
         self._set_card("Reports Folders", f"Daily: {paths.get('daily_reports', '')}\nWeekly: {paths.get('weekly_reports', '')}")
         self._set_card("Scheduled Tool Log", status.get("scheduled_log", "Not configured"))
+        self._set_card("Emergency Log", status.get("emergency_log", "Not configured"))
         self.result_panel.show_text("Scheduled report status refreshed.")
 
     def _apply_preflight_result(self, task_result) -> None:
@@ -268,20 +294,28 @@ class ScheduledReportsPage(QWidget):
         table.resizeColumnsToContents()
 
     def _after_report_action(self, result) -> None:
-        if result.output_reports:
-            self.latest_output_report = result.output_reports[0]
-        if result.success:
-            get_event_bus().emit(EVENT_SCHEDULED_REPORT_RAN, {"outputs": result.output_reports}, source="ScheduledReportsPage")
-            get_event_bus().emit(EVENT_REPORT_GENERATED, {"outputs": result.output_reports}, source="ScheduledReportsPage")
+        created_reports = [path for path in result.output_reports if path in result.files_created]
+        if created_reports:
+            self.latest_output_report = created_reports[0]
+        if result.success and created_reports:
+            get_event_bus().emit(EVENT_SCHEDULED_REPORT_RAN, {"outputs": created_reports}, source="ScheduledReportsPage")
+            get_event_bus().emit(EVENT_REPORT_GENERATED, {"outputs": created_reports}, source="ScheduledReportsPage")
         self.refresh_status()
         self.refresh_preview()
+
+    def _require_created_report(self, result):
+        if result.success and not result.files_created:
+            result.success = False
+            result.summary = f"{result.summary} No new report file was created."
+            result.warnings.append("No new report file was created; report generation was skipped or only an existing report was found.")
+        return result
 
     def run_daily_dry_run(self) -> None:
         run_tool_background(
             self.result_panel,
             "scheduled_reports_daily_dry_run",
             "Run Daily Dry Run",
-            lambda: run_daily_summary_now(self.config.project_root, scheduled=False, dry_run=True, decision_reason="manual daily dry run"),
+            lambda: self._require_created_report(run_daily_summary_now(self.config.project_root, scheduled=False, dry_run=True, decision_reason="manual daily dry run")),
             self._after_report_action,
             modifies_files=True,
         )
@@ -291,7 +325,7 @@ class ScheduledReportsPage(QWidget):
             self.result_panel,
             "scheduled_reports_weekly_dry_run",
             "Run Weekly Dry Run",
-            lambda: run_weekly_summary_now(self.config.project_root, scheduled=False, dry_run=True, notes="Manual dry run from Scheduled Reports page."),
+            lambda: self._require_created_report(run_weekly_summary_now(self.config.project_root, scheduled=False, dry_run=True, notes="Manual dry run from Scheduled Reports page.")),
             self._after_report_action,
             modifies_files=True,
         )
@@ -301,7 +335,7 @@ class ScheduledReportsPage(QWidget):
             self.result_panel,
             "scheduled_reports_daily_now",
             "Generate Daily Now",
-            lambda: run_daily_summary_now(self.config.project_root, scheduled=False),
+            lambda: self._require_created_report(run_daily_summary_now(self.config.project_root, scheduled=False)),
             self._after_report_action,
             modifies_files=True,
         )
@@ -311,7 +345,18 @@ class ScheduledReportsPage(QWidget):
             self.result_panel,
             "scheduled_reports_weekly_now",
             "Generate Weekly Now",
-            lambda: run_weekly_summary_now(self.config.project_root, scheduled=False),
+            lambda: self._require_created_report(run_weekly_summary_now(self.config.project_root, scheduled=False)),
+            self._after_report_action,
+            modifies_files=True,
+        )
+
+    def run_actual_scheduled_task(self) -> None:
+        automation = self.actual_task_combo.currentData() or "daily_summary"
+        run_tool_background(
+            self.result_panel,
+            "scheduled_reports_actual_task_now",
+            "Run Actual Scheduled Task Now",
+            lambda: run_actual_scheduled_task_now(self.config.project_root, automation=str(automation)),
             self._after_report_action,
             modifies_files=True,
         )
@@ -325,7 +370,7 @@ class ScheduledReportsPage(QWidget):
             self.result_panel,
             "scheduled_reports_catch_up",
             "Scheduled Report Catch-Up",
-            lambda: run_catch_up_summaries(self.config.project_root, dates, automation=automation),
+            lambda: self._require_created_report(run_catch_up_summaries(self.config.project_root, dates, automation=automation)),
             self._after_report_action,
             modifies_files=True,
         )

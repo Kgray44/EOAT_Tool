@@ -38,10 +38,13 @@ def test_event_bus_dispatches_specific_and_global_handlers():
     assert event.payload["answer"] == 42
     assert event.source == "test"
     assert seen == [("specific", "ExampleEvent"), ("global", "ExampleEvent")]
+    assert bus.subscriber_count("ExampleEvent") == 1
+    assert set(bus.subscribed_event_types()) == {"*", "ExampleEvent"}
 
     unsubscribe_specific()
     bus.emit("ExampleEvent")
     assert seen[-1] == ("global", "ExampleEvent")
+    assert bus.subscriber_count() == 1
 
 
 def test_dashboard_lifecycle_helpers_tolerate_absent_and_present_hooks():

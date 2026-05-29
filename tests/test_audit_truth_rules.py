@@ -5,7 +5,12 @@ from openpyxl import load_workbook
 from app.pages.audit import get_empty_only_visible_fields
 from core.audit_by_press import AUDIT_BY_PRESS_SHEET
 from core.audit_compatibility import create_compatibility_entries
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from core.audit_entries import load_audit_entry, save_audit_entry, validate_audit_entry
 from core.audit_field_rules import (
     field_applies,
@@ -36,6 +41,10 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
     assert field_applies(hybrid, "Cup Type/Material")
     assert field_applies(hybrid, "Gripper Model")
     assert field_applies(hybrid, "# of Grippers")
+
+    miscellaneous = {"EOAT Type": "Miscellaneous"}
+    assert field_applies(miscellaneous, "Gripper Model")
+    assert field_applies(miscellaneous, "# of Grippers")
 
     unknown = {"EOAT Type": "Unknown / Needs Review"}
     assert field_applies(unknown, "# of Cups")

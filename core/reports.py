@@ -14,8 +14,8 @@ class ReportFolder:
     recent_files: list[Path]
 
 
-REPORT_EXTENSIONS = {".md", ".txt", ".json", ".docx", ".pdf", ".csv", ".png", ".xlsx", ".pptx"}
-PREVIEW_EXTENSIONS = {".md", ".txt", ".json", ".csv", ".log", ".jsonl"}
+REPORT_EXTENSIONS = {".md", ".txt", ".json", ".docx", ".pdf", ".csv", ".png", ".svg", ".xlsx", ".pptx"}
+PREVIEW_EXTENSIONS = {".md", ".txt", ".json", ".csv", ".log", ".jsonl", ".svg"}
 
 
 def list_recent_files(folder: str | Path, limit: int = 8) -> list[Path]:
@@ -48,6 +48,9 @@ def report_folders(project_root: str | Path, limit: int = 8) -> list[ReportFolde
         ("Morning Plans", paths.morning_plans),
         ("Presentation Assets", paths.presentation_assets_root),
         ("Final Report Drafts", paths.final_report),
+        ("Risk Insight Reports", paths.risk_insights_reports),
+        ("QR Labels", paths.qr_labels),
+        ("Data Import Logs", paths.data_imports),
         ("Handoff Packages", paths.final_handoff),
         ("Executive Summary", paths.executive_summary),
         ("Training Materials", paths.training_materials),

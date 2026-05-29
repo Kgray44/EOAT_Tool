@@ -39,6 +39,7 @@ DEFAULT_AUDIT_DEFAULTS: dict[str, str] = {
     "Vacuum Confirmation Present?": "Yes",
     "Part-Present Detection Present?": "No",
     "Cup Type/Material": "Silicone",
+    "Cylinder Type": "Linear",
 }
 
 DEFAULT_CONNECTION_DEFAULTS: dict[str, str] = {

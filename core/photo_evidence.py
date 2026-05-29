@@ -2,19 +2,24 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+
+from openpyxl import load_workbook
 
 from .audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
-from .audit_field_rules import eoat_type_uses_gripper, eoat_type_uses_vacuum, is_meaningful_value
 from .logging import log_tool_run
 from .paths import resolve_project_paths
+from .photo_evidence_rules import all_photo_evidence_rules, photo_evidence_aliases, photo_evidence_rule_by_key
 from .result import ToolResult
-from .safe_files import ensure_directory, safe_write_text
+from .safe_files import backup_file, ensure_directory, safe_write_text
 from .validation_findings import ValidationFinding, ValidationSeverity, make_finding
-from .workbook_io import row_dicts
+from .workbook_cache import invalidate_workbook_cache
+from .workbook_cache import row_dicts_cached as row_dicts
+from .workbook_io import worksheet_headers
 
 PHOTO_EVIDENCE_TOOL_NAME = "EOAT Photo Evidence Coverage"
 
@@ -23,13 +28,6 @@ STATUS_PARTIAL = "partial"
 STATUS_MISSING = "missing"
 STATUS_NOT_APPLICABLE = "not applicable"
 STATUS_FOLLOW_UP = "follow-up needed"
-
-EOAT_CIRCUIT_FIELDS = (
-    "EOAT Vacuum Circuits",
-    "EOAT Pressure Circuits",
-    "EOAT Interchangeable Circuits",
-)
-
 
 @dataclass(frozen=True)
 class PhotoEvidenceCategory:
@@ -90,119 +88,21 @@ class AuditEvidenceCoverage:
         }
 
 
-PHOTO_EVIDENCE_CATEGORIES: tuple[PhotoEvidenceCategory, ...] = (
-    PhotoEvidenceCategory(
-        "overall_eoat",
-        "Overall EOAT",
-        "Applies to every physical audit row.",
-        "Required when an audit is marked complete, audited, or a pilot candidate.",
-        "Recommended for every audit.",
-        "OverallEOAT",
-    ),
-    PhotoEvidenceCategory(
-        "robot_connection",
-        "Robot Connection",
-        "Applies to every physical audit row.",
-        "Required when an audit is marked complete, audited, or a pilot candidate.",
-        "Recommended for every audit.",
-        "RobotConnection",
-    ),
-    PhotoEvidenceCategory(
-        "eoat_pneumatic_circuits",
-        "EOAT-Side Pneumatic Circuits",
-        "Applies when EOAT-side pneumatic circuit fields are meaningful or the EOAT uses vacuum/gripper tooling.",
-        "Required when EOAT-side pneumatic circuits are documented on a complete audit.",
-        "Recommended for vacuum, mechanical/gripper, and hybrid EOATs.",
-        "EOATPneumaticCircuits",
-    ),
-    PhotoEvidenceCategory(
-        "sensors",
-        "Sensors",
-        "Applies when Sensors Present? is Yes, Partial, or sensor details are meaningful.",
-        "Required when Sensors Present? is Yes.",
-        "Recommended when sensor details are applicable.",
-        "Sensors",
-    ),
-    PhotoEvidenceCategory(
-        "quick_disconnects",
-        "Quick Disconnects",
-        "Applies when Quick Disconnects Present? is Yes/Partial or quick disconnect details are meaningful.",
-        "Required when Quick Disconnects Present? is Yes.",
-        "Recommended when quick disconnect details are applicable.",
-        "QuickDisconnects",
-    ),
-    PhotoEvidenceCategory(
-        "tubing_routing",
-        "Tubing Routing",
-        "Applies to vacuum, mechanical/gripper, and hybrid EOATs.",
-        "Required when a pneumatic EOAT audit is complete.",
-        "Recommended for every pneumatic EOAT.",
-        "TubingRouting",
-    ),
-    PhotoEvidenceCategory(
-        "grippers",
-        "Grippers",
-        "Applies to mechanical/gripper and hybrid EOATs.",
-        "Required when a gripper EOAT audit is complete.",
-        "Recommended for mechanical/gripper and hybrid EOATs.",
-        "Grippers",
-    ),
-    PhotoEvidenceCategory(
-        "vacuum_cups",
-        "Vacuum Cups",
-        "Applies to vacuum and hybrid EOATs.",
-        "Required when a vacuum EOAT audit is complete.",
-        "Recommended for vacuum and hybrid EOATs.",
-        "VacuumCups",
-    ),
-    PhotoEvidenceCategory(
-        "mounting_hardware",
-        "Mounting Hardware",
-        "Applies to every physical audit row.",
-        "Required when an audit is marked complete, audited, or a pilot candidate.",
-        "Recommended for every audit.",
-        "MountingHardware",
-    ),
-    PhotoEvidenceCategory(
-        "cable_management",
-        "Cable Management",
-        "Applies when electrical/wiring or cable management details are meaningful.",
-        "Required when a complete audit has electrical/wiring or cable management details.",
-        "Recommended for every audit with documented wiring.",
-        "CableManagement",
-    ),
-    PhotoEvidenceCategory(
-        "wear_damage",
-        "Wear / Damage",
-        "Applies to every physical audit row.",
-        "Required when issues, wear, damage, loose hardware, or poor routing are documented.",
-        "Recommended for every audit.",
-        "WearDamage",
-    ),
-    PhotoEvidenceCategory(
-        "process_binder_reference",
-        "Process Binder Reference",
-        "Applies when process binder or documentation completion is documented.",
-        "Required when Process Binder Complete? is Yes.",
-        "Recommended when documentation is part of the audit decision.",
-        "ProcessBinderReference",
-    ),
-)
+def _category_from_rule(rule) -> PhotoEvidenceCategory:
+    note = rule.help_text or f"Photo evidence category: {rule.label}."
+    return PhotoEvidenceCategory(
+        rule.key,
+        rule.label,
+        note,
+        note,
+        note,
+        rule.example_filename_prefix,
+    )
 
-PHOTO_CATEGORY_ALIASES = {
-    "overall_eoat": ("overall", "overall eoat", "eoat overall"),
-    "robot_connection": ("robot connection", "robot", "connection"),
-    "eoat_pneumatic_circuits": ("eoat-side pneumatic", "pneumatic circuit", "pneumatic", "circuits"),
-    "sensors": ("sensor", "sensors"),
-    "quick_disconnects": ("quick disconnect", "quick_disconnect", "quickdisconnect"),
-    "tubing_routing": ("tubing", "routing", "tubing routing"),
-    "grippers": ("gripper", "grippers", "vacuum cups / grippers", "vacuum_cups_grippers"),
-    "vacuum_cups": ("vacuum cup", "vacuum cups", "vacuum", "vacuum cups / grippers", "vacuum_cups_grippers"),
-    "mounting_hardware": ("mounting", "hardware", "mounting hardware"),
-    "cable_management": ("cable", "cable management", "wiring"),
-    "wear_damage": ("wear", "damage", "wear / damage", "wear_damage"),
-    "process_binder_reference": ("process binder", "binder", "documentation", "reference"),
-}
+
+PHOTO_EVIDENCE_CATEGORIES: tuple[PhotoEvidenceCategory, ...] = tuple(_category_from_rule(rule) for rule in all_photo_evidence_rules())
+
+PHOTO_CATEGORY_ALIASES = photo_evidence_aliases()
 
 
 def photo_evidence_categories() -> list[PhotoEvidenceCategory]:
@@ -339,13 +239,135 @@ def evidence_coverage_for_audit(
     return AuditEvidenceCoverage(audit_id=audit_id, machine=_text(row.get("Press/Machine #")), statuses=statuses, row_data=dict(row))
 
 
+def indexed_photos_for_audit(project_root: str | Path, audit_id: str) -> list[dict[str, Any]]:
+    target = _text(audit_id).casefold()
+    if not target:
+        return []
+    return [dict(row) for row in _photo_rows(project_root) if _text(row.get("Related Audit ID")).casefold() == target]
+
+
+def resolve_indexed_photo_path(project_root: str | Path, photo_row: dict[str, Any]) -> Path:
+    folder_text = _text(photo_row.get("Folder Path"))
+    filename = _text(photo_row.get("Photo Filename"))
+    folder = Path(folder_text) if folder_text else Path(project_root)
+    if folder_text and not folder.is_absolute():
+        folder = Path(project_root) / folder
+    return folder / filename if filename else folder
+
+
+def photo_index_path_findings(project_root: str | Path, photo_rows: list[dict[str, Any]] | None = None) -> list[ValidationFinding]:
+    photo_rows = photo_rows if photo_rows is not None else _photo_rows(project_root)
+    findings: list[ValidationFinding] = []
+    for row in photo_rows:
+        folder = _text(row.get("Folder Path"))
+        filename = _text(row.get("Photo Filename"))
+        if not folder and not filename:
+            continue
+        path = resolve_indexed_photo_path(project_root, row)
+        if path.exists():
+            continue
+        audit_id = _text(row.get("Related Audit ID"))
+        photo_id = _text(row.get("Photo ID")) or "unidentified photo"
+        machine = _text(row.get("Press/Machine #"))
+        findings.append(
+            make_finding(
+                ValidationSeverity.WARNING,
+                "photo_evidence_path",
+                f"{audit_id or photo_id}: broken photo path for {photo_id}: {path}",
+                sheet_name="Photo Index",
+                audit_id=audit_id,
+                machine_number=machine,
+                column_name="Folder Path",
+                current_value=str(path),
+                expected_behavior="Indexed photos should point to a local file that still exists in the project photo folders.",
+                recommended_action="Use the Photos page to re-link the evidence, confirm the local folder, or intake the photo again.",
+                source_validator="photo_evidence",
+            )
+        )
+    return findings
+
+
+def link_photo_to_audit_field(project_root: str | Path, photo_id: str, audit_field: str, *, log_activity: bool = True) -> ToolResult:
+    started = time.perf_counter()
+    photo_id = _text(photo_id)
+    audit_field = _text(audit_field)
+    if not photo_id:
+        return ToolResult.fail("photo_evidence_link_field", PHOTO_EVIDENCE_TOOL_NAME, "Photo ID is required.")
+    if not audit_field:
+        return ToolResult.fail("photo_evidence_link_field", PHOTO_EVIDENCE_TOOL_NAME, "Audit field is required.")
+    paths = resolve_project_paths(project_root)
+    workbook_path = paths.master_workbook
+    if not workbook_path.exists():
+        return ToolResult.fail("photo_evidence_link_field", PHOTO_EVIDENCE_TOOL_NAME, "Master workbook is missing.", errors=[str(workbook_path)])
+
+    workbook = None
+    try:
+        backup = backup_file(workbook_path, workbook_path.parent / "_backups")
+        workbook = load_workbook(workbook_path)
+        if "Photo Index" not in workbook.sheetnames:
+            raise ValueError("Photo Index sheet is missing.")
+        ws = workbook["Photo Index"]
+        headers = worksheet_headers(ws)
+        if "Photo ID" not in headers or "Notes" not in headers:
+            raise ValueError("Photo Index sheet is missing Photo ID or Notes headers.")
+        photo_id_col = headers.index("Photo ID") + 1
+        notes_col = headers.index("Notes") + 1
+        target_row = None
+        for row_number in range(2, ws.max_row + 1):
+            if _text(ws.cell(row=row_number, column=photo_id_col).value).casefold() == photo_id.casefold():
+                target_row = row_number
+                break
+        if target_row is None:
+            raise ValueError(f"Photo ID not found: {photo_id}")
+        notes_cell = ws.cell(row=target_row, column=notes_col)
+        existing = _text(notes_cell.value)
+        link_note = f"Linked audit field: {audit_field}"
+        notes_cell.value = existing if link_note in existing else "\n".join(part for part in (existing, link_note) if part)
+        workbook.save(workbook_path)
+        workbook.close()
+        workbook = None
+        invalidate_workbook_cache(workbook_path)
+    except Exception as exc:
+        if workbook is not None:
+            try:
+                workbook.close()
+            except Exception:
+                pass
+        return ToolResult.fail(
+            "photo_evidence_link_field",
+            PHOTO_EVIDENCE_TOOL_NAME,
+            "Photo field link failed.",
+            errors=[str(exc)],
+            duration_seconds=time.perf_counter() - started,
+        )
+
+    result = ToolResult.ok(
+        "photo_evidence_link_field",
+        PHOTO_EVIDENCE_TOOL_NAME,
+        "Linked indexed photo to audit field.",
+        details=[f"Photo ID: {photo_id}", f"Audit field: {audit_field}", f"Workbook backup: {backup}"],
+        files_modified=[str(workbook_path)],
+        files_created=[str(backup)],
+        metrics={"photo_id": photo_id, "audit_field": audit_field},
+        duration_seconds=time.perf_counter() - started,
+    )
+    if log_activity:
+        warning = log_tool_run(result, project_root)
+        if warning:
+            result.warnings.append(warning)
+    return result
+
+
 def validate_photo_evidence(project_root: str | Path) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
     coverages = evidence_coverage_for_project(project_root)
     findings = photo_evidence_findings_from_coverages(coverages)
+    path_findings = photo_index_path_findings(project_root)
+    findings.extend(path_findings)
     warnings = [finding.message for finding in findings]
     metrics = {
         "photo_evidence_audit_count": len(coverages),
         "photo_evidence_missing_required_count": sum(coverage.missing_required_count for coverage in coverages),
+        "photo_evidence_broken_path_count": len(path_findings),
         "photo_evidence_finding_count": len(findings),
     }
     return warnings, metrics, findings
@@ -430,60 +452,24 @@ def _coverage_status_for_category(
 
 
 def _category_applies(row: dict[str, Any], key: str) -> bool:
-    if _is_compatible_row(row):
+    try:
+        return photo_evidence_rule_by_key(key).applies(row)
+    except KeyError:
         return False
-    if key in {"overall_eoat", "robot_connection", "mounting_hardware", "wear_damage"}:
-        return True
-    if key == "eoat_pneumatic_circuits":
-        return any(is_meaningful_value(row.get(field)) for field in EOAT_CIRCUIT_FIELDS) or eoat_type_uses_vacuum(row) or eoat_type_uses_gripper(row)
-    if key == "sensors":
-        return _is_yes_or_partial(row.get("Sensors Present?")) or any(is_meaningful_value(row.get(field)) for field in ("Sensor Type", "Sensor Brand/Model"))
-    if key == "quick_disconnects":
-        return _is_yes_or_partial(row.get("Quick Disconnects Present?")) or any(
-            is_meaningful_value(row.get(field)) for field in ("Pneumatic Quick Disconnect Type", "Electrical Quick Disconnect Type")
-        )
-    if key == "tubing_routing":
-        return eoat_type_uses_vacuum(row) or eoat_type_uses_gripper(row) or is_meaningful_value(row.get("Tubing Condition"))
-    if key == "grippers":
-        return eoat_type_uses_gripper(row)
-    if key == "vacuum_cups":
-        return eoat_type_uses_vacuum(row)
-    if key == "cable_management":
-        return _is_yes_or_partial(row.get("Electrical/Wiring Present?")) or is_meaningful_value(row.get("Cable Management Condition"))
-    if key == "process_binder_reference":
-        return is_meaningful_value(row.get("Process Binder Complete?")) or is_meaningful_value(row.get("Photo Folder/Link"))
-    return False
 
 
 def _category_required(row: dict[str, Any], key: str) -> bool:
-    complete = _is_complete_or_pilot(row)
-    if key in {"overall_eoat", "robot_connection", "mounting_hardware"}:
-        return complete
-    if key == "eoat_pneumatic_circuits":
-        return complete and any(is_meaningful_value(row.get(field)) for field in EOAT_CIRCUIT_FIELDS)
-    if key == "sensors":
-        return _is_yes(row.get("Sensors Present?"))
-    if key == "quick_disconnects":
-        return _is_yes(row.get("Quick Disconnects Present?"))
-    if key == "tubing_routing":
-        return complete and (eoat_type_uses_vacuum(row) or eoat_type_uses_gripper(row))
-    if key == "grippers":
-        return complete and eoat_type_uses_gripper(row)
-    if key == "vacuum_cups":
-        return complete and eoat_type_uses_vacuum(row)
-    if key == "cable_management":
-        return complete and _category_applies(row, key)
-    if key == "wear_damage":
-        return _has_issue_or_damage(row)
-    if key == "process_binder_reference":
-        return _is_yes(row.get("Process Binder Complete?"))
-    return False
+    try:
+        return photo_evidence_rule_by_key(key).required(row)
+    except KeyError:
+        return False
 
 
 def _category_recommended(row: dict[str, Any], key: str) -> bool:
-    if key in {"overall_eoat", "robot_connection", "mounting_hardware", "wear_damage"}:
-        return True
-    return _category_applies(row, key)
+    try:
+        return photo_evidence_rule_by_key(key).recommended(row)
+    except KeyError:
+        return False
 
 
 def _specific_photo_evidence_findings(coverage: AuditEvidenceCoverage, row: dict[str, Any] | None) -> list[ValidationFinding]:
@@ -552,9 +538,7 @@ def _photo_rows_for_audit(photo_rows: list[dict[str, Any]], row: dict[str, Any])
     for photo in photo_rows:
         related_audit = _text(photo.get("Related Audit ID")).casefold()
         photo_machine = _text(photo.get("Press/Machine #")).casefold()
-        if audit_id and related_audit == audit_id:
-            matches.append(photo)
-        elif machine and not related_audit and photo_machine == machine:
+        if audit_id and related_audit == audit_id or machine and not related_audit and photo_machine == machine:
             matches.append(photo)
     return matches
 
@@ -663,8 +647,12 @@ __all__ = [
     "evidence_coverage_for_audit",
     "evidence_coverage_for_project",
     "export_photo_checklist",
+    "indexed_photos_for_audit",
+    "link_photo_to_audit_field",
     "missing_evidence_findings",
+    "photo_index_path_findings",
     "photo_evidence_categories",
     "pm_bom_evidence_status",
+    "resolve_indexed_photo_path",
     "validate_photo_evidence",
 ]

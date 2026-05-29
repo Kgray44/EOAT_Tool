@@ -5,8 +5,8 @@ try:
     from PySide6.QtWidgets import (
         QComboBox,
         QFormLayout,
-        QHeaderView,
         QHBoxLayout,
+        QHeaderView,
         QLabel,
         QLineEdit,
         QMessageBox,

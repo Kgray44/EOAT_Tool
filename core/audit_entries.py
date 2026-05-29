@@ -12,22 +12,22 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from . import audit_field_rules as field_rules
 from .action_items import add_action_item
 from .audit.history import append_audit_history
+from .audit_by_press import refresh_audit_by_press_view
 from .audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_DEFAULT,
+    CYLINDER_TYPE_FIELD,
+    CYLINDER_TYPE_VALUES,
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from .audit_by_press import refresh_audit_by_press_view
-from . import audit_field_rules as field_rules
-from .logging import log_tool_run
-from .paths import resolve_project_paths
-from .result import ToolResult
-from .safe_files import backup_file
-from .workbook_locks import detect_workbook_lock
 from .gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
@@ -37,9 +37,18 @@ from .gripper_fields import (
     GRIPPER_TYPE_VALUES,
     gripper_model_to_workbook,
 )
+from .logging import log_tool_run
+from .paths import resolve_project_paths
+from .result import ToolResult
+from .safe_files import backup_file
 from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
-from .workbook_io import find_row_by_value, next_empty_row, row_dicts, worksheet_headers, write_row_by_headers
+from .workbook_cache import invalidate_workbook_cache, row_dicts_cached
+from .workbook_io import find_row_by_value, next_empty_row, worksheet_headers, write_row_by_headers
+from .workbook_locks import detect_workbook_lock
 from .workbook_schema import get_expected_headers
+
+CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.05.28.3"
+WORKBOOK_METADATA_SHEET = "_EOAT_App_Metadata"
 
 AUDIT_REQUIRED_FIELDS = [
     "Audit Date",
@@ -101,6 +110,8 @@ TOOLING_COLUMN_ORDER = [
     EOAT_MOVES_FIELD,
     CONNECTION_TYPE_FIELD,
     NUMBER_OF_PARTS_PICKED_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
     GRIPPER_COUNT_FIELD,
     GRIPPER_TYPE_FIELD,
     GRIPPER_MODEL_FIELD,
@@ -137,6 +148,7 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     "Vacuum Confirmation Present?": AuditFieldMetadata(frozenset({"sensor"}), "Yes"),
     PART_PRESENT_DETECTION_FIELD: AuditFieldMetadata(frozenset({"sensor"}), "No"),
     ELECTRICAL_WIRING_PRESENT_FIELD: AuditFieldMetadata(frozenset({"electrical"})),
+    CYLINDER_TYPE_FIELD: AuditFieldMetadata(frozenset({"cylinder"}), CYLINDER_TYPE_DEFAULT),
     CUP_COUNT_FIELD: AuditFieldMetadata(frozenset({"vacuum"})),
     "Vacuum Generator Type": AuditFieldMetadata(frozenset({"vacuum"}), "Venturi"),
     EOAT_INTERCHANGEABLE_CIRCUITS_FIELD: AuditFieldMetadata(frozenset({"pneumatic_circuit"}), "0"),
@@ -149,6 +161,7 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     "Process Binder Complete?": AuditFieldMetadata(frozenset({"documentation"}), "No"),
     "Photos Taken?": AuditFieldMetadata(frozenset({"photo"}), "No"),
     "Photo Folder/Link": AuditFieldMetadata(frozenset({"photo_link"})),
+    MANUAL_COMPLETION_OVERRIDE_FIELD: AuditFieldMetadata(frozenset({"system_metadata"}), "No"),
 }
 
 SENSOR_ELECTRICAL_TAGS = frozenset({"sensor"})
@@ -169,6 +182,7 @@ AUDIT_DROPDOWNS = {
     "EOAT Type": EOAT_TYPE_DROPDOWN_VALUES,
     EOAT_MOVES_FIELD: EOAT_MOVES_VALUES,
     CONNECTION_TYPE_FIELD: CONNECTION_TYPE_VALUES,
+    CYLINDER_TYPE_FIELD: CYLINDER_TYPE_VALUES,
     GRIPPER_TYPE_FIELD: GRIPPER_TYPE_VALUES,
     "Robot Type": ["Wittmann R8", "Wittmann R9", "Engel Viper", "Other", "Unknown"],
     "YesNoUnknown": ["Yes", "No", UNKNOWN_NOT_CHECKED],
@@ -362,16 +376,25 @@ def generate_audit_id(project_root: str | Path, audit_date: str | None = None) -
     audit_date = audit_date or date.today().isoformat()
     compact = audit_date.replace("-", "")
     workbook_path = resolve_project_paths(project_root).master_workbook
-    rows = row_dicts(workbook_path, "EOAT Inventory") if workbook_path.exists() else []
     prefix = f"AUD-{compact}-"
     max_number = 0
-    for row in rows:
-        value = str(row.get("Audit ID") or "")
-        if value.startswith(prefix):
-            try:
-                max_number = max(max_number, int(value.rsplit("-", 1)[1]))
-            except ValueError:
-                continue
+    if workbook_path.exists():
+        workbook = load_workbook(workbook_path, read_only=True, data_only=True)
+        try:
+            if "EOAT Inventory" in workbook.sheetnames:
+                ws = workbook["EOAT Inventory"]
+                headers = worksheet_headers(ws)
+                if "Audit ID" in headers:
+                    audit_id_column = headers.index("Audit ID") + 1
+                    for row in ws.iter_rows(min_row=2, min_col=audit_id_column, max_col=audit_id_column, values_only=True):
+                        value = str((row[0] if row else "") or "")
+                        if value.startswith(prefix):
+                            try:
+                                max_number = max(max_number, int(value.rsplit("-", 1)[1]))
+                            except ValueError:
+                                continue
+        finally:
+            workbook.close()
     return f"{prefix}{max_number + 1:03d}"
 
 
@@ -411,6 +434,7 @@ def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str
             default = audit_field_default(header)
             if default is not None:
                 normalized[header] = default
+    normalized = field_rules.normalize_cylinder_fields(normalized)
     if not _text(normalized.get("Cup Type/Material")) and cup_type_default_applies(eoat_type):
         normalized["Cup Type/Material"] = CUP_TYPE_DEFAULT
     if not tooling_field_applies(eoat_type, "Cup Type/Material") and _text(normalized.get("Cup Type/Material")) == CUP_TYPE_DEFAULT:
@@ -437,7 +461,7 @@ def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str
 
 
 def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
-    entry = apply_part_present_sensor_defaults(dict(entry))
+    entry = apply_part_present_sensor_defaults(field_rules.normalize_cylinder_fields(dict(entry)))
     errors: list[str] = []
     warnings: list[str] = []
     requirements = field_rules.entry_type_requirements(entry)
@@ -460,7 +484,14 @@ def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
         and gripper_type not in GRIPPER_TYPE_VALUES
     ):
         errors.append(f"{GRIPPER_TYPE_FIELD} must be one of: {', '.join(GRIPPER_TYPE_VALUES)}.")
-    for field in {NUMBER_OF_PARTS_PICKED_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, *EOAT_PNEUMATIC_CIRCUIT_FIELDS}:
+    if (
+        CYLINDER_TYPE_FIELD in entry
+        and _text(entry.get(CYLINDER_TYPE_FIELD))
+        and not is_na_value(entry.get(CYLINDER_TYPE_FIELD))
+        and _text(entry.get(CYLINDER_TYPE_FIELD)) not in CYLINDER_TYPE_VALUES
+    ):
+        errors.append(f"{CYLINDER_TYPE_FIELD} must be one of: {', '.join(CYLINDER_TYPE_VALUES)}.")
+    for field in {NUMBER_OF_PARTS_PICKED_FIELD, CYLINDER_COUNT_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, *EOAT_PNEUMATIC_CIRCUIT_FIELDS}:
         if field in entry and _text(entry.get(field)) and not is_na_value(entry.get(field)) and _parse_non_negative_int(entry.get(field)) is None:
             errors.append(f"{field} must be a non-negative whole number.")
     return errors, warnings
@@ -553,7 +584,7 @@ def cup_type_default_applies(eoat_type: Any) -> bool:
 
 def load_audit_entry(project_root: str | Path, audit_id: str) -> dict[str, Any] | None:
     workbook_path = resolve_project_paths(project_root).master_workbook
-    for row in row_dicts(workbook_path, "EOAT Inventory"):
+    for row in row_dicts_cached(workbook_path, "EOAT Inventory"):
         if str(row.get("Audit ID") or "") == str(audit_id):
             if TOOL_FIELD not in row and LEGACY_TOOL_FIELD in row:
                 row = {**row, TOOL_FIELD: row.get(LEGACY_TOOL_FIELD, "")}
@@ -697,6 +728,63 @@ def _remove_legacy_vacuum_zones_columns(ws) -> int:
     return removed
 
 
+def _metadata_sheet(workbook):
+    if WORKBOOK_METADATA_SHEET in workbook.sheetnames:
+        ws = workbook[WORKBOOK_METADATA_SHEET]
+    else:
+        ws = workbook.create_sheet(WORKBOOK_METADATA_SHEET)
+        ws.sheet_state = "hidden"
+        ws.cell(row=1, column=1).value = "key"
+        ws.cell(row=1, column=2).value = "value"
+    return ws
+
+
+def _metadata_values(workbook) -> dict[str, str]:
+    if WORKBOOK_METADATA_SHEET not in workbook.sheetnames:
+        return {}
+    ws = workbook[WORKBOOK_METADATA_SHEET]
+    values: dict[str, str] = {}
+    for key, value in ws.iter_rows(min_row=2, max_col=2, values_only=True):
+        key_text = str(key or "").strip()
+        if key_text:
+            values[key_text] = str(value or "").strip()
+    return values
+
+
+def _workbook_schema_is_current(workbook) -> bool:
+    if _metadata_values(workbook).get("schema_version") != CURRENT_WORKBOOK_SCHEMA_VERSION:
+        return False
+    if "EOAT Inventory" not in workbook.sheetnames:
+        return False
+    headers = worksheet_headers(workbook["EOAT Inventory"])
+    expected = get_expected_headers("EOAT Inventory")
+    if not all(header in headers for header in expected):
+        return False
+    if LEGACY_TOOL_FIELD in headers or LEGACY_VACUUM_CUPS_FIELD in headers or VACUUM_ZONES_FIELD in headers:
+        return False
+    return True
+
+
+def _set_workbook_schema_current(workbook) -> None:
+    ws = _metadata_sheet(workbook)
+    values = {
+        "schema_version": CURRENT_WORKBOOK_SCHEMA_VERSION,
+        "last_schema_repair_at": datetime.now().isoformat(timespec="seconds"),
+        "app_name": "EOAT Command Center",
+    }
+    existing_rows: dict[str, int] = {}
+    for row in range(2, ws.max_row + 1):
+        key = str(ws.cell(row=row, column=1).value or "").strip()
+        if key:
+            existing_rows[key] = row
+    for key, value in values.items():
+        row = existing_rows.get(key) or ws.max_row + 1
+        ws.cell(row=row, column=1).value = key
+        ws.cell(row=row, column=2).value = value
+        existing_rows[key] = row
+    ws.sheet_state = "hidden"
+
+
 def repair_workbook_schema(project_root: str | Path, log_activity: bool = True) -> ToolResult:
     started = time.perf_counter()
     paths = resolve_project_paths(project_root)
@@ -738,8 +826,10 @@ def repair_workbook_schema(project_root: str | Path, log_activity: bool = True) 
         added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
         electrical_stats = _migrate_electrical_wiring_presence_rows(ws)
         refresh_audit_by_press_view(workbook)
+        _set_workbook_schema_current(workbook)
         workbook.save(workbook_path)
         workbook.close()
+        invalidate_workbook_cache(workbook_path)
     except Exception as exc:
         if workbook is not None:
             try:
@@ -877,6 +967,8 @@ def _style_inventory_tooling_columns(ws) -> None:
         EOAT_MOVES_FIELD: "EOAT Type",
         CONNECTION_TYPE_FIELD: "EOAT Type",
         GRIPPER_COUNT_FIELD: NUMBER_OF_PARTS_PICKED_FIELD,
+        CYLINDER_COUNT_FIELD: NUMBER_OF_PARTS_PICKED_FIELD,
+        CYLINDER_TYPE_FIELD: CYLINDER_COUNT_FIELD,
         CUP_COUNT_FIELD: NUMBER_OF_PARTS_PICKED_FIELD,
         GRIPPER_TYPE_FIELD: CONNECTION_TYPE_FIELD,
         GRIPPER_MODEL_FIELD: GRIPPER_TYPE_FIELD,
@@ -983,13 +1075,16 @@ def _apply_inventory_validations(ws) -> None:
         "EOAT Type": [*EOAT_TYPE_DROPDOWN_VALUES, NA_VALUE],
         EOAT_MOVES_FIELD: EOAT_MOVES_VALUES,
         CONNECTION_TYPE_FIELD: [*CONNECTION_TYPE_VALUES, NA_VALUE],
+        CYLINDER_TYPE_FIELD: [*CYLINDER_TYPE_VALUES, NA_VALUE],
         GRIPPER_TYPE_FIELD: [*GRIPPER_TYPE_VALUES, NA_VALUE],
         "Cleanroom/Non-Cleanroom": [*CLEANROOM_DROPDOWN_VALUES, NA_VALUE],
         "Electrical/Wiring Present?": ["Yes", "No", "Unknown / Not Checked", NA_VALUE],
+        MANUAL_COMPLETION_OVERRIDE_FIELD: ["Yes", "No", NA_VALUE],
         ENTRY_TYPE_FIELD: [ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE],
     }
     numeric_headers = {
         NUMBER_OF_PARTS_PICKED_FIELD,
+        CYLINDER_COUNT_FIELD,
         CUP_COUNT_FIELD,
         GRIPPER_COUNT_FIELD,
         *EOAT_PNEUMATIC_CIRCUIT_FIELDS,
@@ -1091,22 +1186,46 @@ def save_audit_entry(
     press_view_refresh_seconds = 0.0
     write_started = time.perf_counter()
     try:
+        backup_started = time.perf_counter()
         backup = backup_file(workbook_path, workbook_path.parent / "_backups")
+        timing_metrics["audit_save.backup_seconds"] = round(time.perf_counter() - backup_started, 3)
+        workbook_open_started = time.perf_counter()
         workbook = load_workbook(workbook_path)
+        timing_metrics["audit_save.workbook_open_load_seconds"] = round(time.perf_counter() - workbook_open_started, 3)
         if "EOAT Inventory" not in workbook.sheetnames:
             raise ValueError("EOAT Inventory sheet is missing.")
-        _migrate_workbook_tool_headers(workbook)
+        schema_check_started = time.perf_counter()
+        schema_current = _workbook_schema_is_current(workbook)
+        timing_metrics["audit_save.schema_check_seconds"] = round(time.perf_counter() - schema_check_started, 3)
+        timing_metrics["schema_check_seconds"] = timing_metrics["audit_save.schema_check_seconds"]
+        header_started = time.perf_counter()
         ws = workbook["EOAT Inventory"]
-        if VACUUM_ZONES_FIELD in worksheet_headers(ws):
-            vacuum_zones_backup = _create_vacuum_zones_removal_backup(workbook_path)
-            vacuum_zones_removed_count = _remove_legacy_vacuum_zones_columns(ws)
-        added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
-        electrical_migration_stats = (
-            _migrate_electrical_wiring_presence_rows(ws)
-            if ELECTRICAL_WIRING_PRESENT_FIELD in added_headers
-            else {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
-        )
+        if schema_current:
+            added_headers = []
+            electrical_migration_stats = {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
+            timing_metrics["audit_save.schema_repair_seconds"] = 0.0
+            timing_metrics["schema_repair_seconds"] = 0.0
+        else:
+            schema_repair_started = time.perf_counter()
+            _migrate_workbook_tool_headers(workbook)
+            ws = workbook["EOAT Inventory"]
+            if VACUUM_ZONES_FIELD in worksheet_headers(ws):
+                vacuum_zones_backup = _create_vacuum_zones_removal_backup(workbook_path)
+                vacuum_zones_removed_count = _remove_legacy_vacuum_zones_columns(ws)
+            added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+            electrical_migration_stats = (
+                _migrate_electrical_wiring_presence_rows(ws)
+                if ELECTRICAL_WIRING_PRESENT_FIELD in added_headers
+                else {"rows_reviewed": 0, "set_no": 0, "set_unknown": 0, "set_yes": 0}
+            )
+            _set_workbook_schema_current(workbook)
+            timing_metrics["audit_save.schema_repair_seconds"] = round(time.perf_counter() - schema_repair_started, 3)
+            timing_metrics["schema_repair_seconds"] = timing_metrics["audit_save.schema_repair_seconds"]
+        timing_metrics["audit_save.schema_current"] = bool(schema_current)
+        timing_metrics["audit_save.sheet_header_mapping_seconds"] = round(time.perf_counter() - header_started, 3)
+        row_lookup_started = time.perf_counter()
         existing_row = find_row_by_value(ws, "Audit ID", str(data["Audit ID"]))
+        timing_metrics["audit_save.audit_row_lookup_seconds"] = round(time.perf_counter() - row_lookup_started, 3)
         if existing_row:
             headers = worksheet_headers(ws)
             previous_data = {
@@ -1143,13 +1262,18 @@ def save_audit_entry(
                     data[header] = NA_VALUE
                     normalization_details.setdefault("fields_auto_set_to_na", {})[header] = field_rules.non_applicable_reason(data, header)
         row_number = existing_row or next_empty_row(ws)
+        row_write_started = time.perf_counter()
         write_row_by_headers(ws, row_number, data)
+        timing_metrics["audit_save.row_write_update_seconds"] = round(time.perf_counter() - row_write_started, 3)
         if refresh_press_view:
             press_view_started = time.perf_counter()
             refresh_audit_by_press_view(workbook)
             press_view_refresh_seconds = time.perf_counter() - press_view_started
+        workbook_save_started = time.perf_counter()
         workbook.save(workbook_path)
+        timing_metrics["audit_save.workbook_save_seconds"] = round(time.perf_counter() - workbook_save_started, 3)
         workbook.close()
+        invalidate_workbook_cache(workbook_path)
         timing_metrics["audit_save.write_master_seconds"] = round(time.perf_counter() - write_started, 3)
         timing_metrics["audit_save.audit_by_press_refresh_seconds"] = round(press_view_refresh_seconds, 3)
     except Exception as exc:
@@ -1190,6 +1314,8 @@ def save_audit_entry(
         files_created.append(str(vacuum_zones_backup))
     if added_headers:
         details.append(f"Added missing EOAT Inventory headers: {', '.join(added_headers)}")
+    elif timing_metrics.get("audit_save.schema_current"):
+        details.append("Workbook schema is current; skipped full schema repair during save.")
     if electrical_migration_stats["rows_reviewed"]:
         details.append(
             "Electrical/Wiring Present? migration: "

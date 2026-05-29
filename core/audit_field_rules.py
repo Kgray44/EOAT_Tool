@@ -5,12 +5,23 @@ from typing import Any
 from .audit_constants import (
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
     COMPATIBILITY_SOURCE_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_DEFAULT,
+    CYLINDER_TYPE_FIELD,
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD, GRIPPER_TYPE_FIELD
+from .gripper_fields import (
+    CUP_COUNT_FIELD,
+    GRIPPER_COUNT_FIELD,
+    GRIPPER_MODEL_FIELD,
+    GRIPPER_SIZE_FIELD,
+    GRIPPER_TYPE_FIELD,
+)
 from .tool_fields import TOOL_FIELD
 
 NA_VALUE = "N/A"
@@ -64,6 +75,8 @@ FIELD_GROUPS = {
     "EOAT Moves": "machine_context",
     "Connection Type": "tool_mounting_connection",
     "Number of Parts Picked": "tooling",
+    CYLINDER_COUNT_FIELD: "cylinder_tooling",
+    CYLINDER_TYPE_FIELD: "cylinder_tooling",
     CUP_COUNT_FIELD: "vacuum_tooling",
     "Cup Type/Material": "vacuum_tooling",
     "Cup Diameter/Size": "vacuum_tooling",
@@ -192,7 +205,7 @@ def eoat_type_uses_vacuum(entry_or_value: dict[str, Any] | Any) -> bool:
 
 
 def eoat_type_uses_gripper(entry_or_value: dict[str, Any] | Any) -> bool:
-    return normalized_eoat_type(entry_or_value) in {EOAT_TYPE_GRIPPER, EOAT_TYPE_HYBRID}
+    return normalized_eoat_type(entry_or_value) in {EOAT_TYPE_GRIPPER, EOAT_TYPE_HYBRID, EOAT_TYPE_MISC}
 
 
 def is_unknown_or_review_eoat_type(entry_or_value: dict[str, Any] | Any) -> bool:
@@ -231,6 +244,34 @@ def field_applies(entry: dict[str, Any], field_name: str) -> bool:
     if field_name in QUICK_DISCONNECT_DETAIL_FIELDS and _is_no(entry.get("Quick Disconnects Present?")):
         return False
     return True
+
+
+def cylinder_section_in_use(entry: dict[str, Any]) -> bool:
+    return is_meaningful_value(entry.get(CYLINDER_COUNT_FIELD))
+
+
+def normalize_cylinder_fields(entry: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(entry)
+    if cylinder_section_in_use(normalized):
+        cylinder_type = normalize_text(normalized.get(CYLINDER_TYPE_FIELD))
+        if not cylinder_type or is_na_value(cylinder_type):
+            normalized[CYLINDER_TYPE_FIELD] = CYLINDER_TYPE_DEFAULT
+    return normalized
+
+
+def cylinder_optional_reason() -> str:
+    return "Cylinder section is blank/default; optional cylinder fields are ignored for completion."
+
+
+def manual_completion_override_enabled(entry: dict[str, Any]) -> bool:
+    return normalize_text(entry.get(MANUAL_COMPLETION_OVERRIDE_FIELD)).casefold() in {"yes", "true", "1", "y"}
+
+
+def ignored_empty_fields_at_override(entry: dict[str, Any]) -> tuple[str, ...]:
+    text = normalize_text(entry.get(IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD))
+    if not text or is_na_value(text):
+        return ()
+    return tuple(field.strip() for field in text.replace("\n", ";").split(";") if field.strip())
 
 
 def important_field_applies(entry: dict[str, Any], field_name: str) -> bool:

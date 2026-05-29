@@ -66,6 +66,15 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         description="App-native press/machine grouping of physical audits, compatible entries, and follow-ups.",
     ),
     PageSpec(
+        "machine_360",
+        "Machine 360",
+        "Capture",
+        "app.pages.machine_360:Machine360Page",
+        refresh_on_show=True,
+        listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED, EVENT_OPEN_ITEMS_CHANGED, EVENT_WORKBOOK_VALIDATED),
+        description="Machine-centered audit, compatibility, evidence, and open-item context.",
+    ),
+    PageSpec(
         "notes",
         "Notes",
         "Capture",
@@ -93,6 +102,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         description="Unified notes, tags, validation findings, follow-ups, and action board.",
     ),
     PageSpec("photos", "Photos", "Capture", "app.pages.photos:PhotosPage", description="Photo intake and photo index updates."),
+    PageSpec("data_import", "Data Import", "Capture", "app.pages.data_import:DataImportPage", description="Dry-run data import previews and local import staging."),
     PageSpec(
         "audit_progress",
         "Audit Progress",
@@ -101,6 +111,15 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         refresh_on_show=True,
         listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED),
         description="Audit progress metrics and reports.",
+    ),
+    PageSpec(
+        "compatibility_matrix",
+        "Compatibility Matrix",
+        "Analysis",
+        "app.pages.compatibility_matrix:CompatibilityMatrixPage",
+        refresh_on_show=True,
+        listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED, EVENT_WORKBOOK_VALIDATED),
+        description="Machine/tool compatibility matrix with source audit and review details.",
     ),
     PageSpec("issue_analysis", "Issues", "Analysis", "app.pages.issue_analysis:IssueAnalysisPage", description="Issue log analysis."),
     PageSpec("fmea", "FMEA-Lite", "Analysis", "app.pages.fmea:FmeaPage", description="FMEA-lite analysis."),
@@ -127,6 +146,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         listens_to=(EVENT_SCHEDULED_REPORT_RAN, EVENT_REPORT_GENERATED),
         description="Scheduled daily and weekly summary status.",
     ),
+    PageSpec("qr_labels", "QR Labels", "Output", "app.pages.qr_labels:QrLabelsPage", description="Minimal EOAT machine and audit QR label values."),
     PageSpec("handoff", "Final Handoff", "Output", "app.pages.handoff:HandoffPage", description="Final deliverable and handoff package tools."),
     PageSpec("tool_registry", "Tool Registry", "System", "app.pages.tool_registry:ToolRegistryPage", requires_config=False, description="Registered tools."),
     PageSpec(
@@ -144,6 +164,14 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         "app.pages.performance:PerformancePage",
         refresh_on_show=True,
         description="Dashboard cache and performance diagnostics.",
+    ),
+    PageSpec(
+        "app_health",
+        "App Health",
+        "System",
+        "app.pages.app_health:AppHealthPage",
+        refresh_on_show=True,
+        description="Runtime, dependency, project, workbook, task, Git, and release diagnostics.",
     ),
     PageSpec(
         "backup_manager",

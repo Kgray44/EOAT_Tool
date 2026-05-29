@@ -1,27 +1,54 @@
 from __future__ import annotations
 
+import inspect
 import time
 
 try:
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QShortcut
-    from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QProgressBar, QStackedWidget, QSplitter, QTreeWidget, QTreeWidgetItem, QWidget
+    from PySide6.QtWidgets import (
+        QApplication,
+        QLabel,
+        QMainWindow,
+        QMessageBox,
+        QProgressBar,
+        QSplitter,
+        QStackedWidget,
+        QTreeWidget,
+        QTreeWidgetItem,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     Qt = QBrush = QColor = QFont = QKeySequence = QShortcut = QApplication = QLabel = QMainWindow = QMessageBox = QProgressBar = QStackedWidget = QSplitter = QTreeWidget = QTreeWidgetItem = QWidget = None
 
-from core.openers import open_path
 from core.config import load_config, save_config
 from core.constants import APP_NAME
 from core.performance import log_performance
 from core.search import SearchResult
+from core.workbook_cache import invalidate_all_workbook_cache
+
 from .command_registry import build_dashboard_command_registry
-from .event_bus import EVENT_ANY, EVENT_AUDIT_SAVED, EVENT_PROJECT_ROOT_CHANGED, EVENT_SETTINGS_CHANGED, AppEvent, get_event_bus
+from .event_bus import (
+    EVENT_ANY,
+    EVENT_AUDIT_SAVED,
+    EVENT_PROJECT_ROOT_CHANGED,
+    EVENT_SETTINGS_CHANGED,
+    AppEvent,
+    get_event_bus,
+)
+from .navigation import NAV_SECTIONS
 from .page_async import log_page_performance
 from .page_registry import PAGE_SPECS, PageSpec, create_page
+from .search_routes import open_search_result as route_search_result
 from .task_runner import get_task_manager
 from .theme import app_stylesheet, theme_tokens
-from .navigation import NAV_SECTIONS
-from .ui_constants import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SIDEBAR_WIDTH
+from .ui_constants import (
+    DEFAULT_WINDOW_HEIGHT,
+    DEFAULT_WINDOW_WIDTH,
+    MIN_WINDOW_HEIGHT,
+    MIN_WINDOW_WIDTH,
+    SIDEBAR_WIDTH,
+)
 
 
 class DashboardWindow(QMainWindow):
@@ -129,6 +156,7 @@ class DashboardWindow(QMainWindow):
     def _publish_project_root_changed(self, project_root: str, *, source: str) -> None:
         old_project_root = self._last_project_root
         self._last_project_root = project_root
+        invalidate_all_workbook_cache()
         for page in list(self.pages.values()):
             self._call_optional_page_hook(page, "on_project_root_changed", self.config)
         self.event_bus.emit(
@@ -185,7 +213,7 @@ class DashboardWindow(QMainWindow):
         index = self.page_indexes[page_key]
         if self._current_page_key and self._current_page_key != page_key:
             current_page = self.pages.get(self._current_page_key)
-            allowed, reason = self._page_can_close(current_page)
+            allowed, reason = self._page_can_close(current_page, destination_page=page_key)
             if not allowed:
                 message = reason or "The current page is not ready to close."
                 self.statusBar().showMessage(message, 9000)
@@ -246,71 +274,14 @@ class DashboardWindow(QMainWindow):
     def open_command_palette(self) -> None:
         from .widgets.command_palette import CommandPalette
 
-        palette = CommandPalette(self.command_registry, self.config.project_root, self)
+        palette = CommandPalette(self.command_registry, self.config.project_root, self, current_page_key=self._current_page_key)
         palette.exec()
 
     def open_search_result(self, result: SearchResult | dict) -> bool:
-        data = result.to_dict() if isinstance(result, SearchResult) else dict(result)
-        action = str(data.get("action") or "")
-        if action == "open_audit":
-            self._navigate_to_page("audit")
-            page = self.pages.get("audit")
-            audit_id = str(data.get("audit_id") or "")
-            if audit_id and hasattr(page, "load_existing_audit"):
-                page.load_existing_audit(audit_id, loaded_message=f"Opened from global search: {audit_id}")
-            field = str(data.get("field") or "")
-            if field and hasattr(page, "focus_annotation_target"):
-                page.focus_annotation_target({"audit_id": audit_id, "field_key": field, "field_label": field, "target_type": "audit_field"})
-            return True
-        if action == "open_press":
-            self._navigate_to_page("press_view")
-            page = self.pages.get("press_view")
-            machine = str(data.get("machine") or "")
-            if hasattr(page, "select_machine"):
-                page.select_machine(machine)
-            return True
-        if action == "open_note":
-            self._navigate_to_page("notes")
-            page = self.pages.get("notes")
-            note_id = str(data.get("target_id") or "")
-            if note_id and hasattr(page, "select_note"):
-                page.select_note(note_id)
-            return True
-        if action == "open_tag":
-            self._navigate_to_page("tags")
-            page = self.pages.get("tags")
-            target_id = str(data.get("target_id") or "")
-            if hasattr(page, "select_tag_or_assignment"):
-                if str(data.get("result_id") or "").startswith("tag_assignment:"):
-                    page.select_tag_or_assignment(assignment_id=target_id)
-                else:
-                    page.select_tag_or_assignment(tag_id=target_id)
-            return True
-        if action == "open_open_item":
-            self._navigate_to_page("open_items")
-            self.show_page_message("open_items", f"Opened Open Items from search: {data.get('title') or data.get('target_id') or ''}")
-            return True
-        if action == "open_validation":
-            self._navigate_to_page("workbook_health")
-            self.show_page_message("workbook_health", f"Opened Workbook Health from search: {data.get('title') or ''}")
-            return True
-        if action == "open_report":
-            path = str(data.get("path") or "")
-            if path:
-                result_open = open_path(path)
-                self.statusBar().showMessage(result_open.summary, 9000)
-                return result_open.success
-        if action == "open_photo":
-            path = str(data.get("path") or "")
-            if path:
-                result_open = open_path(path)
-                if result_open.success:
-                    self.statusBar().showMessage(result_open.summary, 9000)
-                    return True
-            self._navigate_to_page("photos")
-            self.show_page_message("photos", f"Opened Photos from search: {data.get('title') or ''}")
-            return True
-        return False
+        route = route_search_result(self, result)
+        if not route.success and route.message:
+            self.statusBar().showMessage(route.message, 9000)
+        return route.success
 
     def _refresh_page_on_show(self, spec: PageSpec, page) -> None:
         if spec.refresh_on_show:
@@ -388,10 +359,18 @@ class DashboardWindow(QMainWindow):
         return None
 
     @classmethod
-    def _page_can_close(cls, page) -> tuple[bool, str]:
+    def _page_can_close(cls, page, destination_page: str | None = None) -> tuple[bool, str]:
         if page is None:
             return True, ""
-        result = cls._call_optional_page_hook(page, "can_close")
+        method = getattr(page, "can_close", None)
+        if not callable(method):
+            result = None
+        else:
+            try:
+                parameters = inspect.signature(method).parameters
+                result = method(destination_page) if parameters else method()
+            except (TypeError, ValueError):
+                result = method()
         if result is None:
             return True, ""
         if isinstance(result, tuple):

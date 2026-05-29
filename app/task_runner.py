@@ -3,8 +3,9 @@ from __future__ import annotations
 import threading
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 try:
     from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
@@ -12,6 +13,8 @@ except ImportError:  # pragma: no cover
     QObject = QRunnable = QThreadPool = Signal = Slot = None
 
 from core.result import ToolResult
+
+BACKGROUND_TASK_MAX_THREADS = 3
 
 
 @dataclass(frozen=True)
@@ -176,6 +179,7 @@ class BackgroundTaskManager(QObject):
         super().__init__(parent)
         self.guard = ActiveTaskGuard()
         self.pool = QThreadPool.globalInstance()
+        self.pool.setMaxThreadCount(BACKGROUND_TASK_MAX_THREADS)
         self._active_runnables: list[_TaskRunnable] = []
 
     def run_task(self, request: TaskRequest, on_finished: Callable[[TaskResult], None] | None = None, button=None) -> bool:

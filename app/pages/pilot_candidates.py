@@ -8,13 +8,14 @@ except ImportError:  # pragma: no cover
     QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QVBoxLayout = QWidget = None
 
 from app.page_async import AsyncRefreshMixin, log_page_performance
-from app.pages.analysis_widgets import add_cards, populate_table
 from app.page_tasks import run_tool_background
+from app.pages.analysis_widgets import add_cards, populate_table
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.pilot_evidence_packets import generate_pilot_evidence_packet
+from core.pilot_roi import export_pilot_roi_report
 from core.pilot_scoring import generate_pilot_ranking_report, rank_pilot_candidates
 
 
@@ -31,6 +32,7 @@ class PilotCandidatesPage(AsyncRefreshMixin, QWidget):
         for label, callback in [
             ("Run Pilot Ranking", self.run_report),
             ("Generate Evidence Packet", self.generate_evidence_packet),
+            ("Export ROI Justification", self.export_roi_justification),
             ("Open Candidate Reports Folder", self.open_reports),
             ("Refresh", lambda: self.refresh(force=True)),
         ]:
@@ -78,7 +80,20 @@ class PilotCandidatesPage(AsyncRefreshMixin, QWidget):
         self.cards["Top Candidate"].set_value(str(summary.metrics.get("top_candidate", "No data yet")))
         self.cards["Top Score"].set_value(str(summary.metrics.get("top_score", 0)))
         self.cards["Confidence"].set_value(str(top.get("Confidence", "No data yet")))
-        populate_table(self.table, summary.ranked_candidates, ["Rank", "Candidate ID", "Press/Machine #", "Main Problem", "Total Score", "Confidence", "Missing Data"])
+        populate_table(
+            self.table,
+            summary.ranked_candidates,
+            [
+                "Rank",
+                "Candidate ID",
+                "Press/Machine #",
+                "Main Problem",
+                "Total Score",
+                "Confidence",
+                "Missing Evidence",
+                "Score Explanation",
+            ],
+        )
         self.preview.show_markdown_text(summary.to_markdown())
         render_seconds = time.perf_counter() - render_started
         log_page_performance(
@@ -130,6 +145,22 @@ class PilotCandidatesPage(AsyncRefreshMixin, QWidget):
             "pilot_evidence_packet",
             "Pilot Candidate Evidence Packet",
             lambda: generate_pilot_evidence_packet(self.config.project_root, candidate_id=candidate_id, machine=machine),
+            self._report_finished,
+            modifies_files=True,
+        )
+
+    def export_roi_justification(self) -> None:
+        row = self.table.currentRow()
+        candidate_id = ""
+        if row >= 0:
+            headers = [self.table.horizontalHeaderItem(index).text() for index in range(self.table.columnCount())]
+            values = {header: self.table.item(row, index).text() if self.table.item(row, index) else "" for index, header in enumerate(headers)}
+            candidate_id = values.get("Candidate ID", "")
+        run_tool_background(
+            self.result_panel,
+            "pilot_roi_report",
+            "Pilot ROI Justification",
+            lambda: export_pilot_roi_report(self.config.project_root, candidate_id=candidate_id),
             self._report_finished,
             modifies_files=True,
         )

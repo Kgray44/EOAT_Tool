@@ -14,7 +14,6 @@ from .schedule import load_week_schedule, schedule_file_for_week
 from .task_progress import TaskItem, extract_tasks, load_task_progress, progress_file_for_week
 from .workbook_io import row_dicts, workbook_sheet_names
 
-
 WORKBOOK_SHEETS = [
     "EOAT Inventory",
     "Issue Log",
@@ -324,7 +323,7 @@ def _collect_workbook_state(ctx: MorningPlanningContext) -> None:
                 ctx.action_source_checked = True
                 ctx.open_actions = [row for row in rows if _clean(row.get("Status")).lower() in OPEN_ACTION_STATUSES]
         missing = [sheet for sheet in WORKBOOK_SHEETS if sheet not in sheets]
-        detail = f"read workbook; rows by sheet: " + ", ".join(f"{sheet}={ctx.workbook_counts.get(sheet, 0)}" for sheet in WORKBOOK_SHEETS)
+        detail = "read workbook; rows by sheet: " + ", ".join(f"{sheet}={ctx.workbook_counts.get(sheet, 0)}" for sheet in WORKBOOK_SHEETS)
         if missing:
             detail += f"; missing sheets: {', '.join(missing)}"
         _add_source(ctx, "EOAT master workbook", "found", detail, workbook)
