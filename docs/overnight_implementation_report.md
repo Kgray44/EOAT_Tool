@@ -167,6 +167,30 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `python scripts/ci_smoke_check.py --registry-only`
   - Result: passed.
 
+## Checkpoint 16 - Evidence-Driven FMEA And Pilot ROI/Scoring
+
+- Added confidence labels and calculated RPN values to generated FMEA suggestions without bypassing the existing review gate.
+- Expanded the FMEA evidence export so every suggested row includes source fields/tags, evidence trace, confidence, and calculated RPN where reviewed numeric scores exist.
+- Updated the FMEA page suggestion table to show confidence and calculated RPN while preserving the existing accept/edit/reject workflow.
+- Reworked pilot candidate scoring around the requested default weights: downtime/reliability 30%, quality/scrap 25%, ease 15%, safety/maintenance 15%, and standardization 15%.
+- Added score explanations, explicit missing evidence, normalized caller-supplied weights, and simple sensitivity analysis for pilot candidates.
+- Added `core/pilot_roi.py` for local-first ROI support. It runs qualitative mode when dollars or reduction assumptions are missing, calculates estimates only from supplied assumptions, stores assumptions with timestamps under `project_data`, and exports justification reports.
+- Updated the Pilot Candidates page with the weighted score explanation column and an ROI justification export action.
+- Preserved BOM/spare parts page compatibility aliases and legacy report naming expected by existing workflow tests while keeping the newer standardization outputs.
+- Focused verification:
+  - `python -m pytest tests/core/test_fmea_suggestions.py tests/core/test_pilot_scoring.py tests/core/test_pilot_roi.py`
+  - Result: 11 passed.
+  - `python -m pytest tests/ui/test_analysis_workflows.py::test_fmea_lite_refresh_run_and_disabled_planned_button tests/ui/test_analysis_workflows.py::test_pilot_ranking_includes_candidate_and_empty_state`
+  - Result: 2 passed.
+  - `python -m pytest tests/core tests/test_fmea_analysis.py tests/test_pilot_evidence_packets.py tests/ui/test_analysis_workflows.py`
+  - Result: 103 passed.
+  - `python -m pytest --collect-only -q`
+  - Result: 649 tests collected.
+  - `python -m pytest`
+  - Result: attempted, but the runner timed out after about 604 seconds before returning a pass/fail result.
+  - `python scripts/repo_safety_audit.py --root .`
+  - Result: no blocking or warning findings.
+
 ## Final Verification And Handoff Notes
 
 - Worktree used for all implementation after the copy step:
@@ -174,7 +198,7 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Branch:
   - `feature/full-overnight-expansion`
 - Checkpoint commits created:
-  - `1d26b85` through `d56777c`, one for each requested stable phase.
+  - One stable checkpoint commit has been created for each completed phase through Phase 16. Use `git log --oneline` for exact commit hashes.
 - Final smoke verification:
   - `python -m pytest -q tests/test_ui_smoke.py`
   - Result: 6 passed.

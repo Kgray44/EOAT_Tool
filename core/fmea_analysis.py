@@ -53,7 +53,17 @@ class FmeaSummary:
                 "## Suggested New FMEA Entries",
                 *table_from_rows(
                     self.suggestions,
-                    ["Failure Mode", "Evidence", "Suggested Severity", "Suggested Frequency", "Suggested Detectability", "Suggested Mitigation", "Review Status"],
+                    [
+                        "Failure Mode",
+                        "Confidence",
+                        "Calculated RPN",
+                        "Evidence",
+                        "Suggested Severity",
+                        "Suggested Frequency",
+                        "Suggested Detectability",
+                        "Suggested Mitigation",
+                        "Review Status",
+                    ],
                 ),
                 "",
                 "## Recommended Mitigations",
