@@ -16,6 +16,7 @@ from .audit_compatibility import (
     summarize_master_relationships,
     text_value,
 )
+from .audit.relationships import is_compatibility_row, is_physical_audit_row
 from .audit_constants import ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
 from .audit_field_rules import field_applies, is_na_value, manual_completion_override_enabled
 from .logging import log_tool_run
@@ -241,8 +242,7 @@ def calculate_audit_progress_from_rows(
     compatibility_rows = 0
     unknown_treated_as_audited = 0
     for row in inventory:
-        entry_type = normalize_entry_type(row.get(ENTRY_TYPE_FIELD))
-        if entry_type == ENTRY_TYPE_COMPATIBLE:
+        if is_compatibility_row(row):
             compatibility_rows += 1
         else:
             physical_audit_rows += 1
@@ -250,7 +250,7 @@ def calculate_audit_progress_from_rows(
                 unknown_treated_as_audited += 1
             part_number = part_number_from_row(row)
             machines = parse_machine_tokens(row.get("Press/Machine #"))
-            if part_number and machines:
+            if part_number and machines and is_physical_audit_row(row):
                 audited_part_sources[text_value(part_number).upper()].extend(machines)
 
     duplicate_rows = _duplicate_relationship_rows(master_by_key)
