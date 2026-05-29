@@ -1,0 +1,55 @@
+name: EOAT Command Center CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feature/**
+      - codex/**
+
+jobs:
+  test-and-safety:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Optional Ruff lint
+        shell: pwsh
+        run: |
+          @'
+          import importlib.util
+          import subprocess
+          import sys
+
+          if importlib.util.find_spec("ruff") is None:
+              print("Ruff is not installed; skipping optional lint gate.")
+              raise SystemExit(0)
+          raise SystemExit(subprocess.call([sys.executable, "-m", "ruff", "check", "."]))
+          '@ | python -
+
+      - name: Verify registries, demo mode, and dashboard launch
+        run: python scripts/ci_smoke_check.py --root . --dashboard-smoke
+
+      - name: Run pytest
+        run: python -m pytest
+
+      - name: Repository safety audit
+        run: python scripts/repo_safety_audit.py --root .
