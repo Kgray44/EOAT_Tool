@@ -13,6 +13,7 @@ from .audit_compatibility import (
     relationship_key,
     text_value,
 )
+from .audit.relationships import is_compatibility_row, source_audit_for_compatibility_row
 from .audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
     ENTRY_TYPE_AUDITED,
@@ -47,12 +48,7 @@ def validate_compatibility_health(project_root_or_master_path: str | Path) -> li
     if not rows:
         return []
 
-    source_by_id = {
-        text_value(row.get("Audit ID")): (row_number, row)
-        for row_number, row in rows
-        if text_value(row.get("Audit ID")) and normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
-    }
-    all_ids = {text_value(row.get("Audit ID")) for _row_number, row in rows if text_value(row.get("Audit ID"))}
+    row_values = [row for _row_number, row in rows]
     findings: list[ValidationFinding] = []
 
     for row_number, row in rows:
@@ -62,8 +58,9 @@ def validate_compatibility_health(project_root_or_master_path: str | Path) -> li
         source_id = text_value(row.get(SOURCE_AUDIT_ID_FIELD))
         compatibility_source = text_value(row.get(COMPATIBILITY_SOURCE_FIELD))
 
-        if entry_type == ENTRY_TYPE_COMPATIBLE:
-            if not source_id:
+        if is_compatibility_row(row):
+            source_lookup = source_audit_for_compatibility_row(row_values, row)
+            if "missing_source_metadata" in source_lookup.warning_codes:
                 findings.append(
                     make_finding(
                         ValidationSeverity.ERROR,
@@ -79,7 +76,7 @@ def validate_compatibility_health(project_root_or_master_path: str | Path) -> li
                         source_validator=SOURCE_VALIDATOR,
                     )
                 )
-            elif source_id not in all_ids:
+            elif "source_not_found" in source_lookup.warning_codes:
                 findings.append(
                     make_finding(
                         ValidationSeverity.ERROR,
@@ -96,7 +93,7 @@ def validate_compatibility_health(project_root_or_master_path: str | Path) -> li
                         source_validator=SOURCE_VALIDATOR,
                     )
                 )
-            elif source_id not in source_by_id:
+            elif "source_not_physical" in source_lookup.warning_codes:
                 findings.append(
                     make_finding(
                         ValidationSeverity.ERROR,
@@ -113,8 +110,8 @@ def validate_compatibility_health(project_root_or_master_path: str | Path) -> li
                         source_validator=SOURCE_VALIDATOR,
                     )
                 )
-            else:
-                _append_stale_inherited_value_findings(findings, row_number, row, source_by_id[source_id][1])
+            elif source_lookup.source_audit is not None:
+                _append_stale_inherited_value_findings(findings, row_number, row, source_lookup.source_audit)
             if not compatibility_source:
                 findings.append(
                     make_finding(

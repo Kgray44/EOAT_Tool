@@ -7,13 +7,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .audit_compatibility import compatible_rows_by_source_audit_id, machine_from_audit_row, normalize_entry_type, normalize_machine_token
+from .audit_compatibility import machine_from_audit_row, normalize_machine_token
+from .audit.relationships import relationship_summary_for_machine
 from .guided_audit import build_guided_audit_plan
 from .open_items import load_cached_open_items
 from .paths import resolve_project_paths
 from .photo_evidence import evidence_coverage_for_audit
 from .pm_due import build_pm_due_item
-from .press_view import PressAuditEntry, PressViewGroup, load_cached_press_view_groups
+from .press_view import PressViewGroup, load_cached_press_view_groups
 from .result import ToolResult
 from .robot_info import load_robot_info_for_audit_entry
 from .safe_files import ensure_directory, safe_write_text
@@ -74,6 +75,100 @@ class Machine360Context:
         return asdict(self)
 
 
+class ProjectDataService:
+    def __init__(self, project_root: str | Path):
+        self.project_root = Path(project_root)
+        self.paths = resolve_project_paths(self.project_root)
+
+    def get_audit(self, audit_id: str) -> dict[str, Any] | None:
+        target = _text(audit_id)
+        if not target:
+            return None
+        return next((dict(row) for row in self.list_audits() if _text(row.get("Audit ID")) == target), None)
+
+    def list_audits(self) -> list[dict[str, Any]]:
+        return self._rows("EOAT Inventory")
+
+    def list_machines(self) -> list[str]:
+        machines = {
+            normalize_machine_token(machine_from_audit_row(row))
+            for row in self.list_audits()
+            if normalize_machine_token(machine_from_audit_row(row))
+        }
+        return sorted(machines, key=_machine_sort_key)
+
+    def get_machine_context(self, machine_number: str) -> dict[str, Any]:
+        machine = normalize_machine_token(machine_number)
+        rows = self.list_audits()
+        summary = relationship_summary_for_machine(rows, machine)
+        open_items = self.get_open_items_for_machine(machine)
+        photos = []
+        for row in summary.physical_audits:
+            audit_id = _text(row.get("Audit ID"))
+            if audit_id:
+                photos.extend(self.get_photos_for_audit(audit_id))
+        return {
+            "machine_number": machine,
+            "relationship_summary": summary.to_dict(),
+            "physical_audits": summary.physical_audits,
+            "compatibility_entries": summary.compatibility_entries,
+            "linked_compatibility_entries": summary.linked_compatibility_entries,
+            "open_items": open_items,
+            "photos": photos,
+            "validation_findings": self.get_validation_findings("machine", machine),
+            "metrics": {
+                **summary.metrics,
+                "open_item_count": len(open_items),
+                "photo_count": len(photos),
+            },
+            "warnings": list(summary.warnings),
+        }
+
+    def get_machine_360(self, machine_number: str) -> Machine360Context:
+        return build_machine_360_context(self.project_root, machine_number)
+
+    def get_open_items_for_machine(self, machine_number: str) -> list[dict[str, Any]]:
+        machine = normalize_machine_token(machine_number)
+        data_sources: list[dict[str, Any]] = []
+        open_items = _machine_open_items(self.project_root, machine, data_sources)
+        action_rows = self._rows_for_machine("Action Items", machine, machine_header="Related Cell/Press")
+        return _merge_open_items(open_items, _open_items_from_action_rows(action_rows, machine))
+
+    def get_photos_for_audit(self, audit_id: str) -> list[dict[str, Any]]:
+        target = _text(audit_id)
+        if not target:
+            return []
+        return [
+            dict(row)
+            for row in self._rows("Photo Index")
+            if _text(row.get("Related Audit ID")) == target
+        ]
+
+    def get_validation_findings(self, scope: str, target_id: str) -> list[dict[str, Any]]:
+        scope_key = _text(scope).casefold()
+        target = normalize_machine_token(target_id) if scope_key == "machine" else _text(target_id)
+        if scope_key == "project":
+            target = ""
+        findings = _latest_validation_findings_for_scope(self.paths, scope_key, target)
+        return findings
+
+    def _rows(self, sheet_name: str) -> list[dict[str, Any]]:
+        if not self.paths.master_workbook.exists():
+            return []
+        try:
+            return [dict(row) for row in row_dicts(self.paths.master_workbook, sheet_name)]
+        except Exception:
+            return []
+
+    def _rows_for_machine(self, sheet_name: str, machine_number: str, *, machine_header: str = "Press/Machine #") -> list[dict[str, Any]]:
+        target = normalize_machine_token(machine_number)
+        return [
+            dict(row)
+            for row in self._rows(sheet_name)
+            if normalize_machine_token(row.get(machine_header)) == target
+        ]
+
+
 def build_machine_360_context(project_root: str | Path, machine_number: str) -> Machine360Context:
     machine = normalize_machine_token(machine_number) or str(machine_number or "").strip()
     warnings: list[str] = []
@@ -84,15 +179,15 @@ def build_machine_360_context(project_root: str | Path, machine_number: str) -> 
     inventory = _inventory_rows(paths.master_workbook, warnings, data_sources)
     groups, press_cache_generated_at = _cached_press_groups(project_root, warnings, data_sources)
     group = _find_press_group(groups, machine)
-    machine_rows = [row for row in inventory if _row_matches_machine(row, machine)]
-    physical_rows = [row for row in machine_rows if normalize_entry_type(row.get("Entry Type")).casefold() != "compatible"]
-    compatible_rows = [row for row in machine_rows if normalize_entry_type(row.get("Entry Type")).casefold() == "compatible"]
+    relationship_summary = relationship_summary_for_machine(inventory, machine)
+    warnings.extend(relationship_summary.warnings)
+    physical_rows = relationship_summary.physical_audits
+    compatible_rows = relationship_summary.compatibility_entries
     open_items = _machine_open_items(project_root, machine, data_sources)
     evidence = _photo_evidence(project_root, physical_rows)
     guided = [build_guided_audit_plan(row, limit=5).to_dict() for row in physical_rows[:5]]
     robot_info = _robot_info(project_root, physical_rows)
-    linked_entries = list(group.linked_compatible_entries) if group else _linked_compatible_entries(inventory, physical_rows)
-    linked = [entry.to_dict() for entry in linked_entries]
+    linked = relationship_summary.linked_compatibility_entries
     notes, tags = _annotations_for_machine(project_root, machine, physical_rows, data_sources)
     issue_rows = _machine_sheet_rows(paths, "Issue Log", machine, warnings, data_sources, "issue log")
     kpi_rows = _machine_sheet_rows(paths, "KPI Baseline", machine, warnings, data_sources, "KPI baseline")
@@ -257,10 +352,6 @@ def _find_press_group(groups: list[PressViewGroup], machine: str) -> PressViewGr
     return None
 
 
-def _row_matches_machine(row: dict[str, Any], machine: str) -> bool:
-    return normalize_machine_token(machine_from_audit_row(row)) == normalize_machine_token(machine)
-
-
 def _machine_open_items(project_root: str | Path, machine: str, data_sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     try:
         items, generated_at, warning = load_cached_open_items(project_root)
@@ -289,34 +380,6 @@ def _machine_open_items(project_root: str | Path, machine: str, data_sources: li
     ]
     data_sources.append({"name": "Open items snapshot", "status": "loaded", "generated_at": generated_at or "", "row_count": len(rows)})
     return rows
-
-
-def _linked_compatible_entries(inventory: list[dict[str, Any]], physical_rows: list[dict[str, Any]]) -> list[PressAuditEntry]:
-    rows_by_source = compatible_rows_by_source_audit_id(inventory)
-    entries: list[PressAuditEntry] = []
-    seen: set[tuple[str, str, str]] = set()
-    for source_row in physical_rows:
-        source_id = _text(source_row.get("Audit ID"))
-        for row in rows_by_source.get(source_id, []):
-            machine = machine_from_audit_row(row) or "Unassigned / Missing Press"
-            entry = PressAuditEntry(
-                audit_id=_text(row.get("Audit ID")),
-                machine=normalize_machine_token(machine) or machine,
-                entry_type=normalize_entry_type(row.get("Entry Type")),
-                tool=_text(row.get("Tool #")),
-                eoat_type=_text(row.get("EOAT Type")),
-                status=_text(row.get("Status")),
-                pilot_candidate=_text(row.get("Pilot Candidate?")),
-                source_audit_id=_text(row.get("Source Audit ID")),
-                last_updated=_text(row.get("Audit Date")),
-                known_issues=_text(row.get("Known Issues")),
-            )
-            key = (entry.audit_id, entry.machine, entry.source_audit_id)
-            if key in seen:
-                continue
-            seen.add(key)
-            entries.append(entry)
-    return sorted(entries, key=lambda entry: (entry.machine.casefold(), entry.audit_id.casefold()))
 
 
 def _photo_evidence(project_root: str | Path, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -474,6 +537,39 @@ def _latest_validation_findings(paths, machine: str, data_sources: list[dict[str
     ]
     data_sources.append({"name": "Latest validation report", "status": "loaded", "path": str(path), "row_count": len(findings)})
     return findings
+
+
+def _latest_validation_findings_for_scope(paths, scope: str, target_id: str) -> list[dict[str, Any]]:
+    folder = paths.validation_reports
+    if not folder.exists():
+        return []
+    files = sorted(folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+    if not files:
+        return []
+    try:
+        payload = json.loads(files[0].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    raw_findings = payload.get("findings", []) if isinstance(payload, dict) else []
+    findings = [dict(finding) for finding in raw_findings if isinstance(finding, dict)]
+    if scope == "project":
+        return findings
+    if scope == "machine":
+        return [finding for finding in findings if normalize_machine_token(finding.get("machine_number")) == normalize_machine_token(target_id)]
+    if scope == "audit":
+        return [finding for finding in findings if _text(finding.get("audit_id")) == target_id]
+    if scope == "field":
+        return [finding for finding in findings if _text(finding.get("column_name")).casefold() == target_id.casefold()]
+    return [
+        finding
+        for finding in findings
+        if target_id
+        and target_id.casefold()
+        in " ".join(
+            _text(finding.get(key))
+            for key in ("audit_id", "machine_number", "column_name", "message", "category")
+        ).casefold()
+    ]
 
 
 def _reports_for_machine(paths, machine: str, data_sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -827,6 +923,13 @@ def _int(value: Any) -> int | None:
 
 def _text(value: Any) -> str:
     return "" if value is None else str(value).strip()
+
+
+def _machine_sort_key(machine: str) -> tuple[int, int | str]:
+    value = normalize_machine_token(machine)
+    if value.isdigit():
+        return (0, int(value))
+    return (1, value.casefold())
 
 
 def _summary_value(value: Any) -> str:

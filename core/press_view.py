@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from .audit_compatibility import (
-    compatible_rows_by_source_audit_id,
     machine_from_audit_row,
     normalize_entry_type,
     normalize_machine_token,
     part_number_from_row,
     text_value,
 )
+from .audit.relationships import compatibility_entries_for_source_audit, is_compatibility_row
 from .logging import log_tool_run
 from .open_items import list_open_items
 from .paths import resolve_project_paths
@@ -93,7 +93,6 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
     validation_counts = _validation_counts(project_root)
     photo_counts = _photo_counts(project_root)
     compliance_rollups = _compliance_rollups(project_root)
-    compatible_rows_by_source = compatible_rows_by_source_audit_id(rows)
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
         machine = machine_from_audit_row(row)
@@ -103,7 +102,7 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
         if status_filter and status_filter != "All" and status_filter.casefold() not in entry.status.casefold():
             continue
         group = grouped.setdefault(machine, {"physical": [], "compatible": [], "tools": set(), "pilot": [], "dates": []})
-        if entry.entry_type.casefold() == "compatible":
+        if is_compatibility_row(row):
             group["compatible"].append(entry)
         else:
             group["physical"].append(entry)
@@ -117,7 +116,7 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
     groups: list[PressViewGroup] = []
     for machine, data in grouped.items():
         tools = sorted(data["tools"], key=str.casefold)
-        linked_compatible = _linked_compatible_entries_for_sources(data["physical"], compatible_rows_by_source)
+        linked_compatible = _linked_compatible_entries_for_sources(data["physical"], rows)
         group = PressViewGroup(
             machine=machine,
             display_name=_display_name(machine),
@@ -183,6 +182,7 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
         f"- Physical audits: {len(group.physical_audits)}",
         f"- Compatible entries assigned to this machine: {len(group.compatible_entries)}",
         f"- Compatible machine links from this machine's source audits: {len(group.linked_compatible_entries)}",
+        "- Relationship rule: compatible entries do not count as physical audit verification.",
         f"- Total machines in compatibility family: {group.compatibility_family_machine_count}",
         f"- Tools: {', '.join(group.tools) if group.tools else 'None listed'}",
         f"- Open items: {group.open_item_count}",
@@ -240,13 +240,13 @@ def _entry_from_row(row: dict[str, Any], machine: str) -> PressAuditEntry:
 
 def _linked_compatible_entries_for_sources(
     physical_audits: list[PressAuditEntry],
-    compatible_rows_by_source: dict[str, list[dict[str, Any]]],
+    rows: list[dict[str, Any]],
 ) -> list[PressAuditEntry]:
     linked_entries: list[PressAuditEntry] = []
     seen: set[tuple[str, str, str]] = set()
     source_audit_ids = sorted({entry.audit_id for entry in physical_audits if entry.audit_id}, key=str.casefold)
     for source_audit_id in source_audit_ids:
-        for row in compatible_rows_by_source.get(source_audit_id, []):
+        for row in compatibility_entries_for_source_audit(rows, source_audit_id):
             machine = machine_from_audit_row(row) or "Unassigned / Missing Press"
             entry = _entry_from_row(row, machine)
             key = (entry.audit_id, entry.machine, entry.source_audit_id)
