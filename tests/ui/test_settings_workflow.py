@@ -79,3 +79,22 @@ def test_settings_revert_restores_baseline(qapp, fake_config):
 
     assert page.daily_report_time_edit.text() == original_time
     assert page.has_unsaved_changes() is False
+
+
+def test_settings_audit_default_manager_actions(qapp, fake_config):
+    page = SettingsPage(fake_config)
+    page.show()
+    table = page.audit_default_rules_table
+    starting_rows = table.rowCount()
+
+    table.selectRow(0)
+    click_button(page, "Duplicate")
+    assert table.rowCount() == starting_rows + 1
+    assert page.has_unsaved_changes() is True
+
+    table.selectRow(table.rowCount() - 1)
+    click_button(page, "Disable")
+    assert table.item(table.currentRow(), 1).text() == "No"
+
+    click_button(page, "Preview Applied Defaults")
+    assert "Preview Applied Defaults" in page.status_label.text()

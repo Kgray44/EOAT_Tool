@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit.defaults import DEFAULT_AUDIT_DEFAULTS, DEFAULT_CONNECTION_DEFAULTS
+from .audit.default_rules import normalize_default_rules
 from .audit.smart_rules import default_smart_default_rules
 from .config_migration import migrate_config_data
 from .constants import DEFAULT_CONFIG_PATH, DEFAULT_GIT_EXECUTABLE, DEFAULT_PROJECT_ROOT, LEGACY_CONFIG_PATH
@@ -31,6 +32,7 @@ class UserConfig:
     skip_weekends: bool = True
     holidays: list[str] = field(default_factory=list)
     audit_defaults: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_AUDIT_DEFAULTS))
+    audit_default_rules: list[dict[str, Any]] = field(default_factory=list)
     connection_defaults: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_CONNECTION_DEFAULTS))
     scheduled_reports: dict[str, Any] = field(default_factory=lambda: default_scheduled_reports_config())
     backups: dict[str, Any] = field(default_factory=lambda: default_backups_config())
@@ -52,6 +54,7 @@ class UserConfig:
         connection_defaults = dict(DEFAULT_CONNECTION_DEFAULTS)
         connection_defaults.update(_string_dict(defaults.get("connection_defaults")))
         defaults["audit_defaults"] = audit_defaults
+        defaults["audit_default_rules"] = [rule.to_dict() for rule in normalize_default_rules(defaults.get("audit_default_rules"))]
         defaults["connection_defaults"] = connection_defaults
         defaults["scheduled_reports"] = merge_settings_dict(default_scheduled_reports_config(), defaults.get("scheduled_reports"))
         defaults["backups"] = merge_settings_dict(default_backups_config(), defaults.get("backups"))

@@ -36,6 +36,8 @@ def migrate_config_data(data: dict[str, Any]) -> dict[str, Any]:
 
     if "audit_coach_exclusions" not in migrated:
         migrated["audit_coach_exclusions"] = []
+    if "audit_default_rules" not in migrated:
+        migrated["audit_default_rules"] = []
     if "smart_default_rules" not in migrated:
         migrated["smart_default_rules"] = default_smart_default_rules()
     if "connection_defaults" in migrated and "smart_default_rules" in migrated:
