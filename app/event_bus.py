@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -35,11 +36,21 @@ class AppEvent:
 
 
 EventHandler = Callable[[AppEvent], None]
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class EventHandlerError:
+    event_type: str
+    handler: str
+    error: str
+    timestamp: str = field(default_factory=_utc_timestamp)
 
 
 class EventBus:
     def __init__(self):
         self._subscribers: dict[str, list[EventHandler]] = {}
+        self._handler_errors: list[EventHandlerError] = []
 
     def subscribe(self, event_type: str, handler: EventHandler) -> Callable[[], None]:
         key = event_type or EVENT_ANY
@@ -73,10 +84,16 @@ class EventBus:
             if not any(existing == candidate for existing in handlers):
                 handlers.append(candidate)
         for handler in handlers:
-            handler(event)
+            try:
+                handler(event)
+            except Exception as exc:
+                error = EventHandlerError(event.event_type, _handler_name(handler), str(exc))
+                self._handler_errors.append(error)
+                logger.exception("Event handler failed for %s in %s", event.event_type, error.handler)
 
     def clear(self) -> None:
         self._subscribers.clear()
+        self._handler_errors.clear()
 
     def subscriber_count(self, event_type: str | None = None) -> int:
         if event_type is not None:
@@ -85,6 +102,19 @@ class EventBus:
 
     def subscribed_event_types(self) -> tuple[str, ...]:
         return tuple(sorted(self._subscribers))
+
+    def handler_errors(self) -> tuple[EventHandlerError, ...]:
+        return tuple(self._handler_errors)
+
+
+def _handler_name(handler: EventHandler) -> str:
+    name = getattr(handler, "__qualname__", None) or getattr(handler, "__name__", None)
+    if name:
+        return str(name)
+    owner = getattr(handler, "__self__", None)
+    if owner is not None:
+        return f"{owner.__class__.__name__}.{handler.__class__.__name__}"
+    return repr(handler)
 
 
 _event_bus = EventBus()

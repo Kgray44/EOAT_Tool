@@ -258,6 +258,28 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `python scripts/repo_safety_audit.py --root .`
   - Result: no blocking or warning findings.
 
+## Checkpoint 21 - Command Palette, Feature Registry, Routes, And Event Bus
+
+- Expanded `app.feature_registry.FeatureSpec` with stable `id`, `page_key`, commands, search sources, report generators, event listeners, help topics, data dependencies, and file-modification metadata while preserving existing `.key` and `.route` compatibility.
+- Added command metadata for page context, disabled reasons, recent commands, and writes-files badges; unsafe/file-writing commands are forced to require confirmation.
+- Updated the Command Palette to show current-page commands, recent commands, disabled status/reasons, context, safety, and writes-files indicators without triggering background search at startup.
+- Added `app/search_routes.py` so dashboard search-result actions are centrally routed, successful routes can target pages/audits/presses/notes/tags/open items/validation/reports/photos, and unknown routes fail with a clear message instead of throwing.
+- Hardened `app.event_bus.EventBus` so one bad handler is logged and recorded without blocking later subscribers.
+- Added `tests/app` coverage for feature registry metadata, dashboard search routes, and event handler failure isolation.
+- Focused verification:
+  - `python -m pytest tests/app/test_feature_registry.py tests/app/test_search_routes.py tests/app/test_event_bus.py tests/test_feature_registry.py tests/test_command_registry.py tests/test_app_architecture_foundation.py tests/ui/test_command_palette.py`
+  - Result: 20 passed.
+  - `python -m pytest -q tests/test_ui_smoke.py`
+  - Result: 6 passed.
+  - `python -m pytest tests/ui/test_page_performance_lifecycle.py::test_command_palette_does_not_search_on_startup tests/ui/test_command_palette.py`
+  - Result: 3 passed.
+  - `python -m pytest --collect-only -q`
+  - Result: 680 tests collected.
+  - `python scripts/repo_safety_audit.py --root .`
+  - Result: no blocking or warning findings.
+  - `git diff --check`
+  - Result: clean except expected LF-to-CRLF warnings in the network worktree.
+
 ## Final Verification And Handoff Notes
 
 - Worktree used for all implementation after the copy step:
@@ -265,7 +287,7 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Branch:
   - `feature/full-overnight-expansion`
 - Checkpoint commits created:
-  - One stable checkpoint commit has been created for each completed phase through Phase 20. Use `git log --oneline` for exact commit hashes.
+  - One stable checkpoint commit has been created for each completed phase through Phase 21. Use `git log --oneline` for exact commit hashes.
 - Final smoke verification:
   - `python -m pytest -q tests/test_ui_smoke.py`
   - Result: 6 passed.

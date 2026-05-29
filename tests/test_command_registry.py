@@ -49,9 +49,11 @@ def test_file_modifying_commands_require_confirmation(fake_project):
     registry = build_dashboard_command_registry(_Window(fake_project))
 
     assert registry.get("validation.run_foundation").requires_confirmation is True
+    assert registry.get("validation.run_foundation").writes_files is True
     assert registry.get("dashboard.deep_refresh").requires_confirmation is True
     assert registry.get("scheduled_reports.generate_daily").requires_confirmation is True
     assert registry.get("nav.home").requires_confirmation is False
+    assert registry.validate() == []
 
 
 def test_duplicate_command_ids_are_rejected():
@@ -64,3 +66,21 @@ def test_duplicate_command_ids_are_rejected():
         pass
     else:
         raise AssertionError("Duplicate command ID was accepted.")
+
+
+def test_context_recent_and_disabled_command_metadata(fake_project):
+    window = _Window(fake_project)
+    registry = build_dashboard_command_registry(window)
+    registry.register(CommandSpec("demo.disabled", "Disabled Demo", enabled=False, disabled_reason="Needs a selected audit."))
+
+    current_rows = registry.filter(current_page_key="workbook_health")
+    assert current_rows[0].is_context_command("workbook_health")
+    assert any(command.command_id == "validation.run_foundation" for command in current_rows[:5])
+
+    assert registry.execute("nav.press_view") is True
+    assert registry.recent_commands()[0].command_id == "nav.press_view"
+
+    disabled = registry.get("demo.disabled")
+    assert disabled.enabled is False
+    assert disabled.disabled_reason == "Needs a selected audit."
+    assert registry.execute("demo.disabled") is False
