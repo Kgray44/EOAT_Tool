@@ -65,7 +65,7 @@ SECTIONS = {
         "Tubing Routing Notes",
     ],
     "Documentation / Photos": ["Photos Taken?", "Photo Folder/Link"],
-    "Pilot / Final Notes": ["Notes", "Source Audit ID", "Compatibility Source"],
+    "Pilot / Final Notes": ["Robot Notes", "Notes", "Source Audit ID", "Compatibility Source"],
 }
 
 
@@ -108,6 +108,7 @@ def _entry(**overrides):
         "Tubing Routing Notes": "",
         "Photos Taken?": "Yes",
         "Photo Folder/Link": "photos/demo",
+        "Robot Notes": "",
         "Notes": "",
         "Source Audit ID": "",
         "Compatibility Source": "",
@@ -198,8 +199,11 @@ def test_excluded_fields_are_ignored():
     summary = calculate_audit_completion(_entry(), SECTIONS)
 
     assert _status(summary, "Notes").state == STATE_EXCLUDED
+    assert _status(summary, "Robot Notes").state == STATE_EXCLUDED
     assert _status(summary, "Tubing Routing Notes").state == STATE_EXCLUDED
     assert "Notes" in summary.excluded_fields
+    assert "Robot Notes" in summary.excluded_fields
+    assert "Robot Notes" not in summary.missing_fields
     assert "Tubing Routing Notes" not in summary.missing_fields
 
 

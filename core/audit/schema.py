@@ -45,11 +45,16 @@ from ..workbook_schema import get_expected_headers
 STORAGE_EOAT_INVENTORY = "EOAT Inventory"
 STORAGE_NONE = "none"
 PNEUMATIC_CIRCUITS_SECTION = "Pneumatic Circuits"
+ROBOT_NOTES_FIELD = "Robot Notes"
 
 ROBOT_PNEUMATIC_FIELDS = (
     "Robot Vacuum Circuits",
     "Robot Pressure Circuits",
     "Robot Interchangeable Circuits",
+)
+ROBOT_INFO_FIELDS = (
+    *ROBOT_PNEUMATIC_FIELDS,
+    ROBOT_NOTES_FIELD,
 )
 
 AUDIT_SECTION_LAYOUT: dict[str, list[str]] = {
@@ -77,6 +82,7 @@ AUDIT_SECTION_LAYOUT: dict[str, list[str]] = {
         "EOAT Pressure Circuits",
         "EOAT Interchangeable Circuits",
         *ROBOT_PNEUMATIC_FIELDS,
+        ROBOT_NOTES_FIELD,
     ],
     "Sensors and Detection": ["Sensors Present?", "Sensor Type", "Sensor Brand/Model", "Vacuum Confirmation Present?", PART_PRESENT_DETECTION_FIELD, "Electrical/Wiring Present?"],
     "Connections / Routing / Mechanical": [
@@ -116,7 +122,7 @@ AUDIT_GROUP_LAYOUT: dict[str, list[tuple[str, list[str]]]] = {
     ],
     PNEUMATIC_CIRCUITS_SECTION: [
         ("EOAT Side", ["EOAT Vacuum Circuits", "EOAT Pressure Circuits", "EOAT Interchangeable Circuits"]),
-        ("Robot Side", list(ROBOT_PNEUMATIC_FIELDS)),
+        ("Robot Side", list(ROBOT_INFO_FIELDS)),
     ],
     "Sensors and Detection": [
         ("Detection Presence", ["Sensors Present?", "Vacuum Confirmation Present?", PART_PRESENT_DETECTION_FIELD]),
@@ -165,7 +171,7 @@ SYSTEM_METADATA_FIELDS = [
     COMPATIBILITY_SOURCE_FIELD,
 ]
 
-_TEXTAREA_FIELDS = {"Known Issues", "Drop/Mis-Pick History", "Tubing Routing Notes", "Notes", "Part Name/Description", IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD}
+_TEXTAREA_FIELDS = {"Known Issues", "Drop/Mis-Pick History", "Tubing Routing Notes", "Notes", "Part Name/Description", ROBOT_NOTES_FIELD, IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD}
 _NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, CYLINDER_COUNT_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, *PNEUMATIC_CIRCUIT_FIELDS, *ROBOT_PNEUMATIC_FIELDS}
 _YES_NO_UNKNOWN_FIELDS = {"Sensors Present?", "Cycle Time Concern?", "Scrap/Quality Concern?", "Drawing/CAD Available?", "BOM Available?"}
 _YES_NO_UNKNOWN_NA_FIELDS = {"Vacuum Confirmation Present?", PART_PRESENT_DETECTION_FIELD}
@@ -295,7 +301,7 @@ def audit_section_groups() -> dict[str, list[tuple[str, list[str]]]]:
 
 
 def _build_spec(label: str, *, section: str, group: str) -> AuditFieldSpec:
-    storage_target = STORAGE_NONE if label in ROBOT_PNEUMATIC_FIELDS else STORAGE_EOAT_INVENTORY
+    storage_target = STORAGE_NONE if label in ROBOT_INFO_FIELDS else STORAGE_EOAT_INVENTORY
     workbook_header = "" if storage_target == STORAGE_NONE else label
     dropdown_values = _dropdown_values(label)
     required_for_audited = label in AUDITED_REQUIRED_FIELDS
@@ -389,7 +395,7 @@ def _default_for(label: str) -> str:
 
 
 def _visibility_rule(label: str) -> str:
-    if label in ROBOT_PNEUMATIC_FIELDS:
+    if label in ROBOT_INFO_FIELDS:
         return "ui_only:robot_pneumatic_circuits"
     group = FIELD_GROUPS.get(label, "")
     if group:
@@ -458,6 +464,8 @@ __all__ = [
     "AUDIT_SECTION_LAYOUT",
     "AuditFieldSpec",
     "PNEUMATIC_CIRCUITS_SECTION",
+    "ROBOT_INFO_FIELDS",
+    "ROBOT_NOTES_FIELD",
     "ROBOT_PNEUMATIC_FIELDS",
     "STORAGE_EOAT_INVENTORY",
     "STORAGE_NONE",

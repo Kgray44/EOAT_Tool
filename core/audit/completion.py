@@ -64,6 +64,7 @@ NON_COUNTING_STATES = {
 DEFAULT_EXCLUDED_FIELDS = frozenset(
     {
         "Tubing Routing Notes",
+        "Robot Notes",
         "Notes",
         "Final Notes",
         SOURCE_AUDIT_ID_FIELD,

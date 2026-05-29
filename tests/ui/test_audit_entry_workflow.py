@@ -25,7 +25,7 @@ from core.audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
 )
 from core.audit_entries import save_audit_entry
-from core.robot_info import robot_info_workbook_path, upsert_robot_info_from_audit
+from core.robot_info import load_robot_info_for_audit_entry, robot_info_workbook_path, upsert_robot_info_from_audit
 from core.workbook_io import row_dicts, workbook_sheet_names
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
@@ -956,11 +956,21 @@ def test_pneumatic_circuits_tab_groups_fields_defaults_and_tag_buttons(qapp, fak
         "Robot Vacuum Circuits",
         "Robot Pressure Circuits",
         "Robot Interchangeable Circuits",
+        "Robot Notes",
     ]:
         assert field in page.audit_fields
         assert field in page._field_tag_buttons
     assert page.audit_fields["EOAT Interchangeable Circuits"].text() == "0"
     assert page.audit_fields["Robot Interchangeable Circuits"].text() == "0"
+    assert isinstance(page.audit_fields["Robot Notes"], QTextEdit)
+    assert page.audit_fields["Robot Notes"].height() == page.audit_fields["Tubing Routing Notes"].height()
+    pneumatic_groups = dict(AUDIT_SECTION_GROUPS["Pneumatic Circuits"])
+    assert pneumatic_groups["Robot Side"] == [
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+        "Robot Notes",
+    ]
 
 
 def test_audit_form_uses_grouped_panels_without_losing_fields(qapp, fake_config):
@@ -1015,6 +1025,7 @@ def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, f
         "Robot Vacuum Circuits": "3",
         "Robot Pressure Circuits": "2",
         "Robot Interchangeable Circuits": "0",
+        "Robot Notes": "Robot wrist air labels need cleanup.",
     }
     for field, value in values.items():
         _set_field(page, field, value)
@@ -1034,19 +1045,16 @@ def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, f
     saved_row = next(row for row in rows if row["Audit ID"] == audit_id)
     assert saved_row["EOAT Vacuum Circuits"] == "2"
     assert "Robot Vacuum Circuits" not in saved_row
+    assert "Robot Notes" not in saved_row
 
 
-def test_save_audit_workflow_skips_robot_info_when_circuit_values_are_default(qapp, fake_config, fake_project, monkeypatch, frozen_project_date):
+def test_save_audit_workflow_skips_robot_info_when_circuit_values_are_default(qapp, fake_config, fake_project, frozen_project_date):
     page = AuditPage(fake_config)
     page.show()
     _set_field(page, "Press/Machine #", "Press 213")
     _set_field(page, "Robot Type", "Wittmann R9")
     _set_field(page, "EOAT Type", "Vacuum")
 
-    def fail_upsert(*_args, **_kwargs):
-        raise AssertionError("Robot_Info.xlsx should not be opened for write when only default robot circuit values exist.")
-
-    monkeypatch.setattr("app.pages.audit_save_workflow.upsert_robot_info_from_audit", fail_upsert)
     result = page._save_audit_workflow(
         {field: page._field_value(widget) for field, widget in page.audit_fields.items()},
         allow_update=False,
@@ -1057,6 +1065,35 @@ def test_save_audit_workflow_skips_robot_info_when_circuit_values_are_default(qa
     assert result.metrics["robot_info_save_skipped"] is True
     assert "Robot Info skipped" in result.summary
     assert not robot_info_workbook_path(fake_project).exists()
+
+
+def test_save_audit_entry_writes_robot_notes_to_robot_info_workbook(qapp, fake_config, fake_project, frozen_project_date):
+    page = AuditPage(fake_config)
+    page.show()
+    audit_id = page.audit_fields["Audit ID"].text()
+    values = {
+        "Press/Machine #": "Press 215",
+        "Robot Type": "Wittmann R9",
+        "EOAT Type": "Vacuum",
+        "Robot Notes": "Robot-side vacuum line labeling differs from EOAT labels.",
+    }
+    for field, value in values.items():
+        _set_field(page, field, value)
+
+    click_button(page, "Save Audit Entry")
+    wait_for_background_tasks()
+
+    loaded = load_robot_info_for_audit_entry(
+        fake_project,
+        {
+            "Audit ID": audit_id,
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 215",
+            "Robot Type": "Wittmann R9",
+        },
+    )
+    assert loaded is not None
+    assert loaded["Robot Notes"] == "Robot-side vacuum line labeling differs from EOAT labels."
 
 
 def _patch_manual_override_confirmation(monkeypatch, button_text: str) -> None:
@@ -1235,6 +1272,7 @@ def test_load_existing_audit_restores_eoat_and_robot_pneumatic_fields(qapp, fake
             "Robot Vacuum Circuits": "4",
             "Robot Pressure Circuits": "3",
             "Robot Interchangeable Circuits": "0",
+            "Robot Notes": "Use spare robot-side pressure line for EOAT B.",
         },
     ).success
     page = AuditPage(fake_config)
@@ -1248,6 +1286,7 @@ def test_load_existing_audit_restores_eoat_and_robot_pneumatic_fields(qapp, fake
     assert page.audit_fields["Robot Vacuum Circuits"].text() == "4"
     assert page.audit_fields["Robot Pressure Circuits"].text() == "3"
     assert page.audit_fields["Robot Interchangeable Circuits"].text() == "0"
+    assert page.audit_fields["Robot Notes"].toPlainText() == "Use spare robot-side pressure line for EOAT B."
 
 
 def test_pneumatic_target_navigation_selects_pneumatic_tab(qapp, fake_config):

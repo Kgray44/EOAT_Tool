@@ -3,9 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 
 from core.audit.schema import (
+    PNEUMATIC_CIRCUITS_SECTION,
     STORAGE_NONE,
     all_audit_fields,
     audit_section_groups,
+    audit_sections,
     dropdown_values_for,
     expected_workbook_headers,
     field_by_header,
@@ -88,6 +90,25 @@ def test_numeric_fields_are_marked():
     assert GRIPPER_COUNT_FIELD in numeric_headers
     assert CUP_COUNT_FIELD in numeric_headers
     assert "EOAT Vacuum Circuits" in numeric_headers
+    assert "Robot Notes" not in numeric_headers
+
+
+def test_robot_notes_is_robot_side_textarea_outside_eoat_inventory_schema():
+    spec = field_by_id("robot_notes")
+    sections = audit_sections()
+    groups = dict(audit_section_groups()[PNEUMATIC_CIRCUITS_SECTION])
+
+    assert spec.storage_target == STORAGE_NONE
+    assert spec.workbook_header == ""
+    assert spec.widget_type == "textarea"
+    assert sections[PNEUMATIC_CIRCUITS_SECTION][-1] == "Robot Notes"
+    assert groups["Robot Side"] == [
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+        "Robot Notes",
+    ]
+    assert "Robot Notes" not in get_expected_headers("EOAT Inventory")
 
 
 def test_required_and_important_fields_are_marked():

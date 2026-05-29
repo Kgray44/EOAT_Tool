@@ -99,6 +99,7 @@ FIELD_GROUPS = {
     "Robot Vacuum Circuits": "pneumatic_circuit",
     "Robot Pressure Circuits": "pneumatic_circuit",
     "Robot Interchangeable Circuits": "pneumatic_circuit",
+    "Robot Notes": "pneumatic_circuit",
     "Electrical Quick Disconnect Type": "electrical",
     "Tubing Condition": "pneumatic",
     "Tubing Routing Notes": "routing",

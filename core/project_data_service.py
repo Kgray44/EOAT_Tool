@@ -686,6 +686,7 @@ def _pneumatic_summary(rows: list[dict[str, Any]], robot_info: list[dict[str, An
         "pneumatic_quick_disconnects": _unique_values(rows, "Pneumatic Quick Disconnect Type"),
         "quick_disconnects_present": _value_counts(rows, "Quick Disconnects Present?"),
         "robot_side_rows": len(robot_info),
+        "robot_notes": _unique_values(robot_info, "Robot Notes"),
         "robot_side_air_sources": _unique_values(robot_info, "Robot Pneumatic Notes") or _unique_values(robot_info, "Pneumatic Notes"),
     }
 
