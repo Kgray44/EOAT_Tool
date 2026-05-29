@@ -280,6 +280,35 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `git diff --check`
   - Result: clean except expected LF-to-CRLF warnings in the network worktree.
 
+## Checkpoint 22 - Release Safety And CI
+
+- Added `.github/workflows/ci.yml` for GitHub Actions on Windows with dependency install, optional Ruff lint when available, registry/demo/dashboard smoke checks, full pytest, and repository safety audit.
+- Added `pyproject.toml` with Ruff settings for line length 120 and lint families `E`, `F`, `I`, `B`, `UP`, and `SIM`.
+- Expanded `scripts/ci_smoke_check.py` to verify page registry imports, feature/command registry consistency, tool registry completeness, default demo project mode, repository safety, and optional offscreen dashboard launch.
+- Dashboard launch smoke now runs against a temporary copy of the sanitized demo project so it does not write runtime cache/log files into the repository.
+- Added sanitized placeholder README files for the missing demo project top-level folders so demo-mode validation has the expected project shape.
+- Added release docs:
+  - `docs/testing_strategy.md`
+  - `docs/architecture_notes.md`
+  - `docs/feature_expansion_plan.md`
+- Focused verification:
+  - `python -m pytest tests/test_ci_smoke_check.py tests/test_repo_safety_audit.py tests/test_app_architecture_foundation.py tests/test_tool_registry.py tests/test_tool_registry_completeness.py`
+  - Result: 21 passed.
+  - `python scripts/ci_smoke_check.py --root . --dashboard-smoke`
+  - Result: passed.
+  - `python -m pytest -q tests/test_ci_smoke_check.py tests/test_repo_safety_audit.py tests/test_app_architecture_foundation.py tests/test_tool_registry.py tests/test_tool_registry_completeness.py tests/test_ui_smoke.py`
+  - Result: 27 passed.
+  - `python -m pytest --collect-only -q`
+  - Result: 682 tests collected.
+  - `python -m pytest`
+  - Result: attempted, but the runner timed out after about 1204 seconds before returning a pass/fail result.
+  - `python scripts/repo_safety_audit.py --root .`
+  - Result: no blocking or warning findings.
+  - `python -m ruff check .`
+  - Result: skipped locally because Ruff is not installed in this environment.
+  - `git diff --check`
+  - Result: clean except expected LF-to-CRLF warnings in the network worktree.
+
 ## Final Verification And Handoff Notes
 
 - Worktree used for all implementation after the copy step:
@@ -287,7 +316,7 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Branch:
   - `feature/full-overnight-expansion`
 - Checkpoint commits created:
-  - One stable checkpoint commit has been created for each completed phase through Phase 21. Use `git log --oneline` for exact commit hashes.
+  - One stable checkpoint commit has been created for each completed phase through Phase 22. Use `git log --oneline` for exact commit hashes.
 - Final smoke verification:
   - `python -m pytest -q tests/test_ui_smoke.py`
   - Result: 6 passed.
