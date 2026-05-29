@@ -217,6 +217,27 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `python -m pytest tests/test_paths.py tests/test_final_handoff.py tests/test_final_handoff_readiness.py tests/ui/test_final_handoff_workflow.py tests/core/test_work_instruction_builder.py tests/core/test_change_validation.py`
   - Result: 18 passed, 1 failed. The failed test was `tests/test_paths.py::test_demo_project_loads_without_real_company_data`, which expects a local default demo project root to contain numbered folders that are absent in this environment; the Phase 18 project-root/temp-project path tests passed.
 
+## Checkpoint 19 - Data Import Wizard And QR Labels
+
+- Added `core/data_import.py` with import type detection, preview rows, suggested column mapping, validation, dry-run planning, confirmed local import staging, and JSONL import logging.
+- Supported dry-run/confirmed local staging for press capacity workbooks, downtime exports, scrap exports, maintenance event exports, cycle-time baselines, machine master lists, robot lists, and PM records.
+- Confirmed imports write normalized JSON snapshots under `project_data/data_imports` and an import log; master workbooks are not modified by this phase.
+- Added a Data Import page stub with file selection, import type selection, preview, dry run, and confirm import actions.
+- Added `core/qr_labels.py` to generate minimal local route values such as `eoat://machine/123` and `eoat://audit/EOAT-2026-0001`.
+- QR label exports avoid plant/tool/part/customer/path details. If the optional QR-rendering package is unavailable, the exporter writes printable SVG and Markdown value sheets with a clear warning; if available, it also writes a scannable PNG sheet.
+- Added a QR Labels page stub and included QR/data import folders in report browsing and QR labels in final handoff source collection.
+- Focused verification:
+  - `python -m pytest tests/core/test_data_import.py tests/core/test_qr_labels.py`
+  - Result: 8 passed.
+  - `python -m pytest tests/test_app_architecture_foundation.py tests/test_feature_registry.py tests/test_command_registry.py`
+  - Result: 12 passed.
+  - `python -m pytest -q tests/test_ui_smoke.py`
+  - Result: 6 passed.
+  - `python -m pytest tests/core/test_data_import.py tests/core/test_qr_labels.py tests/test_reports.py tests/ui/test_reports_workflow.py`
+  - Result: 11 passed.
+  - `python -m pytest tests/test_final_handoff.py tests/core/test_qr_labels.py::test_export_qr_label_sheet_writes_printable_outputs_and_handoff_source`
+  - Result: 4 passed.
+
 ## Final Verification And Handoff Notes
 
 - Worktree used for all implementation after the copy step:

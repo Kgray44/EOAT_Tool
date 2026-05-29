@@ -102,6 +102,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         description="Unified notes, tags, validation findings, follow-ups, and action board.",
     ),
     PageSpec("photos", "Photos", "Capture", "app.pages.photos:PhotosPage", description="Photo intake and photo index updates."),
+    PageSpec("data_import", "Data Import", "Capture", "app.pages.data_import:DataImportPage", description="Dry-run data import previews and local import staging."),
     PageSpec(
         "audit_progress",
         "Audit Progress",
@@ -145,6 +146,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         listens_to=(EVENT_SCHEDULED_REPORT_RAN, EVENT_REPORT_GENERATED),
         description="Scheduled daily and weekly summary status.",
     ),
+    PageSpec("qr_labels", "QR Labels", "Output", "app.pages.qr_labels:QrLabelsPage", description="Minimal EOAT machine and audit QR label values."),
     PageSpec("handoff", "Final Handoff", "Output", "app.pages.handoff:HandoffPage", description="Final deliverable and handoff package tools."),
     PageSpec("tool_registry", "Tool Registry", "System", "app.pages.tool_registry:ToolRegistryPage", requires_config=False, description="Registered tools."),
     PageSpec(
