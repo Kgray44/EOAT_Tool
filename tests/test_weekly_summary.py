@@ -14,6 +14,8 @@ def test_weekly_summary_handles_missing_daily_reports(fake_project):
     markdown, warnings, metrics = build_weekly_summary_markdown(fake_project, week=1)
 
     assert "Week 1 EOAT Project Summary" in markdown
+    assert "## Weekly Engineering Brief" in markdown
+    assert "Estimated or subjective values must remain labeled" in markdown
     assert warnings
     assert metrics["daily_reports_found"] == 0
 

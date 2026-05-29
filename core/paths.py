@@ -178,6 +178,10 @@ class EOATProjectPaths:
     def training_materials(self) -> Path:
         return self.final_handoff / "Training_Materials"
 
+    @property
+    def machine_summaries(self) -> Path:
+        return self.final_handoff / "Machine_Summaries"
+
     def expected_numbered_folders(self) -> list[Path]:
         return [self.project_root / folder for folder in EXPECTED_NUMBERED_FOLDERS]
 
