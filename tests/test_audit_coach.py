@@ -326,12 +326,13 @@ def test_cylinder_count_makes_cylinder_fields_participate_in_progress():
     assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_VERIFIED_COMPLETE
 
 
-def test_cylinder_type_change_without_count_requires_count():
+def test_cylinder_type_change_without_count_keeps_optional_group_ignored():
     summary = calculate_audit_coach_summary(_base_entry(**{CYLINDER_TYPE_FIELD: "Rotary"}), SECTIONS)
 
-    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_MISSING
-    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_VERIFIED_COMPLETE
-    assert CYLINDER_COUNT_FIELD in summary.missing_fields
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_NOT_APPLICABLE
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_NOT_APPLICABLE
+    assert CYLINDER_COUNT_FIELD not in summary.missing_fields
+    assert CYLINDER_TYPE_FIELD not in summary.missing_fields
 
 
 def test_manual_completion_override_forces_completion_for_current_audit():

@@ -241,13 +241,16 @@ def field_applies(entry: dict[str, Any], field_name: str) -> bool:
 
 
 def cylinder_section_in_use(entry: dict[str, Any]) -> bool:
-    cylinder_count = normalize_text(entry.get(CYLINDER_COUNT_FIELD))
-    cylinder_type = normalize_text(entry.get(CYLINDER_TYPE_FIELD))
-    if is_meaningful_value(cylinder_count):
-        return True
-    if not cylinder_type or is_na_value(cylinder_type):
-        return False
-    return cylinder_type.casefold() != CYLINDER_TYPE_DEFAULT.casefold()
+    return is_meaningful_value(entry.get(CYLINDER_COUNT_FIELD))
+
+
+def normalize_cylinder_fields(entry: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(entry)
+    if cylinder_section_in_use(normalized):
+        cylinder_type = normalize_text(normalized.get(CYLINDER_TYPE_FIELD))
+        if not cylinder_type or is_na_value(cylinder_type):
+            normalized[CYLINDER_TYPE_FIELD] = CYLINDER_TYPE_DEFAULT
+    return normalized
 
 
 def cylinder_optional_reason() -> str:

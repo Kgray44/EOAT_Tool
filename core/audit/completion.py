@@ -27,6 +27,7 @@ from core.audit_field_rules import (
     is_na_value,
     manual_completion_override_enabled,
     non_applicable_reason,
+    normalize_cylinder_fields,
     normalize_text,
     semantic_consistency_warnings,
 )
@@ -212,7 +213,7 @@ def calculate_audit_completion(
     allow_manual_override: bool = True,
     mode: str = "",
 ) -> AuditCompletionSummary:
-    current_entry = {str(key): normalize_text(value) for key, value in entry.items()}
+    current_entry = normalize_cylinder_fields({str(key): normalize_text(value) for key, value in entry.items()})
     section_map = sections or audit_sections()
     excluded = set(DEFAULT_EXCLUDED_FIELDS if excluded_fields is None else excluded_fields)
     requirements = entry_type_requirements(current_entry)
@@ -308,7 +309,7 @@ def classify_completion_field(
     required_fields = required_fields or set()
     important_fields = important_fields or set()
     excluded_fields = set(DEFAULT_EXCLUDED_FIELDS if excluded_fields is None else excluded_fields)
-    current_entry = {str(key): normalize_text(value) for key, value in entry.items()}
+    current_entry = normalize_cylinder_fields({str(key): normalize_text(value) for key, value in entry.items()})
     value = normalize_text(current_entry.get(field))
     spec = _spec_for_field(field)
     required = field in required_fields or spec.workbook_header in required_fields

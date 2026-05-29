@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from openpyxl import load_workbook
-from PySide6.QtWidgets import QComboBox, QLabel, QLineEdit, QTextEdit
+from PySide6.QtWidgets import QComboBox, QGroupBox, QLabel, QLineEdit, QTextEdit
 
 from app.pages.audit import AuditPage
 from core.audit_constants import (
@@ -237,6 +237,7 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
         ("Hybrid", True, True),
         ("Unknown / Needs Review", True, False),
         ("Miscellaneous", True, True),
+        ("", True, False),
     ],
 )
 def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vacuum_visible, gripper_visible):
@@ -254,6 +255,20 @@ def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vac
     assert page.audit_fields["Gripper Type"].isHidden() is (not gripper_visible)
     assert page.audit_fields[CYLINDER_COUNT_FIELD].isHidden() is False
     assert page.audit_fields[CYLINDER_TYPE_FIELD].isHidden() is False
+
+
+def test_cylinder_details_group_is_always_visible(qapp, fake_config):
+    page = AuditPage(fake_config)
+    group_titles = {group.title(): group for group in page.findChildren(QGroupBox)}
+
+    assert "Cylinder Details" in group_titles
+    cylinder_group = group_titles["Cylinder Details"]
+    for eoat_type in ["Vacuum", "Mechanical / Gripper", "Hybrid", "Miscellaneous", "Unknown / Needs Review", ""]:
+        _set_field(page, "EOAT Type", eoat_type)
+
+        assert cylinder_group.isHidden() is False
+        assert page.audit_fields[CYLINDER_COUNT_FIELD].isHidden() is False
+        assert page.audit_fields[CYLINDER_TYPE_FIELD].isHidden() is False
 
 
 def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qapp, fake_config):

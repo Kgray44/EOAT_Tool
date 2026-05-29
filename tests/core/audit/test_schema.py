@@ -100,4 +100,4 @@ def test_sections_and_groups_expose_specs():
 
     assert "Audit Header" in grouped
     assert "Audit Identity" in grouped["Audit Header"]
-    assert grouped["EOAT Type and Tooling"]["Cylinders"][0].workbook_header == CYLINDER_COUNT_FIELD
+    assert grouped["EOAT Type and Tooling"]["Cylinder Details"][0].workbook_header == CYLINDER_COUNT_FIELD
