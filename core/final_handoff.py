@@ -38,6 +38,7 @@ HANDOFF_FOLDERS = {
     "presentation": "09_Presentation",
     "admin": "10_Project_Admin",
     "reference": "11_Reference_Reports",
+    "change_validation": "12_Change_Validation",
 }
 
 PACKAGE_FOLDERS = {
@@ -53,6 +54,7 @@ PACKAGE_FOLDERS = {
     "presentation": "Presentation",
     "admin": "Validation",
     "reference": "Reference",
+    "change_validation": "Change_Validation",
 }
 
 REQUIRED_PACKAGE_FOLDERS = (
@@ -95,12 +97,13 @@ def collect_handoff_sources(
         "fmea": _latest_from(paths.fmea_reports, 10),
         "kpi": _latest_from(paths.kpi_dashboard_exports, 10),
         "pilot": _latest_from(paths.pilot_project / "Candidate_Cells", 10) + _latest_from(paths.pilot_project / "Pilot_Reports", 10),
-        "training": _latest_from(paths.training_materials, 10) + _latest_from(paths.standards / "Work_Instructions", 10),
+        "training": _latest_from(paths.training_materials, 10) + _recursive_recent(paths.work_instructions, 10),
         "risk": _latest_from(paths.risk_insights_reports, 10),
         "executive": _latest_from(paths.executive_summary, 10) + _latest_from(paths.final_report, 10),
         "presentation": _recursive_recent(paths.presentation_assets_root, 20),
         "admin": _latest_from(paths.validation_reports, 5),
         "reference": _latest_from(paths.issue_analysis_reports, 5) + _latest_from(paths.audit_progress_reports, 5),
+        "change_validation": _recursive_recent(paths.change_validation, 10),
     }
     if include_weekly_reports:
         sources["admin"].extend(_latest_from(paths.weekly_reports, 12))
