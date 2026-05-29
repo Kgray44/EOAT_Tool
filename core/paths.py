@@ -111,6 +111,10 @@ class EOATProjectPaths:
         return self.project_root / "03_Standards"
 
     @property
+    def work_instructions(self) -> Path:
+        return self.standards / "Work_Instructions"
+
+    @property
     def documentation_gap_reports(self) -> Path:
         return self.standards / "Documentation_Gap_Reports"
 
@@ -137,6 +141,10 @@ class EOATProjectPaths:
     @property
     def final_handoff(self) -> Path:
         return self.project_root / "06_Final_Handoff"
+
+    @property
+    def change_validation(self) -> Path:
+        return self.final_handoff / "Change_Validation"
 
     @property
     def presentation_assets_root(self) -> Path:
