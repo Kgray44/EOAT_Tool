@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse, unquote
 
 from openpyxl import load_workbook
 
@@ -37,21 +40,24 @@ from .audit_field_rules import (
 )
 from .audit_constants import (
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
+    COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
     CYLINDER_TYPE_VALUES,
+    ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELDS,
     SOURCE_AUDIT_ID_FIELD,
 )
+from .audit.relationships import is_compatibility_row, is_physical_audit_row, source_audit_for_compatibility_row
 from .git_activity import is_git_repo
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .photo_evidence import validate_photo_evidence
 from .result import ToolResult
-from .robot_info import validate_robot_info_workbook
+from .robot_info import ROBOT_INFO_SHEET, robot_info_workbook_path, validate_robot_info_workbook
 from .safe_files import ensure_directory, safe_write_text
 from .schedule import available_schedule_weeks
 from .validation_findings import (
@@ -61,7 +67,8 @@ from .validation_findings import (
     make_finding,
     write_validation_json_report,
 )
-from .workbook_schema import get_expected_headers, get_expected_sheets, get_key_inventory_headers
+from .workbook_truth import analyze_truth_from_rows
+from .workbook_schema import get_expected_headers, get_expected_sheets, get_key_inventory_headers, load_workbook_schema
 
 MAJOR_AUDIT_COLUMNS = {
     "Audit ID",
@@ -93,6 +100,14 @@ AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, CYLINDER_COUNT_FIELD, CUP_
 
 BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS | frozenset(MANUAL_COMPLETION_OVERRIDE_FIELDS)
 BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = "Source Audit ID, Compatibility Source, and manual completion override metadata"
+
+FIX_CLEAR_STALE_HIDDEN_NA = "clear_stale_hidden_na"
+FIX_REPAIR_LEGACY_HEADERS = "repair_legacy_headers"
+FIX_REFRESH_GENERATED_VIEWS = "refresh_generated_views"
+FIX_NORMALIZE_DROPDOWN_CASING = "normalize_dropdown_casing"
+FIX_CREATE_MISSING_REPORT_FOLDERS = "create_missing_report_folders"
+
+SCHEMA_VERSION_UNKNOWN = "Unknown"
 
 
 def validate_project_foundation(project_root: str | Path) -> ToolResult:
@@ -134,12 +149,26 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
     for folder_name, folder in {
         "daily reports": paths.daily_reports,
         "weekly reports": paths.weekly_reports,
+        "validation reports": paths.validation_reports,
         "activity logs": paths.activity_logs,
     }.items():
         if folder.exists():
             details.append(f"Found {folder_name} folder: {folder}")
         else:
-            warnings.append(f"Missing {folder_name} folder: {folder}")
+            message = f"Missing {folder_name} folder: {folder}"
+            warnings.append(message)
+            findings.append(
+                make_finding(
+                    ValidationSeverity.AUTO_FIXABLE,
+                    "project_foundation",
+                    message,
+                    expected_behavior="Local report/log folders should exist before reports are generated.",
+                    recommended_action="Preview and apply the Create Missing Report Folders safe fix.",
+                    fix_available=True,
+                    fix_id=FIX_CREATE_MISSING_REPORT_FOLDERS,
+                    source_validator="foundation",
+                )
+            )
 
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
@@ -197,6 +226,35 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
     missing_sheets = [sheet for sheet in expected_sheets if sheet not in workbook.sheetnames]
     metrics["expected_sheet_count"] = len(expected_sheets)
     metrics["actual_sheet_count"] = len(workbook.sheetnames)
+    expected_schema_version = str(load_workbook_schema().get("version") or SCHEMA_VERSION_UNKNOWN)
+    workbook_schema_version = str(getattr(workbook.properties, "version", "") or "").strip() or SCHEMA_VERSION_UNKNOWN
+    metrics["expected_workbook_schema_version"] = expected_schema_version
+    metrics["workbook_schema_version"] = workbook_schema_version
+    if workbook_schema_version == SCHEMA_VERSION_UNKNOWN:
+        details.append(f"Workbook schema version is unknown; validating headers against template schema {expected_schema_version}.")
+        findings.append(
+            make_finding(
+                ValidationSeverity.INFO,
+                "workbook_schema",
+                f"Workbook schema version metadata is unknown; header validation is using template schema {expected_schema_version}.",
+                expected_behavior="Schema migrations should preserve local data and add explicit version metadata when the workbook supports it.",
+                recommended_action="No automatic workbook rewrite is performed during validation. Run the schema repair/migration path only after previewing changes.",
+                source_validator="foundation",
+            )
+        )
+    elif workbook_schema_version != expected_schema_version:
+        message = f"Workbook schema version {workbook_schema_version} differs from expected template schema {expected_schema_version}."
+        warnings.append(message)
+        findings.append(
+            make_finding(
+                ValidationSeverity.WARNING,
+                "workbook_schema",
+                message,
+                expected_behavior="Workbook schema metadata should match the local template version after migrations.",
+                recommended_action="Preview schema migration before applying any workbook rewrite.",
+                source_validator="foundation",
+            )
+        )
     if missing_sheets:
         for sheet in missing_sheets:
             message = f"Missing expected sheet: {sheet}"
@@ -439,10 +497,13 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
                 "blank-cell validation because they are autofilled or system-managed metadata; "
                 "the columns still remain part of the workbook schema."
             )
-        inventory_warnings, inventory_metrics, inventory_findings = _validate_inventory_rows(ws, headers)
+        valid_audit_ids, valid_machines = _inventory_identity_sets(ws, headers)
+        inventory_warnings, inventory_metrics, inventory_findings = _validate_inventory_rows(ws, headers, paths.project_root)
         warnings.extend(inventory_warnings)
         metrics.update(inventory_metrics)
         findings.extend(inventory_findings)
+        metrics["known_audit_id_count"] = len(valid_audit_ids)
+        metrics["known_machine_count"] = len(valid_machines)
     else:
         message = "EOAT Inventory sheet is missing, so headers could not be checked."
         errors.append(message)
@@ -459,6 +520,11 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         )
 
     workbook.close()
+    if "valid_audit_ids" in locals() and "valid_machines" in locals():
+        orphan_warnings, orphan_metrics, orphan_findings = _validate_orphan_local_references(paths.project_root, valid_audit_ids, valid_machines)
+        warnings.extend(orphan_warnings)
+        metrics.update(orphan_metrics)
+        findings.extend(orphan_findings)
     compatibility_findings = validate_compatibility_health(workbook_path)
     findings.extend(compatibility_findings)
     metrics["compatibility_health_finding_count"] = len(compatibility_findings)
@@ -521,7 +587,7 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
     ), findings)
 
 
-def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
+def _validate_inventory_rows(ws, headers: list[str], project_root: str | Path) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
     warnings: list[str] = []
     findings: list[ValidationFinding] = []
     metrics = {
@@ -535,7 +601,17 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         "semantic_warning_count": 0,
         "physical_audit_row_count": 0,
         "compatible_row_count": 0,
+        "duplicate_physical_row_count": 0,
+        "compatibility_missing_source_audit_id_count": 0,
+        "compatibility_missing_source_count": 0,
+        "physical_row_with_compatibility_metadata_count": 0,
+        "compatibility_truth_warning_count": 0,
+        "broken_photo_link_count": 0,
+        "photos_yes_without_link_count": 0,
+        "photo_link_while_no_count": 0,
+        "robot_side_circuit_mismatch_count": 0,
         "invalid_dropdown_value_count": 0,
+        "dropdown_casing_fixable_count": 0,
         "invalid_numeric_value_count": 0,
         "audit_row_count": 0,
     }
@@ -553,8 +629,15 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
     hybrid_warning_examples: list[str] = []
     semantic_warning_examples: list[str] = []
     invalid_dropdown_examples: list[str] = []
+    dropdown_casing_examples: list[str] = []
     invalid_numeric_examples: list[str] = []
     missing_eoat_moves_examples: list[str] = []
+    duplicate_physical_examples: list[str] = []
+    compatibility_warning_examples: list[str] = []
+    photo_warning_examples: list[str] = []
+    robot_mismatch_examples: list[str] = []
+    physical_identity_rows: dict[tuple[str, str, str], int] = {}
+    inventory_rows_for_truth: list[dict[str, object]] = []
     source_eoat_moves_by_audit_id: dict[str, str] = {}
     major_na_seen: set[tuple[int, str]] = set()
 
@@ -592,9 +675,12 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         if not _is_audit_data_row(row_data):
             continue
         row_data = apply_part_present_sensor_defaults(row_data)
+        truth_row = dict(row_data)
+        truth_row["_row_index"] = row_number
+        inventory_rows_for_truth.append(truth_row)
         metrics["audit_row_count"] += 1
         entry_type = _cell_text(row_data.get(ENTRY_TYPE_FIELD)).lower()
-        if entry_type == ENTRY_TYPE_COMPATIBLE.lower():
+        if is_compatibility_row(row_data):
             metrics["compatible_row_count"] += 1
         else:
             metrics["physical_audit_row_count"] += 1
@@ -622,6 +708,123 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 audit_ids[audit_id] = row_number
         elif "Audit ID" in headers:
             add_major_na(row_number, "Audit ID", row_data)
+
+        if is_physical_audit_row(row_data):
+            source_id = _cell_text(row_data.get(SOURCE_AUDIT_ID_FIELD))
+            compatibility_source = _cell_text(row_data.get(COMPATIBILITY_SOURCE_FIELD))
+            if source_id or compatibility_source:
+                metrics["physical_row_with_compatibility_metadata_count"] += 1
+                message = f"Physical audit row contains compatibility metadata: row {row_number}"
+                compatibility_warning_examples.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "relationship_truth",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=f"{SOURCE_AUDIT_ID_FIELD}={source_id}; {COMPATIBILITY_SOURCE_FIELD}={compatibility_source}",
+                        expected_behavior="Physical audit rows should not carry compatibility-source metadata.",
+                        recommended_action="Review whether this row should be marked Compatible or whether the metadata should be cleared manually.",
+                        source_validator="inventory_relationships",
+                    )
+                )
+            identity_key = _physical_identity_key(row_data)
+            if identity_key:
+                if identity_key in physical_identity_rows:
+                    metrics["duplicate_physical_row_count"] += 1
+                    message = f"Duplicate physical audit row identity: row {row_number} matches row {physical_identity_rows[identity_key]}"
+                    duplicate_physical_examples.append(message)
+                    findings.append(
+                        make_finding(
+                            ValidationSeverity.WARNING,
+                            "relationship_truth",
+                            message,
+                            sheet_name="EOAT Inventory",
+                            row_number=row_number,
+                            audit_id=audit_id,
+                            machine_number=_cell_text(row_data.get("Press/Machine #")),
+                            current_value=" / ".join(identity_key),
+                            expected_behavior="A physical audit identity should normally be unique for a machine, tool, and EOAT type.",
+                            recommended_action="Compare the rows before deciding whether to merge, archive, or keep both as separate audits.",
+                            source_validator="inventory_relationships",
+                        )
+                    )
+                else:
+                    physical_identity_rows[identity_key] = row_number
+        elif is_compatibility_row(row_data):
+            source_id = _cell_text(row_data.get(SOURCE_AUDIT_ID_FIELD))
+            compatibility_source = _cell_text(row_data.get(COMPATIBILITY_SOURCE_FIELD))
+            if not source_id:
+                metrics["compatibility_missing_source_audit_id_count"] += 1
+                message = f"Compatibility row is missing Source Audit ID: row {row_number}"
+                compatibility_warning_examples.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.ERROR,
+                        "relationship_truth",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=SOURCE_AUDIT_ID_FIELD,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=row_data.get(SOURCE_AUDIT_ID_FIELD),
+                        expected_behavior="Compatibility rows should link back to the physical source audit they were derived from.",
+                        recommended_action="Repair compatibility metadata only after confirming the source audit.",
+                        source_validator="inventory_relationships",
+                    )
+                )
+            if not compatibility_source:
+                metrics["compatibility_missing_source_count"] += 1
+                message = f"Compatibility row is missing Compatibility Source: row {row_number}"
+                compatibility_warning_examples.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.ERROR,
+                        "relationship_truth",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=COMPATIBILITY_SOURCE_FIELD,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=row_data.get(COMPATIBILITY_SOURCE_FIELD),
+                        expected_behavior="Compatibility rows should record the local data source used to derive them.",
+                        recommended_action="Repair compatibility metadata only after confirming the source list or source audit.",
+                        source_validator="inventory_relationships",
+                    )
+                )
+            if not source_id and (_cell_text(row_data.get("Audit Date")) or _cell_text(row_data.get("Auditor"))):
+                metrics["compatibility_truth_warning_count"] += 1
+                message = f"Row is marked Compatible but has physical-audit fields and no source metadata: row {row_number}"
+                compatibility_warning_examples.append(message)
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "relationship_truth",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        expected_behavior="Compatibility rows are derived rows, not physical verification rows.",
+                        recommended_action="Review whether the row is a physical audit incorrectly marked compatible.",
+                        source_validator="inventory_relationships",
+                    )
+                )
+
+        for photo_finding in _photo_link_findings(project_root, row_number, row_data):
+            photo_warning_examples.append(photo_finding.message)
+            if photo_finding.column_name == "Photo Folder/Link" and "missing local photo evidence link" in photo_finding.message:
+                metrics["photos_yes_without_link_count"] += 1
+            elif photo_finding.column_name == "Photos Taken?" and "marked No" in photo_finding.message:
+                metrics["photo_link_while_no_count"] += 1
+            elif "broken local photo link" in photo_finding.message:
+                metrics["broken_photo_link_count"] += 1
+            findings.append(photo_finding)
 
         requirements = entry_type_requirements(row_data)
         for required_field in requirements["required"]:
@@ -676,10 +879,13 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 and (header == EOAT_MOVES_FIELD or not is_na_value(value))
                 and _cell_text(value) not in AUDIT_DROPDOWN_ALLOWED_VALUES[header]
             ):
+                canonical = _canonical_dropdown_value(header, value)
                 invalid_dropdown_examples.append(f"row {row_number} {header}={_cell_text(value)}")
+                if canonical:
+                    dropdown_casing_examples.append(f"row {row_number} {header}={_cell_text(value)} -> {canonical}")
                 findings.append(
                     make_finding(
-                        ValidationSeverity.WARNING,
+                        ValidationSeverity.AUTO_FIXABLE if canonical else ValidationSeverity.WARNING,
                         "audit_data",
                         f"Invalid EOAT Inventory dropdown value: row {row_number} {header}={_cell_text(value)}",
                         sheet_name="EOAT Inventory",
@@ -689,7 +895,13 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                         machine_number=_cell_text(row_data.get("Press/Machine #")),
                         current_value=value,
                         expected_behavior=f"Value should be one of: {', '.join(sorted(AUDIT_DROPDOWN_ALLOWED_VALUES[header]))}.",
-                        recommended_action="Open the audit field and choose a valid dropdown value; rebuild dropdown validation if Excel validation is missing.",
+                        recommended_action=(
+                            f"Preview and apply the Normalize Dropdown Casing safe fix to change this value to {canonical}."
+                            if canonical
+                            else "Open the audit field and choose a valid dropdown value; rebuild dropdown validation if Excel validation is missing."
+                        ),
+                        fix_available=bool(canonical),
+                        fix_id=FIX_NORMALIZE_DROPDOWN_CASING if canonical else "",
                         source_validator="inventory_rows",
                     )
                 )
@@ -776,6 +988,46 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
                 )
             )
 
+    row_records = [dict(row) for row in inventory_rows_for_truth]
+    for row in row_records:
+        if not is_compatibility_row(row):
+            continue
+        row_number = int(row.get("_row_index") or 0) or None
+        lookup = source_audit_for_compatibility_row(row_records, row)
+        for warning, code in zip(lookup.warnings, lookup.warning_codes):
+            if code == "missing_source_metadata":
+                continue
+            metrics["compatibility_truth_warning_count"] += 1
+            compatibility_warning_examples.append(warning)
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "relationship_truth",
+                    warning,
+                    sheet_name="EOAT Inventory",
+                    row_number=row_number,
+                    column_name=SOURCE_AUDIT_ID_FIELD,
+                    audit_id=_cell_text(row.get("Audit ID")),
+                    machine_number=_cell_text(row.get("Press/Machine #")),
+                    current_value=row.get(SOURCE_AUDIT_ID_FIELD),
+                    expected_behavior="Compatibility rows should resolve to an existing physical source audit.",
+                    recommended_action="Repair compatibility metadata only after confirming the source audit.",
+                    source_validator="inventory_relationships",
+                )
+            )
+
+    robot_mismatch_findings = _robot_circuit_mismatch_findings(project_root, row_records)
+    for finding in robot_mismatch_findings:
+        robot_mismatch_examples.append(finding.message)
+    metrics["robot_side_circuit_mismatch_count"] = len(robot_mismatch_findings)
+    findings.extend(robot_mismatch_findings)
+
+    truth_summary = analyze_truth_from_rows(row_records, fields=get_expected_headers("EOAT Inventory"))
+    for key, value in truth_summary.metrics.items():
+        metrics[f"truth_{key}"] = value
+    for state, count in truth_summary.state_counts.items():
+        metrics[f"truth_state_{state}_count"] = count
+
     metrics["duplicate_audit_id_count"] = len(duplicate_ids)
     metrics["blank_saved_audit_cell_count"] = blank_cells
     major_na_list = sorted(major_na_examples)
@@ -785,12 +1037,23 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
     metrics["stale_hidden_value_count"] = len(stale_hidden_value_examples)
     metrics["hybrid_warning_count"] = len(hybrid_warning_examples)
     metrics["semantic_warning_count"] = len(semantic_warning_examples)
+    metrics["relationship_truth_warning_count"] = len(compatibility_warning_examples) + len(duplicate_physical_examples)
+    metrics["photo_truth_warning_count"] = len(photo_warning_examples)
     metrics["invalid_dropdown_value_count"] = len(invalid_dropdown_examples)
+    metrics["dropdown_casing_fixable_count"] = len(dropdown_casing_examples)
     metrics["invalid_numeric_value_count"] = len(invalid_numeric_examples)
     metrics["missing_eoat_moves_count"] = len(missing_eoat_moves_examples)
 
     if duplicate_ids:
         warnings.append(f"Duplicate Audit ID value(s): {', '.join(sorted(duplicate_ids))}")
+    if duplicate_physical_examples:
+        warnings.append(f"{len(duplicate_physical_examples)} duplicate physical audit row warning(s); see structured findings for row details.")
+    if compatibility_warning_examples:
+        warnings.append(f"{len(compatibility_warning_examples)} compatibility relationship warning(s); see structured findings for metadata details.")
+    if photo_warning_examples:
+        warnings.append(f"{len(photo_warning_examples)} photo link/evidence warning(s): {', '.join(photo_warning_examples[:5])}")
+    if robot_mismatch_examples:
+        warnings.append(f"{len(robot_mismatch_examples)} robot-side circuit mismatch warning(s): {', '.join(robot_mismatch_examples[:5])}")
     if major_na_list:
         warnings.append(f"{len(major_na_list)} applicable major EOAT Inventory cell(s) are blank or contain {NA_VALUE}: {', '.join(major_na_list[:10])}")
     if stale_hidden_value_examples:
@@ -801,6 +1064,8 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
         warnings.append(f"{len(semantic_warning_examples)} semantic EOAT warning(s): {', '.join(semantic_warning_examples[:5])}")
     if invalid_dropdown_examples:
         warnings.append(f"{len(invalid_dropdown_examples)} invalid EOAT Inventory dropdown value(s): {', '.join(invalid_dropdown_examples[:5])}")
+    if dropdown_casing_examples:
+        warnings.append(f"{len(dropdown_casing_examples)} dropdown value(s) can be safely normalized by casing: {', '.join(dropdown_casing_examples[:5])}")
     if invalid_numeric_examples:
         warnings.append(f"{len(invalid_numeric_examples)} invalid EOAT Inventory whole-number value(s): {', '.join(invalid_numeric_examples[:5])}")
     if missing_eoat_moves_examples:
@@ -812,6 +1077,305 @@ def _validate_inventory_rows(ws, headers: list[str]) -> tuple[list[str], dict[st
             "are intentionally ignored."
         )
     return warnings, metrics, findings
+
+
+def _inventory_identity_sets(ws, headers: list[str]) -> tuple[set[str], set[str]]:
+    header_positions = {header: index for index, header in enumerate(headers)}
+    audit_ids: set[str] = set()
+    machines: set[str] = set()
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        row_data = {header: row[index] for header, index in header_positions.items() if index < len(row)}
+        if not _is_audit_data_row(row_data):
+            continue
+        audit_id = _cell_text(row_data.get("Audit ID"))
+        machine = _cell_text(row_data.get("Press/Machine #"))
+        if audit_id and not is_na_value(audit_id):
+            audit_ids.add(audit_id.casefold())
+        if machine and not is_na_value(machine):
+            machines.add(machine.casefold())
+    return audit_ids, machines
+
+
+def _validate_orphan_local_references(project_root: str | Path, audit_ids: set[str], machines: set[str]) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
+    warnings: list[str] = []
+    findings: list[ValidationFinding] = []
+    metrics = {
+        "orphan_annotation_target_count": 0,
+        "orphan_open_item_count": 0,
+    }
+    annotation_findings = _orphan_annotation_findings(project_root, audit_ids, machines)
+    open_item_findings = _orphan_open_item_findings(project_root, audit_ids, machines)
+    metrics["orphan_annotation_target_count"] = len(annotation_findings)
+    metrics["orphan_open_item_count"] = len(open_item_findings)
+    findings.extend(annotation_findings)
+    findings.extend(open_item_findings)
+    if annotation_findings:
+        warnings.append(f"{len(annotation_findings)} annotation note/tag target(s) reference missing audits or machines.")
+    if open_item_findings:
+        warnings.append(f"{len(open_item_findings)} cached open item(s) reference missing audits or machines.")
+    return warnings, metrics, findings
+
+
+def _orphan_annotation_findings(project_root: str | Path, audit_ids: set[str], machines: set[str]) -> list[ValidationFinding]:
+    path = resolve_project_paths(project_root).annotations_database
+    if not path.exists():
+        return []
+    findings: list[ValidationFinding] = []
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+    except sqlite3.Error:
+        return []
+    try:
+        target_rows = conn.execute(
+            """
+            SELECT id, target_type, target_label, audit_id, machine_id, field_key, field_label
+            FROM annotation_targets
+            """
+        ).fetchall()
+        for row in target_rows:
+            target_type = _cell_text(row["target_type"]).casefold()
+            audit_id = _cell_text(row["audit_id"])
+            machine = _cell_text(row["machine_id"])
+            missing_audit = audit_id and audit_id.casefold() not in audit_ids and target_type in {"audit", "audit_field"}
+            missing_machine = machine and machine.casefold() not in machines and target_type in {"machine", "audit", "audit_field"}
+            if not missing_audit and not missing_machine:
+                continue
+            reason = []
+            if missing_audit:
+                reason.append(f"audit {audit_id}")
+            if missing_machine:
+                reason.append(f"machine {machine}")
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "orphan_reference",
+                    f"Annotation target references missing {' and '.join(reason)}.",
+                    audit_id=audit_id,
+                    machine_number=machine,
+                    column_name=_cell_text(row["field_key"]) or _cell_text(row["field_label"]),
+                    current_value=_cell_text(row["target_label"]) or _cell_text(row["id"]),
+                    expected_behavior="Notes and tag assignments should point to audits or machines that still exist locally.",
+                    recommended_action="Review the annotation target; do not delete notes or tags automatically.",
+                    source_validator="orphan_local_references",
+                )
+            )
+    except sqlite3.Error:
+        return findings
+    finally:
+        conn.close()
+    return findings
+
+
+def _orphan_open_item_findings(project_root: str | Path, audit_ids: set[str], machines: set[str]) -> list[ValidationFinding]:
+    open_items_dir = resolve_project_paths(project_root).project_admin / "open_items"
+    if not open_items_dir.exists():
+        return []
+    findings: list[ValidationFinding] = []
+    seen: set[tuple[str, str, str]] = set()
+    for path in sorted(open_items_dir.glob("open_item_snapshot*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, list):
+            continue
+        for record in data:
+            if not isinstance(record, dict):
+                continue
+            audit_id = _cell_text(record.get("audit_id"))
+            machine = _cell_text(record.get("machine"))
+            item_id = _cell_text(record.get("item_id")) or _cell_text(record.get("id"))
+            missing_audit = audit_id and audit_id.casefold() not in audit_ids
+            missing_machine = machine and machine.casefold() not in machines
+            if not missing_audit and not missing_machine:
+                continue
+            key = (item_id, audit_id, machine)
+            if key in seen:
+                continue
+            seen.add(key)
+            reason = []
+            if missing_audit:
+                reason.append(f"audit {audit_id}")
+            if missing_machine:
+                reason.append(f"machine {machine}")
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "orphan_reference",
+                    f"Cached open item references missing {' and '.join(reason)}.",
+                    audit_id=audit_id,
+                    machine_number=machine,
+                    current_value=_cell_text(record.get("title")) or item_id,
+                    expected_behavior="Open item snapshots should point to audits or machines that still exist locally.",
+                    recommended_action="Regenerate or review open items; never delete open item history automatically.",
+                    source_validator="orphan_local_references",
+                )
+            )
+    return findings
+
+
+def _photo_link_findings(project_root: str | Path, row_number: int, row_data: dict[str, object]) -> list[ValidationFinding]:
+    findings: list[ValidationFinding] = []
+    audit_id = _cell_text(row_data.get("Audit ID"))
+    machine = _cell_text(row_data.get("Press/Machine #"))
+    photos_taken = _cell_text(row_data.get("Photos Taken?")).casefold()
+    link = _cell_text(row_data.get("Photo Folder/Link"))
+    if photos_taken == "yes" and not link:
+        findings.append(
+            make_finding(
+                ValidationSeverity.WARNING,
+                "photo_evidence",
+                f"Photos Taken? is Yes but missing local photo evidence link: row {row_number}",
+                sheet_name="EOAT Inventory",
+                row_number=row_number,
+                column_name="Photo Folder/Link",
+                audit_id=audit_id,
+                machine_number=machine,
+                current_value=link,
+                expected_behavior="Rows marked as having photos should include a local photo folder/link or indexed evidence.",
+                recommended_action="Add the local photo folder/link or intake/index the evidence through the Photos page.",
+                source_validator="inventory_photo_truth",
+            )
+        )
+    if photos_taken == "no" and link:
+        findings.append(
+            make_finding(
+                ValidationSeverity.WARNING,
+                "photo_evidence",
+                f"Photo Folder/Link is populated while Photos Taken? is marked No: row {row_number}",
+                sheet_name="EOAT Inventory",
+                row_number=row_number,
+                column_name="Photos Taken?",
+                audit_id=audit_id,
+                machine_number=machine,
+                current_value=f"Photos Taken?=No; Photo Folder/Link={link}",
+                expected_behavior="Photo status and evidence links should agree.",
+                recommended_action="Confirm whether evidence exists before changing the workbook value.",
+                source_validator="inventory_photo_truth",
+            )
+        )
+    if link and _looks_like_local_path(link):
+        missing_links = [candidate for candidate in _candidate_photo_links(project_root, link) if not candidate.exists()]
+        if missing_links and len(missing_links) == len(_split_photo_links(link)):
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "photo_evidence",
+                    f"Photo Folder/Link contains a broken local photo link: row {row_number}",
+                    sheet_name="EOAT Inventory",
+                    row_number=row_number,
+                    column_name="Photo Folder/Link",
+                    audit_id=audit_id,
+                    machine_number=machine,
+                    current_value=link,
+                    expected_behavior="Local photo links should resolve to an existing local file or folder.",
+                    recommended_action="Open the Photos page and repair the folder/link; do not delete photo references automatically.",
+                    source_validator="inventory_photo_truth",
+                )
+            )
+    return findings
+
+
+def _robot_circuit_mismatch_findings(project_root: str | Path, rows: list[dict[str, object]]) -> list[ValidationFinding]:
+    path = robot_info_workbook_path(project_root)
+    if not path.exists():
+        return []
+    try:
+        workbook = load_workbook(path, read_only=True, data_only=True)
+    except Exception:
+        return []
+    robot_rows: dict[str, dict[str, object]] = {}
+    try:
+        if ROBOT_INFO_SHEET not in workbook.sheetnames:
+            return []
+        ws = workbook[ROBOT_INFO_SHEET]
+        headers = [str(cell.value or "").strip() for cell in ws[1]]
+        positions = {header: index for index, header in enumerate(headers)}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            row_data = {header: row[index] for header, index in positions.items() if index < len(row)}
+            machine = _cell_text(row_data.get("Machine Number")).casefold()
+            if machine:
+                robot_rows[machine] = row_data
+    finally:
+        workbook.close()
+
+    findings: list[ValidationFinding] = []
+    fields = ("Robot Vacuum Circuits", "Robot Pressure Circuits", "Robot Interchangeable Circuits")
+    for row in rows:
+        machine = _cell_text(row.get("Press/Machine #"))
+        if not machine:
+            continue
+        robot_row = robot_rows.get(machine.casefold())
+        if not robot_row:
+            continue
+        for field in fields:
+            inventory_value = _cell_text(row.get(field))
+            robot_value = _cell_text(robot_row.get(field))
+            if not inventory_value or not robot_value or is_na_value(inventory_value) or is_na_value(robot_value):
+                continue
+            if inventory_value == robot_value:
+                continue
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "robot_truth",
+                    f"Robot-side circuit mismatch for {machine}: EOAT Inventory {field}={inventory_value}, Robot_Info {field}={robot_value}.",
+                    sheet_name="EOAT Inventory",
+                    row_number=int(row.get("_row_index") or 0) or None,
+                    column_name=field,
+                    audit_id=_cell_text(row.get("Audit ID")),
+                    machine_number=machine,
+                    current_value=inventory_value,
+                    expected_behavior="Robot-side circuit fields should agree with Robot_Info.xlsx when both sources are populated.",
+                    recommended_action="Review both sources before modifying Robot_Info rows.",
+                    source_validator="robot_truth",
+                )
+            )
+    return findings
+
+
+def _physical_identity_key(row_data: dict[str, object]) -> tuple[str, str, str] | None:
+    machine = _cell_text(row_data.get("Press/Machine #")).casefold()
+    tool = _cell_text(row_data.get("Tool #")).casefold()
+    eoat_type = _cell_text(row_data.get("EOAT Type")).casefold()
+    if not machine or not tool:
+        return None
+    return (machine, tool, eoat_type)
+
+
+def _canonical_dropdown_value(header: str, value: object) -> str:
+    text = _cell_text(value)
+    if not text:
+        return ""
+    for allowed in AUDIT_DROPDOWN_ALLOWED_VALUES.get(header, set()):
+        if str(allowed).casefold() == text.casefold() and str(allowed) != text:
+            return str(allowed)
+    return ""
+
+
+def _looks_like_local_path(value: str) -> bool:
+    parsed = urlparse(value)
+    if parsed.scheme in {"http", "https", "mailto"}:
+        return False
+    return any(sep in value for sep in ("\\", "/", ":")) or value.startswith(".")
+
+
+def _split_photo_links(value: str) -> list[str]:
+    normalized = value.replace("\n", ";").replace("|", ";")
+    return [part.strip() for part in normalized.split(";") if part.strip()]
+
+
+def _candidate_photo_links(project_root: str | Path, value: str) -> list[Path]:
+    candidates: list[Path] = []
+    for raw in _split_photo_links(value):
+        parsed = urlparse(raw)
+        if parsed.scheme in {"http", "https", "mailto"}:
+            continue
+        text = unquote(parsed.path) if parsed.scheme == "file" else raw
+        path = Path(text)
+        candidates.append(path if path.is_absolute() else Path(project_root) / path)
+    return candidates
 
 
 def _is_audit_data_row(row_data: dict[str, object]) -> bool:
