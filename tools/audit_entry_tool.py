@@ -37,6 +37,7 @@ FIELD_ARG_MAP = {
     "Robot Vacuum Circuits": "robot_vacuum_circuits",
     "Robot Pressure Circuits": "robot_pressure_circuits",
     "Robot Interchangeable Circuits": "robot_interchangeable_circuits",
+    "Robot Notes": "robot_notes",
     "Status": "status",
     "Priority": "priority",
     "Known Issues": "known_issues",

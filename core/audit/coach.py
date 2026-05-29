@@ -32,7 +32,8 @@ UNKNOWN_NOT_CHECKED_VALUE = "Unknown / Not Checked"
 
 UNKNOWN_VALUES = {"unknown / not checked", "unknown", "not checked"}
 IDENTITY_FIELDS = {"Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Status"}
-OPTIONAL_COMPLETION_FIELDS = {"Tubing Routing Notes", "Notes", "Final Notes"}
+OPTIONAL_COMPLETION_FIELDS = {"Tubing Routing Notes", "Robot Notes", "Notes", "Final Notes"}
+NON_COUNTING_COACH_OPTIONAL_FIELDS = {"Robot Notes"}
 VISIBILITY_CONTROLLER_FIELDS = {"EOAT Type", "Sensors Present?", "Electrical/Wiring Present?", "Quick Disconnects Present?"}
 EOAT_TOOLING_FIELDS = {
     "Tool #",
@@ -239,6 +240,12 @@ def _coach_status_from_completion(status: FieldCompletionStatus) -> AuditCoachFi
         applies = False
         required = False
         important = False
+    elif state == STATE_EXCLUDED and status.field in NON_COUNTING_COACH_OPTIONAL_FIELDS:
+        state = STATE_NOT_APPLICABLE
+        applies = False
+        required = False
+        important = False
+        reason = "Optional robot-side narrative field; excluded from audit completion percentage."
     elif state == STATE_EXCLUDED and status.field in OPTIONAL_COMPLETION_FIELDS:
         state = STATE_VERIFIED_COMPLETE
         applies = True

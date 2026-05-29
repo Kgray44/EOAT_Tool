@@ -8,13 +8,14 @@ from core.audit_entries import AuditSaveOptions, save_audit_entry
 from core.logging import log_activity_event
 from core.performance import log_performance_event
 from core.result import ToolResult
-from core.robot_info import load_robot_info_for_audit_entry
+from core.robot_info import ROBOT_INFO_AUDIT_FIELDS, ROBOT_NOTES_FIELD, load_robot_info_for_audit_entry
 
 ROBOT_PNEUMATIC_FIELDS = [
     "Robot Vacuum Circuits",
     "Robot Pressure Circuits",
     "Robot Interchangeable Circuits",
 ]
+ROBOT_INFO_FIELDS = list(ROBOT_INFO_AUDIT_FIELDS)
 
 
 def save_audit_with_side_effects(
@@ -54,7 +55,7 @@ def save_audit_with_side_effects(
     robot_info_seconds = 0.0
     robot_info_status = "skipped"
     if result.success:
-        should_queue_robot, robot_skip_reason = should_queue_robot_info_update(entry)
+        should_queue_robot, robot_skip_reason = should_queue_robot_info_update(config.project_root, entry)
         robot_result = ToolResult.ok(
             "robot_info_save",
             "Robot Info",
@@ -74,6 +75,7 @@ def save_audit_with_side_effects(
                 "robot_info_skipped": not should_queue_robot,
                 "robot_info_update_queued": should_queue_robot,
                 "robot_info_skip_reason": robot_skip_reason,
+                "robot_notes": str(entry.get(ROBOT_NOTES_FIELD) or "").strip(),
             },
             duration_seconds=0.0,
         )
@@ -225,29 +227,37 @@ def should_update_robot_info(project_root: str | Path, entry: dict[str, Any]) ->
     machine_number = str(entry.get("Press/Machine #") or "").strip()
     if not machine_number:
         return False, "machine number is blank"
-    if not any(_robot_circuit_value_is_meaningful(field, entry.get(field)) for field in ROBOT_PNEUMATIC_FIELDS):
-        return False, "no robot circuit values were entered beyond defaults"
+    submitted_fields = [field for field in ROBOT_INFO_FIELDS if field in entry]
+    if not submitted_fields:
+        return False, "no robot info fields were submitted"
+    if not any(_robot_info_value_is_meaningful(field, entry.get(field)) for field in submitted_fields):
+        try:
+            existing = load_robot_info_for_audit_entry(project_root, entry)
+        except Exception:
+            existing = None
+        if not existing or not any(str(existing.get(field) or "").strip() for field in submitted_fields):
+            return False, "no robot info values were entered beyond defaults"
+    else:
+        existing = None
     try:
-        existing = load_robot_info_for_audit_entry(project_root, entry)
+        existing = existing if existing is not None else load_robot_info_for_audit_entry(project_root, entry)
     except Exception:
         return True, "existing Robot_Info.xlsx values could not be checked"
     if existing is None:
-        return True, "robot circuit values were entered"
-    for field in ROBOT_PNEUMATIC_FIELDS:
-        desired = _robot_circuit_compare_value(field, entry.get(field))
-        current = _robot_circuit_compare_value(field, existing.get(field))
+        return True, "robot info values were entered"
+    for field in submitted_fields:
+        desired = _robot_info_compare_value(field, entry.get(field))
+        current = _robot_info_compare_value(field, existing.get(field))
         if desired != current:
-            return True, "robot circuit values changed"
-    return False, "robot circuit values are unchanged"
+            return True, "robot info values changed"
+    return False, "robot info values are unchanged"
 
 
-def should_queue_robot_info_update(entry: dict[str, Any]) -> tuple[bool, str]:
-    machine_number = str(entry.get("Press/Machine #") or "").strip()
-    if not machine_number:
-        return False, "machine number is blank"
-    if not any(_robot_circuit_value_is_meaningful(field, entry.get(field)) for field in ROBOT_PNEUMATIC_FIELDS):
-        return False, "no robot circuit values were entered beyond defaults"
-    return True, "robot circuit values will be reconciled in the background"
+def should_queue_robot_info_update(project_root: str | Path, entry: dict[str, Any]) -> tuple[bool, str]:
+    should_update, reason = should_update_robot_info(project_root, entry)
+    if should_update:
+        return True, "robot info values will be reconciled in the background"
+    return False, reason
 
 
 def insert_compatibility_summary(summary: str, sync_linked_compatibility: bool) -> str:
@@ -274,9 +284,9 @@ def insert_robot_info_summary(summary: str, robot_result) -> str:
         robot_result.summary if robot_result.success else "Robot_Info.xlsx was not updated. The EOAT audit save still completed.",
     ]
     if robot_result.success:
-        for field in ROBOT_PNEUMATIC_FIELDS:
+        for field in ROBOT_INFO_FIELDS:
             value = robot_result.metrics.get(field.lower().replace(" ", "_"))
-            if value is not None:
+            if value not in (None, ""):
                 robot_lines.append(f"{field}: {value}")
     elif robot_result.warnings:
         robot_lines.append("; ".join(robot_result.warnings))
@@ -308,3 +318,15 @@ def _robot_circuit_compare_value(field: str, value: Any) -> int | str:
         return int(numeric_text)
     except ValueError:
         return text
+
+
+def _robot_info_value_is_meaningful(field: str, value: Any) -> bool:
+    if field == ROBOT_NOTES_FIELD:
+        return bool(str(value or "").strip())
+    return _robot_circuit_value_is_meaningful(field, value)
+
+
+def _robot_info_compare_value(field: str, value: Any) -> int | str:
+    if field == ROBOT_NOTES_FIELD:
+        return str(value or "").strip()
+    return _robot_circuit_compare_value(field, value)

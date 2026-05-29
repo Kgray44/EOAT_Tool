@@ -18,6 +18,7 @@ from core.audit_constants import (
     SOURCE_AUDIT_ID_FIELD,
 )
 from core.paths import resolve_project_paths
+from core.robot_info import upsert_robot_info_from_audit
 from core.tool_fields import LEGACY_TOOL_FIELD
 from core.workbook_io import row_dicts
 from core.workbook_schema import get_expected_headers
@@ -410,6 +411,16 @@ def test_manual_lookup_button_uses_same_lookup_path(qapp, fake_config, fake_proj
 
 def test_multiple_capacity_rows_show_selector_without_autofilling_part(qapp, fake_config, fake_project):
     create_press_reference_workbooks(fake_project / "reference-data", multiple_capacity_rows=True)
+    assert upsert_robot_info_from_audit(
+        fake_project,
+        {
+            "Audit ID": "AUD-ROBOT-LOOKUP-012",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "12",
+            "Robot Type": "Wittmann W833",
+            "Robot Notes": "Lookup should load this without blocking part selection.",
+        },
+    ).success
     page = AuditPage(fake_config)
 
     page.audit_fields["Press/Machine #"].setText("Machine 12")
@@ -422,6 +433,7 @@ def test_multiple_capacity_rows_show_selector_without_autofilling_part(qapp, fak
     assert "Multiple possible Tool # values found for this press" in page.lookup_note_label.text()
     assert page.audit_fields["Tool #"].text() == ""
     assert page.audit_fields["Part Family"].text() == ""
+    assert page.audit_fields["Robot Notes"].toPlainText() == "Lookup should load this without blocking part selection."
 
     page.capacity_part_combo.setCurrentIndex(2)
     assert page.audit_fields["Tool #"].text() == "DEMO-PN-1201"
@@ -704,6 +716,142 @@ def test_start_new_audit_for_existing_machine_uses_reference_context_without_old
     assert page.audit_fields["Photo Folder/Link"].text() == ""
     assert page.audit_fields["Notes"].toPlainText() == ""
     assert page.has_unsaved_changes() is False
+
+
+def test_start_new_existing_machine_prompt_is_one_shot_and_keeps_capacity_selector(
+    qapp,
+    fake_config,
+    fake_project,
+    monkeypatch,
+):
+    create_press_reference_workbooks(fake_project / "reference-data", multiple_capacity_rows=True)
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-012", "12", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+    dialog_calls = []
+
+    def choose(machine_number: str, matches):
+        dialog_calls.append((machine_number, [match.audit_id for match in matches]))
+        return ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_START_NEW)
+
+    monkeypatch.setattr(page, "_choose_existing_machine_audit_action", choose)
+
+    page.audit_fields["Press/Machine #"].setText("12")
+    _finish_machine_lookup(page)
+    first_audit_id = page.audit_fields["Audit ID"].text()
+
+    assert dialog_calls == [("12", ["AUD-PHYSICAL-012"])]
+    assert page._current_audit_mode == "new"
+    assert page._editing_audit_id is None
+    assert page._current_loaded_audit_id is None
+    assert first_audit_id != "AUD-PHYSICAL-012"
+    assert page.audit_fields["Press/Machine #"].text() == "12"
+    assert page.capacity_part_combo.isEnabled()
+    assert _combo_items(page.capacity_part_combo) == [
+        "Select current running part...",
+        "DEMO-PN-1200 - Demo housing cap - Demo Customer A",
+        "DEMO-PN-1201 - Demo housing base - Demo Customer A",
+    ]
+
+    _finish_machine_lookup(page)
+
+    assert dialog_calls == [("12", ["AUD-PHYSICAL-012"])]
+    assert page._current_audit_mode == "new"
+    assert page._editing_audit_id is None
+    assert page._current_loaded_audit_id is None
+    assert page.audit_fields["Audit ID"].text() == first_audit_id
+    assert page.capacity_part_combo.isEnabled()
+    assert page.capacity_part_combo.count() == 3
+
+    page.capacity_part_combo.setCurrentIndex(2)
+
+    assert page.audit_fields["Tool #"].text() == "DEMO-PN-1201"
+    assert page.audit_fields["Part Name/Description"].toPlainText() == "Demo housing base"
+
+
+def test_continue_existing_machine_prompt_is_one_shot_during_loaded_audit_hydration(
+    qapp,
+    fake_config,
+    fake_project,
+    monkeypatch,
+):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-060-A", "60", ENTRY_TYPE_AUDITED))
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-060-B", "60", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+    dialog_calls = []
+
+    def choose(machine_number: str, matches):
+        dialog_calls.append((machine_number, [match.audit_id for match in matches]))
+        return ExistingAuditSelection(
+            ExistingMachineAuditsDialog.ACTION_CONTINUE,
+            "AUD-PHYSICAL-060-B",
+        )
+
+    monkeypatch.setattr(page, "_choose_existing_machine_audit_action", choose)
+
+    page.audit_fields["Press/Machine #"].setText("60")
+    _finish_machine_lookup(page)
+    _finish_machine_lookup(page)
+
+    assert dialog_calls == [("60", ["AUD-PHYSICAL-060-A", "AUD-PHYSICAL-060-B"])]
+    assert page._current_loaded_audit_id == "AUD-PHYSICAL-060-B"
+    assert page.audit_fields["Audit ID"].text() == "AUD-PHYSICAL-060-B"
+    assert page._current_audit_mode == "edit"
+
+
+def test_programmatic_existing_audit_load_does_not_open_same_machine_dialog(
+    qapp,
+    fake_config,
+    fake_project,
+    monkeypatch,
+):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-061-A", "61", ENTRY_TYPE_AUDITED))
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-061-B", "61", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+    dialog_calls = []
+
+    def choose(machine_number: str, matches):
+        dialog_calls.append((machine_number, [match.audit_id for match in matches]))
+        return ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_CANCEL)
+
+    monkeypatch.setattr(page, "_choose_existing_machine_audit_action", choose)
+
+    assert page.load_existing_audit("AUD-PHYSICAL-061-A", confirm_unsaved=False) is True
+    _finish_machine_lookup(page)
+
+    assert dialog_calls == []
+    assert page._current_loaded_audit_id == "AUD-PHYSICAL-061-A"
+    assert page.audit_fields["Audit ID"].text() == "AUD-PHYSICAL-061-A"
+
+
+def test_cancel_existing_machine_prompt_is_one_shot_and_leaves_form_stable(
+    qapp,
+    fake_config,
+    fake_project,
+    monkeypatch,
+):
+    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-062", "62", ENTRY_TYPE_AUDITED))
+    page = AuditPage(fake_config)
+    page.audit_fields["Known Issues"].setPlainText("Keep this note.")
+    before_prompt = page._current_audit_form_values()
+    dialog_calls = []
+
+    def choose(machine_number: str, matches):
+        dialog_calls.append((machine_number, [match.audit_id for match in matches]))
+        return ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_CANCEL)
+
+    monkeypatch.setattr(page, "_choose_existing_machine_audit_action", choose)
+
+    page.audit_fields["Press/Machine #"].setText("62")
+    _finish_machine_lookup(page)
+    after_cancel = page._current_audit_form_values()
+    _finish_machine_lookup(page)
+
+    assert dialog_calls == [("62", ["AUD-PHYSICAL-062"])]
+    assert after_cancel["Press/Machine #"] == "62"
+    assert after_cancel["Known Issues"] == before_prompt["Known Issues"]
+    assert page._current_audit_form_values() == after_cancel
+    assert page._current_loaded_audit_id is None
+    assert page._current_audit_mode == "new"
 
 
 def test_cancel_existing_audit_selection_leaves_form_values_unchanged(qapp, fake_config, fake_project, monkeypatch):

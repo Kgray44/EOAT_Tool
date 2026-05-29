@@ -20,6 +20,10 @@ ROBOT_PNEUMATIC_FIELDS = (
     "Robot Pressure Circuits",
     "Robot Interchangeable Circuits",
 )
+ROBOT_INFO_FIELDS = (
+    *ROBOT_PNEUMATIC_FIELDS,
+    "Robot Notes",
+)
 
 COMPATIBILITY_IMPACT_FIELDS = (
     "Tool #",
@@ -91,11 +95,11 @@ def build_audit_save_preview(
         before_value = previous.get(field, "")
         after_value = current.get(field, "")
         change_type = _change_type(field, before_value, after_value, smart_defaulted)
-        source = "robot_info" if field in ROBOT_PNEUMATIC_FIELDS else "audit"
+        source = "robot_info" if field in ROBOT_INFO_FIELDS else "audit"
         changes.append(AuditFieldChange(field=field, before=before_value, after=after_value, change_type=change_type, source=source))
 
-    robot_changes = tuple(change for change in changes if change.field in ROBOT_PNEUMATIC_FIELDS and change.change_type != CHANGE_UNCHANGED)
-    for field in ROBOT_PNEUMATIC_FIELDS:
+    robot_changes = tuple(change for change in changes if change.field in ROBOT_INFO_FIELDS and change.change_type != CHANGE_UNCHANGED)
+    for field in ROBOT_INFO_FIELDS:
         if field not in current and field in robot_previous:
             change = AuditFieldChange(
                 field=field,
@@ -192,6 +196,7 @@ __all__ = [
     "CHANGE_SMART_DEFAULTED",
     "CHANGE_UNKNOWN_NOT_CHECKED",
     "CHANGE_UNCHANGED",
+    "ROBOT_INFO_FIELDS",
     "ROBOT_PNEUMATIC_FIELDS",
     "build_audit_save_preview",
 ]

@@ -17,6 +17,7 @@ from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import next_empty_row, worksheet_headers
 
 ROBOT_INFO_SHEET = "Robot Info"
+ROBOT_NOTES_FIELD = "Robot Notes"
 ROBOT_INFO_HEADERS = [
     "Plant/Area",
     "Machine Number",
@@ -25,6 +26,7 @@ ROBOT_INFO_HEADERS = [
     "Robot Vacuum Circuits",
     "Robot Pressure Circuits",
     "Robot Interchangeable Circuits",
+    ROBOT_NOTES_FIELD,
     "Last Audit ID",
     "Last Updated",
     "Notes",
@@ -33,6 +35,10 @@ ROBOT_CIRCUIT_FIELDS = [
     "Robot Vacuum Circuits",
     "Robot Pressure Circuits",
     "Robot Interchangeable Circuits",
+]
+ROBOT_INFO_AUDIT_FIELDS = [
+    *ROBOT_CIRCUIT_FIELDS,
+    ROBOT_NOTES_FIELD,
 ]
 
 
@@ -146,17 +152,19 @@ def upsert_robot_info_from_audit(project_root: str | Path, entry: dict[str, Any]
         headers = worksheet_headers(ws)
         existing_row = _find_robot_row(ws, headers, plant_area, machine_number, robot_type, robot_identifier)
         row_number = existing_row or next_empty_row(ws)
+        existing_data = _read_robot_row(ws, row_number, headers) if existing_row else {}
         data = {
             "Plant/Area": plant_area,
             "Machine Number": machine_number,
             "Robot Type": robot_type,
             "Robot Identifier": robot_identifier,
-            "Robot Vacuum Circuits": _normalized_robot_circuit(entry.get("Robot Vacuum Circuits"), allow_blank=True),
-            "Robot Pressure Circuits": _normalized_robot_circuit(entry.get("Robot Pressure Circuits"), allow_blank=True),
-            "Robot Interchangeable Circuits": _normalized_robot_circuit(entry.get("Robot Interchangeable Circuits"), allow_blank=False),
+            "Robot Vacuum Circuits": _robot_circuit_data_value(entry, existing_data, "Robot Vacuum Circuits", allow_blank=True),
+            "Robot Pressure Circuits": _robot_circuit_data_value(entry, existing_data, "Robot Pressure Circuits", allow_blank=True),
+            "Robot Interchangeable Circuits": _robot_circuit_data_value(entry, existing_data, "Robot Interchangeable Circuits", allow_blank=False),
+            ROBOT_NOTES_FIELD: _robot_text_data_value(entry, existing_data, ROBOT_NOTES_FIELD),
             "Last Audit ID": audit_id,
             "Last Updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "Notes": str(entry.get("Notes") or "").strip(),
+            "Notes": _robot_text_data_value(entry, existing_data, "Notes"),
         }
         _write_robot_row(ws, row_number, headers, data)
         _style_robot_info_sheet(ws)
@@ -181,6 +189,8 @@ def upsert_robot_info_from_audit(project_root: str | Path, entry: dict[str, Any]
         f"Robot Pressure Circuits: {data['Robot Pressure Circuits']}",
         f"Robot Interchangeable Circuits: {data['Robot Interchangeable Circuits']}",
     ]
+    if data[ROBOT_NOTES_FIELD]:
+        details.append(f"{ROBOT_NOTES_FIELD}: {data[ROBOT_NOTES_FIELD]}")
     return ToolResult.ok(
         "robot_info_save",
         "Robot Info",
@@ -194,6 +204,7 @@ def upsert_robot_info_from_audit(project_root: str | Path, entry: dict[str, Any]
             "robot_vacuum_circuits": data["Robot Vacuum Circuits"],
             "robot_pressure_circuits": data["Robot Pressure Circuits"],
             "robot_interchangeable_circuits": data["Robot Interchangeable Circuits"],
+            "robot_notes": data[ROBOT_NOTES_FIELD],
         },
         duration_seconds=time.perf_counter() - started,
     )
@@ -281,6 +292,10 @@ def _find_robot_row(ws, headers: list[str], plant_area: str, machine_number: str
     return None
 
 
+def _read_robot_row(ws, row_number: int, headers: list[str]) -> dict[str, object]:
+    return {header: ws.cell(row=row_number, column=index).value for index, header in enumerate(headers, start=1)}
+
+
 def _robot_key(plant_area: str, machine_number: str, robot_type: str, robot_identifier: str = "") -> tuple[str, str, str, str]:
     robot_id = str(robot_identifier or "").strip().casefold()
     return (
@@ -319,6 +334,18 @@ def _normalized_robot_circuit(value: Any, *, allow_blank: bool) -> int | str:
     if parsed is None:
         raise ValueError(f"Invalid circuit count: {value}")
     return parsed
+
+
+def _robot_circuit_data_value(entry: dict[str, Any], existing_data: dict[str, object], field: str, *, allow_blank: bool) -> int | str:
+    if field not in entry and field in existing_data:
+        return existing_data.get(field, "")
+    return _normalized_robot_circuit(entry.get(field), allow_blank=allow_blank)
+
+
+def _robot_text_data_value(entry: dict[str, Any], existing_data: dict[str, object], field: str) -> str:
+    if field not in entry and field in existing_data:
+        return str(existing_data.get(field) or "").strip()
+    return str(entry.get(field) or "").strip()
 
 
 def _parse_non_negative_int(value: Any) -> int | None:
@@ -363,6 +390,7 @@ def _style_robot_info_sheet(ws) -> None:
         "Robot Vacuum Circuits": 22,
         "Robot Pressure Circuits": 23,
         "Robot Interchangeable Circuits": 29,
+        ROBOT_NOTES_FIELD: 42,
         "Last Audit ID": 20,
         "Last Updated": 24,
         "Notes": 36,

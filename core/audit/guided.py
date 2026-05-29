@@ -61,6 +61,7 @@ GUIDED_AUDIT_STEPS: tuple[GuidedAuditStep, ...] = (
             "Robot Vacuum Circuits",
             "Robot Pressure Circuits",
             "Robot Interchangeable Circuits",
+            "Robot Notes",
         ),
         section_hint="Pneumatic Circuits",
     ),

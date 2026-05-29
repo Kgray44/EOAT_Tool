@@ -128,7 +128,12 @@ from core.paths import get_master_press_list_file, get_press_capacity_file, reso
 from core.performance import log_performance, log_performance_event
 from core.press_lookup import PressLookupResult, lookup_machine
 from core.result import ToolResult
-from core.robot_info import ROBOT_INFO_SHEET, load_robot_info_for_audit_entry
+from core.robot_info import (
+    ROBOT_INFO_AUDIT_FIELDS,
+    ROBOT_INFO_SHEET,
+    ROBOT_NOTES_FIELD,
+    load_robot_info_for_audit_entry,
+)
 
 PNEUMATIC_CIRCUITS_SECTION = "Pneumatic Circuits"
 EOAT_PNEUMATIC_FIELDS = [
@@ -141,6 +146,7 @@ ROBOT_PNEUMATIC_FIELDS = [
     "Robot Pressure Circuits",
     "Robot Interchangeable Circuits",
 ]
+ROBOT_INFO_FIELDS = list(ROBOT_INFO_AUDIT_FIELDS)
 ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD = "Robot Interchangeable Circuits"
 GRIPPER_UI_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD}
 ALWAYS_VISIBLE_AUDIT_FIELDS = {CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD}
@@ -497,6 +503,14 @@ class AuditPage(QWidget):
         self._manual_completion_override_data: dict[str, str] = {}
         self._machine_lookup_generation = 0
         self._pending_machine_lookup_text = ""
+        self._pending_machine_lookup_allow_existing_audit_prompt = True
+        self._suppress_machine_audit_selection_dialog = False
+        self._machine_audit_selection_in_progress = False
+        self._starting_new_audit_for_machine = False
+        self._loading_existing_audit_from_machine_dialog = False
+        self._machine_audit_prompt_suppressed_for_machine: str | None = None
+        self._machine_audit_recent_decision_suppresses_next_lookup_for_machine: str | None = None
+        self._machine_audit_recent_decision_action = ""
         self._machine_lookup_timer = QTimer(self) if QTimer is not None else None
         if self._machine_lookup_timer is not None:
             self._machine_lookup_timer.setSingleShot(True)
@@ -756,7 +770,7 @@ class AuditPage(QWidget):
         self._append_guided_row(table, "Unknown / Not Checked", str(len(completion.unknown_not_checked_fields)), ", ".join(completion.unknown_not_checked_fields[:8]), _more_text(completion.unknown_not_checked_fields, 8))
         self._append_guided_row(table, "Warnings", str(len(completion.findings)), "; ".join(completion.findings[:5]), _more_text(completion.findings, 5))
         self._append_guided_row(table, "Defaults", str(len(preview.smart_defaulted_fields)), ", ".join(preview.smart_defaulted_fields), "Autofilled fields are marked as smart-defaulted in the save preview.")
-        self._append_guided_row(table, "Robot info updates", str(len(preview.robot_info_changes)), ", ".join(change.field for change in preview.robot_info_changes), "Robot-side pneumatic fields save to Robot_Info.xlsx when meaningful changes exist.")
+        self._append_guided_row(table, "Robot info updates", str(len(preview.robot_info_changes)), ", ".join(change.field for change in preview.robot_info_changes), "Robot-side fields save to Robot_Info.xlsx when meaningful changes exist.")
         compatibility_text = "Unknown until checked."
         compatibility_reason = "Linked compatibility impact has not been checked for this preview."
         if include_io_preview:
@@ -790,6 +804,96 @@ class AuditPage(QWidget):
         if getattr(self, "_suppress_detailed_startup_logging", False):
             return
         log_activity_event(self.config.project_root, event_name, payload)
+
+    def _machine_audit_machine_key(self, machine_text: str) -> str:
+        return ", ".join(parse_machine_tokens(machine_text)) or str(machine_text or "").strip()
+
+    def _machine_audit_same_machine(self, left: str | None, right: str | None) -> bool:
+        left_key = self._machine_audit_machine_key(str(left or ""))
+        right_key = self._machine_audit_machine_key(str(right or ""))
+        return bool(left_key and right_key and left_key == right_key)
+
+    def _log_machine_audit_selection_event(self, event_name: str, machine_number: str, **details: object) -> None:
+        payload = {
+            "machine_number": self._machine_audit_machine_key(machine_number),
+            **details,
+        }
+        log_activity_event(self.config.project_root, event_name, payload)
+        log_performance_event(
+            self.config.project_root,
+            event_name,
+            0.0,
+            source="audit_page",
+            page_tool="audit",
+            details=payload,
+        )
+
+    def _machine_lookup_programmatic_suppression_reason(self) -> str:
+        if self._loading_existing_audit_from_machine_dialog or self._loading_audit:
+            return "loading_existing_audit"
+        if self._starting_new_audit_for_machine:
+            return "starting_new_audit_for_machine"
+        if self._suppress_machine_audit_selection_dialog:
+            return "machine_audit_selection_dialog_suppressed"
+        if self._hydrating_form:
+            return "hydrating_form"
+        if self._programmatic_field_update:
+            return "programmatic_field_update"
+        if self._applying_defaults:
+            return "applying_defaults"
+        if self._autofilling_fields:
+            return "machine_lookup_autofill"
+        if self._initializing_form:
+            return "initializing_form"
+        return ""
+
+    def _machine_audit_selection_suppression_reason(
+        self,
+        machine_text: str,
+        *,
+        user_confirmed: bool,
+        allow_existing_audit_prompt: bool,
+    ) -> str:
+        if not user_confirmed:
+            return "machine_not_user_confirmed"
+        if not allow_existing_audit_prompt:
+            return "existing_audit_prompt_disabled_for_lookup"
+        programmatic_reason = self._machine_lookup_programmatic_suppression_reason()
+        if programmatic_reason:
+            return programmatic_reason
+        if self._machine_audit_selection_in_progress:
+            return "machine_audit_selection_dialog_already_open"
+        if self._machine_audit_same_machine(self._machine_audit_prompt_suppressed_for_machine, machine_text):
+            return "machine_prompt_suppressed_for_selected_machine"
+        return ""
+
+    def _suppress_next_machine_lookup_after_audit_workflow(self, machine_text: str, action: str) -> None:
+        machine = self._machine_audit_machine_key(machine_text)
+        if not machine:
+            return
+        self._machine_audit_recent_decision_suppresses_next_lookup_for_machine = machine
+        self._machine_audit_recent_decision_action = action
+
+    def _consume_recent_machine_audit_lookup_suppression(self, machine_text: str) -> bool:
+        machine = self._machine_audit_recent_decision_suppresses_next_lookup_for_machine
+        if not self._machine_audit_same_machine(machine, machine_text):
+            return False
+        self._machine_audit_recent_decision_suppresses_next_lookup_for_machine = None
+        action = self._machine_audit_recent_decision_action
+        self._machine_audit_recent_decision_action = ""
+        self._log_machine_audit_selection_event(
+            "machine_audit_selection_suppressed",
+            machine_text,
+            reason="recent_machine_audit_decision_already_handled",
+            action=action,
+        )
+        return True
+
+    def _clear_recent_machine_audit_decision_if_machine_changed(self, machine_text: str) -> None:
+        machine = self._machine_audit_recent_decision_suppresses_next_lookup_for_machine
+        if machine and not self._machine_audit_same_machine(machine, machine_text):
+            self._machine_audit_recent_decision_suppresses_next_lookup_for_machine = None
+            self._machine_audit_recent_decision_action = ""
 
     def _set_dirty_state(
         self,
@@ -1119,6 +1223,8 @@ class AuditPage(QWidget):
 
     def _restore_audit_draft(self, draft) -> None:
         restore_started = time.perf_counter()
+        previous_dialog_suppression = self._suppress_machine_audit_selection_dialog
+        self._suppress_machine_audit_selection_dialog = True
         previous_state = self._begin_hydrating_form("restore_draft")
         try:
             self._set_manual_completion_override_metadata({})
@@ -1141,7 +1247,12 @@ class AuditPage(QWidget):
             self._refresh_field_tag_indicators()
         finally:
             self._end_hydrating_form(previous_state, "restore_draft")
+            self._suppress_machine_audit_selection_dialog = previous_dialog_suppression
         self._mark_audit_form_baseline("draft_restored")
+        self._suppress_next_machine_lookup_after_audit_workflow(
+            self._field_value(self.audit_fields.get("Press/Machine #")),
+            "restore_draft",
+        )
         self._log_lifecycle_event(
             "audit_draft_restored",
             {
@@ -1700,7 +1811,7 @@ class AuditPage(QWidget):
             widget.textChanged.connect(lambda _value="", field_name=field: self._on_audit_field_changed(field_name))
 
     def _widget_for_audit_field(self, field: str):
-        if field in {"Known Issues", "Drop/Mis-Pick History", "Tubing Routing Notes", "Notes", "Part Name/Description"}:
+        if field in {"Known Issues", "Drop/Mis-Pick History", "Tubing Routing Notes", "Notes", "Part Name/Description", ROBOT_NOTES_FIELD}:
             text = QTextEdit()
             text.setFixedHeight(70)
             return text
@@ -1847,9 +1958,14 @@ class AuditPage(QWidget):
     def clear_audit_form(self, *, confirm: bool = False, clear_summary: bool = True, use_startup_audit_id: bool = False) -> None:
         if confirm and not self._suppress_clear_confirm_this_session and not self._confirm_clear_audit_form():
             return
-        self._reset_audit_form_fields(show_generated_message=False, use_startup_audit_id=use_startup_audit_id)
-        if clear_summary and hasattr(self, "result_panel"):
-            self.result_panel.show_text("")
+        previous_dialog_suppression = self._suppress_machine_audit_selection_dialog
+        self._suppress_machine_audit_selection_dialog = True
+        try:
+            self._reset_audit_form_fields(show_generated_message=False, use_startup_audit_id=use_startup_audit_id)
+            if clear_summary and hasattr(self, "result_panel"):
+                self.result_panel.show_text("")
+        finally:
+            self._suppress_machine_audit_selection_dialog = previous_dialog_suppression
 
     def _confirm_clear_audit_form(self) -> bool:
         box = QMessageBox(self)
@@ -1923,6 +2039,8 @@ class AuditPage(QWidget):
         if confirm_unsaved and not self._confirm_unsaved_audit_changes("load another audit"):
             return False
         self._set_audit_selector_text(audit_id)
+        previous_dialog_suppression = self._suppress_machine_audit_selection_dialog
+        self._suppress_machine_audit_selection_dialog = True
         previous_state = self._begin_hydrating_form("load_existing_audit")
         self._loading_audit = True
         self._part_present_autofilled_sensor_fields.clear()
@@ -1936,12 +2054,13 @@ class AuditPage(QWidget):
             self._cylinder_type_autofilled = False
             self._apply_cylinder_type_default()
             self._load_robot_info_fields(entry, force=True)
-            for field in ROBOT_PNEUMATIC_FIELDS:
+            for field in ROBOT_INFO_FIELDS:
                 if field in self.audit_fields:
                     entry[field] = self._field_value(self.audit_fields[field])
         finally:
             self._loading_audit = False
             self._end_hydrating_form(previous_state, "load_existing_audit")
+            self._suppress_machine_audit_selection_dialog = previous_dialog_suppression
         self.audit_view_mode_combo.blockSignals(True)
         self.audit_view_mode_combo.setCurrentText("Empty Only")
         self.audit_view_mode_combo.setEnabled(True)
@@ -1978,6 +2097,10 @@ class AuditPage(QWidget):
         self._changeover_user_modified = False
         self._refresh_field_tag_indicators()
         self._mark_audit_form_baseline("load")
+        self._suppress_next_machine_lookup_after_audit_workflow(
+            self._field_value(self.audit_fields.get("Press/Machine #")),
+            "load_existing_audit",
+        )
         return True
 
     def _load_robot_info_fields(self, entry: dict[str, object], *, force: bool) -> bool:
@@ -1988,7 +2111,7 @@ class AuditPage(QWidget):
                 if force or not self._field_value(widget):
                     self._set_field_value(widget, "0")
             return False
-        for field in ROBOT_PNEUMATIC_FIELDS:
+        for field in ROBOT_INFO_FIELDS:
             if field not in self.audit_fields:
                 continue
             widget = self.audit_fields[field]
@@ -2270,8 +2393,8 @@ class AuditPage(QWidget):
         audit_id = self._field_value(self.audit_fields.get("Audit ID"))
         machine = self._field_value(self.audit_fields.get("Press/Machine #"))
         paths = resolve_project_paths(self.config.project_root)
-        workbook_path = paths.robot_info_workbook if field in ROBOT_PNEUMATIC_FIELDS else paths.master_workbook
-        sheet_name = ROBOT_INFO_SHEET if field in ROBOT_PNEUMATIC_FIELDS else "EOAT Inventory"
+        workbook_path = paths.robot_info_workbook if field in ROBOT_INFO_FIELDS else paths.master_workbook
+        sheet_name = ROBOT_INFO_SHEET if field in ROBOT_INFO_FIELDS else "EOAT Inventory"
         return self.annotation_service.create_or_get_target(
             "audit_field",
             target_label=f"{audit_id} / {field}" if audit_id else field,
@@ -3123,15 +3246,29 @@ class AuditPage(QWidget):
     def _on_machine_lookup_text_changed(self, *_args) -> None:
         if self._programmatic_field_update or self._hydrating_form or self._loading_audit:
             return
+        self._clear_recent_machine_audit_decision_if_machine_changed(
+            self._field_value(self.audit_fields["Press/Machine #"])
+        )
         if self._machine_lookup_timer is not None and self._machine_lookup_timer.isActive():
             self._pending_machine_lookup_text = self._field_value(self.audit_fields["Press/Machine #"])
             self._machine_lookup_timer.start()
 
-    def run_machine_lookup(self, *args, immediate: bool = False) -> None:
+    def run_machine_lookup(self, *args, immediate: bool = False, allow_existing_audit_prompt: bool = True) -> None:
         machine_text = self._field_value(self.audit_fields["Press/Machine #"])
+        programmatic_reason = self._machine_lookup_programmatic_suppression_reason()
+        if programmatic_reason:
+            self._log_machine_audit_selection_event(
+                "machine_audit_selection_suppressed",
+                machine_text,
+                reason=programmatic_reason,
+            )
+            return
+        if self._consume_recent_machine_audit_lookup_suppression(machine_text):
+            return
         self._clear_copied_tool_if_duplicate_press_changed(machine_text)
         self._machine_lookup_extra_note = ""
         self._pending_machine_lookup_text = machine_text
+        self._pending_machine_lookup_allow_existing_audit_prompt = allow_existing_audit_prompt
         if immediate or self._machine_lookup_timer is None:
             if self._machine_lookup_timer is not None:
                 self._machine_lookup_timer.stop()
@@ -3145,12 +3282,25 @@ class AuditPage(QWidget):
         self._machine_lookup_generation += 1
         generation = self._machine_lookup_generation
         form_snapshot = self._current_audit_form_values()
+        allow_existing_audit_prompt = bool(self._pending_machine_lookup_allow_existing_audit_prompt)
+        suppression_reason = self._machine_audit_selection_suppression_reason(
+            machine_text,
+            user_confirmed=True,
+            allow_existing_audit_prompt=allow_existing_audit_prompt,
+        )
+        if suppression_reason:
+            self._log_machine_audit_selection_event(
+                "machine_audit_selection_suppressed",
+                machine_text,
+                reason=suppression_reason,
+            )
+            allow_existing_audit_prompt = False
         context = {
             "current_audit_id": self._field_value(self.audit_fields.get("Audit ID")),
             "current_audit_mode": self._current_audit_mode,
+            "allow_existing_audit_prompt": allow_existing_audit_prompt,
         }
         self.lookup_note_label.setText(f"Looking up machine {machine_text}...")
-        self._set_capacity_choices([])
 
         def _lookup():
             return self._collect_machine_lookup_result(
@@ -3159,6 +3309,7 @@ class AuditPage(QWidget):
                 machine_text,
                 form_snapshot,
                 context,
+                allow_existing_audit_prompt=allow_existing_audit_prompt,
             )
 
         get_task_manager().run_task(
@@ -3195,26 +3346,67 @@ class AuditPage(QWidget):
             robot_info = None
         return {"action": "lookup", "result": result, "robot_info": robot_info}
 
+    def _collect_existing_machine_audit_decision_payload(
+        self,
+        project_root: str,
+        machine_text: str,
+        context: dict[str, object],
+    ) -> dict[str, object]:
+        machine_tokens = parse_machine_tokens(machine_text)
+        if not machine_tokens:
+            return {}
+        requested = set(machine_tokens)
+        matches = find_existing_audits_for_machine(project_root, machine_text)
+        all_matches = [
+            option
+            for option in list_audit_options(project_root)
+            if requested & set(self._audit_option_machine_tokens(option))
+        ]
+        compatible_matches = [
+            option
+            for option in all_matches
+            if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_COMPATIBLE
+        ]
+        machine = ", ".join(machine_tokens)
+        compatible_note = ""
+        if compatible_matches:
+            count = len(compatible_matches)
+            noun = "entry" if count == 1 else "entries"
+            compatible_note = f" Machine {machine} also has {count} compatible coverage {noun}."
+        current_id = str(context.get("current_audit_id") or "")
+        current_mode = str(context.get("current_audit_mode") or "")
+        if len(matches) == 1 and matches[0].audit_id == current_id and current_mode == "edit":
+            return {}
+        if matches:
+            return {
+                "action": "existing_matches",
+                "matches": matches,
+                "message": f"Existing audits found for this machine.{compatible_note}",
+            }
+        if compatible_matches:
+            return {
+                "extra_note": (
+                    f"Machine {machine} has compatible coverage entries, "
+                    "but no physical audit yet. Continuing with a new physical audit."
+                )
+            }
+        return {}
+
     def _collect_machine_lookup_result(
         self,
         project_root: str,
         generation: int,
         machine_text: str,
         form_snapshot: dict[str, str],
-        context: dict[str, str],
+        context: dict[str, object],
+        *,
+        allow_existing_audit_prompt: bool = True,
     ) -> dict[str, object]:
         started = time.perf_counter()
-        cache_key = _machine_lookup_cache_key(project_root, machine_text)
-        cached = _MACHINE_LOOKUP_RESULT_CACHE.get(cache_key)
-        if cached is not None:
-            payload = dict(cached)
-            payload.update({"generation": generation, "machine_text": machine_text, "cache_hit": True})
-            log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "hit"})
-            return payload
-
         payload: dict[str, object] = {
             "generation": generation,
             "machine_text": machine_text,
+            "allow_existing_audit_prompt": bool(allow_existing_audit_prompt),
             "cache_hit": False,
             "action": "lookup",
             "warnings": [],
@@ -3225,50 +3417,58 @@ class AuditPage(QWidget):
             "result": None,
             "robot_info": None,
         }
-        machine_tokens = parse_machine_tokens(machine_text)
-        if machine_tokens:
-            requested = set(machine_tokens)
-            matches = find_existing_audits_for_machine(project_root, machine_text)
-            all_matches = [
-                option
-                for option in list_audit_options(project_root)
-                if requested & set(self._audit_option_machine_tokens(option))
-            ]
-            compatible_matches = [
-                option
-                for option in all_matches
-                if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_COMPATIBLE
-            ]
-            machine = ", ".join(machine_tokens)
-            compatible_note = ""
-            if compatible_matches:
-                count = len(compatible_matches)
-                noun = "entry" if count == 1 else "entries"
-                compatible_note = f" Machine {machine} also has {count} compatible coverage {noun}."
-            current_id = context.get("current_audit_id", "")
-            current_mode = context.get("current_audit_mode", "")
-            if not (len(matches) == 1 and matches[0].audit_id == current_id and current_mode == "edit"):
-                if matches:
-                    payload.update(
-                        {
-                            "action": "existing_matches",
-                            "matches": matches,
-                            "message": f"Existing audits found for this machine.{compatible_note}",
-                        }
-                    )
-                    log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "existing_matches"})
-                    _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {key: value for key, value in payload.items() if key not in {"generation", "machine_text", "cache_hit"}}
-                    return payload
-                if compatible_matches:
-                    payload["extra_note"] = f"Machine {machine} has compatible coverage entries, but no physical audit yet. Continuing with a new physical audit."
+        existing_decision_payload = {}
+        if allow_existing_audit_prompt:
+            existing_decision_payload = self._collect_existing_machine_audit_decision_payload(
+                project_root,
+                machine_text,
+                context,
+            )
+            if existing_decision_payload.get("action") == "existing_matches":
+                payload.update(existing_decision_payload)
+                log_performance(
+                    project_root,
+                    "audit.machine_lookup",
+                    time.perf_counter() - started,
+                    source="audit",
+                    page_tool="audit",
+                    details={"cache_status": "miss", "action": "existing_matches"},
+                )
+                return payload
+            payload["extra_note"] = str(existing_decision_payload.get("extra_note") or "")
+
+        cache_key = _machine_lookup_cache_key(project_root, machine_text)
+        cached = _MACHINE_LOOKUP_RESULT_CACHE.get(cache_key)
+        if cached is not None:
+            payload.update(dict(cached))
+            payload.update(
+                {
+                    "generation": generation,
+                    "machine_text": machine_text,
+                    "allow_existing_audit_prompt": bool(allow_existing_audit_prompt),
+                    "cache_hit": True,
+                }
+            )
+            if existing_decision_payload.get("extra_note"):
+                payload["extra_note"] = str(existing_decision_payload.get("extra_note") or "")
+            log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "hit"})
+            return payload
 
         payload.update(self._collect_machine_reference_lookup_payload(project_root, machine_text, form_snapshot))
         if payload.get("action") == "invalid":
             log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "invalid"}, success=False, error_count=1)
-            _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {key: value for key, value in payload.items() if key not in {"generation", "machine_text", "cache_hit"}}
+            _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"generation", "machine_text", "allow_existing_audit_prompt", "cache_hit", "extra_note"}
+            }
             return payload
         log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "lookup"})
-        _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {key: value for key, value in payload.items() if key not in {"generation", "machine_text", "cache_hit"}}
+        _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"generation", "machine_text", "allow_existing_audit_prompt", "cache_hit", "extra_note"}
+        }
         return payload
 
     def _apply_machine_lookup_task_result(self, task_result) -> None:
@@ -3305,6 +3505,18 @@ class AuditPage(QWidget):
         if action in {"multiple_matches", "existing_matches"}:
             matches = list(payload.get("matches") or [])
             message = str(payload.get("message") or "Existing audits found for this machine.")
+            suppression_reason = self._machine_audit_selection_suppression_reason(
+                machine_text,
+                user_confirmed=True,
+                allow_existing_audit_prompt=bool(payload.get("allow_existing_audit_prompt", True)),
+            )
+            if suppression_reason:
+                self._log_machine_audit_selection_event(
+                    "machine_audit_selection_suppressed",
+                    machine_text,
+                    reason=suppression_reason,
+                )
+                return
             self._handle_existing_machine_audit_selection(machine_text, matches, message=message)
             return
 
@@ -3316,31 +3528,39 @@ class AuditPage(QWidget):
             self.lookup_note_label.setText("Machine lookup did not return a usable result.")
             return False
 
-        self.current_lookup_result = result
-        self._lookup_part_index = None
-        self._lookup_conflict_warnings = []
-        self._set_field_value(self.audit_fields["Press/Machine #"], str(result.machine_number))
+        previous_dialog_suppression = self._suppress_machine_audit_selection_dialog
+        previous_autofilling = self._autofilling_fields
+        self._suppress_machine_audit_selection_dialog = True
+        self._autofilling_fields = True
+        try:
+            self.current_lookup_result = result
+            self._lookup_part_index = None
+            self._lookup_conflict_warnings = []
+            self._set_field_value(self.audit_fields["Press/Machine #"], str(result.machine_number))
 
-        robot_type_filled = self._apply_suggestion("Robot Type", result.robot_type_suggestion)
-        robot_model_filled = self._apply_suggestion("Robot Model/Controller", result.robot_model_controller_suggestion)
-        tool_filled = self._apply_tool_number_suggestion(result, force=False)
-        robot_info_loaded = self._apply_robot_info_fields(payload.get("robot_info"), force=False)
-        part_filled = False
-        if len(result.part_options) == 1:
-            self._lookup_part_index = 0
-            option = result.part_options[0]
-            part_filled = self._apply_part_suggestion(option, force=False)
-        warnings = [*result.warnings, *self._lookup_conflict_warnings]
-        lookup_message = self._lookup_status_message(result, robot_type_filled or robot_model_filled, part_filled or tool_filled, warnings)
-        extra_note = str(payload.get("extra_note") or "")
-        if extra_note:
-            lookup_message = f"{lookup_message} {extra_note}"
-        if robot_info_loaded:
-            lookup_message = f"{lookup_message} Robot circuit info loaded from Robot_Info.xlsx."
-        self.lookup_note_label.setText(lookup_message)
-        self._set_capacity_choices(result.capacity_part_rows)
-        self._set_machine_audit_matches([])
-        self._log_machine_lookup(machine_text, result, warnings, result.errors, robot_type_filled, robot_model_filled, part_filled, tool_filled)
+            robot_type_filled = self._apply_suggestion("Robot Type", result.robot_type_suggestion)
+            robot_model_filled = self._apply_suggestion("Robot Model/Controller", result.robot_model_controller_suggestion)
+            tool_filled = self._apply_tool_number_suggestion(result, force=False)
+            robot_info_loaded = self._apply_robot_info_fields(payload.get("robot_info"), force=False)
+            part_filled = False
+            if len(result.part_options) == 1:
+                self._lookup_part_index = 0
+                option = result.part_options[0]
+                part_filled = self._apply_part_suggestion(option, force=False)
+            warnings = [*result.warnings, *self._lookup_conflict_warnings]
+            lookup_message = self._lookup_status_message(result, robot_type_filled or robot_model_filled, part_filled or tool_filled, warnings)
+            extra_note = str(payload.get("extra_note") or "")
+            if extra_note:
+                lookup_message = f"{lookup_message} {extra_note}"
+            if robot_info_loaded:
+                lookup_message = f"{lookup_message} Robot info loaded from Robot_Info.xlsx."
+            self.lookup_note_label.setText(lookup_message)
+            self._set_capacity_choices(result.capacity_part_rows)
+            self._set_machine_audit_matches([])
+            self._log_machine_lookup(machine_text, result, warnings, result.errors, robot_type_filled, robot_model_filled, part_filled, tool_filled)
+        finally:
+            self._autofilling_fields = previous_autofilling
+            self._suppress_machine_audit_selection_dialog = previous_dialog_suppression
         return True
 
     def _handle_existing_machine_audit_selection(self, machine_text: str, matches, *, message: str = "") -> bool:
@@ -3348,28 +3568,80 @@ class AuditPage(QWidget):
             self._set_machine_audit_matches([])
             return False
         machine = ", ".join(parse_machine_tokens(machine_text)) or str(machine_text or "").strip()
+        suppression_reason = self._machine_audit_selection_suppression_reason(
+            machine,
+            user_confirmed=True,
+            allow_existing_audit_prompt=True,
+        )
+        if suppression_reason:
+            self._log_machine_audit_selection_event(
+                "machine_audit_selection_suppressed",
+                machine,
+                reason=suppression_reason,
+            )
+            return False
         self._set_machine_audit_matches([])
         self.lookup_note_label.setText(message or "Existing audits found for this machine.")
         self.result_panel.show_text(
             "Existing audits found for this machine. Continue an existing audit, or start a new audit for this machine."
         )
-        selection = self._choose_existing_machine_audit_action(machine, matches)
+        self._log_machine_audit_selection_event(
+            "machine_audit_selection_dialog_opened",
+            machine,
+            match_count=len(matches),
+        )
+        self._machine_audit_selection_in_progress = True
+        try:
+            selection = self._choose_existing_machine_audit_action(machine, matches)
+        finally:
+            self._machine_audit_selection_in_progress = False
         if selection.action == ExistingMachineAuditsDialog.ACTION_CONTINUE:
             audit_id = str(selection.audit_id or "").strip()
             if not audit_id:
                 self.result_panel.show_text("Select an audit before continuing.")
                 return True
-            loaded = self.load_existing_audit(
-                audit_id,
-                loaded_message=f"Existing physical audit found for Machine {machine}. Loaded {audit_id}.",
-                confirm_unsaved=not self.is_clean_new_form_or_lookup_only(),
+            self._log_machine_audit_selection_event(
+                "machine_audit_selection_continue_existing",
+                machine,
+                audit_id=audit_id,
             )
+            previous_loading_from_dialog = self._loading_existing_audit_from_machine_dialog
+            previous_dialog_suppression = self._suppress_machine_audit_selection_dialog
+            self._loading_existing_audit_from_machine_dialog = True
+            self._suppress_machine_audit_selection_dialog = True
+            try:
+                loaded = self.load_existing_audit(
+                    audit_id,
+                    loaded_message=f"Existing physical audit found for Machine {machine}. Loaded {audit_id}.",
+                    confirm_unsaved=not self.is_clean_new_form_or_lookup_only(),
+                )
+            finally:
+                self._loading_existing_audit_from_machine_dialog = previous_loading_from_dialog
+                self._suppress_machine_audit_selection_dialog = previous_dialog_suppression
+                self._suppress_next_machine_lookup_after_audit_workflow(
+                    machine,
+                    ExistingMachineAuditsDialog.ACTION_CONTINUE,
+                )
             if not loaded:
                 self.lookup_note_label.setText("Existing audit selection canceled.")
             return True
         if selection.action == ExistingMachineAuditsDialog.ACTION_START_NEW:
+            self._log_machine_audit_selection_event(
+                "machine_audit_selection_start_new",
+                machine,
+                match_count=len(matches),
+            )
             self.start_new_audit_for_machine(machine)
             return True
+        self._log_machine_audit_selection_event(
+            "machine_audit_selection_cancelled",
+            machine,
+            match_count=len(matches),
+        )
+        self._suppress_next_machine_lookup_after_audit_workflow(
+            machine,
+            ExistingMachineAuditsDialog.ACTION_CANCEL,
+        )
         self.lookup_note_label.setText("Existing audit selection canceled.")
         self.result_panel.show_text("Existing audit selection canceled. The current form was left unchanged.")
         return True
@@ -3387,6 +3659,13 @@ class AuditPage(QWidget):
             return False
         if not self.is_clean_new_form_or_lookup_only() and not self._confirm_unsaved_audit_changes("start a new audit"):
             return False
+        self._machine_lookup_generation += 1
+        previous_starting_new = self._starting_new_audit_for_machine
+        previous_dialog_suppression = self._suppress_machine_audit_selection_dialog
+        previous_prompt_suppressed_machine = self._machine_audit_prompt_suppressed_for_machine
+        self._starting_new_audit_for_machine = True
+        self._suppress_machine_audit_selection_dialog = True
+        self._machine_audit_prompt_suppressed_for_machine = machine_text
         previous_state = self._begin_hydrating_form("start_new_audit_for_machine")
         try:
             self._reset_audit_form_fields(show_generated_message=False)
@@ -3415,9 +3694,16 @@ class AuditPage(QWidget):
             self._update_audit_field_visibility()
         finally:
             self._end_hydrating_form(previous_state, "start_new_audit_for_machine")
+            self._machine_audit_prompt_suppressed_for_machine = previous_prompt_suppressed_machine
+            self._suppress_machine_audit_selection_dialog = previous_dialog_suppression
+            self._starting_new_audit_for_machine = previous_starting_new
         audit_id = self._field_value(self.audit_fields.get("Audit ID"))
         machine = self._field_value(self.audit_fields.get("Press/Machine #")) or machine_text
         self._mark_audit_form_baseline("start_new_audit_for_machine", clean_new_form=True)
+        self._suppress_next_machine_lookup_after_audit_workflow(
+            machine,
+            ExistingMachineAuditsDialog.ACTION_START_NEW,
+        )
         self.result_panel.show_text(
             f"Started a new audit for Machine {machine} with Audit ID {audit_id}. "
             "Existing audits were not changed, and old EOAT/tool data was not copied."
@@ -3431,7 +3717,7 @@ class AuditPage(QWidget):
                 if force or not self._field_value(widget):
                     self._set_field_value(widget, "0")
             return False
-        for field in ROBOT_PNEUMATIC_FIELDS:
+        for field in ROBOT_INFO_FIELDS:
             if field not in self.audit_fields:
                 continue
             widget = self.audit_fields[field]
@@ -3441,40 +3727,38 @@ class AuditPage(QWidget):
 
     def _load_or_offer_existing_audit_for_machine(self, machine_text: str) -> bool:
         self._machine_lookup_extra_note = ""
-        machine_tokens = parse_machine_tokens(machine_text)
-        if not machine_tokens:
+        if not parse_machine_tokens(machine_text):
             self._set_machine_audit_matches([])
             return False
-        requested = set(machine_tokens)
-        matches = find_existing_audits_for_machine(self.config.project_root, machine_text)
-        all_matches = [
-            option
-            for option in list_audit_options(self.config.project_root)
-            if requested & set(self._audit_option_machine_tokens(option))
-        ]
-        compatible_matches = [
-            option
-            for option in all_matches
-            if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_COMPATIBLE
-        ]
-        machine = ", ".join(machine_tokens)
-        compatible_note = ""
-        if compatible_matches:
-            count = len(compatible_matches)
-            noun = "entry" if count == 1 else "entries"
-            compatible_note = f" Machine {machine} also has {count} compatible coverage {noun}."
-        current_id = self._field_value(self.audit_fields["Audit ID"])
-        if len(matches) == 1 and matches[0].audit_id == current_id and self._current_audit_mode == "edit":
-            self._set_machine_audit_matches([])
-            return False
-        if matches:
-            return self._handle_existing_machine_audit_selection(
-                machine,
-                matches,
-                message=f"Existing audits found for this machine.{compatible_note}",
+        suppression_reason = self._machine_audit_selection_suppression_reason(
+            machine_text,
+            user_confirmed=True,
+            allow_existing_audit_prompt=True,
+        )
+        if suppression_reason:
+            self._log_machine_audit_selection_event(
+                "machine_audit_selection_suppressed",
+                machine_text,
+                reason=suppression_reason,
             )
-        if compatible_matches:
-            note = f"Machine {machine} has compatible coverage entries, but no physical audit yet. Continuing with a new physical audit."
+            self._set_machine_audit_matches([])
+            return False
+        payload = self._collect_existing_machine_audit_decision_payload(
+            self.config.project_root,
+            machine_text,
+            {
+                "current_audit_id": self._field_value(self.audit_fields["Audit ID"]),
+                "current_audit_mode": self._current_audit_mode,
+            },
+        )
+        if payload.get("action") == "existing_matches":
+            return self._handle_existing_machine_audit_selection(
+                machine_text,
+                list(payload.get("matches") or []),
+                message=str(payload.get("message") or "Existing audits found for this machine."),
+            )
+        if payload.get("extra_note"):
+            note = str(payload.get("extra_note") or "")
             self._machine_lookup_extra_note = note
             self.lookup_note_label.setText(note)
             self._set_machine_audit_matches([])
@@ -3588,33 +3872,38 @@ class AuditPage(QWidget):
         return self._apply_suggestion("Tool #", part_numbers[0])
 
     def _set_capacity_choices(self, rows) -> None:
+        previous_dialog_suppression = self._suppress_machine_audit_selection_dialog
+        self._suppress_machine_audit_selection_dialog = True
         self.capacity_part_combo.blockSignals(True)
-        self.capacity_part_combo.clear()
-        self.capacity_matches_table.clear()
-        columns = ["Part Number", "Description", "Customer", "Cycle Time"]
-        self.capacity_matches_table.setColumnCount(len(columns))
-        self.capacity_matches_table.setHorizontalHeaderLabels(columns)
-        self.capacity_matches_table.setRowCount(len(rows))
-        for row_index, row in enumerate(rows):
-            option = self.current_lookup_result.part_options[row_index] if self.current_lookup_result else {}
-            self.capacity_part_combo.addItem(str(option.get("display_label") or row.display_label()), row_index)
-            values = [
-                option.get("part_number", ""),
-                option.get("part_description", ""),
-                option.get("customer", ""),
-                option.get("cycle_time", ""),
-            ]
-            for col_index, value in enumerate(values):
-                self.capacity_matches_table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
-        self.capacity_matches_table.resizeColumnsToContents()
-        self.capacity_part_combo.setEnabled(len(rows) > 1)
-        self.capacity_matches_table.setVisible(bool(rows))
-        if len(rows) == 1:
-            self.capacity_part_combo.setCurrentIndex(0)
-        elif len(rows) > 1:
-            self.capacity_part_combo.insertItem(0, "Select current running part...", None)
-            self.capacity_part_combo.setCurrentIndex(0)
-        self.capacity_part_combo.blockSignals(False)
+        try:
+            self.capacity_part_combo.clear()
+            self.capacity_matches_table.clear()
+            columns = ["Part Number", "Description", "Customer", "Cycle Time"]
+            self.capacity_matches_table.setColumnCount(len(columns))
+            self.capacity_matches_table.setHorizontalHeaderLabels(columns)
+            self.capacity_matches_table.setRowCount(len(rows))
+            for row_index, row in enumerate(rows):
+                option = self.current_lookup_result.part_options[row_index] if self.current_lookup_result else {}
+                self.capacity_part_combo.addItem(str(option.get("display_label") or row.display_label()), row_index)
+                values = [
+                    option.get("part_number", ""),
+                    option.get("part_description", ""),
+                    option.get("customer", ""),
+                    option.get("cycle_time", ""),
+                ]
+                for col_index, value in enumerate(values):
+                    self.capacity_matches_table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
+            self.capacity_matches_table.resizeColumnsToContents()
+            self.capacity_part_combo.setEnabled(len(rows) > 1)
+            self.capacity_matches_table.setVisible(bool(rows))
+            if len(rows) == 1:
+                self.capacity_part_combo.setCurrentIndex(0)
+            elif len(rows) > 1:
+                self.capacity_part_combo.insertItem(0, "Select current running part...", None)
+                self.capacity_part_combo.setCurrentIndex(0)
+        finally:
+            self.capacity_part_combo.blockSignals(False)
+            self._suppress_machine_audit_selection_dialog = previous_dialog_suppression
 
     def apply_selected_capacity_part(self, index: int) -> None:
         if self.current_lookup_result is None:

@@ -8,6 +8,8 @@ from core.paths import resolve_project_paths
 from core.robot_info import (
     ROBOT_INFO_HEADERS,
     ROBOT_INFO_SHEET,
+    ROBOT_NOTES_FIELD,
+    ensure_robot_info_workbook,
     load_robot_info_for_audit_entry,
     robot_info_workbook_path,
     upsert_robot_info_from_audit,
@@ -41,6 +43,7 @@ def test_save_audit_writes_eoat_pneumatic_fields_without_robot_columns(fake_proj
                 "EOAT Pressure Circuits": "1",
                 "EOAT Interchangeable Circuits": "0",
                 "Robot Vacuum Circuits": "3",
+                ROBOT_NOTES_FIELD: "Robot-side note should stay out of EOAT Inventory.",
             }
         ),
     )
@@ -52,6 +55,7 @@ def test_save_audit_writes_eoat_pneumatic_fields_without_robot_columns(fake_proj
     assert saved["EOAT Pressure Circuits"] == "1"
     assert saved["EOAT Interchangeable Circuits"] == "0"
     assert "Robot Vacuum Circuits" not in saved
+    assert ROBOT_NOTES_FIELD not in saved
 
 
 def test_save_audit_rejects_negative_eoat_circuit_count(fake_project):
@@ -166,6 +170,48 @@ def test_robot_info_workbook_is_created_and_upserted_by_machine_identity(fake_pr
     assert rows[0]["Robot Vacuum Circuits"] == 4
     assert rows[0]["Robot Pressure Circuits"] == 1
     assert rows[0]["Last Audit ID"] == "AUD-ROBOT-002"
+    assert ROBOT_NOTES_FIELD in headers
+
+
+def test_robot_info_schema_repair_adds_robot_notes_without_destroying_data(fake_project):
+    path = robot_info_workbook_path(fake_project)
+    workbook = load_workbook(path) if path.exists() else None
+    if workbook is None:
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+    ws = workbook.active
+    ws.title = ROBOT_INFO_SHEET
+    old_headers = [header for header in ROBOT_INFO_HEADERS if header != ROBOT_NOTES_FIELD]
+    ws.append(old_headers)
+    ws.append(
+        [
+            "Plant 4" if header == "Plant/Area" else
+            "Press 12" if header == "Machine Number" else
+            "Wittmann R9" if header == "Robot Type" else
+            3 if header == "Robot Vacuum Circuits" else
+            2 if header == "Robot Pressure Circuits" else
+            0 if header == "Robot Interchangeable Circuits" else
+            "AUD-OLD" if header == "Last Audit ID" else
+            ""
+            for header in old_headers
+        ]
+    )
+    workbook.save(path)
+    workbook.close()
+
+    ensure_robot_info_workbook(fake_project)
+
+    workbook = load_workbook(path, read_only=True, data_only=True)
+    ws = workbook[ROBOT_INFO_SHEET]
+    headers = [cell.value for cell in ws[1]]
+    row = dict(zip(headers, next(ws.iter_rows(min_row=2, values_only=True))))
+    workbook.close()
+
+    assert ROBOT_NOTES_FIELD in headers
+    assert row["Machine Number"] == "Press 12"
+    assert row["Robot Vacuum Circuits"] == 3
+    assert row[ROBOT_NOTES_FIELD] in ("", None)
 
 
 def test_load_robot_info_for_audit_entry_returns_matching_robot_row(fake_project):
@@ -175,6 +221,7 @@ def test_load_robot_info_for_audit_entry_returns_matching_robot_row(fake_project
             "Robot Vacuum Circuits": "5",
             "Robot Pressure Circuits": "2",
             "Robot Interchangeable Circuits": "0",
+            ROBOT_NOTES_FIELD: "Shared robot-side manifold note.",
         }
     )
     assert upsert_robot_info_from_audit(fake_project, entry).success
@@ -185,6 +232,30 @@ def test_load_robot_info_for_audit_entry_returns_matching_robot_row(fake_project
     assert loaded["Robot Vacuum Circuits"] == 5
     assert loaded["Robot Pressure Circuits"] == 2
     assert loaded["Robot Interchangeable Circuits"] == 0
+    assert loaded[ROBOT_NOTES_FIELD] == "Shared robot-side manifold note."
+
+
+def test_robot_notes_can_be_saved_and_intentionally_cleared(fake_project):
+    entry = _required_audit_entry(
+        **{
+            "Audit ID": "AUD-ROBOT-NOTES-001",
+            "Robot Vacuum Circuits": "5",
+            "Robot Pressure Circuits": "2",
+            "Robot Interchangeable Circuits": "0",
+            ROBOT_NOTES_FIELD: "Check wrist air labels.",
+        }
+    )
+    assert upsert_robot_info_from_audit(fake_project, entry).success
+    loaded = load_robot_info_for_audit_entry(fake_project, entry)
+    assert loaded is not None
+    assert loaded[ROBOT_NOTES_FIELD] == "Check wrist air labels."
+
+    cleared = {**entry, "Audit ID": "AUD-ROBOT-NOTES-002", ROBOT_NOTES_FIELD: ""}
+    assert upsert_robot_info_from_audit(fake_project, cleared).success
+
+    loaded = load_robot_info_for_audit_entry(fake_project, entry)
+    assert loaded is not None
+    assert loaded[ROBOT_NOTES_FIELD] in ("", None)
 
 
 def test_robot_info_health_detects_duplicate_rows_and_invalid_counts(fake_project):

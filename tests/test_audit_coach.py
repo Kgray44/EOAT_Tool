@@ -54,7 +54,7 @@ SECTIONS = {
     ],
     "Documentation / Photos": ["Photos Taken?", "Photo Folder/Link"],
     "Connections / Routing / Mechanical": ["Tubing Condition", "Tubing Routing Notes"],
-    "Pilot / Final Notes": ["Notes"],
+    "Pilot / Final Notes": ["Robot Notes", "Notes"],
 }
 
 
@@ -90,6 +90,7 @@ def _base_entry(**overrides):
         "Photo Folder/Link": "",
         "Tubing Condition": "OK",
         "Tubing Routing Notes": "",
+        "Robot Notes": "",
         "Notes": "",
     }
     entry.update(overrides)
@@ -247,6 +248,7 @@ def test_optional_notes_do_not_reduce_completion_or_missing_fields():
             "Photos Taken?": "Yes",
             "Photo Folder/Link": "photos/demo",
             "Tubing Routing Notes": "",
+            "Robot Notes": "",
             "Notes": "",
         }
     )
@@ -255,8 +257,11 @@ def test_optional_notes_do_not_reduce_completion_or_missing_fields():
 
     assert summary.percent_complete == 100
     assert "Tubing Routing Notes" not in summary.missing_fields
+    assert "Robot Notes" not in summary.missing_fields
     assert "Notes" not in summary.missing_fields
     assert _status(summary, "Tubing Routing Notes").state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, "Robot Notes").state == STATE_NOT_APPLICABLE
+    assert _status(summary, "Robot Notes").applies is False
     assert _status(summary, "Notes").state == STATE_VERIFIED_COMPLETE
 
 
@@ -268,6 +273,7 @@ def test_filled_optional_notes_are_saved_in_completion_display_without_changing_
                 "Photos Taken?": "Yes",
                 "Photo Folder/Link": "photos/demo",
                 "Tubing Routing Notes": "",
+                "Robot Notes": "",
                 "Notes": "",
             }
         ),
@@ -280,6 +286,7 @@ def test_filled_optional_notes_are_saved_in_completion_display_without_changing_
                 "Photos Taken?": "Yes",
                 "Photo Folder/Link": "photos/demo",
                 "Tubing Routing Notes": "Route behind wrist.",
+                "Robot Notes": "Robot side uses spare air line 3.",
                 "Notes": "Final context.",
             }
         ),
@@ -288,7 +295,28 @@ def test_filled_optional_notes_are_saved_in_completion_display_without_changing_
 
     assert filled_summary.percent_complete == blank_summary.percent_complete == 100
     assert _status(filled_summary, "Tubing Routing Notes").value == "Route behind wrist."
+    assert _status(filled_summary, "Robot Notes").value == "Robot side uses spare air line 3."
+    assert _status(filled_summary, "Robot Notes").applies is False
     assert _status(filled_summary, "Notes").value == "Final context."
+
+
+def test_robot_notes_does_not_inflate_audit_coach_section_percentage():
+    summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                "Notes": "",
+                "Robot Notes": "Robot-side context only.",
+            }
+        ),
+        {"Pilot / Final Notes": ["Robot Notes", "Notes"]},
+    )
+    section = summary.sections[0]
+
+    assert section.applicable_count == 1
+    assert section.verified_complete_count == 1
+    assert section.percent_complete == 100
+    assert _status(summary, "Robot Notes").state == STATE_NOT_APPLICABLE
+    assert _status(summary, "Robot Notes").applies is False
 
 
 def test_miscellaneous_eoat_counts_gripper_fields_as_applicable():
