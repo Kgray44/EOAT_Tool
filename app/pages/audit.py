@@ -126,6 +126,8 @@ _MACHINE_LOOKUP_RESULT_CACHE: dict[tuple[object, ...], dict[str, object]] = {}
 
 def workbook_to_ui_value(value, field: str = "") -> str:
     text = "" if value is None else str(value)
+    if field == CYLINDER_TYPE_FIELD and (not text.strip() or text.strip().upper() == NA_VALUE):
+        return CYLINDER_TYPE_DEFAULT
     if text.strip().upper() == NA_VALUE:
         return ""
     if field == GRIPPER_MODEL_FIELD:
@@ -554,7 +556,17 @@ class AuditPage(QWidget):
         if programmatic:
             return
         self._dirty_fields.add(field)
+        if field in {CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD}:
+            self._apply_cylinder_type_default()
         self._recalculate_dirty_state(reason="field_changed", field=field, user_driven=True)
+
+    def _apply_cylinder_type_default(self) -> None:
+        count_widget = self.audit_fields.get(CYLINDER_COUNT_FIELD) if hasattr(self, "audit_fields") else None
+        type_widget = self.audit_fields.get(CYLINDER_TYPE_FIELD) if hasattr(self, "audit_fields") else None
+        if count_widget is None or type_widget is None:
+            return
+        if self._field_value(count_widget) and self._field_value(type_widget).upper() in {"", NA_VALUE}:
+            self._set_field_value(type_widget, CYLINDER_TYPE_DEFAULT)
 
     def _begin_hydrating_form(self, reason: str = "hydrate_form") -> tuple[bool, bool, bool]:
         previous_hydrating = self._hydrating_form

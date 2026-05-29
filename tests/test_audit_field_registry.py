@@ -31,7 +31,7 @@ def test_audit_sections_and_groups_are_registry_driven():
 
     assert list(sections)[:3] == ["Audit Header", "Machine / Robot / Tool Context", "EOAT Type and Tooling"]
     assert section_for_field(CYLINDER_COUNT_FIELD) == "EOAT Type and Tooling"
-    assert ("Cylinders", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]) in groups["EOAT Type and Tooling"]
+    assert ("Cylinder Details", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]) in groups["EOAT Type and Tooling"]
     assert audit_field_order()[:4] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area"]
 
 
@@ -47,4 +47,3 @@ def test_registry_exposes_widget_options_and_applicability():
 
     assert CUP_COUNT_FIELD not in applicable
     assert GRIPPER_COUNT_FIELD in applicable
-

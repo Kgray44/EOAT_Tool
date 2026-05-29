@@ -208,6 +208,27 @@ def test_cylinder_fields_save_load_and_old_workbooks_migrate_safely(fake_project
     assert loaded[CYLINDER_COUNT_FIELD] == "2"
     assert loaded[CYLINDER_TYPE_FIELD] == "Rotary"
 
+    default_type_result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-CYLINDERS-DEFAULT-TYPE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 16",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Miscellaneous",
+            CYLINDER_COUNT_FIELD: "3",
+            CYLINDER_TYPE_FIELD: "",
+            "Status": "In Progress",
+        },
+    )
+
+    assert default_type_result.success, default_type_result.errors
+    loaded_default = load_audit_entry(fake_project, "AUD-CYLINDERS-DEFAULT-TYPE")
+    assert loaded_default[CYLINDER_COUNT_FIELD] == "3"
+    assert loaded_default[CYLINDER_TYPE_FIELD] == "Linear"
+
 
 def test_workbook_missing_eoat_moves_loads_and_migrates_without_overwriting_blanks(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook

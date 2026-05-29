@@ -110,7 +110,7 @@ AUDIT_GROUP_LAYOUT: dict[str, list[tuple[str, list[str]]]] = {
     "EOAT Type and Tooling": [
         ("EOAT Classification", ["EOAT Type", "EOAT Moves", "Connection Type"]),
         ("Part Pickup", [NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD]),
-        ("Cylinders", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]),
+        ("Cylinder Details", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]),
         ("Vacuum / Cup Details", [CUP_COUNT_FIELD, "Cup Type/Material", "Cup Diameter/Size", "Vacuum Generator Type"]),
         ("Physical Details", ["Estimated EOAT Weight"]),
     ],

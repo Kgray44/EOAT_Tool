@@ -47,7 +47,7 @@ from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
 from .workbook_io import find_row_by_value, next_empty_row, row_dicts, worksheet_headers, write_row_by_headers
 from .workbook_schema import get_expected_headers
 
-CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.05.28.2"
+CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.05.28.3"
 WORKBOOK_METADATA_SHEET = "_EOAT_App_Metadata"
 
 AUDIT_REQUIRED_FIELDS = [
@@ -434,6 +434,7 @@ def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str
             default = audit_field_default(header)
             if default is not None:
                 normalized[header] = default
+    normalized = field_rules.normalize_cylinder_fields(normalized)
     if not _text(normalized.get("Cup Type/Material")) and cup_type_default_applies(eoat_type):
         normalized["Cup Type/Material"] = CUP_TYPE_DEFAULT
     if not tooling_field_applies(eoat_type, "Cup Type/Material") and _text(normalized.get("Cup Type/Material")) == CUP_TYPE_DEFAULT:
@@ -460,7 +461,7 @@ def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str
 
 
 def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
-    entry = apply_part_present_sensor_defaults(dict(entry))
+    entry = apply_part_present_sensor_defaults(field_rules.normalize_cylinder_fields(dict(entry)))
     errors: list[str] = []
     warnings: list[str] = []
     requirements = field_rules.entry_type_requirements(entry)
