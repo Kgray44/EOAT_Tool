@@ -326,20 +326,329 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `python -m pytest -q tests/test_ui_smoke.py`
   - Result: 6 passed.
 
-## Final Verification And Handoff Notes
+## Phase 24 - Final Verification And Report
 
-- Worktree used for all implementation after the copy step:
-  - Sibling Git worktree copy named `EOAT_Command_Center_Overnight_Copy`.
-- Branch:
-  - `feature/full-overnight-expansion`
-- Checkpoint commits created:
-  - One stable checkpoint commit has been created for each completed phase through Phase 23. Use `git log --oneline` for exact commit hashes.
-- Final smoke verification:
-  - `python -m pytest -q tests/test_ui_smoke.py`
-  - Result: 6 passed.
-- Final repo safety verification:
-  - `python scripts\repo_safety_audit.py --root .`
-  - Result: no blocking or warning findings.
-- The broad full-suite pytest run was attempted during baseline and timed out in this network worktree environment; focused phase tests were used for each checkpoint instead.
-- Git recorded each commit successfully, but after commits Git repeatedly reported an automatic geometric repack permission warning against the shared original `.git` object store. Working-tree status was clean after commits.
-- No real project data, real workbooks, generated private reports, logs, caches, real photos, or local config files were intentionally added to commits.
+### Repository And Copy
+
+- Copied project path: `../EOAT_Command_Center_Overnight_Copy` relative to the original project parent.
+- Exact absolute UNC paths are intentionally omitted from this committed report to avoid storing internal network paths in the repository.
+- Branch name: `feature/full-overnight-expansion`.
+- Commit hash before overnight implementation work: `594f81e`.
+- Commit hash before Phase 24 final verification: `c9c015165bdaafad974a2b1029f5d69b3a33d1ba`.
+- Original project confirmation: all implementation, verification, report edits, staging, and commits were performed in the copied worktree. A read-only status check of the original worktree showed pre-existing unrelated uncommitted changes; Phase 24 did not write to the original project folder.
+
+### Phases Attempted
+
+- Attempted phases: 0 through 24.
+- Completed implementation checkpoints: 0 through 23.
+- Completed final verification/report checkpoint: Phase 24, with the test-suite timeout and missing Ruff module recorded below.
+
+### Phases Completed
+
+- Phase 0: Baseline and duplicate verification.
+- Phase 1: Audit field registry foundation.
+- Phase 2: Completion policy engine.
+- Phase 3: Cylinder field support.
+- Phase 4: Manual completion override.
+- Phase 5: Settings overhaul foundation.
+- Phase 6: Audit defaults and smart rules.
+- Phase 7: Guided Audit Mode and save preview.
+- Phase 8: Machine 360 page and context.
+- Phase 9: ProjectDataService and relationship service.
+- Phase 10: Workbook Truth Engine.
+- Phase 11: PM Due engine.
+- Phase 12: Photo Evidence Board.
+- Phase 13: Standardization Opportunity Finder and BOM/spares engine.
+- Phase 14: Compatibility Matrix 2.0.
+- Phase 15: Risk heat map and bad actor detector.
+- Phase 16: Evidence-driven FMEA and pilot ROI/scoring.
+- Phase 17: KPI truth labels.
+- Phase 18: Work Instruction Builder and EOAT Change Validation.
+- Phase 19: Data Import Wizard and QR Labels.
+- Phase 20: What Changed Timeline, App Health Doctor, Search Upgrade, and Performance Doctor.
+- Phase 21: Command Palette, Feature Registry, Dashboard Routes, and Event Bus.
+- Phase 22: Release safety and CI.
+- Phase 23: Final Handoff improvements.
+
+### Phases Partially Completed
+
+- Phase 24 full-suite verification is partially complete because `python -m pytest` timed out after about 45 minutes without returning a pass/fail summary.
+- Ruff verification was skipped locally because the active Python environment does not have the `ruff` module installed.
+- Data Import UI remains a safe local-first wizard/stub around dry-run and confirmed local staging. It does not import real production data automatically.
+- QR label image/PDF richness depends on optional local dependencies; the implemented fallback writes minimal printable SVG/Markdown outputs without private operational details.
+- Workbook repair actions that can alter real workbook content remain preview/confirmation driven. No destructive workbook repair was run automatically.
+
+### Files Changed
+
+Files changed from the pre-work commit `594f81e` through the Phase 23 checkpoint:
+
+```text
+.github/workflows/ci.yml
+app/command_registry.py
+app/dashboard_ui.py
+app/event_bus.py
+app/feature_registry.py
+app/page_registry.py
+app/pages/app_health.py
+app/pages/audit.py
+app/pages/audit_defaults_controller.py
+app/pages/bom_spares.py
+app/pages/compatibility_matrix.py
+app/pages/data_import.py
+app/pages/fmea.py
+app/pages/kpi_dashboard.py
+app/pages/machine_360.py
+app/pages/performance.py
+app/pages/photos.py
+app/pages/pilot_candidates.py
+app/pages/pm_checklists.py
+app/pages/qr_labels.py
+app/pages/settings.py
+app/pages/workbook_health.py
+app/search_routes.py
+app/settings_page/__init__.py
+app/settings_page/advanced_section.py
+app/settings_page/audit_defaults_section.py
+app/settings_page/backups_section.py
+app/settings_page/external_tools_section.py
+app/settings_page/models.py
+app/settings_page/page.py
+app/settings_page/project_section.py
+app/settings_page/scheduled_reports_section.py
+app/settings_page/smart_rules_section.py
+app/settings_page/ui_preferences_section.py
+app/settings_page/widgets.py
+app/widgets/command_palette.py
+app/widgets/status_card.py
+core/app_health.py
+core/audit/coach.py
+core/audit/completion.py
+core/audit/default_rules.py
+core/audit/diff.py
+core/audit/guided.py
+core/audit/relationships.py
+core/audit/schema.py
+core/audit/smart_rules.py
+core/audit_completion.py
+core/audit_entries.py
+core/audit_field_registry.py
+core/audit_field_rules.py
+core/audit_progress.py
+core/bad_actor_detector.py
+core/bom_standardization.py
+core/change_validation.py
+core/compatibility_health.py
+core/compatibility_matrix.py
+core/config.py
+core/config_migration.py
+core/data_import.py
+core/final_handoff.py
+core/final_handoff_readiness.py
+core/fmea_analysis.py
+core/fmea_suggestions.py
+core/kpi_analysis.py
+core/machine_360.py
+core/paths.py
+core/performance.py
+core/photo_evidence.py
+core/photo_evidence_rules.py
+core/photo_indexing.py
+core/pilot_roi.py
+core/pilot_scoring.py
+core/pm_due.py
+core/press_view.py
+core/project_data_service.py
+core/qr_labels.py
+core/reports.py
+core/risk_heatmap.py
+core/risk_insights.py
+core/search_index.py
+core/settings_schema.py
+core/settings_validation.py
+core/standardization.py
+core/timeline.py
+core/validation.py
+core/validation_findings.py
+core/weekly_summary.py
+core/work_instruction_builder.py
+core/workbook_repairs.py
+core/workbook_truth.py
+data_templates/part_aliases.example.json
+docs/architecture_notes.md
+docs/feature_expansion_plan.md
+docs/final_handoff_outputs.md
+docs/overnight_baseline_report.md
+docs/overnight_implementation_report.md
+docs/testing_strategy.md
+examples/demo_project/02_KPI_Data/README.md
+examples/demo_project/03_Standards/README.md
+examples/demo_project/04_FMEA/README.md
+examples/demo_project/05_Pilot_Project/README.md
+examples/demo_project/06_Final_Handoff/README.md
+pyproject.toml
+scripts/ci_smoke_check.py
+tests/__init__.py
+tests/app/__init__.py
+tests/app/test_event_bus.py
+tests/app/test_feature_registry.py
+tests/app/test_search_routes.py
+tests/core/audit/test_completion.py
+tests/core/audit/test_diff.py
+tests/core/audit/test_guided.py
+tests/core/audit/test_relationships.py
+tests/core/audit/test_schema.py
+tests/core/test_app_health.py
+tests/core/test_bad_actor_detector.py
+tests/core/test_change_validation.py
+tests/core/test_compatibility_matrix.py
+tests/core/test_data_import.py
+tests/core/test_fmea_suggestions.py
+tests/core/test_machine_360.py
+tests/core/test_performance_doctor.py
+tests/core/test_photo_evidence_rules.py
+tests/core/test_pilot_roi.py
+tests/core/test_pilot_scoring.py
+tests/core/test_pm_due.py
+tests/core/test_project_data_service.py
+tests/core/test_qr_labels.py
+tests/core/test_risk_heatmap.py
+tests/core/test_search_index.py
+tests/core/test_standardization.py
+tests/core/test_timeline.py
+tests/core/test_work_instruction_builder.py
+tests/core/test_workbook_truth_engine.py
+tests/test_audit_coach.py
+tests/test_audit_default_rules.py
+tests/test_audit_entries.py
+tests/test_audit_field_registry.py
+tests/test_ci_smoke_check.py
+tests/test_command_registry.py
+tests/test_compatibility_matrix.py
+tests/test_final_handoff.py
+tests/test_final_handoff_readiness.py
+tests/test_kpi_analysis.py
+tests/test_pilot_scoring.py
+tests/test_pm_due.py
+tests/test_project_data_service.py
+tests/test_settings_config.py
+tests/test_smart_default_rules.py
+tests/test_weekly_summary.py
+tests/ui/test_audit_entry_workflow.py
+tests/ui/test_audit_lookup.py
+tests/ui/test_guided_audit_workflow.py
+tests/ui/test_machine_360_page.py
+tests/ui/test_settings_workflow.py
+```
+
+Phase 24 additionally updates this report file with final verification results.
+
+### Migrations Added
+
+- Config schema migration to `config_schema_version = 2` via `core/config_migration.py`, `core/settings_schema.py`, and `core/settings_validation.py`.
+- Scheduled reports, backups, UI preference, audit-default, and smart-rule config defaults with preservation of existing and unknown config keys where possible.
+- Safe workbook schema repair/migration support for added audit headers including cylinder fields and manual override metadata.
+- Workbook Truth Engine and repair preview plumbing for missing headers, legacy rows, stale hidden values, and safe optional header creation.
+- Demo project folder placeholders for release/demo validation without adding real operational workbook data.
+
+### Tests Added
+
+```text
+tests/app/test_event_bus.py
+tests/app/test_feature_registry.py
+tests/app/test_search_routes.py
+tests/core/audit/test_completion.py
+tests/core/audit/test_diff.py
+tests/core/audit/test_guided.py
+tests/core/audit/test_relationships.py
+tests/core/audit/test_schema.py
+tests/core/test_app_health.py
+tests/core/test_bad_actor_detector.py
+tests/core/test_change_validation.py
+tests/core/test_compatibility_matrix.py
+tests/core/test_data_import.py
+tests/core/test_fmea_suggestions.py
+tests/core/test_machine_360.py
+tests/core/test_performance_doctor.py
+tests/core/test_photo_evidence_rules.py
+tests/core/test_pilot_roi.py
+tests/core/test_pilot_scoring.py
+tests/core/test_pm_due.py
+tests/core/test_project_data_service.py
+tests/core/test_qr_labels.py
+tests/core/test_risk_heatmap.py
+tests/core/test_search_index.py
+tests/core/test_standardization.py
+tests/core/test_timeline.py
+tests/core/test_work_instruction_builder.py
+tests/core/test_workbook_truth_engine.py
+tests/test_audit_default_rules.py
+tests/test_ci_smoke_check.py
+tests/test_smart_default_rules.py
+```
+
+Existing UI/core tests were also extended for audit entry, audit lookup, guided audit, Machine 360, settings, KPI, PM due, final handoff, weekly summary, command registry, and project data service coverage.
+
+### Tests Run And Results
+
+- `python -m pytest`
+  - Result: timed out after about 45 minutes.
+  - Exit code: 124.
+  - No final pass/fail pytest summary was returned before timeout.
+- `python scripts/repo_safety_audit.py --root .`
+  - Result: passed.
+  - Summary: no blocking or warning findings.
+- `python -m ruff check .`
+  - Result: not run to completion because Ruff is unavailable in this Python environment.
+  - Output: `No module named ruff`.
+- `python run_dashboard.py` with `EOAT_COMMAND_CENTER_SMOKE_TEST=1`
+  - Result: passed.
+  - Exit code: 0.
+  - Notes: the app launched and quit through its built-in smoke-test timer. The launch generated demo open-item snapshot/cache churn, which was restored or removed before this report update.
+- Phase-focused test results are listed in each checkpoint section above. The latest broad collection run before Phase 24 collected 683 tests.
+
+### Safety Audit Result
+
+- Final Phase 24 repo safety audit passed with no blocking or warning findings.
+- Staged safety audits also passed before prior checkpoint commits.
+- No real workbooks, real plant data, real photos, generated private reports, local config files, caches, logs, or backups were intentionally committed.
+
+### Ruff Result
+
+- Ruff is configured in `pyproject.toml` and CI runs it when available.
+- Local Phase 24 Ruff command could not run because the active Python environment does not have Ruff installed.
+
+### Smoke Test Result
+
+- `python run_dashboard.py` was smoke-launched safely using `EOAT_COMMAND_CENTER_SMOKE_TEST=1`.
+- The command exited successfully with code 0.
+
+### Known Issues
+
+- Full `python -m pytest` remains too slow for this shared/network worktree execution window and timed out during final verification.
+- Git commits succeeded, but Git repeatedly reported automatic geometric repack permission warnings against the shared `.git` object store after commits.
+- The original worktree has pre-existing uncommitted changes from before or outside this Phase 24 work. This copied worktree remains the only implementation target.
+- Some optional outputs are dependency-dependent, such as richer QR image/PDF generation when optional QR packages are unavailable.
+- Real workbook migrations and repairs require operator preview/confirmation before applying to production workbooks.
+
+### Skipped Items And Why
+
+- Exact absolute UNC paths were not committed in this report because the project safety rules prohibit committing internal paths.
+- Ruff lint could not be executed locally because Ruff is not installed in the active environment.
+- Destructive or high-impact workbook repairs were not run because the roadmap requires migrations, backups, and explicit confirmation for workbook-writing actions.
+- Cloud integrations were not added because the app must remain local-first.
+- Real operational data imports were not performed because no real production data should be committed or modified during this sprint.
+
+### Manual Follow-Up Needed
+
+- Run `python -m pytest` in CI or a local environment with a longer timeout to obtain a complete full-suite pass/fail result.
+- Install Ruff in the local environment, or rely on CI, then run `python -m ruff check .`.
+- Review and resolve the original worktree's pre-existing uncommitted changes separately from this copied worktree.
+- Preview workbook migrations/repairs against backed-up real workbooks before applying any schema changes.
+- Review the generated final handoff package on a sanitized project and confirm which optional outputs should be promoted for production use.
+
+### Final Confirmation
+
+- The app still smoke-launches.
+- Existing focused core/UI workflows passed in checkpoint verification.
+- The final safety audit passed.
+- Implementation work was performed and committed in the copied worktree, not the original project folder.
