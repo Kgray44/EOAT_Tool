@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "description": "Example local alias map for standardizing EOAT component names before BOM/spare-parts review.",
+  "aliases": {
+    "Gripper Model": {
+      "Large Double Gripper": "MHZL2-16D",
+      "Small Double Gripper": "MHZL2-10S"
+    }
+  }
+}

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-import time
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from .analysis_common import table_from_counts, table_from_rows, write_timestamped_csv, write_timestamped_report
 from .audit_entries import repair_legacy_audit_lookup_shift
 from .gripper_fields import CUP_COUNT_FIELD
-from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
-from .safe_files import ensure_directory
+from .standardization import generate_standardization_report
 from .workbook_io import row_dicts
 
 
@@ -108,86 +105,5 @@ def analyze_bom_standardization(project_root: str | Path) -> tuple[dict[str, Any
     return {"rows": rows, "counts": counts, "missing_rows": missing_rows, "opportunities": opportunities}, warnings, details
 
 
-def _markdown(data: dict[str, Any], warnings: list[str]) -> str:
-    rows = data["rows"]
-    counts = data["counts"]
-    missing_rows = data["missing_rows"]
-    opportunities = data["opportunities"]
-    lines = [
-        "# BOM and Spare Parts Standardization Report",
-        "",
-        "## Executive Summary",
-        f"- EOAT records scanned: {len(rows)}",
-        f"- EOATs missing BOM/spare/documentation fields: {len(missing_rows)}",
-    ]
-    if warnings:
-        lines.extend(f"- Warning: {warning}" for warning in warnings)
-    lines.extend(["", "## Common Vacuum Cup Information"])
-    lines.extend(table_from_counts(counts.get("vacuum cup counts", {}), CUP_COUNT_FIELD))
-    lines.extend(["", "### Cup Materials"])
-    lines.extend(table_from_counts(counts.get("vacuum cup materials", {}), "Cup Type/Material"))
-    lines.extend(["", "### Cup Sizes"])
-    lines.extend(table_from_counts(counts.get("vacuum cup sizes", {}), "Cup Diameter/Size"))
-    lines.extend(["", "## Common Sensor Information"])
-    lines.extend(table_from_counts(counts.get("sensor types", {}), "Sensor Type"))
-    lines.extend(["", "### Sensor Brands/Models"])
-    lines.extend(table_from_counts(counts.get("sensor brands/models", {}), "Sensor Brand/Model"))
-    lines.extend(["", "## Common Quick Disconnect Information"])
-    lines.extend(table_from_counts(counts.get("quick disconnects", {}), "Pneumatic Quick Disconnect Type"))
-    lines.extend(["", "## Common Gripper/Vacuum Generator Information"])
-    lines.extend(table_from_counts(counts.get("gripper types", {}), "Gripper Type"))
-    lines.extend(["", "### Vacuum Generators"])
-    lines.extend(table_from_counts(counts.get("vacuum generator types", {}), "Vacuum Generator Type"))
-    lines.extend(["", "## Missing BOM and Spare Parts Data"])
-    lines.extend(table_from_rows(missing_rows[:25], ["Audit ID", "Press/Machine #", "EOAT Type", "Missing Field Count", "Missing Fields"]))
-    lines.extend(["", "## Standardization Opportunities"])
-    lines.extend(f"- {item}" for item in opportunities)
-    lines.extend(
-        [
-            "",
-            "## Recommended Follow-Up Actions",
-            "- Confirm missing BOM/CAD/process binder status for high-priority EOATs.",
-            "- Record actual manufacturer part numbers only after verifying the physical component or approved documentation.",
-            "- Group common cups, sensors, quick disconnects, and gripper components for mentor review.",
-        ]
-    )
-    return "\n".join(lines) + "\n"
-
-
 def generate_bom_standardization_report(project_root: str | Path) -> ToolResult:
-    start = time.perf_counter()
-    paths = resolve_project_paths(project_root)
-    ensure_directory(paths.bom_standardization_reports)
-    data, warnings, details = analyze_bom_standardization(project_root)
-    markdown = _markdown(data, warnings)
-    report = write_timestamped_report(paths.bom_standardization_reports, "BOM_Standardization_Report", markdown)
-    files_created = [str(report)]
-    if data["rows"]:
-        common_rows: list[dict[str, Any]] = []
-        for label, values in data["counts"].items():
-            for value, count in values.items():
-                common_rows.append({"Category": label, "Value": value, "Count": count})
-        if common_rows:
-            files_created.append(str(write_timestamped_csv(paths.bom_standardization_reports, "Common_Parts_Summary", common_rows)))
-        if data["missing_rows"]:
-            files_created.append(str(write_timestamped_csv(paths.bom_standardization_reports, "Missing_BOM_Data", data["missing_rows"])))
-
-    result = ToolResult.ok(
-        TOOL_ID,
-        TOOL_NAME,
-        "Generated BOM/spare parts standardization report.",
-        details=details,
-        warnings=warnings,
-        files_created=files_created,
-        output_reports=files_created,
-        metrics={
-            "inventory_rows": len(data["rows"]),
-            "missing_data_rows": len(data["missing_rows"]),
-            "opportunity_count": len(data["opportunities"]),
-        },
-        duration_seconds=time.perf_counter() - start,
-    )
-    warning = log_tool_run(result, project_root)
-    if warning:
-        result.warnings.append(warning)
-    return result
+    return generate_standardization_report(project_root)
