@@ -270,7 +270,12 @@ def generate_standardization_report(project_root: str | Path, *, alias_path: str
         "Standardization_Opportunities_Report",
         build_standardization_report_markdown(analysis),
     )
-    files_created = [str(report)]
+    legacy_report = write_timestamped_report(
+        paths.bom_standardization_reports,
+        "BOM_Standardization_Report",
+        build_standardization_report_markdown(analysis),
+    )
+    files_created = [str(report), str(legacy_report)]
     csv_outputs = [
         ("Component_Frequency_Table", analysis.component_frequency_table),
         ("Unknown_Missing_Part_Number_Table", analysis.unknown_missing_part_number_table),

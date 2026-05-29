@@ -15,7 +15,7 @@ from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.fmea_analysis import analyze_fmea, generate_fmea_report
-from core.fmea_suggestions import accept_fmea_suggestions, export_fmea_suggestion_draft, reject_fmea_suggestions
+from core.fmea_suggestions import accept_fmea_suggestions, export_fmea_evidence_report, reject_fmea_suggestions
 from core.openers import open_path
 from core.paths import resolve_project_paths
 
@@ -41,7 +41,7 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
             ("Accept Selected", self.accept_selected_suggestions),
             ("Edit Before Accepting", self.edit_before_accepting),
             ("Reject Selected", self.reject_selected_suggestions),
-            ("Export Draft", self.export_suggestion_draft),
+            ("Export Evidence Report", self.export_suggestion_draft),
         ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
@@ -137,6 +137,8 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
         columns = [
             "Accept",
             "Failure Mode",
+            "Confidence",
+            "Calculated RPN",
             "Evidence",
             "Suggested Severity",
             "Suggested Frequency",
@@ -171,6 +173,8 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
         columns = [
             "Accept",
             "Failure Mode",
+            "Confidence",
+            "Calculated RPN",
             "Evidence",
             "Suggested Severity",
             "Suggested Frequency",
@@ -210,7 +214,7 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
 
     def export_suggestion_draft(self) -> None:
         rows = self._selected_suggestion_rows() or [dict(self.suggest_table.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}) for row in range(self.suggest_table.rowCount())]
-        result = export_fmea_suggestion_draft(self.config.project_root, rows)
+        result = export_fmea_evidence_report(self.config.project_root, rows)
         self.result_panel.show_result(result)
         if result.output_reports:
             self.preview.load_report_file(result.output_reports[0])

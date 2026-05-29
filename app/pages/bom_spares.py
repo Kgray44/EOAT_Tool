@@ -43,9 +43,11 @@ class BomSparesPage(QWidget):
         left_layout = QVBoxLayout(left)
         left_layout.addWidget(QLabel("Component Frequency"))
         self.frequency_table = QTableWidget()
+        self.common_table = self.frequency_table
         left_layout.addWidget(self.frequency_table)
         left_layout.addWidget(QLabel("Unknown / Missing Part Numbers"))
         self.unknown_table = QTableWidget()
+        self.missing_table = self.unknown_table
         left_layout.addWidget(self.unknown_table)
         splitter.addWidget(left)
 
