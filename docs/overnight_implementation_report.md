@@ -191,6 +191,17 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `python scripts/repo_safety_audit.py --root .`
   - Result: no blocking or warning findings.
 
+## Checkpoint 17 - KPI Truth Labels
+
+- Added `KpiTruthLabel` metadata in `core/kpi_analysis.py` for KPI metric source type, date range, record count, confidence, missing-data warning, and source breakdown.
+- KPI source labels now distinguish actual measured data, audit-observed data, estimated/subjective data, and missing data.
+- Updated the KPI Dashboard cards to keep their numeric values while showing per-card truth details for source, date range, record count, confidence, and missing data.
+- Updated KPI by-press output and Markdown reports with source type, date range, record count, confidence, and missing-data warnings.
+- Added tests for measured versus estimated classification, missing-data warnings, and report confidence sections.
+- Focused verification:
+  - `python -m pytest tests/test_kpi_analysis.py tests/ui/test_analysis_workflows.py::test_kpi_dashboard_cards_and_report`
+  - Result: 6 passed.
+
 ## Final Verification And Handoff Notes
 
 - Worktree used for all implementation after the copy step:
