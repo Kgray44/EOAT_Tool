@@ -26,6 +26,7 @@ Tracked deliverables:
 - Open Items Carryover
 - Executive Summary
 - Technical Appendix
+- Machine Summary Report
 
 ## Exports
 
@@ -36,6 +37,8 @@ Technical appendix exports create `Technical_Appendix_YYYYMMDD_HHMM.md` under `0
 Open items carryover exports create `Open_Items_Carryover_YYYYMMDD_HHMM.md` under `06_Final_Handoff/Open_Items_Carryover` unless the package builder supplies a package folder. The package copy uses `Open_Items_Carryover.md`.
 
 Readiness checklist exports create `Deliverable_Readiness_YYYYMMDD_HHMM.md` under `06_Final_Handoff/Deliverable_Readiness` unless the package builder supplies a package folder. The package copy uses `Deliverable_Readiness.md`.
+
+Machine summary exports create `Machine_Summary_Report_YYYYMMDD_HHMM.md` under `06_Final_Handoff/Machine_Summaries` unless the package builder supplies a package folder. The package copy uses `Machine_Summary_Report.md` under `Machine_Summaries/`.
 
 ## Package Structure
 
@@ -51,6 +54,7 @@ Required root files:
 - `Technical_Appendix.md`
 - `Open_Items_Carryover.md`
 - `Deliverable_Readiness.md`
+- `Machine_Summaries/Machine_Summary_Report.md`
 - `HANDOFF_INDEX.md`
 
 Required evidence folders:
@@ -62,7 +66,9 @@ Required evidence folders:
 - `Standards/`
 - `Validation/`
 
-The builder may also include supporting folders such as `EOAT_Database/`, `Training_Materials/`, `Presentation/`, `Executive_Backup/`, and `Reference/` when source files exist.
+The builder may also include supporting folders such as `EOAT_Database/`, `Training_Materials/`, `Presentation/`, `Executive_Backup/`, `Machine_Summaries/`, `Photo_Evidence/`, and `Reference/` when source files exist.
+
+`HANDOFF_INDEX.md` includes a link map for the final master tracker, Robot Info workbook, FMEA, KPI dashboard, PM checklist package, BOM/spares report, standard design guidelines, work instructions, pilot report, training materials, photos/evidence, open issues, recommendations, and machine summary report. Missing items stay marked as missing or needs review; the index does not certify absent evidence as complete.
 
 ## Safety Rules
 

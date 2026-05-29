@@ -309,6 +309,23 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `git diff --check`
   - Result: clean except expected LF-to-CRLF warnings in the network worktree.
 
+## Checkpoint 23 - Final Handoff Improvements
+
+- Expanded the final handoff index with a Handoff Link Map for final master tracker, Robot Info workbook, FMEA, KPI dashboard, PM checklist package, BOM/spares report, standard design guidelines, work instructions, pilot report, training materials, photos/evidence, open issues, recommendations, and machine summary report.
+- Added explicit truth/evidence labels to the handoff index so missing evidence stays missing and estimated or subjective KPI/pilot data is not presented as verified impact.
+- Added Robot Info, standard guideline drafts, BOM/spares reports, work instructions, machine summaries, and photo evidence as separate handoff source categories where available.
+- Added a project-level Machine Summary Report export that uses Machine 360 context from actual local workbook/project data and labels compatibility, KPI, photo evidence, and recommendations honestly.
+- Generated final handoff packages now include `Machine_Summaries/Machine_Summary_Report.md`.
+- Improved the leadership summary with machine-summary handoff guidance and improved the weekly summary with a weekly engineering brief section and source/confidence notes.
+- Updated `docs/final_handoff_outputs.md` for the new machine summary report and link-map behavior.
+- Focused verification:
+  - `python -m pytest tests/test_final_handoff.py tests/test_final_handoff_readiness.py tests/test_weekly_summary.py tests/core/test_machine_360.py tests/ui/test_final_handoff_workflow.py tests/ui/test_reports_workflow.py`
+  - Result: 19 passed.
+  - `python -m pytest tests/test_paths.py tests/test_final_handoff.py tests/test_final_handoff_readiness.py tests/test_weekly_summary.py tests/ui/test_final_handoff_workflow.py tests/ui/test_reports_workflow.py`
+  - Result: 17 passed.
+  - `python -m pytest -q tests/test_ui_smoke.py`
+  - Result: 6 passed.
+
 ## Final Verification And Handoff Notes
 
 - Worktree used for all implementation after the copy step:
@@ -316,7 +333,7 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Branch:
   - `feature/full-overnight-expansion`
 - Checkpoint commits created:
-  - One stable checkpoint commit has been created for each completed phase through Phase 22. Use `git log --oneline` for exact commit hashes.
+  - One stable checkpoint commit has been created for each completed phase through Phase 23. Use `git log --oneline` for exact commit hashes.
 - Final smoke verification:
   - `python -m pytest -q tests/test_ui_smoke.py`
   - Result: 6 passed.

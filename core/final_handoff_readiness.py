@@ -12,6 +12,7 @@ from .kpi_analysis import analyze_kpis
 from .logging import log_tool_run
 from .open_items import OpenItem, list_open_items, open_items_summary
 from .paths import resolve_project_paths
+from .project_data_service import ProjectDataService
 from .photo_evidence import evidence_coverage_for_project
 from .reports import list_recent_files
 from .result import ToolResult
@@ -90,6 +91,10 @@ def deliverable_readiness_dir(project_root: str | Path) -> Path:
     return resolve_project_paths(project_root).final_handoff / "Deliverable_Readiness"
 
 
+def machine_summary_dir(project_root: str | Path) -> Path:
+    return resolve_project_paths(project_root).machine_summaries
+
+
 def build_final_handoff_readiness(project_root: str | Path) -> FinalHandoffReadinessSummary:
     paths = resolve_project_paths(project_root)
     inventory, _inventory_warning = safe_rows(project_root, "EOAT Inventory")
@@ -108,6 +113,7 @@ def build_final_handoff_readiness(project_root: str | Path) -> FinalHandoffReadi
         _open_items_carryover(project_root, open_items),
         _executive_summary(project_root),
         _technical_appendix(project_root),
+        _machine_summary_report(project_root),
     )
     metrics = {
         READY: sum(1 for item in deliverables if item.status == READY),
@@ -164,7 +170,76 @@ def build_leadership_summary_markdown(project_root: str | Path) -> str:
         "- Review unresolved open items and decide ownership after handoff.",
         "- Confirm KPI/pilot evidence before claiming measurable impact.",
         "- Keep FMEA, PM, BOM, and standards outputs tied to verified source evidence.",
+        "- Use machine summaries for cell-level handoff context, but leave missing evidence marked as missing.",
     ]
+    return "\n".join(lines) + "\n"
+
+
+def build_machine_summary_report_markdown(project_root: str | Path) -> str:
+    service = ProjectDataService(project_root)
+    machines = service.list_machines()
+    rows: list[dict[str, Any]] = []
+    recommendations: list[str] = []
+    warnings: list[str] = []
+    for machine in machines:
+        context = service.get_machine_360(machine)
+        rows.append(
+            {
+                "Machine": context.display_name,
+                "Physical Audits": context.metrics.get("physical_audit_count", 0),
+                "Compatible Rows": context.metrics.get("compatible_entry_count", 0),
+                "Open Items": context.metrics.get("open_item_count", 0),
+                "Missing Evidence": context.metrics.get("missing_required_photo_evidence", 0),
+                "KPI Rows": context.kpi_signals.get("rows", 0),
+                "Highest RPN": context.risk_fmea.get("highest_rpn", 0),
+                "PM Due": context.pm_status.get("due_now", 0),
+                "Recommended Action": "; ".join(context.recommended_actions[:2]),
+            }
+        )
+        recommendations.extend(f"{context.display_name}: {action}" for action in context.recommended_actions[:2])
+        warnings.extend(f"{context.display_name}: {warning}" for warning in context.warnings[:2])
+    lines = [
+        "# Machine Summary Report",
+        "",
+        "## Scope",
+        f"- Machines found from EOAT Inventory: {len(machines)}",
+        "- Source type: local workbook/project evidence only.",
+        "- No KPI impact, financial value, or pilot result is claimed unless source evidence exists.",
+        "",
+        "## Source And Confidence Labels",
+        "- Physical audit counts are audit-observed workbook data.",
+        "- Compatibility counts are workbook-derived rows and do not count as physical verification.",
+        "- KPI rows are source-labeled in KPI reports; missing KPI rows remain missing here.",
+        "- Missing photo evidence remains listed as missing and is not treated as complete.",
+        "- Recommended actions are generated from available evidence and should be reviewed by the project owner.",
+        "",
+        "## Machine Summary",
+        *table_from_rows(
+            rows,
+            [
+                "Machine",
+                "Physical Audits",
+                "Compatible Rows",
+                "Open Items",
+                "Missing Evidence",
+                "KPI Rows",
+                "Highest RPN",
+                "PM Due",
+                "Recommended Action",
+            ],
+        ),
+        "",
+        "## Recommendations",
+    ]
+    lines.extend(f"- {item}" for item in recommendations[:25])
+    if not recommendations:
+        lines.append("- No machine-specific recommendations were generated from current evidence.")
+    lines.extend(["", "## Missing Evidence And Warnings"])
+    lines.extend(f"- {item}" for item in warnings[:25])
+    if not warnings:
+        lines.append("- No machine data access warnings were reported.")
+    if not machines:
+        lines.extend(["", "## Missing Data", "- No machines were found in EOAT Inventory."])
     return "\n".join(lines) + "\n"
 
 
@@ -339,6 +414,18 @@ def export_deliverable_readiness(project_root: str | Path, output_dir: str | Pat
     )
 
 
+def export_machine_summary_report(project_root: str | Path, output_dir: str | Path | None = None, *, filename: str | None = None, log_activity: bool = True) -> ToolResult:
+    return _export_markdown(
+        project_root,
+        "machine_summary_report",
+        "Machine Summary Report",
+        build_machine_summary_report_markdown(project_root),
+        Path(output_dir) if output_dir else machine_summary_dir(project_root),
+        filename or ("Machine_Summary_Report.md" if output_dir else f"Machine_Summary_Report_{time.strftime('%Y%m%d_%H%M')}.md"),
+        log_activity,
+    )
+
+
 def _export_markdown(
     project_root: str | Path,
     tool_id: str,
@@ -481,6 +568,13 @@ def _technical_appendix(project_root: str | Path) -> FinalDeliverableReadiness:
     return FinalDeliverableReadiness("technical_appendix", "Technical Appendix", MISSING, recommended_action="Export technical appendix.")
 
 
+def _machine_summary_report(project_root: str | Path) -> FinalDeliverableReadiness:
+    files = _files(machine_summary_dir(project_root)) + _package_files(project_root, "Machine_Summary_Report.md")
+    if files:
+        return FinalDeliverableReadiness("machine_summary_report", "Machine Summary Report", READY, tuple(str(path) for path in files[:3]), recommended_action="Review machine-level recommendations before handoff.")
+    return FinalDeliverableReadiness("machine_summary_report", "Machine Summary Report", MISSING, recommended_action="Generate machine summary report.")
+
+
 def _safe_open_items(project_root: str | Path) -> list[OpenItem]:
     try:
         return list_open_items(project_root, include_validation=True)
@@ -610,13 +704,16 @@ __all__ = [
     "READY",
     "build_final_handoff_readiness",
     "build_leadership_summary_markdown",
+    "build_machine_summary_report_markdown",
     "build_open_items_carryover_markdown",
     "build_technical_appendix_markdown",
     "deliverable_readiness_dir",
     "export_deliverable_readiness",
     "export_leadership_summary",
+    "export_machine_summary_report",
     "export_open_items_carryover",
     "export_technical_appendix",
+    "machine_summary_dir",
     "open_items_carryover_dir",
     "technical_appendix_dir",
 ]

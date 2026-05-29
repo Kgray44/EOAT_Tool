@@ -33,8 +33,29 @@ def test_final_handoff_copies_files_and_creates_index(fake_project):
     assert (packages[-1] / "Technical_Appendix.md").exists()
     assert (packages[-1] / "Open_Items_Carryover.md").exists()
     assert (packages[-1] / "Deliverable_Readiness.md").exists()
+    assert (packages[-1] / "Machine_Summaries" / "Machine_Summary_Report.md").exists()
     for folder in ["FMEA", "KPI", "PM_Checklists", "Pilot_Candidates", "Standards", "Validation"]:
         assert (packages[-1] / folder).is_dir()
+    index = (packages[-1] / "HANDOFF_INDEX.md").read_text(encoding="utf-8")
+    for label in [
+        "Final master tracker",
+        "Robot Info workbook",
+        "FMEA",
+        "KPI dashboard",
+        "PM checklist package",
+        "BOM/spares report",
+        "Standard design guidelines",
+        "Work instructions",
+        "Pilot report",
+        "Training materials",
+        "Photos/evidence",
+        "Open issues",
+        "Recommendations",
+        "Machine summary report",
+    ]:
+        assert label in index
+    assert "Missing evidence remains listed as missing" in index
+    assert "No financial or performance impact is invented" in index
     assert source.exists()
 
 
