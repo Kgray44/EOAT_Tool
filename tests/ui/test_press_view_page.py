@@ -5,7 +5,6 @@ import pytest
 from app.pages.press_view import PressViewPage
 from tests.ui.helpers import table_text
 
-
 pytestmark = pytest.mark.usability
 
 

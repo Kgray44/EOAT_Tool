@@ -23,8 +23,8 @@ try:
 except ImportError:  # pragma: no cover
     QApplication = QCheckBox = QComboBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
-from app.widgets.tool_run_panel import ToolRunPanel
 from app.page_tasks import run_tool_background
+from app.widgets.tool_run_panel import ToolRunPanel
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.photo_evidence import (

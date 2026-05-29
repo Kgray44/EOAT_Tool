@@ -18,11 +18,11 @@ try:
 except ImportError:  # pragma: no cover
     QAbstractItemView = QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
+from app.event_bus import EVENT_WORKBOOK_VALIDATED, get_event_bus
+from app.page_tasks import run_tool_background
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from app.widgets.status_card import StatusCard
 from app.widgets.tool_run_panel import ToolRunPanel
-from app.page_tasks import run_tool_background
-from app.event_bus import EVENT_WORKBOOK_VALIDATED, get_event_bus
 from core.action_items import add_action_item
 from core.annotations.service import AnnotationService
 from core.audit_by_press import REFRESH_ACTION_NAME, refresh_audit_by_press_view_action
@@ -30,7 +30,12 @@ from core.audit_entries import repair_workbook_schema
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.validation import run_foundation_validation
-from core.validation_findings import ValidationFinding, ValidationSeverity, findings_from_result, repair_suggestions_from_findings
+from core.validation_findings import (
+    ValidationFinding,
+    ValidationSeverity,
+    findings_from_result,
+    repair_suggestions_from_findings,
+)
 from core.workbook_repairs import SAFE_FIX_IDS, apply_safe_fix, preview_safe_fix_action
 
 

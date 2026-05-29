@@ -7,7 +7,6 @@ from core.paths import resolve_project_paths
 from core.result import ToolResult
 from tests.ui.helpers import find_button, table_text
 
-
 pytestmark = pytest.mark.usability
 
 

@@ -5,6 +5,7 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from .audit.relationships import is_compatibility_row, source_audit_for_compatibility_row
 from .audit_compatibility import (
     _can_sync_compatibility_field,
     load_required_relationships,
@@ -13,7 +14,6 @@ from .audit_compatibility import (
     relationship_key,
     text_value,
 )
-from .audit.relationships import is_compatibility_row, source_audit_for_compatibility_row
 from .audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
     ENTRY_TYPE_AUDITED,

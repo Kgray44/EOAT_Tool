@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
-from core.project_data_service import ProjectDataService, build_machine_360_context
 from core.paths import resolve_project_paths
+from core.project_data_service import ProjectDataService, build_machine_360_context
 
 
 def test_project_data_service_lists_and_gets_audits(usability_fake_project):

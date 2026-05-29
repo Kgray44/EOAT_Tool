@@ -5,8 +5,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .audit.defaults import DEFAULT_AUDIT_DEFAULTS, DEFAULT_CONNECTION_DEFAULTS
 from .audit.default_rules import normalize_default_rules
+from .audit.defaults import DEFAULT_AUDIT_DEFAULTS, DEFAULT_CONNECTION_DEFAULTS
 from .audit.smart_rules import default_smart_default_rules
 from .config_migration import migrate_config_data
 from .constants import DEFAULT_CONFIG_PATH, DEFAULT_GIT_EXECUTABLE, DEFAULT_PROJECT_ROOT, LEGACY_CONFIG_PATH
@@ -43,7 +43,7 @@ class UserConfig:
     extra_config: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "UserConfig":
+    def from_dict(cls, data: dict[str, Any]) -> UserConfig:
         migrated = migrate_config_data(data)
         known_fields = set(cls.__dataclass_fields__)
         defaults = asdict(cls())

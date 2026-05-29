@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from .analysis_common import parse_score, table_from_rows, write_timestamped_report
 from .fmea_suggestions import build_fmea_suggestions
-from .issue_analysis import FMEA_CATEGORY_SUGGESTIONS
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult

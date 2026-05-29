@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .analysis_common import count_by, parse_score, table_from_counts, table_from_rows
+from .analysis_common import count_by, parse_score, table_from_rows
 from .paths import resolve_project_paths
 from .reports import list_recent_files
 from .safe_files import ensure_directory
@@ -168,9 +168,7 @@ def make_simple_docx(markdown_path: Path, markdown_text: str) -> Path | None:
             doc.add_heading(line[4:], level=3)
         elif line.startswith("- "):
             doc.add_paragraph(line[2:], style="List Bullet")
-        elif line.startswith("|"):
-            doc.add_paragraph(line)
-        elif line.strip():
+        elif line.startswith("|") or line.strip():
             doc.add_paragraph(line)
     output = markdown_path.with_suffix(".docx")
     doc.save(output)

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
-from typing import Any, Mapping
+from typing import Any
 
-from core.audit.schema import AuditFieldSpec, audit_sections, all_audit_fields, field_by_header
+from core.audit.schema import AuditFieldSpec, all_audit_fields, audit_sections, field_by_header
 from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_FIELDS,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
@@ -13,7 +15,6 @@ from core.audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
     SOURCE_AUDIT_ID_FIELD,
-    COMPATIBILITY_SOURCE_FIELD,
 )
 from core.audit_field_rules import (
     cylinder_optional_reason,

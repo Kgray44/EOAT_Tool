@@ -7,7 +7,6 @@ import pytest
 from app.pages.handoff import HandoffPage
 from tests.ui.helpers import click_button, table_text, wait_for_background_tasks
 
-
 pytestmark = pytest.mark.usability
 
 

@@ -10,9 +10,9 @@ try:
         QLineEdit,
         QMessageBox,
         QPushButton,
-        QTabWidget,
         QTableWidget,
         QTableWidgetItem,
+        QTabWidget,
         QVBoxLayout,
         QWidget,
     )

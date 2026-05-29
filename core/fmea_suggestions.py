@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from openpyxl import load_workbook
 

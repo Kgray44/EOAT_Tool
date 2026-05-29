@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import asdict, dataclass, field as dataclass_field
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
+from dataclasses import field as dataclass_field
 from datetime import date
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .annotations.database import annotation_database_path
 from .annotations.service import AnnotationService
@@ -13,7 +15,7 @@ from .audit_compatibility import machine_from_audit_row, normalize_entry_type, p
 from .gripper_fields import CUP_COUNT_FIELD
 from .open_items import list_open_items
 from .paths import resolve_project_paths
-from .reports import report_folders, read_report_preview
+from .reports import read_report_preview, report_folders
 from .tool_fields import TOOL_FIELD
 from .workbook_io import row_dicts
 

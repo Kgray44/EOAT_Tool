@@ -4,7 +4,6 @@ import hashlib
 import json
 from typing import Any
 
-
 TARGET_TYPES = {
     "audit",
     "audit_field",

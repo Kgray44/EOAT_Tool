@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
-from core.audit_compatibility import machine_from_audit_row, normalize_entry_type, normalize_machine_token, part_number_from_row, text_value
+from core.audit_compatibility import (
+    machine_from_audit_row,
+    normalize_entry_type,
+    normalize_machine_token,
+    part_number_from_row,
+    text_value,
+)
 from core.audit_constants import (
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
     ENTRY_TYPE_AUDITED,

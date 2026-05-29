@@ -5,13 +5,23 @@ import sqlite3
 import time
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote, urlparse
 
 from openpyxl import load_workbook
 
-from .compatibility_health import validate_compatibility_health
+from .audit.relationships import is_compatibility_row, is_physical_audit_row, source_audit_for_compatibility_row
 from .audit_by_press import AUDIT_BY_PRESS_SHEET, audit_by_press_last_refreshed
-from .constants import TOOLKIT_ROOT
+from .audit_constants import (
+    AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
+    COMPATIBILITY_SOURCE_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
+    CYLINDER_TYPE_VALUES,
+    ENTRY_TYPE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELDS,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from .audit_entries import (
     AUDIT_IMPORTANT_FIELDS,
     AUDIT_REQUIRED_FIELDS,
@@ -28,7 +38,6 @@ from .audit_entries import (
     audit_field_applies,
     is_na_value,
 )
-from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 from .audit_field_rules import (
     ELECTRICAL_DETAIL_FIELDS,
     ELECTRICAL_WIRING_PRESENT_FIELD,
@@ -38,21 +47,10 @@ from .audit_field_rules import (
     is_meaningful_value,
     semantic_consistency_warnings,
 )
-from .audit_constants import (
-    AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
-    COMPATIBILITY_SOURCE_FIELD,
-    CYLINDER_COUNT_FIELD,
-    CYLINDER_TYPE_FIELD,
-    CYLINDER_TYPE_VALUES,
-    ENTRY_TYPE_AUDITED,
-    ENTRY_TYPE_COMPATIBLE,
-    ENTRY_TYPE_FIELD,
-    MANUAL_COMPLETION_OVERRIDE_FIELD,
-    MANUAL_COMPLETION_OVERRIDE_FIELDS,
-    SOURCE_AUDIT_ID_FIELD,
-)
-from .audit.relationships import is_compatibility_row, is_physical_audit_row, source_audit_for_compatibility_row
+from .compatibility_health import validate_compatibility_health
+from .constants import TOOLKIT_ROOT
 from .git_activity import is_git_repo
+from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .photo_evidence import validate_photo_evidence
@@ -67,8 +65,8 @@ from .validation_findings import (
     make_finding,
     write_validation_json_report,
 )
-from .workbook_truth import analyze_truth_from_rows
 from .workbook_schema import get_expected_headers, get_expected_sheets, get_key_inventory_headers, load_workbook_schema
+from .workbook_truth import analyze_truth_from_rows
 
 MAJOR_AUDIT_COLUMNS = {
     "Audit ID",

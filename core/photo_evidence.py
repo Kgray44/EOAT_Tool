@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from openpyxl import load_workbook
 
@@ -16,7 +17,8 @@ from .photo_evidence_rules import all_photo_evidence_rules, photo_evidence_alias
 from .result import ToolResult
 from .safe_files import backup_file, ensure_directory, safe_write_text
 from .validation_findings import ValidationFinding, ValidationSeverity, make_finding
-from .workbook_cache import invalidate_workbook_cache, row_dicts_cached as row_dicts
+from .workbook_cache import invalidate_workbook_cache
+from .workbook_cache import row_dicts_cached as row_dicts
 from .workbook_io import worksheet_headers
 
 PHOTO_EVIDENCE_TOOL_NAME = "EOAT Photo Evidence Coverage"
@@ -536,9 +538,7 @@ def _photo_rows_for_audit(photo_rows: list[dict[str, Any]], row: dict[str, Any])
     for photo in photo_rows:
         related_audit = _text(photo.get("Related Audit ID")).casefold()
         photo_machine = _text(photo.get("Press/Machine #")).casefold()
-        if audit_id and related_audit == audit_id:
-            matches.append(photo)
-        elif machine and not related_audit and photo_machine == machine:
+        if audit_id and related_audit == audit_id or machine and not related_audit and photo_machine == machine:
             matches.append(photo)
     return matches
 

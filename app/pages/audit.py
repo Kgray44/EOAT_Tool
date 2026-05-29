@@ -34,20 +34,26 @@ except ImportError:  # pragma: no cover
     QIntValidator = None
     QApplication = QCheckBox = QComboBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QScrollArea = QSplitter = QStackedWidget = QTableWidget = QTableWidgetItem = QTabWidget = QTextEdit = QVBoxLayout = QWidget = None
 
-from app.page_tasks import run_tool_background
 from app.event_bus import EVENT_ANNOTATION_CHANGED, EVENT_AUDIT_SAVED, EVENT_OPEN_ITEMS_CHANGED, get_event_bus
-from app.task_runner import TaskRequest, get_task_manager
-from app.pages.audit_compatibility_panel import build_compatibility_tab
+from app.page_tasks import run_tool_background
+from app.pages.annotation_suggestions_dialog import AnnotationSuggestionsDialog
 from app.pages.audit_coach_panel import AuditCoachPanel
+from app.pages.audit_compatibility_panel import build_compatibility_tab
 from app.pages.audit_defaults_controller import AuditDefaultsController
 from app.pages.audit_save_workflow import insert_robot_info_summary, save_audit_with_side_effects
-from app.pages.annotation_suggestions_dialog import AnnotationSuggestionsDialog
+from app.task_runner import TaskRequest, get_task_manager
 from app.widgets.field_tag_button import FieldTagButton, FieldTagDialog
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.action_items import add_action_item
 from core.annotations.service import AnnotationService
 from core.annotations.tag_colors import TAG_COLOR_PALETTE, highest_priority_tag
 from core.annotations.targets import target_id_for
+from core.audit.coach import calculate_audit_coach_summary, unknown_not_checked_value_for_field
+from core.audit.compatibility_preview import CompatibilityImpactPreview, build_compatibility_impact_preview
+from core.audit.completion import calculate_audit_completion
+from core.audit.diff import build_audit_save_preview
+from core.audit.drafts import discard_audit_draft, form_values_changed, load_audit_draft, save_audit_draft
+from core.audit.guided import GuidedAuditStep, all_guided_audit_steps
 from core.audit_compatibility import (
     MASTER_MACHINE_FIELDS,
     build_compatibility_candidates,
@@ -86,14 +92,14 @@ from core.audit_entries import (
     load_audit_entry,
     part_present_sensor_value_allows_default,
 )
-from core.audit.compatibility_preview import CompatibilityImpactPreview, build_compatibility_impact_preview
-from core.audit.coach import calculate_audit_coach_summary, unknown_not_checked_value_for_field
-from core.audit.completion import calculate_audit_completion
-from core.audit.diff import build_audit_save_preview
-from core.audit.drafts import discard_audit_draft, form_values_changed, load_audit_draft, save_audit_draft
-from core.audit.guided import GuidedAuditStep, all_guided_audit_steps
-from core.audit_field_rules import PNEUMATIC_CIRCUIT_FIELDS, field_applies, manual_completion_override_enabled, non_applicable_reason
-from core.audit_field_registry import audit_section_groups as registry_audit_section_groups, audit_sections as registry_audit_sections
+from core.audit_field_registry import audit_section_groups as registry_audit_section_groups
+from core.audit_field_registry import audit_sections as registry_audit_sections
+from core.audit_field_rules import (
+    PNEUMATIC_CIRCUIT_FIELDS,
+    field_applies,
+    manual_completion_override_enabled,
+    non_applicable_reason,
+)
 from core.gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
@@ -478,9 +484,7 @@ class AuditPage(QWidget):
     def _connect_audit_coach_refresh(self, widget) -> None:
         if isinstance(widget, QComboBox):
             widget.currentTextChanged.connect(self._schedule_audit_coach_refresh)
-        elif isinstance(widget, QTextEdit):
-            widget.textChanged.connect(self._schedule_audit_coach_refresh)
-        elif isinstance(widget, QLineEdit):
+        elif isinstance(widget, QTextEdit) or isinstance(widget, QLineEdit):
             widget.textChanged.connect(self._schedule_audit_coach_refresh)
 
     def _schedule_audit_coach_refresh(self, *_args) -> None:

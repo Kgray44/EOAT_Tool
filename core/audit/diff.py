@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from core.audit.completion import UNKNOWN_NOT_CHECKED_VALUE
 from core.audit_field_rules import is_na_value, normalize_text

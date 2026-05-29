@@ -5,21 +5,31 @@ from pathlib import Path
 
 try:
     from PySide6.QtCore import QTimer, Signal
-    from PySide6.QtWidgets import QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import (
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QLabel,
+        QMessageBox,
+        QPushButton,
+        QScrollArea,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     QTimer = Signal = None
     QGridLayout = QGroupBox = QHBoxLayout = QLabel = QMessageBox = QPushButton = QScrollArea = QVBoxLayout = QWidget = None
 
-from app.widgets.file_picker import select_directory
 from app.event_bus import EVENT_AUDIT_SAVED
+from app.task_runner import TaskRequest, get_task_manager
+from app.ui_constants import PAGE_MARGIN, SECTION_SPACING
+from app.widgets.file_picker import select_directory
 from app.widgets.open_items_panel import OpenItemsPanel
 from app.widgets.status_card import StatusCard
-from app.task_runner import TaskRequest, get_task_manager
 from app.widgets.tool_run_panel import ToolRunPanel
 from app.widgets.workflow_card import WorkflowCard
-from app.ui_constants import PAGE_MARGIN, SECTION_SPACING
-from core.dashboard_cache import cached_snapshot_status, save_dashboard_cache
 from core.config import save_config
+from core.dashboard_cache import cached_snapshot_status, save_dashboard_cache
 from core.git_activity import get_git_status_short, is_git_repo
 from core.logging import read_recent_activity
 from core.openers import open_path

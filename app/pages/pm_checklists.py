@@ -18,9 +18,9 @@ try:
 except ImportError:  # pragma: no cover
     QAbstractItemView = QCheckBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
+from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
-from app.page_tasks import run_tool_background
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.pm_checklists import generate_pm_checklists

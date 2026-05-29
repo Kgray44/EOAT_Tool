@@ -14,10 +14,9 @@ from .git_activity import is_git_repo
 from .logging import log_tool_run, read_recent_activity
 from .paths import resolve_project_paths
 from .result import ToolResult
-from .safe_files import ensure_directory, safe_write_text
+from .safe_files import safe_write_text
 from .tool_registry import ToolRegistry
 from .validation import validate_project_foundation
-
 
 TOOL_ID = "system_audit"
 TOOL_NAME = "EOAT Command Center System Audit"

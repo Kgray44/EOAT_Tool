@@ -19,7 +19,6 @@ from core.audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
 )
 
-
 SECTIONS = {
     "Audit Header": [
         "Audit ID",

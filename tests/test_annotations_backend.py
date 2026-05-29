@@ -4,7 +4,12 @@ from datetime import date, timedelta
 
 from openpyxl import load_workbook
 
-from core.annotations.database import connect_annotation_database, current_schema_version, initialize_annotation_database, seed_default_tags
+from core.annotations.database import (
+    connect_annotation_database,
+    current_schema_version,
+    initialize_annotation_database,
+    seed_default_tags,
+)
 from core.annotations.migrations import LATEST_SCHEMA_VERSION
 from core.annotations.service import AnnotationService
 from core.annotations.tag_colors import DEFAULT_TAG_DEFINITIONS

@@ -5,7 +5,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .analysis_common import OPEN_STATUSES, parse_score, table_from_rows, write_timestamped_csv, write_timestamped_report
+from .analysis_common import (
+    OPEN_STATUSES,
+    parse_score,
+    table_from_rows,
+    write_timestamped_csv,
+    write_timestamped_report,
+)
 from .audit_compatibility import machine_from_audit_row, normalize_machine_token, text_value
 from .logging import log_tool_run
 from .paths import resolve_project_paths

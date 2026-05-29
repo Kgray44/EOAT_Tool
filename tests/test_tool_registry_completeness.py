@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from core.constants import TOOLKIT_ROOT
 from core.tool_registry import ToolRegistry
 

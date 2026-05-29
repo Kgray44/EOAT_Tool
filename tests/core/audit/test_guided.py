@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from core.audit.guided import all_guided_audit_steps, guided_applicability_preview, guided_step_fields, missing_section_form_fields
+from core.audit.guided import (
+    all_guided_audit_steps,
+    guided_applicability_preview,
+    guided_step_fields,
+    missing_section_form_fields,
+)
 from core.audit.schema import audit_sections
 from core.audit_field_rules import field_applies
 

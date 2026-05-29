@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from core.audit.defaults import UNKNOWN_NOT_CHECKED
 from core.audit_completion import CompletionPolicy, evaluate_completion, next_completion_actions
 from core.audit_constants import (
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
@@ -7,7 +8,6 @@ from core.audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
 )
-from core.audit.defaults import UNKNOWN_NOT_CHECKED
 
 
 def _entry(**overrides):

@@ -3,7 +3,12 @@ from __future__ import annotations
 from openpyxl import load_workbook
 
 from core.paths import resolve_project_paths
-from core.pilot_scoring import DEFAULT_PILOT_SCORE_WEIGHTS, generate_pilot_ranking_report, normalize_pilot_weights, rank_pilot_candidates
+from core.pilot_scoring import (
+    DEFAULT_PILOT_SCORE_WEIGHTS,
+    generate_pilot_ranking_report,
+    normalize_pilot_weights,
+    rank_pilot_candidates,
+)
 
 
 def _seed_inventory_candidate(fake_project, *, press: str = "Press 12") -> None:

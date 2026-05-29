@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 try:
-    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTabWidget, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import (
+        QGridLayout,
+        QHBoxLayout,
+        QLabel,
+        QPushButton,
+        QTableWidget,
+        QTabWidget,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTabWidget = QVBoxLayout = QWidget = None
 
-from app.pages.analysis_widgets import add_cards, counts_to_rows, populate_table
 from app.page_tasks import run_tool_background
+from app.pages.analysis_widgets import add_cards, counts_to_rows, populate_table
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.issue_analysis import analyze_issues, generate_issue_analysis_report

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import time
-from contextlib import contextmanager
 from collections import deque
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
 
 from .paths import resolve_project_paths
 from .project_root_status import project_data_mode

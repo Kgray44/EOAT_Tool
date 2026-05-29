@@ -27,7 +27,7 @@ class ToolResult:
         tool_name: str,
         summary: str,
         **kwargs: Any,
-    ) -> "ToolResult":
+    ) -> ToolResult:
         return cls(tool_id=tool_id, tool_name=tool_name, success=True, summary=summary, **kwargs)
 
     @classmethod
@@ -38,7 +38,7 @@ class ToolResult:
         summary: str,
         errors: list[str] | None = None,
         **kwargs: Any,
-    ) -> "ToolResult":
+    ) -> ToolResult:
         return cls(
             tool_id=tool_id,
             tool_name=tool_name,

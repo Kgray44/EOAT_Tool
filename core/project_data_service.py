@@ -7,8 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .audit_compatibility import machine_from_audit_row, normalize_machine_token
 from .audit.relationships import relationship_summary_for_machine
+from .audit_compatibility import machine_from_audit_row, normalize_machine_token
 from .guided_audit import build_guided_audit_plan
 from .open_items import load_cached_open_items
 from .paths import resolve_project_paths

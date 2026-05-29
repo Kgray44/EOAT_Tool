@@ -6,9 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .audit.relationships import is_compatibility_row, is_physical_audit_row
 from .audit_compatibility import (
     load_required_relationships,
-    normalize_entry_type,
     parse_machine_tokens,
     part_number_from_row,
     relationship_has_conflict,
@@ -16,15 +16,14 @@ from .audit_compatibility import (
     summarize_master_relationships,
     text_value,
 )
-from .audit.relationships import is_compatibility_row, is_physical_audit_row
 from .audit_constants import ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
 from .audit_field_rules import field_applies, is_na_value, manual_completion_override_enabled
+from .gripper_fields import CUP_COUNT_FIELD
 from .logging import log_tool_run
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .workbook_cache import row_dicts_cached as row_dicts
-from .gripper_fields import CUP_COUNT_FIELD
 
 MISSING_DATA_FIELDS = [
     "Robot Type",

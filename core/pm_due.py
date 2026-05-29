@@ -2,14 +2,21 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .analysis_common import timestamp_for_report
 from .audit_compatibility import normalize_machine_token
-from .audit_field_rules import cylinder_section_in_use, eoat_type_uses_gripper, eoat_type_uses_vacuum, is_meaningful_value, normalized_eoat_type
+from .audit_field_rules import (
+    cylinder_section_in_use,
+    eoat_type_uses_gripper,
+    eoat_type_uses_vacuum,
+    is_meaningful_value,
+    normalized_eoat_type,
+)
 from .paths import resolve_project_paths
 from .photo_evidence import pm_bom_evidence_status
 from .pm_checklists import generate_pm_checklists
@@ -78,7 +85,7 @@ class PMRecord:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PMRecord":
+    def from_dict(cls, data: dict[str, Any]) -> PMRecord:
         status = _normalize_status(data.get("status"))
         return cls(
             record_id=_text(data.get("record_id")),

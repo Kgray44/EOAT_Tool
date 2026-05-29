@@ -11,7 +11,12 @@ from core.audit.relationships import (
     relationship_summary_for_machine,
     source_audit_for_compatibility_row,
 )
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from core.paths import resolve_project_paths
 from core.press_view import build_press_view_groups
 from core.workbook_cache import row_dicts_cached

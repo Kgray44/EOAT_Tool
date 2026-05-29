@@ -6,7 +6,6 @@ import time
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 from openpyxl import load_workbook
 

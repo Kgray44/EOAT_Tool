@@ -2,13 +2,13 @@
 
 from openpyxl import Workbook, load_workbook
 
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, SOURCE_AUDIT_ID_FIELD
 from core.audit_by_press import AUDIT_BY_PRESS_SHEET
+from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, SOURCE_AUDIT_ID_FIELD
 from core.audit_field_rules import ELECTRICAL_WIRING_PRESENT_FIELD
 from core.constants import EXPECTED_NUMBERED_FOLDERS
-from core.validation import validate_project_foundation
 from core.paths import resolve_project_paths
 from core.robot_info import ROBOT_INFO_SHEET, robot_info_workbook_path, upsert_robot_info_from_audit
+from core.validation import validate_project_foundation
 from core.workbook_schema import get_expected_headers, get_expected_sheets
 
 
@@ -713,5 +713,5 @@ def test_workbook_health_treats_audit_by_press_as_regenerable_warning(fake_proje
 
     assert result.success is True
     assert not any(AUDIT_BY_PRESS_SHEET in error for error in result.errors)
-    assert any("Audit by Press view missing or stale; refresh generated view." == warning for warning in result.warnings)
+    assert any(warning == "Audit by Press view missing or stale; refresh generated view." for warning in result.warnings)
 

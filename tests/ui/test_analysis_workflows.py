@@ -13,7 +13,6 @@ from app.pages.standards_docs import StandardsDocsPage
 from tests.fixtures.fake_project import create_fake_eoat_project
 from tests.ui.helpers import click_button, table_text, wait_for_background_tasks
 
-
 pytestmark = pytest.mark.usability
 
 

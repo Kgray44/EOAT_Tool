@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
 from app.pages.settings import SettingsPage
 from tests.ui.helpers import click_button, wait_for_background_tasks
-
 
 pytestmark = pytest.mark.usability
 

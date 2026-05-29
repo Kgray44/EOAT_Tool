@@ -4,7 +4,13 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
+    ENTRY_TYPE_AUDITED,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from core.compatibility_matrix import (
     COLUMN_MODE_PART_FAMILY,
     COLUMN_MODE_SOURCE_AUDIT,

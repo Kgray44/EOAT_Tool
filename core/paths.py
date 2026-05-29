@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .constants import DEFAULT_MASTER_PRESS_LIST_FILE, DEFAULT_PRESS_CAPACITY_FILE, EXPECTED_NUMBERED_FOLDERS, EXPECTED_WORKBOOK_RELATIVE
+from .constants import (
+    DEFAULT_MASTER_PRESS_LIST_FILE,
+    DEFAULT_PRESS_CAPACITY_FILE,
+    EXPECTED_NUMBERED_FOLDERS,
+    EXPECTED_WORKBOOK_RELATIVE,
+)
 
 
 @dataclass(frozen=True)
@@ -11,7 +16,7 @@ class EOATProjectPaths:
     project_root: Path
 
     @classmethod
-    def from_root(cls, project_root: str | Path) -> "EOATProjectPaths":
+    def from_root(cls, project_root: str | Path) -> EOATProjectPaths:
         return cls(Path(project_root))
 
     @property

@@ -3,17 +3,23 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .analysis_common import table_from_rows
 from .compatibility_health import validate_compatibility_health
-from .final_common import clean, report_references_markdown, safe_rows, top_fmea_risks, top_issue_categories, workbook_metrics
+from .final_common import (
+    report_references_markdown,
+    safe_rows,
+    top_fmea_risks,
+    top_issue_categories,
+    workbook_metrics,
+)
 from .kpi_analysis import analyze_kpis
 from .logging import log_tool_run
 from .open_items import OpenItem, list_open_items, open_items_summary
 from .paths import resolve_project_paths
-from .project_data_service import ProjectDataService
 from .photo_evidence import evidence_coverage_for_project
+from .project_data_service import ProjectDataService
 from .reports import list_recent_files
 from .result import ToolResult
 from .risk_insights import build_risk_insight_summary

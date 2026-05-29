@@ -29,7 +29,8 @@ from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
 from .tool_fields import TOOL_FIELD
-from .workbook_cache import invalidate_workbook_cache, row_dicts_cached as row_dicts
+from .workbook_cache import invalidate_workbook_cache
+from .workbook_cache import row_dicts_cached as row_dicts
 from .workbook_io import next_empty_row, worksheet_headers, write_row_by_headers
 from .workbook_schema import get_expected_headers
 

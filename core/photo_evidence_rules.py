@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from .audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
 from .audit_field_rules import (

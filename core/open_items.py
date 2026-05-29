@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from core.annotations.exports import unique_export_path
 from core.annotations.migrations import utc_now
@@ -165,7 +166,7 @@ def save_cached_open_items_summary(project_root: str | Path, summary: dict[str, 
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "summary": {str(key): int(value or 0) for key, value in summary.items()},
         "source": {
-            "project_root": str(Path(project_root)),
+            "project_root": _safe_project_root_label(project_root),
         },
     }
     path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
@@ -660,7 +661,41 @@ def _read_snapshot(path: Path) -> list[dict[str, object]]:
 
 def _write_snapshot(path: Path, records: list[dict[str, object]]) -> None:
     ensure_directory(path.parent)
-    path.write_text(json.dumps(records, indent=2, sort_keys=True), encoding="utf-8")
+    project_root = _project_root_from_snapshot_path(path)
+    safe_records = [_sanitize_snapshot_value(record, project_root) for record in records]
+    path.write_text(json.dumps(safe_records, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _project_root_from_snapshot_path(path: Path) -> Path:
+    # Snapshot files live under <project>/00_Project_Admin/open_items.
+    try:
+        return path.resolve().parents[2]
+    except IndexError:
+        return path.resolve().parent
+
+
+def _safe_project_root_label(project_root: str | Path) -> str:
+    root = Path(project_root)
+    parts = tuple(part.casefold() for part in root.parts)
+    if "examples" in parts and "demo_project" in parts:
+        return "examples/demo_project"
+    return "<project_root>"
+
+
+def _sanitize_snapshot_value(value: object, project_root: Path) -> object:
+    if isinstance(value, dict):
+        return {str(key): _sanitize_snapshot_value(item, project_root) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_snapshot_value(item, project_root) for item in value]
+    if isinstance(value, str):
+        label = _safe_project_root_label(project_root)
+        candidates = {str(project_root), str(project_root.resolve()), project_root.as_posix()}
+        sanitized = value
+        for candidate in sorted(candidates, key=len, reverse=True):
+            if candidate:
+                sanitized = sanitized.replace(candidate, label)
+        return sanitized
+    return value
 
 
 def _item_record(item: OpenItem) -> dict[str, object]:

@@ -5,7 +5,6 @@ import pytest
 from app.pages.audit import AuditPage
 from tests.ui.helpers import click_button, wait_for_background_tasks
 
-
 pytestmark = pytest.mark.usability
 
 

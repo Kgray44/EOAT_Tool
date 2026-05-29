@@ -3,10 +3,11 @@ from __future__ import annotations
 import sqlite3
 import time
 import uuid
+from collections.abc import Iterable
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
@@ -22,7 +23,7 @@ from .exports import export_notes_excel, export_notes_markdown, export_tags_exce
 from .migrations import utc_now
 from .models import AnnotationTarget, Note, Tag, TagAssignment
 from .suggestions import suggested_annotations_for_audit
-from .tag_colors import TAG_COLOR_PALETTE, excel_fill_for_color, highest_priority_tag, normalize_color_key
+from .tag_colors import excel_fill_for_color, highest_priority_tag, normalize_color_key
 from .targets import display_label_for_target, normalize_target_type, target_id_for
 
 IMPORTANCE_VALUES = ("Low", "Neutral", "Important", "Critical")

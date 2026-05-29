@@ -5,7 +5,11 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from core.paths import resolve_project_paths
-from core.work_instruction_builder import INSTRUCTION_TYPES, build_work_instruction_documents, generate_work_instructions
+from core.work_instruction_builder import (
+    INSTRUCTION_TYPES,
+    build_work_instruction_documents,
+    generate_work_instructions,
+)
 from core.workbook_schema import get_expected_headers
 
 

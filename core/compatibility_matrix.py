@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .analysis_common import table_from_rows, write_timestamped_csv, write_timestamped_report
 from .audit.relationships import is_compatibility_row, is_physical_audit_row, source_audit_for_compatibility_row
 from .audit_compatibility import (
     COMPATIBILITY_SOURCE_FIELD,
-    ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
     _can_sync_compatibility_field,
     machine_from_audit_row,

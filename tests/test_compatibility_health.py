@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from openpyxl import load_workbook
 
-from core.audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
 from core.audit_compatibility import create_compatibility_entries
+from core.audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
 from core.compatibility_health import validate_compatibility_health
 from core.paths import resolve_project_paths
 from tests.test_audit_compatibility import _save_audit, _write_press_capacity

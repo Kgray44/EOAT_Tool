@@ -3,10 +3,21 @@
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 
-from core.audit_by_press import AUDIT_BY_PRESS_SHEET, REFRESH_ACTION_NAME, UNASSIGNED_PRESS_GROUP, refresh_audit_by_press_view_action
+from core.audit_by_press import (
+    AUDIT_BY_PRESS_SHEET,
+    REFRESH_ACTION_NAME,
+    UNASSIGNED_PRESS_GROUP,
+    refresh_audit_by_press_view_action,
+)
 from core.audit_compatibility import create_compatibility_entries
 from core.audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
-from core.audit_entries import validate_audit_entry, generate_audit_id, load_audit_entry, repair_workbook_schema, save_audit_entry
+from core.audit_entries import (
+    generate_audit_id,
+    load_audit_entry,
+    repair_workbook_schema,
+    save_audit_entry,
+    validate_audit_entry,
+)
 from core.paths import resolve_project_paths
 from core.tool_fields import LEGACY_TOOL_FIELD
 from core.workbook_schema import get_expected_headers, get_expected_sheets

@@ -4,12 +4,19 @@ import time
 from pathlib import Path
 
 from .analysis_common import table_from_rows, write_timestamped_report
-from .final_common import make_simple_docx, metrics_markdown, recent_report_map, report_references_markdown, top_fmea_risks, top_issue_categories, workbook_metrics
+from .final_common import (
+    make_simple_docx,
+    metrics_markdown,
+    recent_report_map,
+    report_references_markdown,
+    top_fmea_risks,
+    top_issue_categories,
+    workbook_metrics,
+)
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory
-
 
 TOOL_ID = "final_project_summary"
 TOOL_NAME = "Final Project Summary Compiler"

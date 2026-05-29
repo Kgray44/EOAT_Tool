@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from openpyxl import load_workbook
 
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from core.machine_360 import build_machine_360_context
 from core.paths import resolve_project_paths
 from core.workbook_schema import get_expected_headers
