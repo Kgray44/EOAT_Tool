@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .analysis_common import parse_score, table_from_rows, write_timestamped_csv, write_timestamped_report
 from .audit_compatibility import machine_from_audit_row, normalize_machine_token, text_value

@@ -11,7 +11,6 @@ from openpyxl import load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .logging import log_tool_run
 from .audit_constants import (
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
@@ -20,6 +19,7 @@ from .audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
+from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file

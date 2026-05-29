@@ -23,7 +23,6 @@ from core.workbook_schema import get_expected_headers
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
 
-
 pytestmark = pytest.mark.usability
 
 

@@ -5,8 +5,8 @@ try:
 except ImportError:  # pragma: no cover
     QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QVBoxLayout = QWidget = None
 
-from app.pages.analysis_widgets import add_cards, counts_to_rows, populate_table
 from app.page_tasks import run_tool_background
+from app.pages.analysis_widgets import add_cards, counts_to_rows, populate_table
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.kpi_analysis import analyze_kpis, generate_kpi_dashboard_report

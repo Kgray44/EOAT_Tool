@@ -12,6 +12,8 @@ from .audit.schema import (
     audit_section_groups,
     audit_sections,
     field_by_header,
+)
+from .audit.schema import (
     fields_for_section as schema_fields_for_section,
 )
 from .audit_field_rules import field_applies

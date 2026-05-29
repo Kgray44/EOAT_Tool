@@ -12,8 +12,10 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, range_boundaries
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from . import audit_field_rules as field_rules
 from .action_items import add_action_item
 from .audit.history import append_audit_history
+from .audit_by_press import refresh_audit_by_press_view
 from .audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
@@ -26,14 +28,6 @@ from .audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from .audit_by_press import refresh_audit_by_press_view
-from . import audit_field_rules as field_rules
-from .logging import log_tool_run
-from .paths import resolve_project_paths
-from .result import ToolResult
-from .safe_files import backup_file
-from .workbook_cache import invalidate_workbook_cache, row_dicts_cached
-from .workbook_locks import detect_workbook_lock
 from .gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
@@ -43,8 +37,14 @@ from .gripper_fields import (
     GRIPPER_TYPE_VALUES,
     gripper_model_to_workbook,
 )
+from .logging import log_tool_run
+from .paths import resolve_project_paths
+from .result import ToolResult
+from .safe_files import backup_file
 from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
-from .workbook_io import find_row_by_value, next_empty_row, row_dicts, worksheet_headers, write_row_by_headers
+from .workbook_cache import invalidate_workbook_cache, row_dicts_cached
+from .workbook_io import find_row_by_value, next_empty_row, worksheet_headers, write_row_by_headers
+from .workbook_locks import detect_workbook_lock
 from .workbook_schema import get_expected_headers
 
 CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.05.28.3"

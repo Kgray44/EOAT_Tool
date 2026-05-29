@@ -19,10 +19,10 @@ import os
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Any, Iterable
-
+from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_PROJECT_ROOT = SCRIPT_DIR / "EOAT_Standardization_Project"
@@ -1334,8 +1334,8 @@ def init_snapshot(project_root: Path, report_date: str) -> None:
 def log_dry_run_activity(project_root: Path, report_path: Path, summary_path: Path, duration_seconds: float | None = None) -> None:
     """Record a dry-run activity entry without requiring the dashboard wrappers."""
     try:
-        from core.result import ToolResult
         from core.logging import log_tool_run
+        from core.result import ToolResult
 
         result = ToolResult.ok(
             "daily_status_summary",

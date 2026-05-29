@@ -4,11 +4,10 @@ import pytest
 from openpyxl import load_workbook
 
 from app.pages.photos import PhotosPage
-from core.photo_evidence import audit_photo_intake_folder
 from core.paths import resolve_project_paths
+from core.photo_evidence import audit_photo_intake_folder
 from core.workbook_schema import get_expected_headers
 from tests.ui.helpers import click_button
-
 
 pytestmark = pytest.mark.usability
 

@@ -9,12 +9,12 @@ This script is safe to run more than once:
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
-import argparse
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
 from core.audit_constants import (
     CYLINDER_COUNT_FIELD,
@@ -697,7 +697,7 @@ def extract_schedule_from_pdf(path: Path, week: int) -> dict[str, list[str]]:
         return {}
 
     days: dict[str, list[str]] = {}
-    pattern = re.compile(rf"D(\d+)-T\d+\s*[-\u2013\u2014]\s*(.+)")
+    pattern = re.compile(r"D(\d+)-T\d+\s*[-\u2013\u2014]\s*(.+)")
     for raw_line in text.splitlines():
         line = raw_line.strip()
         match = pattern.match(line)

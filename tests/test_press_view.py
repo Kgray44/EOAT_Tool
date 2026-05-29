@@ -3,7 +3,12 @@ from __future__ import annotations
 from openpyxl import Workbook, load_workbook
 
 from core.audit_compatibility import build_compatibility_candidates
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from core.paths import get_press_capacity_file, resolve_project_paths
 from core.press_view import build_press_view_groups, export_press_summary
 from core.workbook_schema import get_expected_headers

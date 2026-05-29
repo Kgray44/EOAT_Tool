@@ -5,7 +5,11 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from core.change_validation import CHANGE_VALIDATION_ITEMS, build_change_validation_checklist, generate_change_validation_checklist
+from core.change_validation import (
+    CHANGE_VALIDATION_ITEMS,
+    build_change_validation_checklist,
+    generate_change_validation_checklist,
+)
 from core.final_handoff import collect_handoff_sources
 from core.paths import resolve_project_paths
 from core.work_instruction_builder import generate_work_instructions

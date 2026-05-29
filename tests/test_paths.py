@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from core.paths import resolve_project_paths, validate_looks_like_eoat_project_root
 from core.constants import DEFAULT_PROJECT_ROOT
+from core.paths import resolve_project_paths, validate_looks_like_eoat_project_root
 
 
 def test_path_resolver_returns_standard_paths(tmp_path):

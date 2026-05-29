@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 try:
-    from PySide6.QtWidgets import QCheckBox, QFormLayout, QHBoxLayout, QPushButton, QLineEdit
+    from PySide6.QtWidgets import QCheckBox, QFormLayout, QHBoxLayout, QLineEdit, QPushButton
 except ImportError:  # pragma: no cover
     QCheckBox = QFormLayout = QHBoxLayout = QPushButton = QLineEdit = None
 

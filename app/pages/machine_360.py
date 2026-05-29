@@ -24,14 +24,19 @@ except ImportError:  # pragma: no cover
 from app.page_tasks import run_tool_background
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from core.action_items import add_action_item
-from core.machine_360 import Machine360Action, Machine360Context, build_machine_360_context, generate_machine_360_summary
+from core.machine_360 import (
+    Machine360Action,
+    Machine360Context,
+    build_machine_360_context,
+    generate_machine_360_summary,
+)
 from core.openers import open_path
 from core.pm_checklists import generate_pm_checklists
 from core.validation import run_foundation_validation
 
 
 class _DetailResultPanel:
-    def __init__(self, page: "Machine360Page"):
+    def __init__(self, page: Machine360Page):
         self.page = page
 
     def show_text(self, text: str) -> None:

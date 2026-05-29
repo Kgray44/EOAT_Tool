@@ -13,7 +13,6 @@ from core.constants import DEFAULT_PROJECT_ROOT
 from core.robot_info import upsert_robot_info_from_audit
 from core.workbook_schema import get_expected_headers
 
-
 FIELD_ARG_MAP = {
     "Audit ID": "audit_id",
     "Audit Date": "audit_date",

@@ -11,9 +11,14 @@ from core.audit.completion import (
     STATE_VERIFIED_COMPLETE,
     calculate_audit_completion,
 )
-from core.audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_DEFAULT, CYLINDER_TYPE_FIELD, ENTRY_TYPE_FIELD, MANUAL_COMPLETION_OVERRIDE_FIELD
 from core.audit.defaults import UNKNOWN_NOT_CHECKED
-
+from core.audit_constants import (
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_DEFAULT,
+    CYLINDER_TYPE_FIELD,
+    ENTRY_TYPE_FIELD,
+    MANUAL_COMPLETION_OVERRIDE_FIELD,
+)
 
 SECTIONS = {
     "Audit Header": [

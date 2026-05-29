@@ -5,8 +5,8 @@ try:
         QGroupBox,
         QHBoxLayout,
         QLabel,
-        QPushButton,
         QProgressBar,
+        QPushButton,
         QTextEdit,
         QVBoxLayout,
         QWidget,
@@ -15,13 +15,12 @@ except ImportError:  # pragma: no cover
     QGroupBox = QHBoxLayout = QLabel = QPushButton = QProgressBar = QTextEdit = QVBoxLayout = QWidget = None
 
 from core.audit.coach import (
-    AuditCoachSummary,
     STATE_FOLLOW_UP_NEEDED,
     STATE_MISSING,
     STATE_STALE_CONFLICT,
     STATE_UNKNOWN_NOT_CHECKED,
+    AuditCoachSummary,
 )
-
 
 STATE_LABELS = {
     STATE_MISSING: "Missing",

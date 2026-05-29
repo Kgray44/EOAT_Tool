@@ -6,7 +6,12 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from core.paths import resolve_project_paths
-from core.pilot_roi import build_pilot_roi, export_pilot_roi_report, pilot_roi_assumptions_path, save_pilot_roi_assumptions
+from core.pilot_roi import (
+    build_pilot_roi,
+    export_pilot_roi_report,
+    pilot_roi_assumptions_path,
+    save_pilot_roi_assumptions,
+)
 
 
 def _seed_candidate(fake_project) -> None:

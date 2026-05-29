@@ -16,7 +16,6 @@ from .safe_files import ensure_directory, safe_write_text
 from .schedule import load_week_schedule
 from .task_progress import STATUS_VALUES
 
-
 TOOL_ID = "weekly_summary"
 TOOL_NAME = "Weekly Summary Generator"
 

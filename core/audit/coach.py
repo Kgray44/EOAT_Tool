@@ -1,23 +1,24 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from core.audit.completion import (
-    FieldCompletionStatus,
     STATE_EXCLUDED,
     STATE_IGNORED_BY_MANUAL_OVERRIDE,
     STATE_IGNORED_BY_OPTIONAL_GROUP,
+    FieldCompletionStatus,
     calculate_audit_completion,
     classify_completion_field,
 )
+from core.audit_constants import MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD, MANUAL_COMPLETION_OVERRIDE_USER_FIELD
 from core.audit_field_rules import (
     field_group,
     hybrid_completeness_warnings,
     normalize_text,
     semantic_consistency_warnings,
 )
-from core.audit_constants import MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD, MANUAL_COMPLETION_OVERRIDE_USER_FIELD
 from core.gripper_fields import CUP_COUNT_FIELD
 
 STATE_VERIFIED_COMPLETE = "verified_complete"

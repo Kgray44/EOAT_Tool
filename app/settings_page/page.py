@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 try:
     from PySide6.QtCore import Signal
@@ -15,9 +16,9 @@ try:
         QLineEdit,
         QPushButton,
         QScrollArea,
-        QTabWidget,
         QTableWidget,
         QTableWidgetItem,
+        QTabWidget,
         QVBoxLayout,
         QWidget,
     )
@@ -47,6 +48,8 @@ from core.audit.default_rules import (
     audit_default_rules_from_config,
     default_rules_from_audit_defaults,
     normalize_default_rules,
+)
+from core.audit.default_rules import (
     preview_audit_default_rules as build_audit_default_preview,
 )
 from core.config import UserConfig
@@ -60,7 +63,12 @@ from core.project_root_status import validate_project_root
 from core.result import ToolResult
 from core.safe_files import ensure_directory
 from core.scheduled_reports import install_or_repair_schedules, scheduled_tools_log_path
-from core.settings_schema import CURRENT_CONFIG_SCHEMA_VERSION, default_backups_config, default_scheduled_reports_config, default_ui_preferences_config
+from core.settings_schema import (
+    CURRENT_CONFIG_SCHEMA_VERSION,
+    default_backups_config,
+    default_scheduled_reports_config,
+    default_ui_preferences_config,
+)
 from core.settings_validation import validate_settings_payload
 from core.system_audit import run_system_audit
 from core.validation import validate_project_foundation

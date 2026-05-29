@@ -4,14 +4,23 @@ import time
 
 try:
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import (
+        QGridLayout,
+        QHBoxLayout,
+        QLabel,
+        QPushButton,
+        QTableWidget,
+        QTableWidgetItem,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     Qt = None
     QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
 from app.page_async import AsyncRefreshMixin, log_page_performance
-from app.pages.analysis_widgets import add_cards, populate_table
 from app.page_tasks import run_tool_background
+from app.pages.analysis_widgets import add_cards, populate_table
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.fmea_analysis import analyze_fmea, generate_fmea_report

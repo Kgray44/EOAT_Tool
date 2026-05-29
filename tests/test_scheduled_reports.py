@@ -11,9 +11,9 @@ from core.result import ToolResult
 from core.scheduled_reports import (
     DAILY_TASK_NAME,
     WEEKLY_TASK_NAME,
+    describe_task_result,
     detect_missed_daily_summaries,
     detect_missed_weekly_summary,
-    describe_task_result,
     expected_daily_summary_day,
     expected_weekly_summary_day,
     find_latest_daily_summary,

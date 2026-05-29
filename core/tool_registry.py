@@ -29,7 +29,7 @@ class ToolMetadata:
     implementation_status: str
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ToolMetadata":
+    def from_dict(cls, data: dict[str, Any]) -> ToolMetadata:
         return cls(**data)
 
     def to_dict(self) -> dict[str, Any]:
@@ -42,7 +42,7 @@ class ToolRegistry:
         self._by_id = {tool.id: tool for tool in tools}
 
     @classmethod
-    def load(cls, path: str | Path = DEFAULT_REGISTRY_PATH) -> "ToolRegistry":
+    def load(cls, path: str | Path = DEFAULT_REGISTRY_PATH) -> ToolRegistry:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls([ToolMetadata.from_dict(item) for item in data])
 

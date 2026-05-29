@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.reports import report_folders
-from .feature_registry import build_feature_registry
 
+from .feature_registry import build_feature_registry
 
 CommandHandler = Callable[[], None]
 

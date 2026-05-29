@@ -9,7 +9,12 @@ from openpyxl import load_workbook
 
 from . import audit_field_rules as field_rules
 from .audit.history import append_audit_history
-from .audit_by_press import AUDIT_BY_PRESS_SHEET, audit_by_press_last_refreshed, refresh_audit_by_press_view, refresh_audit_by_press_view_action
+from .audit_by_press import (
+    AUDIT_BY_PRESS_SHEET,
+    audit_by_press_last_refreshed,
+    refresh_audit_by_press_view,
+    refresh_audit_by_press_view_action,
+)
 from .audit_entries import (
     LEGACY_VACUUM_CUPS_FIELD,
     NA_VALUE,
@@ -23,9 +28,9 @@ from .result import ToolResult
 from .safe_files import backup_file
 from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
 from .validation import AUDIT_DROPDOWN_ALLOWED_VALUES, validate_project_foundation
-from .validation_findings import summarize_findings, findings_from_result
-from .workbook_io import worksheet_headers
+from .validation_findings import findings_from_result, summarize_findings
 from .workbook_cache import invalidate_workbook_cache
+from .workbook_io import worksheet_headers
 from .workbook_locks import detect_workbook_lock
 from .workbook_schema import get_expected_headers
 

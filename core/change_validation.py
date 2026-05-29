@@ -187,9 +187,7 @@ def _item_for(row: dict[str, Any], item_id: str, label: str) -> ChangeValidation
     elif item_id == "tubing_cable_routing_verified":
         evidence_source = "Tubing Condition, Tubing Routing Notes, Cable Management Condition"
         notes = f"Tubing: {_display(row.get('Tubing Condition'))}; cable management: {_display(row.get('Cable Management Condition'))}."
-    elif item_id == "dry_cycle_completed":
-        evidence_source = "Post-change validation"
-    elif item_id == "first_part_pickup_checked":
+    elif item_id == "dry_cycle_completed" or item_id == "first_part_pickup_checked":
         evidence_source = "Post-change validation"
     elif item_id == "drop_mispick_checked":
         evidence_source = "Drop/Mis-Pick History"

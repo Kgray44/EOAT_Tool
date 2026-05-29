@@ -3,8 +3,9 @@ from __future__ import annotations
 import threading
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 try:
     from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from .final_handoff_readiness import (
     MISSING,
     NEEDS_REVIEW,
     FinalHandoffReadinessSummary,
     build_final_handoff_readiness,
-    export_machine_summary_report,
     export_deliverable_readiness,
     export_leadership_summary,
+    export_machine_summary_report,
     export_open_items_carryover,
     export_technical_appendix,
 )
@@ -20,7 +20,6 @@ from .paths import resolve_project_paths
 from .reports import list_recent_files
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_copy_file, safe_write_text
-
 
 TOOL_ID = "final_handoff_builder"
 TOOL_NAME = "Final Handoff Builder"
@@ -105,6 +104,7 @@ def collect_handoff_sources(
     include_photo_files: bool = False,
 ) -> dict[str, list[Path]]:
     paths = resolve_project_paths(project_root)
+    work_instruction_sources = _recursive_recent(paths.work_instructions, 20)
     sources: dict[str, list[Path]] = {
         "database": _existing([paths.master_workbook]),
         "robot_info": _existing([paths.robot_info_workbook]),
@@ -115,8 +115,8 @@ def collect_handoff_sources(
         "fmea": _latest_from(paths.fmea_reports, 10),
         "kpi": _latest_from(paths.kpi_dashboard_exports, 10),
         "pilot": _latest_from(paths.pilot_project / "Candidate_Cells", 10) + _latest_from(paths.pilot_project / "Pilot_Reports", 10),
-        "work_instructions": _recursive_recent(paths.work_instructions, 20),
-        "training": _latest_from(paths.training_materials, 10),
+        "work_instructions": work_instruction_sources,
+        "training": _latest_from(paths.training_materials, 10) + work_instruction_sources,
         "risk": _latest_from(paths.risk_insights_reports, 10),
         "executive": _latest_from(paths.executive_summary, 10) + _latest_from(paths.final_report, 10),
         "presentation": _recursive_recent(paths.presentation_assets_root, 20),
@@ -161,15 +161,25 @@ def _unique_final_handoff_package_dir(parent: Path) -> Path:
 def _copy_sources(package: Path, sources: dict[str, list[Path]]) -> tuple[list[str], list[dict[str, str]]]:
     files_created: list[str] = []
     manifest: list[dict[str, str]] = []
+    copied_sources: dict[Path, Path] = {}
+    used_names_by_dir: dict[Path, set[str]] = {}
     for key, files in sources.items():
         target_dir = ensure_directory(package / _package_dir_name(key))
-        used_names: set[str] = set()
+        target_dir_key = target_dir.resolve()
+        used_names = used_names_by_dir.setdefault(target_dir_key, set())
         for source in files:
+            source_key = source.resolve()
+            if source_key in copied_sources:
+                manifest.append({"Category": key, "Source": str(source), "Package Path": str(copied_sources[source_key])})
+                continue
             name = source.name
-            if name in used_names:
-                name = f"{source.stem}_{len(used_names) + 1}{source.suffix}"
+            suffix_index = 2
+            while name in used_names or (target_dir / name).exists():
+                name = f"{source.stem}_{suffix_index}{source.suffix}"
+                suffix_index += 1
             used_names.add(name)
             target = safe_copy_file(source, target_dir / name, overwrite=False)
+            copied_sources[source_key] = target
             files_created.append(str(target))
             manifest.append({"Category": key, "Source": str(source), "Package Path": str(target)})
     return files_created, manifest

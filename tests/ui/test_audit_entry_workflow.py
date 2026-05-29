@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QGroupBox, QPushButton, QTextEdit
 
-from app.pages.audit import AUDIT_SECTIONS, AUDIT_SECTION_GROUPS, AuditPage
+from app.pages.audit import AUDIT_SECTION_GROUPS, AUDIT_SECTIONS, AuditPage
 from core.audit_constants import (
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
@@ -21,7 +21,6 @@ from core.robot_info import load_robot_info_for_audit_entry, robot_info_workbook
 from core.workbook_io import row_dicts, workbook_sheet_names
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
-
 
 pytestmark = pytest.mark.usability
 
@@ -233,7 +232,7 @@ def test_audit_id_dropdown_includes_all_audits_and_selection_loads_row(qapp, fak
     labels = [page.load_audit_id_combo.itemText(index) for index in range(page.load_audit_id_combo.count())]
     assert first["Audit ID"] in audit_ids
     assert second["Audit ID"] in audit_ids
-    assert any("AUD-DROPDOWN-001 | Machine 26 | PN-26 | Latch | Audited" == label for label in labels)
+    assert any(label == "AUD-DROPDOWN-001 | Machine 26 | PN-26 | Latch | Audited" for label in labels)
 
     index = page.load_audit_id_combo.findData(second["Audit ID"])
     assert index >= 0

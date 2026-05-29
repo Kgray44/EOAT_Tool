@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Callable
 
+from .analysis_common import write_timestamped_report
 from .audit_progress import generate_audit_progress_report
+from .deliverable_check import run_final_deliverable_check
 from .documentation_gaps import generate_documentation_gap_report
 from .final_handoff import build_final_handoff_package
 from .final_summary import generate_final_project_summary
@@ -17,11 +18,8 @@ from .paths import resolve_project_paths
 from .presentation_export import export_presentation_assets
 from .result import ToolResult
 from .risk_insights import generate_risk_insights_report
-from .validation import run_foundation_validation, validate_project_foundation
-from .analysis_common import write_timestamped_report
-from .deliverable_check import run_final_deliverable_check
+from .validation import run_foundation_validation
 from .weekly_summary import generate_weekly_summary
-
 
 TOOL_ID = "workflow_runner"
 TOOL_NAME = "EOAT Workflow Runner"

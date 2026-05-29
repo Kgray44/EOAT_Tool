@@ -9,7 +9,8 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, time as datetime_time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from datetime import time as datetime_time
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError

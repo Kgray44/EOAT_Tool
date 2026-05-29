@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .paths import resolve_project_paths
 from .safe_files import ensure_directory, safe_write_text
@@ -80,7 +81,7 @@ class ValidationFinding:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ValidationFinding":
+    def from_dict(cls, data: dict[str, Any]) -> ValidationFinding:
         return cls(
             finding_id=str(data.get("finding_id") or ""),
             severity=str(data.get("severity") or ValidationSeverity.WARNING.value),

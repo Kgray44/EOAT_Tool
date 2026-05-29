@@ -11,7 +11,6 @@ from .result import ToolResult
 from .standardization import generate_standardization_report
 from .workbook_io import row_dicts
 
-
 TOOL_ID = "bom_spares_standardization"
 TOOL_NAME = "BOM and Spare Parts Standardization Tool"
 

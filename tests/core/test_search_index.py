@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from core.search_index import build_search_corpus_counts, search_index
 
 

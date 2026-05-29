@@ -4,10 +4,10 @@ import hashlib
 
 from openpyxl import load_workbook
 
+from core.paths import resolve_project_paths
 from core.photo_evidence import photo_index_path_findings, validate_photo_evidence
 from core.photo_evidence_rules import photo_evidence_rule_by_key, required_photo_evidence_rules
 from core.photo_indexing import intake_photos, list_incoming_photos, preview_photo_intake
-from core.paths import resolve_project_paths
 from core.search import search_project
 from core.workbook_io import row_dicts
 from core.workbook_schema import get_expected_headers

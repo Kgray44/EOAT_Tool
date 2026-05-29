@@ -5,8 +5,7 @@ from PySide6.QtWidgets import QLabel
 
 from app.pages.backup_manager import BackupManagerPage
 from app.pages.release_readiness import ReleaseReadinessPage
-from tests.ui.helpers import click_button, table_text, wait_for_background_tasks
-
+from tests.ui.helpers import click_button, wait_for_background_tasks
 
 pytestmark = pytest.mark.usability
 

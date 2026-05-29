@@ -6,24 +6,49 @@ import time
 try:
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QBrush, QColor, QFont, QKeySequence, QShortcut
-    from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QProgressBar, QStackedWidget, QSplitter, QTreeWidget, QTreeWidgetItem, QWidget
+    from PySide6.QtWidgets import (
+        QApplication,
+        QLabel,
+        QMainWindow,
+        QMessageBox,
+        QProgressBar,
+        QSplitter,
+        QStackedWidget,
+        QTreeWidget,
+        QTreeWidgetItem,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     Qt = QBrush = QColor = QFont = QKeySequence = QShortcut = QApplication = QLabel = QMainWindow = QMessageBox = QProgressBar = QStackedWidget = QSplitter = QTreeWidget = QTreeWidgetItem = QWidget = None
 
 from core.config import load_config, save_config
 from core.constants import APP_NAME
 from core.performance import log_performance
-from core.workbook_cache import invalidate_all_workbook_cache
 from core.search import SearchResult
+from core.workbook_cache import invalidate_all_workbook_cache
+
 from .command_registry import build_dashboard_command_registry
-from .event_bus import EVENT_ANY, EVENT_AUDIT_SAVED, EVENT_PROJECT_ROOT_CHANGED, EVENT_SETTINGS_CHANGED, AppEvent, get_event_bus
+from .event_bus import (
+    EVENT_ANY,
+    EVENT_AUDIT_SAVED,
+    EVENT_PROJECT_ROOT_CHANGED,
+    EVENT_SETTINGS_CHANGED,
+    AppEvent,
+    get_event_bus,
+)
+from .navigation import NAV_SECTIONS
 from .page_async import log_page_performance
 from .page_registry import PAGE_SPECS, PageSpec, create_page
 from .search_routes import open_search_result as route_search_result
 from .task_runner import get_task_manager
 from .theme import app_stylesheet, theme_tokens
-from .navigation import NAV_SECTIONS
-from .ui_constants import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH, MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SIDEBAR_WIDTH
+from .ui_constants import (
+    DEFAULT_WINDOW_HEIGHT,
+    DEFAULT_WINDOW_WIDTH,
+    MIN_WINDOW_HEIGHT,
+    MIN_WINDOW_WIDTH,
+    SIDEBAR_WIDTH,
+)
 
 
 class DashboardWindow(QMainWindow):

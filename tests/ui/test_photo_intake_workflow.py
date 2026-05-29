@@ -6,8 +6,7 @@ import pytest
 
 from app.pages.photos import PhotosPage
 from core.workbook_io import row_dicts
-from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
-
+from tests.ui.helpers import click_button, wait_for_background_tasks
 
 pytestmark = pytest.mark.usability
 

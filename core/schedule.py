@@ -94,9 +94,7 @@ def resolve_project_day(
         cursor += timedelta(days=1)
 
     warning = ""
-    if skip_weekends and current_date.weekday() >= 5:
-        warning = "Today is not a configured workday; using the most recent configured project workday."
-    elif current_date in holiday_set:
+    if skip_weekends and current_date.weekday() >= 5 or current_date in holiday_set:
         warning = "Today is not a configured workday; using the most recent configured project workday."
 
     elapsed_workdays = max(elapsed_workdays, 1)

@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from typing import Any
 
+from ..audit.defaults import DEFAULT_AUDIT_DEFAULTS
 from ..audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
@@ -17,7 +18,6 @@ from ..audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from ..audit.defaults import DEFAULT_AUDIT_DEFAULTS
 from ..audit_entries import (
     AUDIT_DROPDOWNS,
     AUDIT_FIELD_METADATA,

@@ -6,7 +6,6 @@ from app.pages.workbook_health import WorkbookHealthPage
 from app.task_runner import ActiveTaskGuard, TaskRequest
 from tests.ui.helpers import click_button, wait_for_background_tasks
 
-
 pytestmark = pytest.mark.usability
 
 

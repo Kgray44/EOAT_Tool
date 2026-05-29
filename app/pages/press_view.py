@@ -21,13 +21,20 @@ except ImportError:  # pragma: no cover
     Qt = QTimer = None
     QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
-from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.event_bus import EVENT_AUDIT_SAVED
+from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from app.widgets.status_card import StatusCard
 from app.widgets.tool_run_panel import ToolRunPanel
-from core.press_view import PressAuditEntry, PressViewGroup, build_press_view_groups, export_press_summary, load_cached_press_view_groups, save_press_view_cache
 from core.performance import log_performance
+from core.press_view import (
+    PressAuditEntry,
+    PressViewGroup,
+    build_press_view_groups,
+    export_press_summary,
+    load_cached_press_view_groups,
+    save_press_view_cache,
+)
 
 
 class PressViewPage(AsyncRefreshMixin, QWidget):

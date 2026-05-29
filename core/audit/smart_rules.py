@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import asdict, dataclass
-from collections.abc import Callable, Collection
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from core.audit.defaults import merged_connection_defaults
 from core.audit_entries import PART_PRESENT_SENSOR_DEFAULTS

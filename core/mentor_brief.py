@@ -5,14 +5,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from .analysis_common import write_timestamped_report
 from .logging import log_tool_run, read_recent_activity
 from .paths import resolve_project_paths
 from .reports import list_recent_files, read_report_preview
 from .result import ToolResult
 from .safe_files import ensure_directory
-from .analysis_common import write_timestamped_report
 from .workbook_io import row_dicts
-
 
 TOOL_ID = "mentor_meeting_prep"
 TOOL_NAME = "Mentor Meeting Prep Tool"

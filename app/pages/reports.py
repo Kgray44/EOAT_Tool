@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from datetime import date
-from pathlib import Path
 
 try:
     from PySide6.QtWidgets import (
@@ -26,15 +25,14 @@ try:
 except ImportError:  # pragma: no cover
     QCheckBox = QDialog = QDialogButtonBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QPushButton = QSpinBox = QSplitter = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
+from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
-from app.page_tasks import run_tool_background
-from core.mentor_brief import generate_mentor_brief
 from core.constants import TOOLKIT_ROOT
+from core.mentor_brief import generate_mentor_brief
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.reports import report_folders
-from core.result import ToolResult
 from core.tool_runner import run_python_script
 from core.weekly_summary import generate_weekly_summary
 

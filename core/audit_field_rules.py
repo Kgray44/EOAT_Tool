@@ -15,7 +15,13 @@ from .audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
-from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD, GRIPPER_TYPE_FIELD
+from .gripper_fields import (
+    CUP_COUNT_FIELD,
+    GRIPPER_COUNT_FIELD,
+    GRIPPER_MODEL_FIELD,
+    GRIPPER_SIZE_FIELD,
+    GRIPPER_TYPE_FIELD,
+)
 from .tool_fields import TOOL_FIELD
 
 NA_VALUE = "N/A"

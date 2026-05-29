@@ -2,21 +2,20 @@
 
 import pytest
 from openpyxl import load_workbook
-from PySide6.QtWidgets import QDialog, QMessageBox, QPushButton
+from PySide6.QtWidgets import QDialog, QMessageBox
 
 from app.dashboard_ui import DashboardWindow
 from app.pages.audit import AuditPage, audit_section_for_field
 from app.pages.notes import NotesPage
 from app.pages.tags import TagsPage
 from app.widgets import annotation_target_navigator
-from app.widgets.field_tag_button import FieldNoteDialog, FieldTagButton, FieldTagDialog
 from app.widgets.annotation_target_navigator import AnnotationTargetPickerDialog
+from app.widgets.field_tag_button import FieldNoteDialog, FieldTagButton, FieldTagDialog
 from app.widgets.note_editor import NoteEditor
 from core.annotations.service import AnnotationService
 from core.audit_entries import save_audit_entry
 from core.paths import resolve_project_paths
 from tests.ui.helpers import click_button, wait_for_background_tasks
-
 
 pytestmark = pytest.mark.usability
 

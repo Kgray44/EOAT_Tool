@@ -8,6 +8,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from .audit.relationships import compatibility_entries_for_source_audit, is_compatibility_row
 from .audit_compatibility import (
     machine_from_audit_row,
     normalize_entry_type,
@@ -15,7 +16,6 @@ from .audit_compatibility import (
     part_number_from_row,
     text_value,
 )
-from .audit.relationships import compatibility_entries_for_source_audit, is_compatibility_row
 from .logging import log_tool_run
 from .open_items import list_open_items
 from .paths import resolve_project_paths

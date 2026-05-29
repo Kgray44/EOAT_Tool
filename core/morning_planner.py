@@ -9,7 +9,7 @@ from typing import Any
 from .audit_progress import calculate_audit_progress
 from .documentation_gaps import scan_documentation_gaps
 from .kpi_analysis import analyze_kpis
-from .logging import log_tool_run, read_recent_activity
+from .logging import log_tool_run
 from .morning_context import MorningPlanningContext, collect_morning_planning_context, detect_generic_morning_report
 from .paths import resolve_project_paths
 from .reports import list_recent_files, read_report_preview
@@ -19,7 +19,6 @@ from .schedule import ProjectDay, load_week_schedule, resolve_project_day_for_pr
 from .task_progress import TaskItem
 from .validation import validate_project_foundation
 from .workbook_io import row_dicts
-
 
 TOOL_ID = "morning_planner"
 TOOL_NAME = "Daily What Should I Work On? Morning Planner"
@@ -947,7 +946,7 @@ def build_morning_plan_markdown(
     lines.extend(
         [
             "### Block 1 - Schedule / Clean Start",
-            "- Check the Week {week} Day {day} task list and resolve any carryover before stretch work.".format(week=week, day=day),
+            f"- Check the Week {week} Day {day} task list and resolve any carryover before stretch work.",
             "- If a task is blocked, record the person/source needed and ask that question early.",
             "- Run workbook validation after template or audit-data changes.",
             "",

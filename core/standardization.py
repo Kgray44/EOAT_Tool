@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .analysis_common import table_from_rows, write_timestamped_csv, write_timestamped_report
 from .audit_entries import repair_legacy_audit_lookup_shift
