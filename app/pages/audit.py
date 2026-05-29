@@ -86,7 +86,8 @@ from core.audit_entries import (
     part_present_sensor_value_allows_default,
 )
 from core.audit.compatibility_preview import CompatibilityImpactPreview, build_compatibility_impact_preview
-from core.audit.coach import STATE_MISSING, calculate_audit_coach_summary, unknown_not_checked_value_for_field
+from core.audit.coach import calculate_audit_coach_summary, unknown_not_checked_value_for_field
+from core.audit.completion import calculate_audit_completion
 from core.audit.drafts import discard_audit_draft, form_values_changed, load_audit_draft, save_audit_draft
 from core.audit_field_rules import PNEUMATIC_CIRCUIT_FIELDS, field_applies, manual_completion_override_enabled, non_applicable_reason
 from core.audit_field_registry import audit_section_groups as registry_audit_section_groups, audit_sections as registry_audit_sections
@@ -293,6 +294,7 @@ class AuditPage(QWidget):
         self._pending_save_snapshot: dict[str, str] | None = None
         self._pending_save_started_at: str | None = None
         self._pending_completed_update_context: dict[str, object] | None = None
+        self._pending_manual_completion_override = False
         self._last_saved_snapshot: dict[str, str] = {}
         self._changeover_user_modified = False
         self._generated_audit_ids: set[str] = set()
@@ -1896,26 +1898,22 @@ class AuditPage(QWidget):
             return True
         box = QMessageBox(self)
         box.setWindowTitle("Manual Completion Override")
-        box.setText("Manual Completion Override")
-        box.setInformativeText(
-            "This will manually mark this audit as complete even though some fields may still be blank. "
-            "Blank fields currently remaining on this audit will be ignored by the audit coach for completion percentage purposes. "
-            "This only affects this audit. Are you sure you want to continue?"
+        box.setText(
+            "This will manually mark this audit as complete even though some fields may still be blank.\n"
+            "Blank fields currently remaining on this audit will be ignored by the audit coach for completion percentage purposes.\n"
+            "This only affects the current audit. It does not change global validation rules.\n"
+            "Are you sure you want to continue?"
         )
         cancel_button = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         mark_button = box.addButton("Mark Complete", QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(cancel_button)
+        box.setEscapeButton(cancel_button)
         box.exec()
         return box.clickedButton() == mark_button
 
     def _empty_fields_for_manual_override(self, entry: dict[str, str]) -> list[str]:
-        summary = calculate_audit_coach_summary(entry, AUDIT_SECTIONS, mode=self._current_audit_mode)
-        fields: list[str] = []
-        for section in summary.sections:
-            for status in section.fields:
-                if status.applies and status.state == STATE_MISSING:
-                    fields.append(status.field)
-        return fields
+        summary = calculate_audit_completion(entry, AUDIT_SECTIONS, mode=self._current_audit_mode)
+        return list(summary.missing_fields)
 
     def apply_manual_completion_override(self, *_args) -> None:
         if self._save_requested or self._save_in_progress:
@@ -1948,6 +1946,7 @@ class AuditPage(QWidget):
                 "ignored_empty_fields": ignored_fields,
             },
         )
+        self._pending_manual_completion_override = True
         self.save_audit(
             skip_completion_prompts=True,
             forced_entry=entry,
@@ -2067,6 +2066,7 @@ class AuditPage(QWidget):
 
     def _after_save_audit(self, result, audit_id: str) -> None:
         completed_update_context = self._pending_completed_update_context
+        manual_override_save = bool(self._pending_manual_completion_override)
         pending_snapshot = dict(self._pending_save_snapshot or {})
         navigation_requested = self._save_navigation_requested
         saved_audit_id = str(result.metrics.get("audit_id") or audit_id or "").strip()
@@ -2139,6 +2139,10 @@ class AuditPage(QWidget):
             else:
                 result.details.append(event_detail)
             self.result_panel.show_result(result)
+            if manual_override_save:
+                self.result_panel.show_text(
+                    "Manual completion override applied. This audit is treated as 100% complete, but blank fields were not field-verified."
+                )
             self._log_lifecycle_event(
                 "audit_save_completed",
                 {
@@ -2173,6 +2177,7 @@ class AuditPage(QWidget):
         self._pending_save_snapshot = None
         self._pending_save_started_at = None
         self._pending_completed_update_context = None
+        self._pending_manual_completion_override = False
         if hasattr(self, "save_audit_button"):
             self.save_audit_button.setEnabled(True)
         if hasattr(self, "manual_override_button"):

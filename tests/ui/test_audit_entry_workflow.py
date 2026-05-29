@@ -43,6 +43,16 @@ def _field_value(page: AuditPage, field: str) -> str:
     return page._field_value(page.audit_fields[field])
 
 
+def _coach_field_status(page: AuditPage, field: str):
+    summary = page.audit_coach_panel.summary
+    assert summary is not None
+    for section in summary.sections:
+        for status in section.fields:
+            if status.field == field:
+                return status
+    raise AssertionError(f"Missing coach status for {field}")
+
+
 def _finish_machine_lookup(page: AuditPage) -> None:
     page.audit_fields["Press/Machine #"].editingFinished.emit()
     wait_until(
@@ -1046,6 +1056,42 @@ def _patch_manual_override_confirmation(monkeypatch, button_text: str) -> None:
     monkeypatch.setattr("app.pages.audit.QMessageBox.clickedButton", fake_clicked_button)
 
 
+def test_manual_completion_override_button_visible(qapp, fake_config):
+    page = AuditPage(fake_config)
+
+    button = next((button for button in page.findChildren(QPushButton) if button.text() == "Manual Override: Mark Audit Complete"), None)
+
+    assert button is not None
+    assert button.isVisibleTo(page)
+
+
+def test_manual_completion_override_confirmation_copy_and_default_cancel(qapp, fake_config, monkeypatch):
+    page = AuditPage(fake_config)
+    captured = {}
+
+    def fake_exec(box):
+        captured["title"] = box.windowTitle()
+        captured["message"] = box.text()
+        captured["buttons"] = sorted(button.text() for button in box.buttons())
+        captured["default"] = box.defaultButton().text() if box.defaultButton() is not None else ""
+        captured["clicked"] = box.defaultButton()
+        return 0
+
+    monkeypatch.setattr("app.pages.audit.QMessageBox.exec", fake_exec)
+    monkeypatch.setattr("app.pages.audit.QMessageBox.clickedButton", lambda _box: captured["clicked"])
+
+    assert page._confirm_manual_completion_override() is False
+    assert captured["title"] == "Manual Completion Override"
+    assert captured["message"] == (
+        "This will manually mark this audit as complete even though some fields may still be blank.\n"
+        "Blank fields currently remaining on this audit will be ignored by the audit coach for completion percentage purposes.\n"
+        "This only affects the current audit. It does not change global validation rules.\n"
+        "Are you sure you want to continue?"
+    )
+    assert captured["buttons"] == ["Cancel", "Mark Complete"]
+    assert captured["default"] == "Cancel"
+
+
 def test_manual_completion_override_cancel_does_not_mark_complete(qapp, fake_config, fake_project, monkeypatch):
     audit_id = "AUD-MANUAL-OVERRIDE-CANCEL"
     _seed_audit(
@@ -1086,7 +1132,12 @@ def test_manual_completion_override_saves_persists_and_stays_audit_specific(qapp
 
     assert page.audit_coach_panel.summary.percent_complete == 100
     assert page.audit_coach_panel.summary.manual_completion_override is True
+    assert _coach_field_status(page, "Photo Folder/Link").state == "missing"
     assert "Manual completion override applied" in page.manual_override_status_label.text()
+    assert (
+        "Manual completion override applied. This audit is treated as 100% complete, but blank fields were not field-verified."
+        in page.result_panel.viewer.toPlainText()
+    )
     assert page.has_unsaved_changes() is False
     rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
     row = next(row for row in rows if row["Audit ID"] == audit_id)
