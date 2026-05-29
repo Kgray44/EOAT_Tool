@@ -3,22 +3,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from core.audit.completion import (
+    FieldCompletionStatus,
+    STATE_EXCLUDED,
+    STATE_IGNORED_BY_MANUAL_OVERRIDE,
+    STATE_IGNORED_BY_OPTIONAL_GROUP,
+    calculate_audit_completion,
+    classify_completion_field,
+)
 from core.audit_field_rules import (
-    cylinder_optional_reason,
-    cylinder_section_in_use,
-    field_applies,
     field_group,
     hybrid_completeness_warnings,
-    ignored_empty_fields_at_override,
-    is_meaningful_value,
-    is_na_value,
-    manual_completion_override_enabled,
-    non_applicable_reason,
     normalize_text,
     semantic_consistency_warnings,
-    entry_type_requirements,
 )
-from core.audit_constants import CYLINDER_FIELDS, MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD, MANUAL_COMPLETION_OVERRIDE_USER_FIELD
+from core.audit_constants import MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD, MANUAL_COMPLETION_OVERRIDE_USER_FIELD
 from core.gripper_fields import CUP_COUNT_FIELD
 
 STATE_VERIFIED_COMPLETE = "verified_complete"
@@ -155,34 +154,20 @@ def calculate_audit_coach_summary(
     *,
     mode: str = "",
 ) -> AuditCoachSummary:
+    completion = calculate_audit_completion(entry, sections, mode=mode)
     current_entry = {str(key): normalize_text(value) for key, value in entry.items()}
-    requirements = entry_type_requirements(current_entry)
-    required_fields = set(requirements.get("required", []))
-    important_fields = set(requirements.get("important", []))
-
     section_statuses: list[AuditCoachSectionStatus] = []
     all_statuses: list[AuditCoachFieldStatus] = []
     findings: list[AuditCoachFinding] = []
 
-    for section_name, fields in sections.items():
-        field_statuses = tuple(
-            classify_audit_field(
-                current_entry,
-                field,
-                section=str(section_name),
-                required_fields=required_fields,
-                important_fields=important_fields,
-            )
-            for field in fields
-        )
+    for section in completion.sections:
+        field_statuses = tuple(_coach_status_from_completion(status) for status in section.fields)
         all_statuses.extend(field_statuses)
         findings.extend(_stale_hidden_findings(field_statuses))
-        section_statuses.append(_section_summary(str(section_name), field_statuses))
+        section_statuses.append(_section_summary(section.name, field_statuses))
 
     findings.extend(_cross_field_findings(current_entry))
-    override_enabled = manual_completion_override_enabled(current_entry)
-    ignored_override_fields = ignored_empty_fields_at_override(current_entry)
-    if override_enabled:
+    if completion.manual_completion_override_applied:
         findings.append(
             AuditCoachFinding(
                 severity="info",
@@ -191,49 +176,18 @@ def calculate_audit_coach_summary(
             )
         )
 
-    missing_fields = tuple(status.field for status in all_statuses if status.state == STATE_MISSING)
-    unknown_fields = tuple(status.field for status in all_statuses if status.state == STATE_UNKNOWN_NOT_CHECKED)
+    missing_fields = completion.missing_fields
+    unknown_fields = completion.unknown_not_checked_fields
     not_applicable = tuple(status for status in all_statuses if status.state == STATE_NOT_APPLICABLE)
-    follow_up_fields = tuple(status.field for status in all_statuses if status.state == STATE_FOLLOW_UP_NEEDED)
-    stale_conflict_fields = tuple(status.field for status in all_statuses if status.state == STATE_STALE_CONFLICT)
-    applicable_statuses = [status for status in all_statuses if status.applies]
-    verified_count = sum(1 for status in applicable_statuses if status.state == STATE_VERIFIED_COMPLETE)
-    applicable_count = len(applicable_statuses)
-    guided_statuses = sorted(
-        (status for status in all_statuses if status.is_actionable),
-        key=lambda status: (_priority_for_status(status), _state_sort(status.state), _field_index(sections, status.field)),
-    )
-    guided_fields = tuple(status.field for status in guided_statuses)
-    next_status = guided_statuses[0] if guided_statuses else None
-    blocking_findings = [finding for finding in findings if finding.severity in {"warning", "error"}]
-    missing_required = tuple(
-        status.field
-        for status in all_statuses
-        if status.required and status.state in {STATE_MISSING, STATE_UNKNOWN_NOT_CHECKED, STATE_FOLLOW_UP_NEEDED, STATE_STALE_CONFLICT}
-    )
-    missing_important = tuple(
-        status.field
-        for status in all_statuses
-        if status.important and status.state in {STATE_MISSING, STATE_UNKNOWN_NOT_CHECKED, STATE_FOLLOW_UP_NEEDED, STATE_STALE_CONFLICT}
-    )
-    if override_enabled:
-        section_statuses = [_manual_override_section(section) for section in section_statuses]
-        verified_count = applicable_count
-        missing_fields = ()
-        unknown_fields = ()
-        follow_up_fields = ()
-        stale_conflict_fields = ()
-        guided_fields = ()
-        next_status = None
-        missing_required = ()
-        missing_important = ()
+    follow_up_fields = completion.follow_up_fields
+    stale_conflict_fields = completion.stale_conflict_fields
 
     return AuditCoachSummary(
-        audit_id=current_entry.get("Audit ID", ""),
-        entry_type=str(requirements.get("entry_type", "")),
+        audit_id=completion.audit_id,
+        entry_type=completion.entry_type,
         mode=mode,
-        applicable_field_count=applicable_count,
-        verified_complete_count=verified_count,
+        applicable_field_count=completion.applicable_field_count,
+        verified_complete_count=completion.verified_complete_count,
         missing_fields=missing_fields,
         unknown_not_checked_fields=unknown_fields,
         not_applicable_fields=not_applicable,
@@ -241,17 +195,17 @@ def calculate_audit_coach_summary(
         stale_conflict_fields=stale_conflict_fields,
         sections=tuple(section_statuses),
         findings=tuple(findings),
-        next_best_field=next_status.field if next_status else "",
-        next_best_reason="Manual completion override is applied." if override_enabled else _next_best_reason(next_status) if next_status else "No applicable missing fields remain.",
-        guided_fields=guided_fields,
-        percent_complete=100 if override_enabled else _percent(verified_count, applicable_count),
-        can_finish=True if override_enabled else not guided_statuses and not blocking_findings,
-        missing_required_fields=missing_required,
-        missing_important_fields=missing_important,
-        manual_completion_override=override_enabled,
+        next_best_field=completion.next_best_field,
+        next_best_reason=completion.next_best_reason,
+        guided_fields=completion.guided_fields,
+        percent_complete=completion.percent_complete,
+        can_finish=completion.can_finish,
+        missing_required_fields=completion.missing_required_fields,
+        missing_important_fields=completion.missing_important_fields,
+        manual_completion_override=completion.manual_completion_override_applied,
         manual_completion_override_timestamp=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD)),
         manual_completion_override_user=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_USER_FIELD)),
-        ignored_empty_fields_at_override=ignored_override_fields,
+        ignored_empty_fields_at_override=completion.ignored_empty_fields_at_override,
     )
 
 
@@ -263,110 +217,46 @@ def classify_audit_field(
     required_fields: set[str] | None = None,
     important_fields: set[str] | None = None,
 ) -> AuditCoachFieldStatus:
-    required_fields = required_fields or set()
-    important_fields = important_fields or set()
-    current_entry = dict(entry)
-    value = normalize_text(current_entry.get(field))
-    required = field in required_fields or field in IDENTITY_FIELDS
-    important = field in important_fields
-    priority = _field_priority(field, required=required, important=important)
-
-    if field in CYLINDER_FIELDS and not cylinder_section_in_use(current_entry):
-        return AuditCoachFieldStatus(
-            field=field,
-            section=section,
-            state=STATE_NOT_APPLICABLE,
-            value=value,
-            applies=False,
-            reason=cylinder_optional_reason(),
-            priority=priority,
-            required=False,
-            important=False,
-        )
-
-    if not field_applies(current_entry, field):
-        reason = non_applicable_reason(current_entry, field)
-        if is_meaningful_value(value):
-            return AuditCoachFieldStatus(
-                field=field,
-                section=section,
-                state=STATE_STALE_CONFLICT,
-                value=value,
-                applies=False,
-                reason=f"{reason} Current value is still populated.",
-                priority=priority,
-                required=required,
-                important=important,
-            )
-        return AuditCoachFieldStatus(
-            field=field,
-            section=section,
-            state=STATE_NOT_APPLICABLE,
-            value=value,
-            applies=False,
-            reason=reason,
-            priority=priority,
-            required=required,
-            important=important,
-        )
-
-    if field in OPTIONAL_COMPLETION_FIELDS and (not value or is_na_value(value)):
-        return AuditCoachFieldStatus(
-            field=field,
-            section=section,
-            state=STATE_VERIFIED_COMPLETE,
-            value=value,
-            applies=True,
-            reason="Optional narrative field; blank is accepted.",
-            priority=priority,
-            required=False,
-            important=False,
-        )
-
-    if _is_unknown_not_checked(value):
-        return AuditCoachFieldStatus(
-            field=field,
-            section=section,
-            state=STATE_UNKNOWN_NOT_CHECKED,
-            value=value,
-            applies=True,
-            reason="Marked Unknown / Not Checked; this is accepted as an explicit audit state but is not verified complete.",
-            priority=priority,
-            required=required,
-            important=important,
-        )
-    if not value or is_na_value(value):
-        return AuditCoachFieldStatus(
-            field=field,
-            section=section,
-            state=STATE_MISSING,
-            value=value,
-            applies=True,
-            reason="Applicable field has not been verified.",
-            priority=priority,
-            required=required,
-            important=important,
-        )
-    if _needs_follow_up(field, value):
-        return AuditCoachFieldStatus(
-            field=field,
-            section=section,
-            state=STATE_FOLLOW_UP_NEEDED,
-            value=value,
-            applies=True,
-            reason="Field is explicitly marked for review or follow-up.",
-            priority=priority,
-            required=required,
-            important=important,
-        )
-    return AuditCoachFieldStatus(
-        field=field,
+    status = classify_completion_field(
+        entry,
+        field,
         section=section,
-        state=STATE_VERIFIED_COMPLETE,
-        value=value,
-        applies=True,
-        reason="Applicable field has a verified value.",
-        priority=priority,
+        required_fields=required_fields,
+        important_fields=important_fields,
+    )
+    return _coach_status_from_completion(status)
+
+
+def _coach_status_from_completion(status: FieldCompletionStatus) -> AuditCoachFieldStatus:
+    state = status.state
+    applies = status.applies
+    reason = status.reason
+    required = status.required
+    important = status.important
+    if state == STATE_IGNORED_BY_OPTIONAL_GROUP:
+        state = STATE_NOT_APPLICABLE
+        applies = False
+        required = False
+        important = False
+    elif state == STATE_EXCLUDED and status.field in OPTIONAL_COMPLETION_FIELDS:
+        state = STATE_VERIFIED_COMPLETE
+        applies = True
+        required = False
+        important = False
+        reason = "Optional narrative field; blank is accepted."
+    elif state == STATE_EXCLUDED:
+        state = STATE_NOT_APPLICABLE
+        applies = False
+    elif state == STATE_IGNORED_BY_MANUAL_OVERRIDE:
+        state = status.original_state or STATE_MISSING
+    return AuditCoachFieldStatus(
+        field=status.field,
+        section=status.section,
+        state=state,
+        value=status.value,
+        applies=applies,
+        reason=reason,
+        priority=status.priority,
         required=required,
         important=important,
     )
