@@ -22,7 +22,7 @@ from app.widgets.status_card import StatusCard
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.openers import open_path
 from core.paths import resolve_project_paths
-from core.performance import read_recent_performance_events, summarize_performance
+from core.performance import analyze_performance_doctor, read_recent_performance_events, summarize_performance
 
 
 class PerformancePage(AsyncRefreshMixin, QWidget):
@@ -63,6 +63,9 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
                 "Audit Save",
                 "Validation",
                 "Report Generation",
+                "Slowest Operation",
+                "Likely Cause",
+                "Recommendation",
             ]
         ):
             card = StatusCard(key)
@@ -70,8 +73,8 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
             grid.addWidget(card, index // 5, index % 5)
         layout.addLayout(grid)
 
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["Operation", "Duration", "Source", "Page/Tool", "Warnings", "Errors"])
+        self.table = QTableWidget(0, 8)
+        self.table.setHorizontalHeaderLabels(["Operation", "Duration", "Source", "Page/Tool", "Warnings", "Errors", "Likely Cause", "Recommendation"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -90,7 +93,7 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         return self._begin_background_refresh(
             task_id="performance_page_refresh",
             name="Performance Page Refresh",
-            load=lambda: read_recent_performance_events(self.config.project_root, limit=300),
+            load=lambda: (*read_recent_performance_events(self.config.project_root, limit=300), *analyze_performance_doctor(self.config.project_root, limit=300)),
             apply_result=self._apply_refresh_result,
             button=self.refresh_button,
             force=force,
@@ -106,7 +109,7 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
 
     def _apply_refresh_result(self, payload: tuple, data_load_seconds: float) -> None:
         render_started = time.perf_counter()
-        events, warning = payload
+        events, warning, doctor, doctor_warning = payload
         summary = summarize_performance(events)
         self.cards["Events Logged"].set_value(str(summary["event_count"]))
         self.cards["Cache Hits"].set_value(str(summary["cache"]["hit"]))
@@ -122,17 +125,26 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         self.cards["Audit Save"].set_value(_event_duration(summary["latest"]["audit_save"]))
         self.cards["Validation"].set_value(_event_duration(summary["latest"]["validation"]))
         self.cards["Report Generation"].set_value(_event_duration(summary["latest"]["report_generation"]))
+        self.cards["Slowest Operation"].set_value(doctor.slowest_operation or "n/a")
+        first_finding = doctor.findings[0] if doctor.findings else None
+        self.cards["Likely Cause"].set_value(first_finding.likely_cause if first_finding else "No slow operation flagged")
+        self.cards["Recommendation"].set_value(first_finding.recommendation if first_finding else "Keep collecting performance events")
 
         slowest = summary["slowest_operations"]
-        self._populate_events_table(slowest)
+        self._populate_events_table(slowest, doctor.findings)
 
         lines = ["Recent structured performance events are stored locally in 00_Project_Admin/logs/performance.jsonl."]
         if warning:
             lines.append(warning)
+        if doctor_warning:
+            lines.append(doctor_warning)
         if not events:
             lines.append("No performance events logged yet. Run a dashboard refresh or tool action to populate diagnostics.")
         else:
             lines.append(f"Slowest displayed operation: {slowest[0].get('operation', '') if slowest else 'n/a'}.")
+            if first_finding:
+                lines.append(f"Likely cause: {first_finding.likely_cause}")
+                lines.append(f"Recommendation: {first_finding.recommendation}")
             for item in summary.get("operation_summary", [])[:5]:
                 lines.append(
                     f"{item['operation']}: p50 {item['p50_duration_seconds']:.2f}s, "
@@ -155,7 +167,8 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
             details={"row_count": len(slowest)},
         )
 
-    def _populate_events_table(self, slowest: list[dict]) -> None:
+    def _populate_events_table(self, slowest: list[dict], findings) -> None:
+        finding_by_operation = {finding.operation: finding for finding in findings}
         sorting = self.table.isSortingEnabled()
         self.table.setSortingEnabled(False)
         self.table.blockSignals(True)
@@ -170,6 +183,8 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
                     event.get("page_tool", ""),
                     str(event.get("warning_count") or 0),
                     str(event.get("error_count") or 0),
+                    getattr(finding_by_operation.get(str(event.get("operation") or "")), "likely_cause", ""),
+                    getattr(finding_by_operation.get(str(event.get("operation") or "")), "recommendation", ""),
                 ]
                 for column, value in enumerate(values):
                     self.table.setItem(row, column, QTableWidgetItem(str(value)))

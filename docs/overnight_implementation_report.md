@@ -238,6 +238,26 @@ Because the full suite is too slow for short checkpoint windows in this environm
   - `python -m pytest tests/test_final_handoff.py tests/core/test_qr_labels.py::test_export_qr_label_sheet_writes_printable_outputs_and_handoff_source`
   - Result: 4 passed.
 
+## Checkpoint 20 - Timeline, App Health, Search, And Performance Doctor
+
+- Added `core/timeline.py` to build a local what-changed timeline from audit history, activity logs, annotations, open items, validation reports, photo index rows, and generated report folders.
+- Timeline events cover audit created/updated, field changed, compatibility rows updated, Robot_Info related changes, notes, tags, follow-ups, PM checklist generation, report generation, validation findings, manual override application, and photo evidence.
+- Added `core/app_health.py` and an App Health page for runtime, dependency, PySide, project root, demo/real mode, master workbook, workbook lock, required folder, config, Robot_Info, annotation DB, photo index, scheduled task, logs, cache, repo safety, Git, and release-readiness diagnostics.
+- Added `core/search_index.py` as an explained search layer over audits, fields, machines, notes, tags, open items, validation findings, reports, photos, and press groups. Results include matched source, matched field, snippet, rank score, and why matched.
+- Extended `core/performance.py` with a Performance Doctor summary that flags slow startup/config, page creation, workbook IO, validation, report generation, cache, event dispatch, background queue, and workbook lock-wait events with likely cause and recommendation.
+- Updated the Performance page to surface the slowest operation, likely cause, recommendation, and per-row doctor findings while preserving the existing event table and refresh flow.
+- Focused verification:
+  - `python -m pytest tests/core/test_timeline.py tests/core/test_app_health.py tests/core/test_search_index.py tests/core/test_performance_doctor.py`
+  - Result: 8 passed.
+  - `python -m pytest tests/test_app_architecture_foundation.py tests/test_feature_registry.py tests/test_command_registry.py`
+  - Result: 12 passed.
+  - `python -m pytest tests/ui/test_performance_page.py tests/core/test_performance_doctor.py`
+  - Result: 3 passed.
+  - `python -m pytest -q tests/test_ui_smoke.py`
+  - Result: 6 passed.
+  - `python scripts/repo_safety_audit.py --root .`
+  - Result: no blocking or warning findings.
+
 ## Final Verification And Handoff Notes
 
 - Worktree used for all implementation after the copy step:
@@ -245,7 +265,7 @@ Because the full suite is too slow for short checkpoint windows in this environm
 - Branch:
   - `feature/full-overnight-expansion`
 - Checkpoint commits created:
-  - One stable checkpoint commit has been created for each completed phase through Phase 16. Use `git log --oneline` for exact commit hashes.
+  - One stable checkpoint commit has been created for each completed phase through Phase 20. Use `git log --oneline` for exact commit hashes.
 - Final smoke verification:
   - `python -m pytest -q tests/test_ui_smoke.py`
   - Result: 6 passed.

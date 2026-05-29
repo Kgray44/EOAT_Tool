@@ -166,6 +166,14 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         description="Dashboard cache and performance diagnostics.",
     ),
     PageSpec(
+        "app_health",
+        "App Health",
+        "System",
+        "app.pages.app_health:AppHealthPage",
+        refresh_on_show=True,
+        description="Runtime, dependency, project, workbook, task, Git, and release diagnostics.",
+    ),
+    PageSpec(
         "backup_manager",
         "Backup Manager",
         "System",
