@@ -43,6 +43,8 @@ def test_open_items_page_filters_and_status_actions(qapp, fake_config, monkeypat
     page = OpenItemsPage(fake_config)
     page.show()
     wait_for_background_tasks()
+    page.deep_rebuild(force=True)
+    wait_for_background_tasks()
 
     assert page.table.rowCount() >= 2
     page.search_edit.setText("UI open note")
@@ -86,6 +88,8 @@ def test_open_items_page_opens_audit_field_target(qapp, fake_config, fake_projec
     window = DashboardWindow(fake_config)
     window._show_page("open_items")
     page = window.pages["open_items"]
+    page.deep_rebuild(force=True)
+    wait_for_background_tasks()
     page.search_edit.setText("AUD-OPEN-TARGET-001")
     page.source_filter.setCurrentText("tag")
     page.table.selectRow(0)

@@ -132,9 +132,11 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         followup_button.clicked.connect(self.create_follow_up)
         export_button = QPushButton("Export Open Items Report")
         export_button.clicked.connect(self.export_report)
-        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button = QPushButton("Quick Refresh")
         self.refresh_button.clicked.connect(lambda: self.refresh(force=True))
-        for button in [open_button, fix_button, dismiss_button, note_button, followup_button, export_button, self.refresh_button]:
+        self.deep_rebuild_button = QPushButton("Deep Rebuild Open Items")
+        self.deep_rebuild_button.clicked.connect(lambda: self.deep_rebuild(force=True))
+        for button in [open_button, fix_button, dismiss_button, note_button, followup_button, export_button, self.refresh_button, self.deep_rebuild_button]:
             action_row.addWidget(button)
         action_row.addStretch(1)
         layout.addLayout(action_row)
@@ -155,7 +157,7 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
 
     def refresh(self, *_args, force: bool = False) -> bool:
         def _load() -> dict:
-            items = list_open_items(self.config.project_root, include_resolved=True)
+            items, generated_at, warning = load_cached_open_items(self.config.project_root, include_resolved=True)
             try:
                 tags = [tag.name for tag in AnnotationService(self.config.project_root).list_tags()]
             except Exception:
@@ -165,31 +167,66 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
                 "tags": tags,
                 "summary": summarize_open_items(items),
                 "source_counts": dict(Counter(item.source for item in items)),
+                "generated_at": generated_at,
+                "warning": warning,
+                "cached": True,
             }
 
         return self._begin_background_refresh(
             task_id="open_items_refresh",
-            name="Open Items Refresh",
+            name="Open Items Quick Refresh",
             load=_load,
             apply_result=self._apply_refresh_result,
             button=self.refresh_button,
             force=force,
-            loading_text=self._loading_text(),
+            loading_text="Loading cached open items...",
+        )
+
+    def deep_rebuild(self, *_args, force: bool = False) -> bool:
+        def _load() -> dict:
+            items = list_open_items(self.config.project_root, include_resolved=True, include_validation=True)
+            try:
+                tags = [tag.name for tag in AnnotationService(self.config.project_root).list_tags()]
+            except Exception:
+                tags = []
+            return {
+                "items": items,
+                "tags": tags,
+                "summary": summarize_open_items(items),
+                "source_counts": dict(Counter(item.source for item in items)),
+                "cached": False,
+            }
+
+        return self._begin_background_refresh(
+            task_id="open_items_deep_rebuild",
+            name="Deep Rebuild Open Items",
+            load=_load,
+            apply_result=self._apply_refresh_result,
+            button=self.deep_rebuild_button,
+            force=force,
+            loading_text="Deep rebuild running in background: notes, tags, action items, evidence, documentation, validation...",
         )
 
     def refresh_data(self) -> None:
         self.refresh()
 
     def on_show(self) -> None:
+        started = time.perf_counter()
         self._show_cached_items()
-        self.refresh()
+        log_page_performance(
+            self.config.project_root,
+            "open_items",
+            "cached_show",
+            time.perf_counter() - started,
+            details={"row_count": len(self.items), "cached_only": True},
+        )
         return True
 
     def on_event(self, event) -> None:
         if getattr(event, "event_type", "") == EVENT_AUDIT_SAVED:
-            self.status_label.setText("Audit saved. Open Items are marked stale; click Refresh or reopen this page to rebuild from source data.")
+            self.status_label.setText("Audit saved. Open Items are marked stale; use Deep Rebuild Open Items when you need a full source rebuild.")
             return True
-        self.refresh()
+        self.status_label.setText("Open Items cache may be stale; use Quick Refresh for cached data or Deep Rebuild Open Items for source validation.")
         return True
 
     def on_project_root_changed(self, config) -> None:
@@ -198,7 +235,6 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.filtered_items = []
         self._populate_table([])
         self._show_cached_items()
-        self.refresh(force=True)
 
     def apply_filters(self, *_args) -> None:
         needle = self.search_edit.text().casefold().strip()
@@ -354,19 +390,19 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
     def _show_cached_items(self) -> None:
         cached, generated_at, warning = load_cached_open_items(self.config.project_root, include_resolved=True)
         if not cached:
-            self.status_label.setText(f"{warning or 'No cached open items yet.'} Loading fresh data in background...")
+            self.status_label.setText(f"{warning or 'No cached open items yet.'} Use Deep Rebuild Open Items to build it.")
             return
         self.items = cached
         self._latest_generated_at = generated_at or ""
         self._refresh_filter_options([])
         self._refresh_summary(summarize_open_items(cached))
         self.apply_filters()
-        self.status_label.setText(f"Showing cached data from {_time_label(generated_at)}. Refreshing in background...")
+        self.status_label.setText(f"Showing cached data from {_time_label(generated_at)}.")
 
     def _loading_text(self) -> str:
         if self.items:
-            return f"Showing cached data from {_time_label(self._latest_generated_at)}. Refreshing in background..."
-        return "Loading open items in background..."
+            return f"Showing cached data from {_time_label(self._latest_generated_at)}."
+        return "Loading cached open items..."
 
     def _apply_refresh_result(self, payload: dict, data_load_seconds: float) -> None:
         render_started = time.perf_counter()
@@ -390,7 +426,25 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
             render_seconds,
             details={"row_count": len(self.filtered_items), "source_counts": source_counts},
         )
-        self.status_label.setText(f"Loaded {len(self.filtered_items)} open items in {data_load_seconds:.1f}s.")
+        from core.performance import log_performance_event
+
+        log_performance_event(
+            self.config.project_root,
+            "open_items.rebuild.table_render",
+            render_seconds,
+            source="open_items",
+            page_tool="open_items",
+            details={"row_count": len(self.filtered_items), "cached": bool(payload.get("cached"))},
+        )
+        if payload.get("cached"):
+            self._latest_generated_at = str(payload.get("generated_at") or self._latest_generated_at)
+            warning = str(payload.get("warning") or "")
+            self.status_label.setText(
+                warning
+                or f"Loaded {len(self.filtered_items)} cached open item(s) in {data_load_seconds:.1f}s."
+            )
+        else:
+            self.status_label.setText(f"Deep rebuild loaded {len(self.filtered_items)} open items in {data_load_seconds:.1f}s.")
 
     def _refresh_filter_options(self, tags: list[str]) -> None:
         self._set_combo_values(self.source_filter, ["All", *sorted({item.source for item in self.items})])

@@ -8,6 +8,7 @@ import pytest
 from openpyxl import Workbook
 
 from app.task_runner import BackgroundTaskManager, TaskResult
+from core.audit_entries import CURRENT_WORKBOOK_SCHEMA_VERSION, WORKBOOK_METADATA_SHEET
 from core.config import UserConfig
 from core.constants import EXPECTED_NUMBERED_FOLDERS
 from core.result import ToolResult
@@ -98,6 +99,11 @@ def fake_project(tmp_path) -> Path:
     for sheet_name in get_expected_sheets():
         ws = workbook.create_sheet(sheet_name)
         ws.append(get_expected_headers(sheet_name))
+    metadata = workbook.create_sheet(WORKBOOK_METADATA_SHEET)
+    metadata.sheet_state = "hidden"
+    metadata.append(["key", "value"])
+    metadata.append(["schema_version", CURRENT_WORKBOOK_SCHEMA_VERSION])
+    metadata.append(["app_name", "EOAT Command Center"])
     workbook.save(workbook_dir / "EOAT_Master_Tracker.xlsx")
     workbook.close()
     return tmp_path

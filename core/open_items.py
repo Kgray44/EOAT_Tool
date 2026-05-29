@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
@@ -13,6 +14,7 @@ from core.annotations.migrations import utc_now
 from core.annotations.service import AnnotationService
 from core.annotations.tag_colors import is_neutral_context_tag
 from core.paths import resolve_project_paths
+from core.performance import log_performance_event
 from core.photo_evidence import evidence_coverage_for_project
 from core.safe_files import ensure_directory, safe_write_text
 from core.validation import validate_project_foundation
@@ -99,28 +101,74 @@ def list_open_items(
     include_validation: bool = True,
     today: date | None = None,
 ) -> list[OpenItem]:
+    started = time.perf_counter()
     root = Path(project_root)
     today = today or date.today()
     items = _generated_open_items(root, include_validation=include_validation)
+    overrides_started = time.perf_counter()
     overrides = _override_map(root)
+    _log_open_items_step(root, "overrides", time.perf_counter() - overrides_started, override_count=len(overrides))
     _record_source_fixes(root, items, overrides, include_validation=include_validation)
     resolved = _apply_overrides(items, overrides)
     if include_resolved:
-        return sorted([*resolved, *_fixed_history_items(root)], key=lambda item: _sort_key(item, today))
-    return sorted([item for item in resolved if item.unresolved], key=lambda item: _sort_key(item, today))
+        fixed_started = time.perf_counter()
+        fixed = _fixed_history_items(root)
+        _log_open_items_step(root, "fixed_history", time.perf_counter() - fixed_started, item_count=len(fixed))
+        output = sorted([*resolved, *fixed], key=lambda item: _sort_key(item, today))
+    else:
+        _log_open_items_step(root, "fixed_history", 0.0, skipped=True)
+        output = sorted([item for item in resolved if item.unresolved], key=lambda item: _sort_key(item, today))
+    log_performance_event(
+        root,
+        "open_items.rebuild.total",
+        time.perf_counter() - started,
+        source="open_items",
+        page_tool="open_items",
+        details={"include_validation": include_validation, "include_resolved": include_resolved, "item_count": len(output)},
+    )
+    return output
 
 
 def _generated_open_items(project_root: Path, *, include_validation: bool = True) -> list[OpenItem]:
     items: list[OpenItem] = []
+    timings: dict[str, float] = {}
     service = AnnotationService(project_root)
-    items.extend(_note_items(service))
-    items.extend(_tag_items(service))
-    items.extend(_action_items(project_root))
-    items.extend(_missing_evidence_items(project_root))
-    items.extend(_documentation_gap_items(project_root))
+    notes = _timed_open_items_step(project_root, "notes", lambda: _note_items(service), timings)
+    items.extend(notes)
+    tags = _timed_open_items_step(project_root, "tags", lambda: _tag_items(service), timings)
+    items.extend(tags)
+    action_items = _timed_open_items_step(project_root, "action_items", lambda: _action_items(project_root), timings)
+    items.extend(action_items)
+    missing_evidence = _timed_open_items_step(project_root, "missing_evidence", lambda: _missing_evidence_items(project_root), timings)
+    items.extend(missing_evidence)
+    documentation_gaps = _timed_open_items_step(project_root, "documentation_gaps", lambda: _documentation_gap_items(project_root), timings)
+    items.extend(documentation_gaps)
     if include_validation:
-        items.extend(_validation_items(project_root))
+        validation_items = _timed_open_items_step(project_root, "validation", lambda: _validation_items(project_root), timings)
+        items.extend(validation_items)
+    else:
+        _log_open_items_step(project_root, "validation", 0.0, skipped=True)
     return items
+
+
+def _timed_open_items_step(project_root: Path, step: str, func, timings: dict[str, float]) -> list[OpenItem]:
+    started = time.perf_counter()
+    items = func()
+    elapsed = time.perf_counter() - started
+    timings[step] = elapsed
+    _log_open_items_step(project_root, step, elapsed, item_count=len(items))
+    return items
+
+
+def _log_open_items_step(project_root: Path, step: str, duration_seconds: float, **details: object) -> None:
+    log_performance_event(
+        project_root,
+        f"open_items.rebuild.{step}",
+        duration_seconds,
+        source="open_items",
+        page_tool="open_items",
+        details=details,
+    )
 
 
 def open_items_summary(project_root: str | Path, *, today: date | None = None) -> dict[str, int]:

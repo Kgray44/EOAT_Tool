@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 import time
 
 try:
@@ -25,6 +24,7 @@ from core.config import load_config, save_config
 from core.constants import APP_NAME
 from core.performance import log_performance
 from core.search import SearchResult
+from core.snapshots import invalidate_workbook_snapshot, schedule_workbook_snapshot_refresh
 from core.workbook_cache import invalidate_all_workbook_cache
 
 from .command_registry import build_dashboard_command_registry
@@ -320,6 +320,8 @@ class DashboardWindow(QMainWindow):
                 if handled is not False:
                     continue
             if event.event_type == EVENT_AUDIT_SAVED and event.payload.get("refresh_mode") == "invalidate_only":
+                invalidate_workbook_snapshot(self.config.project_root)
+                schedule_workbook_snapshot_refresh(self.config.project_root)
                 continue
             self._refresh_page(page)
 
@@ -366,11 +368,7 @@ class DashboardWindow(QMainWindow):
         if not callable(method):
             result = None
         else:
-            try:
-                parameters = inspect.signature(method).parameters
-                result = method(destination_page) if parameters else method()
-            except (TypeError, ValueError):
-                result = method()
+            result = method(destination_page)
         if result is None:
             return True, ""
         if isinstance(result, tuple):

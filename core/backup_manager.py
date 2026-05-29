@@ -8,6 +8,7 @@ from typing import Any
 
 from .logging import log_tool_run
 from .paths import resolve_project_paths
+from .performance import log_performance_event
 from .result import ToolResult
 from .validation import validate_project_foundation
 from .validation_findings import findings_from_result
@@ -63,6 +64,7 @@ class BackupSummary:
 def discover_workbook_backups(project_root: str | Path, *, now: datetime | None = None) -> list[BackupRecord]:
     paths = resolve_project_paths(project_root)
     now = now or datetime.now()
+    started = time.perf_counter()
     roots = [
         paths.project_admin / "Backups",
         paths.master_workbook.parent / "_backups",
@@ -70,8 +72,20 @@ def discover_workbook_backups(project_root: str | Path, *, now: datetime | None 
         paths.project_root / "Backups",
     ]
     files: dict[Path, BackupRecord] = {}
+    counts_by_folder: dict[str, int] = {}
     for root in roots:
+        folder_started = time.perf_counter()
+        count = 0
         if not root.exists():
+            counts_by_folder[str(root)] = 0
+            log_performance_event(
+                paths.project_root,
+                "backup_manager.scan.folder",
+                time.perf_counter() - folder_started,
+                source="backup_manager",
+                page_tool="backup_manager",
+                details={"folder": str(root), "count": 0, "exists": False},
+            )
             continue
         for path in root.rglob("*"):
             if not path.is_file() or path.name.startswith("~$") or path.suffix.lower() not in WORKBOOK_SUFFIXES:
@@ -87,6 +101,24 @@ def discover_workbook_backups(project_root: str | Path, *, now: datetime | None 
                 age_days=age_days,
                 milestone=_is_milestone(path),
             )
+            count += 1
+        counts_by_folder[str(root)] = count
+        log_performance_event(
+            paths.project_root,
+            "backup_manager.scan.folder",
+            time.perf_counter() - folder_started,
+            source="backup_manager",
+            page_tool="backup_manager",
+            details={"folder": str(root), "count": count, "exists": True},
+        )
+    log_performance_event(
+        paths.project_root,
+        "backup_manager.scan",
+        time.perf_counter() - started,
+        source="backup_manager",
+        page_tool="backup_manager",
+        details={"folder_counts": counts_by_folder, "backup_count": len(files)},
+    )
     return sorted(files.values(), key=lambda item: item.modified_at, reverse=True)
 
 

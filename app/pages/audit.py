@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import threading
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -9,9 +11,11 @@ try:
     from PySide6.QtCore import Qt, QTimer
     from PySide6.QtGui import QIntValidator
     from PySide6.QtWidgets import (
+        QAbstractItemView,
         QApplication,
         QCheckBox,
         QComboBox,
+        QDialog,
         QFormLayout,
         QGroupBox,
         QHBoxLayout,
@@ -32,9 +36,16 @@ try:
 except ImportError:  # pragma: no cover
     Qt = QTimer = None
     QIntValidator = None
-    QApplication = QCheckBox = QComboBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QScrollArea = QSplitter = QStackedWidget = QTableWidget = QTableWidgetItem = QTabWidget = QTextEdit = QVBoxLayout = QWidget = None
+    QApplication = QAbstractItemView = QCheckBox = QComboBox = QDialog = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QScrollArea = QSplitter = QStackedWidget = QTableWidget = QTableWidgetItem = QTabWidget = QTextEdit = QVBoxLayout = QWidget = None
 
-from app.event_bus import EVENT_ANNOTATION_CHANGED, EVENT_AUDIT_SAVED, EVENT_OPEN_ITEMS_CHANGED, get_event_bus
+from app.event_bus import (
+    EVENT_ANNOTATION_CHANGED,
+    EVENT_AUDIT_SAVED,
+    EVENT_COMPATIBILITY_REGENERATED,
+    EVENT_OPEN_ITEMS_CHANGED,
+    EVENT_ROBOT_INFO_UPDATED,
+    get_event_bus,
+)
 from app.page_tasks import run_tool_background
 from app.pages.annotation_suggestions_dialog import AnnotationSuggestionsDialog
 from app.pages.audit_coach_panel import AuditCoachPanel
@@ -58,6 +69,7 @@ from core.audit_compatibility import (
     MASTER_MACHINE_FIELDS,
     build_compatibility_candidates,
     create_compatibility_entries,
+    find_existing_audits_for_machine,
     list_audit_options,
     list_audited_source_options,
     normalize_entry_type,
@@ -67,7 +79,6 @@ from core.audit_constants import (
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_DEFAULT,
     CYLINDER_TYPE_FIELD,
-    ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
@@ -97,6 +108,7 @@ from core.audit_field_registry import audit_sections as registry_audit_sections
 from core.audit_field_rules import (
     PNEUMATIC_CIRCUIT_FIELDS,
     field_applies,
+    is_meaningful_value,
     manual_completion_override_enabled,
     non_applicable_reason,
 )
@@ -113,8 +125,9 @@ from core.interview_entries import INTERVIEW_QUESTIONS, generate_interview_id, s
 from core.logging import log_activity_event
 from core.openers import open_path
 from core.paths import get_master_press_list_file, get_press_capacity_file, resolve_project_paths
-from core.performance import log_performance
+from core.performance import log_performance, log_performance_event
 from core.press_lookup import PressLookupResult, lookup_machine
+from core.result import ToolResult
 from core.robot_info import ROBOT_INFO_SHEET, load_robot_info_for_audit_entry
 
 PNEUMATIC_CIRCUITS_SECTION = "Pneumatic Circuits"
@@ -137,7 +150,7 @@ _MACHINE_LOOKUP_RESULT_CACHE: dict[tuple[object, ...], dict[str, object]] = {}
 def workbook_to_ui_value(value, field: str = "") -> str:
     text = "" if value is None else str(value)
     if field == CYLINDER_TYPE_FIELD and (not text.strip() or text.strip().upper() == NA_VALUE):
-        return CYLINDER_TYPE_DEFAULT
+        return ""
     if text.strip().upper() == NA_VALUE:
         return ""
     if field == GRIPPER_MODEL_FIELD:
@@ -273,16 +286,152 @@ REFERENCE_ONLY_FIELD_NAMES = {
 }
 
 
+_AUDIT_STARTUP_LOG_LOCK = threading.Lock()
+
+
+def _write_audit_startup_log(project_root: str, event_name: str, duration_seconds: float, payload: dict[str, object]) -> None:
+    with _AUDIT_STARTUP_LOG_LOCK:
+        log_activity_event(project_root, event_name, payload)
+        log_performance(
+            project_root,
+            event_name,
+            duration_seconds,
+            source="audit_page",
+            page_tool="audit",
+            details=payload,
+            success=bool(payload.get("success", True)),
+            error_count=1 if payload.get("error") else 0,
+        )
+
+
+@dataclass(frozen=True)
+class ExistingAuditSelection:
+    action: str
+    audit_id: str = ""
+
+
+class ExistingMachineAuditsDialog(QDialog):
+    ACTION_CONTINUE = "continue_existing"
+    ACTION_START_NEW = "start_new"
+    ACTION_CANCEL = "cancel"
+    COLUMNS = ["Audit ID", "Audit Date", "Tool #", "EOAT Type", "Status", "Priority", "Entry Type", "Completion %"]
+
+    def __init__(self, machine_number: str, matches, parent=None):
+        super().__init__(parent)
+        self._selection = ExistingAuditSelection(self.ACTION_CANCEL)
+        self.setWindowTitle("Existing Audits Found")
+        layout = QVBoxLayout(self)
+
+        message = QLabel(
+            f"Machine {machine_number} already has existing audit records. "
+            "Choose one to continue, or start a new audit for this machine."
+        )
+        message.setWordWrap(True)
+        layout.addWidget(message)
+
+        note = QLabel("Starting a new audit keeps the machine context but does not copy old EOAT/tool data.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        self.audit_table = QTableWidget(0, len(self.COLUMNS))
+        self.audit_table.setHorizontalHeaderLabels(self.COLUMNS)
+        self.audit_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.audit_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.audit_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.audit_table.setAlternatingRowColors(True)
+        self._populate_rows(matches)
+        layout.addWidget(self.audit_table)
+
+        button_row = QHBoxLayout()
+        self.continue_button = QPushButton("Continue Selected Audit")
+        self.start_new_button = QPushButton("Start New Audit for This Machine")
+        self.cancel_button = QPushButton("Cancel")
+        self.continue_button.clicked.connect(self._continue_selected)
+        self.start_new_button.clicked.connect(self._start_new)
+        self.cancel_button.clicked.connect(self.reject)
+        button_row.addStretch(1)
+        button_row.addWidget(self.continue_button)
+        button_row.addWidget(self.start_new_button)
+        button_row.addWidget(self.cancel_button)
+        layout.addLayout(button_row)
+
+        if self.audit_table.rowCount():
+            self.audit_table.selectRow(0)
+        self._update_continue_enabled()
+        self.audit_table.itemSelectionChanged.connect(self._update_continue_enabled)
+        self.resize(900, 360)
+
+    def _populate_rows(self, matches) -> None:
+        self.audit_table.setRowCount(len(matches))
+        for row_index, option in enumerate(matches):
+            row = dict(option.row)
+            values = [
+                option.audit_id,
+                row.get("Audit Date", ""),
+                row.get("Tool #", ""),
+                row.get("EOAT Type", ""),
+                row.get("Status", ""),
+                row.get("Priority", ""),
+                normalize_entry_type(row.get(ENTRY_TYPE_FIELD)),
+                _completion_percent_label(row),
+            ]
+            for col_index, value in enumerate(values):
+                item = QTableWidgetItem(str(value or ""))
+                if col_index == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, option.audit_id)
+                self.audit_table.setItem(row_index, col_index, item)
+        self.audit_table.resizeColumnsToContents()
+
+    def _selected_audit_id(self) -> str:
+        selected = self.audit_table.selectionModel().selectedRows()
+        if not selected:
+            return ""
+        item = self.audit_table.item(selected[0].row(), 0)
+        if item is None:
+            return ""
+        return str(item.data(Qt.ItemDataRole.UserRole) or item.text() or "").strip()
+
+    def _update_continue_enabled(self) -> None:
+        self.continue_button.setEnabled(bool(self._selected_audit_id()))
+
+    def _continue_selected(self) -> None:
+        audit_id = self._selected_audit_id()
+        if not audit_id:
+            return
+        self._selection = ExistingAuditSelection(self.ACTION_CONTINUE, audit_id)
+        self.accept()
+
+    def _start_new(self) -> None:
+        self._selection = ExistingAuditSelection(self.ACTION_START_NEW)
+        self.accept()
+
+    def selection(self) -> ExistingAuditSelection:
+        return self._selection
+
+
+def _completion_percent_label(row: dict[str, object]) -> str:
+    try:
+        completion = calculate_audit_completion(row, AUDIT_SECTIONS, mode="edit")
+    except Exception:
+        return ""
+    return f"{completion.percent_complete}%"
+
+
 class AuditPage(QWidget):
     def __init__(self, config, parent=None):
         page_open_started = time.perf_counter()
         super().__init__(parent)
         self.config = config
         self._page_open_started = page_open_started
+        self._startup_timings: dict[str, float] = {}
+        self._suppress_detailed_startup_logging = False
+        self._log_startup_event("audit_page_shell_started", 0.0)
         path_started = time.perf_counter()
         resolve_project_paths(self.config.project_root)
-        self._startup_path_resolution_seconds = time.perf_counter() - path_started
+        self._startup_path_resolution_seconds = self._record_startup_timing("path_resolution", path_started)
+        defaults_started = time.perf_counter()
         self.defaults_controller = AuditDefaultsController(config)
+        self._record_startup_timing("AuditDefaultsController", defaults_started)
         self.current_lookup_result: PressLookupResult | None = None
         self._lookup_part_index: int | None = None
         self._lookup_conflict_warnings: list[str] = []
@@ -314,7 +463,13 @@ class AuditPage(QWidget):
         self._generated_audit_ids: set[str] = set()
         self._machine_lookup_extra_note = ""
         self._part_present_autofilled_sensor_fields: set[str] = set()
-        self.annotation_service = AnnotationService(config.project_root)
+        self._cylinder_type_autofilled = False
+        annotation_started = time.perf_counter()
+        self.annotation_service = AnnotationService(config.project_root, initialize=False)
+        self._record_startup_timing("AnnotationService_deferred", annotation_started)
+        self._annotation_service_generation = 0
+        self._annotation_service_initializing = False
+        self._annotation_service_ready = False
         self._field_tag_buttons = {}
         self._audit_field_rows = {}
         self._audit_field_sections = {}
@@ -331,6 +486,13 @@ class AuditPage(QWidget):
         self._last_clean_snapshot: dict[str, str] = {}
         self._clean_new_audit_form_values: dict[str, str] = {}
         self._draft_recovery_checked = False
+        self._draft_check_generation = 0
+        self._draft_check_loading = False
+        self._audit_index_generation = 0
+        self._audit_indexes_loading = False
+        self._audit_indexes_loaded = False
+        self._guided_ui_built = False
+        self._audit_coach_refresh_count = 0
         self._audit_coach_refresh_pending = False
         self._manual_completion_override_data: dict[str, str] = {}
         self._machine_lookup_generation = 0
@@ -348,10 +510,17 @@ class AuditPage(QWidget):
 
         self.main_tabs = QTabWidget()
         tabs = self.main_tabs
+        audit_tab_started = time.perf_counter()
         tabs.addTab(self._build_audit_tab(), "Audit Entry")
+        self._record_startup_timing("build_audit_tab", audit_tab_started)
+        compatibility_tab_started = time.perf_counter()
         tabs.addTab(self._build_compatibility_tab(), "Compatibility Entry")
+        self._record_startup_timing("build_compatibility_tab", compatibility_tab_started)
+        interview_tab_started = time.perf_counter()
         tabs.addTab(self._build_interview_tab(), "Interview Notes")
+        self._record_startup_timing("build_interview_tab", interview_tab_started)
 
+        output_started = time.perf_counter()
         self.audit_output_splitter = QSplitter(Qt.Orientation.Vertical)
         self.audit_output_splitter.setChildrenCollapsible(False)
         self.audit_output_splitter.addWidget(tabs)
@@ -383,28 +552,36 @@ class AuditPage(QWidget):
         self.audit_output_splitter.setStretchFactor(1, 0)
         self.audit_output_splitter.setSizes([640, 220])
         layout.addWidget(self.audit_output_splitter, stretch=1)
+        self._record_startup_timing("output_panel_construction", output_started)
         self._initializing_form = False
         self._suppress_dirty_tracking = False
         self._recalculate_dirty_state(reason="initial_form_ready")
-        self._log_lifecycle_event(
-            "audit_page_open_timing",
-            {
-                "step": "page_ready",
-                "ui_construction_seconds": round(time.perf_counter() - page_open_started, 3),
-                "workbook_path_resolution_seconds": round(self._startup_path_resolution_seconds, 3),
-                "workbook_open_load_seconds": 0.0,
-                "sheet_header_mapping_seconds": 0.0,
-                "dropdown_population_seconds": 0.0,
-                "existing_audit_index_load_seconds": 0.0,
-                "compatibility_index_load_seconds": 0.0,
-                "draft_restore_seconds": 0.0,
-                "deferred_workbook_indexes": True,
-                "total_page_ready_seconds": round(time.perf_counter() - page_open_started, 3),
-            },
+        total_shell_seconds = time.perf_counter() - page_open_started
+        self._log_startup_event(
+            "audit_page_shell_ready",
+            total_shell_seconds,
+            timings={key: round(value, 4) for key, value in self._startup_timings.items()},
+            workbook_indexes_deferred=True,
+            annotation_database_deferred=True,
+            guided_ui_deferred=True,
         )
         if QTimer is not None:
-            QTimer.singleShot(0, self._load_lazy_audit_indexes)
-            QTimer.singleShot(0, self._offer_draft_recovery)
+            QTimer.singleShot(250, self._load_lazy_audit_indexes)
+            QTimer.singleShot(450, self._start_background_draft_check)
+            QTimer.singleShot(750, self._start_annotation_service_initialization)
+
+    def _record_startup_timing(self, step: str, started: float) -> float:
+        elapsed = time.perf_counter() - started
+        self._startup_timings[step] = elapsed
+        return elapsed
+
+    def _log_startup_event(self, event_name: str, duration_seconds: float, **details: object) -> None:
+        payload = {"duration_seconds": round(duration_seconds, 4), **details}
+        threading.Thread(
+            target=_write_audit_startup_log,
+            args=(str(self.config.project_root), event_name, duration_seconds, payload),
+            daemon=True,
+        ).start()
 
     def expand_output_panel(self) -> None:
         total = sum(self.audit_output_splitter.sizes()) or 860
@@ -496,9 +673,10 @@ class AuditPage(QWidget):
         if self._audit_coach_refresh_pending:
             return
         self._audit_coach_refresh_pending = True
-        QTimer.singleShot(0, self._refresh_audit_coach)
+        QTimer.singleShot(75, self._refresh_audit_coach)
 
     def _refresh_audit_coach(self, values: dict[str, str] | None = None) -> None:
+        started = time.perf_counter()
         self._audit_coach_refresh_pending = False
         panel = getattr(self, "audit_coach_panel", None)
         if panel is None or not hasattr(self, "audit_fields"):
@@ -506,6 +684,21 @@ class AuditPage(QWidget):
         summary = calculate_audit_coach_summary(self._current_audit_coach_values(values), AUDIT_SECTIONS, mode=self._current_audit_mode)
         panel.refresh(summary)
         self._refresh_guided_audit(values=values)
+        elapsed = time.perf_counter() - started
+        self._audit_coach_refresh_count += 1
+        if not getattr(self, "_suppress_detailed_startup_logging", False) and (self._audit_coach_refresh_count <= 3 or elapsed >= 0.25):
+            log_performance(
+                self.config.project_root,
+                "audit_page_audit_coach_refresh",
+                elapsed,
+                source="audit_page",
+                page_tool="audit",
+                details={
+                    "field_count": len(self.audit_fields),
+                    "refresh_count": self._audit_coach_refresh_count,
+                    "guided_ui_built": self._guided_ui_built,
+                },
+            )
 
     def _refresh_guided_audit(self, values: dict[str, str] | None = None, *, force_io_preview: bool = False) -> None:
         if not getattr(self, "_guided_step_tables", None) or not hasattr(self, "audit_fields"):
@@ -513,8 +706,7 @@ class AuditPage(QWidget):
         entry = self._current_audit_coach_values(values)
         completion = calculate_audit_completion(entry, AUDIT_SECTIONS, mode=self._current_audit_mode)
         statuses = {status.field: status for section in completion.sections for status in section.fields}
-        current_step_index = self.guided_audit_tabs.currentIndex() if hasattr(self, "guided_audit_tabs") else -1
-        for step_index, step in enumerate(all_guided_audit_steps()):
+        for step in all_guided_audit_steps():
             table = self._guided_step_tables.get(step.id)
             label = self._guided_step_labels.get(step.id)
             if table is None or label is None:
@@ -529,7 +721,7 @@ class AuditPage(QWidget):
             try:
                 table.setRowCount(0)
                 if step.id == "final_review_save_impact":
-                    self._populate_guided_final_review(table, completion, include_io_preview=force_io_preview or step_index == current_step_index)
+                    self._populate_guided_final_review(table, completion, include_io_preview=force_io_preview)
                 else:
                     self._populate_guided_step_table(table, step, entry, statuses)
                 table.resizeColumnsToContents()
@@ -595,6 +787,8 @@ class AuditPage(QWidget):
             return None
 
     def _log_lifecycle_event(self, event_name: str, payload: dict[str, object]) -> None:
+        if getattr(self, "_suppress_detailed_startup_logging", False):
+            return
         log_activity_event(self.config.project_root, event_name, payload)
 
     def _set_dirty_state(
@@ -660,6 +854,8 @@ class AuditPage(QWidget):
         if programmatic:
             return
         self._dirty_fields.add(field)
+        if field == CYLINDER_TYPE_FIELD:
+            self._cylinder_type_autofilled = False
         if field in {CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD}:
             self._apply_cylinder_type_default()
         self._recalculate_dirty_state(reason="field_changed", field=field, user_driven=True)
@@ -669,8 +865,14 @@ class AuditPage(QWidget):
         type_widget = self.audit_fields.get(CYLINDER_TYPE_FIELD) if hasattr(self, "audit_fields") else None
         if count_widget is None or type_widget is None:
             return
-        if self._field_value(count_widget) and self._field_value(type_widget).upper() in {"", NA_VALUE}:
+        count_in_use = is_meaningful_value(self._field_value(count_widget))
+        cylinder_type = self._field_value(type_widget)
+        if count_in_use and cylinder_type.upper() in {"", NA_VALUE}:
+            self._cylinder_type_autofilled = True
             self._set_field_value(type_widget, CYLINDER_TYPE_DEFAULT)
+        elif not count_in_use and self._cylinder_type_autofilled and cylinder_type == CYLINDER_TYPE_DEFAULT:
+            self._set_field_value(type_widget, "")
+            self._cylinder_type_autofilled = False
 
     def _begin_hydrating_form(self, reason: str = "hydrate_form") -> tuple[bool, bool, bool]:
         previous_hydrating = self._hydrating_form
@@ -738,6 +940,13 @@ class AuditPage(QWidget):
     def _is_generated_new_audit_id(self, audit_id: str) -> bool:
         return bool(str(audit_id or "").strip() in self._generated_audit_ids)
 
+    def _assign_startup_audit_id(self) -> str:
+        compact = date.today().isoformat().replace("-", "")
+        audit_id = f"AUD-{compact}-P{uuid.uuid4().hex[:10].upper()}"
+        self._generated_audit_ids.add(audit_id)
+        self._set_field_value(self.audit_fields["Audit ID"], audit_id)
+        return audit_id
+
     def _save_current_audit_draft(self) -> str:
         values = self._current_audit_form_values()
         existing_draft = load_audit_draft(self.config.project_root)
@@ -788,11 +997,101 @@ class AuditPage(QWidget):
             message = "Discarded saved audit draft." if removed else "No saved audit draft was found."
             self.result_panel.show_text(message)
 
-    def _offer_draft_recovery(self) -> None:
+    def _start_background_draft_check(self) -> None:
         if self._draft_recovery_checked:
             return
+        if self._draft_check_loading:
+            return
+        self._draft_check_loading = True
+        self._draft_check_generation += 1
+        generation = self._draft_check_generation
+        project_root = str(self.config.project_root)
+        started = time.perf_counter()
+        self._log_startup_event("audit_page_draft_check_started", 0.0)
+
+        def _load_draft() -> object:
+            return load_audit_draft(project_root)
+
+        get_task_manager().run_task(
+            TaskRequest(
+                id=f"audit_draft_check_{generation}",
+                name="Audit Draft Check",
+                category="page_refresh",
+                callable=_load_draft,
+            ),
+            on_finished=lambda result, expected_generation=generation, started_at=started: self._apply_draft_check_result(
+                result,
+                expected_generation,
+                started_at,
+            ),
+        )
+
+    def _apply_draft_check_result(self, task_result, expected_generation: int, started_at: float) -> None:
+        if expected_generation != self._draft_check_generation:
+            return
+        self._draft_check_loading = False
         self._draft_recovery_checked = True
-        draft = load_audit_draft(self.config.project_root)
+        self._log_startup_event(
+            "audit_page_draft_check_ready",
+            time.perf_counter() - started_at,
+            success=task_result.ok,
+            has_draft=bool(task_result.ok and task_result.result_data is not None),
+            error=task_result.error,
+        )
+        if not task_result.ok:
+            return
+        self._offer_draft_recovery(task_result.result_data)
+
+    def _start_annotation_service_initialization(self) -> None:
+        if self._annotation_service_ready or self._annotation_service_initializing:
+            return
+        self._annotation_service_initializing = True
+        self._annotation_service_generation += 1
+        generation = self._annotation_service_generation
+        project_root = str(self.config.project_root)
+        db_path = str(self.annotation_service.db_path)
+        started = time.perf_counter()
+
+        def _initialize_annotations() -> dict[str, str]:
+            service = AnnotationService(project_root, initialize=True)
+            return {"db_path": str(service.db_path)}
+
+        get_task_manager().run_task(
+            TaskRequest(
+                id=f"audit_annotation_init_{generation}",
+                name="Audit Annotation Startup",
+                category="page_refresh",
+                callable=_initialize_annotations,
+            ),
+            on_finished=lambda result, expected_generation=generation, expected_db_path=db_path, started_at=started: self._apply_annotation_init_result(
+                result,
+                expected_generation,
+                expected_db_path,
+                started_at,
+            ),
+        )
+
+    def _apply_annotation_init_result(self, task_result, expected_generation: int, expected_db_path: str, started_at: float) -> None:
+        if expected_generation != self._annotation_service_generation:
+            return
+        self._annotation_service_initializing = False
+        self._annotation_service_ready = bool(task_result.ok)
+        if task_result.ok and str((task_result.result_data or {}).get("db_path") or "") == expected_db_path:
+            self.annotation_service.mark_initialized()
+        self._log_startup_event(
+            "audit_page_annotation_service_initialized",
+            time.perf_counter() - started_at,
+            success=task_result.ok,
+            db_path=expected_db_path,
+            error=task_result.error,
+        )
+
+    def _offer_draft_recovery(self, draft=None) -> None:
+        if draft is None:
+            if self._draft_recovery_checked:
+                return
+            self._draft_recovery_checked = True
+            draft = load_audit_draft(self.config.project_root)
         if draft is None:
             return
         if QMessageBox is None:
@@ -831,6 +1130,8 @@ class AuditPage(QWidget):
             self._editing_audit_id = draft.audit_id if self._current_audit_mode == "edit" else None
             self._current_loaded_audit_id = self._editing_audit_id
             self._loaded_empty_only_fields = None
+            self._cylinder_type_autofilled = False
+            self._apply_cylinder_type_default()
             self.audit_view_mode_combo.blockSignals(True)
             self.audit_view_mode_combo.setCurrentText("Full Audit")
             self.audit_view_mode_combo.setEnabled(False)
@@ -936,11 +1237,15 @@ class AuditPage(QWidget):
     def on_project_root_changed(self, config) -> None:
         self.config = config
         self.defaults_controller = AuditDefaultsController(config)
-        self.annotation_service = AnnotationService(config.project_root)
+        self.annotation_service = AnnotationService(config.project_root, initialize=False)
+        self._annotation_service_generation += 1
+        self._annotation_service_initializing = False
+        self._annotation_service_ready = False
         self._draft_recovery_checked = False
-        self.refresh_audit_selector()
-        if hasattr(self, "compatibility_source_combo"):
-            self.refresh_compatibility_sources()
+        self._set_audit_selector_loading("Loading audit list...")
+        self._set_compatibility_sources_loading("Loading compatibility sources...")
+        self._load_lazy_audit_indexes()
+        self._start_annotation_service_initialization()
         self._refresh_audit_coach()
 
     def _build_audit_tab(self) -> QWidget:
@@ -952,6 +1257,7 @@ class AuditPage(QWidget):
         self.load_audit_id_combo = QComboBox()
         self.load_audit_id_combo.setEditable(True)
         self.load_audit_id_combo.setMinimumWidth(520)
+        self.load_audit_id_combo.addItem("Loading audit list...", None)
         self.load_audit_id_combo.activated.connect(self._on_audit_selector_activated)
         self.load_audit_id_edit = self.load_audit_id_combo.lineEdit()
         load_button = QPushButton("Load Existing Audit ID")
@@ -1018,18 +1324,27 @@ class AuditPage(QWidget):
         self.machine_audit_match_combo.activated.connect(self._on_machine_audit_match_selected)
         outer.addWidget(self.machine_audit_match_combo)
 
+        section_tabs_started = time.perf_counter()
         self.audit_section_tabs = QTabWidget()
         for title, fields in AUDIT_SECTIONS.items():
             section_tab = self._build_section_tab(fields, section_title=title)
             self.audit_section_tabs.addTab(section_tab, title)
+        self._record_startup_timing("build_section_tabs", section_tabs_started)
+        audit_id_widget = self.audit_fields.get("Audit ID")
+        if isinstance(audit_id_widget, QLineEdit):
+            audit_id_widget.setPlaceholderText("Startup ID assigned without opening the workbook")
         section_form_widget = QWidget()
         audit_body = QHBoxLayout(section_form_widget)
         audit_body.setContentsMargins(0, 0, 0, 0)
         audit_body.addWidget(self.audit_section_tabs, stretch=3)
+        coach_panel_started = time.perf_counter()
         self.audit_coach_panel = AuditCoachPanel(self)
         self.audit_coach_panel.setMinimumWidth(340)
         audit_body.addWidget(self.audit_coach_panel, stretch=1)
-        self.guided_audit_panel = self._build_guided_audit_panel()
+        self._record_startup_timing("build_audit_coach_panel", coach_panel_started)
+        guided_placeholder_started = time.perf_counter()
+        self.guided_audit_panel = self._build_guided_audit_placeholder()
+        self._record_startup_timing("build_guided_placeholder", guided_placeholder_started)
         self.audit_mode_stack = QStackedWidget()
         self.audit_mode_stack.addWidget(self.guided_audit_panel)
         self.audit_mode_stack.addWidget(section_form_widget)
@@ -1070,9 +1385,51 @@ class AuditPage(QWidget):
         button_row.addWidget(clear_button)
         outer.addLayout(button_row)
 
-        self.clear_audit_form(confirm=False, clear_summary=False)
-        self._refresh_audit_coach()
+        previous_detailed_logging = self._suppress_detailed_startup_logging
+        self._suppress_detailed_startup_logging = True
+        try:
+            clear_started = time.perf_counter()
+            self.clear_audit_form(confirm=False, clear_summary=False, use_startup_audit_id=True)
+            self._record_startup_timing("clear_audit_form", clear_started)
+            coach_refresh_started = time.perf_counter()
+            self._refresh_audit_coach()
+            self._record_startup_timing("initial_audit_coach_refresh", coach_refresh_started)
+        finally:
+            self._suppress_detailed_startup_logging = previous_detailed_logging
         return container
+
+    def _build_guided_audit_placeholder(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        title = QLabel("Guided Audit")
+        title.setStyleSheet("font-size: 13pt; font-weight: 600;")
+        layout.addWidget(title)
+        note = QLabel("Guided audit steps will load when Guided Audit is selected.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        layout.addStretch(1)
+        return panel
+
+    def _ensure_guided_audit_built(self) -> None:
+        if self._guided_ui_built:
+            return
+        started = time.perf_counter()
+        index = self.audit_mode_stack.indexOf(self.guided_audit_panel) if hasattr(self, "audit_mode_stack") else -1
+        old_panel = self.guided_audit_panel
+        panel = self._build_guided_audit_panel()
+        self.guided_audit_panel = panel
+        if index >= 0:
+            self.audit_mode_stack.removeWidget(old_panel)
+            old_panel.deleteLater()
+            self.audit_mode_stack.insertWidget(index, panel)
+        self._guided_ui_built = True
+        self._log_startup_event(
+            "audit_page_guided_ui_built",
+            time.perf_counter() - started,
+            step_count=len(self._guided_step_tables),
+        )
+        self._refresh_guided_audit()
 
     def _build_guided_audit_panel(self) -> QWidget:
         panel = QWidget()
@@ -1127,8 +1484,10 @@ class AuditPage(QWidget):
         if not hasattr(self, "audit_mode_stack"):
             return
         guided = str(mode or "") == "Guided Audit"
+        if guided:
+            self._ensure_guided_audit_built()
         self.audit_mode_stack.setCurrentIndex(0 if guided else 1)
-        self._refresh_guided_audit(force_io_preview=guided)
+        self._refresh_guided_audit(force_io_preview=False)
 
     def open_full_audit_from_guided(self) -> None:
         if hasattr(self, "audit_entry_mode_combo"):
@@ -1171,23 +1530,104 @@ class AuditPage(QWidget):
         return -1
 
     def _load_lazy_audit_indexes(self) -> None:
-        existing_started = time.perf_counter()
-        self.refresh_audit_selector()
-        existing_seconds = time.perf_counter() - existing_started
-        compatibility_seconds = 0.0
-        if hasattr(self, "compatibility_source_combo"):
-            compatibility_started = time.perf_counter()
-            self.refresh_compatibility_sources()
-            compatibility_seconds = time.perf_counter() - compatibility_started
-        self._log_lifecycle_event(
-            "audit_page_open_timing",
-            {
-                "step": "lazy_indexes_loaded",
-                "existing_audit_index_load_seconds": round(existing_seconds, 3),
-                "compatibility_index_load_seconds": round(compatibility_seconds, 3),
-                "total_since_page_open_seconds": round(time.perf_counter() - self._page_open_started, 3),
-            },
+        self._start_background_audit_indexes()
+
+    def _start_background_audit_indexes(self) -> None:
+        if self._audit_indexes_loading:
+            return
+        self._audit_indexes_loading = True
+        self._audit_indexes_loaded = False
+        self._audit_index_generation += 1
+        generation = self._audit_index_generation
+        project_root = str(self.config.project_root)
+        started = time.perf_counter()
+        self._set_audit_selector_loading("Loading audit list...")
+        self._set_compatibility_sources_loading("Loading compatibility sources...")
+        self._log_startup_event("audit_page_background_indexes_started", 0.0)
+        get_task_manager().run_task(
+            TaskRequest(
+                id=f"audit_indexes_{generation}",
+                name="Audit Workbook Indexes",
+                category="page_refresh",
+                callable=AuditPage._load_audit_indexes_for_project,
+                args=(project_root, generation),
+            ),
+            on_finished=lambda result, expected_generation=generation, started_at=started: self._apply_audit_indexes_task_result(
+                result,
+                expected_generation,
+                started_at,
+            ),
         )
+
+    @staticmethod
+    def _load_audit_indexes_for_project(project_root: str, generation: int) -> dict[str, object]:
+        existing_started = time.perf_counter()
+        audit_options = list_audit_options(project_root)
+        existing_seconds = time.perf_counter() - existing_started
+        compatibility_started = time.perf_counter()
+        source_options = list_audited_source_options(project_root)
+        compatibility_seconds = time.perf_counter() - compatibility_started
+        return {
+            "generation": generation,
+            "audit_options": [AuditPage._audit_option_payload(option) for option in audit_options],
+            "source_options": [AuditPage._audit_option_payload(option) for option in source_options],
+            "existing_audit_index_load_seconds": existing_seconds,
+            "compatibility_index_load_seconds": compatibility_seconds,
+        }
+
+    @staticmethod
+    def _audit_option_payload(option) -> dict[str, object]:
+        return {"audit_id": option.audit_id, "label": option.label, "row": dict(option.row)}
+
+    def _apply_audit_indexes_task_result(self, task_result, expected_generation: int, started_at: float) -> None:
+        if expected_generation != self._audit_index_generation:
+            return
+        self._audit_indexes_loading = False
+        self._audit_indexes_loaded = bool(task_result.ok)
+        payload = dict(task_result.result_data or {}) if task_result.ok else {}
+        if task_result.ok:
+            self._populate_audit_selector_options(list(payload.get("audit_options") or []))
+            if hasattr(self, "compatibility_source_combo"):
+                self._populate_compatibility_source_options(list(payload.get("source_options") or []))
+        else:
+            self._set_audit_selector_loading("Audit list failed to load.")
+            self._set_compatibility_sources_loading("Compatibility sources failed to load.")
+            if hasattr(self, "compatibility_note_label"):
+                self.compatibility_note_label.setText(task_result.error or task_result.message)
+        self._log_startup_event(
+            "audit_page_background_indexes_ready",
+            time.perf_counter() - started_at,
+            success=task_result.ok,
+            audit_option_count=len(payload.get("audit_options") or []),
+            compatibility_source_count=len(payload.get("source_options") or []),
+            existing_audit_index_load_seconds=round(float(payload.get("existing_audit_index_load_seconds") or 0.0), 4),
+            compatibility_index_load_seconds=round(float(payload.get("compatibility_index_load_seconds") or 0.0), 4),
+            total_since_page_open_seconds=round(time.perf_counter() - self._page_open_started, 4),
+            error=task_result.error,
+        )
+
+    def _set_audit_selector_loading(self, message: str) -> None:
+        if not hasattr(self, "load_audit_id_combo"):
+            return
+        current_text = self.load_audit_id_combo.currentText().strip()
+        self.load_audit_id_combo.blockSignals(True)
+        self.load_audit_id_combo.clear()
+        self.load_audit_id_combo.addItem(message, None)
+        self.load_audit_id_combo.setCurrentIndex(0)
+        if current_text and not current_text.startswith("Loading "):
+            self.load_audit_id_combo.setEditText(current_text)
+        self.load_audit_id_combo.blockSignals(False)
+
+    def _set_compatibility_sources_loading(self, message: str) -> None:
+        if not hasattr(self, "compatibility_source_combo"):
+            return
+        self.compatibility_source_combo.blockSignals(True)
+        self.compatibility_source_combo.clear()
+        self.compatibility_source_combo.addItem(message, None)
+        self.compatibility_source_combo.setCurrentIndex(0)
+        self.compatibility_source_combo.blockSignals(False)
+        if hasattr(self, "compatibility_note_label"):
+            self.compatibility_note_label.setText(message)
 
     def _build_compatibility_tab(self) -> QWidget:
         return build_compatibility_tab(self)
@@ -1269,7 +1709,7 @@ class AuditPage(QWidget):
         if field == "Press/Machine #":
             edit = self._line()
             edit.textChanged.connect(self._on_machine_lookup_text_changed)
-            edit.editingFinished.connect(self.run_machine_lookup)
+            edit.editingFinished.connect(lambda: self.run_machine_lookup(immediate=True))
             return edit
         if field == "Robot Type":
             return self._combo(AUDIT_DROPDOWNS.get("Robot Type", []), editable=True)
@@ -1318,6 +1758,8 @@ class AuditPage(QWidget):
             selected_label = self.load_audit_id_combo.itemText(current_index) if current_index >= 0 else ""
             if selected and self.load_audit_id_combo.currentText().strip() == selected_label.strip():
                 return str(selected).strip()
+            if selected is None and selected_label and self.load_audit_id_combo.currentText().strip() == selected_label.strip():
+                return ""
             text = self.load_audit_id_combo.currentText().strip()
             return text.split("|", 1)[0].strip()
         return self.load_audit_id_edit.text().strip()
@@ -1338,12 +1780,18 @@ class AuditPage(QWidget):
     def refresh_audit_selector(self) -> None:
         if not hasattr(self, "load_audit_id_combo"):
             return
-        current_audit_id = self._audit_selector_audit_id()
+        options = [self._audit_option_payload(option) for option in list_audit_options(self.config.project_root)]
+        self._populate_audit_selector_options(options)
+
+    def _populate_audit_selector_options(self, options: list[dict[str, object]], current_audit_id: str | None = None) -> None:
+        if not hasattr(self, "load_audit_id_combo"):
+            return
+        current_audit_id = current_audit_id if current_audit_id is not None else self._audit_selector_audit_id()
         self.load_audit_id_combo.blockSignals(True)
         self.load_audit_id_combo.clear()
         self.load_audit_id_combo.addItem("", None)
-        for option in list_audit_options(self.config.project_root):
-            self.load_audit_id_combo.addItem(option.label, option.audit_id)
+        for option in options:
+            self.load_audit_id_combo.addItem(str(option.get("label") or ""), str(option.get("audit_id") or ""))
         if current_audit_id:
             index = self.load_audit_id_combo.findData(current_audit_id)
             if index >= 0:
@@ -1396,10 +1844,10 @@ class AuditPage(QWidget):
         if was_clean_new_form:
             self._mark_audit_form_baseline("generate_new_audit_id", clean_new_form=True)
 
-    def clear_audit_form(self, *, confirm: bool = False, clear_summary: bool = True) -> None:
+    def clear_audit_form(self, *, confirm: bool = False, clear_summary: bool = True, use_startup_audit_id: bool = False) -> None:
         if confirm and not self._suppress_clear_confirm_this_session and not self._confirm_clear_audit_form():
             return
-        self._reset_audit_form_fields(show_generated_message=False)
+        self._reset_audit_form_fields(show_generated_message=False, use_startup_audit_id=use_startup_audit_id)
         if clear_summary and hasattr(self, "result_panel"):
             self.result_panel.show_text("")
 
@@ -1423,7 +1871,7 @@ class AuditPage(QWidget):
             self._suppress_clear_confirm_this_session = True
         return accepted
 
-    def _reset_audit_form_fields(self, *, show_generated_message: bool = True) -> None:
+    def _reset_audit_form_fields(self, *, show_generated_message: bool = True, use_startup_audit_id: bool = False) -> None:
         previous_state = self._begin_hydrating_form("reset_new_audit_form")
         self._applying_defaults = True
         self._log_lifecycle_event("audit_defaults_started", {"reason": "reset_new_audit_form"})
@@ -1437,6 +1885,7 @@ class AuditPage(QWidget):
             self._set_manual_completion_override_metadata({})
             self._changeover_user_modified = False
             self._part_present_autofilled_sensor_fields.clear()
+            self._cylinder_type_autofilled = False
             for widget in self.audit_fields.values():
                 self._set_field_value(widget, "")
             self._set_field_value(self.audit_fields["Audit Date"], date.today().isoformat())
@@ -1445,6 +1894,7 @@ class AuditPage(QWidget):
                     self._set_field_value(self.audit_fields[field], default)
             self._apply_quick_disconnect_defaults()
             self._apply_sensor_defaults()
+            self._apply_cylinder_type_default()
             self._update_tooling_visibility(apply_defaults=True)
             self.current_lookup_result = None
             self._lookup_part_index = None
@@ -1453,8 +1903,11 @@ class AuditPage(QWidget):
                 self.lookup_note_label.setText("Enter a machine number to look up robot and part info.")
                 self._set_capacity_choices([])
                 self._set_machine_audit_matches([])
-            self.generate_new_audit_id(show_message=show_generated_message)
-            self._refresh_field_tag_indicators()
+            if use_startup_audit_id:
+                self._assign_startup_audit_id()
+            else:
+                self.generate_new_audit_id(show_message=show_generated_message)
+                self._refresh_field_tag_indicators()
         finally:
             self._applying_defaults = False
             self._log_lifecycle_event("audit_defaults_finished", {"reason": "reset_new_audit_form"})
@@ -1480,6 +1933,8 @@ class AuditPage(QWidget):
                     self._set_field_value(widget, "")
                 else:
                     self._set_field_value(widget, workbook_to_ui_value(entry.get(field, ""), field))
+            self._cylinder_type_autofilled = False
+            self._apply_cylinder_type_default()
             self._load_robot_info_fields(entry, force=True)
             for field in ROBOT_PNEUMATIC_FIELDS:
                 if field in self.audit_fields:
@@ -1609,14 +2064,15 @@ class AuditPage(QWidget):
         finally:
             self.setUpdatesEnabled(True)
         self._refresh_audit_coach(current_entry)
-        log_performance(
-            self.config.project_root,
-            "audit.visibility_refresh",
-            time.perf_counter() - started,
-            source="audit",
-            page_tool="audit",
-            details={"field_count": len(self.audit_fields), "empty_only": bool(empty_only_fields is not None)},
-        )
+        if not getattr(self, "_suppress_detailed_startup_logging", False):
+            log_performance(
+                self.config.project_root,
+                "audit.visibility_refresh",
+                time.perf_counter() - started,
+                source="audit",
+                page_tool="audit",
+                details={"field_count": len(self.audit_fields), "empty_only": bool(empty_only_fields is not None)},
+            )
 
     def _audit_field_applies_in_current_form(self, field: str) -> bool:
         current_entry = {name: self._field_value(widget) for name, widget in self.audit_fields.items()}
@@ -2072,9 +2528,9 @@ class AuditPage(QWidget):
         box.setText("This audit has already been completed. Saving will update the existing audit record.")
         box.setInformativeText(
             f"Audit ID: {audit_id}\n\n"
-            "Keep compatibility rows updated with this audit unless you only want to change the physical audit row."
+            "The audit row saves first. Linked compatibility rows can be queued for review/update afterward."
         )
-        checkbox = QCheckBox("Update compatibility rows for this audit")
+        checkbox = QCheckBox("Queue linked compatibility update after save")
         checkbox.setChecked(True)
         box.setCheckBox(checkbox)
         save_button = box.addButton("Save Update", QMessageBox.ButtonRole.AcceptRole)
@@ -2225,16 +2681,6 @@ class AuditPage(QWidget):
                     )
                     return
                 sync_linked_compatibility = update_compatibility
-            else:
-                preview = build_compatibility_impact_preview(self.config.project_root, current_audit_id, entry)
-                sync_linked_compatibility = preview.has_impact
-                if preview.has_impact and not self._confirm_compatibility_impact_preview(preview):
-                    self.result_panel.show_text("Audit save canceled before updating linked compatibility rows.")
-                    self._log_lifecycle_event(
-                        "audit_save_canceled",
-                        {"audit_id": current_audit_id, "reason": "compatibility_preview_canceled"},
-                    )
-                    return
         self._save_requested = True
         self._save_in_progress = True
         self._save_navigation_requested = False
@@ -2276,6 +2722,10 @@ class AuditPage(QWidget):
 
     def collect_complete_audit_form_state(self) -> dict[str, str]:
         entry = self._current_audit_form_values()
+        if not is_meaningful_value(entry.get(CYLINDER_COUNT_FIELD)) and entry.get(CYLINDER_TYPE_FIELD) == CYLINDER_TYPE_DEFAULT:
+            entry[CYLINDER_TYPE_FIELD] = ""
+        elif is_meaningful_value(entry.get(CYLINDER_COUNT_FIELD)) and str(entry.get(CYLINDER_TYPE_FIELD) or "").strip().upper() in {"", NA_VALUE}:
+            entry[CYLINDER_TYPE_FIELD] = CYLINDER_TYPE_DEFAULT
         entry.update(self._current_audit_metadata_values())
         return entry
 
@@ -2335,16 +2785,22 @@ class AuditPage(QWidget):
             self._current_audit_mode = "edit"
             self._set_audit_selector_text(saved_audit_id)
             post_save_refresh_started = time.perf_counter()
-            self.refresh_audit_selector()
-            if (
-                hasattr(self, "compatibility_source_combo")
-                and hasattr(self, "main_tabs")
-                and self.main_tabs.currentIndex() == 1
-            ):
-                self.refresh_compatibility_sources()
+            self._update_audit_selector_locally_after_save(saved_audit_id, pending_snapshot)
+            self._mark_audit_indexes_stale_after_save(saved_audit_id)
             self._refresh_audit_coach()
             result.metrics["audit_save.post_save_refresh_seconds"] = round(time.perf_counter() - post_save_refresh_started, 3)
-            result.details.append(f"Post-save UI refresh: {result.metrics['audit_save.post_save_refresh_seconds']}s")
+            result.details.append(
+                f"Post-save UI update: {result.metrics['audit_save.post_save_refresh_seconds']}s "
+                "(selector updated locally; workbook index refresh queued)."
+            )
+            log_performance_event(
+                self.config.project_root,
+                "audit_save.post_save_ui",
+                time.perf_counter() - post_save_refresh_started,
+                source="audit_ui",
+                page_tool="audit",
+                details={"audit_id": saved_audit_id, "selector_refresh": "local", "index_refresh": "debounced"},
+            )
             event_started = time.perf_counter()
             try:
                 get_event_bus().emit(
@@ -2354,7 +2810,7 @@ class AuditPage(QWidget):
                         "row": result.metrics.get("row"),
                         "updated": result.metrics.get("updated"),
                         "compatibility_created": result.metrics.get("compatibility_created", 0),
-                        "refresh_mode": "invalidate_only",
+                        "refresh_mode": result.metrics.get("refresh_mode", "invalidate_only"),
                     },
                     source="audit",
                 )
@@ -2362,6 +2818,14 @@ class AuditPage(QWidget):
                 result.warnings.append(f"AuditSaved event listeners did not complete: {exc}")
             event_seconds = time.perf_counter() - event_started
             result.metrics["audit_save.event_dispatch_seconds"] = round(event_seconds, 3)
+            log_performance_event(
+                self.config.project_root,
+                "audit_save.event_dispatch",
+                event_seconds,
+                source="audit_ui",
+                page_tool="audit",
+                details={"audit_id": saved_audit_id, "refresh_mode": result.metrics.get("refresh_mode", "invalidate_only")},
+            )
             timing = result.metrics.get("audit_save_timing")
             if isinstance(timing, dict):
                 timing["event_dispatch_seconds"] = round(event_seconds, 3)
@@ -2377,6 +2841,7 @@ class AuditPage(QWidget):
                 self.result_panel.show_text(
                     "Manual completion override applied. This audit is treated as 100% complete, but blank fields were not field-verified."
                 )
+            self._queue_deferred_audit_followups(result, saved_audit_id, pending_snapshot)
             self._log_lifecycle_event(
                 "audit_save_completed",
                 {
@@ -2417,13 +2882,156 @@ class AuditPage(QWidget):
         if hasattr(self, "manual_override_button"):
             self.manual_override_button.setEnabled(True)
 
+    def _update_audit_selector_locally_after_save(self, audit_id: str, entry: dict[str, str]) -> None:
+        if not audit_id or not hasattr(self, "load_audit_id_combo"):
+            return
+        machine = str(entry.get("Press/Machine #") or "").strip()
+        status = str(entry.get("Status") or "").strip()
+        label = " | ".join(piece for piece in [audit_id, f"Machine {machine}" if machine else "", status] if piece)
+        self.load_audit_id_combo.blockSignals(True)
+        try:
+            index = self.load_audit_id_combo.findData(audit_id)
+            if index < 0:
+                self.load_audit_id_combo.addItem(label or audit_id, audit_id)
+                index = self.load_audit_id_combo.findData(audit_id)
+            elif label:
+                self.load_audit_id_combo.setItemText(index, label)
+            if index >= 0:
+                self.load_audit_id_combo.setCurrentIndex(index)
+            else:
+                self.load_audit_id_combo.setCurrentIndex(-1)
+                self.load_audit_id_combo.setEditText(audit_id)
+        finally:
+            self.load_audit_id_combo.blockSignals(False)
+
+    def _mark_audit_indexes_stale_after_save(self, audit_id: str) -> None:
+        self._audit_indexes_loaded = False
+        self._log_lifecycle_event("audit_indexes_marked_stale", {"audit_id": audit_id, "refresh_mode": "invalidate_only"})
+        if self._audit_indexes_loading:
+            return
+        if QTimer is not None:
+            QTimer.singleShot(750, self._start_background_audit_indexes)
+        else:
+            self._start_background_audit_indexes()
+
+    def _queue_deferred_audit_followups(self, result, audit_id: str, entry: dict[str, str]) -> None:
+        robot_queued = bool(result.metrics.get("deferred_robot_info_queued"))
+        compatibility_queued = bool(result.metrics.get("deferred_compatibility_queued"))
+        if robot_queued:
+            run_tool_background(
+                self.result_panel,
+                "robot_info_update_from_audit",
+                "Robot Info Update",
+                lambda: self._run_deferred_robot_info_update(dict(entry)),
+                on_tool_result=lambda robot_result: (
+                    self._after_deferred_robot_info(robot_result, audit_id),
+                    self._queue_deferred_compatibility_update(audit_id) if compatibility_queued else None,
+                ),
+                modifies_files=True,
+                workbook_lock=True,
+                progress_text="Audit row saved. Updating Robot_Info.xlsx in the background...",
+            )
+        elif compatibility_queued:
+            self._queue_deferred_compatibility_update(audit_id)
+
+    def _queue_deferred_compatibility_update(self, audit_id: str) -> None:
+        run_tool_background(
+            self.result_panel,
+            "linked_compatibility_update",
+            "Update Linked Compatibility Rows",
+            lambda: self._run_deferred_compatibility_update(audit_id),
+            on_tool_result=lambda compatibility_result: self._after_deferred_compatibility(compatibility_result, audit_id),
+            modifies_files=True,
+            workbook_lock=True,
+            progress_text="Audit row saved. Updating linked compatibility rows in the background...",
+        )
+
+    def _run_deferred_robot_info_update(self, entry: dict[str, str]):
+        from core.robot_info import upsert_robot_info_from_audit
+
+        started = time.perf_counter()
+        result = upsert_robot_info_from_audit(self.config.project_root, entry)
+        log_performance_event(
+            self.config.project_root,
+            "audit_save.deferred_robot_info",
+            time.perf_counter() - started,
+            source="deferred_audit_followup",
+            page_tool="audit",
+            details={"audit_id": entry.get("Audit ID", ""), "success": result.success},
+            success=result.success,
+            warning_count=len(result.warnings),
+            error_count=len(result.errors),
+        )
+        return result
+
+    def _after_deferred_robot_info(self, result, audit_id: str) -> None:
+        get_event_bus().emit(
+            EVENT_ROBOT_INFO_UPDATED,
+            {"audit_id": audit_id, "success": result.success, "refresh_mode": "invalidate_only"},
+            source="audit",
+        )
+
+    def _run_deferred_compatibility_update(self, audit_id: str):
+        from core.audit_compatibility import sync_compatible_rows_from_source
+
+        started = time.perf_counter()
+        paths = resolve_project_paths(self.config.project_root)
+        sync_result = sync_compatible_rows_from_source(paths.master_workbook, audit_id)
+        duration = time.perf_counter() - started
+        log_performance_event(
+            self.config.project_root,
+            "audit_save.deferred_compatibility",
+            duration,
+            source="deferred_audit_followup",
+            page_tool="audit",
+            details={"audit_id": audit_id, "updated_count": sync_result.updated_count, "skipped_count": sync_result.skipped_count},
+            success=True,
+            warning_count=len(sync_result.warning_messages),
+        )
+        summary = (
+            f"Updated {sync_result.updated_count} linked compatibility entrie(s)."
+            if sync_result.updated_count
+            else "No linked compatibility entries needed updates."
+        )
+        return ToolResult.ok(
+            "linked_compatibility_update",
+            "Update Linked Compatibility Rows",
+            summary,
+            details=[
+                f"Source audit ID: {audit_id}",
+                f"Updated linked compatibility rows: {sync_result.updated_count}",
+                f"Skipped non-compatible linked rows: {sync_result.skipped_count}",
+            ],
+            warnings=sync_result.warning_messages,
+            files_created=[sync_result.backup_path] if sync_result.backup_path else [],
+            files_modified=[str(paths.master_workbook)] if sync_result.updated_count else [],
+            metrics={"updated_count": sync_result.updated_count, "skipped_count": sync_result.skipped_count},
+            duration_seconds=duration,
+        )
+
+    def _after_deferred_compatibility(self, result, audit_id: str) -> None:
+        get_event_bus().emit(
+            EVENT_COMPATIBILITY_REGENERATED,
+            {
+                "audit_id": audit_id,
+                "updated_count": result.metrics.get("updated_count", 0),
+                "refresh_mode": "invalidate_only",
+            },
+            source="audit",
+        )
+
     def refresh_compatibility_sources(self) -> None:
+        options = [self._audit_option_payload(option) for option in list_audited_source_options(self.config.project_root)]
+        self._populate_compatibility_source_options(options)
+
+    def _populate_compatibility_source_options(self, options: list[dict[str, object]]) -> None:
+        if not hasattr(self, "compatibility_source_combo"):
+            return
         self.compatibility_source_combo.blockSignals(True)
         current = self.compatibility_source_combo.currentData()
         self.compatibility_source_combo.clear()
-        options = list_audited_source_options(self.config.project_root)
         for option in options:
-            self.compatibility_source_combo.addItem(option.label, option.audit_id)
+            self.compatibility_source_combo.addItem(str(option.get("label") or ""), str(option.get("audit_id") or ""))
         if current:
             index = self.compatibility_source_combo.findData(current)
             if index >= 0:
@@ -2513,6 +3121,8 @@ class AuditPage(QWidget):
         )
 
     def _on_machine_lookup_text_changed(self, *_args) -> None:
+        if self._programmatic_field_update or self._hydrating_form or self._loading_audit:
+            return
         if self._machine_lookup_timer is not None and self._machine_lookup_timer.isActive():
             self._pending_machine_lookup_text = self._field_value(self.audit_fields["Press/Machine #"])
             self._machine_lookup_timer.start()
@@ -2561,6 +3171,30 @@ class AuditPage(QWidget):
             on_finished=self._apply_machine_lookup_task_result,
         )
 
+    def _collect_machine_reference_lookup_payload(
+        self,
+        project_root: str,
+        machine_text: str,
+        form_snapshot: dict[str, str],
+    ) -> dict[str, object]:
+        try:
+            result = lookup_machine(project_root, machine_text)
+        except ValueError as exc:
+            message = str(exc)
+            return {"action": "invalid", "errors": [message], "warnings": [message]}
+
+        proposed_entry = dict(form_snapshot)
+        proposed_entry["Press/Machine #"] = str(result.machine_number)
+        if not str(proposed_entry.get("Robot Type") or "").strip() and result.robot_type_suggestion:
+            proposed_entry["Robot Type"] = result.robot_type_suggestion
+        if not str(proposed_entry.get("Robot Model/Controller") or "").strip() and result.robot_model_controller_suggestion:
+            proposed_entry["Robot Model/Controller"] = result.robot_model_controller_suggestion
+        try:
+            robot_info = load_robot_info_for_audit_entry(project_root, proposed_entry)
+        except Exception:
+            robot_info = None
+        return {"action": "lookup", "result": result, "robot_info": robot_info}
+
     def _collect_machine_lookup_result(
         self,
         project_root: str,
@@ -2594,15 +3228,11 @@ class AuditPage(QWidget):
         machine_tokens = parse_machine_tokens(machine_text)
         if machine_tokens:
             requested = set(machine_tokens)
+            matches = find_existing_audits_for_machine(project_root, machine_text)
             all_matches = [
                 option
                 for option in list_audit_options(project_root)
                 if requested & set(self._audit_option_machine_tokens(option))
-            ]
-            matches = [
-                option
-                for option in all_matches
-                if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
             ]
             compatible_matches = [
                 option
@@ -2618,50 +3248,25 @@ class AuditPage(QWidget):
             current_id = context.get("current_audit_id", "")
             current_mode = context.get("current_audit_mode", "")
             if not (len(matches) == 1 and matches[0].audit_id == current_id and current_mode == "edit"):
-                if len(matches) == 1:
+                if matches:
                     payload.update(
                         {
-                            "action": "load_existing",
-                            "audit_id": matches[0].audit_id,
-                            "message": f"Existing physical audit found for Machine {machine}. Loaded {matches[0].audit_id}.{compatible_note}",
-                        }
-                    )
-                    log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "load_existing"})
-                    _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {key: value for key, value in payload.items() if key not in {"generation", "machine_text", "cache_hit"}}
-                    return payload
-                if len(matches) > 1:
-                    payload.update(
-                        {
-                            "action": "multiple_matches",
+                            "action": "existing_matches",
                             "matches": matches,
-                            "message": f"Multiple existing physical audits found for this machine. Select the audit to load.{compatible_note}",
+                            "message": f"Existing audits found for this machine.{compatible_note}",
                         }
                     )
-                    log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "multiple_matches"})
+                    log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "existing_matches"})
                     _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {key: value for key, value in payload.items() if key not in {"generation", "machine_text", "cache_hit"}}
                     return payload
                 if compatible_matches:
                     payload["extra_note"] = f"Machine {machine} has compatible coverage entries, but no physical audit yet. Continuing with a new physical audit."
 
-        try:
-            result = lookup_machine(project_root, machine_text)
-        except ValueError as exc:
-            payload.update({"action": "invalid", "errors": [str(exc)], "warnings": [str(exc)]})
+        payload.update(self._collect_machine_reference_lookup_payload(project_root, machine_text, form_snapshot))
+        if payload.get("action") == "invalid":
             log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "invalid"}, success=False, error_count=1)
             _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {key: value for key, value in payload.items() if key not in {"generation", "machine_text", "cache_hit"}}
             return payload
-
-        proposed_entry = dict(form_snapshot)
-        proposed_entry["Press/Machine #"] = str(result.machine_number)
-        if not str(proposed_entry.get("Robot Type") or "").strip() and result.robot_type_suggestion:
-            proposed_entry["Robot Type"] = result.robot_type_suggestion
-        if not str(proposed_entry.get("Robot Model/Controller") or "").strip() and result.robot_model_controller_suggestion:
-            proposed_entry["Robot Model/Controller"] = result.robot_model_controller_suggestion
-        try:
-            robot_info = load_robot_info_for_audit_entry(project_root, proposed_entry)
-        except Exception:
-            robot_info = None
-        payload.update({"result": result, "robot_info": robot_info})
         log_performance(project_root, "audit.machine_lookup", time.perf_counter() - started, source="audit", page_tool="audit", details={"cache_status": "miss", "action": "lookup"})
         _MACHINE_LOOKUP_RESULT_CACHE[cache_key] = {key: value for key, value in payload.items() if key not in {"generation", "machine_text", "cache_hit"}}
         return payload
@@ -2697,20 +3302,19 @@ class AuditPage(QWidget):
                 confirm_unsaved=confirm_unsaved,
             )
             return
-        if action == "multiple_matches":
+        if action in {"multiple_matches", "existing_matches"}:
             matches = list(payload.get("matches") or [])
-            message = str(payload.get("message") or "Multiple existing physical audits found for this machine. Select the audit to load.")
-            self._set_machine_audit_matches(matches)
-            self.lookup_note_label.setText(message)
-            self.result_panel.show_text(
-                "Multiple existing physical audits found for this machine. Select one from the audit match list; no audit was loaded automatically."
-            )
+            message = str(payload.get("message") or "Existing audits found for this machine.")
+            self._handle_existing_machine_audit_selection(machine_text, matches, message=message)
             return
 
+        self._apply_machine_reference_lookup_payload(machine_text, payload)
+
+    def _apply_machine_reference_lookup_payload(self, machine_text: str, payload: dict[str, object]) -> bool:
         result = payload.get("result")
         if not isinstance(result, PressLookupResult):
             self.lookup_note_label.setText("Machine lookup did not return a usable result.")
-            return
+            return False
 
         self.current_lookup_result = result
         self._lookup_part_index = None
@@ -2737,6 +3341,88 @@ class AuditPage(QWidget):
         self._set_capacity_choices(result.capacity_part_rows)
         self._set_machine_audit_matches([])
         self._log_machine_lookup(machine_text, result, warnings, result.errors, robot_type_filled, robot_model_filled, part_filled, tool_filled)
+        return True
+
+    def _handle_existing_machine_audit_selection(self, machine_text: str, matches, *, message: str = "") -> bool:
+        if not matches:
+            self._set_machine_audit_matches([])
+            return False
+        machine = ", ".join(parse_machine_tokens(machine_text)) or str(machine_text or "").strip()
+        self._set_machine_audit_matches([])
+        self.lookup_note_label.setText(message or "Existing audits found for this machine.")
+        self.result_panel.show_text(
+            "Existing audits found for this machine. Continue an existing audit, or start a new audit for this machine."
+        )
+        selection = self._choose_existing_machine_audit_action(machine, matches)
+        if selection.action == ExistingMachineAuditsDialog.ACTION_CONTINUE:
+            audit_id = str(selection.audit_id or "").strip()
+            if not audit_id:
+                self.result_panel.show_text("Select an audit before continuing.")
+                return True
+            loaded = self.load_existing_audit(
+                audit_id,
+                loaded_message=f"Existing physical audit found for Machine {machine}. Loaded {audit_id}.",
+                confirm_unsaved=not self.is_clean_new_form_or_lookup_only(),
+            )
+            if not loaded:
+                self.lookup_note_label.setText("Existing audit selection canceled.")
+            return True
+        if selection.action == ExistingMachineAuditsDialog.ACTION_START_NEW:
+            self.start_new_audit_for_machine(machine)
+            return True
+        self.lookup_note_label.setText("Existing audit selection canceled.")
+        self.result_panel.show_text("Existing audit selection canceled. The current form was left unchanged.")
+        return True
+
+    def _choose_existing_machine_audit_action(self, machine_number: str, matches) -> ExistingAuditSelection:
+        dialog = ExistingMachineAuditsDialog(machine_number, matches, self)
+        result = dialog.exec()
+        if result == QDialog.DialogCode.Accepted:
+            return dialog.selection()
+        return ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_CANCEL)
+
+    def start_new_audit_for_machine(self, machine_number: str) -> bool:
+        machine_text = str(machine_number or "").strip()
+        if not machine_text:
+            return False
+        if not self.is_clean_new_form_or_lookup_only() and not self._confirm_unsaved_audit_changes("start a new audit"):
+            return False
+        previous_state = self._begin_hydrating_form("start_new_audit_for_machine")
+        try:
+            self._reset_audit_form_fields(show_generated_message=False)
+            self._set_field_value(self.audit_fields["Press/Machine #"], machine_text)
+            reference_payload = self._collect_machine_reference_lookup_payload(
+                self.config.project_root,
+                machine_text,
+                self._current_audit_form_values(),
+            )
+            if reference_payload.get("action") == "invalid":
+                errors = [str(item) for item in reference_payload.get("errors", [])]
+                self.lookup_note_label.setText("Invalid machine number.")
+                self.result_panel.show_text(errors[0] if errors else "Invalid machine number.")
+            else:
+                self._apply_machine_reference_lookup_payload(machine_text, reference_payload)
+            self._editing_audit_id = None
+            self._current_loaded_audit_id = None
+            self._current_audit_mode = "new"
+            self._loaded_empty_only_fields = None
+            self.audit_view_mode_combo.blockSignals(True)
+            self.audit_view_mode_combo.setCurrentText("Full Audit")
+            self.audit_view_mode_combo.setEnabled(False)
+            self.audit_view_mode_combo.blockSignals(False)
+            self._set_machine_audit_matches([])
+            self._refresh_field_tag_indicators()
+            self._update_audit_field_visibility()
+        finally:
+            self._end_hydrating_form(previous_state, "start_new_audit_for_machine")
+        audit_id = self._field_value(self.audit_fields.get("Audit ID"))
+        machine = self._field_value(self.audit_fields.get("Press/Machine #")) or machine_text
+        self._mark_audit_form_baseline("start_new_audit_for_machine", clean_new_form=True)
+        self.result_panel.show_text(
+            f"Started a new audit for Machine {machine} with Audit ID {audit_id}. "
+            "Existing audits were not changed, and old EOAT/tool data was not copied."
+        )
+        return True
 
     def _apply_robot_info_fields(self, robot_info, *, force: bool) -> bool:
         if not robot_info:
@@ -2760,15 +3446,11 @@ class AuditPage(QWidget):
             self._set_machine_audit_matches([])
             return False
         requested = set(machine_tokens)
+        matches = find_existing_audits_for_machine(self.config.project_root, machine_text)
         all_matches = [
             option
             for option in list_audit_options(self.config.project_root)
             if requested & set(self._audit_option_machine_tokens(option))
-        ]
-        matches = [
-            option
-            for option in all_matches
-            if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
         ]
         compatible_matches = [
             option
@@ -2785,22 +3467,12 @@ class AuditPage(QWidget):
         if len(matches) == 1 and matches[0].audit_id == current_id and self._current_audit_mode == "edit":
             self._set_machine_audit_matches([])
             return False
-        if len(matches) == 1:
-            audit_id = matches[0].audit_id
-            confirm_unsaved = not self.is_clean_new_form_or_lookup_only()
-            self.load_existing_audit(
-                audit_id,
-                loaded_message=f"Existing physical audit found for Machine {machine}. Loaded {audit_id}.{compatible_note}",
-                confirm_unsaved=confirm_unsaved,
+        if matches:
+            return self._handle_existing_machine_audit_selection(
+                machine,
+                matches,
+                message=f"Existing audits found for this machine.{compatible_note}",
             )
-            return True
-        if len(matches) > 1:
-            self._set_machine_audit_matches(matches)
-            self.lookup_note_label.setText(f"Multiple existing physical audits found for this machine. Select the audit to load.{compatible_note}")
-            self.result_panel.show_text(
-                "Multiple existing physical audits found for this machine. Select one from the audit match list; no audit was loaded automatically."
-            )
-            return True
         if compatible_matches:
             note = f"Machine {machine} has compatible coverage entries, but no physical audit yet. Continuing with a new physical audit."
             self._machine_lookup_extra_note = note

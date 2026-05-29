@@ -18,6 +18,13 @@ EOAT Command Center is a local-first toolkit for EOAT standardization, audit tra
 python -m pip install -r requirements.txt
 ```
 
+For local development and CI-equivalent linting, also install the pinned dev tools:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m ruff check .
+```
+
 ## Run The App
 
 ```powershell

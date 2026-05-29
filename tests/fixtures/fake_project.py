@@ -39,6 +39,7 @@ def create_fake_eoat_project(temp_dir: str | Path, *, minimal: bool = False, wit
         paths.pilot_project,
         paths.pilot_project / "Candidate_Cells",
         paths.final_handoff,
+        paths.annotation_exports,
         paths.presentation_assets_root,
         paths.handoff_package_root,
         paths.final_report,

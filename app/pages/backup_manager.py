@@ -41,7 +41,7 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
         layout.addWidget(heading)
 
         actions = QHBoxLayout()
-        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button = QPushButton("Full Backup Scan")
         self.refresh_button.clicked.connect(lambda: self.refresh(force=True))
         preview = QPushButton("Preview Cleanup")
         preview.clicked.connect(self.preview_cleanup)
@@ -92,8 +92,15 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
         self.refresh()
 
     def on_show(self) -> None:
+        started = time.perf_counter()
         self._show_cached_summary()
-        self.refresh()
+        log_page_performance(
+            self.config.project_root,
+            "backup_manager",
+            "cached_show",
+            time.perf_counter() - started,
+            details={"cached_only": True, "has_cache": bool(self._summary_data)},
+        )
         return True
 
     def preview_cleanup(self) -> None:
@@ -150,11 +157,11 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
     def _show_cached_summary(self) -> None:
         data, generated_at, warning = _read_cache(self.config.project_root)
         if not data:
-            self.result_panel.show_text(f"{warning or 'No cached backup summary yet.'} Scanning in background...")
+            self.result_panel.show_text(f"{warning or 'No cached backup summary yet.'} Use Full Backup Scan to refresh inventory.")
             return
         self._summary_data = data
         self._show_summary_data(data)
-        self.result_panel.show_text(f"Showing cached backup summary from {_time_label(generated_at)}. Scanning in background...")
+        self.result_panel.show_text(f"Showing cached backup summary from {_time_label(generated_at)}.")
 
     def _apply_refresh_result(self, summary, data_load_seconds: float) -> None:
         render_started = time.perf_counter()

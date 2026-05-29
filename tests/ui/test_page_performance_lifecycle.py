@@ -14,7 +14,7 @@ from app.pages.standards_docs import StandardsDocsPage
 from app.widgets.command_palette import CommandPalette
 from core.backup_manager import BackupSummary
 from core.open_items import OpenItem
-from core.press_view import PressAuditEntry, PressViewGroup
+from core.press_view import PressAuditEntry, PressViewGroup, save_press_view_cache
 from core.release_readiness import PASS, ReleaseCheck, ReleaseReadinessSummary
 from tests.ui.helpers import wait_for_background_tasks
 
@@ -49,7 +49,7 @@ def test_slow_page_constructors_do_not_call_heavy_core_functions(qapp, fake_conf
         assert page is not None
 
 
-def test_open_items_background_refresh_updates_summary_and_debounces(qapp, fake_config, monkeypatch):
+def test_open_items_page_show_uses_cache_and_deep_rebuild_is_explicit(qapp, fake_config, monkeypatch):
     item = OpenItem(id="note:1", source="note", severity="Critical", category="note", title="Async item", message="body", status="Open")
     calls = {"count": 0}
 
@@ -72,11 +72,15 @@ def test_open_items_background_refresh_updates_summary_and_debounces(qapp, fake_
     page.show()
     wait_for_background_tasks()
 
+    assert calls["count"] == 0
+    page.deep_rebuild(force=True)
+    wait_for_background_tasks()
+
     assert page.summary_labels["Total Open"].text() == "1"
     assert page.table.rowCount() == 1
 
     page._refresh_running = True
-    page.refresh(force=True)
+    page.deep_rebuild(force=True)
     page.on_event(None)
     page._refresh_running = False
     page._refresh_queued = False
@@ -125,10 +129,11 @@ def test_audit_saved_marks_heavy_pages_stale_without_refresh(qapp, fake_config, 
     assert "marked stale" in press_view_page.result_panel.viewer.toPlainText()
 
 
-def test_press_view_shell_loads_in_background_and_filters_locally(qapp, fake_config, monkeypatch):
+def test_press_view_page_show_uses_cache_and_deep_rebuild_is_explicit(qapp, fake_config, monkeypatch):
     entry = PressAuditEntry(audit_id="AUD-ASYNC-001", machine="101", entry_type="Physical", status="Audited")
     group = PressViewGroup(machine="101", display_name="Press/Machine 101", physical_audits=[entry])
     calls = {"count": 0}
+    save_press_view_cache(fake_config.project_root, [group])
 
     def build_groups(*_args, **_kwargs):
         calls["count"] += 1
@@ -140,16 +145,39 @@ def test_press_view_shell_loads_in_background_and_filters_locally(qapp, fake_con
 
     page.show()
     wait_for_background_tasks()
-    assert calls["count"] == 1
+    assert calls["count"] == 0
     assert page.group_table.rowCount() == 1
+    assert "Showing cached press data" in page.result_panel.viewer.toPlainText()
 
     page.search_edit.setText("AUD-ASYNC")
     page.status_filter.setCurrentText("Audited")
     qapp.processEvents()
+    assert calls["count"] == 0
+
+    page.reload_cache(force=True)
+    page.refresh_data()
+    assert calls["count"] == 0
+
+    page.deep_rebuild(force=True)
+    wait_for_background_tasks()
     assert calls["count"] == 1
+    assert "Deep rebuilt" in page.result_panel.viewer.toPlainText()
 
 
-def test_backup_manager_scans_backups_in_background(qapp, fake_config, monkeypatch):
+def test_press_view_missing_cache_prompts_for_deep_rebuild(qapp, fake_config, monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise AssertionError("page show must not build Press View groups")
+
+    monkeypatch.setattr("app.pages.press_view.build_press_view_groups", fail)
+    page = PressViewPage(fake_config)
+    page.show()
+    wait_for_background_tasks()
+
+    assert page.group_table.rowCount() == 0
+    assert "No cached Press View found. Click Deep Rebuild Press View to generate it." in page.result_panel.viewer.toPlainText()
+
+
+def test_backup_manager_show_uses_cache_and_full_scan_is_explicit(qapp, fake_config, monkeypatch):
     summary = BackupSummary(2, 2048, "2026-05-01T08:00:00", "2026-05-02T08:00:00", {"EOAT.xlsx": 2}, (), (), (), ())
     calls = {"count": 0}
 
@@ -162,6 +190,10 @@ def test_backup_manager_scans_backups_in_background(qapp, fake_config, monkeypat
     assert calls["count"] == 0
 
     page.show()
+    wait_for_background_tasks()
+    assert calls["count"] == 0
+
+    page.refresh(force=True)
     wait_for_background_tasks()
     assert calls["count"] == 1
     assert page.cards["Backup Count"].value_label.text() == "2"

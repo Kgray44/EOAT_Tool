@@ -6,11 +6,12 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
+from core.paths import resolve_project_paths
 from core.safe_files import ensure_directory, safe_write_text
 
 
 def annotation_export_dir(project_root: str | Path) -> Path:
-    return Path(project_root) / "reports" / "exports"
+    return resolve_project_paths(project_root).annotation_exports
 
 
 def unique_export_path(project_root: str | Path, base_name: str, extension: str) -> Path:

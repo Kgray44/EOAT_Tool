@@ -219,6 +219,14 @@ def test_cylinder_type_alone_does_not_trigger_optional_group():
     assert CYLINDER_TYPE_FIELD not in summary.missing_fields
 
 
+def test_default_cylinder_type_alone_does_not_count_against_completion():
+    summary = calculate_audit_completion(_entry(**{CYLINDER_TYPE_FIELD: CYLINDER_TYPE_DEFAULT, CYLINDER_COUNT_FIELD: ""}), SECTIONS)
+
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_IGNORED_BY_OPTIONAL_GROUP
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_IGNORED_BY_OPTIONAL_GROUP
+    assert CYLINDER_TYPE_FIELD not in summary.missing_fields
+
+
 def test_triggered_optional_cylinder_group_is_counted_and_defaults_type():
     summary = calculate_audit_completion(_entry(**{CYLINDER_TYPE_FIELD: "", CYLINDER_COUNT_FIELD: "2"}), SECTIONS)
 
@@ -226,6 +234,14 @@ def test_triggered_optional_cylinder_group_is_counted_and_defaults_type():
     assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_VERIFIED_COMPLETE
     assert _status(summary, CYLINDER_TYPE_FIELD).value == CYLINDER_TYPE_DEFAULT
     assert CYLINDER_COUNT_FIELD not in summary.missing_fields
+
+
+def test_triggered_optional_cylinder_group_preserves_manual_type():
+    summary = calculate_audit_completion(_entry(**{CYLINDER_TYPE_FIELD: "Rotary", CYLINDER_COUNT_FIELD: "2"}), SECTIONS)
+
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, CYLINDER_TYPE_FIELD).value == "Rotary"
 
 
 def test_manual_override_sets_audit_percent_without_verifying_fields():

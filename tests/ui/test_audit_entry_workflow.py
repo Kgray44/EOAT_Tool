@@ -9,15 +9,23 @@ from openpyxl import load_workbook
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QGroupBox, QPushButton, QTextEdit
 
-from app.pages.audit import AUDIT_SECTION_GROUPS, AUDIT_SECTIONS, AuditPage
+from app.pages.audit import (
+    AUDIT_SECTION_GROUPS,
+    AUDIT_SECTIONS,
+    AuditPage,
+    ExistingAuditSelection,
+    ExistingMachineAuditsDialog,
+)
 from core.audit_constants import (
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
 )
 from core.audit_entries import save_audit_entry
-from core.robot_info import load_robot_info_for_audit_entry, robot_info_workbook_path, upsert_robot_info_from_audit
+from core.robot_info import robot_info_workbook_path, upsert_robot_info_from_audit
 from core.workbook_io import row_dicts, workbook_sheet_names
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 from tests.ui.helpers import click_button, wait_for_background_tasks, wait_until
@@ -167,6 +175,8 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     assert optional_row["Cup Type/Material"] == "N/A"
     assert optional_row["Cup Diameter/Size"] == "N/A"
     assert optional_row["Number of Parts Picked"] == "N/A"
+    assert optional_row[CYLINDER_COUNT_FIELD] == "N/A"
+    assert optional_row[CYLINDER_TYPE_FIELD] == "N/A"
     assert optional_row["# of Cups"] == "N/A"
     assert optional_row["# of Grippers"] == "N/A"
     assert optional_row["Gripper Type"] == "N/A"
@@ -389,9 +399,17 @@ def test_generate_new_audit_id_does_not_load_first_audit_and_save_adds_row(qapp,
     assert any(row["Audit ID"] == generated_id and row["Press/Machine #"] == "Press 200" for row in rows)
 
 
-def test_typing_machine_with_one_existing_audit_loads_that_audit(qapp, fake_config, fake_project, frozen_project_date):
+def test_typing_machine_with_one_existing_audit_continues_after_user_confirms(qapp, fake_config, fake_project, frozen_project_date, monkeypatch):
     original = _seed_audit(fake_project, "AUD-MACHINE-026-001", **{"Press/Machine #": "26", "Tool #": "PN-26"})
     page = AuditPage(fake_config)
+    monkeypatch.setattr(
+        page,
+        "_choose_existing_machine_audit_action",
+        lambda _machine, _matches: ExistingAuditSelection(
+            ExistingMachineAuditsDialog.ACTION_CONTINUE,
+            original["Audit ID"],
+        ),
+    )
 
     page.audit_fields["Press/Machine #"].setText("26")
     _finish_machine_lookup(page)
@@ -412,22 +430,27 @@ def test_machine_lookup_uses_exact_normalized_machine_match(qapp, fake_config, f
     assert page.audit_fields["Tool #"].text() == ""
 
 
-def test_machine_lookup_multiple_existing_audits_requires_selection(qapp, fake_config, fake_project, frozen_project_date):
+def test_machine_lookup_multiple_existing_audits_opens_selection_popup(qapp, fake_config, fake_project, frozen_project_date, monkeypatch):
     first = _seed_audit(fake_project, "AUD-MACHINE-050-001", **{"Press/Machine #": "50", "Tool #": "PN-50A"})
     second = _seed_audit(fake_project, "AUD-MACHINE-050-002", **{"Press/Machine #": "50", "Tool #": "PN-50B"})
     page = AuditPage(fake_config)
     page.show()
     starting_id = page.audit_fields["Audit ID"].text()
+    dialog_calls = []
+
+    def choose(machine_number: str, matches):
+        dialog_calls.append((machine_number, [match.audit_id for match in matches]))
+        return ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_CANCEL)
+
+    monkeypatch.setattr(page, "_choose_existing_machine_audit_action", choose)
 
     page.audit_fields["Press/Machine #"].setText("50")
     _finish_machine_lookup(page)
 
     assert page.audit_fields["Audit ID"].text() == starting_id
-    assert page.machine_audit_match_combo.isHidden() is False
-    audit_ids = [page.machine_audit_match_combo.itemData(index) for index in range(page.machine_audit_match_combo.count())]
-    assert first["Audit ID"] in audit_ids
-    assert second["Audit ID"] in audit_ids
-    assert "Multiple existing physical audits found" in page.result_panel.viewer.toPlainText()
+    assert page.machine_audit_match_combo.isHidden()
+    assert dialog_calls == [("50", [first["Audit ID"], second["Audit ID"]])]
+    assert "Existing audit selection canceled" in page.result_panel.viewer.toPlainText()
 
 
 def test_empty_only_count_ignores_fields_filled_by_new_defaults(qapp, fake_config, fake_project, frozen_project_date):
@@ -961,6 +984,10 @@ def test_audit_form_uses_grouped_panels_without_losing_fields(qapp, fake_config)
         assert field in page._audit_field_rows
         assert field in page._audit_field_group_keys
 
+    assert page._audit_field_group_keys["Number of Parts Picked"] == "EOAT Type and Tooling::Part Handling"
+    for field in ["# of Grippers", "Gripper Type", "Gripper Model", "Gripper Size"]:
+        assert page._audit_field_group_keys[field] == "EOAT Type and Tooling::Gripper Details"
+
 
 def test_audit_output_panel_has_readable_splitter_and_controls(qapp, fake_config):
     page = AuditPage(fake_config)
@@ -1000,18 +1027,9 @@ def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, f
 
     assert result.success, result.errors
     assert "Robot Info Summary" in result.summary
-    assert "Updated Robot_Info.xlsx for Machine Press 212" in result.summary
-    assert robot_info_workbook_path(fake_project).exists()
-    robot_info = load_robot_info_for_audit_entry(
-        fake_project,
-        {
-            "Plant/Area": "Plant 4",
-            "Press/Machine #": "Press 212",
-            "Robot Type": "Wittmann R9",
-        },
-    )
-    assert robot_info is not None
-    assert robot_info["Robot Vacuum Circuits"] == 3
+    assert "Robot_Info.xlsx update queued after the audit save." in result.summary
+    assert result.metrics["deferred_robot_info_queued"] is True
+    assert not robot_info_workbook_path(fake_project).exists()
     rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
     saved_row = next(row for row in rows if row["Audit ID"] == audit_id)
     assert saved_row["EOAT Vacuum Circuits"] == "2"

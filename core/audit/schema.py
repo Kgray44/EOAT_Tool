@@ -9,7 +9,6 @@ from ..audit.defaults import DEFAULT_AUDIT_DEFAULTS
 from ..audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
-    CYLINDER_TYPE_DEFAULT,
     CYLINDER_TYPE_FIELD,
     ENTRY_TYPE_FIELD,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
@@ -109,7 +108,8 @@ AUDIT_GROUP_LAYOUT: dict[str, list[tuple[str, list[str]]]] = {
     ],
     "EOAT Type and Tooling": [
         ("EOAT Classification", ["EOAT Type", "EOAT Moves", "Connection Type"]),
-        ("Part Pickup", [NUMBER_OF_PARTS_PICKED_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD]),
+        ("Part Handling", [NUMBER_OF_PARTS_PICKED_FIELD]),
+        ("Gripper Details", [GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD]),
         ("Cylinder Details", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]),
         ("Vacuum / Cup Details", [CUP_COUNT_FIELD, "Cup Type/Material", "Cup Diameter/Size", "Vacuum Generator Type"]),
         ("Physical Details", ["Estimated EOAT Weight"]),
@@ -381,8 +381,6 @@ def _widget_type(label: str, dropdown_values: tuple[str, ...]) -> str:
 
 
 def _default_for(label: str) -> str:
-    if label == CYLINDER_TYPE_FIELD:
-        return CYLINDER_TYPE_DEFAULT
     metadata = AUDIT_FIELD_METADATA.get(label)
     if metadata is not None and metadata.default is not None:
         return str(metadata.default)
