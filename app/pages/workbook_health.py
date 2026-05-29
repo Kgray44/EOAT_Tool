@@ -30,7 +30,7 @@ from core.audit_entries import repair_workbook_schema
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.validation import run_foundation_validation
-from core.validation_findings import ValidationFinding, ValidationSeverity, findings_from_result
+from core.validation_findings import ValidationFinding, ValidationSeverity, findings_from_result, repair_suggestions_from_findings
 from core.workbook_repairs import SAFE_FIX_IDS, apply_safe_fix, preview_safe_fix_action
 
 
@@ -69,6 +69,7 @@ class WorkbookHealthPage(QWidget):
                 "Duplicate Audit IDs",
                 "Applicable N/A Warnings",
                 "Semantic Warnings",
+                "Fixable Findings",
                 "Last Validation",
             ]
         ):
@@ -102,6 +103,18 @@ class WorkbookHealthPage(QWidget):
         self.findings_table.verticalHeader().setVisible(False)
         self.findings_table.setAlternatingRowColors(True)
         layout.addWidget(self.findings_table, stretch=2)
+
+        self.repair_summary_label = QLabel("Repair suggestions will appear after validation.")
+        layout.addWidget(self.repair_summary_label)
+
+        self.repair_suggestions_table = QTableWidget(0, 4)
+        self.repair_suggestions_table.setHorizontalHeaderLabels(["Fix", "Safety", "Findings", "Categories"])
+        self.repair_suggestions_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.repair_suggestions_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.repair_suggestions_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.repair_suggestions_table.verticalHeader().setVisible(False)
+        self.repair_suggestions_table.setAlternatingRowColors(True)
+        layout.addWidget(self.repair_suggestions_table, stretch=1)
 
         action_row = QHBoxLayout()
         for label, callback in [
@@ -164,7 +177,9 @@ class WorkbookHealthPage(QWidget):
         self.cards["Duplicate Audit IDs"].set_value(str(result.metrics.get("duplicate_audit_id_count", 0)))
         self.cards["Applicable N/A Warnings"].set_value(str(result.metrics.get("missing_applicable_major_cell_count", 0)))
         self.cards["Semantic Warnings"].set_value(str(result.metrics.get("semantic_warning_count", 0)))
+        self.cards["Fixable Findings"].set_value(str(result.metrics.get("validation_fix_available_count", 0)))
         self.cards["Last Validation"].set_value("Just now")
+        self._refresh_repair_suggestions(result)
         get_event_bus().emit(
             EVENT_WORKBOOK_VALIDATED,
             {
@@ -176,6 +191,32 @@ class WorkbookHealthPage(QWidget):
             },
             source="workbook_health",
         )
+
+    def _refresh_repair_suggestions(self, result=None) -> None:
+        suggestions = []
+        if result is not None:
+            suggestions = list((getattr(result, "structured_data", {}) or {}).get("repair_suggestions", []) or [])
+        if not suggestions:
+            suggestions = repair_suggestions_from_findings(self.findings)
+        if not suggestions:
+            self.repair_summary_label.setText("No safe repair suggestions are available for the current findings.")
+            self.repair_suggestions_table.setRowCount(0)
+            return
+        safe_count = sum(1 for item in suggestions if str(item.get("safety") or "") == "safe_automatic")
+        self.repair_summary_label.setText(f"{len(suggestions)} repair suggestion(s), {safe_count} safe automatic preview path(s).")
+        self.repair_suggestions_table.setRowCount(len(suggestions))
+        for row_number, suggestion in enumerate(suggestions):
+            values = [
+                suggestion.get("title") or suggestion.get("fix_id") or "",
+                suggestion.get("safety") or "",
+                suggestion.get("finding_count") or 0,
+                ", ".join(str(value) for value in suggestion.get("categories") or []),
+            ]
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(str(value))
+                item.setData(256, suggestion.get("fix_id") or "")
+                self.repair_suggestions_table.setItem(row_number, column, item)
+        self.repair_suggestions_table.resizeColumnsToContents()
 
     def _update_category_filter(self) -> None:
         current = self.category_filter.currentText() if hasattr(self, "category_filter") else "All Categories"
@@ -249,6 +290,13 @@ class WorkbookHealthPage(QWidget):
         finding = self._selected_finding()
         if finding and finding.fix_available and finding.fix_id in SAFE_FIX_IDS:
             return finding.fix_id
+        selected = self.repair_suggestions_table.selectionModel().selectedRows() if hasattr(self, "repair_suggestions_table") else []
+        if selected:
+            row = selected[0].row()
+            item = self.repair_suggestions_table.item(row, 0)
+            fix_id = str(item.data(256) or "") if item is not None else ""
+            if fix_id in SAFE_FIX_IDS:
+                return fix_id
         return ""
 
     def open_selected_audit(self) -> None:

@@ -28,6 +28,30 @@ SEVERITY_ORDER = {
     ValidationSeverity.INFO.value: 4,
 }
 
+REPAIR_SAFETY_AUTOMATIC = "safe_automatic"
+REPAIR_SAFETY_CONFIRMATION = "requires_confirmation"
+REPAIR_SAFETY_MANUAL = "manual_only"
+
+REPAIR_SAFETY_BY_FIX_ID = {
+    "clear_stale_hidden_na": REPAIR_SAFETY_AUTOMATIC,
+    "normalize_dropdown_casing": REPAIR_SAFETY_AUTOMATIC,
+    "create_missing_report_folders": REPAIR_SAFETY_AUTOMATIC,
+    "refresh_generated_views": REPAIR_SAFETY_AUTOMATIC,
+    "reapply_formatting": REPAIR_SAFETY_AUTOMATIC,
+    "rebuild_dropdown_validation": REPAIR_SAFETY_AUTOMATIC,
+    "repair_legacy_headers": REPAIR_SAFETY_CONFIRMATION,
+}
+
+REPAIR_TITLE_BY_FIX_ID = {
+    "clear_stale_hidden_na": "Clear Stale Hidden Values",
+    "normalize_dropdown_casing": "Normalize Dropdown Casing",
+    "create_missing_report_folders": "Create Missing Report Folders",
+    "refresh_generated_views": "Refresh Generated Views",
+    "reapply_formatting": "Reapply Formatting",
+    "rebuild_dropdown_validation": "Rebuild Dropdown Validation",
+    "repair_legacy_headers": "Repair Workbook Schema",
+}
+
 
 @dataclass(frozen=True)
 class ValidationFinding:
@@ -185,6 +209,52 @@ def summarize_findings(findings: Iterable[ValidationFinding]) -> dict[str, Any]:
     }
 
 
+def repair_suggestions_from_findings(findings: Iterable[ValidationFinding]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for finding in findings:
+        if not finding.fix_available or not finding.fix_id:
+            continue
+        entry = grouped.setdefault(
+            finding.fix_id,
+            {
+                "fix_id": finding.fix_id,
+                "title": REPAIR_TITLE_BY_FIX_ID.get(finding.fix_id, finding.fix_id.replace("_", " ").title()),
+                "safety": REPAIR_SAFETY_BY_FIX_ID.get(finding.fix_id, REPAIR_SAFETY_MANUAL),
+                "finding_count": 0,
+                "highest_severity": finding.severity,
+                "categories": set(),
+                "sample_messages": [],
+            },
+        )
+        entry["finding_count"] += 1
+        entry["categories"].add(finding.category)
+        if len(entry["sample_messages"]) < 5:
+            entry["sample_messages"].append(finding.message)
+        if SEVERITY_ORDER.get(finding.severity, 99) < SEVERITY_ORDER.get(str(entry["highest_severity"]), 99):
+            entry["highest_severity"] = finding.severity
+    suggestions: list[dict[str, Any]] = []
+    for entry in grouped.values():
+        suggestions.append(
+            {
+                "fix_id": entry["fix_id"],
+                "title": entry["title"],
+                "safety": entry["safety"],
+                "finding_count": entry["finding_count"],
+                "highest_severity": entry["highest_severity"],
+                "categories": sorted(entry["categories"]),
+                "sample_messages": list(entry["sample_messages"]),
+            }
+        )
+    return sorted(
+        suggestions,
+        key=lambda item: (
+            REPAIR_SAFETY_BY_FIX_ID.get(str(item["fix_id"]), REPAIR_SAFETY_MANUAL) != REPAIR_SAFETY_AUTOMATIC,
+            SEVERITY_ORDER.get(str(item["highest_severity"]), 99),
+            str(item["title"]).casefold(),
+        ),
+    )
+
+
 def validation_json_payload(project_root: str | Path, result: Any, findings: Iterable[ValidationFinding] | None = None) -> dict[str, Any]:
     finding_rows = list(findings) if findings is not None else findings_from_result(result)
     return {
@@ -195,6 +265,7 @@ def validation_json_payload(project_root: str | Path, result: Any, findings: Ite
         "success": bool(getattr(result, "success", False)),
         "summary": str(getattr(result, "summary", "")),
         "summary_counts": summarize_findings(finding_rows),
+        "repair_suggestions": repair_suggestions_from_findings(finding_rows),
         "findings": findings_to_dicts(finding_rows),
     }
 
@@ -216,6 +287,7 @@ def write_validation_json_report(project_root: str | Path, result: Any, findings
 def attach_findings(result: Any, findings: Iterable[ValidationFinding]) -> Any:
     finding_rows = list(findings)
     result.structured_data["validation_findings"] = findings_to_dicts(finding_rows)
+    result.structured_data["repair_suggestions"] = repair_suggestions_from_findings(finding_rows)
     summary = summarize_findings(finding_rows)
     result.metrics["validation_finding_count"] = summary["total"]
     result.metrics["validation_fix_available_count"] = summary["fix_available_count"]
@@ -239,6 +311,7 @@ __all__ = [
     "findings_from_result",
     "findings_to_dicts",
     "make_finding",
+    "repair_suggestions_from_findings",
     "summarize_findings",
     "validation_json_payload",
     "write_validation_json_report",

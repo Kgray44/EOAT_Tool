@@ -70,6 +70,9 @@ def classify_truth_cell(row: dict[str, Any], field: str, value: Any) -> TruthCel
     elif field in SYSTEM_FIELDS:
         state = TRUTH_SYSTEM
         reason = "Cell is app/system metadata."
+    elif field == "Audit ID":
+        state = TRUTH_MEASURED
+        reason = "Audit ID identifies the row and is not physical verification metadata."
     elif entry_type == ENTRY_TYPE_COMPATIBLE.casefold():
         state = TRUTH_COMPATIBILITY_DERIVED
         reason = "Compatible row value is inherited or derived from a source audit."
@@ -115,4 +118,3 @@ def analyze_workbook_truth(project_root: str | Path, sheet_name: str = "EOAT Inv
     except Exception as exc:
         return WorkbookTruthSummary(metrics={"rows_scanned": 0, "cells_scanned": 0, "truth_states": 0}, warnings=[f"Could not read {sheet_name}: {exc}"])
     return analyze_truth_from_rows(rows, fields=fields)
-

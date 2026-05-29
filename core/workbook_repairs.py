@@ -22,7 +22,7 @@ from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
 from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
-from .validation import validate_project_foundation
+from .validation import AUDIT_DROPDOWN_ALLOWED_VALUES, validate_project_foundation
 from .validation_findings import summarize_findings, findings_from_result
 from .workbook_io import worksheet_headers
 from .workbook_cache import invalidate_workbook_cache
@@ -34,6 +34,8 @@ FIX_REPAIR_LEGACY_HEADERS = "repair_legacy_headers"
 FIX_REFRESH_GENERATED_VIEWS = "refresh_generated_views"
 FIX_REAPPLY_FORMATTING = "reapply_formatting"
 FIX_REBUILD_DROPDOWN_VALIDATION = "rebuild_dropdown_validation"
+FIX_NORMALIZE_DROPDOWN_CASING = "normalize_dropdown_casing"
+FIX_CREATE_MISSING_REPORT_FOLDERS = "create_missing_report_folders"
 
 SAFE_FIX_IDS = {
     FIX_CLEAR_STALE_HIDDEN_NA,
@@ -41,6 +43,8 @@ SAFE_FIX_IDS = {
     FIX_REFRESH_GENERATED_VIEWS,
     FIX_REAPPLY_FORMATTING,
     FIX_REBUILD_DROPDOWN_VALIDATION,
+    FIX_NORMALIZE_DROPDOWN_CASING,
+    FIX_CREATE_MISSING_REPORT_FOLDERS,
 }
 
 
@@ -99,6 +103,10 @@ def preview_safe_fix(project_root: str | Path, fix_id: str) -> SafeFixPreview:
         return _preview_repair_legacy_headers(project_root)
     if fix_id == FIX_REFRESH_GENERATED_VIEWS:
         return _preview_refresh_generated_views(project_root)
+    if fix_id == FIX_NORMALIZE_DROPDOWN_CASING:
+        return _preview_normalize_dropdown_casing(project_root)
+    if fix_id == FIX_CREATE_MISSING_REPORT_FOLDERS:
+        return _preview_create_missing_report_folders(project_root)
     if fix_id == FIX_REAPPLY_FORMATTING:
         return _generic_preview(
             fix_id,
@@ -169,6 +177,27 @@ def apply_safe_fix(
             duration_seconds=time.perf_counter() - started,
         )
 
+    if preview.fix_id == FIX_CREATE_MISSING_REPORT_FOLDERS:
+        result = _apply_create_missing_report_folders(project_root, preview, started)
+        validation = validate_project_foundation(project_root)
+        summary_counts = summarize_findings(findings_from_result(validation))
+        result.details.append(f"Validation rerun after repair: {validation.summary}")
+        result.metrics["validation_after_fix_success"] = validation.success
+        result.metrics["validation_after_fix_finding_count"] = summary_counts["total"]
+        result.metrics["validation_after_fix_by_severity"] = summary_counts["by_severity"]
+        result.structured_data["safe_fix_preview"] = _preview_dict(preview)
+        result.structured_data["validation_after_fix"] = {
+            "success": validation.success,
+            "summary": validation.summary,
+            "summary_counts": summary_counts,
+        }
+        result.duration_seconds = time.perf_counter() - started
+        if log_activity:
+            warning = log_tool_run(result, project_root)
+            if warning:
+                result.warnings.append(warning)
+        return result
+
     paths = resolve_project_paths(project_root)
     lock_status = detect_workbook_lock(paths.master_workbook)
     if not lock_status.can_write:
@@ -185,6 +214,8 @@ def apply_safe_fix(
 
     if preview.fix_id == FIX_CLEAR_STALE_HIDDEN_NA:
         result = _apply_clear_stale_hidden_na(project_root, preview, started)
+    elif preview.fix_id == FIX_NORMALIZE_DROPDOWN_CASING:
+        result = _apply_normalize_dropdown_casing(project_root, preview, started)
     elif preview.fix_id == FIX_REFRESH_GENERATED_VIEWS:
         result = refresh_audit_by_press_view_action(project_root, log_activity=False)
         result.tool_id = "workbook_repair"
@@ -367,6 +398,95 @@ def _preview_refresh_generated_views(project_root: str | Path) -> SafeFixPreview
     )
 
 
+def _preview_normalize_dropdown_casing(project_root: str | Path) -> SafeFixPreview:
+    paths = resolve_project_paths(project_root)
+    changes: list[RepairChange] = []
+    warnings: list[str] = []
+    if not paths.master_workbook.exists():
+        return SafeFixPreview(
+            fix_id=FIX_NORMALIZE_DROPDOWN_CASING,
+            title="Normalize Dropdown Casing",
+            description="Normalize obvious dropdown value casing to the current allowed workbook values.",
+            warnings=[f"Master workbook is missing: {paths.master_workbook}"],
+            can_apply=False,
+        )
+    workbook = None
+    try:
+        workbook = load_workbook(paths.master_workbook, read_only=True, data_only=False)
+        if "EOAT Inventory" not in workbook.sheetnames:
+            warnings.append("EOAT Inventory sheet is missing.")
+        else:
+            ws = workbook["EOAT Inventory"]
+            headers = worksheet_headers(ws)
+            positions = {header: index for index, header in enumerate(headers)}
+            for row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                row_data = {header: row[index] for header, index in positions.items() if index < len(row)}
+                if not _is_audit_data_row(row_data):
+                    continue
+                for header, allowed_values in AUDIT_DROPDOWN_ALLOWED_VALUES.items():
+                    if header not in positions:
+                        continue
+                    value = _text(row_data.get(header))
+                    if not value or value in allowed_values:
+                        continue
+                    canonical = _canonical_dropdown_value(header, value)
+                    if not canonical:
+                        continue
+                    changes.append(
+                        RepairChange(
+                            sheet_name="EOAT Inventory",
+                            row_number=row_number,
+                            column_name=header,
+                            audit_id=_text(row_data.get("Audit ID")),
+                            machine_number=_text(row_data.get("Press/Machine #")),
+                            current_value=value,
+                            new_value=canonical,
+                            reason="Value matches an allowed dropdown option by case only.",
+                        )
+                    )
+    except Exception as exc:
+        warnings.append(f"Could not preview dropdown casing normalization: {exc}")
+    finally:
+        if workbook is not None:
+            workbook.close()
+    return SafeFixPreview(
+        fix_id=FIX_NORMALIZE_DROPDOWN_CASING,
+        title="Normalize Dropdown Casing",
+        description="Normalize obvious dropdown value casing. This only changes values that already match an allowed option case-insensitively.",
+        changes=changes,
+        warnings=warnings,
+        can_apply=bool(changes) and not warnings,
+    )
+
+
+def _preview_create_missing_report_folders(project_root: str | Path) -> SafeFixPreview:
+    paths = resolve_project_paths(project_root)
+    folder_targets = {
+        "Daily status reports": paths.daily_reports,
+        "Weekly status reports": paths.weekly_reports,
+        "Validation reports": paths.validation_reports,
+        "Activity logs": paths.activity_logs,
+    }
+    changes = [
+        RepairChange(
+            sheet_name="Filesystem",
+            column_name=label,
+            current_value="missing folder",
+            new_value=str(folder),
+            reason="Local report/log folder can be safely created without workbook changes.",
+        )
+        for label, folder in folder_targets.items()
+        if not folder.exists()
+    ]
+    return SafeFixPreview(
+        fix_id=FIX_CREATE_MISSING_REPORT_FOLDERS,
+        title="Create Missing Report Folders",
+        description="Create missing local report/log folders. This does not modify workbook rows or delete files.",
+        changes=changes,
+        can_apply=bool(changes),
+    )
+
+
 def _generic_preview(fix_id: str, title: str, description: str, change_text: str, project_root: str | Path) -> SafeFixPreview:
     paths = resolve_project_paths(project_root)
     if not paths.master_workbook.exists():
@@ -462,6 +582,102 @@ def _apply_clear_stale_hidden_na(project_root: str | Path, preview: SafeFixPrevi
     )
 
 
+def _apply_normalize_dropdown_casing(project_root: str | Path, preview: SafeFixPreview, started: float) -> ToolResult:
+    paths = resolve_project_paths(project_root)
+    workbook_path = paths.master_workbook
+    backup = backup_file(workbook_path, workbook_path.parent / "_backups")
+    workbook = None
+    audit_changes: dict[str, dict[str, dict[str, Any]]] = {}
+    applied = 0
+    try:
+        workbook = load_workbook(workbook_path)
+        if "EOAT Inventory" not in workbook.sheetnames:
+            raise ValueError("EOAT Inventory sheet is missing.")
+        ws = workbook["EOAT Inventory"]
+        headers = worksheet_headers(ws)
+        header_positions = {header: index + 1 for index, header in enumerate(headers)}
+        for change in preview.changes:
+            if not change.row_number or change.column_name not in header_positions:
+                continue
+            cell = ws.cell(row=change.row_number, column=header_positions[change.column_name])
+            if _text(cell.value) != change.current_value:
+                continue
+            canonical = _canonical_dropdown_value(change.column_name, change.current_value)
+            if not canonical or canonical != change.new_value:
+                continue
+            cell.value = canonical
+            applied += 1
+            audit_key = change.audit_id or f"row-{change.row_number}"
+            audit_changes.setdefault(audit_key, {"before": {}, "after": {}})
+            audit_changes[audit_key]["before"][change.column_name] = change.current_value
+            audit_changes[audit_key]["after"][change.column_name] = canonical
+        refresh_audit_by_press_view(workbook)
+        workbook.save(workbook_path)
+        invalidate_workbook_cache(workbook_path)
+    except Exception as exc:
+        return ToolResult.fail(
+            "workbook_repair",
+            "Workbook Repair",
+            "Could not apply dropdown casing normalization.",
+            errors=[str(exc)],
+            files_created=[str(backup)],
+            duration_seconds=time.perf_counter() - started,
+        )
+    finally:
+        if workbook is not None:
+            workbook.close()
+
+    files_modified = [str(workbook_path)]
+    files_created = [str(backup)]
+    for audit_id, changes in audit_changes.items():
+        try:
+            history_path = append_audit_history(
+                project_root,
+                audit_id,
+                "validation_auto_fix",
+                changes["before"],
+                changes["after"],
+                source=f"workbook_repair:{preview.fix_id}",
+                files_modified=files_modified,
+            )
+            files_modified.append(str(history_path))
+        except Exception:
+            pass
+    return ToolResult.ok(
+        "workbook_repair",
+        "Workbook Repair",
+        "Applied safe fix: normalize dropdown casing.",
+        details=[
+            f"Workbook backup: {backup}",
+            f"Changed dropdown value(s): {applied}",
+            "Only case-only matches to allowed dropdown values were normalized.",
+        ],
+        files_created=files_created,
+        files_modified=sorted(set(files_modified)),
+        metrics={"fix_id": preview.fix_id, "applied_change_count": applied},
+        duration_seconds=time.perf_counter() - started,
+    )
+
+
+def _apply_create_missing_report_folders(project_root: str | Path, preview: SafeFixPreview, started: float) -> ToolResult:
+    created: list[str] = []
+    for change in preview.changes:
+        folder = Path(change.new_value)
+        if folder.exists():
+            continue
+        folder.mkdir(parents=True, exist_ok=True)
+        created.append(str(folder))
+    return ToolResult.ok(
+        "workbook_repair",
+        "Workbook Repair",
+        "Applied safe fix: create missing report folders.",
+        details=[f"Created folder: {path}" for path in created] or ["No report folders needed to be created."],
+        files_created=created,
+        metrics={"fix_id": preview.fix_id, "applied_change_count": len(created)},
+        duration_seconds=time.perf_counter() - started,
+    )
+
+
 def _append_workbook_repair_history(project_root: str | Path, preview: SafeFixPreview, files_modified: list[str]) -> None:
     try:
         append_audit_history(
@@ -486,6 +702,13 @@ def _header_change(current_header: str, new_header: str) -> RepairChange:
         new_value=new_header,
         reason="Known legacy header repair.",
     )
+
+
+def _canonical_dropdown_value(header: str, value: str) -> str:
+    for allowed in AUDIT_DROPDOWN_ALLOWED_VALUES.get(header, set()):
+        if str(allowed).casefold() == str(value).casefold() and str(allowed) != str(value):
+            return str(allowed)
+    return ""
 
 
 def _preview_dict(preview: SafeFixPreview) -> dict[str, Any]:
@@ -514,6 +737,8 @@ def _text(value: Any) -> str:
 
 __all__ = [
     "FIX_CLEAR_STALE_HIDDEN_NA",
+    "FIX_CREATE_MISSING_REPORT_FOLDERS",
+    "FIX_NORMALIZE_DROPDOWN_CASING",
     "FIX_REAPPLY_FORMATTING",
     "FIX_REBUILD_DROPDOWN_VALIDATION",
     "FIX_REFRESH_GENERATED_VIEWS",
