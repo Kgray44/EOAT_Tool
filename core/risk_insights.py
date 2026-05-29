@@ -6,12 +6,14 @@ from pathlib import Path
 from typing import Any
 
 from .analysis_common import table_from_counts, table_from_rows, write_timestamped_report
+from .bad_actor_detector import detect_bad_actors
 from .fmea_analysis import analyze_fmea
 from .kpi_analysis import analyze_kpis
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .pilot_scoring import rank_pilot_candidates
 from .result import ToolResult
+from .risk_heatmap import RISK_LEVEL_CRITICAL, RISK_LEVEL_HIGH, build_risk_heatmap
 
 
 @dataclass(frozen=True)
@@ -19,6 +21,8 @@ class RiskInsightSummary:
     metrics: dict[str, Any]
     top_risks: list[dict[str, Any]] = field(default_factory=list)
     top_pilot_candidates: list[dict[str, Any]] = field(default_factory=list)
+    top_bad_actors: list[dict[str, Any]] = field(default_factory=list)
+    top_heatmap_cells: list[dict[str, Any]] = field(default_factory=list)
     kpi_data_gaps: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     recommended_actions: list[str] = field(default_factory=list)
@@ -40,6 +44,18 @@ class RiskInsightSummary:
             *table_from_rows(
                 self.top_pilot_candidates,
                 ["Rank", "Candidate ID", "Press/Machine #", "Main Problem", "Total Score", "Confidence", "Missing Data"],
+            ),
+            "",
+            "## Top Bad Actors",
+            *table_from_rows(
+                self.top_bad_actors,
+                ["Machine", "Score", "Issue Count", "High Priority Count", "Critical Priority Count", "Missing Evidence", "Recommended Action"],
+            ),
+            "",
+            "## Risk Heat Map Signals",
+            *table_from_rows(
+                self.top_heatmap_cells,
+                ["Machine", "Failure Mode", "Risk Level", "Risk Score", "Evidence Count", "Recommended Action"],
             ),
             "",
             "## KPI Data Gaps",
@@ -64,25 +80,61 @@ def build_risk_insight_summary(project_root: str | Path) -> RiskInsightSummary:
     fmea, fmea_error = analyze_fmea(project_root)
     pilot, pilot_error = rank_pilot_candidates(project_root)
     kpi, kpi_error = analyze_kpis(project_root)
+    heatmap = build_risk_heatmap(project_root)
+    bad_actors = detect_bad_actors(project_root)
     for error in [fmea_error, pilot_error, kpi_error]:
         if error:
             warnings.append(error.summary)
             warnings.extend(error.errors)
+    warnings.extend(heatmap.warnings)
+    warnings.extend(bad_actors.warnings)
     top_risks = list((fmea.ranked_rows if fmea else [])[:5])
     top_candidates = list((pilot.ranked_candidates if pilot else [])[:5])
+    top_heatmap_cells = [
+        {
+            "Machine": cell.machine,
+            "Failure Mode": cell.failure_mode,
+            "Risk Level": cell.risk_level,
+            "Risk Score": cell.risk_score,
+            "Evidence Count": cell.evidence_count,
+            "Recommended Action": cell.recommended_action,
+        }
+        for cell in sorted(
+            [cell for cell in heatmap.cells if cell.risk_level in {RISK_LEVEL_CRITICAL, RISK_LEVEL_HIGH}],
+            key=lambda item: (-item.risk_score, item.machine, item.failure_mode),
+        )[:8]
+    ]
+    top_bad_actors = [
+        {
+            "Machine": item.machine,
+            "Score": item.score,
+            "Issue Count": item.issue_count,
+            "High Priority Count": item.high_priority_count,
+            "Critical Priority Count": item.critical_priority_count,
+            "Missing Evidence": "; ".join(item.missing_evidence),
+            "Recommended Action": item.recommended_action,
+        }
+        for item in bad_actors.rankings[:8]
+        if item.score > 0
+    ]
     kpi_gaps = dict(kpi.missing_fields) if kpi else {}
     metrics = {
         "top_risk_count": len(top_risks),
         "pilot_candidate_count": len(top_candidates),
+        "top_bad_actor_count": len(top_bad_actors),
+        "risk_heatmap_high_or_critical_count": len(top_heatmap_cells),
         "missing_kpi_fields_total": sum(kpi_gaps.values()),
         "top_rpn": fmea.metrics.get("top_rpn", 0) if fmea else 0,
         "top_pilot_score": top_candidates[0].get("Total Score", 0) if top_candidates else 0,
+        "top_bad_actor_score": top_bad_actors[0].get("Score", 0) if top_bad_actors else 0,
         "kpi_rows": kpi.metrics.get("kpi_rows", 0) if kpi else 0,
     }
     return RiskInsightSummary(
         metrics=metrics,
         top_risks=top_risks,
         top_pilot_candidates=top_candidates,
+        top_bad_actors=top_bad_actors,
+        top_heatmap_cells=top_heatmap_cells,
         kpi_data_gaps=kpi_gaps,
         warnings=warnings,
         recommended_actions=_recommended_actions(metrics, warnings),
@@ -124,6 +176,10 @@ def _recommended_actions(metrics: dict[str, Any], warnings: list[str]) -> list[s
         actions.append("Review the highest RPN FMEA entries and confirm recommended actions.")
     if metrics.get("pilot_candidate_count", 0):
         actions.append("Use the top pilot candidates as the first review set, then verify missing evidence and KPI baselines.")
+    if metrics.get("top_bad_actor_score", 0):
+        actions.append("Review the highest bad-actor machine score and confirm missing evidence before prioritizing corrective work.")
+    if metrics.get("risk_heatmap_high_or_critical_count", 0):
+        actions.append("Use high/critical heat-map cells to focus failure-mode follow-up discussions.")
     if metrics.get("missing_kpi_fields_total", 0):
         actions.append("Fill missing KPI baseline fields before defending pilot ROI.")
     if not actions:
