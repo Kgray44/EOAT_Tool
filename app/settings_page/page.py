@@ -16,12 +16,14 @@ try:
         QPushButton,
         QScrollArea,
         QTabWidget,
+        QTableWidget,
+        QTableWidgetItem,
         QVBoxLayout,
         QWidget,
     )
 except ImportError:  # pragma: no cover
     Signal = None
-    QCheckBox = QComboBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QScrollArea = QTabWidget = QVBoxLayout = QWidget = None
+    QCheckBox = QComboBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QScrollArea = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
 from app.settings_page.advanced_section import build_advanced_section
 from app.settings_page.audit_defaults_section import build_audit_defaults_section
@@ -39,6 +41,14 @@ from app.settings_page.ui_preferences_section import build_ui_preferences_sectio
 from app.settings_page.widgets import add_stretch, settings_tab
 from app.task_runner import TaskRequest, get_task_manager
 from app.widgets.file_picker import select_directory, select_file
+from core.audit.default_rules import (
+    ALLOWED_SCOPES,
+    OVERWRITE_POLICIES,
+    audit_default_rules_from_config,
+    default_rules_from_audit_defaults,
+    normalize_default_rules,
+    preview_audit_default_rules as build_audit_default_preview,
+)
 from core.config import UserConfig
 from core.constants import DEFAULT_CONFIG_PATH
 from core.git_activity import find_git_executable, is_git_repo
@@ -48,6 +58,7 @@ from core.paths import resolve_project_paths
 from core.project_backup import backup_project
 from core.project_root_status import validate_project_root
 from core.result import ToolResult
+from core.safe_files import ensure_directory
 from core.scheduled_reports import install_or_repair_schedules, scheduled_tools_log_path
 from core.settings_schema import CURRENT_CONFIG_SCHEMA_VERSION, default_backups_config, default_scheduled_reports_config, default_ui_preferences_config
 from core.settings_validation import validate_settings_payload
@@ -169,6 +180,8 @@ class SettingsPage(QWidget):
             check.toggled.connect(lambda *_args: self._update_dirty_from_snapshot())
         for combo in self.findChildren(QComboBox):
             combo.currentIndexChanged.connect(lambda *_args: self._update_dirty_from_snapshot())
+        for table in self.findChildren(QTableWidget):
+            table.itemChanged.connect(lambda *_args: self._update_dirty_from_snapshot())
 
     def _set_dirty(self, dirty: bool) -> None:
         self._dirty = bool(dirty)
@@ -229,6 +242,7 @@ class SettingsPage(QWidget):
                 **DEFAULT_AUDIT_SETTING_VALUES,
                 **{field: edit.text().strip() for field, edit in self.audit_default_edits.items()},
             },
+            "audit_default_rules": self._collect_audit_default_rules(),
             "connection_defaults": {
                 **DEFAULT_CONNECTION_SETTING_VALUES,
                 **{field: edit.text().strip() for field, edit in self.connection_default_edits.items()},
@@ -288,6 +302,247 @@ class SettingsPage(QWidget):
             "cleanup_requires_validation": bool(backups.get("cleanup_requires_validation", True)),
         }
 
+    def _populate_audit_default_rules_table(self, config: UserConfig) -> None:
+        table = getattr(self, "audit_default_rules_table", None)
+        if table is None:
+            return
+        rules = audit_default_rules_from_config(config)
+        table.blockSignals(True)
+        try:
+            table.setRowCount(0)
+            for rule in rules:
+                self._append_audit_default_rule_row(rule.to_dict())
+            table.resizeColumnsToContents()
+        finally:
+            table.blockSignals(False)
+
+    def _append_audit_default_rule_row(self, rule: dict[str, Any]) -> int:
+        table = self.audit_default_rules_table
+        row = table.rowCount()
+        table.insertRow(row)
+        values = [
+            rule.get("id", ""),
+            "Yes" if rule.get("enabled", True) else "No",
+            rule.get("field", ""),
+            rule.get("value", ""),
+            rule.get("scope", "new_audit"),
+            rule.get("overwrite_policy", "empty_only"),
+            json.dumps(rule.get("conditions", []), sort_keys=True),
+            rule.get("source", "user"),
+            rule.get("note", ""),
+        ]
+        for column, value in enumerate(values):
+            table.setItem(row, column, QTableWidgetItem(str(value)))
+        return row
+
+    def _collect_audit_default_rules(self) -> list[dict[str, Any]]:
+        table = getattr(self, "audit_default_rules_table", None)
+        if table is None:
+            return [rule.to_dict() for rule in audit_default_rules_from_config(self.config)]
+        rows: list[dict[str, Any]] = []
+        for row in range(table.rowCount()):
+            conditions_text = self._table_text(table, row, 6)
+            try:
+                parsed_conditions = json.loads(conditions_text) if conditions_text else []
+            except json.JSONDecodeError:
+                parsed_conditions = []
+            rows.append(
+                {
+                    "id": self._table_text(table, row, 0) or f"user_default_{row + 1}",
+                    "enabled": self._table_text(table, row, 1).casefold() not in {"no", "false", "0", "disabled"},
+                    "field": self._table_text(table, row, 2),
+                    "value": self._table_text(table, row, 3),
+                    "scope": self._table_text(table, row, 4) or "new_audit",
+                    "overwrite_policy": self._table_text(table, row, 5) or "empty_only",
+                    "conditions": parsed_conditions if isinstance(parsed_conditions, list) else [],
+                    "source": self._table_text(table, row, 7) or "user",
+                    "note": self._table_text(table, row, 8),
+                }
+            )
+        collected = [rule.to_dict() for rule in normalize_default_rules(rows)]
+        edit_values = {field: edit.text().strip() for field, edit in self.audit_default_edits.items()}
+        for rule in collected:
+            if (
+                rule.get("field") in edit_values
+                and not rule.get("conditions")
+                and rule.get("scope") == "new_audit"
+                and rule.get("source") in {"system_default", "legacy_audit_defaults"}
+            ):
+                rule["value"] = edit_values[str(rule.get("field"))]
+        return collected
+
+    def _table_text(self, table: QTableWidget, row: int, column: int) -> str:
+        item = table.item(row, column)
+        return "" if item is None else item.text().strip()
+
+    def _selected_default_rule_row(self) -> int:
+        table = self.audit_default_rules_table
+        selected = table.selectionModel().selectedRows() if table.selectionModel() is not None else []
+        if selected:
+            return selected[0].row()
+        return table.currentRow()
+
+    def new_default_rule(self) -> None:
+        row = self._append_audit_default_rule_row(
+            {
+                "id": f"user_default_{self.audit_default_rules_table.rowCount() + 1}",
+                "enabled": True,
+                "field": "Auditor",
+                "value": "",
+                "scope": ALLOWED_SCOPES[0],
+                "overwrite_policy": OVERWRITE_POLICIES[0],
+                "conditions": [],
+                "source": "user",
+                "note": "",
+            }
+        )
+        self.audit_default_rules_table.selectRow(row)
+        self._update_dirty_from_snapshot()
+
+    def edit_selected_default_rule(self) -> None:
+        row = self._selected_default_rule_row()
+        if row < 0:
+            self.status_label.setText("Select a default rule to edit.")
+            return
+        self.audit_default_rules_table.editItem(self.audit_default_rules_table.item(row, 3))
+        self.status_label.setText("Editing selected default rule.")
+
+    def duplicate_selected_default_rule(self) -> None:
+        row = self._selected_default_rule_row()
+        if row < 0:
+            self.status_label.setText("Select a default rule to duplicate.")
+            return
+        rule = self._collect_rule_row(row)
+        rule["id"] = f"{rule.get('id') or 'default'}_copy"
+        rule["source"] = "user"
+        new_row = self._append_audit_default_rule_row(rule)
+        self.audit_default_rules_table.selectRow(new_row)
+        self._update_dirty_from_snapshot()
+
+    def disable_selected_default_rule(self) -> None:
+        row = self._selected_default_rule_row()
+        if row < 0:
+            self.status_label.setText("Select a default rule to disable.")
+            return
+        self.audit_default_rules_table.setItem(row, 1, QTableWidgetItem("No"))
+        self._update_dirty_from_snapshot()
+
+    def delete_selected_default_rule(self) -> None:
+        row = self._selected_default_rule_row()
+        if row < 0:
+            self.status_label.setText("Select a default rule to delete.")
+            return
+        self.audit_default_rules_table.removeRow(row)
+        self._update_dirty_from_snapshot()
+
+    def move_selected_default_rule_up(self) -> None:
+        self._move_selected_default_rule(-1)
+
+    def move_selected_default_rule_down(self) -> None:
+        self._move_selected_default_rule(1)
+
+    def _move_selected_default_rule(self, offset: int) -> None:
+        table = self.audit_default_rules_table
+        row = self._selected_default_rule_row()
+        target = row + offset
+        if row < 0 or target < 0 or target >= table.rowCount():
+            return
+        current = self._collect_rule_row(row)
+        other = self._collect_rule_row(target)
+        table.blockSignals(True)
+        try:
+            self._set_rule_row(row, other)
+            self._set_rule_row(target, current)
+        finally:
+            table.blockSignals(False)
+        table.selectRow(target)
+        self._update_dirty_from_snapshot()
+
+    def _collect_rule_row(self, row: int) -> dict[str, Any]:
+        try:
+            conditions = json.loads(self._table_text(self.audit_default_rules_table, row, 6) or "[]")
+        except json.JSONDecodeError:
+            conditions = []
+        return {
+            "id": self._table_text(self.audit_default_rules_table, row, 0),
+            "enabled": self._table_text(self.audit_default_rules_table, row, 1).casefold() not in {"no", "false", "0", "disabled"},
+            "field": self._table_text(self.audit_default_rules_table, row, 2),
+            "value": self._table_text(self.audit_default_rules_table, row, 3),
+            "scope": self._table_text(self.audit_default_rules_table, row, 4),
+            "overwrite_policy": self._table_text(self.audit_default_rules_table, row, 5),
+            "conditions": conditions if isinstance(conditions, list) else [],
+            "source": self._table_text(self.audit_default_rules_table, row, 7),
+            "note": self._table_text(self.audit_default_rules_table, row, 8),
+        }
+
+    def _set_rule_row(self, row: int, rule: dict[str, Any]) -> None:
+        values = [
+            rule.get("id", ""),
+            "Yes" if rule.get("enabled", True) else "No",
+            rule.get("field", ""),
+            rule.get("value", ""),
+            rule.get("scope", "new_audit"),
+            rule.get("overwrite_policy", "empty_only"),
+            json.dumps(rule.get("conditions", []), sort_keys=True),
+            rule.get("source", "user"),
+            rule.get("note", ""),
+        ]
+        for column, value in enumerate(values):
+            self.audit_default_rules_table.setItem(row, column, QTableWidgetItem(str(value)))
+
+    def preview_audit_default_rules(self) -> None:
+        result = build_audit_default_preview({}, self._collect_audit_default_rules(), scope="new_audit")
+        rows = [row for row in result.preview_rows if row.status in {"would_apply", "already_set"}]
+        if not rows:
+            self.status_label.setText("No audit defaults would be applied.")
+            return
+        lines = [
+            f"- {row.field}: {row.default_value} ({row.status})"
+            for row in rows[:25]
+        ]
+        extra = "" if len(rows) <= 25 else f"\n...and {len(rows) - 25} more default rule(s)."
+        self.status_label.setText("Preview Applied Defaults:\n" + "\n".join(lines) + extra)
+
+    def reset_system_default_rules(self) -> None:
+        table = self.audit_default_rules_table
+        table.blockSignals(True)
+        try:
+            table.setRowCount(0)
+            for rule in default_rules_from_audit_defaults(DEFAULT_AUDIT_SETTING_VALUES):
+                self._append_audit_default_rule_row(rule)
+        finally:
+            table.blockSignals(False)
+        self._update_dirty_from_snapshot()
+        self.status_label.setText("System audit defaults restored in settings. Save Settings to persist them.")
+
+    def export_default_rules(self) -> None:
+        path = DEFAULT_CONFIG_PATH.parent / "audit_default_rules_export.json"
+        ensure_directory(path.parent)
+        path.write_text(json.dumps(self._collect_audit_default_rules(), indent=2), encoding="utf-8")
+        self.status_label.setText(f"Exported audit defaults to {path}.")
+
+    def import_default_rules(self) -> None:
+        path = DEFAULT_CONFIG_PATH.parent / "audit_default_rules_export.json"
+        if not path.exists():
+            self.status_label.setText(f"No audit default export found at {path}.")
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            self.status_label.setText(f"Could not import audit defaults: {exc}")
+            return
+        rules = [rule.to_dict() for rule in normalize_default_rules(data if isinstance(data, list) else [])]
+        table = self.audit_default_rules_table
+        table.blockSignals(True)
+        try:
+            table.setRowCount(0)
+            for rule in rules:
+                self._append_audit_default_rule_row(rule)
+        finally:
+            table.blockSignals(False)
+        self._update_dirty_from_snapshot()
+        self.status_label.setText(f"Imported {len(rules)} audit default rule(s).")
+
     def _payload_to_config(self, payload: dict[str, Any]) -> UserConfig:
         data = dict(getattr(self.config, "extra_config", {}) or {})
         data.update(payload)
@@ -305,6 +560,7 @@ class SettingsPage(QWidget):
         self.theme_combo.setCurrentIndex(theme_index if theme_index >= 0 else 0)
         for field, edit in self.audit_default_edits.items():
             edit.setText(str(config.audit_defaults.get(field, DEFAULT_AUDIT_SETTING_VALUES.get(field, ""))))
+        self._populate_audit_default_rules_table(config)
         for field, edit in self.connection_default_edits.items():
             edit.setText(str(config.connection_defaults.get(field, DEFAULT_CONNECTION_SETTING_VALUES.get(field, ""))))
         scheduled = {**default_scheduled_reports_config(), **dict(config.scheduled_reports or {})}

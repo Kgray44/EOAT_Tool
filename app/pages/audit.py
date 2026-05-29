@@ -1478,9 +1478,12 @@ class AuditPage(QWidget):
         difficulty_widget = self.audit_fields[CHANGEOVER_DIFFICULTY_FIELD]
         if not self._smart_default_can_fill(self._field_value(difficulty_widget)):
             return
-        connection_type = self._field_value(self.audit_fields[CONNECTION_TYPE_FIELD])
-        default = self.defaults_controller.changeover_default(connection_type)
-        if default:
+        entry = self._current_audit_form_values()
+        result = self.defaults_controller.smart_defaults(entry, only_unset=True, applicable_fields=self._audit_field_applies_in_current_form)
+        default = result.values.get(CHANGEOVER_DIFFICULTY_FIELD)
+        if not default and getattr(self.config, "smart_default_rules", None) is None:
+            default = self.defaults_controller.changeover_default(self._field_value(self.audit_fields[CONNECTION_TYPE_FIELD]))
+        if default and default != self._field_value(difficulty_widget):
             self._set_field_value(difficulty_widget, default)
 
     def _smart_default_can_fill(self, value: str) -> bool:
@@ -1512,12 +1515,16 @@ class AuditPage(QWidget):
         self._autofilling_fields = True
         self._log_lifecycle_event("audit_autofill_started", {"reason": "part_present_sensor_autofill"})
         try:
+            entry = self._current_audit_form_values()
+            result = self.defaults_controller.smart_defaults(entry, only_unset=True, applicable_fields=self._audit_field_applies_in_current_form)
             for field, default in PART_PRESENT_SENSOR_DEFAULTS.items():
                 if field not in self.audit_fields:
                     continue
                 widget = self.audit_fields[field]
-                if part_present_sensor_value_allows_default(self._field_value(widget), default):
-                    self._set_field_value(widget, default)
+                current_value = self._field_value(widget)
+                value = result.values.get(field, self._field_value(widget))
+                if value != current_value and part_present_sensor_value_allows_default(current_value, value):
+                    self._set_field_value(widget, value)
                     self._part_present_autofilled_sensor_fields.add(field)
         finally:
             self._autofilling_fields = previous
