@@ -3,10 +3,21 @@
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 
-from core.audit_by_press import AUDIT_BY_PRESS_SHEET, REFRESH_ACTION_NAME, UNASSIGNED_PRESS_GROUP, refresh_audit_by_press_view_action
+from core.audit_by_press import (
+    AUDIT_BY_PRESS_SHEET,
+    REFRESH_ACTION_NAME,
+    UNASSIGNED_PRESS_GROUP,
+    refresh_audit_by_press_view_action,
+)
 from core.audit_compatibility import create_compatibility_entries
-from core.audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
-from core.audit_entries import validate_audit_entry, generate_audit_id, load_audit_entry, repair_workbook_schema, save_audit_entry
+from core.audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from core.audit_entries import (
+    generate_audit_id,
+    load_audit_entry,
+    repair_workbook_schema,
+    save_audit_entry,
+    validate_audit_entry,
+)
 from core.paths import resolve_project_paths
 from core.tool_fields import LEGACY_TOOL_FIELD
 from core.workbook_schema import get_expected_headers, get_expected_sheets
@@ -45,11 +56,13 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     assert "Vacuum Zones" not in headers
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 11] == [
+    assert headers[tooling_start : tooling_start + 13] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
         "Number of Parts Picked",
+        CYLINDER_COUNT_FIELD,
+        CYLINDER_TYPE_FIELD,
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
@@ -62,12 +75,75 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values["Tool #"] == "DEMO-PN-1200"
     assert row_values["EOAT Moves"] == "Both"
     assert row_values["Connection Type"] == "ATI"
+    assert row_values[CYLINDER_COUNT_FIELD] == "N/A"
+    assert row_values[CYLINDER_TYPE_FIELD] == "Linear"
     assert row_values["Gripper Model"] == "N/A"
     assert row_values["Gripper Size"] == "N/A"
     assert row_values["# of Grippers"] == "N/A"
     assert row_values["Gripper Type"] == "N/A"
     assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
     wb.close()
+
+
+def test_save_with_current_schema_skips_heavy_schema_repair(fake_project, monkeypatch):
+    repair = repair_workbook_schema(fake_project)
+    assert repair.success, repair.errors
+
+    def fail_migration(_workbook):
+        raise AssertionError("current schema save should skip heavy migration")
+
+    monkeypatch.setattr("core.audit_entries._migrate_workbook_tool_headers", fail_migration)
+
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-SCHEMA-CURRENT",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    assert result.metrics["audit_save.schema_current"] is True
+    assert result.metrics["audit_save.schema_repair_seconds"] == 0.0
+
+
+def test_save_with_stale_schema_runs_repair_once(fake_project, monkeypatch):
+    import core.audit_entries as audit_entries
+
+    calls = {"count": 0}
+    original = audit_entries._migrate_workbook_tool_headers
+
+    def counted(workbook):
+        calls["count"] += 1
+        return original(workbook)
+
+    monkeypatch.setattr(audit_entries, "_migrate_workbook_tool_headers", counted)
+
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-SCHEMA-STALE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "12",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    assert calls["count"] == 1
+    assert result.metrics["audit_save.schema_current"] is False
+    assert "audit_save.schema_check_seconds" in result.metrics
+    assert "audit_save.schema_repair_seconds" in result.metrics
 
 
 def test_eoat_moves_blank_stays_blank_and_warns_as_important(fake_project):
@@ -89,6 +165,80 @@ def test_eoat_moves_blank_stays_blank_and_warns_as_important(fake_project):
     assert "Missing important audit field: EOAT Moves" in "\n".join(result.warnings)
     loaded = load_audit_entry(fake_project, "AUD-MOVES-BLANK")
     assert loaded["EOAT Moves"] in (None, "")
+
+
+def test_cylinder_fields_save_load_and_old_workbooks_migrate_safely(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = load_workbook(workbook_path)
+    try:
+        ws = workbook["EOAT Inventory"]
+        headers = [cell.value for cell in ws[1]]
+        for header in [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]:
+            if header in headers:
+                ws.delete_cols(headers.index(header) + 1)
+                headers = [cell.value for cell in ws[1]]
+        ws.append([""] * len(headers))
+        row = ws.max_row
+        for header, value in {
+            "Audit ID": "AUD-OLD-NO-CYLINDERS",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 14",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Miscellaneous",
+            "Status": "In Progress",
+        }.items():
+            ws.cell(row=row, column=headers.index(header) + 1).value = value
+        workbook.save(workbook_path)
+    finally:
+        workbook.close()
+
+    loaded_old = load_audit_entry(fake_project, "AUD-OLD-NO-CYLINDERS")
+    assert loaded_old is not None
+    assert CYLINDER_COUNT_FIELD not in loaded_old
+
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-CYLINDERS-001",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 15",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Miscellaneous",
+            CYLINDER_COUNT_FIELD: "2",
+            CYLINDER_TYPE_FIELD: "Rotary",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    loaded = load_audit_entry(fake_project, "AUD-CYLINDERS-001")
+    assert loaded[CYLINDER_COUNT_FIELD] == "2"
+    assert loaded[CYLINDER_TYPE_FIELD] == "Rotary"
+
+    default_type_result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-CYLINDERS-DEFAULT-TYPE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 16",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Miscellaneous",
+            CYLINDER_COUNT_FIELD: "3",
+            CYLINDER_TYPE_FIELD: "",
+            "Status": "In Progress",
+        },
+    )
+
+    assert default_type_result.success, default_type_result.errors
+    loaded_default = load_audit_entry(fake_project, "AUD-CYLINDERS-DEFAULT-TYPE")
+    assert loaded_default[CYLINDER_COUNT_FIELD] == "3"
+    assert loaded_default[CYLINDER_TYPE_FIELD] == "Linear"
 
 
 def test_workbook_missing_eoat_moves_loads_and_migrates_without_overwriting_blanks(fake_project):
@@ -330,6 +480,42 @@ def test_gripper_count_and_pressure_type_validation(fake_project):
     )
     assert bad_type.success is False
     assert any("Gripper Type must be one of: Single Pressure, Double Pressure" in error for error in bad_type.errors)
+
+    bad_cylinder_count = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-CYLINDER-COUNT-BAD",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press bad cylinder count",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Miscellaneous",
+            CYLINDER_COUNT_FIELD: "two",
+            CYLINDER_TYPE_FIELD: "Linear",
+            "Status": "In Progress",
+        },
+    )
+    assert bad_cylinder_count.success is False
+    assert any(f"{CYLINDER_COUNT_FIELD} must be a non-negative whole number" in error for error in bad_cylinder_count.errors)
+
+    bad_cylinder_type = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-CYLINDER-TYPE-BAD",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press bad cylinder type",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Miscellaneous",
+            CYLINDER_COUNT_FIELD: "1",
+            CYLINDER_TYPE_FIELD: "Telescoping",
+            "Status": "In Progress",
+        },
+    )
+    assert bad_cylinder_type.success is False
+    assert any(f"{CYLINDER_TYPE_FIELD} must be one of: Linear, Rotary" in error for error in bad_cylinder_type.errors)
 
 
 def test_new_audit_sensor_and_documentation_defaults(fake_project):
@@ -1001,11 +1187,13 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     headers = [cell.value for cell in ws[1]]
     values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 11] == [
+    assert headers[tooling_start : tooling_start + 13] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
         "Number of Parts Picked",
+        CYLINDER_COUNT_FIELD,
+        CYLINDER_TYPE_FIELD,
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
@@ -1039,11 +1227,13 @@ def test_setup_generated_master_tracker_uses_tool_header(tmp_path):
     assert headers[:6] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Tool #"]
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 11] == [
+    assert headers[tooling_start : tooling_start + 13] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
         "Number of Parts Picked",
+        CYLINDER_COUNT_FIELD,
+        CYLINDER_TYPE_FIELD,
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
@@ -1111,6 +1301,8 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     pairs = [
         ("EOAT Moves", "EOAT Type"),
         ("Connection Type", "EOAT Type"),
+        (CYLINDER_COUNT_FIELD, "Number of Parts Picked"),
+        (CYLINDER_TYPE_FIELD, CYLINDER_COUNT_FIELD),
         ("# of Grippers", "Number of Parts Picked"),
         ("# of Cups", "Number of Parts Picked"),
         ("Gripper Type", "Connection Type"),
@@ -1160,6 +1352,25 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     ]
     assert cup_count_validations
     assert cup_count_validations[0].type == "whole"
+    cylinder_count_col = headers.index(CYLINDER_COUNT_FIELD) + 1
+    cylinder_count_validations = [
+        validation
+        for validation in ws.data_validations.dataValidation
+        for cell_range in validation.sqref.ranges
+        if cell_range.min_col == cylinder_count_col and cell_range.max_col == cylinder_count_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+    ]
+    assert cylinder_count_validations
+    assert cylinder_count_validations[0].type == "whole"
+    cylinder_type_col = headers.index(CYLINDER_TYPE_FIELD) + 1
+    cylinder_type_validations = [
+        validation
+        for validation in ws.data_validations.dataValidation
+        for cell_range in validation.sqref.ranges
+        if cell_range.min_col == cylinder_type_col and cell_range.max_col == cylinder_type_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+    ]
+    assert cylinder_type_validations
+    assert "Linear" in cylinder_type_validations[0].formula1
+    assert "Rotary" in cylinder_type_validations[0].formula1
     gripper_type_col = headers.index("Gripper Type") + 1
     gripper_type_validations = [
         validation
@@ -1219,7 +1430,7 @@ def test_audit_by_press_view_is_created_grouped_sorted_and_collapsible(fake_proj
     assert AUDIT_BY_PRESS_SHEET in workbook.sheetnames
     view = workbook[AUDIT_BY_PRESS_SHEET]
     assert view.freeze_panes == "A4"
-    assert view.auto_filter.ref == "A3:Q3"
+    assert view.auto_filter.ref == f"A3:{get_column_letter(view.max_column)}3"
     assert view["A2"].value.startswith("Last refreshed:")
 
     headers = _group_headers(view)

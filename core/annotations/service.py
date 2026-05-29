@@ -3,10 +3,11 @@ from __future__ import annotations
 import sqlite3
 import time
 import uuid
+from collections.abc import Iterable
 from contextlib import contextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
@@ -14,6 +15,7 @@ from openpyxl.styles import PatternFill
 from core.logging import log_activity_event
 from core.paths import resolve_project_paths
 from core.safe_files import backup_file
+from core.workbook_cache import invalidate_workbook_cache
 from core.workbook_io import worksheet_headers
 
 from .database import annotation_database_path, connect_annotation_database, initialize_annotation_database
@@ -21,7 +23,7 @@ from .exports import export_notes_excel, export_notes_markdown, export_tags_exce
 from .migrations import utc_now
 from .models import AnnotationTarget, Note, Tag, TagAssignment
 from .suggestions import suggested_annotations_for_audit
-from .tag_colors import TAG_COLOR_PALETTE, excel_fill_for_color, highest_priority_tag, normalize_color_key
+from .tag_colors import excel_fill_for_color, highest_priority_tag, normalize_color_key
 from .targets import display_label_for_target, normalize_target_type, target_id_for
 
 IMPORTANCE_VALUES = ("Low", "Neutral", "Important", "Critical")
@@ -739,6 +741,7 @@ class AnnotationService:
                 cell.fill = PatternFill(fill_type=None)
             cell_ref = cell.coordinate
             workbook.save(workbook_path)
+            invalidate_workbook_cache(workbook_path)
             files_modified.append(str(workbook_path))
             with self.connection() as conn:
                 conn.execute("UPDATE annotation_targets SET cached_cell_ref = ?, updated_at = ? WHERE id = ?", (cell_ref, utc_now(), target_id))
@@ -843,6 +846,7 @@ class AnnotationService:
                     changed = True
                 if changed:
                     workbook.save(workbook_path)
+                    invalidate_workbook_cache(workbook_path)
                     files_modified.append(str(workbook_path))
             except Exception as exc:
                 warnings.append(f"Could not sync tag colors to workbook: {exc}")
@@ -919,6 +923,7 @@ class AnnotationService:
                 "missing_evidence": tag_count("Missing Evidence"),
                 "compatibility_concerns": tag_count("Compatibility Concern"),
                 "documentation_gaps": tag_count("Documentation Gap"),
+                "info_tags": tag_count("Info"),
                 "followups_due_soon": int(followups),
             }
 

@@ -8,7 +8,6 @@ from app.pages.home import HomePage
 from app.pages.schedule import SchedulePage
 from tests.ui.helpers import click_button, wait_for_background_tasks, wait_for_path
 
-
 pytestmark = pytest.mark.usability
 
 

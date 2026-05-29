@@ -3,8 +3,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from core.safe_files import ensure_directory
 from core.paths import resolve_project_paths
+from core.safe_files import ensure_directory
 
 from .migrations import LATEST_SCHEMA_VERSION, apply_migrations
 from .tag_colors import DEFAULT_TAG_DEFINITIONS

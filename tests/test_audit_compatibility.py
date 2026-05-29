@@ -10,7 +10,12 @@ from core.audit_compatibility import (
     parse_machine_tokens,
     sync_compatible_rows_from_source,
 )
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import (
+    COMPATIBILITY_SOURCE_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from core.audit_entries import save_audit_entry, save_audit_entry_with_compatibility_autorun
 from core.audit_progress import calculate_audit_progress
 from core.paths import get_press_capacity_file, resolve_project_paths

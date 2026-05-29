@@ -5,13 +5,12 @@ import time
 import zipfile
 from pathlib import Path
 
-from .logging import log_tool_run
 from .constants import TOOLKIT_ROOT
+from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .reports import list_recent_files
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_copy_file, safe_write_text
-
 
 TOOL_ID = "project_backup"
 TOOL_NAME = "EOAT Project Backup"

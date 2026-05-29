@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from openpyxl import load_workbook
 
 from core.paths import resolve_project_paths

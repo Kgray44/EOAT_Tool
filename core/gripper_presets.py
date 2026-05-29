@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .constants import TOOLKIT_ROOT
 from .paths import resolve_project_paths
-
 
 DEFAULT_GRIPPER_PRESETS_PATH = TOOLKIT_ROOT / "data_templates" / "gripper_presets.example.json"
 PROJECT_GRIPPER_PRESETS_FILENAME = "gripper_presets.json"
@@ -42,7 +42,7 @@ class GripperPreset:
     active: bool = True
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GripperPreset":
+    def from_dict(cls, data: dict[str, Any]) -> GripperPreset:
         return cls(
             friendly_name=_text(data.get("friendly_name") or data.get("label")),
             part_number=_text(data.get("part_number") or data.get("model") or data.get("value")),

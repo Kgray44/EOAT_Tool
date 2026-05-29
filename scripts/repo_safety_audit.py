@@ -4,10 +4,8 @@ import argparse
 import fnmatch
 import re
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-
 
 TEXT_SUFFIXES = {
     ".bat",

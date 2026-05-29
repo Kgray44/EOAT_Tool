@@ -3,14 +3,27 @@ from __future__ import annotations
 import time
 
 try:
-    from PySide6.QtWidgets import QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSplitter, QTableWidget, QTextEdit, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import (
+        QCheckBox,
+        QGridLayout,
+        QGroupBox,
+        QHBoxLayout,
+        QLabel,
+        QPushButton,
+        QScrollArea,
+        QSplitter,
+        QTableWidget,
+        QTextEdit,
+        QVBoxLayout,
+        QWidget,
+    )
 except ImportError:  # pragma: no cover
     QCheckBox = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QPushButton = QScrollArea = QSplitter = QTableWidget = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_async import AsyncRefreshMixin, log_page_performance
+from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
-from app.page_tasks import run_tool_background
 from core.deliverable_check import run_final_deliverable_check
 from core.final_handoff import build_final_handoff_package
 from core.final_handoff_readiness import (
@@ -26,6 +39,7 @@ from core.paths import resolve_project_paths
 from core.presentation_export import export_presentation_assets
 from core.project_backup import backup_project
 from core.workflows import run_workflow
+
 from .analysis_widgets import populate_table
 
 

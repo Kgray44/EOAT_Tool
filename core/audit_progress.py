@@ -6,9 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from .audit.relationships import is_compatibility_row, is_physical_audit_row
 from .audit_compatibility import (
     load_required_relationships,
-    normalize_entry_type,
     parse_machine_tokens,
     part_number_from_row,
     relationship_has_conflict,
@@ -17,13 +17,13 @@ from .audit_compatibility import (
     text_value,
 )
 from .audit_constants import ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
-from .audit_field_rules import field_applies, is_na_value
+from .audit_field_rules import field_applies, is_na_value, manual_completion_override_enabled
+from .gripper_fields import CUP_COUNT_FIELD
 from .logging import log_tool_run
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
-from .workbook_io import row_dicts
-from .gripper_fields import CUP_COUNT_FIELD
+from .workbook_cache import row_dicts_cached as row_dicts
 
 MISSING_DATA_FIELDS = [
     "Robot Type",
@@ -241,8 +241,7 @@ def calculate_audit_progress_from_rows(
     compatibility_rows = 0
     unknown_treated_as_audited = 0
     for row in inventory:
-        entry_type = normalize_entry_type(row.get(ENTRY_TYPE_FIELD))
-        if entry_type == ENTRY_TYPE_COMPATIBLE:
+        if is_compatibility_row(row):
             compatibility_rows += 1
         else:
             physical_audit_rows += 1
@@ -250,7 +249,7 @@ def calculate_audit_progress_from_rows(
                 unknown_treated_as_audited += 1
             part_number = part_number_from_row(row)
             machines = parse_machine_tokens(row.get("Press/Machine #"))
-            if part_number and machines:
+            if part_number and machines and is_physical_audit_row(row):
                 audited_part_sources[text_value(part_number).upper()].extend(machines)
 
     duplicate_rows = _duplicate_relationship_rows(master_by_key)
@@ -262,7 +261,13 @@ def calculate_audit_progress_from_rows(
     audited_parts = set(audited_part_sources) & required_parts if required_parts else set(audited_part_sources)
 
     missing_counts = {
-        field: sum(1 for row in inventory if field_applies(row, field) and _missing_applicable_value(row.get(field)))
+        field: sum(
+            1
+            for row in inventory
+            if not manual_completion_override_enabled(row)
+            and field_applies(row, field)
+            and _missing_applicable_value(row.get(field))
+        )
         for field in MISSING_DATA_FIELDS
     }
     open_statuses = {"open", "not started", "needs follow-up", "in progress", "blocked"}

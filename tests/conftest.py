@@ -5,16 +5,15 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-
-from app.task_runner import BackgroundTaskManager, TaskResult
-from core.constants import EXPECTED_NUMBERED_FOLDERS
-from core.config import UserConfig
-from core.result import ToolResult
-from tests.fixtures.fake_config import create_fake_config
-from tests.fixtures.fake_project import create_fake_eoat_project, create_minimal_fake_project
-from core.workbook_schema import get_expected_headers, get_expected_sheets
 from openpyxl import Workbook
 
+from app.task_runner import BackgroundTaskManager, TaskResult
+from core.config import UserConfig
+from core.constants import EXPECTED_NUMBERED_FOLDERS
+from core.result import ToolResult
+from core.workbook_schema import get_expected_headers, get_expected_sheets
+from tests.fixtures.fake_config import create_fake_config
+from tests.fixtures.fake_project import create_fake_eoat_project, create_minimal_fake_project
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 

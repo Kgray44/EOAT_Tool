@@ -31,7 +31,15 @@ from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from core.action_items import add_action_item
 from core.annotations.service import AnnotationService
-from core.open_items import OPEN_ITEM_STATUSES, OpenItem, dismiss_open_item, export_open_items_report, list_open_items, load_cached_open_items, summarize_open_items
+from core.open_items import (
+    OPEN_ITEM_STATUSES,
+    OpenItem,
+    dismiss_open_item,
+    export_open_items_report,
+    list_open_items,
+    load_cached_open_items,
+    summarize_open_items,
+)
 
 
 class OpenItemsPage(AsyncRefreshMixin, QWidget):

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import pytest
-from PySide6.QtWidgets import QDialog, QTextEdit, QSpinBox
+from PySide6.QtWidgets import QDialog, QSpinBox, QTextEdit
 
 from app.pages.reports import ReportsPage
 from tests.ui.helpers import click_button, wait_for_background_tasks
-
 
 pytestmark = pytest.mark.usability
 

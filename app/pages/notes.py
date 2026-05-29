@@ -23,12 +23,11 @@ except ImportError:  # pragma: no cover
     Qt = None
     QComboBox = QDialog = QDialogButtonBox = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QMessageBox = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
-from app.widgets.annotation_target_picker import AnnotationTargetPicker
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
+from app.widgets.annotation_target_picker import AnnotationTargetPicker
 from app.widgets.note_editor import NoteEditor
 from app.widgets.tag_picker import TagPicker
 from core.annotations.service import AnnotationService
-from core.openers import open_path
 
 
 class NotesPage(QWidget):

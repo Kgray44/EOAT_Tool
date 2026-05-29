@@ -6,7 +6,6 @@ from PySide6.QtWidgets import QComboBox, QPushButton, QTableWidget
 from app.navigation import NAV_ITEMS
 from tests.ui.helpers import wait_for_background_tasks
 
-
 pytestmark = pytest.mark.usability
 
 

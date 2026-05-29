@@ -10,6 +10,7 @@ from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import next_empty_row, row_dicts, write_row_by_headers
 
 ACTION_HEADERS = [
@@ -84,6 +85,7 @@ def add_action_item(
         write_row_by_headers(ws, row_number, data)
         workbook.save(workbook_path)
         workbook.close()
+        invalidate_workbook_cache(workbook_path)
     except Exception as exc:
         return ToolResult.fail(
             "action_item",
@@ -107,4 +109,3 @@ def add_action_item(
         if warning:
             result.warnings.append(warning)
     return result
-

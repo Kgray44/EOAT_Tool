@@ -11,7 +11,6 @@ from app.pages.audit import AuditPage
 from core.workbook_io import row_dicts
 from tests.ui.helpers import assert_only_fake_project_paths, click_button, wait_for_background_tasks, wait_until
 
-
 pytestmark = [pytest.mark.usability, pytest.mark.integration, pytest.mark.slow]
 
 

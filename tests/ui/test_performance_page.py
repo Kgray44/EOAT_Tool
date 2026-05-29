@@ -6,7 +6,6 @@ from app.pages.performance import PerformancePage
 from core.performance import log_performance_event
 from tests.ui.helpers import table_text, wait_for_background_tasks
 
-
 pytestmark = pytest.mark.usability
 
 

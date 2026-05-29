@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import json
-
 import pytest
 from openpyxl import load_workbook
 
-from app.pages.audit_progress import AuditProgressPage
 from app.pages.photos import PhotosPage
 from app.pages.schedule import SchedulePage
 from app.pages.workbook_health import WorkbookHealthPage
 from core.config import UserConfig
 from tests.fixtures.fake_project import create_fake_eoat_project
 from tests.ui.helpers import click_button, wait_for_background_tasks
-
 
 pytestmark = pytest.mark.usability
 

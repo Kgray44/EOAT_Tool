@@ -18,9 +18,9 @@ try:
 except ImportError:  # pragma: no cover
     QCheckBox = QComboBox = QHBoxLayout = QLabel = QListWidget = QPushButton = QSpinBox = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
+from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
-from app.page_tasks import run_tool_background
 from core.morning_planner import generate_morning_plan
 from core.schedule import available_schedule_weeks, load_week_schedule, resolve_project_day_for_project
 from core.task_progress import STATUS_VALUES, progress_file_for_week, update_task_status

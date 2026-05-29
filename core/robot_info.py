@@ -13,6 +13,7 @@ from openpyxl.utils import get_column_letter
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file, ensure_directory
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import next_empty_row, worksheet_headers
 
 ROBOT_INFO_SHEET = "Robot Info"
@@ -50,6 +51,7 @@ def ensure_robot_info_workbook(project_root: str | Path) -> Path:
         _style_robot_info_sheet(ws)
         workbook.save(path)
         workbook.close()
+        invalidate_workbook_cache(path)
         return path
 
     workbook = load_workbook(path)
@@ -65,6 +67,7 @@ def ensure_robot_info_workbook(project_root: str | Path) -> Path:
                 headers = worksheet_headers(ws)
         _style_robot_info_sheet(ws)
         workbook.save(path)
+        invalidate_workbook_cache(path)
     finally:
         workbook.close()
     return path
@@ -158,6 +161,7 @@ def upsert_robot_info_from_audit(project_root: str | Path, entry: dict[str, Any]
         _write_robot_row(ws, row_number, headers, data)
         _style_robot_info_sheet(ws)
         workbook.save(path)
+        invalidate_workbook_cache(path)
     except Exception as exc:
         return ToolResult.fail(
             "robot_info_save",

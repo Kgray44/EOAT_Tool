@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from openpyxl import load_workbook
 
@@ -21,6 +22,7 @@ from .result import ToolResult
 from .safe_files import backup_file, ensure_directory, safe_write_text
 from .standards_compliance import analyze_standards_compliance
 from .validation_findings import ValidationFinding
+from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import next_empty_row, row_dicts, write_row_by_headers
 from .workbook_schema import get_expected_headers
 
@@ -83,6 +85,8 @@ FMEA_FAILURE_MODE_LIBRARY = {
     },
 }
 
+FMEA_CONFIDENCE_LABELS = {"High", "Medium", "Low"}
+
 
 @dataclass(frozen=True)
 class FmeaSuggestion:
@@ -102,6 +106,8 @@ class FmeaSuggestion:
     potential_cause: str = ""
     current_controls: str = ""
     review_status: str = "Suggested - user review required"
+    confidence: str = "Low"
+    calculated_rpn: int | str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -121,6 +127,8 @@ class FmeaSuggestion:
             "Potential Cause": self.potential_cause,
             "Current Controls": self.current_controls,
             "Review Status": self.review_status,
+            "Confidence": self.confidence,
+            "Calculated RPN": self.calculated_rpn,
         }
 
 
@@ -219,6 +227,7 @@ def accept_fmea_suggestions(project_root: str | Path, reviewed_suggestions: Iter
             rows_written.append(row_number)
         workbook.save(workbook_path)
         workbook.close()
+        invalidate_workbook_cache(workbook_path)
         workbook = None
         _record_decisions(project_root, suggestions, "accepted")
     except Exception as exc:
@@ -276,7 +285,24 @@ def export_fmea_suggestion_draft(project_root: str | Path, suggestions: Iterable
             "These are draft suggestions generated from existing audit evidence. They are not final engineering decisions.",
             "",
             "## Suggestions",
-            *table_from_rows(rows, ["Suggestion ID", "Press/Machine #", "Failure Mode", "Evidence", "Suggested Severity", "Suggested Frequency", "Suggested Detectability", "Suggested Mitigation"]),
+            *table_from_rows(
+                rows,
+                [
+                    "Suggestion ID",
+                    "Press/Machine #",
+                    "Failure Mode",
+                    "Confidence",
+                    "Calculated RPN",
+                    "Evidence",
+                    "Suggested Severity",
+                    "Suggested Frequency",
+                    "Suggested Detectability",
+                    "Suggested Mitigation",
+                ],
+            ),
+            "",
+            "## Evidence Trace",
+            *table_from_rows(rows, ["Suggestion ID", "Source Type", "Source Fields/Tags", "Evidence"]),
             "",
             "## Review Required",
             "- Confirm or edit severity, frequency, and detectability before accepting any row.",
@@ -300,6 +326,10 @@ def export_fmea_suggestion_draft(project_root: str | Path, suggestions: Iterable
         if warning:
             result.warnings.append(warning)
     return result
+
+
+def export_fmea_evidence_report(project_root: str | Path, suggestions: Iterable[dict[str, Any]] | None = None, *, log_activity: bool = True) -> ToolResult:
+    return export_fmea_suggestion_draft(project_root, suggestions=suggestions, log_activity=log_activity)
 
 
 def _issue_suggestions(issues: list[dict[str, Any]], existing_modes: set[str]) -> list[FmeaSuggestion]:
@@ -491,6 +521,7 @@ def _suggestion_from_key(
 ) -> FmeaSuggestion:
     details = FMEA_FAILURE_MODE_LIBRARY.get(key, FMEA_FAILURE_MODE_LIBRARY["documentation failure"])
     suggestion_id = _stable_id([audit_id, machine, details["failure_mode"], source_type, evidence, source_fields_tags])
+    calculated_rpn = _calculated_rpn(severity, frequency, detectability)
     return FmeaSuggestion(
         suggestion_id=suggestion_id,
         audit_id=audit_id,
@@ -507,6 +538,8 @@ def _suggestion_from_key(
         source_fields_tags=source_fields_tags,
         source_type=source_type,
         issue_category=issue_category,
+        confidence=_confidence_label(evidence, severity, frequency, detectability, source_type),
+        calculated_rpn=calculated_rpn,
     )
 
 
@@ -521,6 +554,7 @@ def _dedupe_suggestions(suggestions: list[FmeaSuggestion]) -> list[FmeaSuggestio
         evidence = "; ".join(dict.fromkeys(item.evidence for item in group if item.evidence))[:1000]
         sources = "; ".join(dict.fromkeys(item.source_fields_tags for item in group if item.source_fields_tags))[:500]
         source_type = ", ".join(dict.fromkeys(item.source_type for item in group if item.source_type))
+        calculated_rpn = _calculated_rpn(first.suggested_severity, first.suggested_frequency, first.suggested_detectability)
         deduped.append(
             FmeaSuggestion(
                 **{
@@ -529,6 +563,8 @@ def _dedupe_suggestions(suggestions: list[FmeaSuggestion]) -> list[FmeaSuggestio
                     "evidence": evidence,
                     "source_fields_tags": sources,
                     "source_type": source_type,
+                    "confidence": _confidence_label(evidence, first.suggested_severity, first.suggested_frequency, first.suggested_detectability, source_type),
+                    "calculated_rpn": calculated_rpn,
                 }
             )
         )
@@ -572,6 +608,28 @@ def _latest_validation_findings(project_root: str | Path) -> list[ValidationFind
 
 def _reviewed_scores(row: dict[str, Any]) -> bool:
     return all(_valid_score(row.get(field)) for field in ["Suggested Severity", "Suggested Frequency", "Suggested Detectability"])
+
+
+def _calculated_rpn(severity: Any, frequency: Any, detectability: Any) -> int | str:
+    sev = parse_score(severity)
+    freq = parse_score(frequency)
+    det = parse_score(detectability)
+    if all(score is not None and 1 <= int(score) <= 10 for score in [sev, freq, det]):
+        return int(sev or 0) * int(freq or 0) * int(det or 0)
+    return ""
+
+
+def _confidence_label(evidence: Any, severity: Any, frequency: Any, detectability: Any, source_type: Any) -> str:
+    source = _text(source_type).casefold()
+    numeric_scores = sum(_valid_score(value) for value in [severity, frequency, detectability])
+    evidence_text = _text(evidence)
+    independent_sources = len([item for item in source.replace(";", ",").split(",") if item.strip()])
+    strong_source = any(token in source for token in ["issue", "validation", "standards", "photo_evidence"])
+    if evidence_text and numeric_scores == 3 and (strong_source or independent_sources > 1):
+        return "High"
+    if evidence_text and (numeric_scores >= 1 or strong_source or independent_sources > 1):
+        return "Medium"
+    return "Low"
 
 
 def _valid_score(value: Any) -> bool:
@@ -654,9 +712,11 @@ def _text(value: Any) -> str:
 
 
 __all__ = [
+    "FMEA_CONFIDENCE_LABELS",
     "FmeaSuggestion",
     "accept_fmea_suggestions",
     "build_fmea_suggestions",
+    "export_fmea_evidence_report",
     "export_fmea_suggestion_draft",
     "fmea_suggestion_decisions_path",
     "reject_fmea_suggestions",

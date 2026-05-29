@@ -12,7 +12,6 @@ from core.constants import DEFAULT_PROJECT_ROOT
 from core.interview_entries import INTERVIEW_QUESTIONS, save_interview_entry
 from core.workbook_schema import get_expected_headers
 
-
 FIELD_ARG_MAP = {
     "Interview ID": "interview_id",
     "Date": "date",

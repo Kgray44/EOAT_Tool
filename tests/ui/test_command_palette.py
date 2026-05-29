@@ -6,7 +6,6 @@ from app.command_registry import CommandRegistry, CommandSpec
 from app.widgets.command_palette import CommandPalette
 from tests.ui.helpers import table_text
 
-
 pytestmark = pytest.mark.usability
 
 

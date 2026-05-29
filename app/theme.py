@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 REQUIRED_THEME_TOKENS = [
     "window_bg",
     "sidebar_bg",

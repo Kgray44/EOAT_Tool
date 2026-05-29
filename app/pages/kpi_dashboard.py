@@ -5,8 +5,8 @@ try:
 except ImportError:  # pragma: no cover
     QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QVBoxLayout = QWidget = None
 
-from app.pages.analysis_widgets import add_cards, counts_to_rows, populate_table
 from app.page_tasks import run_tool_background
+from app.pages.analysis_widgets import add_cards, counts_to_rows, populate_table
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.kpi_analysis import analyze_kpis, generate_kpi_dashboard_report
@@ -59,9 +59,55 @@ class KpiDashboardPage(QWidget):
         self.cards["Mis-Picks"].set_value(str(metrics.get("mis_picks", 0)))
         self.cards["Scrap Qty"].set_value(str(metrics.get("scrap_quantity", 0)))
         self.cards["Missing KPI Data"].set_value(str(metrics.get("missing_kpi_fields_total", 0)))
-        populate_table(self.by_press_table, summary.by_press, ["Press/Machine #", "Downtime Minutes", "Part Drops", "Mis-Picks", "Scrap Quantity", "Maintenance Events"])
+        self._apply_card_truth(summary)
+        populate_table(
+            self.by_press_table,
+            summary.by_press,
+            [
+                "Press/Machine #",
+                "Downtime Minutes",
+                "Part Drops",
+                "Mis-Picks",
+                "Scrap Quantity",
+                "Maintenance Events",
+                "Source Type",
+                "Date Range",
+                "Record Count",
+                "Confidence",
+                "Missing Data Warning",
+            ],
+        )
         populate_table(self.missing_table, counts_to_rows(summary.missing_fields, "Field"), ["Field", "Count"])
         self.preview.show_markdown_text(summary.to_markdown())
+
+    def _apply_card_truth(self, summary) -> None:
+        metric_by_card = {
+            "KPI Rows": None,
+            "Downtime Minutes": "Downtime Minutes",
+            "Part Drops": "Part Drops",
+            "Mis-Picks": "Mis-Picks",
+            "Scrap Qty": "Scrap Quantity",
+            "Missing KPI Data": None,
+        }
+        for card_name, metric in metric_by_card.items():
+            card = self.cards.get(card_name)
+            if card is None or not hasattr(card, "set_detail"):
+                continue
+            if metric:
+                label = summary.card_truth(metric)
+                card.set_detail(label.card_detail() if label else "Source: missing data\nRange: No dated records\nRecords: 0/0\nConfidence: Missing\nMissing: No KPI label available.")
+            else:
+                card.set_detail(
+                    "\n".join(
+                        [
+                            "Source: KPI Baseline workbook",
+                            f"Range: {summary.metrics.get('date_range', 'No dated records')}",
+                            f"Records: {summary.metrics.get('kpi_rows', 0)}",
+                            f"Confidence: {summary.metrics.get('overall_confidence', 'Missing')}",
+                            f"Missing: {summary.metrics.get('missing_kpi_fields_total', 0)} required KPI field gap(s)",
+                        ]
+                    )
+                )
 
     def run_report(self) -> None:
         run_tool_background(

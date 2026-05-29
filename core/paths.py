@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .constants import DEFAULT_MASTER_PRESS_LIST_FILE, DEFAULT_PRESS_CAPACITY_FILE, EXPECTED_NUMBERED_FOLDERS, EXPECTED_WORKBOOK_RELATIVE
+from .constants import (
+    DEFAULT_MASTER_PRESS_LIST_FILE,
+    DEFAULT_PRESS_CAPACITY_FILE,
+    EXPECTED_NUMBERED_FOLDERS,
+    EXPECTED_WORKBOOK_RELATIVE,
+)
 
 
 @dataclass(frozen=True)
@@ -11,7 +16,7 @@ class EOATProjectPaths:
     project_root: Path
 
     @classmethod
-    def from_root(cls, project_root: str | Path) -> "EOATProjectPaths":
+    def from_root(cls, project_root: str | Path) -> EOATProjectPaths:
         return cls(Path(project_root))
 
     @property
@@ -53,6 +58,10 @@ class EOATProjectPaths:
     @property
     def project_data(self) -> Path:
         return self.project_root / "project_data"
+
+    @property
+    def data_imports(self) -> Path:
+        return self.project_data / "data_imports"
 
     @property
     def annotations_database(self) -> Path:
@@ -111,6 +120,10 @@ class EOATProjectPaths:
         return self.project_root / "03_Standards"
 
     @property
+    def work_instructions(self) -> Path:
+        return self.standards / "Work_Instructions"
+
+    @property
     def documentation_gap_reports(self) -> Path:
         return self.standards / "Documentation_Gap_Reports"
 
@@ -139,6 +152,14 @@ class EOATProjectPaths:
         return self.project_root / "06_Final_Handoff"
 
     @property
+    def change_validation(self) -> Path:
+        return self.final_handoff / "Change_Validation"
+
+    @property
+    def qr_labels(self) -> Path:
+        return self.final_handoff / "QR_Labels"
+
+    @property
     def presentation_assets_root(self) -> Path:
         return self.final_handoff / "Presentation" / "Auto_Exported_Content"
 
@@ -151,12 +172,20 @@ class EOATProjectPaths:
         return self.final_handoff / "Final_Report"
 
     @property
+    def risk_insights_reports(self) -> Path:
+        return self.final_handoff / "Risk_Insights"
+
+    @property
     def executive_summary(self) -> Path:
         return self.final_handoff / "Executive_Summary"
 
     @property
     def training_materials(self) -> Path:
         return self.final_handoff / "Training_Materials"
+
+    @property
+    def machine_summaries(self) -> Path:
+        return self.final_handoff / "Machine_Summaries"
 
     def expected_numbered_folders(self) -> list[Path]:
         return [self.project_root / folder for folder in EXPECTED_NUMBERED_FOLDERS]

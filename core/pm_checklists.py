@@ -13,7 +13,6 @@ from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .workbook_io import row_dicts
 
-
 TOOL_ID = "pm_checklist_generator"
 TOOL_NAME = "EOAT PM Checklist Generator"
 
@@ -201,9 +200,7 @@ def _write_docx_if_requested(path: Path, markdown: str) -> Path | None:
             doc.add_heading(line[3:], level=2)
         elif line.startswith("- "):
             doc.add_paragraph(line[2:], style="List Bullet")
-        elif line.startswith("|"):
-            doc.add_paragraph(line)
-        elif line.strip():
+        elif line.startswith("|") or line.strip():
             doc.add_paragraph(line)
     docx_path = path.with_suffix(".docx")
     doc.save(docx_path)

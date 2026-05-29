@@ -4,14 +4,12 @@ import time
 from pathlib import Path
 
 from .analysis_common import write_timestamped_report
-from .final_common import DeliverableStatus, clean, safe_rows, status_table_markdown
+from .final_common import DeliverableStatus, safe_rows, status_table_markdown
 from .logging import log_tool_run
 from .paths import resolve_project_paths
-from .reports import list_recent_files
 from .result import ToolResult
 from .safe_files import ensure_directory
 from .workbook_io import workbook_sheet_names
-
 
 TOOL_ID = "final_deliverable_check"
 TOOL_NAME = "Final Deliverable Checker"
