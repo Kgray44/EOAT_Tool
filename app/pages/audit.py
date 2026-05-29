@@ -21,6 +21,7 @@ try:
         QPushButton,
         QScrollArea,
         QSplitter,
+        QStackedWidget,
         QTableWidget,
         QTableWidgetItem,
         QTabWidget,
@@ -31,7 +32,7 @@ try:
 except ImportError:  # pragma: no cover
     Qt = QTimer = None
     QIntValidator = None
-    QApplication = QCheckBox = QComboBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QScrollArea = QSplitter = QTableWidget = QTableWidgetItem = QTabWidget = QTextEdit = QVBoxLayout = QWidget = None
+    QApplication = QCheckBox = QComboBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QScrollArea = QSplitter = QStackedWidget = QTableWidget = QTableWidgetItem = QTabWidget = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
 from app.event_bus import EVENT_ANNOTATION_CHANGED, EVENT_AUDIT_SAVED, EVENT_OPEN_ITEMS_CHANGED, get_event_bus
@@ -88,7 +89,9 @@ from core.audit_entries import (
 from core.audit.compatibility_preview import CompatibilityImpactPreview, build_compatibility_impact_preview
 from core.audit.coach import calculate_audit_coach_summary, unknown_not_checked_value_for_field
 from core.audit.completion import calculate_audit_completion
+from core.audit.diff import build_audit_save_preview
 from core.audit.drafts import discard_audit_draft, form_values_changed, load_audit_draft, save_audit_draft
+from core.audit.guided import GuidedAuditStep, all_guided_audit_steps
 from core.audit_field_rules import PNEUMATIC_CIRCUIT_FIELDS, field_applies, manual_completion_override_enabled, non_applicable_reason
 from core.audit_field_registry import audit_section_groups as registry_audit_section_groups, audit_sections as registry_audit_sections
 from core.gripper_fields import (
@@ -223,6 +226,11 @@ def audit_section_for_field(field: str) -> str | None:
             return section
     return None
 
+
+def _more_text(values, shown: int) -> str:
+    remaining = max(0, len(values) - shown)
+    return "" if remaining <= 0 else f"...and {remaining} more."
+
 QUICK_DISCONNECTS_PRESENT_FIELD = "Quick Disconnects Present?"
 PNEUMATIC_QUICK_DISCONNECT_TYPE_FIELD = "Pneumatic Quick Disconnect Type"
 QUICK_DISCONNECT_DETAIL_FIELDS = {
@@ -307,6 +315,8 @@ class AuditPage(QWidget):
         self._audit_field_scroll_areas = {}
         self._audit_field_group_keys = {}
         self._audit_field_visibility_state = {}
+        self._guided_step_tables = {}
+        self._guided_step_labels = {}
         self._audit_group_boxes = {}
         self._audit_group_fields = {}
         self._navigation_highlight_row = None
@@ -491,6 +501,94 @@ class AuditPage(QWidget):
             return
         summary = calculate_audit_coach_summary(self._current_audit_coach_values(values), AUDIT_SECTIONS, mode=self._current_audit_mode)
         panel.refresh(summary)
+        self._refresh_guided_audit(values=values)
+
+    def _refresh_guided_audit(self, values: dict[str, str] | None = None, *, force_io_preview: bool = False) -> None:
+        if not getattr(self, "_guided_step_tables", None) or not hasattr(self, "audit_fields"):
+            return
+        entry = self._current_audit_coach_values(values)
+        completion = calculate_audit_completion(entry, AUDIT_SECTIONS, mode=self._current_audit_mode)
+        statuses = {status.field: status for section in completion.sections for status in section.fields}
+        current_step_index = self.guided_audit_tabs.currentIndex() if hasattr(self, "guided_audit_tabs") else -1
+        for step_index, step in enumerate(all_guided_audit_steps()):
+            table = self._guided_step_tables.get(step.id)
+            label = self._guided_step_labels.get(step.id)
+            if table is None or label is None:
+                continue
+            step_statuses = [statuses.get(field) for field in step.fields]
+            actionable = [status for status in step_statuses if status is not None and status.is_actionable]
+            applicable_count = sum(1 for status in step_statuses if status is not None and status.applies)
+            label.setText(
+                f"{step.title}: {len(actionable)} action item(s), {applicable_count} applicable field(s)."
+            )
+            table.blockSignals(True)
+            try:
+                table.setRowCount(0)
+                if step.id == "final_review_save_impact":
+                    self._populate_guided_final_review(table, completion, include_io_preview=force_io_preview or step_index == current_step_index)
+                else:
+                    self._populate_guided_step_table(table, step, entry, statuses)
+                table.resizeColumnsToContents()
+            finally:
+                table.blockSignals(False)
+
+    def _populate_guided_step_table(self, table: QTableWidget, step: GuidedAuditStep, entry: dict[str, str], statuses: dict[str, object]) -> None:
+        for field in step.fields:
+            status = statuses.get(field)
+            visible = bool(field in ALWAYS_VISIBLE_AUDIT_FIELDS or field_applies(entry, field))
+            state = status.state if status is not None else ("verified_complete" if entry.get(field) else "missing")
+            reason = status.reason if status is not None else ""
+            display_state = "hidden" if not visible else state
+            self._append_guided_row(table, field, display_state, entry.get(field, ""), reason)
+
+    def _populate_guided_final_review(self, table: QTableWidget, completion, *, include_io_preview: bool) -> None:
+        entry = self.collect_complete_audit_form_state()
+        robot_before = {}
+        if include_io_preview:
+            try:
+                robot_before = load_robot_info_for_audit_entry(self.config.project_root, entry) or {}
+            except Exception:
+                robot_before = {}
+        preview = build_audit_save_preview(
+            self._audit_form_baseline,
+            entry,
+            smart_defaulted_fields=self._part_present_autofilled_sensor_fields,
+            robot_before=robot_before,
+        )
+        self._append_guided_row(table, "Completion", f"{completion.percent_complete}%", "", completion.next_best_reason)
+        self._append_guided_row(table, "Missing fields", str(len(completion.missing_fields)), ", ".join(completion.missing_fields[:8]), _more_text(completion.missing_fields, 8))
+        self._append_guided_row(table, "Unknown / Not Checked", str(len(completion.unknown_not_checked_fields)), ", ".join(completion.unknown_not_checked_fields[:8]), _more_text(completion.unknown_not_checked_fields, 8))
+        self._append_guided_row(table, "Warnings", str(len(completion.findings)), "; ".join(completion.findings[:5]), _more_text(completion.findings, 5))
+        self._append_guided_row(table, "Defaults", str(len(preview.smart_defaulted_fields)), ", ".join(preview.smart_defaulted_fields), "Autofilled fields are marked as smart-defaulted in the save preview.")
+        self._append_guided_row(table, "Robot info updates", str(len(preview.robot_info_changes)), ", ".join(change.field for change in preview.robot_info_changes), "Robot-side pneumatic fields save to Robot_Info.xlsx when meaningful changes exist.")
+        compatibility_text = "Unknown until checked."
+        compatibility_reason = "Linked compatibility impact has not been checked for this preview."
+        if include_io_preview:
+            compatibility_preview = self._safe_compatibility_preview(entry)
+            if compatibility_preview is not None:
+                compatibility_text = f"{compatibility_preview.compatible_row_count} linked row(s)"
+                compatibility_reason = (
+                    "Linked compatibility rows may be updated."
+                    if compatibility_preview.has_impact
+                    else "No linked compatibility row update is expected from the current saved source."
+                )
+        self._append_guided_row(table, "Compatibility impact", compatibility_text, ", ".join(preview.compatibility_impact_fields[:8]), compatibility_reason)
+        self._append_guided_row(table, "Photo warnings", str(len(preview.photo_warnings)), "; ".join(preview.photo_warnings), "Photo evidence warnings come from audit completion and save preview checks.")
+
+    def _append_guided_row(self, table: QTableWidget, field: str, status: str, value: str, reason: str) -> None:
+        row = table.rowCount()
+        table.insertRow(row)
+        for column, text in enumerate([field, status, value, reason]):
+            table.setItem(row, column, QTableWidgetItem(str(text or "")))
+
+    def _safe_compatibility_preview(self, entry: dict[str, str]) -> CompatibilityImpactPreview | None:
+        audit_id = str(entry.get("Audit ID") or "").strip()
+        if not audit_id:
+            return None
+        try:
+            return build_compatibility_impact_preview(self.config.project_root, audit_id, entry)
+        except Exception:
+            return None
 
     def _log_lifecycle_event(self, event_name: str, payload: dict[str, object]) -> None:
         log_activity_event(self.config.project_root, event_name, payload)
@@ -663,6 +761,7 @@ class AuditPage(QWidget):
                 "duration_seconds": round(time.perf_counter() - saved_started, 3),
             },
         )
+        self._draft_recovery_checked = True
         self._mark_audit_form_baseline("draft_saved")
         return str(path)
 
@@ -670,6 +769,14 @@ class AuditPage(QWidget):
         path = self._save_current_audit_draft()
         if hasattr(self, "result_panel"):
             self.result_panel.show_text(f"Saved local audit draft.\n\nDraft file: {path}")
+
+    def resume_saved_audit_draft(self) -> None:
+        draft = load_audit_draft(self.config.project_root)
+        if draft is None:
+            if hasattr(self, "result_panel"):
+                self.result_panel.show_text("No saved audit draft was found.")
+            return
+        self._restore_audit_draft(draft)
 
     def discard_saved_audit_draft(self) -> None:
         removed = discard_audit_draft(self.config.project_root)
@@ -875,6 +982,16 @@ class AuditPage(QWidget):
         self.audit_visibility_note_label.setWordWrap(True)
         outer.addWidget(self.audit_visibility_note_label)
 
+        view_mode_row = QHBoxLayout()
+        self.audit_entry_mode_combo = QComboBox()
+        self.audit_entry_mode_combo.addItems(["Guided Audit", "Section Form"])
+        self.audit_entry_mode_combo.setCurrentText("Section Form")
+        self.audit_entry_mode_combo.currentTextChanged.connect(self._on_audit_entry_mode_changed)
+        view_mode_row.addWidget(QLabel("View Mode"))
+        view_mode_row.addWidget(self.audit_entry_mode_combo)
+        view_mode_row.addStretch(1)
+        outer.addLayout(view_mode_row)
+
         self.manual_override_status_label = QLabel("")
         self.manual_override_status_label.setObjectName("AuditOverrideStatus")
         self.manual_override_status_label.setWordWrap(True)
@@ -901,12 +1018,19 @@ class AuditPage(QWidget):
         for title, fields in AUDIT_SECTIONS.items():
             section_tab = self._build_section_tab(fields, section_title=title)
             self.audit_section_tabs.addTab(section_tab, title)
-        audit_body = QHBoxLayout()
+        section_form_widget = QWidget()
+        audit_body = QHBoxLayout(section_form_widget)
+        audit_body.setContentsMargins(0, 0, 0, 0)
         audit_body.addWidget(self.audit_section_tabs, stretch=3)
         self.audit_coach_panel = AuditCoachPanel(self)
         self.audit_coach_panel.setMinimumWidth(340)
         audit_body.addWidget(self.audit_coach_panel, stretch=1)
-        outer.addLayout(audit_body, stretch=1)
+        self.guided_audit_panel = self._build_guided_audit_panel()
+        self.audit_mode_stack = QStackedWidget()
+        self.audit_mode_stack.addWidget(self.guided_audit_panel)
+        self.audit_mode_stack.addWidget(section_form_widget)
+        self.audit_mode_stack.setCurrentIndex(1)
+        outer.addWidget(self.audit_mode_stack, stretch=1)
 
         self.audit_followup_check = QCheckBox("Create Follow-Up Action")
         outer.addWidget(self.audit_followup_check)
@@ -927,6 +1051,8 @@ class AuditPage(QWidget):
         self.save_audit_button = save_button
         save_draft_button = QPushButton("Save Draft")
         save_draft_button.clicked.connect(self.save_current_audit_draft)
+        resume_draft_button = QPushButton("Resume Draft")
+        resume_draft_button.clicked.connect(self.resume_saved_audit_draft)
         discard_draft_button = QPushButton("Discard Draft")
         discard_draft_button.clicked.connect(self.discard_saved_audit_draft)
         clear_button = QPushButton("Clear Form")
@@ -935,6 +1061,7 @@ class AuditPage(QWidget):
         button_row.addWidget(manual_override_button)
         button_row.addWidget(save_button)
         button_row.addWidget(save_draft_button)
+        button_row.addWidget(resume_draft_button)
         button_row.addWidget(discard_draft_button)
         button_row.addWidget(clear_button)
         outer.addLayout(button_row)
@@ -942,6 +1069,102 @@ class AuditPage(QWidget):
         self.clear_audit_form(confirm=False, clear_summary=False)
         self._refresh_audit_coach()
         return container
+
+    def _build_guided_audit_panel(self) -> QWidget:
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        header = QHBoxLayout()
+        title = QLabel("Guided Audit")
+        title.setStyleSheet("font-size: 13pt; font-weight: 600;")
+        header.addWidget(title)
+        header.addStretch(1)
+        open_full_button = QPushButton("Open Full Audit")
+        open_full_button.clicked.connect(self.open_full_audit_from_guided)
+        header.addWidget(open_full_button)
+        layout.addLayout(header)
+
+        self.guided_audit_tabs = QTabWidget()
+        self.guided_audit_tabs.currentChanged.connect(lambda *_args: self._refresh_guided_audit())
+        self._guided_step_tables = {}
+        self._guided_step_labels = {}
+        for step in all_guided_audit_steps():
+            tab = self._build_guided_step_tab(step)
+            self.guided_audit_tabs.addTab(tab, step.title)
+        layout.addWidget(self.guided_audit_tabs, stretch=1)
+        return panel
+
+    def _build_guided_step_tab(self, step: GuidedAuditStep) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        summary = QLabel("")
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+        table = QTableWidget(0, 4)
+        table.setHorizontalHeaderLabels(["Field", "Status", "Value", "Reason"])
+        table.setMinimumHeight(260)
+        table.cellDoubleClicked.connect(lambda row, _column, step_fields=step.fields: self.open_guided_field(step_fields[row] if row < len(step_fields) else ""))
+        layout.addWidget(table, stretch=1)
+        button_row = QHBoxLayout()
+        open_step_button = QPushButton("Open Step In Section Form")
+        open_step_button.clicked.connect(lambda _checked=False, target_step=step: self.open_guided_step_in_section_form(target_step))
+        button_row.addWidget(open_step_button)
+        if step.id == "final_review_save_impact":
+            preview_button = QPushButton("Refresh Save Preview")
+            preview_button.clicked.connect(lambda: self._refresh_guided_audit(force_io_preview=True))
+            button_row.addWidget(preview_button)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+        self._guided_step_tables[step.id] = table
+        self._guided_step_labels[step.id] = summary
+        return tab
+
+    def _on_audit_entry_mode_changed(self, mode: str) -> None:
+        if not hasattr(self, "audit_mode_stack"):
+            return
+        guided = str(mode or "") == "Guided Audit"
+        self.audit_mode_stack.setCurrentIndex(0 if guided else 1)
+        self._refresh_guided_audit(force_io_preview=guided)
+
+    def open_full_audit_from_guided(self) -> None:
+        if hasattr(self, "audit_entry_mode_combo"):
+            self.audit_entry_mode_combo.setCurrentText("Section Form")
+        if hasattr(self, "audit_view_mode_combo"):
+            self.audit_view_mode_combo.blockSignals(True)
+            self.audit_view_mode_combo.setCurrentText("Full Audit")
+            self.audit_view_mode_combo.setEnabled(True)
+            self.audit_view_mode_combo.blockSignals(False)
+        self._update_audit_field_visibility()
+
+    def open_guided_step_in_section_form(self, step: GuidedAuditStep) -> None:
+        self.open_full_audit_from_guided()
+        if hasattr(self, "audit_section_tabs") and step.section_hint:
+            index = self._section_tab_index(step.section_hint)
+            if index >= 0:
+                self.audit_section_tabs.setCurrentIndex(index)
+
+    def open_guided_field(self, field: str) -> None:
+        if not field:
+            return
+        self.open_full_audit_from_guided()
+        section = audit_section_for_field(field)
+        if section:
+            index = self._section_tab_index(section)
+            if index >= 0:
+                self.audit_section_tabs.setCurrentIndex(index)
+        row = self._audit_field_rows.get(field)
+        scroll = self._audit_field_scroll_areas.get(field)
+        if scroll is not None and row is not None:
+            scroll.ensureWidgetVisible(row)
+        widget = self.audit_fields.get(field)
+        if widget is not None:
+            widget.setFocus()
+
+    def _section_tab_index(self, section: str) -> int:
+        for index in range(self.audit_section_tabs.count()):
+            if self.audit_section_tabs.tabText(index) == section:
+                return index
+        return -1
 
     def _load_lazy_audit_indexes(self) -> None:
         existing_started = time.perf_counter()
