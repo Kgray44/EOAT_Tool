@@ -269,6 +269,8 @@ def test_saving_audited_row_syncs_linked_compatible_rows_and_preserves_identity(
             "Entry Type": "Audited",
         },
         allow_update=True,
+        sync_linked_compatibility=True,
+        refresh_press_view=True,
     )
 
     assert update_result.success, update_result.errors
@@ -321,7 +323,8 @@ def test_saving_audited_row_with_no_linked_compatibility_reports_zero(fake_proje
 
     assert result.success, result.errors
     assert result.metrics["compatibility_rows_synced"] == 0
-    assert "No linked compatibility entries found" in result.summary
+    assert "No linked compatibility entries found" not in result.summary
+    assert "Linked compatibility rows may need review." in result.warnings
 
 
 def test_saving_compatible_row_does_not_recursively_sync_linked_rows(fake_project):

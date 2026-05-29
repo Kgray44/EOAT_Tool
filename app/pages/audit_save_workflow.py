@@ -4,12 +4,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.audit.compatibility_preview import build_compatibility_impact_preview
-from core.audit_entries import save_audit_entry
+from core.audit_entries import AuditSaveOptions, save_audit_entry
 from core.logging import log_activity_event
 from core.performance import log_performance_event
 from core.result import ToolResult
-from core.robot_info import load_robot_info_for_audit_entry, upsert_robot_info_from_audit
+from core.robot_info import load_robot_info_for_audit_entry
 
 ROBOT_PNEUMATIC_FIELDS = [
     "Robot Vacuum Circuits",
@@ -29,13 +28,7 @@ def save_audit_with_side_effects(
     started = time.perf_counter()
     compatibility_preview_seconds = 0.0
     if sync_linked_compatibility is None:
-        preview_started = time.perf_counter()
         sync_linked_compatibility = False
-        audit_id = str(entry.get("Audit ID") or "").strip()
-        if allow_update and audit_id:
-            preview = build_compatibility_impact_preview(config.project_root, audit_id, entry)
-            sync_linked_compatibility = preview.has_impact
-        compatibility_preview_seconds = time.perf_counter() - preview_started
 
     save_started = time.perf_counter()
     result = save_audit_entry(
@@ -43,8 +36,16 @@ def save_audit_with_side_effects(
         entry,
         allow_update=allow_update,
         create_followup_action=create_followup_action,
-        refresh_press_view=bool(sync_linked_compatibility),
-        sync_linked_compatibility=bool(sync_linked_compatibility),
+        options=AuditSaveOptions(
+            fast_interactive=True,
+            backup_policy="session_or_daily",
+            schema_policy="fail_if_stale",
+            sync_linked_compatibility=False,
+            defer_robot_info=True,
+            defer_history=True,
+            refresh_press_view=False,
+            emit_refresh_mode="invalidate_only",
+        ),
     )
     master_seconds = time.perf_counter() - save_started
     result.metrics["audit_save.master_workflow_seconds"] = round(master_seconds, 3)
@@ -53,31 +54,61 @@ def save_audit_with_side_effects(
     robot_info_seconds = 0.0
     robot_info_status = "skipped"
     if result.success:
-        should_update_robot, robot_skip_reason = should_update_robot_info(config.project_root, entry)
-        if should_update_robot:
-            robot_started = time.perf_counter()
-            robot_result = upsert_robot_info_from_audit(config.project_root, entry)
-            robot_info_seconds = time.perf_counter() - robot_started
-            robot_info_status = f"{robot_info_seconds:.2f}s"
-        else:
-            robot_result = ToolResult.ok(
-                "robot_info_save",
-                "Robot Info",
-                f"Robot Info skipped: {robot_skip_reason}.",
-                details=[f"Robot_Info.xlsx was not opened for write because {robot_skip_reason}."],
-                metrics={"robot_info_skipped": True, "robot_info_skip_reason": robot_skip_reason},
-                duration_seconds=0.0,
-            )
-            robot_info_status = f"skipped ({robot_skip_reason})"
+        should_queue_robot, robot_skip_reason = should_queue_robot_info_update(entry)
+        robot_result = ToolResult.ok(
+            "robot_info_save",
+            "Robot Info",
+            (
+                "Robot_Info.xlsx update queued after the audit save."
+                if should_queue_robot
+                else f"Robot Info skipped: {robot_skip_reason}."
+            ),
+            details=[
+                (
+                    "Queued follow-up job: robot_info_update_from_audit."
+                    if should_queue_robot
+                    else f"Robot_Info.xlsx was not opened for write because {robot_skip_reason}."
+                )
+            ],
+            metrics={
+                "robot_info_skipped": not should_queue_robot,
+                "robot_info_update_queued": should_queue_robot,
+                "robot_info_skip_reason": robot_skip_reason,
+            },
+            duration_seconds=0.0,
+        )
+        robot_info_status = "queued" if should_queue_robot else f"skipped ({robot_skip_reason})"
 
         result.summary = ensure_audit_save_summary(result.summary)
         result.summary = insert_compatibility_summary(result.summary, bool(sync_linked_compatibility))
         result.summary = insert_robot_info_summary(result.summary, robot_result)
         result.details.extend(robot_result.details)
-        result.files_created = sorted(set([*result.files_created, *robot_result.files_created]))
-        result.files_modified = sorted(set([*result.files_modified, *robot_result.files_modified]))
+        result.details.append(
+            "Queued follow-up jobs: "
+            + ", ".join(
+                item
+                for item in [
+                    "robot_info_update_from_audit" if should_queue_robot else "",
+                    "linked_compatibility_update" if sync_linked_compatibility else "",
+                ]
+                if item
+            )
+            if (should_queue_robot or sync_linked_compatibility)
+            else "Queued follow-up jobs: none."
+        )
         result.metrics["robot_info_save_success"] = robot_result.success
         result.metrics["robot_info_save_skipped"] = bool(robot_result.metrics.get("robot_info_skipped"))
+        result.metrics["robot_info_update_queued"] = should_queue_robot
+        result.metrics["deferred_robot_info_queued"] = should_queue_robot
+        result.metrics["deferred_compatibility_queued"] = bool(sync_linked_compatibility)
+        result.metrics["deferred_followup_jobs"] = [
+            item
+            for item in [
+                "robot_info_update_from_audit" if should_queue_robot else "",
+                "linked_compatibility_update" if sync_linked_compatibility else "",
+            ]
+            if item
+        ]
         result.metrics["robot_info_save_seconds"] = round(robot_info_seconds, 3)
         if robot_result.success:
             result.warnings.extend(robot_result.warnings)
@@ -103,9 +134,9 @@ def save_audit_with_side_effects(
     total_seconds = time.perf_counter() - started
     compatibility_seconds = result.metrics.get("audit_save.compatibility_seconds", 0.0)
     compatibility_status = (
-        f"{compatibility_seconds}s"
+        "queued after fast save"
         if sync_linked_compatibility
-        else "skipped (no confirmed linked compatibility impact)"
+        else "skipped (normal fast save updates only the physical audit row)"
     )
     timing = {
         "audit_save": round(master_seconds, 3),
@@ -157,6 +188,24 @@ def save_audit_with_side_effects(
             f"Total: {timing['total_seconds']}s",
         ]
     )
+    log_performance_event(
+        config.project_root,
+        "audit_save.deferred_robot_info",
+        0.0,
+        source="audit_save",
+        page_tool="audit",
+        details={"queued": bool(result.metrics.get("deferred_robot_info_queued")), "audit_id": entry.get("Audit ID", "")},
+        success=result.success,
+    )
+    log_performance_event(
+        config.project_root,
+        "audit_save.deferred_compatibility",
+        0.0,
+        source="audit_save",
+        page_tool="audit",
+        details={"queued": bool(result.metrics.get("deferred_compatibility_queued")), "audit_id": entry.get("Audit ID", "")},
+        success=result.success,
+    )
     log_activity_event(config.project_root, "audit_save_timing", timing)
     log_performance_event(
         config.project_root,
@@ -192,13 +241,22 @@ def should_update_robot_info(project_root: str | Path, entry: dict[str, Any]) ->
     return False, "robot circuit values are unchanged"
 
 
+def should_queue_robot_info_update(entry: dict[str, Any]) -> tuple[bool, str]:
+    machine_number = str(entry.get("Press/Machine #") or "").strip()
+    if not machine_number:
+        return False, "machine number is blank"
+    if not any(_robot_circuit_value_is_meaningful(field, entry.get(field)) for field in ROBOT_PNEUMATIC_FIELDS):
+        return False, "no robot circuit values were entered beyond defaults"
+    return True, "robot circuit values will be reconciled in the background"
+
+
 def insert_compatibility_summary(summary: str, sync_linked_compatibility: bool) -> str:
     if "Compatibility Entry Summary" in summary:
         return summary
     status = (
-        "Linked compatibility rows were checked and updated because this edit had confirmed linked-row impact."
+        "Linked compatibility rows update queued after the fast audit save."
         if sync_linked_compatibility
-        else "Compatibility autorun skipped for this normal audit save. Use the Compatibility Entry tab when compatible rows need to be created."
+        else "Normal audit save updated only the physical audit row. Use the Compatibility Entry tab or explicit linked-row action when compatible rows need review."
     )
     return summary.rstrip() + "\n\nCompatibility Entry Summary\n---------------------------\n" + status
 

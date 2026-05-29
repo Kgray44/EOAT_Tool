@@ -256,6 +256,10 @@ def normalize_cylinder_fields(entry: dict[str, Any]) -> dict[str, Any]:
         cylinder_type = normalize_text(normalized.get(CYLINDER_TYPE_FIELD))
         if not cylinder_type or is_na_value(cylinder_type):
             normalized[CYLINDER_TYPE_FIELD] = CYLINDER_TYPE_DEFAULT
+    else:
+        cylinder_type = normalize_text(normalized.get(CYLINDER_TYPE_FIELD))
+        if cylinder_type.casefold() == CYLINDER_TYPE_DEFAULT.casefold():
+            normalized[CYLINDER_TYPE_FIELD] = ""
     return normalized
 
 

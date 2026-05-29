@@ -201,7 +201,7 @@ class SettingsPage(QWidget):
     def has_unsaved_changes(self) -> bool:
         return bool(self._dirty)
 
-    def can_close(self) -> tuple[bool, str]:
+    def can_close(self, destination_page: str | None = None) -> tuple[bool, str]:
         if self.has_unsaved_changes():
             return False, "Settings has unsaved changes. Save or revert settings before leaving."
         return True, ""

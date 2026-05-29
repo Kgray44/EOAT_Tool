@@ -63,6 +63,28 @@ def test_machine_360_separates_physical_and_compatibility_rows(usability_fake_pr
     assert context.compatibility_summary["physical_audits_counted_separately"] is True
 
 
+def test_machine_360_keeps_multiple_physical_audits_for_same_machine(usability_fake_project):
+    paths = resolve_project_paths(usability_fake_project)
+    _append_inventory_row(
+        paths.master_workbook,
+        {
+            "Audit ID": "AUD-PHYSICAL-101-B",
+            "Audit Date": "2026-05-20",
+            "Press/Machine #": "Press 101",
+            "Tool #": "TOOL-B",
+            "EOAT Type": "Mechanical / Gripper",
+            "Status": "In Progress",
+            ENTRY_TYPE_FIELD: "Audited",
+        },
+    )
+
+    context = build_machine_360_context(usability_fake_project, "101")
+
+    assert context.metrics["physical_audit_count"] == 2
+    assert {row["Audit ID"] for row in context.physical_audits} == {"AUD-20260518-001", "AUD-PHYSICAL-101-B"}
+    assert set(context.tooling_summary["tools"]) == {"TOOL-A", "TOOL-B"}
+
+
 def test_machine_360_missing_optional_sources_do_not_crash(minimal_fake_project):
     context = build_machine_360_context(minimal_fake_project, "999")
 

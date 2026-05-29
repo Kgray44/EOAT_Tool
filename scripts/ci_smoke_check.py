@@ -90,6 +90,7 @@ def run_demo_project_checks() -> list[str]:
 def run_dashboard_smoke(project_root: str | Path = DEFAULT_PROJECT_ROOT) -> list[str]:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     try:
+        from PySide6.QtCore import QThreadPool
         from PySide6.QtWidgets import QApplication
 
         from app.dashboard_ui import DashboardWindow
@@ -114,6 +115,8 @@ def run_dashboard_smoke(project_root: str | Path = DEFAULT_PROJECT_ROOT) -> list
         finally:
             if window is not None:
                 window.close()
+            app.processEvents()
+            QThreadPool.globalInstance().waitForDone(10000)
             app.processEvents()
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from core.audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD, MANUAL_COMPLETION_OVERRIDE_FIELD
+from core.audit_entries import NUMBER_OF_PARTS_PICKED_FIELD
 from core.audit_field_registry import (
     audit_field_order,
     audit_field_registry,
@@ -11,7 +12,13 @@ from core.audit_field_registry import (
     get_audit_field_spec,
     section_for_field,
 )
-from core.gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD
+from core.gripper_fields import (
+    CUP_COUNT_FIELD,
+    GRIPPER_COUNT_FIELD,
+    GRIPPER_MODEL_FIELD,
+    GRIPPER_SIZE_FIELD,
+    GRIPPER_TYPE_FIELD,
+)
 
 
 def test_audit_registry_defines_stable_unique_field_ids():
@@ -21,7 +28,7 @@ def test_audit_registry_defines_stable_unique_field_ids():
     assert len({spec.field_id for spec in specs}) == len(specs)
     assert len({spec.workbook_header for spec in specs}) == len(specs)
     assert get_audit_field_spec("Press/Machine #").field_id == "press_machine"
-    assert get_audit_field_spec(CYLINDER_TYPE_FIELD).default_value == "Linear"
+    assert get_audit_field_spec(CYLINDER_TYPE_FIELD).default_value == ""
     assert get_audit_field_spec(MANUAL_COMPLETION_OVERRIDE_FIELD).system_field is True
 
 
@@ -31,6 +38,11 @@ def test_audit_sections_and_groups_are_registry_driven():
 
     assert list(sections)[:3] == ["Audit Header", "Machine / Robot / Tool Context", "EOAT Type and Tooling"]
     assert section_for_field(CYLINDER_COUNT_FIELD) == "EOAT Type and Tooling"
+    assert groups["EOAT Type and Tooling"][:3] == [
+        ("EOAT Classification", ["EOAT Type", "EOAT Moves", "Connection Type"]),
+        ("Part Handling", [NUMBER_OF_PARTS_PICKED_FIELD]),
+        ("Gripper Details", [GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD]),
+    ]
     assert ("Cylinder Details", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]) in groups["EOAT Type and Tooling"]
     assert audit_field_order()[:4] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area"]
 

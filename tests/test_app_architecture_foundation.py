@@ -59,7 +59,7 @@ def test_dashboard_lifecycle_helpers_tolerate_absent_and_present_hooks():
             self.calls.append("show")
             return "shown"
 
-        def can_close(self):
+        def can_close(self, destination_page=None):
             return False, "Not yet"
 
     hooked = Hooked()

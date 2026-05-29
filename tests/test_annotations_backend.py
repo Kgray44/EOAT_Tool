@@ -143,6 +143,7 @@ def test_note_and_tag_exports_markdown_and_excel(fake_project):
     tag_xlsx = service.export_tags_excel(tag_rows)
 
     assert note.subject in note_md.read_text(encoding="utf-8")
+    assert note_md.parent == fake_project / "06_Final_Handoff" / "Annotation_Exports"
     assert note_xlsx.exists()
     assert "Documentation Gap" in tag_md.read_text(encoding="utf-8")
     assert tag_xlsx.exists()

@@ -28,6 +28,7 @@ from .audit_entries import (
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
+from .snapshots import get_workbook_snapshot
 from .tool_fields import TOOL_FIELD
 from .workbook_cache import invalidate_workbook_cache
 from .workbook_cache import row_dicts_cached as row_dicts
@@ -248,9 +249,8 @@ def find_capacity_file(project_root_or_path: str | Path) -> Path:
 
 
 def list_audited_source_options(project_root_or_master_path: str | Path) -> list[SourceAuditOption]:
-    master_path = _master_path(project_root_or_master_path)
     options: list[SourceAuditOption] = []
-    for row in row_dicts(master_path, "EOAT Inventory"):
+    for row in _inventory_rows_for_options(project_root_or_master_path):
         if normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) != ENTRY_TYPE_AUDITED:
             continue
         audit_id = text_value(row.get("Audit ID"))
@@ -261,14 +261,42 @@ def list_audited_source_options(project_root_or_master_path: str | Path) -> list
 
 
 def list_audit_options(project_root_or_master_path: str | Path) -> list[SourceAuditOption]:
-    master_path = _master_path(project_root_or_master_path)
     options: list[SourceAuditOption] = []
-    for row in row_dicts(master_path, "EOAT Inventory"):
+    for row in _inventory_rows_for_options(project_root_or_master_path):
         audit_id = text_value(row.get("Audit ID"))
         if not audit_id:
             continue
         options.append(SourceAuditOption(audit_id=audit_id, label=audit_option_label(row), row=row))
     return sorted(options, key=lambda option: (audit_row_machine_sort_key(option.row), option.audit_id.lower()))
+
+
+def _inventory_rows_for_options(project_root_or_master_path: str | Path) -> list[dict[str, Any]]:
+    path = Path(project_root_or_master_path)
+    if path.suffix.lower() in {".xlsx", ".xlsm"}:
+        return row_dicts(_master_path(path), "EOAT Inventory")
+    try:
+        return [dict(row) for row in get_workbook_snapshot(path).audit_rows]
+    except Exception:
+        return row_dicts(_master_path(path), "EOAT Inventory")
+
+
+def find_existing_audits_for_machine(project_root_or_master_path: str | Path, machine_number: Any) -> list[SourceAuditOption]:
+    requested = set(parse_machine_tokens(machine_number))
+    if not requested:
+        return []
+    return [
+        option
+        for option in list_audit_options(project_root_or_master_path)
+        if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
+        and requested.intersection(_audit_row_machine_tokens(option.row))
+    ]
+
+
+def _audit_row_machine_tokens(row: dict[str, Any]) -> set[str]:
+    tokens: set[str] = set()
+    for field_name in MASTER_MACHINE_FIELDS:
+        tokens.update(parse_machine_tokens(row.get(field_name)))
+    return tokens
 
 
 def compatible_rows_by_source_audit_id(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:

@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .constants import TOOLKIT_ROOT
 from .logging import log_tool_run
 from .paths import resolve_project_paths
-from .report_context import build_daily_report_context, daily_summary_cli_items
+from .performance import log_performance_event
 from .result import ToolResult
 from .safe_files import ensure_directory
 from .schedule import resolve_project_day_for_project
@@ -713,6 +713,8 @@ def _tool_result_from_subprocess(tool_id: str, tool_name: str, completed: subpro
 
 def _context_cli_values(project_root: str | Path, target_date: date, week: int, day: int, run_mode: str) -> dict[str, list[str]]:
     try:
+        from .report_context import build_daily_report_context, daily_summary_cli_items
+
         context = build_daily_report_context(project_root, target_date=target_date, week=week, day=day)
         values = daily_summary_cli_items(context)
     except Exception as exc:
@@ -778,8 +780,17 @@ def run_daily_summary_now(
     output_folder = Path(output_dir).expanduser() if output_dir else (dry_run_daily_reports_dir(project_root) if dry_run else paths.daily_reports)
     expected_report = _daily_expected_report_path(project_root, target_date, dry_run=dry_run, resolved_week=resolved.week, resolved_day=resolved.day, output_dir=output_folder)
     run_mode = mode or ("scheduled" if scheduled else "manual")
+    skip_check_started = time.perf_counter()
     if expected_report.exists():
         elapsed = time.perf_counter() - started
+        log_performance_event(
+            project_root,
+            "scheduled_reports.skip_check",
+            time.perf_counter() - skip_check_started,
+            source="scheduled_reports",
+            page_tool="scheduled_reports",
+            details={"output_path": str(expected_report), "skipped": True},
+        )
         log_scheduled_attempt(
             project_root,
             automation="daily_summary",
@@ -806,6 +817,14 @@ def run_daily_summary_now(
         if warning:
             result.warnings.append(warning)
         return result
+    log_performance_event(
+        project_root,
+        "scheduled_reports.skip_check",
+        time.perf_counter() - skip_check_started,
+        source="scheduled_reports",
+        page_tool="scheduled_reports",
+        details={"output_path": str(expected_report), "skipped": False},
+    )
     log_scheduled_attempt(
         project_root,
         automation="daily_summary",

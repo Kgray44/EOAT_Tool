@@ -14,14 +14,14 @@ def build_compatibility_tab(page) -> QWidget:
     source_row.addWidget(QLabel("Source Audit"))
     page.compatibility_source_combo = QComboBox()
     page.compatibility_source_combo.setMinimumWidth(520)
-    page.compatibility_source_combo.addItem("Source audits will load after the form opens.", None)
+    page.compatibility_source_combo.addItem("Loading compatibility sources...", None)
     source_row.addWidget(page.compatibility_source_combo, stretch=1)
     refresh_sources = QPushButton("Refresh Compatible Machines")
     refresh_sources.clicked.connect(page.refresh_compatible_machines)
     source_row.addWidget(refresh_sources)
     layout.addLayout(source_row)
 
-    page.compatibility_note_label = QLabel("Select a physical audit source to see compatible machines from the Press Capacity list.")
+    page.compatibility_note_label = QLabel("Loading compatibility sources...")
     page.compatibility_note_label.setWordWrap(True)
     layout.addWidget(page.compatibility_note_label)
 

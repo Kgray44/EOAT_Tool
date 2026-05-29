@@ -66,7 +66,7 @@ def test_dashboard_cache_source_metadata_tracks_phase6_sources(fake_project):
     doc_gap = fake_project / "03_Standards" / "Documentation_Gap_Reports" / "Documentation_Gap_Report_2026-05-27.md"
     doc_gap.parent.mkdir(parents=True, exist_ok=True)
     doc_gap.write_text("# gaps\n", encoding="utf-8")
-    exports = fake_project / "reports" / "exports"
+    exports = fake_project / "06_Final_Handoff" / "Annotation_Exports"
     exports.mkdir(parents=True, exist_ok=True)
     (exports / "open_items_report_2026-05-27.md").write_text("# open\n", encoding="utf-8")
 

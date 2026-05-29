@@ -76,12 +76,47 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values["EOAT Moves"] == "Both"
     assert row_values["Connection Type"] == "ATI"
     assert row_values[CYLINDER_COUNT_FIELD] == "N/A"
-    assert row_values[CYLINDER_TYPE_FIELD] == "Linear"
+    assert row_values[CYLINDER_TYPE_FIELD] == "N/A"
     assert row_values["Gripper Model"] == "N/A"
     assert row_values["Gripper Size"] == "N/A"
     assert row_values["# of Grippers"] == "N/A"
     assert row_values["Gripper Type"] == "N/A"
     assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    wb.close()
+
+
+def test_number_of_parts_picked_save_load_and_header_order_are_unchanged(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-PARTS-PICKED-STORAGE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Tool #": "DEMO-PN-1200",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Mechanical / Gripper",
+            "EOAT Moves": "Part",
+            "Connection Type": "ATI",
+            "Number of Parts Picked": "3",
+            "# of Grippers": "2",
+            "Gripper Type": "Single Pressure",
+            "Gripper Model": "Zimmer GPP",
+            "Gripper Size": "25 mm",
+            "Status": "Audited",
+        },
+    )
+
+    assert result.success is True
+    loaded = load_audit_entry(fake_project, "AUD-PARTS-PICKED-STORAGE")
+    assert loaded["Number of Parts Picked"] == "3"
+
+    wb = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
+    headers = [cell.value for cell in wb["EOAT Inventory"][1]]
+    assert headers == list(get_expected_headers("EOAT Inventory"))
+    assert headers[headers.index("Connection Type") + 1] == "Number of Parts Picked"
+    assert headers[headers.index("Number of Parts Picked") + 1] == CYLINDER_COUNT_FIELD
     wb.close()
 
 
@@ -113,17 +148,23 @@ def test_save_with_current_schema_skips_heavy_schema_repair(fake_project, monkey
     assert result.metrics["audit_save.schema_repair_seconds"] == 0.0
 
 
-def test_save_with_stale_schema_runs_repair_once(fake_project, monkeypatch):
+def test_save_with_stale_schema_fails_fast_without_repair(fake_project, monkeypatch):
     import core.audit_entries as audit_entries
 
     calls = {"count": 0}
-    original = audit_entries._migrate_workbook_tool_headers
 
-    def counted(workbook):
+    def counted(_workbook):
         calls["count"] += 1
-        return original(workbook)
+        raise AssertionError("normal save must not repair workbook schema")
 
     monkeypatch.setattr(audit_entries, "_migrate_workbook_tool_headers", counted)
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    ws.delete_cols(headers.index("EOAT Moves") + 1)
+    workbook.save(workbook_path)
+    workbook.close()
 
     result = save_audit_entry(
         fake_project,
@@ -139,11 +180,11 @@ def test_save_with_stale_schema_runs_repair_once(fake_project, monkeypatch):
         },
     )
 
-    assert result.success, result.errors
-    assert calls["count"] == 1
+    assert result.success is False
+    assert "Workbook schema needs repair. Run Workbook Health > Repair Schema." in result.summary
+    assert calls["count"] == 0
     assert result.metrics["audit_save.schema_current"] is False
     assert "audit_save.schema_check_seconds" in result.metrics
-    assert "audit_save.schema_repair_seconds" in result.metrics
 
 
 def test_eoat_moves_blank_stays_blank_and_warns_as_important(fake_project):
@@ -198,6 +239,8 @@ def test_cylinder_fields_save_load_and_old_workbooks_migrate_safely(fake_project
     assert loaded_old is not None
     assert CYLINDER_COUNT_FIELD not in loaded_old
 
+    repair = repair_workbook_schema(fake_project)
+    assert repair.success, repair.errors
     result = save_audit_entry(
         fake_project,
         {
@@ -269,6 +312,10 @@ def test_workbook_missing_eoat_moves_loads_and_migrates_without_overwriting_blan
     assert loaded is not None
     assert "EOAT Moves" not in loaded
 
+    repair = repair_workbook_schema(fake_project)
+    assert repair.success, repair.errors
+    loaded = load_audit_entry(fake_project, "AUD-OLD-MOVES-EDIT")
+    assert loaded is not None
     result = save_audit_entry(fake_project, {**loaded, "EOAT Moves": "Sprue"}, allow_update=True)
     assert result.success, result.errors
 
@@ -922,7 +969,7 @@ def test_repair_workbook_schema_removes_vacuum_zones_with_backup_and_preserves_c
     assert rows["AUD-VACUUM-ZONES-REMOVE"]["Status"] == "In Progress"
 
 
-def test_save_audit_entry_removes_legacy_vacuum_zones_column_with_backup(fake_project):
+def test_save_audit_entry_refuses_legacy_vacuum_zones_until_repair(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     workbook = load_workbook(workbook_path)
     ws = workbook["EOAT Inventory"]
@@ -947,19 +994,13 @@ def test_save_audit_entry_removes_legacy_vacuum_zones_column_with_backup(fake_pr
         },
     )
 
-    assert result.success, result.errors
-    assert result.metrics["vacuum_zones_columns_removed"] == 1
-    assert any("backup_before_removing_vacuum_zones" in path for path in result.files_created)
+    assert result.success is False
+    assert "Workbook schema needs repair" in result.summary
     workbook = load_workbook(workbook_path, read_only=True)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    rows = {
-        row[headers.index("Audit ID")]: {headers[index]: value for index, value in enumerate(row)}
-        for row in ws.iter_rows(min_row=2, values_only=True)
-    }
     workbook.close()
-    assert "Vacuum Zones" not in headers
-    assert rows["AUD-SAVE-REMOVES-VACUUM-ZONES"]["EOAT Type"] == "Vacuum"
+    assert "Vacuum Zones" in headers
 
 
 def test_cup_defaults_are_eoat_type_aware(fake_project):
@@ -1077,6 +1118,10 @@ def test_save_migrates_legacy_tool_header_and_preserves_data(fake_project):
     assert loaded is not None
     assert loaded["Tool #"] == "PN-LEGACY"
 
+    repair = repair_workbook_schema(fake_project)
+    assert repair.success, repair.errors
+    loaded = load_audit_entry(fake_project, "AUD-20260518-LEG")
+    assert loaded is not None
     result = save_audit_entry(fake_project, {**loaded, "Priority": "High"}, allow_update=True)
     assert result.success is True
 
@@ -1123,6 +1168,10 @@ def test_save_migrates_missing_connection_type_without_overwriting_existing_data
     assert "Connection Type" not in loaded
     assert loaded["Cup Type/Material"] == "Nitrile"
 
+    repair = repair_workbook_schema(fake_project)
+    assert repair.success, repair.errors
+    loaded = load_audit_entry(fake_project, "AUD-CONNECTION-MIGRATE")
+    assert loaded is not None
     result = save_audit_entry(fake_project, {**loaded, "Connection Type": "Lever Lock"}, allow_update=True)
     assert result.success is True
 
@@ -1175,6 +1224,10 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     assert loaded["Cup Type/Material"] == "Nitrile"
     assert loaded["Cleanroom/Non-Cleanroom"] == "Cleanroom"
 
+    repair = repair_workbook_schema(fake_project)
+    assert repair.success, repair.errors
+    loaded = load_audit_entry(fake_project, "AUD-GRIPPER-MIGRATE")
+    assert loaded is not None
     result = save_audit_entry(
         fake_project,
         {**loaded, "# of Grippers": "2", "Gripper Type": "Single Pressure", "Gripper Model": "Zimmer GPP", "Gripper Size": "25 mm"},
@@ -1265,6 +1318,8 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     workbook.save(workbook_path)
     workbook.close()
 
+    repair = repair_workbook_schema(project_root)
+    assert repair.success, repair.errors
     result = save_audit_entry(
         project_root,
         {
@@ -1418,6 +1473,8 @@ def test_audit_by_press_view_is_created_grouped_sorted_and_collapsible(fake_proj
     _save_press_audit(fake_project, "AUD-PRESS-001A", "1", "TOOL-1A")
     _save_press_audit(fake_project, "AUD-PRESS-002A", "2", "TOOL-2A")
     _save_press_audit(fake_project, "AUD-PRESS-MISSING", "N/A", "TOOL-X")
+    refresh = refresh_audit_by_press_view_action(fake_project, log_activity=False)
+    assert refresh.success, refresh.errors
 
     workbook = load_workbook(workbook_path)
     inventory = workbook["EOAT Inventory"]
@@ -1477,6 +1534,8 @@ def test_audit_by_press_view_refreshes_after_new_update_and_duplicate_saves(fake
     }
     assert save_audit_entry(fake_project, update, allow_update=True).success
     _save_press_audit(fake_project, "AUD-REFRESH-002", "2", "TOOL-2B")
+    refresh = refresh_audit_by_press_view_action(fake_project, log_activity=False)
+    assert refresh.success, refresh.errors
 
     workbook = load_workbook(workbook_path)
     view = workbook[AUDIT_BY_PRESS_SHEET]
@@ -1510,6 +1569,8 @@ def test_setup_generated_master_tracker_includes_audit_by_press_view(tmp_path):
 def test_explicit_refresh_audit_by_press_view_action(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     _save_press_audit(fake_project, "AUD-MANUAL-001", "1", "TOOL-1")
+    initial = refresh_audit_by_press_view_action(fake_project, log_activity=False)
+    assert initial.success, initial.errors
 
     workbook = load_workbook(workbook_path)
     del workbook[AUDIT_BY_PRESS_SHEET]

@@ -4,6 +4,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from .constants import TOOLKIT_ROOT
@@ -30,6 +31,8 @@ _BUILTIN_GRIPPER_PRESETS = (
         "active": True,
     },
 )
+_PRESET_CACHE: dict[tuple[bool, tuple[tuple[str, bool, int, int], ...]], tuple[GripperPreset, ...]] = {}
+_PRESET_CACHE_LOCK = RLock()
 
 
 @dataclass(frozen=True)
@@ -66,16 +69,47 @@ def load_gripper_presets(
     extra_paths: Iterable[str | Path] | None = None,
     include_inactive: bool = False,
 ) -> list[GripperPreset]:
-    presets: dict[str, GripperPreset] = {}
-    for preset in _load_presets_from_default_source():
-        if include_inactive or preset.active:
-            presets[preset.friendly_name.casefold()] = preset
+    paths = _preset_source_paths(project_root, extra_paths)
+    cache_key = (bool(include_inactive), tuple(_file_signature(path) for path in paths))
+    with _PRESET_CACHE_LOCK:
+        cached = _PRESET_CACHE.get(cache_key)
+        if cached is not None:
+            return list(cached)
+    loaded = _load_gripper_presets_uncached(paths, include_inactive=include_inactive)
+    with _PRESET_CACHE_LOCK:
+        _PRESET_CACHE[cache_key] = tuple(loaded)
+    return list(loaded)
 
-    paths: list[Path] = []
+
+def _preset_source_paths(project_root: str | Path | None, extra_paths: Iterable[str | Path] | None) -> list[Path]:
+    paths = [DEFAULT_GRIPPER_PRESETS_PATH]
     if project_root is not None:
         paths.append(project_gripper_presets_path(project_root))
     paths.extend(Path(path) for path in (extra_paths or []))
-    for path in paths:
+    return paths
+
+
+def _file_signature(path: str | Path) -> tuple[str, bool, int, int]:
+    source = Path(path).expanduser()
+    try:
+        resolved = source.resolve()
+    except OSError:
+        resolved = source
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return str(resolved), False, 0, 0
+    return str(resolved), True, stat.st_mtime_ns, stat.st_size
+
+
+def _load_gripper_presets_uncached(paths: list[Path], *, include_inactive: bool) -> list[GripperPreset]:
+    presets: dict[str, GripperPreset] = {}
+    default_presets = _load_presets_from_file(paths[0]) if paths else []
+    for preset in default_presets or [GripperPreset.from_dict(data) for data in _BUILTIN_GRIPPER_PRESETS]:
+        if include_inactive or preset.active:
+            presets[preset.friendly_name.casefold()] = preset
+
+    for path in paths[1:]:
         for preset in _load_presets_from_file(path):
             if not preset.friendly_name or not preset.part_number:
                 continue

@@ -1354,6 +1354,36 @@ def log_dry_run_activity(project_root: Path, report_path: Path, summary_path: Pa
         print(f"Dry-run activity logging failed: {exc}")
 
 
+def resolve_daily_output_path(project_root: Path, args: argparse.Namespace, report_date: str, day: int) -> tuple[Path, Path]:
+    if args.output_dir:
+        output_directory = Path(args.output_dir).expanduser()
+    elif args.dry_run:
+        output_directory = admin_dir(project_root) / "Test_Reports" / "Daily_Status_Reports"
+    else:
+        output_directory = report_dir(project_root)
+    if not output_directory.is_absolute():
+        output_directory = (SCRIPT_DIR / output_directory).resolve()
+    dry_run_suffix = "_DRY_RUN" if args.dry_run else ""
+    report_path = output_directory / f"Week{args.week}_Day{day}_Status_{report_date}{dry_run_suffix}.md"
+    return output_directory, report_path
+
+
+def log_scheduled_skip_check(project_root: Path, started: datetime, report_path: Path, skipped: bool) -> None:
+    try:
+        from core.performance import log_performance_event
+
+        log_performance_event(
+            project_root,
+            "scheduled_reports.skip_check",
+            (datetime.now() - started).total_seconds(),
+            source="scheduled_reports",
+            page_tool="daily_status_summary",
+            details={"output_path": str(report_path), "skipped": skipped},
+        )
+    except Exception:
+        pass
+
+
 def main() -> None:
     """Create exactly one daily status report."""
     started = datetime.now()
@@ -1391,6 +1421,15 @@ def main() -> None:
         day = min(report_day.isoweekday(), 5)
     else:
         day = ask_int("Project day number", 1)
+
+    output_directory, report_path = resolve_daily_output_path(project_root, args, report_date, day)
+    if args.scheduled or args.dry_run:
+        skipped = report_path.exists()
+        log_scheduled_skip_check(project_root, started, report_path, skipped)
+        if skipped:
+            print(f"Daily status report already exists; no duplicate was created: {report_path}")
+            return
+
     schedule = ensure_schedule(project_root, args.week, persist=not args.dry_run)
     progress = ensure_progress(project_root, args.week, schedule, persist=not args.dry_run)
 
@@ -1446,17 +1485,8 @@ def main() -> None:
     if args.interactive:
         include_activity_section = ask_yes_no("Do you want to include a repository activity section in the report?", True)
 
-    if args.output_dir:
-        output_directory = Path(args.output_dir).expanduser()
-    elif args.dry_run:
-        output_directory = admin_dir(project_root) / "Test_Reports" / "Daily_Status_Reports"
-    else:
-        output_directory = report_dir(project_root)
-    if not output_directory.is_absolute():
-        output_directory = (SCRIPT_DIR / output_directory).resolve()
     output_directory.mkdir(parents=True, exist_ok=True)
     dry_run_suffix = "_DRY_RUN" if args.dry_run else ""
-    report_path = output_directory / f"Week{args.week}_Day{day}_Status_{report_date}{dry_run_suffix}.md"
     markdown_text = build_markdown(
         args.week,
         day,

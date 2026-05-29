@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from openpyxl import load_workbook
@@ -66,11 +67,30 @@ class AnnotationService:
     def __init__(self, project_root: str | Path, db_path: str | Path | None = None, *, initialize: bool = True):
         self.project_root = Path(project_root)
         self.db_path = Path(db_path) if db_path else annotation_database_path(self.project_root)
+        self._initialize_lock = RLock()
+        self._initialized = False
         if initialize:
+            self.ensure_initialized()
+
+    @property
+    def initialized(self) -> bool:
+        return self._initialized
+
+    def mark_initialized(self) -> None:
+        self._initialized = True
+
+    def ensure_initialized(self) -> None:
+        if self._initialized:
+            return
+        with self._initialize_lock:
+            if self._initialized:
+                return
             initialize_annotation_database(self.project_root, self.db_path)
+            self._initialized = True
 
     @contextmanager
     def connection(self):
+        self.ensure_initialized()
         conn = connect_annotation_database(self.db_path)
         try:
             yield conn
