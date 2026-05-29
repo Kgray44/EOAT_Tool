@@ -39,6 +39,7 @@ HANDOFF_FOLDERS = {
     "admin": "10_Project_Admin",
     "reference": "11_Reference_Reports",
     "change_validation": "12_Change_Validation",
+    "qr_labels": "13_QR_Labels",
 }
 
 PACKAGE_FOLDERS = {
@@ -55,6 +56,7 @@ PACKAGE_FOLDERS = {
     "admin": "Validation",
     "reference": "Reference",
     "change_validation": "Change_Validation",
+    "qr_labels": "QR_Labels",
 }
 
 REQUIRED_PACKAGE_FOLDERS = (
@@ -78,7 +80,7 @@ def _latest_from(folder: Path, limit: int = 8) -> list[Path]:
 def _recursive_recent(folder: Path, limit: int = 8) -> list[Path]:
     if not folder.exists():
         return []
-    files = [path for path in folder.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json", ".docx", ".pdf", ".csv", ".png", ".xlsx", ".pptx"}]
+    files = [path for path in folder.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json", ".docx", ".pdf", ".csv", ".png", ".svg", ".xlsx", ".pptx"}]
     return sorted(files, key=lambda path: path.stat().st_mtime, reverse=True)[:limit]
 
 
@@ -104,6 +106,7 @@ def collect_handoff_sources(
         "admin": _latest_from(paths.validation_reports, 5),
         "reference": _latest_from(paths.issue_analysis_reports, 5) + _latest_from(paths.audit_progress_reports, 5),
         "change_validation": _recursive_recent(paths.change_validation, 10),
+        "qr_labels": _recursive_recent(paths.qr_labels, 10),
     }
     if include_weekly_reports:
         sources["admin"].extend(_latest_from(paths.weekly_reports, 12))

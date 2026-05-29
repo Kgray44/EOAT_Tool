@@ -55,6 +55,10 @@ class EOATProjectPaths:
         return self.project_root / "project_data"
 
     @property
+    def data_imports(self) -> Path:
+        return self.project_data / "data_imports"
+
+    @property
     def annotations_database(self) -> Path:
         return self.project_data / "annotations.sqlite"
 
@@ -145,6 +149,10 @@ class EOATProjectPaths:
     @property
     def change_validation(self) -> Path:
         return self.final_handoff / "Change_Validation"
+
+    @property
+    def qr_labels(self) -> Path:
+        return self.final_handoff / "QR_Labels"
 
     @property
     def presentation_assets_root(self) -> Path:
