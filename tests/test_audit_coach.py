@@ -42,7 +42,6 @@ SECTIONS = {
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
-        "Gripper Size",
     ],
     "Sensors and Detection": [
         "Sensors Present?",
@@ -79,7 +78,6 @@ def _base_entry(**overrides):
         "# of Grippers": "N/A",
         "Gripper Type": "N/A",
         "Gripper Model": "N/A",
-        "Gripper Size": "N/A",
         "Sensors Present?": "Yes",
         "Sensor Type": "Reed Switch",
         "Sensor Brand/Model": "Demo Sensor",
@@ -126,7 +124,6 @@ def test_gripper_summary_treats_vacuum_na_as_not_applicable_not_missing():
                 "# of Grippers": "2",
                 "Gripper Type": "Single Pressure",
                 "Gripper Model": "Demo Gripper",
-                "Gripper Size": "Small",
                 "Vacuum Confirmation Present?": "N/A",
             }
         ),
@@ -150,7 +147,6 @@ def test_hybrid_summary_reports_missing_both_sides_without_false_completion():
                 "# of Grippers": "",
                 "Gripper Type": "",
                 "Gripper Model": "",
-                "Gripper Size": "",
             }
         ),
         SECTIONS,
@@ -183,7 +179,6 @@ def test_follow_up_and_stale_hidden_values_are_actionable_findings():
                 "# of Grippers": "2",
                 "Gripper Type": "Single Pressure",
                 "Gripper Model": "Demo Gripper",
-                "Gripper Size": "Small",
                 "Status": "Needs Follow-Up",
             }
         ),
@@ -221,7 +216,6 @@ def test_hidden_field_reason_viewer_data_uses_shared_non_applicable_reason():
                 "# of Grippers": "2",
                 "Gripper Type": "Single Pressure",
                 "Gripper Model": "Demo Gripper",
-                "Gripper Size": "Small",
             }
         ),
         SECTIONS,
@@ -327,7 +321,6 @@ def test_miscellaneous_eoat_counts_gripper_fields_as_applicable():
                 "# of Grippers": "",
                 "Gripper Type": "",
                 "Gripper Model": "",
-                "Gripper Size": "",
             }
         ),
         SECTIONS,

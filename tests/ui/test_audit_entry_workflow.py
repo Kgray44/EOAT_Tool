@@ -87,7 +87,6 @@ def _seed_audit(project_root, audit_id: str, **overrides):
         "Cleanroom/Non-Cleanroom": "Cleanroom",
         "Cup Type/Material": "Silicone",
         "Gripper Model": "Zimmer GPP",
-        "Gripper Size": "25 mm",
         "Tubing Condition": "OK",
         "Cable Management Condition": "OK",
         "Known Issues": "Original known issue.",
@@ -563,7 +562,6 @@ def test_duplicate_audit_creates_new_unsaved_copy_and_saves_without_overwriting_
     assert page.audit_fields["Cleanroom/Non-Cleanroom"].currentText() == original["Cleanroom/Non-Cleanroom"]
     assert page.audit_fields["Cup Type/Material"].text() == original["Cup Type/Material"]
     assert _field_value(page, "Gripper Model") == ""
-    assert page.audit_fields["Gripper Size"].text() == ""
     assert page.audit_fields["Photo Folder/Link"].text() == ""
     assert "new unsaved" in page.lookup_note_label.text()
 
@@ -585,7 +583,6 @@ def test_duplicate_audit_creates_new_unsaved_copy_and_saves_without_overwriting_
     assert duplicate_row["# of Grippers"] == "N/A"
     assert duplicate_row["Gripper Type"] == "N/A"
     assert duplicate_row["Gripper Model"] == "N/A"
-    assert duplicate_row["Gripper Size"] == "N/A"
     assert duplicate_row["Photo Folder/Link"] == "N/A"
 
 
@@ -597,7 +594,6 @@ def test_load_and_duplicate_audit_with_na_values(qapp, fake_config, fake_project
             "Connection Type": "",
             "Known Issues": "",
             "Gripper Model": "",
-            "Gripper Size": "",
         },
     )
     page = AuditPage(fake_config)
@@ -627,7 +623,6 @@ def test_load_and_duplicate_audit_with_na_values(qapp, fake_config, fake_project
     assert duplicate_row["# of Grippers"] == "N/A"
     assert duplicate_row["Gripper Type"] == "N/A"
     assert duplicate_row["Gripper Model"] == "N/A"
-    assert duplicate_row["Gripper Size"] == "N/A"
 
 
 def test_loaded_na_field_displays_blank_and_can_be_filled(qapp, fake_config, fake_project, frozen_project_date):
@@ -908,7 +903,6 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     _set_field(page, "# of Grippers", "2")
     _set_field(page, "Gripper Type", "Double Pressure")
     _set_field(page, "Gripper Model", "Zimmer GPP")
-    _set_field(page, "Gripper Size", "25 mm")
     _set_field(page, "EOAT Type", "Mechanical / Gripper")
 
     audit_id = page.audit_fields["Audit ID"].text()
@@ -926,7 +920,6 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     assert row["# of Grippers"] == "2"
     assert row["Gripper Type"] == "Double Pressure"
     assert row["Gripper Model"] == "Zimmer GPP"
-    assert row["Gripper Size"] == "25 mm"
 
 
 def test_miscellaneous_audit_saves_and_loads_gripper_fields(qapp, fake_config, fake_project, frozen_project_date):
@@ -940,7 +933,6 @@ def test_miscellaneous_audit_saves_and_loads_gripper_fields(qapp, fake_config, f
     _set_field(page, "# of Grippers", "1")
     _set_field(page, "Gripper Type", "Single Pressure")
     _set_field(page, "Gripper Model", "Zimmer GPP")
-    _set_field(page, "Gripper Size", "25 mm")
 
     audit_id = page.audit_fields["Audit ID"].text()
     click_button(page, "Save Audit Entry")
@@ -1089,7 +1081,7 @@ def test_audit_form_uses_grouped_panels_without_losing_fields(qapp, fake_config)
         assert field in page._audit_field_group_keys
 
     assert page._audit_field_group_keys["Number of Parts Picked"] == "EOAT Type and Tooling::Part Handling"
-    for field in ["# of Grippers", "Gripper Type", "Gripper Model", "Gripper Size"]:
+    for field in ["# of Grippers", "Gripper Type", "Gripper Model"]:
         assert page._audit_field_group_keys[field] == "EOAT Type and Tooling::Gripper Details"
 
 

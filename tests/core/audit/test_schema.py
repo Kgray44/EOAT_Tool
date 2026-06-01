@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+import core.gripper_fields as gripper_fields
 from core.audit.schema import (
     PNEUMATIC_CIRCUITS_SECTION,
     STORAGE_NONE,
@@ -21,7 +22,6 @@ from core.gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
     GRIPPER_MODEL_FIELD,
-    GRIPPER_SIZE_FIELD,
     GRIPPER_TYPE_FIELD,
 )
 from core.tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
@@ -65,6 +65,9 @@ def test_existing_eoat_inventory_workbook_headers_are_covered():
 
     assert expected_workbook_headers() == expected
     assert {spec.workbook_header for spec in all_audit_fields() if spec.storage_target != STORAGE_NONE} >= set(expected)
+    assert "Gripper Size" not in expected
+    assert not hasattr(gripper_fields, "GRIPPER_SIZE_FIELD")
+    assert "Gripper Size" not in {spec.label for spec in all_audit_fields()}
 
 
 def test_legacy_headers_resolve_to_current_specs():
@@ -149,7 +152,6 @@ def test_eoat_tooling_grouping_keeps_parts_picked_out_of_gripper_details():
         GRIPPER_COUNT_FIELD,
         GRIPPER_TYPE_FIELD,
         GRIPPER_MODEL_FIELD,
-        GRIPPER_SIZE_FIELD,
     ]
 
     grouped_specs = fields_grouped_by_section()["EOAT Type and Tooling"]

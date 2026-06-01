@@ -20,7 +20,6 @@ from .gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
     GRIPPER_MODEL_FIELD,
-    GRIPPER_SIZE_FIELD,
     GRIPPER_TYPE_FIELD,
 )
 from .tool_fields import TOOL_FIELD
@@ -48,7 +47,7 @@ PNEUMATIC_CIRCUIT_FIELDS = {
     "Robot Pressure Circuits",
     "Robot Interchangeable Circuits",
 }
-GRIPPER_TOOLING_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD}
+GRIPPER_TOOLING_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD}
 SENSOR_DETAIL_FIELDS = {
     "Sensor Type",
     "Sensor Brand/Model",
@@ -85,7 +84,6 @@ FIELD_GROUPS = {
     GRIPPER_COUNT_FIELD: "gripper_tooling",
     GRIPPER_TYPE_FIELD: "gripper_tooling",
     GRIPPER_MODEL_FIELD: "gripper_tooling",
-    GRIPPER_SIZE_FIELD: "gripper_tooling",
     "Sensors Present?": "sensor",
     "Sensor Type": "sensor",
     "Sensor Brand/Model": "sensor",

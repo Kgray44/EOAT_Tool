@@ -13,7 +13,6 @@ CUP_COUNT_FIELD = "# of Cups"
 GRIPPER_COUNT_FIELD = "# of Grippers"
 GRIPPER_TYPE_FIELD = "Gripper Type"
 GRIPPER_MODEL_FIELD = "Gripper Model"
-GRIPPER_SIZE_FIELD = "Gripper Size"
 
 GRIPPER_TYPE_VALUES = ["Single Pressure", "Double Pressure"]
 

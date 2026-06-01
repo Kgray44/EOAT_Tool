@@ -32,7 +32,6 @@ from .gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
     GRIPPER_MODEL_FIELD,
-    GRIPPER_SIZE_FIELD,
     GRIPPER_TYPE_FIELD,
     GRIPPER_TYPE_VALUES,
     gripper_model_to_workbook,
@@ -129,7 +128,6 @@ TOOLING_COLUMN_ORDER = [
     GRIPPER_COUNT_FIELD,
     GRIPPER_TYPE_FIELD,
     GRIPPER_MODEL_FIELD,
-    GRIPPER_SIZE_FIELD,
     CUP_COUNT_FIELD,
     "Cup Type/Material",
     "Cup Diameter/Size",
@@ -144,7 +142,7 @@ VACUUM_TOOLING_FIELDS = {
     "Cup Diameter/Size",
     "Vacuum Generator Type",
 }
-GRIPPER_TOOLING_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD}
+GRIPPER_TOOLING_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD}
 SENSOR_DETAIL_FIELDS = field_rules.SENSOR_DETAIL_FIELDS
 ELECTRICAL_DETAIL_FIELDS = field_rules.ELECTRICAL_DETAIL_FIELDS
 QUICK_DISCONNECT_DETAIL_FIELDS = field_rules.QUICK_DISCONNECT_DETAIL_FIELDS
@@ -240,7 +238,7 @@ def repair_legacy_audit_lookup_shift(row: dict[str, Any]) -> dict[str, Any]:
     if _text(row.get("EOAT Type")):
         return _repair_missing_connection_type_positional_shift(
             _repair_legacy_compact_tooling_shift(
-                _repair_missing_gripper_fields_positional_shift(_repair_legacy_tail_compact_shift(row))
+                _repair_missing_gripper_model_positional_shift(_repair_legacy_tail_compact_shift(row))
             )
         )
     if not (legacy_lookup_shift or legacy_compact_shift):
@@ -347,8 +345,8 @@ def _repair_missing_connection_type_positional_shift(row: dict[str, Any]) -> dic
     return repaired
 
 
-def _repair_missing_gripper_fields_positional_shift(row: dict[str, Any]) -> dict[str, Any]:
-    """Read rows written by position before Gripper Model/Size existed."""
+def _repair_missing_gripper_model_positional_shift(row: dict[str, Any]) -> dict[str, Any]:
+    """Read compact rows written before Gripper Model existed."""
     shifted_after_gripper_fields = (
         _looks_like_count(row.get(GRIPPER_MODEL_FIELD))
         or (
@@ -360,14 +358,13 @@ def _repair_missing_gripper_fields_positional_shift(row: dict[str, Any]) -> dict
     if not shifted_after_gripper_fields:
         return row
     headers = get_expected_headers("EOAT Inventory")
-    if GRIPPER_MODEL_FIELD not in headers or GRIPPER_SIZE_FIELD not in headers:
+    if GRIPPER_MODEL_FIELD not in headers:
         return row
     repaired = dict(row)
     start = headers.index(GRIPPER_MODEL_FIELD)
-    for index in range(len(headers) - 1, start + 1, -1):
-        repaired[headers[index]] = row.get(headers[index - 2])
+    for index in range(len(headers) - 1, start, -1):
+        repaired[headers[index]] = row.get(headers[index - 1])
     repaired[GRIPPER_MODEL_FIELD] = ""
-    repaired[GRIPPER_SIZE_FIELD] = ""
     return repaired
 
 
@@ -651,7 +648,8 @@ def load_audit_entry(project_root: str | Path, audit_id: str) -> dict[str, Any] 
                 row = {**row, TOOL_FIELD: row.get(LEGACY_TOOL_FIELD, "")}
             if NUMBER_OF_PARTS_PICKED_FIELD not in row and LEGACY_VACUUM_CUPS_FIELD in row:
                 row = {**row, NUMBER_OF_PARTS_PICKED_FIELD: row.get(LEGACY_VACUUM_CUPS_FIELD, "")}
-            return {key: ("" if value is None else value) for key, value in row.items()}
+            expected_headers = set(get_expected_headers("EOAT Inventory"))
+            return {key: ("" if value is None else value) for key, value in row.items() if key in expected_headers}
     return None
 
 
@@ -1093,7 +1091,6 @@ def _style_inventory_tooling_columns(ws) -> None:
         CUP_COUNT_FIELD: NUMBER_OF_PARTS_PICKED_FIELD,
         GRIPPER_TYPE_FIELD: CONNECTION_TYPE_FIELD,
         GRIPPER_MODEL_FIELD: GRIPPER_TYPE_FIELD,
-        GRIPPER_SIZE_FIELD: GRIPPER_MODEL_FIELD,
         EOAT_VACUUM_CIRCUITS_FIELD: "Vacuum Generator Type",
         EOAT_PRESSURE_CIRCUITS_FIELD: EOAT_VACUUM_CIRCUITS_FIELD,
         EOAT_INTERCHANGEABLE_CIRCUITS_FIELD: EOAT_PRESSURE_CIRCUITS_FIELD,
