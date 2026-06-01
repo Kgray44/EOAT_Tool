@@ -142,8 +142,12 @@ def build_fmea_suggestions(project_root: str | Path, *, include_rejected: bool =
         return []
     decisions = _load_decisions(project_root)
     try:
-        existing_modes = {_text(row.get("Failure Mode")).casefold() for row in row_dicts(paths.master_workbook, "FMEA Draft")}
-        inventory = [repair_legacy_audit_lookup_shift(row) for row in row_dicts(paths.master_workbook, "EOAT Inventory")]
+        existing_modes = {
+            _text(row.get("Failure Mode")).casefold() for row in row_dicts(paths.master_workbook, "FMEA Draft")
+        }
+        inventory = [
+            repair_legacy_audit_lookup_shift(row) for row in row_dicts(paths.master_workbook, "EOAT Inventory")
+        ]
         issues = row_dicts(paths.master_workbook, "Issue Log")
     except Exception:
         return []
@@ -165,10 +169,15 @@ def build_fmea_suggestions(project_root: str | Path, *, include_rejected: bool =
         row = suggestion.to_dict()
         row["Decision"] = state or "pending"
         rows.append(row)
-    return sorted(rows, key=lambda row: (str(row.get("Press/Machine #")), str(row.get("Failure Mode")), str(row.get("Source Type"))))
+    return sorted(
+        rows,
+        key=lambda row: (str(row.get("Press/Machine #")), str(row.get("Failure Mode")), str(row.get("Source Type"))),
+    )
 
 
-def accept_fmea_suggestions(project_root: str | Path, reviewed_suggestions: Iterable[dict[str, Any]], *, log_activity: bool = True) -> ToolResult:
+def accept_fmea_suggestions(
+    project_root: str | Path, reviewed_suggestions: Iterable[dict[str, Any]], *, log_activity: bool = True
+) -> ToolResult:
     started = time.perf_counter()
     suggestions = [dict(item) for item in reviewed_suggestions]
     if not suggestions:
@@ -188,7 +197,12 @@ def accept_fmea_suggestions(project_root: str | Path, reviewed_suggestions: Iter
     paths = resolve_project_paths(project_root)
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
-        return ToolResult.fail("fmea_suggestion_accept", "FMEA Suggestion Review", "Master workbook is missing.", errors=[str(workbook_path)])
+        return ToolResult.fail(
+            "fmea_suggestion_accept",
+            "FMEA Suggestion Review",
+            "Master workbook is missing.",
+            errors=[str(workbook_path)],
+        )
     workbook = None
     try:
         backup = backup_file(workbook_path, workbook_path.parent / "_backups")
@@ -236,7 +250,9 @@ def accept_fmea_suggestions(project_root: str | Path, reviewed_suggestions: Iter
                 workbook.close()
             except Exception:
                 pass
-        return ToolResult.fail("fmea_suggestion_accept", "FMEA Suggestion Review", "Could not accept FMEA suggestions.", errors=[str(exc)])
+        return ToolResult.fail(
+            "fmea_suggestion_accept", "FMEA Suggestion Review", "Could not accept FMEA suggestions.", errors=[str(exc)]
+        )
     result = ToolResult.ok(
         "fmea_suggestion_accept",
         "FMEA Suggestion Review",
@@ -254,7 +270,9 @@ def accept_fmea_suggestions(project_root: str | Path, reviewed_suggestions: Iter
     return result
 
 
-def reject_fmea_suggestions(project_root: str | Path, suggestion_ids: Iterable[str], *, reason: str = "", log_activity: bool = True) -> ToolResult:
+def reject_fmea_suggestions(
+    project_root: str | Path, suggestion_ids: Iterable[str], *, reason: str = "", log_activity: bool = True
+) -> ToolResult:
     ids = [str(item).strip() for item in suggestion_ids if str(item).strip()]
     if not ids:
         return ToolResult.fail("fmea_suggestion_reject", "FMEA Suggestion Review", "No FMEA suggestions were selected.")
@@ -274,45 +292,55 @@ def reject_fmea_suggestions(project_root: str | Path, suggestion_ids: Iterable[s
     return result
 
 
-def export_fmea_suggestion_draft(project_root: str | Path, suggestions: Iterable[dict[str, Any]] | None = None, *, log_activity: bool = True) -> ToolResult:
+def export_fmea_suggestion_draft(
+    project_root: str | Path, suggestions: Iterable[dict[str, Any]] | None = None, *, log_activity: bool = True
+) -> ToolResult:
     rows = [dict(row) for row in (suggestions if suggestions is not None else build_fmea_suggestions(project_root))]
     paths = resolve_project_paths(project_root)
     ensure_directory(paths.fmea_reports)
-    markdown = "\n".join(
-        [
-            "# FMEA Suggestion Draft",
-            "",
-            "These are draft suggestions generated from existing audit evidence. They are not final engineering decisions.",
-            "",
-            "## Suggestions",
-            *table_from_rows(
-                rows,
-                [
-                    "Suggestion ID",
-                    "Press/Machine #",
-                    "Failure Mode",
-                    "Confidence",
-                    "Calculated RPN",
-                    "Evidence",
-                    "Suggested Severity",
-                    "Suggested Frequency",
-                    "Suggested Detectability",
-                    "Suggested Mitigation",
-                ],
-            ),
-            "",
-            "## Evidence Trace",
-            *table_from_rows(rows, ["Suggestion ID", "Source Type", "Source Fields/Tags", "Evidence"]),
-            "",
-            "## Review Required",
-            "- Confirm or edit severity, frequency, and detectability before accepting any row.",
-            "- Reject suggestions that do not match the physical EOAT or current engineering understanding.",
-        ]
-    ) + "\n"
+    markdown = (
+        "\n".join(
+            [
+                "# FMEA Suggestion Draft",
+                "",
+                "These are draft suggestions generated from existing audit evidence. They are not final engineering decisions.",
+                "",
+                "## Suggestions",
+                *table_from_rows(
+                    rows,
+                    [
+                        "Suggestion ID",
+                        "Press/Machine #",
+                        "Failure Mode",
+                        "Confidence",
+                        "Calculated RPN",
+                        "Evidence",
+                        "Suggested Severity",
+                        "Suggested Frequency",
+                        "Suggested Detectability",
+                        "Suggested Mitigation",
+                    ],
+                ),
+                "",
+                "## Evidence Trace",
+                *table_from_rows(rows, ["Suggestion ID", "Source Type", "Source Fields/Tags", "Evidence"]),
+                "",
+                "## Review Required",
+                "- Confirm or edit severity, frequency, and detectability before accepting any row.",
+                "- Reject suggestions that do not match the physical EOAT or current engineering understanding.",
+            ]
+        )
+        + "\n"
+    )
     try:
         report = write_timestamped_report(paths.fmea_reports, "FMEA_Suggestion_Draft", markdown)
     except Exception as exc:
-        return ToolResult.fail("fmea_suggestion_export", "FMEA Suggestion Review", "Could not write FMEA suggestion draft.", errors=[str(exc)])
+        return ToolResult.fail(
+            "fmea_suggestion_export",
+            "FMEA Suggestion Review",
+            "Could not write FMEA suggestion draft.",
+            errors=[str(exc)],
+        )
     result = ToolResult.ok(
         "fmea_suggestion_export",
         "FMEA Suggestion Review",
@@ -328,20 +356,33 @@ def export_fmea_suggestion_draft(project_root: str | Path, suggestions: Iterable
     return result
 
 
-def export_fmea_evidence_report(project_root: str | Path, suggestions: Iterable[dict[str, Any]] | None = None, *, log_activity: bool = True) -> ToolResult:
+def export_fmea_evidence_report(
+    project_root: str | Path, suggestions: Iterable[dict[str, Any]] | None = None, *, log_activity: bool = True
+) -> ToolResult:
     return export_fmea_suggestion_draft(project_root, suggestions=suggestions, log_activity=log_activity)
 
 
 def _issue_suggestions(issues: list[dict[str, Any]], existing_modes: set[str]) -> list[FmeaSuggestion]:
     suggestions: list[FmeaSuggestion] = []
     for row in issues:
-        source_text = " ".join(_text(row.get(field)) for field in ["Issue Category", "Issue Description", "Suspected Cause", "Evidence/Observation", "Impact", "Notes"])
+        source_text = " ".join(
+            _text(row.get(field))
+            for field in [
+                "Issue Category",
+                "Issue Description",
+                "Suspected Cause",
+                "Evidence/Observation",
+                "Impact",
+                "Notes",
+            ]
+        )
         key = _failure_key_from_text(source_text)
         suggestion = _suggestion_from_key(
             key,
             audit_id="",
             machine=_text(row.get("Press/Machine #")),
-            evidence=_first_text(row, ["Issue Description", "Evidence/Observation", "Impact", "Notes"]) or f"Issue category: {_text(row.get('Issue Category'))}",
+            evidence=_first_text(row, ["Issue Description", "Evidence/Observation", "Impact", "Notes"])
+            or f"Issue category: {_text(row.get('Issue Category'))}",
             source_fields_tags="Issue Log: Issue Category, Issue Description, Evidence/Observation",
             source_type="issue",
             issue_category=_text(row.get("Issue Category")),
@@ -357,7 +398,17 @@ def _issue_suggestions(issues: list[dict[str, Any]], existing_modes: set[str]) -
 def _audit_field_suggestions(inventory: list[dict[str, Any]], existing_modes: set[str]) -> list[FmeaSuggestion]:
     suggestions: list[FmeaSuggestion] = []
     for row in inventory:
-        source_text = " ".join(_text(row.get(field)) for field in ["Known Issues", "Drop/Mis-Pick History", "Tubing Condition", "Cable Management Condition", "Maintenance Frequency", "Notes"])
+        source_text = " ".join(
+            _text(row.get(field))
+            for field in [
+                "Known Issues",
+                "Drop/Mis-Pick History",
+                "Tubing Condition",
+                "Cable Management Condition",
+                "Maintenance Frequency",
+                "Notes",
+            ]
+        )
         if not source_text.strip():
             continue
         key = _failure_key_from_text(source_text)
@@ -365,7 +416,8 @@ def _audit_field_suggestions(inventory: list[dict[str, Any]], existing_modes: se
             key,
             audit_id=_text(row.get("Audit ID")),
             machine=_text(row.get("Press/Machine #")),
-            evidence=_first_text(row, ["Known Issues", "Drop/Mis-Pick History", "Notes", "Tubing Condition"]) or "Audit field review needed.",
+            evidence=_first_text(row, ["Known Issues", "Drop/Mis-Pick History", "Notes", "Tubing Condition"])
+            or "Audit field review needed.",
             source_fields_tags="EOAT Inventory: Known Issues, Drop/Mis-Pick History, condition fields",
             source_type="audit",
         )
@@ -398,13 +450,16 @@ def _annotation_suggestions(project_root: str | Path, existing_modes: set[str]) 
         if suggestion.failure_mode.casefold() not in existing_modes:
             suggestions.append(suggestion)
     for assignment in assignments:
-        text = " ".join(_text(assignment.get(field)) for field in ["tag_name", "comment", "target_label", "field_label"])
+        text = " ".join(
+            _text(assignment.get(field)) for field in ["tag_name", "comment", "target_label", "field_label"]
+        )
         key = _failure_key_from_text(text)
         suggestion = _suggestion_from_key(
             key,
             audit_id=_text(assignment.get("audit_id")),
             machine=_text(assignment.get("machine_id")),
-            evidence=f"Tag: {_text(assignment.get('tag_name'))}" + (f" - {_text(assignment.get('comment'))}" if _text(assignment.get("comment")) else ""),
+            evidence=f"Tag: {_text(assignment.get('tag_name'))}"
+            + (f" - {_text(assignment.get('comment'))}" if _text(assignment.get("comment")) else ""),
             source_fields_tags=f"Tag: {_text(assignment.get('tag_name'))}",
             source_type="tag",
         )
@@ -554,7 +609,9 @@ def _dedupe_suggestions(suggestions: list[FmeaSuggestion]) -> list[FmeaSuggestio
         evidence = "; ".join(dict.fromkeys(item.evidence for item in group if item.evidence))[:1000]
         sources = "; ".join(dict.fromkeys(item.source_fields_tags for item in group if item.source_fields_tags))[:500]
         source_type = ", ".join(dict.fromkeys(item.source_type for item in group if item.source_type))
-        calculated_rpn = _calculated_rpn(first.suggested_severity, first.suggested_frequency, first.suggested_detectability)
+        calculated_rpn = _calculated_rpn(
+            first.suggested_severity, first.suggested_frequency, first.suggested_detectability
+        )
         deduped.append(
             FmeaSuggestion(
                 **{
@@ -563,7 +620,13 @@ def _dedupe_suggestions(suggestions: list[FmeaSuggestion]) -> list[FmeaSuggestio
                     "evidence": evidence,
                     "source_fields_tags": sources,
                     "source_type": source_type,
-                    "confidence": _confidence_label(evidence, first.suggested_severity, first.suggested_frequency, first.suggested_detectability, source_type),
+                    "confidence": _confidence_label(
+                        evidence,
+                        first.suggested_severity,
+                        first.suggested_frequency,
+                        first.suggested_detectability,
+                        source_type,
+                    ),
                     "calculated_rpn": calculated_rpn,
                 }
             )
@@ -596,7 +659,9 @@ def _latest_validation_findings(project_root: str | Path) -> list[ValidationFind
     folder = resolve_project_paths(project_root).validation_reports
     if not folder.exists():
         return []
-    for path in sorted(folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+    for path in sorted(
+        folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True
+    ):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -607,7 +672,10 @@ def _latest_validation_findings(project_root: str | Path) -> list[ValidationFind
 
 
 def _reviewed_scores(row: dict[str, Any]) -> bool:
-    return all(_valid_score(row.get(field)) for field in ["Suggested Severity", "Suggested Frequency", "Suggested Detectability"])
+    return all(
+        _valid_score(row.get(field))
+        for field in ["Suggested Severity", "Suggested Frequency", "Suggested Detectability"]
+    )
 
 
 def _calculated_rpn(severity: Any, frequency: Any, detectability: Any) -> int | str:

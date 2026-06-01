@@ -37,16 +37,22 @@ def test_final_handoff_readiness_detects_ready_outputs(usability_fake_project):
     (paths.fmea_reports / "FMEA_Report.md").write_text("# FMEA\n", encoding="utf-8")
     (paths.kpi_dashboard_exports / "KPI_Report.md").write_text("# KPI\n", encoding="utf-8")
     (paths.pilot_project / "Before_After_Data").mkdir(parents=True, exist_ok=True)
-    (paths.pilot_project / "Before_After_Data" / "Pilot_Before_After.csv").write_text("metric,before,after\n", encoding="utf-8")
+    (paths.pilot_project / "Before_After_Data" / "Pilot_Before_After.csv").write_text(
+        "metric,before,after\n", encoding="utf-8"
+    )
     (paths.pilot_project / "Pilot_Reports").mkdir(parents=True, exist_ok=True)
     (paths.pilot_project / "Pilot_Reports" / "Pilot_Report.md").write_text("# Pilot\n", encoding="utf-8")
     (paths.documentation_gap_reports / "Documentation_Gaps.md").write_text("# Gaps\n", encoding="utf-8")
     (paths.training_materials / "Training.md").write_text("# Training\n", encoding="utf-8")
     (paths.executive_summary / "Executive_Summary.md").write_text("# Executive Summary\n", encoding="utf-8")
     technical_appendix_dir(usability_fake_project).mkdir(parents=True, exist_ok=True)
-    (technical_appendix_dir(usability_fake_project) / "Technical_Appendix.md").write_text("# Technical Appendix\n", encoding="utf-8")
+    (technical_appendix_dir(usability_fake_project) / "Technical_Appendix.md").write_text(
+        "# Technical Appendix\n", encoding="utf-8"
+    )
     open_items_carryover_dir(usability_fake_project).mkdir(parents=True, exist_ok=True)
-    (open_items_carryover_dir(usability_fake_project) / "Open_Items_Carryover.md").write_text("# Carryover\n", encoding="utf-8")
+    (open_items_carryover_dir(usability_fake_project) / "Open_Items_Carryover.md").write_text(
+        "# Carryover\n", encoding="utf-8"
+    )
 
     ready = _by_key(usability_fake_project)
     for key in [

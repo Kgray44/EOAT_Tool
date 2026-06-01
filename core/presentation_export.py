@@ -57,7 +57,9 @@ def _slide_outline(metrics: dict, warnings: list[str]) -> str:
         elif slide == "Pilot Improvement Overview":
             lines.append("- Add pilot implementation details only after the pilot is selected and completed.")
         elif slide == "Before/After KPI Results":
-            lines.append("- Use before/after data only if measured KPI data exists. Do not claim improvement without evidence.")
+            lines.append(
+                "- Use before/after data only if measured KPI data exists. Do not claim improvement without evidence."
+            )
         else:
             lines.append("- Add concise evidence-backed talking points.")
         lines.append("")
@@ -109,62 +111,167 @@ def export_presentation_assets(project_root: str | Path, include_docx: bool = Fa
         else:
             warnings.append("DOCX output requested, but python-docx is unavailable.")
 
-    files_created.append(str(_write(subfolders["outline"], "executive_summary_for_slides.md", _summary_doc("Executive Summary for Slides", [
-        "This summary is generated from available workbook rows and report outputs.",
-        *metrics_markdown(metrics),
-        "Missing or incomplete data is called out rather than inferred.",
-    ]))))
-    files_created.append(str(_write(subfolders["audit"], "audit_metrics_summary.md", _summary_doc("Audit Metrics Summary", metrics_markdown(metrics)))))
-    files_created.append(str(_write(subfolders["fmea"], "fmea_top_risks_summary.md", _summary_doc("FMEA Top Risks Summary", table_from_rows(fmea_risks, ["Press/Machine #", "Failure Mode", "RPN", "Recommended Action"]) if fmea_risks else ["No FMEA risk rows are available yet."]))))
-    files_created.append(str(_write(subfolders["pilot"], "pilot_results_summary.md", _summary_doc("Pilot Results Summary", [
-        f"Pilot candidate rows available: {len(pilots)}",
-        "No before/after pilot validation result is claimed unless source KPI or pilot report evidence exists.",
-        "If pilot reports are missing, treat this section as a placeholder for final validation.",
-    ]))))
-    files_created.append(str(_write(subfolders["kpi"], "kpi_summary.md", _summary_doc("KPI Summary", [
-        f"KPI baseline records available: {len(kpis)}",
-        "KPI baseline data not available yet." if not kpis else "Use the KPI Dashboard outputs as the evidence source for final slides.",
-        "No before/after pilot validation data is assumed by this exporter.",
-    ]))))
-    files_created.append(str(_write(subfolders["standards"], "standardization_summary.md", _summary_doc("Standardization Summary", [
-        "PM checklist and BOM/spare part report references are listed below.",
-        *report_references_markdown({"PM Checklists": report_map["PM Checklists"], "BOM": report_map["BOM"], "Documentation Gaps": report_map["Documentation Gaps"]}),
-    ]))))
-    files_created.append(str(_write(subfolders["recommendations"], "final_recommendations.md", _summary_doc("Final Recommendations", [
-        "- Review recurring EOAT issues and convert validated themes into standards.",
-        "- Keep PM/BOM recommendations tied to observed audit data and verified part documentation.",
-        "- Complete KPI/pilot evidence before claiming measurable improvement.",
-        "- Use the final handoff package as the source of truth for next-owner follow-up.",
-    ]))))
-    files_created.append(str(_write(subfolders["photos"], "photo_references.md", _summary_doc("Photo References", [
-        f"Photos indexed in workbook: {len(photos)}",
-        "This package references photos through the Photo Index by default; it does not copy large photo folders.",
-        *table_from_rows(photos[:20], ["Photo ID", "Press/Machine #", "EOAT Area Shown", "Photo Filename", "Folder Path"]),
-    ]))))
+    files_created.append(
+        str(
+            _write(
+                subfolders["outline"],
+                "executive_summary_for_slides.md",
+                _summary_doc(
+                    "Executive Summary for Slides",
+                    [
+                        "This summary is generated from available workbook rows and report outputs.",
+                        *metrics_markdown(metrics),
+                        "Missing or incomplete data is called out rather than inferred.",
+                    ],
+                ),
+            )
+        )
+    )
+    files_created.append(
+        str(
+            _write(
+                subfolders["audit"],
+                "audit_metrics_summary.md",
+                _summary_doc("Audit Metrics Summary", metrics_markdown(metrics)),
+            )
+        )
+    )
+    files_created.append(
+        str(
+            _write(
+                subfolders["fmea"],
+                "fmea_top_risks_summary.md",
+                _summary_doc(
+                    "FMEA Top Risks Summary",
+                    table_from_rows(fmea_risks, ["Press/Machine #", "Failure Mode", "RPN", "Recommended Action"])
+                    if fmea_risks
+                    else ["No FMEA risk rows are available yet."],
+                ),
+            )
+        )
+    )
+    files_created.append(
+        str(
+            _write(
+                subfolders["pilot"],
+                "pilot_results_summary.md",
+                _summary_doc(
+                    "Pilot Results Summary",
+                    [
+                        f"Pilot candidate rows available: {len(pilots)}",
+                        "No before/after pilot validation result is claimed unless source KPI or pilot report evidence exists.",
+                        "If pilot reports are missing, treat this section as a placeholder for final validation.",
+                    ],
+                ),
+            )
+        )
+    )
+    files_created.append(
+        str(
+            _write(
+                subfolders["kpi"],
+                "kpi_summary.md",
+                _summary_doc(
+                    "KPI Summary",
+                    [
+                        f"KPI baseline records available: {len(kpis)}",
+                        "KPI baseline data not available yet."
+                        if not kpis
+                        else "Use the KPI Dashboard outputs as the evidence source for final slides.",
+                        "No before/after pilot validation data is assumed by this exporter.",
+                    ],
+                ),
+            )
+        )
+    )
+    files_created.append(
+        str(
+            _write(
+                subfolders["standards"],
+                "standardization_summary.md",
+                _summary_doc(
+                    "Standardization Summary",
+                    [
+                        "PM checklist and BOM/spare part report references are listed below.",
+                        *report_references_markdown(
+                            {
+                                "PM Checklists": report_map["PM Checklists"],
+                                "BOM": report_map["BOM"],
+                                "Documentation Gaps": report_map["Documentation Gaps"],
+                            }
+                        ),
+                    ],
+                ),
+            )
+        )
+    )
+    files_created.append(
+        str(
+            _write(
+                subfolders["recommendations"],
+                "final_recommendations.md",
+                _summary_doc(
+                    "Final Recommendations",
+                    [
+                        "- Review recurring EOAT issues and convert validated themes into standards.",
+                        "- Keep PM/BOM recommendations tied to observed audit data and verified part documentation.",
+                        "- Complete KPI/pilot evidence before claiming measurable improvement.",
+                        "- Use the final handoff package as the source of truth for next-owner follow-up.",
+                    ],
+                ),
+            )
+        )
+    )
+    files_created.append(
+        str(
+            _write(
+                subfolders["photos"],
+                "photo_references.md",
+                _summary_doc(
+                    "Photo References",
+                    [
+                        f"Photos indexed in workbook: {len(photos)}",
+                        "This package references photos through the Photo Index by default; it does not copy large photo folders.",
+                        *table_from_rows(
+                            photos[:20],
+                            ["Photo ID", "Press/Machine #", "EOAT Area Shown", "Photo Filename", "Folder Path"],
+                        ),
+                    ],
+                ),
+            )
+        )
+    )
 
-    asset_index = "\n".join(
-        [
-            "# Presentation Asset Index",
-            "",
-            f"Package: {package.name}",
-            "",
-            "## Contents",
-            *[f"- {Path(path).relative_to(package)}" for path in files_created if Path(path).is_relative_to(package)],
-            "",
-            "## Key Metrics",
-            *metrics_markdown(metrics),
-            "",
-            "## Top Issue Categories",
-            *table_from_rows(issues, ["Issue Category", "Count"]),
-            "",
-            "## Source Report References",
-            *report_references_markdown(report_map),
-            "",
-            "## Missing Data / Honesty Notes",
-            *(f"- {warning}" for warning in warnings),
-            "- Pilot and KPI improvement claims require before/after evidence before final presentation use.",
-        ]
-    ) + "\n"
+    asset_index = (
+        "\n".join(
+            [
+                "# Presentation Asset Index",
+                "",
+                f"Package: {package.name}",
+                "",
+                "## Contents",
+                *[
+                    f"- {Path(path).relative_to(package)}"
+                    for path in files_created
+                    if Path(path).is_relative_to(package)
+                ],
+                "",
+                "## Key Metrics",
+                *metrics_markdown(metrics),
+                "",
+                "## Top Issue Categories",
+                *table_from_rows(issues, ["Issue Category", "Count"]),
+                "",
+                "## Source Report References",
+                *report_references_markdown(report_map),
+                "",
+                "## Missing Data / Honesty Notes",
+                *(f"- {warning}" for warning in warnings),
+                "- Pilot and KPI improvement claims require before/after evidence before final presentation use.",
+            ]
+        )
+        + "\n"
+    )
     index_path = safe_write_text(package / "PRESENTATION_ASSET_INDEX.md", asset_index, overwrite=False)
     files_created.append(str(index_path))
 

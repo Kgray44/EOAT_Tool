@@ -93,7 +93,9 @@ def list_incoming_photos(project_root: str | Path) -> list[Path]:
     folder = incoming_photo_dir(project_root)
     if not folder.exists():
         return []
-    return sorted(path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS)
+    return sorted(
+        path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+    )
 
 
 def destination_folder(project_root: str | Path, view_type: str) -> Path:
@@ -118,7 +120,9 @@ def generate_photo_id(project_root: str | Path, taken_date: str | None = None) -
     return f"{prefix}{max_number + 1:03d}"
 
 
-def _next_existing_photo_sequence(project_root: str | Path, taken_date: str, plant_area: str, press_machine: str, view_type: str) -> int:
+def _next_existing_photo_sequence(
+    project_root: str | Path, taken_date: str, plant_area: str, press_machine: str, view_type: str
+) -> int:
     folder = destination_folder(project_root, view_type)
     stem_prefix = (
         f"{sanitize_filename_part(plant_area)}_"
@@ -198,19 +202,35 @@ def intake_photos(
     paths = resolve_project_paths(project_root)
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
-        return ToolResult.fail("photo_intake", "EOAT Photo Intake and Renaming Tool", "Master workbook is missing.", errors=[str(workbook_path)])
+        return ToolResult.fail(
+            "photo_intake",
+            "EOAT Photo Intake and Renaming Tool",
+            "Master workbook is missing.",
+            errors=[str(workbook_path)],
+        )
     if not photo_paths:
         return ToolResult.fail("photo_intake", "EOAT Photo Intake and Renaming Tool", "No photos selected.")
-    for field_name, value in {"Plant/Area": plant_area, "Press/Machine #": press_machine, "Date Taken": date_taken, "EOAT Area Shown": view_type}.items():
+    for field_name, value in {
+        "Plant/Area": plant_area,
+        "Press/Machine #": press_machine,
+        "Date Taken": date_taken,
+        "EOAT Area Shown": view_type,
+    }.items():
         if not str(value).strip():
-            return ToolResult.fail("photo_intake", "EOAT Photo Intake and Renaming Tool", f"Missing required field: {field_name}")
+            return ToolResult.fail(
+                "photo_intake", "EOAT Photo Intake and Renaming Tool", f"Missing required field: {field_name}"
+            )
 
     plan = preview_photo_intake(project_root, photo_paths, plant_area, press_machine, date_taken, view_type)
     if not plan:
-        return ToolResult.fail("photo_intake", "EOAT Photo Intake and Renaming Tool", "No supported image files selected.")
+        return ToolResult.fail(
+            "photo_intake", "EOAT Photo Intake and Renaming Tool", "No supported image files selected."
+        )
     missing = [str(item.source) for item in plan if not item.source.exists()]
     if missing:
-        return ToolResult.fail("photo_intake", "EOAT Photo Intake and Renaming Tool", "Some selected photos are missing.", errors=missing)
+        return ToolResult.fail(
+            "photo_intake", "EOAT Photo Intake and Renaming Tool", "Some selected photos are missing.", errors=missing
+        )
 
     workbook = None
     moved_or_copied: list[str] = []
@@ -288,7 +308,9 @@ def intake_photos(
         "EOAT Photo Intake and Renaming Tool",
         f"{'Copied' if copy_mode else 'Moved'} and indexed {len(plan)} photo(s).",
         details=[f"{item.source} -> {item.target}" for item in plan] + [f"Workbook backup: {backup}"],
-        warnings=["Filename collision avoided for one or more photos."] if any(item.collision_avoided for item in plan) else [],
+        warnings=["Filename collision avoided for one or more photos."]
+        if any(item.collision_avoided for item in plan)
+        else [],
         files_created=[str(backup), *moved_or_copied],
         files_modified=[str(workbook_path)],
         metrics={"photo_count": len(plan), "copy_mode": copy_mode},

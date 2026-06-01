@@ -54,7 +54,9 @@ class AppHealthPage(QWidget):
         )
         self.table.setRowCount(len(summary.checks))
         for row, check in enumerate(summary.checks):
-            for col, value in enumerate([check.label, check.status, check.severity, check.details, check.recommendation, check.key]):
+            for col, value in enumerate(
+                [check.label, check.status, check.severity, check.details, check.recommendation, check.key]
+            ):
                 self.table.setItem(row, col, QTableWidgetItem(str(value)))
         self.table.resizeColumnsToContents()
         self.result_panel.show_text(f"App health status: {summary.status}. Counts: {summary.counts}")

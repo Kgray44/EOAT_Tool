@@ -160,9 +160,7 @@ def test_press_view_counts_compatible_links_from_machine_source_audits(fake_proj
     compatibility_tab_result = build_compatibility_candidates(fake_project, source_audit_id)
     actions = {candidate.machine_no: candidate.recommended_action for candidate in compatibility_tab_result.candidates}
     linked_in_compatibility_tab = {
-        machine
-        for machine, action in actions.items()
-        if action == "Already Compatible - Linked to this source"
+        machine for machine, action in actions.items() if action == "Already Compatible - Linked to this source"
     }
     assert actions["1"] == "Already Audited"
     assert linked_in_compatibility_tab == set(linked_machines)

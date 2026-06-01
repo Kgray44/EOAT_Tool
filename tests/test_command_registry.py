@@ -71,7 +71,9 @@ def test_duplicate_command_ids_are_rejected():
 def test_context_recent_and_disabled_command_metadata(fake_project):
     window = _Window(fake_project)
     registry = build_dashboard_command_registry(window)
-    registry.register(CommandSpec("demo.disabled", "Disabled Demo", enabled=False, disabled_reason="Needs a selected audit."))
+    registry.register(
+        CommandSpec("demo.disabled", "Disabled Demo", enabled=False, disabled_reason="Needs a selected audit.")
+    )
 
     current_rows = registry.filter(current_page_key="workbook_health")
     assert current_rows[0].is_context_command("workbook_health")

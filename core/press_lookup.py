@@ -392,7 +392,9 @@ def _load_master_press_list(result: PressLookupResult) -> None:
         return
 
     if len(matches) > 1:
-        result.warnings.append(f"Multiple master press rows found for Machine {result.machine_number}. Review lookup details.")
+        result.warnings.append(
+            f"Multiple master press rows found for Machine {result.machine_number}. Review lookup details."
+        )
 
     merged: dict[str, Any] = {}
     for field_name in MASTER_SOURCE_FIELDS:
@@ -429,7 +431,9 @@ def _load_master_rows(path: Path) -> tuple[list[str], list[tuple[int, dict[str, 
 
 
 @lru_cache(maxsize=8)
-def _load_master_rows_from_file(path_text: str, _mtime_ns: int, _size: int) -> tuple[list[str], list[tuple[int, dict[str, Any]]]]:
+def _load_master_rows_from_file(
+    path_text: str, _mtime_ns: int, _size: int
+) -> tuple[list[str], list[tuple[int, dict[str, Any]]]]:
     path = Path(path_text)
     workbook = None
     try:
@@ -452,7 +456,9 @@ def _load_capacity_rows(path: Path) -> tuple[list[str], list[tuple[int, list[Any
 
 
 @lru_cache(maxsize=8)
-def _load_capacity_rows_from_file(path_text: str, _mtime_ns: int, _size: int) -> tuple[list[str], list[tuple[int, list[Any]]]]:
+def _load_capacity_rows_from_file(
+    path_text: str, _mtime_ns: int, _size: int
+) -> tuple[list[str], list[tuple[int, list[Any]]]]:
     path = Path(path_text)
     workbook = None
     try:
@@ -507,7 +513,9 @@ def _parse_capacity_rows(rows: list[tuple[int, list[Any]]], result: PressLookupR
     result.capacity_rows_count = len(result.capacity_part_rows)
     if result.capacity_part_rows and not result.capacity_summary:
         first = result.capacity_part_rows[0].fields
-        result.capacity_summary = {field_name: first.get(field_name, "") for field_name in CAPACITY_SUMMARY_FIELDS if first.get(field_name, "")}
+        result.capacity_summary = {
+            field_name: first.get(field_name, "") for field_name in CAPACITY_SUMMARY_FIELDS if first.get(field_name, "")
+        }
     if result.capacity_part_rows:
         result.details.append(f"Plant 4 Capacity matched {len(result.capacity_part_rows)} part row(s).")
 

@@ -144,8 +144,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run local CI smoke checks for registries and repository safety.")
     parser.add_argument("--root", default=str(REPO_ROOT), help="Repository root to inspect.")
     parser.add_argument("--registry-only", action="store_true", help="Skip repository safety audit.")
-    parser.add_argument("--dashboard-smoke", action="store_true", help="Launch the dashboard offscreen against the sanitized demo project.")
-    parser.add_argument("--skip-dashboard-smoke", action="store_true", help="Do not launch the dashboard, even if --dashboard-smoke was set by a wrapper.")
+    parser.add_argument(
+        "--dashboard-smoke",
+        action="store_true",
+        help="Launch the dashboard offscreen against the sanitized demo project.",
+    )
+    parser.add_argument(
+        "--skip-dashboard-smoke",
+        action="store_true",
+        help="Do not launch the dashboard, even if --dashboard-smoke was set by a wrapper.",
+    )
     args = parser.parse_args(argv)
 
     root = Path(args.root)

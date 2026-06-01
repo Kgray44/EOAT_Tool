@@ -50,7 +50,13 @@ FAILURE_MODE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "drop/mis-pick": ("drop", "drops", "mis-pick", "mispick", "mis pick", "part drop", "part drops"),
     "changeover error": ("changeover", "setup", "ati", "dovetail", "wrong tool"),
     "documentation gap": ("documentation", "bom", "cad", "drawing", "process binder", "spare parts"),
-    "pneumatic circuit mismatch": ("pneumatic circuit", "robot vacuum circuit", "eoat vacuum circuit", "pressure circuit", "circuit mismatch"),
+    "pneumatic circuit mismatch": (
+        "pneumatic circuit",
+        "robot vacuum circuit",
+        "eoat vacuum circuit",
+        "pressure circuit",
+        "circuit mismatch",
+    ),
     "gripper wear": ("gripper", "jaw", "finger", "gripper wear"),
     "cylinder issue": ("cylinder", "actuator", "linear cylinder", "rotary cylinder"),
 }
@@ -66,7 +72,14 @@ AUDIT_TEXT_FIELDS = (
     "EOAT Alignment Condition",
     "Changeover Difficulty",
 )
-ISSUE_TEXT_FIELDS = ("Issue Category", "Issue Description", "Suspected Cause", "Evidence/Observation", "Impact", "Notes")
+ISSUE_TEXT_FIELDS = (
+    "Issue Category",
+    "Issue Description",
+    "Suspected Cause",
+    "Evidence/Observation",
+    "Impact",
+    "Notes",
+)
 FMEA_TEXT_FIELDS = ("Failure Mode", "Failure Effect", "Potential Cause", "Recommended Action", "Notes")
 
 
@@ -134,7 +147,9 @@ def build_risk_heatmap(project_root: str | Path) -> RiskHeatmapSummary:
     paths = resolve_project_paths(project_root)
     workbook = paths.master_workbook
     if not workbook.exists():
-        return RiskHeatmapSummary(metrics={"machines": 0, "evidence_count": 0}, warnings=[f"Master workbook is missing: {workbook}"])
+        return RiskHeatmapSummary(
+            metrics={"machines": 0, "evidence_count": 0}, warnings=[f"Master workbook is missing: {workbook}"]
+        )
     warnings: list[str] = []
     audit_rows = _safe_rows(workbook, "EOAT Inventory", warnings)
     issue_rows = _safe_rows(workbook, "Issue Log", warnings)
@@ -153,7 +168,11 @@ def build_risk_heatmap(project_root: str | Path) -> RiskHeatmapSummary:
     cells: list[RiskHeatmapCell] = []
     for machine in machines:
         for mode in FAILURE_MODES:
-            mode_evidence = tuple(sorted(by_pair.get((machine, mode), []), key=lambda item: (-item.score, item.source_type, item.source_id)))
+            mode_evidence = tuple(
+                sorted(
+                    by_pair.get((machine, mode), []), key=lambda item: (-item.score, item.source_type, item.source_id)
+                )
+            )
             risk_score = sum(item.score for item in mode_evidence)
             level = _risk_level(risk_score, len(mode_evidence))
             missing = () if mode_evidence else (f"No local evidence found for {mode} on machine {machine}.",)
@@ -276,7 +295,17 @@ def risk_heatmap_markdown(summary: RiskHeatmapSummary) -> str:
         "## Evidence Details",
         *table_from_rows(
             detail_rows[:100],
-            ["Machine", "Failure Mode", "Risk Level", "Risk Score", "Source Type", "Source ID", "Evidence", "Missing Evidence", "Recommended Action"],
+            [
+                "Machine",
+                "Failure Mode",
+                "Risk Level",
+                "Risk Score",
+                "Source Type",
+                "Source ID",
+                "Evidence",
+                "Missing Evidence",
+                "Recommended Action",
+            ],
         ),
     ]
     if summary.warnings:
@@ -296,7 +325,9 @@ def _evidence_from_audits(rows: list[dict[str, Any]]) -> list[RiskEvidence]:
         evidence.extend(_documentation_gap_evidence(row, machine, audit_id))
         mismatch = _pneumatic_mismatch_text(row)
         if mismatch:
-            evidence.append(RiskEvidence("pneumatic circuit mismatch", machine, "audit", audit_id, mismatch, 8, audit_id=audit_id))
+            evidence.append(
+                RiskEvidence("pneumatic circuit mismatch", machine, "audit", audit_id, mismatch, 8, audit_id=audit_id)
+            )
     return evidence
 
 
@@ -338,18 +369,41 @@ def _evidence_from_kpis(rows: list[dict[str, Any]]) -> list[RiskEvidence]:
         mispicks = _numeric(row.get("Mis-Picks"))
         scrap = _numeric(row.get("Scrap Quantity"))
         if drops or mispicks:
-            evidence.append(RiskEvidence("drop/mis-pick", machine, "kpi", kpi_id, f"Part drops={drops:g}; mis-picks={mispicks:g}.", min(12, int(drops + mispicks) or 1), audit_id=""))
+            evidence.append(
+                RiskEvidence(
+                    "drop/mis-pick",
+                    machine,
+                    "kpi",
+                    kpi_id,
+                    f"Part drops={drops:g}; mis-picks={mispicks:g}.",
+                    min(12, int(drops + mispicks) or 1),
+                    audit_id="",
+                )
+            )
         if scrap:
-            evidence.append(RiskEvidence("drop/mis-pick", machine, "kpi", kpi_id, f"Scrap quantity={scrap:g}; reason={text_value(row.get('Scrap Reason')) or 'not recorded'}.", min(8, int(scrap) or 1)))
+            evidence.append(
+                RiskEvidence(
+                    "drop/mis-pick",
+                    machine,
+                    "kpi",
+                    kpi_id,
+                    f"Scrap quantity={scrap:g}; reason={text_value(row.get('Scrap Reason')) or 'not recorded'}.",
+                    min(8, int(scrap) or 1),
+                )
+            )
     return evidence
 
 
-def _keyword_evidence(haystack: str, machine: str, source_type: str, source_id: str, audit_id: str, score: int) -> list[RiskEvidence]:
+def _keyword_evidence(
+    haystack: str, machine: str, source_type: str, source_id: str, audit_id: str, score: int
+) -> list[RiskEvidence]:
     normalized = haystack.casefold()
     found: list[RiskEvidence] = []
     for mode, keywords in FAILURE_MODE_KEYWORDS.items():
         if any(keyword in normalized for keyword in keywords):
-            found.append(RiskEvidence(mode, machine, source_type, source_id, _excerpt(haystack), score, audit_id=audit_id))
+            found.append(
+                RiskEvidence(mode, machine, source_type, source_id, _excerpt(haystack), score, audit_id=audit_id)
+            )
     return found
 
 
@@ -358,7 +412,17 @@ def _documentation_gap_evidence(row: dict[str, Any], machine: str, audit_id: str
     missing = [field for field in fields if _is_no_or_missing(row.get(field))]
     if not missing:
         return []
-    return [RiskEvidence("documentation gap", machine, "audit", audit_id, f"Missing/negative documentation fields: {', '.join(missing)}.", 3 * len(missing), audit_id=audit_id)]
+    return [
+        RiskEvidence(
+            "documentation gap",
+            machine,
+            "audit",
+            audit_id,
+            f"Missing/negative documentation fields: {', '.join(missing)}.",
+            3 * len(missing),
+            audit_id=audit_id,
+        )
+    ]
 
 
 def _pneumatic_mismatch_text(row: dict[str, Any]) -> str:
@@ -390,7 +454,9 @@ def _risk_level(score: int, evidence_count: int) -> str:
 
 def _recommended_action(level: str, failure_mode: str) -> str:
     if level == RISK_LEVEL_MISSING:
-        return f"No local evidence found for {failure_mode}; do not claim this risk without audit/issue/FMEA/KPI evidence."
+        return (
+            f"No local evidence found for {failure_mode}; do not claim this risk without audit/issue/FMEA/KPI evidence."
+        )
     if level in {RISK_LEVEL_CRITICAL, RISK_LEVEL_HIGH}:
         return f"Review {failure_mode} evidence with maintenance/engineering and create follow-up actions."
     return f"Monitor {failure_mode} evidence and keep workbook observations current."

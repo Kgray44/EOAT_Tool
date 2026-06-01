@@ -10,4 +10,3 @@ def test_add_action_item(fake_project):
     assert action_id.startswith("ACT-20260518-")
     assert result.success is True
     assert result.metrics["action_id"].startswith("ACT-")
-

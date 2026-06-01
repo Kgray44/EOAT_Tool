@@ -9,7 +9,9 @@ from .widgets import settings_group
 
 
 def build_advanced_section(page, layout) -> None:
-    group, group_layout = settings_group(page, "Advanced / Diagnostics", "advanced diagnostics system audit settings changes")
+    group, group_layout = settings_group(
+        page, "Advanced / Diagnostics", "advanced diagnostics system audit settings changes"
+    )
     button_row = QHBoxLayout()
     for label, callback in [
         ("Run Full System Audit", page.run_system_audit),

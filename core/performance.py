@@ -226,9 +226,15 @@ def summarize_performance(events: list[dict], *, slow_limit: int = 10) -> dict:
     }
 
 
-def analyze_performance_doctor(project_root: str | Path, *, limit: int = 500) -> tuple[PerformanceDoctorSummary, str | None]:
+def analyze_performance_doctor(
+    project_root: str | Path, *, limit: int = 500
+) -> tuple[PerformanceDoctorSummary, str | None]:
     events, warning = read_recent_performance_events(project_root, limit=limit)
-    findings = tuple(_doctor_finding(event) for event in sorted(events, key=_duration, reverse=True)[:20] if _duration(event) >= _slow_threshold(event))
+    findings = tuple(
+        _doctor_finding(event)
+        for event in sorted(events, key=_duration, reverse=True)[:20]
+        if _duration(event) >= _slow_threshold(event)
+    )
     slowest = max(events, key=_duration, default={})
     return (
         PerformanceDoctorSummary(
@@ -246,7 +252,9 @@ def _doctor_finding(event: dict) -> PerformanceDoctorFinding:
     duration = round(_duration(event), 4)
     lowered = operation.casefold()
     details = event.get("details")
-    detail_text = json.dumps(details, ensure_ascii=True).casefold() if not isinstance(details, str) else details.casefold()
+    detail_text = (
+        json.dumps(details, ensure_ascii=True).casefold() if not isinstance(details, str) else details.casefold()
+    )
     if "lock" in lowered:
         cause = "Workbook lock wait was recorded."
         recommendation = "Close Excel/Office lock files before save, repair, or migration operations."
@@ -278,7 +286,13 @@ def _doctor_finding(event: dict) -> PerformanceDoctorFinding:
         cause = "Operation duration is above the diagnostic threshold."
         recommendation = "Inspect operation details and add finer-grained timing around this workflow."
     severity = "warning" if duration >= 5 else "info"
-    return PerformanceDoctorFinding(operation=operation, duration_seconds=duration, likely_cause=cause, recommendation=recommendation, severity=severity)
+    return PerformanceDoctorFinding(
+        operation=operation,
+        duration_seconds=duration,
+        likely_cause=cause,
+        recommendation=recommendation,
+        severity=severity,
+    )
 
 
 def _duration(event: dict) -> float:

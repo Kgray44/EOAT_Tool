@@ -10,7 +10,9 @@ from tests.ui.helpers import click_button, wait_for_background_tasks
 pytestmark = pytest.mark.usability
 
 
-def test_workbook_validation_generates_report_updates_cards_and_stubs_open(qapp, fake_config, fake_project, captured_open_requests):
+def test_workbook_validation_generates_report_updates_cards_and_stubs_open(
+    qapp, fake_config, fake_project, captured_open_requests
+):
     page = WorkbookHealthPage(fake_config)
     page.show()
 
@@ -33,8 +35,12 @@ def test_workbook_health_refreshes_audit_by_press_view(qapp, fake_config, fake_p
     page = WorkbookHealthPage(fake_config)
     page.show()
 
-    assert AUDIT_BY_PRESS_SHEET not in workbook_sheet_names(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx")
+    assert AUDIT_BY_PRESS_SHEET not in workbook_sheet_names(
+        fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
+    )
     click_button(page, REFRESH_ACTION_NAME)
     wait_for_background_tasks()
 
-    assert AUDIT_BY_PRESS_SHEET in workbook_sheet_names(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx")
+    assert AUDIT_BY_PRESS_SHEET in workbook_sheet_names(
+        fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
+    )

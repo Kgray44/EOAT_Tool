@@ -16,7 +16,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QAbstractItemView = QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QAbstractItemView = QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = (
+        QTableWidget
+    ) = QTableWidgetItem = QVBoxLayout = QWidget = None
 
 from app.event_bus import EVENT_WORKBOOK_VALIDATED, get_event_bus
 from app.page_tasks import run_tool_background
@@ -101,7 +103,9 @@ class WorkbookHealthPage(QWidget):
         self.search_edit.textChanged.connect(self._refresh_findings_table)
 
         self.findings_table = QTableWidget(0, 9)
-        self.findings_table.setHorizontalHeaderLabels(["Severity", "Category", "Sheet", "Row", "Audit ID", "Machine", "Field", "Message", "Fix"])
+        self.findings_table.setHorizontalHeaderLabels(
+            ["Severity", "Category", "Sheet", "Row", "Audit ID", "Machine", "Field", "Message", "Fix"]
+        )
         self.findings_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.findings_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.findings_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -138,7 +142,9 @@ class WorkbookHealthPage(QWidget):
 
         self.result_panel = ToolRunPanel()
         layout.addWidget(self.result_panel, stretch=1)
-        self.result_panel.show_text("No validation report selected. Run foundation validation to generate a workbook health report.")
+        self.result_panel.show_text(
+            "No validation report selected. Run foundation validation to generate a workbook health report."
+        )
 
     def run_validation(self) -> None:
         run_tool_background(
@@ -175,12 +181,22 @@ class WorkbookHealthPage(QWidget):
         self._update_category_filter()
         self._refresh_findings_table()
         self.cards["Workbook Status"].set_value("OK" if result.success else "Needs attention")
-        self.cards["Missing Major Headers"].set_value(str(result.metrics.get("missing_major_inventory_header_count", 0)))
+        self.cards["Missing Major Headers"].set_value(
+            str(result.metrics.get("missing_major_inventory_header_count", 0))
+        )
         self.cards["Missing Detail Headers"].set_value(
-            str(max(0, int(result.metrics.get("missing_full_inventory_header_count", 0)) - int(result.metrics.get("missing_major_inventory_header_count", 0))))
+            str(
+                max(
+                    0,
+                    int(result.metrics.get("missing_full_inventory_header_count", 0))
+                    - int(result.metrics.get("missing_major_inventory_header_count", 0)),
+                )
+            )
         )
         self.cards["Duplicate Audit IDs"].set_value(str(result.metrics.get("duplicate_audit_id_count", 0)))
-        self.cards["Applicable N/A Warnings"].set_value(str(result.metrics.get("missing_applicable_major_cell_count", 0)))
+        self.cards["Applicable N/A Warnings"].set_value(
+            str(result.metrics.get("missing_applicable_major_cell_count", 0))
+        )
         self.cards["Semantic Warnings"].set_value(str(result.metrics.get("semantic_warning_count", 0)))
         self.cards["Fixable Findings"].set_value(str(result.metrics.get("validation_fix_available_count", 0)))
         self.cards["Last Validation"].set_value("Just now")
@@ -208,7 +224,9 @@ class WorkbookHealthPage(QWidget):
             self.repair_suggestions_table.setRowCount(0)
             return
         safe_count = sum(1 for item in suggestions if str(item.get("safety") or "") == "safe_automatic")
-        self.repair_summary_label.setText(f"{len(suggestions)} repair suggestion(s), {safe_count} safe automatic preview path(s).")
+        self.repair_summary_label.setText(
+            f"{len(suggestions)} repair suggestion(s), {safe_count} safe automatic preview path(s)."
+        )
         self.repair_suggestions_table.setRowCount(len(suggestions))
         for row_number, suggestion in enumerate(suggestions):
             values = [
@@ -295,7 +313,11 @@ class WorkbookHealthPage(QWidget):
         finding = self._selected_finding()
         if finding and finding.fix_available and finding.fix_id in SAFE_FIX_IDS:
             return finding.fix_id
-        selected = self.repair_suggestions_table.selectionModel().selectedRows() if hasattr(self, "repair_suggestions_table") else []
+        selected = (
+            self.repair_suggestions_table.selectionModel().selectedRows()
+            if hasattr(self, "repair_suggestions_table")
+            else []
+        )
         if selected:
             row = selected[0].row()
             item = self.repair_suggestions_table.item(row, 0)
@@ -360,7 +382,9 @@ class WorkbookHealthPage(QWidget):
                 note_type="Validation Finding",
                 target_ids=[target.id],
             )
-            self.result_panel.show_text(f"Created annotation note {note.id} for validation finding {finding.finding_id}.")
+            self.result_panel.show_text(
+                f"Created annotation note {note.id} for validation finding {finding.finding_id}."
+            )
         except Exception as exc:
             self.result_panel.show_text(f"Could not create annotation: {exc}")
 

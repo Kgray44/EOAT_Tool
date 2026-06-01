@@ -38,18 +38,36 @@ class RiskInsightSummary:
             *[f"- {key}: {value}" for key, value in self.metrics.items()],
             "",
             "## Top FMEA Risks",
-            *table_from_rows(self.top_risks, ["FMEA ID", "Press/Machine #", "Failure Mode", "RPN", "Recommended Action"]),
+            *table_from_rows(
+                self.top_risks, ["FMEA ID", "Press/Machine #", "Failure Mode", "RPN", "Recommended Action"]
+            ),
             "",
             "## Top Pilot Candidates",
             *table_from_rows(
                 self.top_pilot_candidates,
-                ["Rank", "Candidate ID", "Press/Machine #", "Main Problem", "Total Score", "Confidence", "Missing Data"],
+                [
+                    "Rank",
+                    "Candidate ID",
+                    "Press/Machine #",
+                    "Main Problem",
+                    "Total Score",
+                    "Confidence",
+                    "Missing Data",
+                ],
             ),
             "",
             "## Top Bad Actors",
             *table_from_rows(
                 self.top_bad_actors,
-                ["Machine", "Score", "Issue Count", "High Priority Count", "Critical Priority Count", "Missing Evidence", "Recommended Action"],
+                [
+                    "Machine",
+                    "Score",
+                    "Issue Count",
+                    "High Priority Count",
+                    "Critical Priority Count",
+                    "Missing Evidence",
+                    "Recommended Action",
+                ],
             ),
             "",
             "## Risk Heat Map Signals",
@@ -148,7 +166,9 @@ def generate_risk_insights_report(project_root: str | Path, log_activity: bool =
     try:
         report = write_timestamped_report(folder, "Risk_Insight_Report", summary.to_markdown())
     except Exception as exc:
-        return ToolResult.fail("risk_insights", "Risk Insights", "Could not write risk insight report.", errors=[str(exc)])
+        return ToolResult.fail(
+            "risk_insights", "Risk Insights", "Could not write risk insight report.", errors=[str(exc)]
+        )
     result = ToolResult.ok(
         "risk_insights",
         "Risk Insights",
@@ -175,9 +195,13 @@ def _recommended_actions(metrics: dict[str, Any], warnings: list[str]) -> list[s
     if metrics.get("top_rpn", 0):
         actions.append("Review the highest RPN FMEA entries and confirm recommended actions.")
     if metrics.get("pilot_candidate_count", 0):
-        actions.append("Use the top pilot candidates as the first review set, then verify missing evidence and KPI baselines.")
+        actions.append(
+            "Use the top pilot candidates as the first review set, then verify missing evidence and KPI baselines."
+        )
     if metrics.get("top_bad_actor_score", 0):
-        actions.append("Review the highest bad-actor machine score and confirm missing evidence before prioritizing corrective work.")
+        actions.append(
+            "Review the highest bad-actor machine score and confirm missing evidence before prioritizing corrective work."
+        )
     if metrics.get("risk_heatmap_high_or_critical_count", 0):
         actions.append("Use high/critical heat-map cells to focus failure-mode follow-up discussions.")
     if metrics.get("missing_kpi_fields_total", 0):

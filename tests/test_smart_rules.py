@@ -35,8 +35,22 @@ def test_smart_rules_preserve_user_entered_values_by_default():
 
 def test_smart_rules_report_conflicts_without_overwriting_first_value():
     rules = [
-        {"id": "first", "when_field": "Connection Type", "operator": "contains", "when_value": "ATI", "set_field": "Changeover Difficulty", "set_value": "Low"},
-        {"id": "second", "when_field": "Connection Type", "operator": "contains", "when_value": "ATI", "set_field": "Changeover Difficulty", "set_value": "High"},
+        {
+            "id": "first",
+            "when_field": "Connection Type",
+            "operator": "contains",
+            "when_value": "ATI",
+            "set_field": "Changeover Difficulty",
+            "set_value": "Low",
+        },
+        {
+            "id": "second",
+            "when_field": "Connection Type",
+            "operator": "contains",
+            "when_value": "ATI",
+            "set_field": "Changeover Difficulty",
+            "set_value": "High",
+        },
     ]
 
     result = apply_smart_default_rules({"Connection Type": "ATI", "Changeover Difficulty": ""}, rules)
@@ -65,4 +79,3 @@ def test_audit_defaults_controller_exposes_configured_smart_rules():
 
     assert result.values["Priority"] == "High"
     assert result.applied_rules == ("custom_priority",)
-

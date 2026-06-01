@@ -135,7 +135,9 @@ class StandardizationAnalysis:
         }
 
 
-def load_part_aliases(project_root: str | Path | None = None, alias_path: str | Path | None = None) -> dict[str, dict[str, str]]:
+def load_part_aliases(
+    project_root: str | Path | None = None, alias_path: str | Path | None = None
+) -> dict[str, dict[str, str]]:
     aliases = _copy_aliases(DEFAULT_PART_ALIASES)
     for path in _alias_candidate_paths(project_root, alias_path):
         if not path.exists():
@@ -170,13 +172,39 @@ def analyze_standardization_opportunities(
     warnings: list[str] = []
     if not paths.master_workbook.exists():
         warning = f"Master workbook not found: {paths.master_workbook}"
-        return StandardizationAnalysis([], [], [], [], [], [], [], [], ["Start by auditing representative EOATs before standardizing parts."], load_part_aliases(project_root, alias_path), [warning], [])
+        return StandardizationAnalysis(
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            ["Start by auditing representative EOATs before standardizing parts."],
+            load_part_aliases(project_root, alias_path),
+            [warning],
+            [],
+        )
 
     try:
         rows = [repair_legacy_audit_lookup_shift(row) for row in row_dicts(paths.master_workbook, "EOAT Inventory")]
     except Exception as exc:
         warning = f"Could not read EOAT Inventory: {exc}"
-        return StandardizationAnalysis([], [], [], [], [], [], [], [], ["Start by auditing representative EOATs before standardizing parts."], load_part_aliases(project_root, alias_path), [warning], [])
+        return StandardizationAnalysis(
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            ["Start by auditing representative EOATs before standardizing parts."],
+            load_part_aliases(project_root, alias_path),
+            [warning],
+            [],
+        )
 
     aliases = load_part_aliases(project_root, alias_path)
     observations = _component_observations(rows, aliases)
@@ -234,7 +262,9 @@ def build_standardization_report_markdown(analysis: StandardizationAnalysis) -> 
         )
     )
     lines.extend(["", "## Suggested Controlled Vocabulary"])
-    lines.extend(table_from_rows(analysis.suggested_controlled_vocabulary[:50], ["Category", "Field", "Suggested Values"]))
+    lines.extend(
+        table_from_rows(analysis.suggested_controlled_vocabulary[:50], ["Category", "Field", "Suggested Values"])
+    )
     lines.extend(["", "## Recommended Standard Parts"])
     lines.extend(
         table_from_rows(
@@ -314,7 +344,9 @@ def generate_standardization_report(project_root: str | Path, *, alias_path: str
     return result
 
 
-def _component_observations(rows: list[dict[str, Any]], aliases: dict[str, dict[str, str]]) -> list[ComponentObservation]:
+def _component_observations(
+    rows: list[dict[str, Any]], aliases: dict[str, dict[str, str]]
+) -> list[ComponentObservation]:
     observations: list[ComponentObservation] = []
     for row in rows:
         audit_id = _clean(row.get("Audit ID"))
@@ -390,7 +422,10 @@ def _suggested_controlled_vocabulary(frequency_rows: list[dict[str, Any]]) -> li
         by_category[(str(row["Category"]), str(row["Field"]))].append(row)
     vocabulary: list[dict[str, Any]] = []
     for (category, field), rows in by_category.items():
-        values = [str(row["Component"]) for row in sorted(rows, key=lambda item: (-int(item["Count"]), str(item["Component"])))]
+        values = [
+            str(row["Component"])
+            for row in sorted(rows, key=lambda item: (-int(item["Count"]), str(item["Component"])))
+        ]
         vocabulary.append({"Category": category, "Field": field, "Suggested Values": "; ".join(values[:12])})
     return sorted(vocabulary, key=lambda row: str(row["Category"]))
 
@@ -412,7 +447,9 @@ def _recommended_standard_parts(frequency_rows: list[dict[str, Any]]) -> list[di
                 "Reason": f"Observed on {count} audited EOAT record(s).",
             }
         )
-    return sorted(recommendations, key=lambda row: (-int(row["Count"]), str(row["Category"]), str(row["Recommended Part"])))
+    return sorted(
+        recommendations, key=lambda row: (-int(row["Count"]), str(row["Category"]), str(row["Recommended Part"]))
+    )
 
 
 def _documentation_gap_table(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -498,15 +535,23 @@ def _opportunities(
     for row in frequency_rows:
         count = int(row["Count"])
         if count >= 2:
-            opportunities.append(f"Review common {row['Category']}: {row['Component']} appears on {count} EOAT record(s).")
+            opportunities.append(
+                f"Review common {row['Category']}: {row['Component']} appears on {count} EOAT record(s)."
+            )
     if unknown_rows:
         opportunities.append(f"Resolve unknown or missing component/model values on {len(unknown_rows)} field(s).")
     if documentation_gap_rows:
-        opportunities.append(f"Close BOM/CAD/process binder/spare-parts status gaps on {len(documentation_gap_rows)} EOAT record(s).")
+        opportunities.append(
+            f"Close BOM/CAD/process binder/spare-parts status gaps on {len(documentation_gap_rows)} EOAT record(s)."
+        )
     alias_actions = [row for row in cleanup_rows if row["Action Type"] == "Alias normalization"]
     if alias_actions:
-        opportunities.append(f"Normalize {len(alias_actions)} aliased component value(s) to controlled part/model names.")
-    return _dedupe(opportunities) or ["No obvious standardization opportunity was detected from current workbook fields."]
+        opportunities.append(
+            f"Normalize {len(alias_actions)} aliased component value(s) to controlled part/model names."
+        )
+    return _dedupe(opportunities) or [
+        "No obvious standardization opportunity was detected from current workbook fields."
+    ]
 
 
 def _alias_candidate_paths(project_root: str | Path | None, alias_path: str | Path | None) -> list[Path]:

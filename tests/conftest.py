@@ -30,6 +30,22 @@ def qapp():
 
 
 @pytest.fixture(autouse=True)
+def cleanup_qt_widgets():
+    yield
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        return
+    app = QApplication.instance()
+    if app is None:
+        return
+    for widget in app.topLevelWidgets():
+        widget.close()
+        widget.deleteLater()
+    app.processEvents()
+
+
+@pytest.fixture(autouse=True)
 def deterministic_ui_task_manager(monkeypatch):
     import app.task_runner as task_runner
 
@@ -62,7 +78,9 @@ def deterministic_ui_task_manager(monkeypatch):
                     duration_seconds=value.duration_seconds or 0.0,
                 )
             else:
-                result = TaskResult(id=request.id, name=request.name, ok=True, message=f"{request.name} completed.", result_data=value)
+                result = TaskResult(
+                    id=request.id, name=request.name, ok=True, message=f"{request.name} completed.", result_data=value
+                )
         except Exception as exc:
             result = TaskResult(
                 id=request.id,

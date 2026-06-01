@@ -22,7 +22,9 @@ def find_git_executable(configured_path: str | Path | None = None) -> tuple[Path
     return None, "Git executable was not found."
 
 
-def _run_git(project_root: str | Path, args: list[str], configured_path: str | Path | None = None) -> tuple[bool, str, str]:
+def _run_git(
+    project_root: str | Path, args: list[str], configured_path: str | Path | None = None
+) -> tuple[bool, str, str]:
     git_path, warning = find_git_executable(configured_path)
     if git_path is None:
         return False, "", warning or "Git executable was not found."
@@ -48,14 +50,18 @@ def is_git_repo(project_root: str | Path, configured_path: str | Path | None = N
     return stdout.lower() == "true", None
 
 
-def get_git_status_short(project_root: str | Path, configured_path: str | Path | None = None) -> tuple[list[str], str | None]:
+def get_git_status_short(
+    project_root: str | Path, configured_path: str | Path | None = None
+) -> tuple[list[str], str | None]:
     ok, stdout, stderr = _run_git(project_root, ["status", "--short"], configured_path)
     if not ok:
         return [], stderr
     return [line for line in stdout.splitlines() if line.strip()], None
 
 
-def get_recent_commits_today(project_root: str | Path, configured_path: str | Path | None = None) -> tuple[list[str], str | None]:
+def get_recent_commits_today(
+    project_root: str | Path, configured_path: str | Path | None = None
+) -> tuple[list[str], str | None]:
     today = date.today().isoformat()
     ok, stdout, stderr = _run_git(
         project_root,
@@ -65,4 +71,3 @@ def get_recent_commits_today(project_root: str | Path, configured_path: str | Pa
     if not ok:
         return [], stderr
     return [line for line in stdout.splitlines() if line.strip()], None
-

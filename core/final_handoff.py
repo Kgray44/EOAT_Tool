@@ -92,7 +92,12 @@ def _latest_from(folder: Path, limit: int = 8) -> list[Path]:
 def _recursive_recent(folder: Path, limit: int = 8) -> list[Path]:
     if not folder.exists():
         return []
-    files = [path for path in folder.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json", ".docx", ".pdf", ".csv", ".png", ".svg", ".xlsx", ".pptx"}]
+    files = [
+        path
+        for path in folder.rglob("*")
+        if path.is_file()
+        and path.suffix.lower() in {".md", ".txt", ".json", ".docx", ".pdf", ".csv", ".png", ".svg", ".xlsx", ".pptx"}
+    ]
     return sorted(files, key=lambda path: path.stat().st_mtime, reverse=True)[:limit]
 
 
@@ -114,7 +119,8 @@ def collect_handoff_sources(
         "pm": _latest_from(paths.pm_generated_checklists, 20),
         "fmea": _latest_from(paths.fmea_reports, 10),
         "kpi": _latest_from(paths.kpi_dashboard_exports, 10),
-        "pilot": _latest_from(paths.pilot_project / "Candidate_Cells", 10) + _latest_from(paths.pilot_project / "Pilot_Reports", 10),
+        "pilot": _latest_from(paths.pilot_project / "Candidate_Cells", 10)
+        + _latest_from(paths.pilot_project / "Pilot_Reports", 10),
         "work_instructions": work_instruction_sources,
         "training": _latest_from(paths.training_materials, 10) + work_instruction_sources,
         "risk": _latest_from(paths.risk_insights_reports, 10),
@@ -124,7 +130,8 @@ def collect_handoff_sources(
         "reference": _latest_from(paths.issue_analysis_reports, 5) + _latest_from(paths.audit_progress_reports, 5),
         "change_validation": _recursive_recent(paths.change_validation, 10),
         "qr_labels": _recursive_recent(paths.qr_labels, 10),
-        "machine_summaries": _latest_from(paths.machine_summaries, 10) + _latest_from(paths.project_admin / "Machine_360_Summaries", 10),
+        "machine_summaries": _latest_from(paths.machine_summaries, 10)
+        + _latest_from(paths.project_admin / "Machine_360_Summaries", 10),
         "photos_evidence": [],
     }
     if include_weekly_reports:
@@ -134,7 +141,11 @@ def collect_handoff_sources(
     if include_mentor_briefs:
         sources["admin"].extend(_latest_from(paths.mentor_briefs, 12))
     if include_photo_files and paths.cell_photos.exists():
-        photos = [path for path in paths.cell_photos.rglob("*") if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic"}]
+        photos = [
+            path
+            for path in paths.cell_photos.rglob("*")
+            if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic"}
+        ]
         sources["photos_evidence"].extend(sorted(photos, key=lambda path: path.stat().st_mtime, reverse=True)[:100])
     return sources
 
@@ -170,7 +181,9 @@ def _copy_sources(package: Path, sources: dict[str, list[Path]]) -> tuple[list[s
         for source in files:
             source_key = source.resolve()
             if source_key in copied_sources:
-                manifest.append({"Category": key, "Source": str(source), "Package Path": str(copied_sources[source_key])})
+                manifest.append(
+                    {"Category": key, "Source": str(source), "Package Path": str(copied_sources[source_key])}
+                )
                 continue
             name = source.name
             suffix_index = 2
@@ -277,7 +290,9 @@ def _index_markdown(
     return "\n".join(lines) + "\n"
 
 
-def _handoff_link_table(package: Path | None, manifest: list[dict[str, str]], readiness: FinalHandoffReadinessSummary) -> list[str]:
+def _handoff_link_table(
+    package: Path | None, manifest: list[dict[str, str]], readiness: FinalHandoffReadinessSummary
+) -> list[str]:
     rows = _handoff_link_rows(package, manifest, readiness)
     columns = ["Deliverable", "Status", "Link", "Evidence Label"]
     lines = [
@@ -289,23 +304,65 @@ def _handoff_link_table(package: Path | None, manifest: list[dict[str, str]], re
     return lines
 
 
-def _handoff_link_rows(package: Path | None, manifest: list[dict[str, str]], readiness: FinalHandoffReadinessSummary) -> list[dict[str, str]]:
+def _handoff_link_rows(
+    package: Path | None, manifest: list[dict[str, str]], readiness: FinalHandoffReadinessSummary
+) -> list[dict[str, str]]:
     readiness_by_key = {item.key: item for item in readiness.deliverables}
     specs = [
         ("Final master tracker", ("database",), "eoat_database", "Structured workbook evidence"),
         ("Robot Info workbook", ("robot_info",), "", "Optional robot-side workbook; missing stays missing"),
         ("FMEA", ("fmea",), "fmea_output", "Draft/review status comes from FMEA source rows and reports"),
-        ("KPI dashboard", ("kpi",), "kpi_dashboard_export", "Measured, observed, estimated, or missing source labels apply from KPI report"),
+        (
+            "KPI dashboard",
+            ("kpi",),
+            "kpi_dashboard_export",
+            "Measured, observed, estimated, or missing source labels apply from KPI report",
+        ),
         ("PM checklist package", ("pm",), "pm_checklist_package", "Generated PM package evidence"),
-        ("BOM/spares report", ("bom_spares",), "", "Standardization candidate evidence; recommendations require review"),
-        ("Standard design guidelines", ("standard_guidelines", "standards"), "standards_guidelines", "Guideline/report evidence"),
-        ("Work instructions", ("work_instructions",), "training_materials", "Generated from actual audit data; missing docs remain marked"),
-        ("Pilot report", ("pilot",), "pilot_results_or_packets", "Candidate/ROI evidence only unless before-after data exists"),
+        (
+            "BOM/spares report",
+            ("bom_spares",),
+            "",
+            "Standardization candidate evidence; recommendations require review",
+        ),
+        (
+            "Standard design guidelines",
+            ("standard_guidelines", "standards"),
+            "standards_guidelines",
+            "Guideline/report evidence",
+        ),
+        (
+            "Work instructions",
+            ("work_instructions",),
+            "training_materials",
+            "Generated from actual audit data; missing docs remain marked",
+        ),
+        (
+            "Pilot report",
+            ("pilot",),
+            "pilot_results_or_packets",
+            "Candidate/ROI evidence only unless before-after data exists",
+        ),
         ("Training materials", ("training",), "training_materials", "Training package evidence"),
-        ("Photos/evidence", ("photos_evidence", "reference"), "", "Photo files only included when explicitly requested"),
+        (
+            "Photos/evidence",
+            ("photos_evidence", "reference"),
+            "",
+            "Photo files only included when explicitly requested",
+        ),
         ("Open issues", ("open_issues", "admin"), "open_items_carryover", "Carryover/open item evidence"),
-        ("Recommendations", ("executive", "risk"), "executive_summary", "Evidence-based recommendations; no fake impact metrics"),
-        ("Machine summary report", ("machine_summaries",), "machine_summary_report", "Machine 360 summary from available local data"),
+        (
+            "Recommendations",
+            ("executive", "risk"),
+            "executive_summary",
+            "Evidence-based recommendations; no fake impact metrics",
+        ),
+        (
+            "Machine summary report",
+            ("machine_summaries",),
+            "machine_summary_report",
+            "Machine 360 summary from available local data",
+        ),
     ]
     return [
         {
@@ -378,7 +435,9 @@ def build_final_handoff_package(
     paths = resolve_project_paths(project_root)
     ensure_directory(paths.handoff_package_root)
     ensure_directory(paths.final_handoff)
-    sources = collect_handoff_sources(project_root, include_daily_reports, include_weekly_reports, include_mentor_briefs, include_photo_files)
+    sources = collect_handoff_sources(
+        project_root, include_daily_reports, include_weekly_reports, include_mentor_briefs, include_photo_files
+    )
     readiness = build_final_handoff_readiness(project_root)
     manifest: list[dict[str, str]] = []
     files_created: list[str] = []
@@ -386,7 +445,11 @@ def build_final_handoff_package(
     if dry_run:
         index_path = paths.handoff_package_root / f"Final_Handoff_Dry_Run_{time.strftime('%Y-%m-%d_%H%M%S')}.md"
         dry_manifest = [
-            {"Category": key, "Source": str(src), "Package Path": f"DRY-RUN/{_package_dir_name(key, dry_run=True)}/{src.name}"}
+            {
+                "Category": key,
+                "Source": str(src),
+                "Package Path": f"DRY-RUN/{_package_dir_name(key, dry_run=True)}/{src.name}",
+            }
             for key, files in sources.items()
             for src in files
         ]
@@ -403,7 +466,12 @@ def build_final_handoff_package(
             export_leadership_summary(project_root, output_dir=package, log_activity=False),
             export_technical_appendix(project_root, output_dir=package, log_activity=False),
             export_open_items_carryover(project_root, output_dir=package, log_activity=False),
-            export_machine_summary_report(project_root, output_dir=package / "Machine_Summaries", filename="Machine_Summary_Report.md", log_activity=False),
+            export_machine_summary_report(
+                project_root,
+                output_dir=package / "Machine_Summaries",
+                filename="Machine_Summary_Report.md",
+                log_activity=False,
+            ),
         ]:
             files_created.extend(export_result.files_created)
             export_manifest.extend(_export_manifest_rows(export_result, package))
@@ -411,13 +479,30 @@ def build_final_handoff_package(
         readiness_result = export_deliverable_readiness(project_root, output_dir=package, log_activity=False)
         files_created.extend(readiness_result.files_created)
         export_manifest.extend(_export_manifest_rows(readiness_result, package))
-        sources = collect_handoff_sources(project_root, include_daily_reports, include_weekly_reports, include_mentor_briefs, include_photo_files)
+        sources = collect_handoff_sources(
+            project_root, include_daily_reports, include_weekly_reports, include_mentor_briefs, include_photo_files
+        )
         copied, manifest = _copy_sources(package, sources)
         manifest = [*export_manifest, *manifest]
         files_created.extend(copied)
-        index_path = safe_write_text(package / "HANDOFF_INDEX.md", _index_markdown(package, manifest, readiness, dry_run=False), overwrite=False)
+        index_path = safe_write_text(
+            package / "HANDOFF_INDEX.md", _index_markdown(package, manifest, readiness, dry_run=False), overwrite=False
+        )
         files_created.append(str(index_path))
-        output_reports = [str(index_path), *(path for path in files_created if Path(path).name in {"Executive_Summary.md", "Technical_Appendix.md", "Open_Items_Carryover.md", "Deliverable_Readiness.md"})]
+        output_reports = [
+            str(index_path),
+            *(
+                path
+                for path in files_created
+                if Path(path).name
+                in {
+                    "Executive_Summary.md",
+                    "Technical_Appendix.md",
+                    "Open_Items_Carryover.md",
+                    "Deliverable_Readiness.md",
+                }
+            ),
+        ]
 
     missing = _readiness_gaps(readiness)
     result = ToolResult.ok(
@@ -425,10 +510,16 @@ def build_final_handoff_package(
         TOOL_NAME,
         "Built final handoff package dry-run." if dry_run else "Built final handoff package.",
         details=[f"Dry run: {dry_run}", f"Files considered: {sum(len(files) for files in sources.values())}"],
-        warnings=_readiness_warnings(readiness) + ([f"Missing or needs-review deliverables: {', '.join(missing)}"] if missing else []),
+        warnings=_readiness_warnings(readiness)
+        + ([f"Missing or needs-review deliverables: {', '.join(missing)}"] if missing else []),
         files_created=files_created,
         output_reports=output_reports,
-        metrics={"dry_run": dry_run, "files_copied": len(manifest), "missing_or_needs_review_deliverables": len(missing), "package": str(package) if package else ""},
+        metrics={
+            "dry_run": dry_run,
+            "files_copied": len(manifest),
+            "missing_or_needs_review_deliverables": len(missing),
+            "package": str(package) if package else "",
+        },
         duration_seconds=time.perf_counter() - start,
     )
     warning = log_tool_run(result, project_root)

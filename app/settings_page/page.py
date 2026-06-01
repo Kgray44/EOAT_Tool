@@ -24,7 +24,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Signal = None
-    QCheckBox = QComboBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QScrollArea = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QCheckBox = QComboBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QScrollArea = QTabWidget = QTableWidget = (
+        QTableWidgetItem
+    ) = QVBoxLayout = QWidget = None
 
 from app.settings_page.advanced_section import build_advanced_section
 from app.settings_page.audit_defaults_section import build_audit_defaults_section
@@ -263,7 +265,9 @@ class SettingsPage(QWidget):
                 "theme": theme,
                 "show_debug_tools": self.debug_check.isChecked(),
             },
-            "audit_coach_exclusions": [item.strip() for item in self.audit_coach_exclusions_edit.text().split(",") if item.strip()],
+            "audit_coach_exclusions": [
+                item.strip() for item in self.audit_coach_exclusions_edit.text().split(",") if item.strip()
+            ],
             "smart_default_rules": list(getattr(self.config, "smart_default_rules", []) or []),
         }
 
@@ -473,7 +477,8 @@ class SettingsPage(QWidget):
             conditions = []
         return {
             "id": self._table_text(self.audit_default_rules_table, row, 0),
-            "enabled": self._table_text(self.audit_default_rules_table, row, 1).casefold() not in {"no", "false", "0", "disabled"},
+            "enabled": self._table_text(self.audit_default_rules_table, row, 1).casefold()
+            not in {"no", "false", "0", "disabled"},
             "field": self._table_text(self.audit_default_rules_table, row, 2),
             "value": self._table_text(self.audit_default_rules_table, row, 3),
             "scope": self._table_text(self.audit_default_rules_table, row, 4),
@@ -504,10 +509,7 @@ class SettingsPage(QWidget):
         if not rows:
             self.status_label.setText("No audit defaults would be applied.")
             return
-        lines = [
-            f"- {row.field}: {row.default_value} ({row.status})"
-            for row in rows[:25]
-        ]
+        lines = [f"- {row.field}: {row.default_value} ({row.status})" for row in rows[:25]]
         extra = "" if len(rows) <= 25 else f"\n...and {len(rows) - 25} more default rule(s)."
         self.status_label.setText("Preview Applied Defaults:\n" + "\n".join(lines) + extra)
 
@@ -573,7 +575,9 @@ class SettingsPage(QWidget):
             edit.setText(str(config.connection_defaults.get(field, DEFAULT_CONNECTION_SETTING_VALUES.get(field, ""))))
         scheduled = {**default_scheduled_reports_config(), **dict(config.scheduled_reports or {})}
         self.daily_reports_check.setChecked(bool(scheduled.get("daily_enabled", True)))
-        self.daily_weekdays_edit.setText(", ".join(scheduled.get("daily_weekdays") or default_scheduled_reports_config()["daily_weekdays"]))
+        self.daily_weekdays_edit.setText(
+            ", ".join(scheduled.get("daily_weekdays") or default_scheduled_reports_config()["daily_weekdays"])
+        )
         self.daily_report_time_edit.setText(str(scheduled.get("daily_time", "19:00")))
         self.weekly_reports_check.setChecked(bool(scheduled.get("weekly_enabled", True)))
         weekly_index = self.weekly_weekday_combo.findText(str(scheduled.get("weekly_weekday", "Friday")))
@@ -588,14 +592,20 @@ class SettingsPage(QWidget):
         self.prevent_overwrite_check.setChecked(bool(scheduled.get("prevent_overwrite", True)))
         backups = {**default_backups_config(), **dict(config.backups or config.backup_policy or {})}
         self.backup_before_audit_save_check.setChecked(bool(backups.get("backup_before_audit_save", True)))
-        self.backup_before_compatibility_update_check.setChecked(bool(backups.get("backup_before_compatibility_update", True)))
+        self.backup_before_compatibility_update_check.setChecked(
+            bool(backups.get("backup_before_compatibility_update", True))
+        )
         self.backup_before_migration_check.setChecked(bool(backups.get("backup_before_workbook_migration", True)))
-        self.backup_before_repair_check.setChecked(bool(backups.get("backup_before_bulk_repair", backups.get("backup_before_schema_repair", True))))
+        self.backup_before_repair_check.setChecked(
+            bool(backups.get("backup_before_bulk_repair", backups.get("backup_before_schema_repair", True)))
+        )
         self.retention_days_edit.setText(str(backups.get("retention_days", 7)))
         self.newest_backups_per_workbook_edit.setText(str(backups.get("newest_backups_per_workbook", 25)))
         self.keep_milestones_check.setChecked(bool(backups.get("keep_milestones", True)))
         self.cleanup_requires_preview_check.setChecked(bool(backups.get("cleanup_requires_preview", True)))
-        self.cleanup_blocked_by_validation_check.setChecked(bool(backups.get("cleanup_blocked_by_validation_blockers", True)))
+        self.cleanup_blocked_by_validation_check.setChecked(
+            bool(backups.get("cleanup_blocked_by_validation_blockers", True))
+        )
         self.light_backup_retention_edit.setText(str(backups.get("light_backup_retention_count", 10)))
         self.workbook_backup_retention_edit.setText(str(backups.get("workbook_backup_retention_count", 20)))
         self.audit_coach_exclusions_edit.setText(", ".join(config.audit_coach_exclusions))
@@ -666,8 +676,12 @@ class SettingsPage(QWidget):
         changes = []
         for key in sorted(set(current) | set(self._baseline_payload)):
             if current.get(key) != self._baseline_payload.get(key):
-                changes.append(f"- {key}: {json.dumps(self._baseline_payload.get(key), sort_keys=True)} -> {json.dumps(current.get(key), sort_keys=True)}")
-        self.status_label.setText("No settings changes." if not changes else "Pending settings changes:\n" + "\n".join(changes))
+                changes.append(
+                    f"- {key}: {json.dumps(self._baseline_payload.get(key), sort_keys=True)} -> {json.dumps(current.get(key), sort_keys=True)}"
+                )
+        self.status_label.setText(
+            "No settings changes." if not changes else "Pending settings changes:\n" + "\n".join(changes)
+        )
 
     def browse_project_root(self) -> None:
         selected = select_directory(self, "Select EOAT Project Root", self.project_root_edit.text())
@@ -743,7 +757,9 @@ class SettingsPage(QWidget):
         result = self._open_path(resolve_project_paths(self.project_root_edit.text()).project_admin / "Backups")
         self.status_label.setText(result.to_markdown() if not result.success else "Opened backups folder.")
 
-    def _run_background(self, task_id: str, name: str, func, modifies_files: bool = False, workbook_lock: bool = False) -> None:
+    def _run_background(
+        self, task_id: str, name: str, func, modifies_files: bool = False, workbook_lock: bool = False
+    ) -> None:
         self.status_label.setText(f"Running: {name}...")
         get_task_manager().run_task(
             TaskRequest(

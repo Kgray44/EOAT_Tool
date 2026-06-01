@@ -33,10 +33,22 @@ def test_schedule_and_task_progress_load_and_update(tmp_path):
 def test_project_day_resolver_counts_workdays_from_project_start():
     start = date(2026, 5, 18)
 
-    assert (resolve_project_day(date(2026, 5, 18), start).week, resolve_project_day(date(2026, 5, 18), start).day) == (1, 1)
-    assert (resolve_project_day(date(2026, 5, 19), start).week, resolve_project_day(date(2026, 5, 19), start).day) == (1, 2)
-    assert (resolve_project_day(date(2026, 5, 22), start).week, resolve_project_day(date(2026, 5, 22), start).day) == (1, 5)
-    assert (resolve_project_day(date(2026, 5, 25), start).week, resolve_project_day(date(2026, 5, 25), start).day) == (2, 1)
+    assert (resolve_project_day(date(2026, 5, 18), start).week, resolve_project_day(date(2026, 5, 18), start).day) == (
+        1,
+        1,
+    )
+    assert (resolve_project_day(date(2026, 5, 19), start).week, resolve_project_day(date(2026, 5, 19), start).day) == (
+        1,
+        2,
+    )
+    assert (resolve_project_day(date(2026, 5, 22), start).week, resolve_project_day(date(2026, 5, 22), start).day) == (
+        1,
+        5,
+    )
+    assert (resolve_project_day(date(2026, 5, 25), start).week, resolve_project_day(date(2026, 5, 25), start).day) == (
+        2,
+        1,
+    )
 
 
 def test_project_day_resolver_manual_override():

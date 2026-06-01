@@ -89,8 +89,12 @@ def test_confirm_import_requires_confirmation_and_writes_log(fake_project, tmp_p
         [{"Date": "2026-05-18", "Press": "Press 12", "Cycle Seconds": "18.5", "Source": "PLC measured export"}],
     )
 
-    unconfirmed = confirm_import(fake_project, source, import_type="cycle_time_baseline", confirmed=False, log_activity=False)
-    confirmed = confirm_import(fake_project, source, import_type="cycle_time_baseline", confirmed=True, log_activity=False)
+    unconfirmed = confirm_import(
+        fake_project, source, import_type="cycle_time_baseline", confirmed=False, log_activity=False
+    )
+    confirmed = confirm_import(
+        fake_project, source, import_type="cycle_time_baseline", confirmed=True, log_activity=False
+    )
 
     assert unconfirmed.success is False
     assert confirmed.success is True
@@ -103,7 +107,9 @@ def test_confirm_import_requires_confirmation_and_writes_log(fake_project, tmp_p
 
 
 def test_press_capacity_workbook_detects_from_xlsx_headers(fake_project, tmp_path):
-    source = _write_xlsx(tmp_path / "capacity.xlsx", ["Machine No.", "Part Number", "Description"], [["12", "PART-1", "Sample"]])
+    source = _write_xlsx(
+        tmp_path / "capacity.xlsx", ["Machine No.", "Part Number", "Description"], [["12", "PART-1", "Sample"]]
+    )
 
     dry_run = dry_run_import(fake_project, source, import_type=None)
 

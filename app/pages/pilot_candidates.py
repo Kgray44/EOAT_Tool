@@ -110,7 +110,9 @@ class PilotCandidatesPage(AsyncRefreshMixin, QWidget):
             render_seconds,
             details={"row_count": len(summary.ranked_candidates)},
         )
-        self.result_panel.show_text(f"Loaded {len(summary.ranked_candidates)} pilot candidate(s) in {data_load_seconds:.1f}s.")
+        self.result_panel.show_text(
+            f"Loaded {len(summary.ranked_candidates)} pilot candidate(s) in {data_load_seconds:.1f}s."
+        )
 
     def run_report(self) -> None:
         run_tool_background(
@@ -137,14 +139,19 @@ class PilotCandidatesPage(AsyncRefreshMixin, QWidget):
         machine = ""
         if row >= 0:
             headers = [self.table.horizontalHeaderItem(index).text() for index in range(self.table.columnCount())]
-            values = {header: self.table.item(row, index).text() if self.table.item(row, index) else "" for index, header in enumerate(headers)}
+            values = {
+                header: self.table.item(row, index).text() if self.table.item(row, index) else ""
+                for index, header in enumerate(headers)
+            }
             candidate_id = values.get("Candidate ID", "")
             machine = values.get("Press/Machine #", "")
         run_tool_background(
             self.result_panel,
             "pilot_evidence_packet",
             "Pilot Candidate Evidence Packet",
-            lambda: generate_pilot_evidence_packet(self.config.project_root, candidate_id=candidate_id, machine=machine),
+            lambda: generate_pilot_evidence_packet(
+                self.config.project_root, candidate_id=candidate_id, machine=machine
+            ),
             self._report_finished,
             modifies_files=True,
         )
@@ -154,7 +161,10 @@ class PilotCandidatesPage(AsyncRefreshMixin, QWidget):
         candidate_id = ""
         if row >= 0:
             headers = [self.table.horizontalHeaderItem(index).text() for index in range(self.table.columnCount())]
-            values = {header: self.table.item(row, index).text() if self.table.item(row, index) else "" for index, header in enumerate(headers)}
+            values = {
+                header: self.table.item(row, index).text() if self.table.item(row, index) else ""
+                for index, header in enumerate(headers)
+            }
             candidate_id = values.get("Candidate ID", "")
         run_tool_background(
             self.result_panel,

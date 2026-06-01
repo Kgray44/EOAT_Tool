@@ -116,7 +116,9 @@ def test_broken_photo_path_creates_finding(fake_project):
     warnings, metrics, findings = validate_photo_evidence(fake_project)
 
     assert metrics["photo_evidence_broken_path_count"] >= 1
-    assert any(finding.category == "photo_evidence_path" and "PHO-BROKEN-001" in finding.message for finding in findings)
+    assert any(
+        finding.category == "photo_evidence_path" and "PHO-BROKEN-001" in finding.message for finding in findings
+    )
     assert any("broken photo path" in warning.casefold() for warning in warnings)
     assert any("PHO-BROKEN-001" in finding.message for finding in photo_index_path_findings(fake_project))
 
@@ -133,7 +135,9 @@ def test_intake_preview_does_not_modify_files(usability_fake_project):
     rows_before = row_dicts(paths.master_workbook, "Photo Index")
     photos = list_incoming_photos(usability_fake_project)
 
-    plan = preview_photo_intake(usability_fake_project, [photos[0]], "Molding", "Press 101", "2026-05-19", "Sensor Mounting")
+    plan = preview_photo_intake(
+        usability_fake_project, [photos[0]], "Molding", "Press 101", "2026-05-19", "Sensor Mounting"
+    )
 
     assert plan
     assert _file_hash(paths.master_workbook) == workbook_hash_before

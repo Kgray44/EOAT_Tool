@@ -47,9 +47,10 @@ def test_truth_summary_counts_rows_and_fields():
 
 
 def test_truth_engine_reads_fake_workbook(usability_fake_project):
-    summary = analyze_workbook_truth(usability_fake_project, fields=["Audit ID", "Entry Type", "Known Issues", "Estimated EOAT Weight"])
+    summary = analyze_workbook_truth(
+        usability_fake_project, fields=["Audit ID", "Entry Type", "Known Issues", "Estimated EOAT Weight"]
+    )
 
     assert summary.metrics["rows_scanned"] >= 1
     assert summary.state_counts
     assert not summary.warnings
-

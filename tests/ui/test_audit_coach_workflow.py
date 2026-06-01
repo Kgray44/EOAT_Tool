@@ -55,10 +55,15 @@ def test_audit_coach_follow_up_and_needs_review_tag_use_existing_services(qapp, 
     page.create_audit_coach_follow_up("Sensor Brand/Model")
     page.tag_audit_coach_needs_review("Sensor Brand/Model")
 
-    actions = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "Action Items")
+    actions = row_dicts(
+        fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "Action Items"
+    )
     assert any("Sensor Brand/Model" in str(row.get("Action Item") or "") for row in actions)
     assert page.audit_fields["Follow-Up Needed"].currentText() == "Yes"
 
     service = AnnotationService(fake_project)
     assignments = service.list_tag_assignments(audit_id=audit_id, target_type="audit_field")
-    assert any(assignment["tag_name"] == "Needs Review" and assignment["field_label"] == "Sensor Brand/Model" for assignment in assignments)
+    assert any(
+        assignment["tag_name"] == "Needs Review" and assignment["field_label"] == "Sensor Brand/Model"
+        for assignment in assignments
+    )

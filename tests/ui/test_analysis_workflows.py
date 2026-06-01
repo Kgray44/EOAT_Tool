@@ -123,7 +123,11 @@ def test_pm_checklist_generic_specific_and_invalid_friendly_fallback(qapp, fake_
 
     click_button(page, "Generate Generic Templates")
     wait_for_background_tasks()
-    assert list((fake_project / "03_Standards" / "PM_Checklist_Draft" / "Generated_Checklists").glob("PM_Checklist_Generic_*.md"))
+    assert list(
+        (fake_project / "03_Standards" / "PM_Checklist_Draft" / "Generated_Checklists").glob(
+            "PM_Checklist_Generic_*.md"
+        )
+    )
 
     page.audit_id_edit.setText("AUD-20260518-001")
     click_button(page, "Generate PM Checklist")
@@ -145,4 +149,8 @@ def test_bom_spare_parts_analysis_populates_common_and_missing_tables(qapp, fake
     assert int(page.cards["EOATs Scanned"].value_label.text()) > 0
     assert "Nitrile bellows cup" in table_text(page.common_table)
     assert "Press 102" in table_text(page.missing_table)
-    assert list((fake_project / "03_Standards" / "BOM_Template_Draft" / "BOM_Standardization_Reports").glob("BOM_Standardization_Report_*.md"))
+    assert list(
+        (fake_project / "03_Standards" / "BOM_Template_Draft" / "BOM_Standardization_Reports").glob(
+            "BOM_Standardization_Report_*.md"
+        )
+    )

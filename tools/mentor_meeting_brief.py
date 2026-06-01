@@ -9,7 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.mentor_brief import generate_mentor_brief
 
 
 def main() -> int:
@@ -19,6 +18,8 @@ def main() -> int:
     parser.add_argument("--since", default=None, help="Optional ISO date such as 2026-05-18.")
     parser.add_argument("--notes", default="")
     args = parser.parse_args()
+    from core.mentor_brief import generate_mentor_brief
+
     result = generate_mentor_brief(args.project_root, days=args.days, since=args.since, notes=args.notes)
     print(result.to_markdown())
     return 0 if result.success else 1

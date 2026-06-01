@@ -27,24 +27,34 @@ def build_audit_defaults_section(page, layout) -> None:
     defaults_form = QFormLayout()
     defaults_layout.addLayout(defaults_form)
     for field_name in AUDIT_DEFAULT_SETTING_FIELDS:
-        edit = QLineEdit(str(page.config.audit_defaults.get(field_name, DEFAULT_AUDIT_SETTING_VALUES.get(field_name, ""))))
+        edit = QLineEdit(
+            str(page.config.audit_defaults.get(field_name, DEFAULT_AUDIT_SETTING_VALUES.get(field_name, "")))
+        )
         page.audit_default_edits[field_name] = edit
         defaults_form.addRow(field_name, edit)
     layout.addWidget(defaults_group)
 
-    connection_group, connection_layout = settings_group(page, "Connection Defaults", "connection defaults changeover smart rules")
+    connection_group, connection_layout = settings_group(
+        page, "Connection Defaults", "connection defaults changeover smart rules"
+    )
     connection_form = QFormLayout()
     connection_layout.addLayout(connection_form)
     for field_name in CONNECTION_DEFAULT_SETTING_FIELDS:
-        edit = QLineEdit(str(page.config.connection_defaults.get(field_name, DEFAULT_CONNECTION_SETTING_VALUES.get(field_name, ""))))
+        edit = QLineEdit(
+            str(page.config.connection_defaults.get(field_name, DEFAULT_CONNECTION_SETTING_VALUES.get(field_name, "")))
+        )
         page.connection_default_edits[field_name] = edit
         connection_form.addRow(f"{field_name} changeover difficulty", edit)
     layout.addWidget(connection_group)
 
-    rules_group, rules_layout = settings_group(page, "Default Rules", "default rules new edit duplicate disable delete preview import export reset")
+    rules_group, rules_layout = settings_group(
+        page, "Default Rules", "default rules new edit duplicate disable delete preview import export reset"
+    )
     rules_layout.addWidget(QLabel("Audit Default Manager"))
     page.audit_default_rules_table = QTableWidget(0, 9)
-    page.audit_default_rules_table.setHorizontalHeaderLabels(["ID", "Enabled", "Field", "Value", "Scope", "Policy", "Conditions", "Source", "Note"])
+    page.audit_default_rules_table.setHorizontalHeaderLabels(
+        ["ID", "Enabled", "Field", "Value", "Scope", "Policy", "Conditions", "Source", "Note"]
+    )
     page.audit_default_rules_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     page.audit_default_rules_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     page.audit_default_rules_table.setMinimumHeight(220)

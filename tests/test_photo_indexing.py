@@ -38,4 +38,3 @@ def test_photo_collision_safe_filename(fake_project):
     plan = preview_photo_intake(fake_project, [photo], "Plant 4", "Press 12", "2026-05-18", "Sensors")
 
     assert plan[0].target.name.endswith("_002.jpg")
-

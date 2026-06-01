@@ -46,7 +46,9 @@ def _recent_validation_payload(project_root: str | Path) -> dict[str, Any]:
     folder = resolve_project_paths(project_root).validation_reports
     if not folder.exists():
         return {}
-    candidates = sorted(folder.glob("Foundation_Validation_*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+    candidates = sorted(
+        folder.glob("Foundation_Validation_*.json"), key=lambda path: path.stat().st_mtime, reverse=True
+    )
     for path in candidates[:3]:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -72,7 +74,9 @@ def _validation_summary(project_root: str | Path) -> dict[str, Any]:
     }
 
 
-def _safe_open_items(project_root: str | Path, *, limit: int = 12) -> tuple[list[dict[str, Any]], dict[str, int], list[str]]:
+def _safe_open_items(
+    project_root: str | Path, *, limit: int = 12
+) -> tuple[list[dict[str, Any]], dict[str, int], list[str]]:
     paths = resolve_project_paths(project_root)
     if not paths.annotations_database.exists():
         return [], {}, []

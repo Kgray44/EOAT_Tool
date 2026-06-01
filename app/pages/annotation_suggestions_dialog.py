@@ -22,7 +22,15 @@ from core.annotations.service import AnnotationService
 
 
 class AnnotationSuggestionsDialog(QDialog):
-    COLUMNS = ["Apply", "Tag", "Target Field", "Reason", "Severity / Confidence", "Suggested Comment", "Existing Status"]
+    COLUMNS = [
+        "Apply",
+        "Tag",
+        "Target Field",
+        "Reason",
+        "Severity / Confidence",
+        "Suggested Comment",
+        "Existing Status",
+    ]
 
     def __init__(self, audit_page, entry: dict[str, str], parent=None):
         super().__init__(parent or audit_page)
@@ -165,7 +173,9 @@ class AnnotationSuggestionsDialog(QDialog):
                 self.config.project_root,
                 f"Review annotation suggestion {suggestion.get('tag_name')}: {suggestion.get('field_key')}.",
                 related_cell_press=str(suggestion.get("machine_id") or self.entry.get("Press/Machine #") or ""),
-                priority="High" if str(suggestion.get("severity") or "").casefold() in {"critical", "error"} else "Medium",
+                priority="High"
+                if str(suggestion.get("severity") or "").casefold() in {"critical", "error"}
+                else "Medium",
                 notes=str(suggestion.get("reason") or ""),
             )
             if result.success:
@@ -211,4 +221,6 @@ class AnnotationSuggestionsDialog(QDialog):
             {"audit_id": self.entry.get("Audit ID"), "suggestions_applied": True},
             source="annotation_suggestions",
         )
-        get_event_bus().emit(EVENT_OPEN_ITEMS_CHANGED, {"audit_id": self.entry.get("Audit ID")}, source="annotation_suggestions")
+        get_event_bus().emit(
+            EVENT_OPEN_ITEMS_CHANGED, {"audit_id": self.entry.get("Audit ID")}, source="annotation_suggestions"
+        )

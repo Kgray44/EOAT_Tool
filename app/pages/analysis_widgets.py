@@ -38,6 +38,5 @@ def populate_table(table: QTableWidget, rows: list[dict], columns: list[str]) ->
 
 def counts_to_rows(counts: dict[str, int], key_name: str = "Item") -> list[dict[str, object]]:
     return [
-        {key_name: key, "Count": value}
-        for key, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        {key_name: key, "Count": value} for key, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     ]

@@ -36,7 +36,9 @@ class UserConfig:
     connection_defaults: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_CONNECTION_DEFAULTS))
     scheduled_reports: dict[str, Any] = field(default_factory=lambda: default_scheduled_reports_config())
     backups: dict[str, Any] = field(default_factory=lambda: default_backups_config())
-    backup_policy: dict[str, Any] = field(default_factory=lambda: _legacy_backup_policy_from_backups(default_backups_config()))
+    backup_policy: dict[str, Any] = field(
+        default_factory=lambda: _legacy_backup_policy_from_backups(default_backups_config())
+    )
     ui_preferences: dict[str, Any] = field(default_factory=lambda: default_ui_preferences_config())
     audit_coach_exclusions: list[str] = field(default_factory=list)
     smart_default_rules: list[dict[str, Any]] = field(default_factory=lambda: default_smart_default_rules())
@@ -47,21 +49,31 @@ class UserConfig:
         migrated = migrate_config_data(data)
         known_fields = set(cls.__dataclass_fields__)
         defaults = asdict(cls())
-        defaults.update({key: value for key, value in migrated.items() if key in known_fields and key != "extra_config"})
+        defaults.update(
+            {key: value for key, value in migrated.items() if key in known_fields and key != "extra_config"}
+        )
         defaults["extra_config"] = {key: value for key, value in migrated.items() if key not in known_fields}
         audit_defaults = dict(DEFAULT_AUDIT_DEFAULTS)
         audit_defaults.update(_string_dict(defaults.get("audit_defaults")))
         connection_defaults = dict(DEFAULT_CONNECTION_DEFAULTS)
         connection_defaults.update(_string_dict(defaults.get("connection_defaults")))
         defaults["audit_defaults"] = audit_defaults
-        defaults["audit_default_rules"] = [rule.to_dict() for rule in normalize_default_rules(defaults.get("audit_default_rules"))]
+        defaults["audit_default_rules"] = [
+            rule.to_dict() for rule in normalize_default_rules(defaults.get("audit_default_rules"))
+        ]
         defaults["connection_defaults"] = connection_defaults
-        defaults["scheduled_reports"] = merge_settings_dict(default_scheduled_reports_config(), defaults.get("scheduled_reports"))
+        defaults["scheduled_reports"] = merge_settings_dict(
+            default_scheduled_reports_config(), defaults.get("scheduled_reports")
+        )
         defaults["backups"] = merge_settings_dict(default_backups_config(), defaults.get("backups"))
         defaults["backup_policy"] = _legacy_backup_policy_from_backups(defaults["backups"])
-        defaults["ui_preferences"] = merge_settings_dict(default_ui_preferences_config(), defaults.get("ui_preferences"))
+        defaults["ui_preferences"] = merge_settings_dict(
+            default_ui_preferences_config(), defaults.get("ui_preferences")
+        )
         defaults["theme"] = str(defaults["ui_preferences"].get("theme") or defaults.get("theme") or "light")
-        defaults["debug_mode"] = bool(defaults["ui_preferences"].get("show_debug_tools", defaults.get("debug_mode", False)))
+        defaults["debug_mode"] = bool(
+            defaults["ui_preferences"].get("show_debug_tools", defaults.get("debug_mode", False))
+        )
         defaults["audit_coach_exclusions"] = _string_list(defaults.get("audit_coach_exclusions"))
         defaults["smart_default_rules"] = _rule_list(defaults.get("smart_default_rules"))
         return cls(**defaults)

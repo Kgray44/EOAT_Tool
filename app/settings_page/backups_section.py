@@ -11,7 +11,9 @@ from .widgets import settings_group
 
 
 def build_backups_section(page, layout) -> None:
-    group, group_layout = settings_group(page, "Backups & Safety", "backup safety retention cleanup preview validation manager folder")
+    group, group_layout = settings_group(
+        page, "Backups & Safety", "backup safety retention cleanup preview validation manager folder"
+    )
     form = QFormLayout()
     backups = dict(default_backups_config())
     backups.update(dict(getattr(page.config, "backups", {}) or getattr(page.config, "backup_policy", {}) or {}))
@@ -19,11 +21,15 @@ def build_backups_section(page, layout) -> None:
     page.backup_before_audit_save_check = QCheckBox()
     page.backup_before_audit_save_check.setChecked(bool(backups.get("backup_before_audit_save", True)))
     page.backup_before_compatibility_update_check = QCheckBox()
-    page.backup_before_compatibility_update_check.setChecked(bool(backups.get("backup_before_compatibility_update", True)))
+    page.backup_before_compatibility_update_check.setChecked(
+        bool(backups.get("backup_before_compatibility_update", True))
+    )
     page.backup_before_migration_check = QCheckBox()
     page.backup_before_migration_check.setChecked(bool(backups.get("backup_before_workbook_migration", True)))
     page.backup_before_repair_check = QCheckBox()
-    page.backup_before_repair_check.setChecked(bool(backups.get("backup_before_bulk_repair", backups.get("backup_before_schema_repair", True))))
+    page.backup_before_repair_check.setChecked(
+        bool(backups.get("backup_before_bulk_repair", backups.get("backup_before_schema_repair", True)))
+    )
     page.retention_days_edit = QLineEdit(str(backups.get("retention_days", 7)))
     page.newest_backups_per_workbook_edit = QLineEdit(str(backups.get("newest_backups_per_workbook", 25)))
     page.keep_milestones_check = QCheckBox()
@@ -31,7 +37,9 @@ def build_backups_section(page, layout) -> None:
     page.cleanup_requires_preview_check = QCheckBox()
     page.cleanup_requires_preview_check.setChecked(bool(backups.get("cleanup_requires_preview", True)))
     page.cleanup_blocked_by_validation_check = QCheckBox()
-    page.cleanup_blocked_by_validation_check.setChecked(bool(backups.get("cleanup_blocked_by_validation_blockers", True)))
+    page.cleanup_blocked_by_validation_check.setChecked(
+        bool(backups.get("cleanup_blocked_by_validation_blockers", True))
+    )
     page.light_backup_retention_edit = QLineEdit(str(backups.get("light_backup_retention_count", 10)))
     page.workbook_backup_retention_edit = QLineEdit(str(backups.get("workbook_backup_retention_count", 20)))
     page.cleanup_requires_validation_check = page.cleanup_blocked_by_validation_check

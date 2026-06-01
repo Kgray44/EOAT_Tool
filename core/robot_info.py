@@ -62,7 +62,11 @@ def ensure_robot_info_workbook(project_root: str | Path) -> Path:
 
     workbook = load_workbook(path)
     try:
-        ws = workbook[ROBOT_INFO_SHEET] if ROBOT_INFO_SHEET in workbook.sheetnames else workbook.create_sheet(ROBOT_INFO_SHEET)
+        ws = (
+            workbook[ROBOT_INFO_SHEET]
+            if ROBOT_INFO_SHEET in workbook.sheetnames
+            else workbook.create_sheet(ROBOT_INFO_SHEET)
+        )
         headers = worksheet_headers(ws)
         if not headers or not any(headers):
             _write_robot_info_headers(ws)
@@ -158,9 +162,15 @@ def upsert_robot_info_from_audit(project_root: str | Path, entry: dict[str, Any]
             "Machine Number": machine_number,
             "Robot Type": robot_type,
             "Robot Identifier": robot_identifier,
-            "Robot Vacuum Circuits": _robot_circuit_data_value(entry, existing_data, "Robot Vacuum Circuits", allow_blank=True),
-            "Robot Pressure Circuits": _robot_circuit_data_value(entry, existing_data, "Robot Pressure Circuits", allow_blank=True),
-            "Robot Interchangeable Circuits": _robot_circuit_data_value(entry, existing_data, "Robot Interchangeable Circuits", allow_blank=False),
+            "Robot Vacuum Circuits": _robot_circuit_data_value(
+                entry, existing_data, "Robot Vacuum Circuits", allow_blank=True
+            ),
+            "Robot Pressure Circuits": _robot_circuit_data_value(
+                entry, existing_data, "Robot Pressure Circuits", allow_blank=True
+            ),
+            "Robot Interchangeable Circuits": _robot_circuit_data_value(
+                entry, existing_data, "Robot Interchangeable Circuits", allow_blank=False
+            ),
             ROBOT_NOTES_FIELD: _robot_text_data_value(entry, existing_data, ROBOT_NOTES_FIELD),
             "Last Audit ID": audit_id,
             "Last Updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -283,10 +293,14 @@ def _write_robot_info_headers(ws) -> None:
         ws.cell(row=1, column=column).value = header
 
 
-def _find_robot_row(ws, headers: list[str], plant_area: str, machine_number: str, robot_type: str, robot_identifier: str) -> int | None:
+def _find_robot_row(
+    ws, headers: list[str], plant_area: str, machine_number: str, robot_type: str, robot_identifier: str
+) -> int | None:
     key = _robot_key(plant_area, machine_number, robot_type, robot_identifier)
     for row_number in range(2, ws.max_row + 1):
-        row_data = {header: ws.cell(row=row_number, column=index).value for index, header in enumerate(headers, start=1)}
+        row_data = {
+            header: ws.cell(row=row_number, column=index).value for index, header in enumerate(headers, start=1)
+        }
         if _row_key(row_data) == key:
             return row_number
     return None
@@ -296,7 +310,9 @@ def _read_robot_row(ws, row_number: int, headers: list[str]) -> dict[str, object
     return {header: ws.cell(row=row_number, column=index).value for index, header in enumerate(headers, start=1)}
 
 
-def _robot_key(plant_area: str, machine_number: str, robot_type: str, robot_identifier: str = "") -> tuple[str, str, str, str]:
+def _robot_key(
+    plant_area: str, machine_number: str, robot_type: str, robot_identifier: str = ""
+) -> tuple[str, str, str, str]:
     robot_id = str(robot_identifier or "").strip().casefold()
     return (
         str(plant_area or "").strip().casefold(),
@@ -336,7 +352,9 @@ def _normalized_robot_circuit(value: Any, *, allow_blank: bool) -> int | str:
     return parsed
 
 
-def _robot_circuit_data_value(entry: dict[str, Any], existing_data: dict[str, object], field: str, *, allow_blank: bool) -> int | str:
+def _robot_circuit_data_value(
+    entry: dict[str, Any], existing_data: dict[str, object], field: str, *, allow_blank: bool
+) -> int | str:
     if field not in entry and field in existing_data:
         return existing_data.get(field, "")
     return _normalized_robot_circuit(entry.get(field), allow_blank=allow_blank)

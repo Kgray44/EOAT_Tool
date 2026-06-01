@@ -23,13 +23,29 @@ GUIDED_AUDIT_STEPS: tuple[GuidedAuditStep, ...] = (
     GuidedAuditStep(
         id="identify_machine_robot",
         title="Identify machine and robot",
-        fields=("Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Robot Type", "Robot Model/Controller", "Cleanroom/Non-Cleanroom"),
+        fields=(
+            "Audit ID",
+            "Audit Date",
+            "Auditor",
+            "Plant/Area",
+            "Press/Machine #",
+            "Robot Type",
+            "Robot Model/Controller",
+            "Cleanroom/Non-Cleanroom",
+        ),
         section_hint="Audit Header",
     ),
     GuidedAuditStep(
         id="classify_eoat",
         title="Classify EOAT",
-        fields=("EOAT Type", "EOAT Moves", "Connection Type", "Number of Parts Picked", "# of Cylinders", "Cylinder Type"),
+        fields=(
+            "EOAT Type",
+            "EOAT Moves",
+            "Connection Type",
+            "Number of Parts Picked",
+            "# of Cylinders",
+            "Cylinder Type",
+        ),
         section_hint="EOAT Type and Tooling",
     ),
     GuidedAuditStep(
@@ -103,7 +119,14 @@ GUIDED_AUDIT_STEPS: tuple[GuidedAuditStep, ...] = (
     GuidedAuditStep(
         id="documentation_photo_evidence",
         title="Documentation and photo evidence",
-        fields=("Spare Parts Identified?", "Drawing/CAD Available?", "BOM Available?", "Process Binder Complete?", "Photos Taken?", "Photo Folder/Link"),
+        fields=(
+            "Spare Parts Identified?",
+            "Drawing/CAD Available?",
+            "BOM Available?",
+            "Process Binder Complete?",
+            "Photos Taken?",
+            "Photo Folder/Link",
+        ),
         section_hint="Documentation / Photos",
     ),
     GuidedAuditStep(

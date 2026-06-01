@@ -18,7 +18,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    Qt = QBrush = QColor = QFont = QKeySequence = QShortcut = QApplication = QLabel = QMainWindow = QMessageBox = QProgressBar = QStackedWidget = QSplitter = QTreeWidget = QTreeWidgetItem = QWidget = None
+    Qt = QBrush = QColor = QFont = QKeySequence = QShortcut = QApplication = QLabel = QMainWindow = QMessageBox = (
+        QProgressBar
+    ) = QStackedWidget = QSplitter = QTreeWidget = QTreeWidgetItem = QWidget = None
 
 from core.config import load_config, save_config
 from core.constants import APP_NAME
@@ -274,7 +276,9 @@ class DashboardWindow(QMainWindow):
     def open_command_palette(self) -> None:
         from .widgets.command_palette import CommandPalette
 
-        palette = CommandPalette(self.command_registry, self.config.project_root, self, current_page_key=self._current_page_key)
+        palette = CommandPalette(
+            self.command_registry, self.config.project_root, self, current_page_key=self._current_page_key
+        )
         palette.exec()
 
     def open_search_result(self, result: SearchResult | dict) -> bool:

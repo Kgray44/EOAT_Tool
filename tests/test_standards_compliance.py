@@ -77,7 +77,9 @@ def test_standards_compliance_scores_vacuum_mechanical_and_hybrid(fake_project):
 
 
 def test_standards_compliance_treats_unknown_and_na_differently(fake_project):
-    unknown = score_audit_compliance(fake_project, _row("AUD-UNK-COMP", "Unknown / Needs Review", **{"Sensors Present?": "Unknown / Not Checked"}))
+    unknown = score_audit_compliance(
+        fake_project, _row("AUD-UNK-COMP", "Unknown / Needs Review", **{"Sensors Present?": "Unknown / Not Checked"})
+    )
     no_sensors = score_audit_compliance(fake_project, _row("AUD-NA-COMP", "Vacuum", **{"Sensors Present?": "No"}))
 
     assert _category(unknown, "eoat_classification_complete").status == "unknown"
@@ -86,7 +88,9 @@ def test_standards_compliance_treats_unknown_and_na_differently(fake_project):
 
 
 def test_standards_compliance_rolls_up_by_press(fake_project):
-    _append_inventory(fake_project, _row("AUD-ROLL-001", "Vacuum", **{"Press/Machine #": "Press 77", "Tubing Condition": "Damaged"}))
+    _append_inventory(
+        fake_project, _row("AUD-ROLL-001", "Vacuum", **{"Press/Machine #": "Press 77", "Tubing Condition": "Damaged"})
+    )
     _append_inventory(fake_project, _row("AUD-ROLL-002", "Vacuum", **{"Press/Machine #": "Press 77"}))
 
     summary, error = analyze_standards_compliance(fake_project)

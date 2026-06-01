@@ -62,14 +62,18 @@ class WorkInstructionSet:
         }
 
 
-def build_work_instruction_documents(project_root: str | Path, *, audit_id: str = "", machine: str = "") -> WorkInstructionSet:
+def build_work_instruction_documents(
+    project_root: str | Path, *, audit_id: str = "", machine: str = ""
+) -> WorkInstructionSet:
     row = _select_audit_row(project_root, audit_id=audit_id, machine=machine)
     if row is None:
         warning = "No matching EOAT Inventory audit row found; work instructions were not generated."
         return WorkInstructionSet(audit_id=audit_id, machine=machine, documents=(), warnings=(warning,))
     row = repair_legacy_audit_lookup_shift(row)
     warnings = tuple(_missing_evidence_warnings(row))
-    documents = tuple(_build_document(row, key, title, audience, warnings) for key, title, audience in INSTRUCTION_TYPES)
+    documents = tuple(
+        _build_document(row, key, title, audience, warnings) for key, title, audience in INSTRUCTION_TYPES
+    )
     return WorkInstructionSet(
         audit_id=_clean(row.get("Audit ID")),
         machine=_clean(row.get("Press/Machine #")),
@@ -78,12 +82,19 @@ def build_work_instruction_documents(project_root: str | Path, *, audit_id: str 
     )
 
 
-def generate_work_instructions(project_root: str | Path, *, audit_id: str = "", machine: str = "", log_activity: bool = True) -> ToolResult:
+def generate_work_instructions(
+    project_root: str | Path, *, audit_id: str = "", machine: str = "", log_activity: bool = True
+) -> ToolResult:
     start = time.perf_counter()
     instruction_set = build_work_instruction_documents(project_root, audit_id=audit_id, machine=machine)
     if not instruction_set.documents:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, "No work instructions were generated.", warnings=list(instruction_set.warnings))
-    output_dir = ensure_directory(resolve_project_paths(project_root).work_instructions / _slug(instruction_set.audit_id or instruction_set.machine or "EOAT"))
+        return ToolResult.fail(
+            TOOL_ID, TOOL_NAME, "No work instructions were generated.", warnings=list(instruction_set.warnings)
+        )
+    output_dir = ensure_directory(
+        resolve_project_paths(project_root).work_instructions
+        / _slug(instruction_set.audit_id or instruction_set.machine or "EOAT")
+    )
     stamp = timestamp_for_report()
     files_created: list[str] = []
     try:
@@ -91,14 +102,20 @@ def generate_work_instructions(project_root: str | Path, *, audit_id: str = "", 
             path = output_dir / f"{_slug(document.instruction_key)}_{stamp}.md"
             files_created.append(str(safe_write_text(path, document.markdown, overwrite=False)))
         index = _build_index_markdown(instruction_set, files_created)
-        files_created.append(str(safe_write_text(output_dir / f"Work_Instruction_Index_{stamp}.md", index, overwrite=False)))
+        files_created.append(
+            str(safe_write_text(output_dir / f"Work_Instruction_Index_{stamp}.md", index, overwrite=False))
+        )
     except Exception as exc:
         return ToolResult.fail(TOOL_ID, TOOL_NAME, "Could not write work instruction files.", errors=[str(exc)])
     result = ToolResult.ok(
         TOOL_ID,
         TOOL_NAME,
         f"Generated {len(instruction_set.documents)} work instruction document(s).",
-        details=[f"Audit ID: {instruction_set.audit_id}", f"Machine: {instruction_set.machine}", f"Output folder: {output_dir}"],
+        details=[
+            f"Audit ID: {instruction_set.audit_id}",
+            f"Machine: {instruction_set.machine}",
+            f"Output folder: {output_dir}",
+        ],
         warnings=list(instruction_set.warnings),
         files_created=files_created,
         output_reports=files_created,
@@ -113,7 +130,9 @@ def generate_work_instructions(project_root: str | Path, *, audit_id: str = "", 
     return result
 
 
-def _build_document(row: dict[str, Any], key: str, title: str, audience: str, warnings: tuple[str, ...]) -> WorkInstructionDocument:
+def _build_document(
+    row: dict[str, Any], key: str, title: str, audience: str, warnings: tuple[str, ...]
+) -> WorkInstructionDocument:
     audit_id = _clean(row.get("Audit ID")) or "N/A"
     machine = _clean(row.get("Press/Machine #")) or "N/A"
     eoat_type = _clean(row.get("EOAT Type")) or "Unknown"
@@ -241,8 +260,12 @@ def _eoat_type_steps(row: dict[str, Any]) -> list[str]:
             ]
         )
     if _yes(row.get("Sensors Present?")) or _yes(row.get("Part-Present Detection Present?")):
-        steps.append(f"- Verify sensors: type {_display(row.get('Sensor Type'))}, brand/model {_display(row.get('Sensor Brand/Model'))}.")
-    return steps or ["- EOAT type is not documented; inspect vacuum, gripper, sensor, routing, and mounting systems before use."]
+        steps.append(
+            f"- Verify sensors: type {_display(row.get('Sensor Type'))}, brand/model {_display(row.get('Sensor Brand/Model'))}."
+        )
+    return steps or [
+        "- EOAT type is not documented; inspect vacuum, gripper, sensor, routing, and mounting systems before use."
+    ]
 
 
 def _source_fact_lines(row: dict[str, Any]) -> list[str]:

@@ -18,7 +18,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QCheckBox = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QPushButton = QScrollArea = QSplitter = QTableWidget = QTextEdit = QVBoxLayout = QWidget = None
+    QCheckBox = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QPushButton = QScrollArea = QSplitter = (
+        QTableWidget
+    ) = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.page_tasks import run_tool_background
@@ -77,7 +79,9 @@ class HandoffPage(AsyncRefreshMixin, QWidget):
         right_layout.addWidget(self.result_panel, stretch=1)
         self.preview = ReportViewer()
         self.preview.setMaximumHeight(240)
-        self.preview.setPlaceholderText("No final report selected yet. Run a handoff action to preview the generated index or report.")
+        self.preview.setPlaceholderText(
+            "No final report selected yet. Run a handoff action to preview the generated index or report."
+        )
         right_layout.addWidget(self.preview, stretch=2)
         splitter.addWidget(right)
         splitter.setSizes([430, 760])
@@ -162,7 +166,9 @@ class HandoffPage(AsyncRefreshMixin, QWidget):
         self.include_weekly.setChecked(True)
         self.include_mentor = QCheckBox("Include mentor briefs")
         self.include_photos = QCheckBox("Include actual photo files")
-        for index, widget in enumerate([self.dry_run, self.include_daily, self.include_weekly, self.include_mentor, self.include_photos]):
+        for index, widget in enumerate(
+            [self.dry_run, self.include_daily, self.include_weekly, self.include_mentor, self.include_photos]
+        ):
             options.addWidget(widget, index // 2, index % 2)
         layout.addLayout(options)
         row = QHBoxLayout()
@@ -179,11 +185,33 @@ class HandoffPage(AsyncRefreshMixin, QWidget):
         box = QGroupBox("Release Safety")
         layout = QHBoxLayout(box)
         final_review = QPushButton("Run Final Review Workflow")
-        final_review.clicked.connect(lambda: self._run_background("handoff_final_review", "Final Review Workflow", lambda: run_workflow(self.config.project_root, "final-review"), modifies_files=True))
+        final_review.clicked.connect(
+            lambda: self._run_background(
+                "handoff_final_review",
+                "Final Review Workflow",
+                lambda: run_workflow(self.config.project_root, "final-review"),
+                modifies_files=True,
+            )
+        )
         backup = QPushButton("Backup Workbook")
-        backup.clicked.connect(lambda: self._run_background("handoff_backup_workbook", "Workbook Backup", lambda: backup_project(self.config.project_root, mode="workbook"), modifies_files=True, workbook_lock=True))
+        backup.clicked.connect(
+            lambda: self._run_background(
+                "handoff_backup_workbook",
+                "Workbook Backup",
+                lambda: backup_project(self.config.project_root, mode="workbook"),
+                modifies_files=True,
+                workbook_lock=True,
+            )
+        )
         light = QPushButton("Create Light Backup")
-        light.clicked.connect(lambda: self._run_background("handoff_backup_light", "Light Project Backup", lambda: backup_project(self.config.project_root, mode="light"), modifies_files=True))
+        light.clicked.connect(
+            lambda: self._run_background(
+                "handoff_backup_light",
+                "Light Project Backup",
+                lambda: backup_project(self.config.project_root, mode="light"),
+                modifies_files=True,
+            )
+        )
         layout.addWidget(final_review)
         layout.addWidget(backup)
         layout.addWidget(light)
@@ -240,47 +268,77 @@ class HandoffPage(AsyncRefreshMixin, QWidget):
         self.refresh_status(force=True, quiet=True)
 
     def run_deliverable_check(self) -> None:
-        self._run_background("handoff_deliverable_check", "Final Deliverable Check", lambda: run_final_deliverable_check(self.config.project_root), modifies_files=True)
+        self._run_background(
+            "handoff_deliverable_check",
+            "Final Deliverable Check",
+            lambda: run_final_deliverable_check(self.config.project_root),
+            modifies_files=True,
+        )
 
     def generate_presentation_assets(self) -> None:
-        self._run_background("handoff_presentation_assets", "Presentation Assets", lambda: export_presentation_assets(self.config.project_root, include_docx=False), modifies_files=True)
+        self._run_background(
+            "handoff_presentation_assets",
+            "Presentation Assets",
+            lambda: export_presentation_assets(self.config.project_root, include_docx=False),
+            modifies_files=True,
+        )
 
     def generate_final_summary(self) -> None:
         self._run_background(
             "handoff_final_summary",
             "Final Project Summary",
             lambda: generate_final_project_summary(
-                    self.config.project_root,
-                    include_docx=self.summary_docx.isChecked(),
-                    notes=self.summary_notes.toPlainText(),
-                ),
+                self.config.project_root,
+                include_docx=self.summary_docx.isChecked(),
+                notes=self.summary_notes.toPlainText(),
+            ),
             modifies_files=True,
         )
 
     def export_leadership_summary(self) -> None:
-        self._run_background("handoff_leadership_summary", "Leadership Summary Export", lambda: export_leadership_summary(self.config.project_root), modifies_files=True)
+        self._run_background(
+            "handoff_leadership_summary",
+            "Leadership Summary Export",
+            lambda: export_leadership_summary(self.config.project_root),
+            modifies_files=True,
+        )
 
     def export_technical_appendix(self) -> None:
-        self._run_background("handoff_technical_appendix", "Technical Appendix Export", lambda: export_technical_appendix(self.config.project_root), modifies_files=True)
+        self._run_background(
+            "handoff_technical_appendix",
+            "Technical Appendix Export",
+            lambda: export_technical_appendix(self.config.project_root),
+            modifies_files=True,
+        )
 
     def export_open_items_carryover(self) -> None:
-        self._run_background("handoff_open_items_carryover", "Open Items Carryover Export", lambda: export_open_items_carryover(self.config.project_root), modifies_files=True)
+        self._run_background(
+            "handoff_open_items_carryover",
+            "Open Items Carryover Export",
+            lambda: export_open_items_carryover(self.config.project_root),
+            modifies_files=True,
+        )
 
     def export_readiness_checklist(self) -> None:
-        self._run_background("handoff_readiness_checklist", "Readiness Checklist Export", lambda: export_deliverable_readiness(self.config.project_root), modifies_files=True)
+        self._run_background(
+            "handoff_readiness_checklist",
+            "Readiness Checklist Export",
+            lambda: export_deliverable_readiness(self.config.project_root),
+            modifies_files=True,
+        )
 
     def build_handoff_package(self) -> None:
         self._run_background(
             "handoff_build_package",
             "Final Handoff Package",
             lambda: build_final_handoff_package(
-                    self.config.project_root,
-                    include_daily_reports=self.include_daily.isChecked(),
-                    include_weekly_reports=self.include_weekly.isChecked(),
-                    include_mentor_briefs=self.include_mentor.isChecked(),
-                    include_photo_files=self.include_photos.isChecked(),
-                    dry_run=self.dry_run.isChecked(),
-                ),
+                self.config.project_root,
+                include_daily_reports=self.include_daily.isChecked(),
+                include_weekly_reports=self.include_weekly.isChecked(),
+                include_mentor_briefs=self.include_mentor.isChecked(),
+                include_photo_files=self.include_photos.isChecked(),
+                dry_run=self.dry_run.isChecked(),
+            ),
             modifies_files=not self.dry_run.isChecked(),
         )
 
@@ -295,7 +353,9 @@ class HandoffPage(AsyncRefreshMixin, QWidget):
         if not result.success:
             self.result_panel.show_result(result)
 
-    def _run_background(self, task_id: str, name: str, func, modifies_files: bool = False, workbook_lock: bool = False) -> None:
+    def _run_background(
+        self, task_id: str, name: str, func, modifies_files: bool = False, workbook_lock: bool = False
+    ) -> None:
         run_tool_background(
             self.result_panel,
             task_id,

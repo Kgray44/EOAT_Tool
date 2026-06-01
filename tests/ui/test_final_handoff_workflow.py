@@ -22,7 +22,9 @@ def test_final_handoff_deliverable_assets_summary_dry_run_and_package(qapp, fake
 
     click_button(page, "Generate Presentation Assets")
     wait_for_background_tasks()
-    assert list((fake_project / "06_Final_Handoff" / "Presentation" / "Auto_Exported_Content").glob("Presentation_Assets_*"))
+    assert list(
+        (fake_project / "06_Final_Handoff" / "Presentation" / "Auto_Exported_Content").glob("Presentation_Assets_*")
+    )
 
     click_button(page, "Generate Final Project Summary Draft")
     wait_for_background_tasks()

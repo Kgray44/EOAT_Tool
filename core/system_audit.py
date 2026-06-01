@@ -24,14 +24,37 @@ TOOL_NAME = "EOAT Command Center System Audit"
 REQUIRED_IMPORTS = ["PySide6", "openpyxl", "pandas", "matplotlib", "docx", "pytest"]
 
 EXPECTED_APP_PAGES = [
-    "home.py", "settings.py", "tool_registry.py", "workbook_health.py", "reports.py", "schedule.py",
-    "audit.py", "photos.py", "audit_progress.py", "issue_analysis.py", "standards_docs.py",
-    "fmea.py", "pilot_candidates.py", "kpi_dashboard.py", "pm_checklists.py", "bom_spares.py", "handoff.py",
+    "home.py",
+    "settings.py",
+    "tool_registry.py",
+    "workbook_health.py",
+    "reports.py",
+    "schedule.py",
+    "audit.py",
+    "photos.py",
+    "audit_progress.py",
+    "issue_analysis.py",
+    "standards_docs.py",
+    "fmea.py",
+    "pilot_candidates.py",
+    "kpi_dashboard.py",
+    "pm_checklists.py",
+    "bom_spares.py",
+    "handoff.py",
 ]
 
 EXPECTED_CORE_MODULES = [
-    "config.py", "paths.py", "result.py", "logging.py", "safe_files.py", "workbook_io.py",
-    "validation.py", "tool_registry.py", "system_audit.py", "workflows.py", "project_backup.py",
+    "config.py",
+    "paths.py",
+    "result.py",
+    "logging.py",
+    "safe_files.py",
+    "workbook_io.py",
+    "validation.py",
+    "tool_registry.py",
+    "system_audit.py",
+    "workflows.py",
+    "project_backup.py",
 ]
 
 

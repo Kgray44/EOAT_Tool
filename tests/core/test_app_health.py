@@ -4,7 +4,9 @@ from core.app_health import FAIL, PASS, UNKNOWN, WARNING, run_app_health_checks
 
 
 def test_app_health_reports_runtime_project_and_workbook_checks(fake_project, fake_config):
-    summary = run_app_health_checks(fake_project, config=fake_config, check_repo_safety=False, check_scheduled_tasks=False)
+    summary = run_app_health_checks(
+        fake_project, config=fake_config, check_repo_safety=False, check_scheduled_tasks=False
+    )
     by_key = {check.key: check for check in summary.checks}
 
     assert by_key["python_version"].status == PASS

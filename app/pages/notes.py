@@ -21,7 +21,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = None
-    QComboBox = QDialog = QDialogButtonBox = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QMessageBox = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QComboBox = QDialog = QDialogButtonBox = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = (
+        QMessageBox
+    ) = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
 
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from app.widgets.annotation_target_picker import AnnotationTargetPicker
@@ -53,7 +55,18 @@ class NotesPage(QWidget):
         self.status_filter.addItems(["All", "Open", "Resolved", "Archived"])
         self.status_filter.currentTextChanged.connect(self.refresh_notes)
         self.sort_combo = QComboBox()
-        self.sort_combo.addItems(["Updated Date", "Created Date", "Subject Alphabetical", "Importance", "Status", "Collection", "Note Type", "Follow-Up Date"])
+        self.sort_combo.addItems(
+            [
+                "Updated Date",
+                "Created Date",
+                "Subject Alphabetical",
+                "Importance",
+                "Status",
+                "Collection",
+                "Note Type",
+                "Follow-Up Date",
+            ]
+        )
         self.sort_combo.currentTextChanged.connect(self.refresh_notes)
         new_button = QPushButton("+ New Note")
         new_button.clicked.connect(self.new_note)
@@ -61,14 +74,24 @@ class NotesPage(QWidget):
         export_md.clicked.connect(self.export_markdown)
         export_xlsx = QPushButton("Export Excel")
         export_xlsx.clicked.connect(self.export_excel)
-        for widget in [self.search_edit, self.importance_filter, self.status_filter, self.sort_combo, new_button, export_md, export_xlsx]:
+        for widget in [
+            self.search_edit,
+            self.importance_filter,
+            self.status_filter,
+            self.sort_combo,
+            new_button,
+            export_md,
+            export_xlsx,
+        ]:
             filter_row.addWidget(widget)
         layout.addLayout(filter_row)
 
         splitter = QSplitter()
         self.table = QTableWidget()
         self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(["Subject", "Importance", "Status", "Collection", "Type", "Updated", "Links"])
+        self.table.setHorizontalHeaderLabels(
+            ["Subject", "Importance", "Status", "Collection", "Type", "Updated", "Links"]
+        )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
         self.table.itemSelectionChanged.connect(self.load_selected_note)
@@ -244,10 +267,16 @@ class NotesPage(QWidget):
             target_ids = []
             if self.target_picker.isVisible():
                 kwargs = self.target_picker.target_kwargs()
-                if any(kwargs.get(key) for key in ["audit_id", "machine_id", "field_key", "object_ref", "target_label"]):
+                if any(
+                    kwargs.get(key) for key in ["audit_id", "machine_id", "field_key", "object_ref", "target_label"]
+                ):
                     target_ids.append(self.service.create_or_get_target(**kwargs).id)
             target_ids.extend(self._targets_from_optional_values(values))
-            tag_ids = [self.tag_picker.current_tag_id()] if self.tag_picker.isVisible() and self.tag_picker.current_tag_id() else []
+            tag_ids = (
+                [self.tag_picker.current_tag_id()]
+                if self.tag_picker.isVisible() and self.tag_picker.current_tag_id()
+                else []
+            )
             attachment = values.pop("attachment", None)
             metadata_keys = {
                 "created_by",
@@ -307,7 +336,9 @@ class NotesPage(QWidget):
         if audit_id:
             target_ids.append(self.service.create_or_get_target("audit", audit_id=audit_id, target_label=audit_id).id)
         if machine:
-            target_ids.append(self.service.create_or_get_target("machine", machine_id=machine, target_label=f"Machine {machine}").id)
+            target_ids.append(
+                self.service.create_or_get_target("machine", machine_id=machine, target_label=f"Machine {machine}").id
+            )
         if audit_field:
             target_ids.append(
                 self.service.create_or_get_target(
@@ -335,13 +366,19 @@ class NotesPage(QWidget):
         for key, target_type, label_prefix in mappings:
             value = str(values.get(key) or "").strip()
             if value:
-                target_ids.append(self.service.create_or_get_target(target_type, target_label=f"{label_prefix}: {value}", object_ref=value).id)
+                target_ids.append(
+                    self.service.create_or_get_target(
+                        target_type, target_label=f"{label_prefix}: {value}", object_ref=value
+                    ).id
+                )
         return target_ids
 
     def archive_note(self) -> None:
         if not self.selected_note_id:
             return
-        answer = QMessageBox.question(self, "Archive Note", "Archive this note? It can remain in the database for audit history.")
+        answer = QMessageBox.question(
+            self, "Archive Note", "Archive this note? It can remain in the database for audit history."
+        )
         if answer != QMessageBox.StandardButton.Yes:
             return
         self.service.archive_note(self.selected_note_id)

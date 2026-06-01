@@ -119,7 +119,11 @@ def save_audit_with_side_effects(
             log_activity_event(
                 config.project_root,
                 "robot_info_save_failed",
-                {"audit_id": entry.get("Audit ID", ""), "errors": robot_result.errors, "warnings": robot_result.warnings},
+                {
+                    "audit_id": entry.get("Audit ID", ""),
+                    "errors": robot_result.errors,
+                    "warnings": robot_result.warnings,
+                },
             )
 
         result.details.append("Annotation color sync: deferred; audit save did not change tag assignments.")
@@ -196,7 +200,10 @@ def save_audit_with_side_effects(
         0.0,
         source="audit_save",
         page_tool="audit",
-        details={"queued": bool(result.metrics.get("deferred_robot_info_queued")), "audit_id": entry.get("Audit ID", "")},
+        details={
+            "queued": bool(result.metrics.get("deferred_robot_info_queued")),
+            "audit_id": entry.get("Audit ID", ""),
+        },
         success=result.success,
     )
     log_performance_event(
@@ -205,7 +212,10 @@ def save_audit_with_side_effects(
         0.0,
         source="audit_save",
         page_tool="audit",
-        details={"queued": bool(result.metrics.get("deferred_compatibility_queued")), "audit_id": entry.get("Audit ID", "")},
+        details={
+            "queued": bool(result.metrics.get("deferred_compatibility_queued")),
+            "audit_id": entry.get("Audit ID", ""),
+        },
         success=result.success,
     )
     log_activity_event(config.project_root, "audit_save_timing", timing)
@@ -281,7 +291,9 @@ def insert_robot_info_summary(summary: str, robot_result) -> str:
     robot_lines = [
         "Robot Info Summary",
         "------------------",
-        robot_result.summary if robot_result.success else "Robot_Info.xlsx was not updated. The EOAT audit save still completed.",
+        robot_result.summary
+        if robot_result.success
+        else "Robot_Info.xlsx was not updated. The EOAT audit save still completed.",
     ]
     if robot_result.success:
         for field in ROBOT_INFO_FIELDS:

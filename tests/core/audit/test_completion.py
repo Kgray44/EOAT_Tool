@@ -224,7 +224,9 @@ def test_cylinder_type_alone_does_not_trigger_optional_group():
 
 
 def test_default_cylinder_type_alone_does_not_count_against_completion():
-    summary = calculate_audit_completion(_entry(**{CYLINDER_TYPE_FIELD: CYLINDER_TYPE_DEFAULT, CYLINDER_COUNT_FIELD: ""}), SECTIONS)
+    summary = calculate_audit_completion(
+        _entry(**{CYLINDER_TYPE_FIELD: CYLINDER_TYPE_DEFAULT, CYLINDER_COUNT_FIELD: ""}), SECTIONS
+    )
 
     assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_IGNORED_BY_OPTIONAL_GROUP
     assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_IGNORED_BY_OPTIONAL_GROUP
@@ -250,7 +252,13 @@ def test_triggered_optional_cylinder_group_preserves_manual_type():
 
 def test_manual_override_sets_audit_percent_without_verifying_fields():
     summary = calculate_audit_completion(
-        _entry(**{"Press/Machine #": "", MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes", "Ignored Empty Fields At Override": "Press/Machine #"}),
+        _entry(
+            **{
+                "Press/Machine #": "",
+                MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes",
+                "Ignored Empty Fields At Override": "Press/Machine #",
+            }
+        ),
         SECTIONS,
     )
     status = _status(summary, "Press/Machine #")

@@ -70,16 +70,49 @@ class AuditProgressSummary:
             "",
             "## Coverage Summary",
         ]
-        lines.extend(_table_from_rows(["Metric", "Count"], [{"Metric": label, "Count": value} for label, value in self.coverage_summary]))
+        lines.extend(
+            _table_from_rows(
+                ["Metric", "Count"], [{"Metric": label, "Count": value} for label, value in self.coverage_summary]
+            )
+        )
         if self.warnings:
             lines.extend(["", "## Warnings"])
             lines.extend(f"- {warning}" for warning in self.warnings)
         lines.extend(["", "## Missing Relationships"])
-        lines.extend(_table_from_rows(["Machine No.", "NGW Part Number", "NGW Part Description", "Reason Missing", "Suggested Next Action"], self.missing_relationships))
+        lines.extend(
+            _table_from_rows(
+                ["Machine No.", "NGW Part Number", "NGW Part Description", "Reason Missing", "Suggested Next Action"],
+                self.missing_relationships,
+            )
+        )
         lines.extend(["", "## Compatibility Opportunities"])
-        lines.extend(_table_from_rows(["NGW Part Number", "NGW Part Description", "Source Audited Machine", "Compatible Missing Machines", "Suggested Action"], self.compatibility_opportunities))
+        lines.extend(
+            _table_from_rows(
+                [
+                    "NGW Part Number",
+                    "NGW Part Description",
+                    "Source Audited Machine",
+                    "Compatible Missing Machines",
+                    "Suggested Action",
+                ],
+                self.compatibility_opportunities,
+            )
+        )
         lines.extend(["", "## Machine Coverage"])
-        lines.extend(_table_from_rows(["Machine No.", "Required Relationships", "Audited", "Compatible", "Covered Total", "Remaining", "Coverage %"], self.machine_coverage))
+        lines.extend(
+            _table_from_rows(
+                [
+                    "Machine No.",
+                    "Required Relationships",
+                    "Audited",
+                    "Compatible",
+                    "Covered Total",
+                    "Remaining",
+                    "Coverage %",
+                ],
+                self.machine_coverage,
+            )
+        )
         lines.extend(["", "## Existing Entries by Type"])
         lines.extend(_table_from_counts(self.entry_type_counts))
         lines.extend(["", "## Audit Coverage By EOAT Type"])
@@ -160,7 +193,9 @@ def calculate_audit_progress(
     input_path = Path(project_root_or_master_audit_path)
     if input_path.suffix.lower() in {".xlsx", ".xlsm"}:
         workbook_path = input_path
-        capacity_path = Path(press_capacity_path) if press_capacity_path else workbook_path.parent / "press_capacity.xlsx"
+        capacity_path = (
+            Path(press_capacity_path) if press_capacity_path else workbook_path.parent / "press_capacity.xlsx"
+        )
         project_root: Path | None = None
     else:
         paths = resolve_project_paths(input_path)
@@ -189,20 +224,32 @@ def calculate_audit_progress(
             errors=[str(exc)],
         )
 
-    summary = calculate_audit_progress_from_rows(inventory, capacity_path, issues=issues, interviews=interviews, photos=photos, actions=actions, pilots=pilots)
+    summary = calculate_audit_progress_from_rows(
+        inventory, capacity_path, issues=issues, interviews=interviews, photos=photos, actions=actions, pilots=pilots
+    )
     if project_root is None:
         return summary, None
     return summary, None
 
 
-def calculate_audit_progress_from_workbooks(master_audit_path: str | Path, press_capacity_path: str | Path) -> AuditProgressSummary:
+def calculate_audit_progress_from_workbooks(
+    master_audit_path: str | Path, press_capacity_path: str | Path
+) -> AuditProgressSummary:
     inventory = row_dicts(master_audit_path, "EOAT Inventory")
     issues = row_dicts(master_audit_path, "Issue Log")
     interviews = row_dicts(master_audit_path, "Interview Notes")
     photos = row_dicts(master_audit_path, "Photo Index")
     actions = row_dicts(master_audit_path, "Action Items")
     pilots = row_dicts(master_audit_path, "Pilot Candidates")
-    return calculate_audit_progress_from_rows(inventory, press_capacity_path, issues=issues, interviews=interviews, photos=photos, actions=actions, pilots=pilots)
+    return calculate_audit_progress_from_rows(
+        inventory,
+        press_capacity_path,
+        issues=issues,
+        interviews=interviews,
+        photos=photos,
+        actions=actions,
+        pilots=pilots,
+    )
 
 
 def calculate_audit_progress_from_rows(
@@ -281,23 +328,39 @@ def calculate_audit_progress_from_rows(
         "compatibility_rows": compatibility_rows,
         "duplicate_relationship_rows": duplicate_rows,
         "conflict_rows": conflict_rows,
-        "machines_with_full_coverage": sum(1 for row in machine_coverage if row["Remaining"] == 0 and row["Required Relationships"] > 0),
-        "machines_with_partial_coverage": sum(1 for row in machine_coverage if 0 < row["Covered Total"] < row["Required Relationships"]),
-        "machines_with_no_coverage": sum(1 for row in machine_coverage if row["Covered Total"] == 0 and row["Required Relationships"] > 0),
+        "machines_with_full_coverage": sum(
+            1 for row in machine_coverage if row["Remaining"] == 0 and row["Required Relationships"] > 0
+        ),
+        "machines_with_partial_coverage": sum(
+            1 for row in machine_coverage if 0 < row["Covered Total"] < row["Required Relationships"]
+        ),
+        "machines_with_no_coverage": sum(
+            1 for row in machine_coverage if row["Covered Total"] == 0 and row["Required Relationships"] > 0
+        ),
         "parts_with_at_least_one_physical_audit": len(audited_parts),
         "parts_still_needing_first_physical_audit": len(required_parts - audited_parts),
-        "compatibility_opportunities_available": len([row for row in missing_relationships if row["Suggested Next Action"] == "Use Compatibility Entry"]),
+        "compatibility_opportunities_available": len(
+            [row for row in missing_relationships if row["Suggested Next Action"] == "Use Compatibility Entry"]
+        ),
         "total_eoat_inventory_rows": len(inventory),
         "audited_eoat_count": len(audited_keys) if required_keys else physical_audit_rows,
         "needs_followup_count": _count_status(inventory, "Needs follow-up"),
-        "pilot_candidate_yes_count": sum(1 for row in inventory if str(row.get("Pilot Candidate?") or "").lower() == "yes"),
-        "pilot_candidate_maybe_count": sum(1 for row in inventory if str(row.get("Pilot Candidate?") or "").lower() == "maybe"),
+        "pilot_candidate_yes_count": sum(
+            1 for row in inventory if str(row.get("Pilot Candidate?") or "").lower() == "yes"
+        ),
+        "pilot_candidate_maybe_count": sum(
+            1 for row in inventory if str(row.get("Pilot Candidate?") or "").lower() == "maybe"
+        ),
         "photos_indexed_count": len(photos),
         "interviews_logged_count": len(interviews),
         "issues_logged_count": len(issues),
         "open_issues_count": sum(1 for row in issues if str(row.get("Status") or "").strip().lower() in open_statuses),
-        "open_action_items_count": sum(1 for row in actions if str(row.get("Status") or "").strip().lower() in open_statuses),
-        "blocked_or_in_progress_action_items_count": sum(1 for row in actions if str(row.get("Status") or "").strip().lower() in {"blocked", "in progress"}),
+        "open_action_items_count": sum(
+            1 for row in actions if str(row.get("Status") or "").strip().lower() in open_statuses
+        ),
+        "blocked_or_in_progress_action_items_count": sum(
+            1 for row in actions if str(row.get("Status") or "").strip().lower() in {"blocked", "in progress"}
+        ),
         "pilot_candidates_sheet_rows": len(pilots),
         "missing_important_fields_total": sum(missing_counts.values()),
     }
@@ -331,7 +394,9 @@ def _duplicate_relationship_rows(master_by_key: dict[tuple[str, str], list[dict[
     return sum(len(rows) - 1 for rows in master_by_key.values() if len(rows) > 1)
 
 
-def _conflict_rows(master_by_key: dict[tuple[str, str], list[dict[str, Any]]], required_by_key: dict[tuple[str, str], Any]) -> int:
+def _conflict_rows(
+    master_by_key: dict[tuple[str, str], list[dict[str, Any]]], required_by_key: dict[tuple[str, str], Any]
+) -> int:
     total = 0
     for key, rows in master_by_key.items():
         if relationship_has_conflict(rows, required_by_key.get(key)):
@@ -339,7 +404,12 @@ def _conflict_rows(master_by_key: dict[tuple[str, str], list[dict[str, Any]]], r
     return total
 
 
-def _machine_coverage(required_relationships, audited_keys: set[tuple[str, str]], compatible_keys: set[tuple[str, str]], covered_keys: set[tuple[str, str]]) -> list[dict[str, Any]]:
+def _machine_coverage(
+    required_relationships,
+    audited_keys: set[tuple[str, str]],
+    compatible_keys: set[tuple[str, str]],
+    covered_keys: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
     by_machine: dict[str, set[tuple[str, str]]] = defaultdict(set)
     for relationship in required_relationships:
         by_machine[relationship.machine_no].add(relationship.key)
@@ -365,9 +435,15 @@ def _machine_coverage(required_relationships, audited_keys: set[tuple[str, str]]
     return rows
 
 
-def _missing_relationship_rows(missing_keys: set[tuple[str, str]], required_by_key: dict[tuple[str, str], Any], audited_part_sources: dict[str, list[str]]) -> list[dict[str, Any]]:
+def _missing_relationship_rows(
+    missing_keys: set[tuple[str, str]],
+    required_by_key: dict[tuple[str, str], Any],
+    audited_part_sources: dict[str, list[str]],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for machine, part in sorted(missing_keys, key=lambda key: ((0, int(key[0])) if key[0].isdigit() else (1, key[0]), key[1])):
+    for machine, part in sorted(
+        missing_keys, key=lambda key: ((0, int(key[0])) if key[0].isdigit() else (1, key[0]), key[1])
+    ):
         relationship = required_by_key[(machine, part)]
         has_source = part in audited_part_sources
         rows.append(
@@ -382,7 +458,11 @@ def _missing_relationship_rows(missing_keys: set[tuple[str, str]], required_by_k
     return rows
 
 
-def _compatibility_opportunity_rows(missing_keys: set[tuple[str, str]], required_by_key: dict[tuple[str, str], Any], audited_part_sources: dict[str, list[str]]) -> list[dict[str, Any]]:
+def _compatibility_opportunity_rows(
+    missing_keys: set[tuple[str, str]],
+    required_by_key: dict[tuple[str, str], Any],
+    audited_part_sources: dict[str, list[str]],
+) -> list[dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
     for machine, part in missing_keys:
         if part not in audited_part_sources:
@@ -420,7 +500,9 @@ def generate_audit_progress_report(project_root: str | Path, log_activity: bool 
             output = safe_write_text(report_path, summary.to_markdown(), overwrite=False)
         except FileExistsError:
             stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-            output = safe_write_text(paths.audit_progress_reports / f"Audit_Progress_{stamp}.md", summary.to_markdown(), overwrite=False)
+            output = safe_write_text(
+                paths.audit_progress_reports / f"Audit_Progress_{stamp}.md", summary.to_markdown(), overwrite=False
+            )
     except Exception as exc:
         return ToolResult.fail(
             "audit_progress_dashboard",

@@ -180,7 +180,9 @@ def _write_view(sheet, rows: list[dict[str, Any]], view_columns: list[str], refr
     sheet.cell(row=2, column=1).value = f"Last refreshed: {refreshed_at.strftime('%Y-%m-%d %H:%M')}"
     sheet.cell(row=2, column=max_col).value = "Generated view from EOAT Inventory"
     for column in range(1, max_col + 1):
-        sheet.cell(row=3, column=column).value = VIEW_COLUMN_LABELS.get(view_columns[column - 1], view_columns[column - 1])
+        sheet.cell(row=3, column=column).value = VIEW_COLUMN_LABELS.get(
+            view_columns[column - 1], view_columns[column - 1]
+        )
 
     current_row = 4
     grouped_rows = _group_rows(rows)
@@ -189,9 +191,9 @@ def _write_view(sheet, rows: list[dict[str, Any]], view_columns: list[str], refr
         counts = _entry_counts(group["rows"])
         header_text = _group_header_text(group["plant"], group["press"], counts)
         sheet.cell(row=header_row, column=1).value = header_text
-        sheet.cell(row=header_row, column=max_col).value = (
-            f"{counts['physical']} physical / {counts['compatible']} compatible / {counts['total']} total"
-        )
+        sheet.cell(
+            row=header_row, column=max_col
+        ).value = f"{counts['physical']} physical / {counts['compatible']} compatible / {counts['total']} total"
         current_row += 1
 
         detail_start = current_row
@@ -260,7 +262,9 @@ def _natural_sort_key(value: Any) -> tuple[Any, ...]:
 
 
 def _entry_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
-    compatible = sum(1 for row in rows if _cell_text(row.get(ENTRY_TYPE_FIELD)).casefold() == ENTRY_TYPE_COMPATIBLE.casefold())
+    compatible = sum(
+        1 for row in rows if _cell_text(row.get(ENTRY_TYPE_FIELD)).casefold() == ENTRY_TYPE_COMPATIBLE.casefold()
+    )
     total = len(rows)
     return {"physical": total - compatible, "compatible": compatible, "total": total}
 
@@ -319,7 +323,9 @@ def _apply_view_formatting(sheet, max_col: int, max_row: int) -> None:
     sheet.row_dimensions[3].height = 32
 
     for row_number in range(4, max_row + 1):
-        is_group_row = bool(sheet.cell(row=row_number, column=1).value) and sheet.row_dimensions[row_number].outlineLevel == 0
+        is_group_row = (
+            bool(sheet.cell(row=row_number, column=1).value) and sheet.row_dimensions[row_number].outlineLevel == 0
+        )
         for column in range(1, max_col + 1):
             cell = sheet.cell(row=row_number, column=column)
             cell.border = border

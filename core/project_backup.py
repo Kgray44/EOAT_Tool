@@ -49,13 +49,21 @@ def backup_project(project_root: str | Path, mode: str = "workbook", include_pho
     if mode == "workbook":
         folder = ensure_directory(root / "Workbook_Backups")
         if not paths.master_workbook.exists():
-            return ToolResult.fail(TOOL_ID, TOOL_NAME, "Master workbook is missing.", errors=[str(paths.master_workbook)])
-        target = safe_copy_file(paths.master_workbook, folder / f"EOAT_Master_Tracker_backup_{_stamp()}.xlsx", overwrite=False)
+            return ToolResult.fail(
+                TOOL_ID, TOOL_NAME, "Master workbook is missing.", errors=[str(paths.master_workbook)]
+            )
+        target = safe_copy_file(
+            paths.master_workbook, folder / f"EOAT_Master_Tracker_backup_{_stamp()}.xlsx", overwrite=False
+        )
         files_created.append(str(target))
         details.append("Workbook backup created.")
     elif mode == "config":
         folder = ensure_directory(root / "Config_Backups" / f"Config_Backup_{_stamp()}")
-        candidates = [TOOLKIT_ROOT / "config" / "user_config.json", paths.project_admin / "project_schedule_week1.json", paths.project_admin / "task_progress_week1.json"]
+        candidates = [
+            TOOLKIT_ROOT / "config" / "user_config.json",
+            paths.project_admin / "project_schedule_week1.json",
+            paths.project_admin / "task_progress_week1.json",
+        ]
         for source in candidates:
             if source.exists():
                 target = safe_copy_file(source, folder / source.name, overwrite=False)
@@ -64,9 +72,21 @@ def backup_project(project_root: str | Path, mode: str = "workbook", include_pho
     elif mode == "reports-index":
         folder = ensure_directory(root / "Report_Index_Backups")
         report_files = []
-        for report_folder in [paths.daily_reports, paths.weekly_reports, paths.validation_reports, paths.audit_progress_reports, paths.issue_analysis_reports, paths.documentation_gap_reports, paths.fmea_reports, paths.kpi_dashboard_exports, paths.final_report]:
+        for report_folder in [
+            paths.daily_reports,
+            paths.weekly_reports,
+            paths.validation_reports,
+            paths.audit_progress_reports,
+            paths.issue_analysis_reports,
+            paths.documentation_gap_reports,
+            paths.fmea_reports,
+            paths.kpi_dashboard_exports,
+            paths.final_report,
+        ]:
             report_files.extend(str(path) for path in list_recent_files(report_folder, limit=100))
-        target = safe_write_text(folder / f"Report_Index_{_stamp()}.json", json.dumps(report_files, indent=2), overwrite=False)
+        target = safe_write_text(
+            folder / f"Report_Index_{_stamp()}.json", json.dumps(report_files, indent=2), overwrite=False
+        )
         files_created.append(str(target))
         details.append(f"Indexed {len(report_files)} report file(s).")
     elif mode == "light":
@@ -84,7 +104,12 @@ def backup_project(project_root: str | Path, mode: str = "workbook", include_pho
         files_created.append(str(zip_path))
         details.append(f"Light project backup zip created with {count} file(s).")
     else:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, f"Unknown backup mode: {mode}", errors=["Use workbook, config, reports-index, or light."])
+        return ToolResult.fail(
+            TOOL_ID,
+            TOOL_NAME,
+            f"Unknown backup mode: {mode}",
+            errors=["Use workbook, config, reports-index, or light."],
+        )
 
     result = ToolResult.ok(
         TOOL_ID,

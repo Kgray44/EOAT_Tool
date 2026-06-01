@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from openpyxl import Workbook, load_workbook
 
@@ -19,7 +19,9 @@ def test_validate_project_foundation_on_temp_project(tmp_path):
     (tmp_path / "00_Project_Admin" / "Weekly_Status_Reports").mkdir()
     (tmp_path / "00_Project_Admin" / "Activity_Logs").mkdir()
     (tmp_path / "README.md").write_text("Project", encoding="utf-8")
-    (tmp_path / "00_Project_Admin" / "project_schedule_week1.json").write_text('{"week": 1, "days": {}}', encoding="utf-8")
+    (tmp_path / "00_Project_Admin" / "project_schedule_week1.json").write_text(
+        '{"week": 1, "days": {}}', encoding="utf-8"
+    )
     (tmp_path / "00_Project_Admin" / "task_progress_week1.json").write_text('{"tasks": []}', encoding="utf-8")
     workbook_dir = tmp_path / "01_EOAT_Audit" / "EOAT_Audit_Database"
     workbook_dir.mkdir(parents=True)
@@ -253,12 +255,10 @@ def test_compatibility_metadata_headers_remain_schema_checked(fake_project):
 
     assert result.metrics["missing_full_inventory_header_count"] == 2
     assert any(
-        f"Missing detail EOAT Inventory header: {SOURCE_AUDIT_ID_FIELD}" in warning
-        for warning in result.warnings
+        f"Missing detail EOAT Inventory header: {SOURCE_AUDIT_ID_FIELD}" in warning for warning in result.warnings
     )
     assert any(
-        f"Missing detail EOAT Inventory header: {COMPATIBILITY_SOURCE_FIELD}" in warning
-        for warning in result.warnings
+        f"Missing detail EOAT Inventory header: {COMPATIBILITY_SOURCE_FIELD}" in warning for warning in result.warnings
     )
 
 
@@ -431,7 +431,9 @@ def test_workbook_health_flags_na_in_major_columns(fake_project):
     result = validate_project_foundation(fake_project)
 
     assert result.metrics["major_na_cell_count"] >= 4
-    assert any("applicable major EOAT Inventory cell(s) are blank or contain N/A" in warning for warning in result.warnings)
+    assert any(
+        "applicable major EOAT Inventory cell(s) are blank or contain N/A" in warning for warning in result.warnings
+    )
 
 
 def test_workbook_health_deduplicates_missing_major_row_field_pairs(fake_project):
@@ -713,5 +715,6 @@ def test_workbook_health_treats_audit_by_press_as_regenerable_warning(fake_proje
 
     assert result.success is True
     assert not any(AUDIT_BY_PRESS_SHEET in error for error in result.errors)
-    assert any(warning == "Audit by Press view missing or stale; refresh generated view." for warning in result.warnings)
-
+    assert any(
+        warning == "Audit by Press view missing or stale; refresh generated view." for warning in result.warnings
+    )

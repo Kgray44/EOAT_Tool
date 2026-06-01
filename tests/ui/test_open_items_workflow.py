@@ -37,7 +37,9 @@ def test_annotation_suggestions_dialog_applies_and_ignores_rows(qapp, fake_confi
 
 def test_open_items_page_filters_and_status_actions(qapp, fake_config, monkeypatch):
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-OPEN-UI-001", machine_id="12", field_key="Sensor Type", field_label="Sensor Type")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-OPEN-UI-001", machine_id="12", field_key="Sensor Type", field_label="Sensor Type"
+    )
     service.create_note("UI open note", "Body", "Critical", status="Open", target_ids=[target.id])
     service.assign_tag_to_target(service.get_tag_by_name("Needs Review").id, target.id, sync_workbook=False)
     page = OpenItemsPage(fake_config)
@@ -56,7 +58,9 @@ def test_open_items_page_filters_and_status_actions(qapp, fake_config, monkeypat
     assert "cannot be manually marked resolved" in page.status_label.text()
     assert selected.id in {item.id for item in list_open_items(fake_config.project_root, include_validation=False)}
 
-    monkeypatch.setattr("app.pages.open_items.QInputDialog.getText", lambda *args, **kwargs: ("UI dismissal reason", True))
+    monkeypatch.setattr(
+        "app.pages.open_items.QInputDialog.getText", lambda *args, **kwargs: ("UI dismissal reason", True)
+    )
     page.dismiss_selected()
     visible_ids = {item.id for item in list_open_items(fake_config.project_root, include_validation=False)}
     assert selected.id not in visible_ids
@@ -82,7 +86,13 @@ def test_open_items_page_opens_audit_field_target(qapp, fake_config, fake_projec
         },
     )
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-OPEN-TARGET-001", machine_id="12", field_key="Sensor Type", field_label="Sensor Type")
+    target = service.create_or_get_target(
+        "audit_field",
+        audit_id="AUD-OPEN-TARGET-001",
+        machine_id="12",
+        field_key="Sensor Type",
+        field_label="Sensor Type",
+    )
     service.assign_tag_to_target(service.get_tag_by_name("Needs Review").id, target.id, sync_workbook=False)
 
     window = DashboardWindow(fake_config)

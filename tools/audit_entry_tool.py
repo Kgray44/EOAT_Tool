@@ -8,10 +8,7 @@ TOOLKIT_ROOT = Path(__file__).resolve().parents[1]
 if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
-from core.audit_entries import load_audit_entry, save_audit_entry
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.robot_info import upsert_robot_info_from_audit
-from core.workbook_schema import get_expected_headers
 
 FIELD_ARG_MAP = {
     "Audit ID": "audit_id",
@@ -59,6 +56,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def collect_interactive(project_root: str) -> dict[str, str]:
+    from core.workbook_schema import get_expected_headers
+
     print("Enter EOAT audit values. Leave optional fields blank.")
     entry: dict[str, str] = {}
     for field in get_expected_headers("EOAT Inventory"):
@@ -73,6 +72,9 @@ def entry_from_args(args: argparse.Namespace) -> dict[str, str]:
 
 def main() -> int:
     args = parse_args()
+    from core.audit_entries import load_audit_entry, save_audit_entry
+    from core.robot_info import upsert_robot_info_from_audit
+
     if args.load_audit_id:
         entry = load_audit_entry(args.project_root, args.load_audit_id)
         if not entry:

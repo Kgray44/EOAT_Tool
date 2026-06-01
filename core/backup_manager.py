@@ -260,9 +260,16 @@ def _retention_split(
     for record in records:
         modified = _parse_dt(record.modified_at)
         if modified >= recent_cutoff:
-            retained.append(record_with_reason(record, f"Kept because it is within the last {policy.keep_recent_days} days."))
+            retained.append(
+                record_with_reason(record, f"Kept because it is within the last {policy.keep_recent_days} days.")
+            )
         elif record.path in newest_kept:
-            retained.append(record_with_reason(record, f"Kept as one of the newest {policy.keep_last_per_workbook} backups for {record.source_workbook}."))
+            retained.append(
+                record_with_reason(
+                    record,
+                    f"Kept as one of the newest {policy.keep_last_per_workbook} backups for {record.source_workbook}.",
+                )
+            )
         elif policy.keep_milestones and record.milestone:
             retained.append(record_with_reason(record, "Kept because it appears to be a milestone backup."))
         else:
@@ -287,7 +294,9 @@ def _latest_validation_blockers(project_root: str | Path) -> list[str]:
         result = validate_project_foundation(project_root)
     except Exception as exc:
         return [f"Could not validate project before cleanup: {exc}"]
-    blockers = [finding.message for finding in findings_from_result(result) if str(finding.severity).upper() == "BLOCKER"]
+    blockers = [
+        finding.message for finding in findings_from_result(result) if str(finding.severity).upper() == "BLOCKER"
+    ]
     blockers.extend(result.errors)
     return blockers
 
@@ -322,7 +331,8 @@ def _summary_details(summary: BackupSummary, *, applied: bool) -> list[str]:
         f"Oldest backup: {summary.oldest_backup or 'None'}",
         f"Newest backup: {summary.newest_backup or 'None'}",
         f"{action}: {len(summary.cleanup_candidates)} backup(s)",
-        "By source workbook: " + (", ".join(f"{key}: {value}" for key, value in sorted(summary.by_source_workbook.items())) or "None"),
+        "By source workbook: "
+        + (", ".join(f"{key}: {value}" for key, value in sorted(summary.by_source_workbook.items())) or "None"),
     ]
 
 

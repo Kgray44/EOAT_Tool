@@ -38,9 +38,53 @@ def _seed_inventory_candidate(fake_project, *, press: str = "Press 12") -> None:
     )
     inv.append([inventory_row.get(header, "") for header in inv_headers])
     issues = wb["Issue Log"]
-    issues.append(["ISS-1", "2026-05-18", "Plant 4", press, "Wittmann R9", "Vacuum", "Part drop", "", "", "", "", "8", "5", "4", "", "", "", "Open", "", ""])
+    issues.append(
+        [
+            "ISS-1",
+            "2026-05-18",
+            "Plant 4",
+            press,
+            "Wittmann R9",
+            "Vacuum",
+            "Part drop",
+            "",
+            "",
+            "",
+            "",
+            "8",
+            "5",
+            "4",
+            "",
+            "",
+            "",
+            "Open",
+            "",
+            "",
+        ]
+    )
     kpi = wb["KPI Baseline"]
-    kpi.append(["KPI-1", "2026-05-18", "Plant 4", press, "", "", "Vacuum", 30, "Yes", 4, 1, 20, "Drop", 12.5, 2, "", "Manual", ""])
+    kpi.append(
+        [
+            "KPI-1",
+            "2026-05-18",
+            "Plant 4",
+            press,
+            "",
+            "",
+            "Vacuum",
+            30,
+            "Yes",
+            4,
+            1,
+            20,
+            "Drop",
+            12.5,
+            2,
+            "",
+            "Manual",
+            "",
+        ]
+    )
     wb.save(workbook_path)
     wb.close()
 

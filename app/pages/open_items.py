@@ -24,7 +24,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = None
-    QComboBox = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QInputDialog = QLabel = QLineEdit = QMessageBox = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QComboBox = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QInputDialog = QLabel = QLineEdit = (
+        QMessageBox
+    ) = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.event_bus import EVENT_AUDIT_SAVED, EVENT_OPEN_ITEMS_CHANGED, get_event_bus
 from app.page_async import AsyncRefreshMixin, log_page_performance
@@ -43,7 +45,18 @@ from core.open_items import (
 
 
 class OpenItemsPage(AsyncRefreshMixin, QWidget):
-    COLUMNS = ["Source", "Severity", "Category", "Status", "Title", "Audit ID", "Machine", "Field", "Due Date", "Recommended Action"]
+    COLUMNS = [
+        "Source",
+        "Severity",
+        "Category",
+        "Status",
+        "Title",
+        "Audit ID",
+        "Machine",
+        "Field",
+        "Due Date",
+        "Recommended Action",
+    ]
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -61,7 +74,17 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.summary_group = QGroupBox("Summary")
         self.summary_grid = QGridLayout(self.summary_group)
         self.summary_labels: dict[str, QLabel] = {}
-        for index, label in enumerate(["Total Open", "Critical", "Overdue", "Missing Evidence", "Data Conflicts", "Dismissed / Overridden", "Fixed at Source This Week"]):
+        for index, label in enumerate(
+            [
+                "Total Open",
+                "Critical",
+                "Overdue",
+                "Missing Evidence",
+                "Data Conflicts",
+                "Dismissed / Overridden",
+                "Fixed at Source This Week",
+            ]
+        ):
             title = QLabel(label)
             value = QLabel("0")
             value.setStyleSheet("font-size: 16pt; font-weight: 700;")
@@ -78,7 +101,9 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.source_filter = self._combo(["All"])
         self.severity_filter = self._combo(["All", "Critical", "Error", "Warning", "Info"])
         self.category_filter = self._combo(["All"])
-        self.status_filter = self._combo(["Open", "All", *[status for status in OPEN_ITEM_STATUSES if status != "Open"]])
+        self.status_filter = self._combo(
+            ["Open", "All", *[status for status in OPEN_ITEM_STATUSES if status != "Open"]]
+        )
         self.tag_filter = self._combo(["All"])
         self.audit_filter = QLineEdit()
         self.audit_filter.setPlaceholderText("Audit ID")
@@ -136,7 +161,16 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.refresh_button.clicked.connect(lambda: self.refresh(force=True))
         self.deep_rebuild_button = QPushButton("Deep Rebuild Open Items")
         self.deep_rebuild_button.clicked.connect(lambda: self.deep_rebuild(force=True))
-        for button in [open_button, fix_button, dismiss_button, note_button, followup_button, export_button, self.refresh_button, self.deep_rebuild_button]:
+        for button in [
+            open_button,
+            fix_button,
+            dismiss_button,
+            note_button,
+            followup_button,
+            export_button,
+            self.refresh_button,
+            self.deep_rebuild_button,
+        ]:
             action_row.addWidget(button)
         action_row.addStretch(1)
         layout.addLayout(action_row)
@@ -224,9 +258,13 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
 
     def on_event(self, event) -> None:
         if getattr(event, "event_type", "") == EVENT_AUDIT_SAVED:
-            self.status_label.setText("Audit saved. Open Items are marked stale; use Deep Rebuild Open Items when you need a full source rebuild.")
+            self.status_label.setText(
+                "Audit saved. Open Items are marked stale; use Deep Rebuild Open Items when you need a full source rebuild."
+            )
             return True
-        self.status_label.setText("Open Items cache may be stale; use Quick Refresh for cached data or Deep Rebuild Open Items for source validation.")
+        self.status_label.setText(
+            "Open Items cache may be stale; use Quick Refresh for cached data or Deep Rebuild Open Items for source validation."
+        )
         return True
 
     def on_project_root_changed(self, config) -> None:
@@ -299,13 +337,17 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
             return
         target = item.target_payload()
         if not target:
-            self.status_label.setText(f"Selected item does not have a direct target. Fix manually: {item.recommended_action}")
+            self.status_label.setText(
+                f"Selected item does not have a direct target. Fix manually: {item.recommended_action}"
+            )
             return
         if not AnnotationTargetNavigator(self).open_target(target):
             self.status_label.setText(f"Could not open a direct target. Fix manually: {item.recommended_action}")
 
     def mark_resolved(self) -> None:
-        self.status_label.setText("Generated open items cannot be manually marked resolved. Use Fix at Source or Dismiss With Reason.")
+        self.status_label.setText(
+            "Generated open items cannot be manually marked resolved. Use Fix at Source or Dismiss With Reason."
+        )
 
     def fix_at_source(self) -> None:
         item = self.selected_item()
@@ -317,7 +359,9 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
             self.status_label.setText(f"Fix manually: {item.recommended_action}")
             return
         if AnnotationTargetNavigator(self).open_target(target):
-            self.status_label.setText("Opened the source target. Refresh Open Items after correcting the underlying source data.")
+            self.status_label.setText(
+                "Opened the source target. Refresh Open Items after correcting the underlying source data."
+            )
         else:
             self.status_label.setText(f"Could not open the source target. Fix manually: {item.recommended_action}")
 
@@ -338,7 +382,9 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         except ValueError as exc:
             self.status_label.setText(str(exc))
             return
-        get_event_bus().emit(EVENT_OPEN_ITEMS_CHANGED, {"item_id": item.id, "status": "Dismissed / Overridden"}, source="open_items")
+        get_event_bus().emit(
+            EVENT_OPEN_ITEMS_CHANGED, {"item_id": item.id, "status": "Dismissed / Overridden"}, source="open_items"
+        )
         self.refresh(force=True)
 
     def add_note(self) -> None:
@@ -378,7 +424,9 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
             notes=f"{item.message}\nRecommended action: {item.recommended_action}",
         )
         if result.success:
-            get_event_bus().emit(EVENT_OPEN_ITEMS_CHANGED, {"item_id": item.id, "followup_created": True}, source="open_items")
+            get_event_bus().emit(
+                EVENT_OPEN_ITEMS_CHANGED, {"item_id": item.id, "followup_created": True}, source="open_items"
+            )
             self.refresh(force=True)
         message = result.summary if result.success else "; ".join(result.errors)
         self.status_label.setText(message)
@@ -390,7 +438,9 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
     def _show_cached_items(self) -> None:
         cached, generated_at, warning = load_cached_open_items(self.config.project_root, include_resolved=True)
         if not cached:
-            self.status_label.setText(f"{warning or 'No cached open items yet.'} Use Deep Rebuild Open Items to build it.")
+            self.status_label.setText(
+                f"{warning or 'No cached open items yet.'} Use Deep Rebuild Open Items to build it."
+            )
             return
         self.items = cached
         self._latest_generated_at = generated_at or ""
@@ -440,11 +490,12 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
             self._latest_generated_at = str(payload.get("generated_at") or self._latest_generated_at)
             warning = str(payload.get("warning") or "")
             self.status_label.setText(
-                warning
-                or f"Loaded {len(self.filtered_items)} cached open item(s) in {data_load_seconds:.1f}s."
+                warning or f"Loaded {len(self.filtered_items)} cached open item(s) in {data_load_seconds:.1f}s."
             )
         else:
-            self.status_label.setText(f"Deep rebuild loaded {len(self.filtered_items)} open items in {data_load_seconds:.1f}s.")
+            self.status_label.setText(
+                f"Deep rebuild loaded {len(self.filtered_items)} open items in {data_load_seconds:.1f}s."
+            )
 
     def _refresh_filter_options(self, tags: list[str]) -> None:
         self._set_combo_values(self.source_filter, ["All", *sorted({item.source for item in self.items})])

@@ -29,7 +29,9 @@ def open_search_result(window: Any, result: SearchResult | dict) -> SearchRouteR
         return _open_tag(window, data)
     if action == "open_open_item":
         _navigate(window, "open_items")
-        _show_message(window, "open_items", f"Opened Open Items from search: {data.get('title') or data.get('target_id') or ''}")
+        _show_message(
+            window, "open_items", f"Opened Open Items from search: {data.get('title') or data.get('target_id') or ''}"
+        )
         return SearchRouteResult(True, action, "Opened Open Items.")
     if action == "open_validation":
         _navigate(window, "workbook_health")
@@ -65,7 +67,9 @@ def _open_audit(window: Any, data: dict[str, Any]) -> SearchRouteResult:
         page.load_existing_audit(audit_id, loaded_message=f"Opened from global search: {audit_id}")
     field = str(data.get("field") or "")
     if field and hasattr(page, "focus_annotation_target"):
-        page.focus_annotation_target({"audit_id": audit_id, "field_key": field, "field_label": field, "target_type": "audit_field"})
+        page.focus_annotation_target(
+            {"audit_id": audit_id, "field_key": field, "field_label": field, "target_type": "audit_field"}
+        )
     return SearchRouteResult(True, "open_audit", f"Opened audit: {audit_id}" if audit_id else "Opened Audit page.")
 
 

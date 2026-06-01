@@ -50,7 +50,15 @@ def test_slow_page_constructors_do_not_call_heavy_core_functions(qapp, fake_conf
 
 
 def test_open_items_page_show_uses_cache_and_deep_rebuild_is_explicit(qapp, fake_config, monkeypatch):
-    item = OpenItem(id="note:1", source="note", severity="Critical", category="note", title="Async item", message="body", status="Open")
+    item = OpenItem(
+        id="note:1",
+        source="note",
+        severity="Critical",
+        category="note",
+        title="Async item",
+        message="body",
+        status="Open",
+    )
     calls = {"count": 0}
 
     def list_items(*_args, **_kwargs):
@@ -88,7 +96,15 @@ def test_open_items_page_show_uses_cache_and_deep_rebuild_is_explicit(qapp, fake
 
 
 def test_audit_saved_marks_heavy_pages_stale_without_refresh(qapp, fake_config, monkeypatch):
-    item = OpenItem(id="note:1", source="note", severity="Warning", category="note", title="Async item", message="body", status="Open")
+    item = OpenItem(
+        id="note:1",
+        source="note",
+        severity="Warning",
+        category="note",
+        title="Async item",
+        message="body",
+        status="Open",
+    )
     group = PressViewGroup(machine="101", display_name="Press/Machine 101")
     calls = {"open_items": 0, "press_view": 0}
 
@@ -119,7 +135,9 @@ def test_audit_saved_marks_heavy_pages_stale_without_refresh(qapp, fake_config, 
     calls["open_items"] = 0
     calls["press_view"] = 0
 
-    event = AppEvent(EVENT_AUDIT_SAVED, {"audit_id": "AUD-ASYNC-001", "refresh_mode": "invalidate_only"}, source="audit")
+    event = AppEvent(
+        EVENT_AUDIT_SAVED, {"audit_id": "AUD-ASYNC-001", "refresh_mode": "invalidate_only"}, source="audit"
+    )
     open_items_page.on_event(event)
     press_view_page.on_event(event)
     wait_for_background_tasks()
@@ -174,7 +192,10 @@ def test_press_view_missing_cache_prompts_for_deep_rebuild(qapp, fake_config, mo
     wait_for_background_tasks()
 
     assert page.group_table.rowCount() == 0
-    assert "No cached Press View found. Click Deep Rebuild Press View to generate it." in page.result_panel.viewer.toPlainText()
+    assert (
+        "No cached Press View found. Click Deep Rebuild Press View to generate it."
+        in page.result_panel.viewer.toPlainText()
+    )
 
 
 def test_backup_manager_show_uses_cache_and_full_scan_is_explicit(qapp, fake_config, monkeypatch):

@@ -50,23 +50,41 @@ class PilotROISummary:
     def to_markdown(self) -> str:
         rows = [result.to_dict() for result in self.results]
         assumptions = self.assumptions or {}
-        assumption_lines = [f"- {key}: {value}" for key, value in sorted(assumptions.items())] or ["- No financial assumptions supplied; qualitative mode only."]
-        return "\n".join(
-            [
-                "# Pilot ROI and Justification Report",
-                "",
-                f"Generated: {self.generated_at}",
-                "",
-                "## Assumptions",
-                *assumption_lines,
-                "",
-                "## Candidate ROI",
-                *table_from_rows(rows, ["Candidate ID", "Press/Machine #", "ROI Mode", "Annualized Savings Estimate", "Estimate Label", "Missing Evidence"]),
-                "",
-                "## Justification Paragraphs",
-                *[f"### {result.candidate_id or result.machine or 'Candidate'}\n\n{result.justification}" for result in self.results],
-            ]
-        ) + "\n"
+        assumption_lines = [f"- {key}: {value}" for key, value in sorted(assumptions.items())] or [
+            "- No financial assumptions supplied; qualitative mode only."
+        ]
+        return (
+            "\n".join(
+                [
+                    "# Pilot ROI and Justification Report",
+                    "",
+                    f"Generated: {self.generated_at}",
+                    "",
+                    "## Assumptions",
+                    *assumption_lines,
+                    "",
+                    "## Candidate ROI",
+                    *table_from_rows(
+                        rows,
+                        [
+                            "Candidate ID",
+                            "Press/Machine #",
+                            "ROI Mode",
+                            "Annualized Savings Estimate",
+                            "Estimate Label",
+                            "Missing Evidence",
+                        ],
+                    ),
+                    "",
+                    "## Justification Paragraphs",
+                    *[
+                        f"### {result.candidate_id or result.machine or 'Candidate'}\n\n{result.justification}"
+                        for result in self.results
+                    ],
+                ]
+            )
+            + "\n"
+        )
 
 
 def pilot_roi_assumptions_path(project_root: str | Path) -> Path:
@@ -85,7 +103,9 @@ def load_pilot_roi_assumptions(project_root: str | Path) -> dict[str, Any]:
     return assumptions if isinstance(assumptions, dict) else {}
 
 
-def save_pilot_roi_assumptions(project_root: str | Path, assumptions: dict[str, Any], *, candidate_id: str = "") -> Path:
+def save_pilot_roi_assumptions(
+    project_root: str | Path, assumptions: dict[str, Any], *, candidate_id: str = ""
+) -> Path:
     path = pilot_roi_assumptions_path(project_root)
     payload = {
         "updated_at": _now(),
@@ -142,7 +162,10 @@ def export_pilot_roi_report(
         details=[f"Report: {report}", "Workbook was not modified."],
         files_created=[str(report)],
         output_reports=[str(report)],
-        metrics={"candidate_count": len(summary.results), "quantitative_count": sum(result.mode == "quantitative_estimate" for result in summary.results)},
+        metrics={
+            "candidate_count": len(summary.results),
+            "quantitative_count": sum(result.mode == "quantitative_estimate" for result in summary.results),
+        },
     )
     if log_activity:
         warning = log_tool_run(result, project_root)
@@ -155,7 +178,11 @@ def _roi_result_for_candidate(row: dict[str, Any], assumptions: dict[str, Any], 
     estimate, basis = _annualized_estimate(row, assumptions)
     mode = "quantitative_estimate" if estimate is not None else "qualitative"
     estimate_value: float | str = round(estimate, 2) if estimate is not None else ""
-    label = "Estimated annual savings from supplied assumptions." if estimate is not None else "Qualitative only; no dollar assumptions supplied."
+    label = (
+        "Estimated annual savings from supplied assumptions."
+        if estimate is not None
+        else "Qualitative only; no dollar assumptions supplied."
+    )
     candidate_id = str(row.get("Candidate ID") or "")
     machine = str(row.get("Press/Machine #") or "")
     missing = str(row.get("Missing Evidence") or row.get("Missing Data") or "")
@@ -218,7 +245,11 @@ def _justification(row: dict[str, Any], mode: str, estimate: float | str, label:
         roi_sentence = f"The financial estimate is ${estimate} annualized, labeled as an estimate because it depends only on the supplied assumptions ({basis})."
     else:
         roi_sentence = "No financial value was calculated because cost or reduction assumptions were not supplied."
-    missing_sentence = f"Remaining evidence gaps: {missing}." if missing and missing != "None obvious" else "No obvious evidence gaps were flagged by the scoring engine."
+    missing_sentence = (
+        f"Remaining evidence gaps: {missing}."
+        if missing and missing != "None obvious"
+        else "No obvious evidence gaps were flagged by the scoring engine."
+    )
     return (
         f"{candidate} is a pilot candidate for {problem}. It scored {score} with {confidence} confidence based on the current issue, KPI, audit, photo, and implementation evidence. "
         f"{roi_sentence} {missing_sentence} {label}"

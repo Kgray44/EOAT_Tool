@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
@@ -71,7 +71,9 @@ def test_generate_audit_id_and_add_row(fake_project):
         "Cup Type/Material",
         "Cup Diameter/Size",
     ]
-    row_values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    row_values = {
+        headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
+    }
     assert row_values["Tool #"] == "DEMO-PN-1200"
     assert row_values["EOAT Moves"] == "Both"
     assert row_values["Connection Type"] == "ATI"
@@ -351,7 +353,9 @@ def test_compatibility_entries_copy_eoat_moves_from_source_audit(fake_project):
     )
     assert result.success, result.errors
 
-    result = create_compatibility_entries(fake_project, "AUD-MOVES-SOURCE", ["70"], reference_root / "press_capacity.xlsx")
+    result = create_compatibility_entries(
+        fake_project, "AUD-MOVES-SOURCE", ["70"], reference_root / "press_capacity.xlsx"
+    )
 
     assert result.success, result.errors
     rows = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
@@ -364,7 +368,11 @@ def test_compatibility_entries_copy_eoat_moves_from_source_audit(fake_project):
         ]
     finally:
         rows.close()
-    compatible = next(row for row in data_rows if row.get("Press/Machine #") == "70" and row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE)
+    compatible = next(
+        row
+        for row in data_rows
+        if row.get("Press/Machine #") == "70" and row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE
+    )
     assert compatible["EOAT Moves"] == "Part"
 
 
@@ -407,7 +415,9 @@ def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_
     workbook = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    values = {
+        headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
+    }
     assert values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
     assert values["Tool #"] == "N/A"
     assert values["Connection Type"] == "N/A"
@@ -544,7 +554,9 @@ def test_gripper_count_and_pressure_type_validation(fake_project):
         },
     )
     assert bad_cylinder_count.success is False
-    assert any(f"{CYLINDER_COUNT_FIELD} must be a non-negative whole number" in error for error in bad_cylinder_count.errors)
+    assert any(
+        f"{CYLINDER_COUNT_FIELD} must be a non-negative whole number" in error for error in bad_cylinder_count.errors
+    )
 
     bad_cylinder_type = save_audit_entry(
         fake_project,
@@ -952,7 +964,9 @@ def test_repair_workbook_schema_removes_vacuum_zones_with_backup_and_preserves_c
 
     assert result.success, result.errors
     assert result.metrics["vacuum_zones_columns_removed"] == 1
-    backup_paths = list((workbook_path.parent / "_backups").glob("EOAT_Master_Tracker_backup_before_removing_vacuum_zones_*.xlsx"))
+    backup_paths = list(
+        (workbook_path.parent / "_backups").glob("EOAT_Master_Tracker_backup_before_removing_vacuum_zones_*.xlsx")
+    )
     assert backup_paths
     workbook = load_workbook(workbook_path, read_only=True)
     ws = workbook["EOAT Inventory"]
@@ -1128,7 +1142,9 @@ def test_save_migrates_legacy_tool_header_and_preserves_data(fake_project):
     workbook = load_workbook(workbook_path, read_only=True)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    values = {
+        headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
+    }
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     assert LEGACY_TOOL_FIELD not in headers
     assert values["Tool #"] == "PN-LEGACY"
@@ -1178,7 +1194,9 @@ def test_save_migrates_missing_connection_type_without_overwriting_existing_data
     workbook = load_workbook(workbook_path, read_only=True)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    values = {
+        headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
+    }
     assert headers[headers.index("EOAT Type") + 2] == "Connection Type"
     assert values["Connection Type"] == "Lever Lock"
     assert values["Cup Type/Material"] == "Nitrile"
@@ -1230,7 +1248,13 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     assert loaded is not None
     result = save_audit_entry(
         fake_project,
-        {**loaded, "# of Grippers": "2", "Gripper Type": "Single Pressure", "Gripper Model": "Zimmer GPP", "Gripper Size": "25 mm"},
+        {
+            **loaded,
+            "# of Grippers": "2",
+            "Gripper Type": "Single Pressure",
+            "Gripper Model": "Zimmer GPP",
+            "Gripper Size": "25 mm",
+        },
         allow_update=True,
     )
     assert result.success is True
@@ -1238,7 +1262,9 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     workbook = load_workbook(workbook_path, read_only=True)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    values = {headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))}
+    values = {
+        headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
+    }
     tooling_start = headers.index("EOAT Type")
     assert headers[tooling_start : tooling_start + 13] == [
         "EOAT Type",
@@ -1367,7 +1393,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     for target, source in pairs:
         target_col = headers.index(target) + 1
         source_col = headers.index(source) + 1
-        assert ws.column_dimensions[ws.cell(row=1, column=target_col).column_letter].width == ws.column_dimensions[ws.cell(row=1, column=source_col).column_letter].width
+        assert (
+            ws.column_dimensions[ws.cell(row=1, column=target_col).column_letter].width
+            == ws.column_dimensions[ws.cell(row=1, column=source_col).column_letter].width
+        )
         assert style_signature(ws.cell(row=1, column=target_col)) == style_signature(ws.cell(row=1, column=source_col))
         assert style_signature(ws.cell(row=2, column=target_col)) == style_signature(ws.cell(row=2, column=source_col))
 
@@ -1376,7 +1405,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         validation
         for validation in ws.data_validations.dataValidation
         for cell_range in validation.sqref.ranges
-        if cell_range.min_col == connection_col and cell_range.max_col == connection_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+        if cell_range.min_col == connection_col
+        and cell_range.max_col == connection_col
+        and cell_range.min_row <= 2
+        and cell_range.max_row >= 1000
     ]
     assert connection_validations
     assert "ATI" in connection_validations[0].formula1
@@ -1385,7 +1417,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         validation
         for validation in ws.data_validations.dataValidation
         for cell_range in validation.sqref.ranges
-        if cell_range.min_col == moves_col and cell_range.max_col == moves_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+        if cell_range.min_col == moves_col
+        and cell_range.max_col == moves_col
+        and cell_range.min_row <= 2
+        and cell_range.max_row >= 1000
     ]
     assert moves_validations
     assert moves_validations[0].formula1 == '"Part,Sprue,Both"'
@@ -1394,7 +1429,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         validation
         for validation in ws.data_validations.dataValidation
         for cell_range in validation.sqref.ranges
-        if cell_range.min_col == count_col and cell_range.max_col == count_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+        if cell_range.min_col == count_col
+        and cell_range.max_col == count_col
+        and cell_range.min_row <= 2
+        and cell_range.max_row >= 1000
     ]
     assert count_validations
     assert count_validations[0].type == "whole"
@@ -1403,7 +1441,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         validation
         for validation in ws.data_validations.dataValidation
         for cell_range in validation.sqref.ranges
-        if cell_range.min_col == cup_count_col and cell_range.max_col == cup_count_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+        if cell_range.min_col == cup_count_col
+        and cell_range.max_col == cup_count_col
+        and cell_range.min_row <= 2
+        and cell_range.max_row >= 1000
     ]
     assert cup_count_validations
     assert cup_count_validations[0].type == "whole"
@@ -1412,7 +1453,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         validation
         for validation in ws.data_validations.dataValidation
         for cell_range in validation.sqref.ranges
-        if cell_range.min_col == cylinder_count_col and cell_range.max_col == cylinder_count_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+        if cell_range.min_col == cylinder_count_col
+        and cell_range.max_col == cylinder_count_col
+        and cell_range.min_row <= 2
+        and cell_range.max_row >= 1000
     ]
     assert cylinder_count_validations
     assert cylinder_count_validations[0].type == "whole"
@@ -1421,7 +1465,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         validation
         for validation in ws.data_validations.dataValidation
         for cell_range in validation.sqref.ranges
-        if cell_range.min_col == cylinder_type_col and cell_range.max_col == cylinder_type_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+        if cell_range.min_col == cylinder_type_col
+        and cell_range.max_col == cylinder_type_col
+        and cell_range.min_row <= 2
+        and cell_range.max_row >= 1000
     ]
     assert cylinder_type_validations
     assert "Linear" in cylinder_type_validations[0].formula1
@@ -1431,7 +1478,10 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         validation
         for validation in ws.data_validations.dataValidation
         for cell_range in validation.sqref.ranges
-        if cell_range.min_col == gripper_type_col and cell_range.max_col == gripper_type_col and cell_range.min_row <= 2 and cell_range.max_row >= 1000
+        if cell_range.min_col == gripper_type_col
+        and cell_range.max_col == gripper_type_col
+        and cell_range.min_row <= 2
+        and cell_range.max_row >= 1000
     ]
     assert gripper_type_validations
     assert "Single Pressure" in gripper_type_validations[0].formula1
@@ -1498,7 +1548,11 @@ def test_audit_by_press_view_is_created_grouped_sorted_and_collapsible(fake_proj
         f"{UNASSIGNED_PRESS_GROUP} - 1 physical, 0 compatible, 1 total entry",
     ]
 
-    press_2_row = next(row for row in range(1, view.max_row + 1) if view.cell(row=row, column=1).value == "Plant 4 / Press 2 - 2 physical, 0 compatible, 2 total entries")
+    press_2_row = next(
+        row
+        for row in range(1, view.max_row + 1)
+        if view.cell(row=row, column=1).value == "Plant 4 / Press 2 - 2 physical, 0 compatible, 2 total entries"
+    )
     detail_rows = [press_2_row + 1, press_2_row + 2]
     assert [view.cell(row=row, column=6).value for row in detail_rows] == ["TOOL-2A", "TOOL-2B"]
     assert all(view.row_dimensions[row].outlineLevel == 1 for row in detail_rows)
@@ -1542,7 +1596,9 @@ def test_audit_by_press_view_refreshes_after_new_update_and_duplicate_saves(fake
     headers = _group_headers(view)
     assert "Plant 4 / Press 1 - 1 physical, 0 compatible, 1 total entry" not in headers
     assert "Plant 4 / Press 2 - 2 physical, 0 compatible, 2 total entries" in headers
-    detail_audit_ids = [cell.value for cell in view["A"] if isinstance(cell.value, str) and cell.value.startswith("AUD-REFRESH")]
+    detail_audit_ids = [
+        cell.value for cell in view["A"] if isinstance(cell.value, str) and cell.value.startswith("AUD-REFRESH")
+    ]
     assert detail_audit_ids == ["AUD-REFRESH-001", "AUD-REFRESH-002"]
     workbook.close()
 
@@ -1585,4 +1641,3 @@ def test_explicit_refresh_audit_by_press_view_action(fake_project):
     workbook = load_workbook(workbook_path, read_only=True)
     assert AUDIT_BY_PRESS_SHEET in workbook.sheetnames
     workbook.close()
-

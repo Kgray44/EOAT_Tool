@@ -48,7 +48,9 @@ def evaluate_completion(
     mode: str = "",
 ) -> CompletionResult:
     policy = policy or CompletionPolicy()
-    summary = calculate_audit_completion(entry, policy.sections, allow_manual_override=policy.allow_manual_override, mode=mode or policy.name)
+    summary = calculate_audit_completion(
+        entry, policy.sections, allow_manual_override=policy.allow_manual_override, mode=mode or policy.name
+    )
     actionable = tuple(summary.guided_fields)
     can_finish = summary.can_finish
     if not policy.allow_manual_override and summary.manual_completion_override:
@@ -75,9 +77,13 @@ def evaluate_completion(
     )
 
 
-def next_completion_actions(entry: Mapping[str, Any], limit: int = 5, policy: CompletionPolicy | None = None) -> list[dict[str, str]]:
+def next_completion_actions(
+    entry: Mapping[str, Any], limit: int = 5, policy: CompletionPolicy | None = None
+) -> list[dict[str, str]]:
     policy = policy or CompletionPolicy()
-    summary: AuditCompletionSummary = calculate_audit_completion(entry, policy.sections, allow_manual_override=policy.allow_manual_override, mode=policy.name)
+    summary: AuditCompletionSummary = calculate_audit_completion(
+        entry, policy.sections, allow_manual_override=policy.allow_manual_override, mode=policy.name
+    )
     actions: list[dict[str, str]] = []
     by_field = {status.field: status for section in summary.sections for status in section.fields}
     for field_name in summary.guided_fields[: max(0, limit)]:
