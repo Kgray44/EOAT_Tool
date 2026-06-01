@@ -28,6 +28,7 @@ def log_tool_run(result: ToolResult, project_root: str | Path) -> str | None:
             "files_modified": result.files_modified,
             "warnings": result.warnings,
             "errors": result.errors,
+            "metrics": result.metrics,
             "duration_seconds": result.duration_seconds,
             "summary": result.summary,
         }
