@@ -49,3 +49,23 @@ def test_project_gripper_presets_extend_dropdown_and_mapping(fake_project):
     assert gripper_model_to_workbook("Demo Test Gripper", fake_project) == "DEMO-GRIP-001"
     assert gripper_model_to_ui("DEMO-GRIP-001", fake_project) == "Demo Test Gripper"
     assert is_known_gripper_preset("DEMO-GRIP-001", fake_project) is True
+
+
+def test_gripper_presets_are_cached_by_project_file_signature(fake_project, monkeypatch):
+    import core.gripper_presets as gripper_presets
+
+    gripper_presets._PRESET_CACHE.clear()
+    calls = {"count": 0}
+    original = gripper_presets._load_presets_from_file
+
+    def counted(path):
+        calls["count"] += 1
+        return original(path)
+
+    monkeypatch.setattr(gripper_presets, "_load_presets_from_file", counted)
+
+    first = gripper_model_display_values(fake_project)
+    second = gripper_model_display_values(fake_project)
+
+    assert first == second
+    assert calls["count"] == 2

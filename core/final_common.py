@@ -66,7 +66,11 @@ def workbook_metrics(project_root: str | Path) -> tuple[dict[str, Any], list[str
     if warning:
         warnings.append(warning)
 
-    audited = sum(1 for row in inventory if clean(row.get("Status")).lower() in {"audited", "needs follow-up", "candidate for pilot"})
+    audited = sum(
+        1
+        for row in inventory
+        if clean(row.get("Status")).lower() in {"audited", "needs follow-up", "candidate for pilot"}
+    )
     pilot_flagged = sum(1 for row in inventory if clean(row.get("Pilot Candidate?")).lower() in {"yes", "maybe"})
     metrics = {
         "Total EOATs identified": len(inventory),
@@ -84,7 +88,10 @@ def workbook_metrics(project_root: str | Path) -> tuple[dict[str, Any], list[str
 def top_issue_categories(project_root: str | Path, limit: int = 5) -> list[dict[str, Any]]:
     issues, _warning = safe_rows(project_root, "Issue Log")
     counts = count_by(issues, "Issue Category")
-    return [{"Issue Category": key, "Count": value} for key, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]]
+    return [
+        {"Issue Category": key, "Count": value}
+        for key, value in sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:limit]
+    ]
 
 
 def top_fmea_risks(project_root: str | Path, limit: int = 5) -> list[dict[str, Any]]:
@@ -134,7 +141,15 @@ class DeliverableStatus:
 
 def status_table_markdown(statuses: list[DeliverableStatus]) -> list[str]:
     return table_from_rows(
-        [{"Deliverable": item.name, "Status": item.status, "Evidence": "; ".join(item.evidence[:3]), "Notes": item.notes} for item in statuses],
+        [
+            {
+                "Deliverable": item.name,
+                "Status": item.status,
+                "Evidence": "; ".join(item.evidence[:3]),
+                "Notes": item.notes,
+            }
+            for item in statuses
+        ],
         ["Deliverable", "Status", "Evidence", "Notes"],
     )
 

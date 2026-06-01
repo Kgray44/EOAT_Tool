@@ -20,7 +20,30 @@ def test_mentor_brief_summarizes_blockers_and_questions(fake_project):
     ws = wb["Action Items"]
     ws.append(["ACT-1", "2026-05-18", "Find BOM", "Press 12", "KG", "High", "", "Blocked", "", "Need source"])
     issue = wb["Issue Log"]
-    issue.append(["ISS-1", "2026-05-18", "Plant 4", "Press 12", "Wittmann R9", "Vacuum", "Vacuum loss", "Drops parts", "", "", "", "", "", "", "", "", "", "Open", "", ""])
+    issue.append(
+        [
+            "ISS-1",
+            "2026-05-18",
+            "Plant 4",
+            "Press 12",
+            "Wittmann R9",
+            "Vacuum",
+            "Vacuum loss",
+            "Drops parts",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "Open",
+            "",
+            "",
+        ]
+    )
     wb.save(paths.master_workbook)
     wb.close()
 

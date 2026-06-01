@@ -49,7 +49,14 @@ def _major_sections(markdown: str) -> list[str]:
 def _assert_todo_contract(markdown: str) -> None:
     assert _word_count(markdown) <= 250
     assert _list_item_count(markdown) <= 12
-    assert _major_sections(markdown) == ["Today's Mission", "Do First", "Main TODO", "Ask Today", "If Blocked", "Done When"]
+    assert _major_sections(markdown) == [
+        "Today's Mission",
+        "Do First",
+        "Main TODO",
+        "Ask Today",
+        "If Blocked",
+        "Done When",
+    ]
     for heading in FORBIDDEN_MORNING_HEADINGS:
         assert f"## {heading}" not in markdown
     assert not re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", markdown)
@@ -60,7 +67,11 @@ def _assert_todo_contract(markdown: str) -> None:
     assert "workbook rows" not in markdown.lower()
     ask_section = _section(markdown, "Ask Today", "If Blocked")
     assert sum(1 for line in ask_section.splitlines() if line.startswith("- ")) <= 4
-    list_texts = [re.sub(r"^(?:- \[ \] |- |\d+\. )", "", line).strip().lower() for line in markdown.splitlines() if re.match(r"^(?:- |\d+\. )", line.strip())]
+    list_texts = [
+        re.sub(r"^(?:- \[ \] |- |\d+\. )", "", line).strip().lower()
+        for line in markdown.splitlines()
+        if re.match(r"^(?:- |\d+\. )", line.strip())
+    ]
     assert len(list_texts) == len(set(list_texts))
 
 
@@ -88,14 +99,44 @@ def _morning_plan_quality_fixture(fake_project):
         json.dumps(
             {
                 "tasks": [
-                    {"task_id": "W1D1T1", "day": "1", "task_text": "Confirm kickoff expectations", "status": "Complete"},
+                    {
+                        "task_id": "W1D1T1",
+                        "day": "1",
+                        "task_text": "Confirm kickoff expectations",
+                        "status": "Complete",
+                    },
                     {"task_id": "W1D2T1", "day": "2", "task_text": "Begin target cell list", "status": "Not started"},
-                    {"task_id": "W1D2T2", "day": "2", "task_text": "Start first walkthrough/audit if approved", "status": "Not started"},
-                    {"task_id": "W1D2T3", "day": "2", "task_text": "Decide photo naming system", "status": "Not started"},
-                    {"task_id": "W1D2T4", "day": "2", "task_text": "Run workbook validation after Day 2 changes", "status": "Not started"},
-                    {"task_id": "W1D3T1", "day": "3", "task_text": "Review documentation gaps", "status": "Not started"},
+                    {
+                        "task_id": "W1D2T2",
+                        "day": "2",
+                        "task_text": "Start first walkthrough/audit if approved",
+                        "status": "Not started",
+                    },
+                    {
+                        "task_id": "W1D2T3",
+                        "day": "2",
+                        "task_text": "Decide photo naming system",
+                        "status": "Not started",
+                    },
+                    {
+                        "task_id": "W1D2T4",
+                        "day": "2",
+                        "task_text": "Run workbook validation after Day 2 changes",
+                        "status": "Not started",
+                    },
+                    {
+                        "task_id": "W1D3T1",
+                        "day": "3",
+                        "task_text": "Review documentation gaps",
+                        "status": "Not started",
+                    },
                     {"task_id": "W1D3T2", "day": "3", "task_text": "Stretch report", "status": "Not started"},
-                    {"task_id": "W1D4T1", "day": "4", "task_text": "Compare BOM common components", "status": "Not started"},
+                    {
+                        "task_id": "W1D4T1",
+                        "day": "4",
+                        "task_text": "Compare BOM common components",
+                        "status": "Not started",
+                    },
                 ]
             }
         ),
@@ -113,7 +154,9 @@ def test_morning_planner_handles_missing_schedule(fake_project):
 
 def test_morning_planner_prioritizes_carryover_blocked_and_actions(fake_project):
     admin = fake_project / "00_Project_Admin"
-    (admin / "project_schedule_week1.json").write_text(json.dumps({"days": {"1": ["Audit Press 12"], "2": ["Review data"]}}), encoding="utf-8")
+    (admin / "project_schedule_week1.json").write_text(
+        json.dumps({"days": {"1": ["Audit Press 12"], "2": ["Review data"]}}), encoding="utf-8"
+    )
     (admin / "task_progress_week1.json").write_text(
         json.dumps(
             {
@@ -130,7 +173,9 @@ def test_morning_planner_prioritizes_carryover_blocked_and_actions(fake_project)
     paths = resolve_project_paths(fake_project)
     wb = load_workbook(paths.master_workbook)
     ws = wb["Action Items"]
-    ws.append(["ACT-1", "2026-05-18", "Ask maintenance for spare cup info", "Press 12", "KG", "High", "", "Open", "", ""])
+    ws.append(
+        ["ACT-1", "2026-05-18", "Ask maintenance for spare cup info", "Press 12", "KG", "High", "", "Open", "", ""]
+    )
     wb.save(paths.master_workbook)
     wb.close()
 
@@ -144,13 +189,23 @@ def test_morning_planner_prioritizes_carryover_blocked_and_actions(fake_project)
 
 def test_morning_plan_filename_uses_resolved_project_day(fake_project):
     admin = fake_project / "00_Project_Admin"
-    (admin / "project_schedule_week1.json").write_text(json.dumps({"days": {"2": ["Begin target cell list"]}}), encoding="utf-8")
+    (admin / "project_schedule_week1.json").write_text(
+        json.dumps({"days": {"2": ["Begin target cell list"]}}), encoding="utf-8"
+    )
     (admin / "task_progress_week1.json").write_text(
-        json.dumps({"tasks": [{"task_id": "W1D2T1", "day": "2", "task_text": "Begin target cell list", "status": "Not started"}]}),
+        json.dumps(
+            {
+                "tasks": [
+                    {"task_id": "W1D2T1", "day": "2", "task_text": "Begin target cell list", "status": "Not started"}
+                ]
+            }
+        ),
         encoding="utf-8",
     )
 
-    result = generate_morning_plan(fake_project, project_start_date="2026-05-18", current_date=date(2026, 5, 19), manual_override=False)
+    result = generate_morning_plan(
+        fake_project, project_start_date="2026-05-18", current_date=date(2026, 5, 19), manual_override=False
+    )
 
     assert result.success is True
     assert "Week1_Day2" in result.output_reports[0]
@@ -158,13 +213,21 @@ def test_morning_plan_filename_uses_resolved_project_day(fake_project):
 
 def test_morning_plan_content_is_specific_and_has_sources(fake_project):
     admin = fake_project / "00_Project_Admin"
-    (admin / "project_schedule_week1.json").write_text(json.dumps({"days": {"2": ["Begin target cell list", "Start first walkthrough/audit if approved"]}}), encoding="utf-8")
+    (admin / "project_schedule_week1.json").write_text(
+        json.dumps({"days": {"2": ["Begin target cell list", "Start first walkthrough/audit if approved"]}}),
+        encoding="utf-8",
+    )
     (admin / "task_progress_week1.json").write_text(
         json.dumps(
             {
                 "tasks": [
                     {"task_id": "W1D2T1", "day": "2", "task_text": "Begin target cell list", "status": "Not started"},
-                    {"task_id": "W1D2T2", "day": "2", "task_text": "Start first walkthrough/audit if approved", "status": "Not started"},
+                    {
+                        "task_id": "W1D2T2",
+                        "day": "2",
+                        "task_text": "Start first walkthrough/audit if approved",
+                        "status": "Not started",
+                    },
                 ]
             }
         ),
@@ -193,7 +256,15 @@ def test_morning_plan_content_is_specific_and_has_sources(fake_project):
 def test_morning_plan_task_selection_uses_today_and_carryover(fake_project):
     admin = fake_project / "00_Project_Admin"
     (admin / "project_schedule_week1.json").write_text(
-        json.dumps({"days": {"1": ["Resolve mentor blocker"], "2": ["Begin target cell list", "Already done"], "3": ["Stretch task"]}}),
+        json.dumps(
+            {
+                "days": {
+                    "1": ["Resolve mentor blocker"],
+                    "2": ["Begin target cell list", "Already done"],
+                    "3": ["Stretch task"],
+                }
+            }
+        ),
         encoding="utf-8",
     )
     (admin / "task_progress_week1.json").write_text(
@@ -292,7 +363,14 @@ def test_morning_plan_if_blocked_section_is_useful_and_conditional(fake_project)
     _morning_plan_quality_fixture(fake_project)
     admin = fake_project / "00_Project_Admin"
     progress = json.loads((admin / "task_progress_week1.json").read_text(encoding="utf-8"))
-    progress["tasks"].append({"task_id": "W1D1BLOCK", "day": "1", "task_text": "Start first walkthrough/audit if approved", "status": "Blocked"})
+    progress["tasks"].append(
+        {
+            "task_id": "W1D1BLOCK",
+            "day": "1",
+            "task_text": "Start first walkthrough/audit if approved",
+            "status": "Blocked",
+        }
+    )
     (admin / "task_progress_week1.json").write_text(json.dumps(progress), encoding="utf-8")
 
     markdown, _warnings, metrics = build_morning_plan_markdown(
@@ -357,7 +435,9 @@ def test_morning_plan_omits_optional_stretch_from_main_checklist(fake_project):
 
     admin = fake_project / "00_Project_Admin"
     progress = json.loads((admin / "task_progress_week1.json").read_text(encoding="utf-8"))
-    progress["tasks"] = [task for task in progress["tasks"] if str(task.get("day")) != "3" and str(task.get("day")) != "4"]
+    progress["tasks"] = [
+        task for task in progress["tasks"] if str(task.get("day")) != "3" and str(task.get("day")) != "4"
+    ]
     (admin / "task_progress_week1.json").write_text(json.dumps(progress), encoding="utf-8")
 
     markdown, _warnings, _metrics = build_morning_plan_markdown(
@@ -525,12 +605,33 @@ def test_morning_plan_changes_when_activity_and_workbook_state_change(fake_proje
     paths = resolve_project_paths(fake_project)
     wb = load_workbook(paths.master_workbook)
     ws = wb["Action Items"]
-    ws.append(["ACT-2", "2026-05-19", "Confirm Plant 4 first audit cell", "Plant 4", "KG", "High", "", "Open", "", "Manual override"])
+    ws.append(
+        [
+            "ACT-2",
+            "2026-05-19",
+            "Confirm Plant 4 first audit cell",
+            "Plant 4",
+            "KG",
+            "High",
+            "",
+            "Open",
+            "",
+            "Manual override",
+        ]
+    )
     wb.save(paths.master_workbook)
     wb.close()
     activity_path = fake_project / "00_Project_Admin" / "Activity_Logs" / "activity_log.jsonl"
     activity_path.write_text(
-        json.dumps({"timestamp": "2026-05-19T14:00:00+00:00", "tool_name": "Workbook Validation", "success": True, "summary": "Validated workbook after action update."}) + "\n",
+        json.dumps(
+            {
+                "timestamp": "2026-05-19T14:00:00+00:00",
+                "tool_name": "Workbook Validation",
+                "success": True,
+                "summary": "Validated workbook after action update.",
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
 

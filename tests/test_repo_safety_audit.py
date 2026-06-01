@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.repo_safety_audit import audit_paths, audit_repo
+from scripts.repo_safety_audit import audit_paths, audit_repo, iter_files
 
 
 def _messages(findings):
@@ -22,7 +22,9 @@ def test_safety_audit_flags_private_paths(tmp_path: Path):
 def test_safety_audit_flags_local_config_files(tmp_path: Path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    (config_dir / "local_config.json").write_text('{"project_root": "C:\\\\Users\\\\demo\\\\private"}', encoding="utf-8")
+    (config_dir / "local_config.json").write_text(
+        '{"project_root": "C:\\\\Users\\\\demo\\\\private"}', encoding="utf-8"
+    )
 
     findings = audit_repo(tmp_path)
 
@@ -93,3 +95,25 @@ def test_safety_audit_warns_on_part_numbers_outside_allowlist(tmp_path: Path):
     findings = audit_repo(tmp_path)
 
     assert any(finding.severity == "WARNING" and "Part-number-like" in finding.message for finding in findings)
+
+
+def test_safety_audit_scans_docs_for_operational_warning_content(tmp_path: Path):
+    doc_dir = tmp_path / "docs"
+    doc_dir.mkdir()
+    (doc_dir / "handoff.md").write_text("Customer: Real Customer\nPart Number: REAL-12345\n", encoding="utf-8")
+
+    findings = audit_repo(tmp_path)
+
+    assert any(finding.severity == "WARNING" and "Customer field" in finding.message for finding in findings)
+    assert any(finding.severity == "WARNING" and "Part-number-like" in finding.message for finding in findings)
+
+
+def test_safety_audit_file_walk_is_python_310_compatible(tmp_path: Path):
+    nested = tmp_path / "safe" / "nested"
+    nested.mkdir(parents=True)
+    expected = nested / "notes.txt"
+    expected.write_text("synthetic notes\n", encoding="utf-8")
+
+    files = iter_files(tmp_path)
+
+    assert expected in files

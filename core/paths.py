@@ -69,7 +69,7 @@ class EOATProjectPaths:
 
     @property
     def annotation_exports(self) -> Path:
-        return self.project_root / "reports" / "exports"
+        return self.final_handoff / "Annotation_Exports"
 
     @property
     def mentor_briefs(self) -> Path:

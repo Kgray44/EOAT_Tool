@@ -13,4 +13,3 @@ def select_directory(parent, caption: str, start_path: str) -> str:
 def select_file(parent, caption: str, start_path: str) -> str:
     path, _ = QFileDialog.getOpenFileName(parent, caption, start_path)
     return path
-

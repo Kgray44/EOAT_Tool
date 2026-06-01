@@ -18,7 +18,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     QTimer = Signal = None
-    QGridLayout = QGroupBox = QHBoxLayout = QLabel = QMessageBox = QPushButton = QScrollArea = QVBoxLayout = QWidget = None
+    QGridLayout = QGroupBox = QHBoxLayout = QLabel = QMessageBox = QPushButton = QScrollArea = QVBoxLayout = QWidget = (
+        None
+    )
 
 from app.event_bus import EVENT_AUDIT_SAVED
 from app.task_runner import TaskRequest, get_task_manager
@@ -41,7 +43,13 @@ from core.schedule import available_schedule_weeks, load_week_schedule, resolve_
 from core.scheduled_reports import get_scheduled_report_status
 
 
-def collect_home_status_snapshot(project_root: str, git_executable: str, project_start_date: str = "", skip_weekends: bool = True, holidays: list[str] | None = None) -> dict:
+def collect_home_status_snapshot(
+    project_root: str,
+    git_executable: str,
+    project_start_date: str = "",
+    skip_weekends: bool = True,
+    holidays: list[str] | None = None,
+) -> dict:
     from core.audit_progress import calculate_audit_progress
     from core.bom_standardization import analyze_bom_standardization
     from core.documentation_gaps import scan_documentation_gaps
@@ -62,7 +70,9 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     activities, activity_warning = read_recent_activity(root, limit=10)
     validation = validate_project_foundation(root)
     weeks = available_schedule_weeks(root)
-    resolved_day = resolve_project_day_for_project(root, project_start_date=project_start_date, skip_weekends=skip_weekends, holidays=holidays or [])
+    resolved_day = resolve_project_day_for_project(
+        root, project_start_date=project_start_date, skip_weekends=skip_weekends, holidays=holidays or []
+    )
     progress, progress_error = calculate_audit_progress(root)
     doc_summary, _doc_error = scan_documentation_gaps(root)
     fmea_summary, _fmea_error = analyze_fmea(root)
@@ -111,7 +121,9 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
         cards["Photos Indexed"] = str(metrics.get("photos_indexed_count", 0))
         cards["Interviews Logged"] = str(metrics.get("interviews_logged_count", 0))
         cards["Issues Logged"] = str(metrics.get("issues_logged_count", 0))
-        cards["Pilot Candidates"] = f"Yes: {metrics.get('pilot_candidate_yes_count', 0)}, Maybe: {metrics.get('pilot_candidate_maybe_count', 0)}"
+        cards["Pilot Candidates"] = (
+            f"Yes: {metrics.get('pilot_candidate_yes_count', 0)}, Maybe: {metrics.get('pilot_candidate_maybe_count', 0)}"
+        )
     else:
         for key in ["EOATs Audited", "Photos Indexed", "Interviews Logged", "Issues Logged", "Pilot Candidates"]:
             cards[key] = "Not checked" if progress_error else "0"
@@ -142,13 +154,27 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     cards["Latest Mentor Brief"] = mentor[0].name if mentor else "No mentor brief yet"
     checklists = list_recent_files(paths.pm_generated_checklists, limit=1)
     cards["PM Checklist Status"] = checklists[0].name if checklists else "No checklist yet"
-    cards["BOM/Spare Parts Data Status"] = f"{len(bom_data['missing_rows'])} rows missing data" if bom_data.get("rows") else "No data yet"
-    presentation = [path for path in paths.presentation_assets_root.glob("Presentation_Assets_*") if path.is_dir()] if paths.presentation_assets_root.exists() else []
+    cards["BOM/Spare Parts Data Status"] = (
+        f"{len(bom_data['missing_rows'])} rows missing data" if bom_data.get("rows") else "No data yet"
+    )
+    presentation = (
+        [path for path in paths.presentation_assets_root.glob("Presentation_Assets_*") if path.is_dir()]
+        if paths.presentation_assets_root.exists()
+        else []
+    )
     cards["Presentation Assets"] = presentation[-1].name if presentation else "No package yet"
     final_reports = list_recent_files(paths.final_report, limit=1)
     cards["Final Summary Draft"] = final_reports[0].name if final_reports else "No summary yet"
-    legacy_handoffs = [path for path in paths.handoff_package_root.glob("Final_Handoff_*") if path.is_dir()] if paths.handoff_package_root.exists() else []
-    phase11_handoffs = [path for path in paths.final_handoff.glob("Final_Handoff_Package_*") if path.is_dir()] if paths.final_handoff.exists() else []
+    legacy_handoffs = (
+        [path for path in paths.handoff_package_root.glob("Final_Handoff_*") if path.is_dir()]
+        if paths.handoff_package_root.exists()
+        else []
+    )
+    phase11_handoffs = (
+        [path for path in paths.final_handoff.glob("Final_Handoff_Package_*") if path.is_dir()]
+        if paths.final_handoff.exists()
+        else []
+    )
     handoffs = sorted([*phase11_handoffs, *legacy_handoffs], key=lambda path: path.stat().st_mtime)
     cards["Handoff Package"] = handoffs[-1].name if handoffs else "No handoff package yet"
 
@@ -158,7 +184,9 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     issues_count = progress.metrics.get("issues_logged_count", 0) if progress else 0
     fmea_rows = fmea_summary.metrics.get("existing_fmea_rows", 0) if fmea_summary else 0
     if root_status.mode == "demo":
-        recommendations.append("Demo project is active. Choose your real EOAT project folder before entering real audit data.")
+        recommendations.append(
+            "Demo project is active. Choose your real EOAT project folder before entering real audit data."
+        )
     elif not root_status.is_usable:
         recommendations.append(root_status.message)
     if not valid:
@@ -217,7 +245,13 @@ def collect_home_status_snapshot(project_root: str, git_executable: str, project
     return snapshot
 
 
-def collect_home_quick_status_snapshot(project_root: str, git_executable: str, project_start_date: str = "", skip_weekends: bool = True, holidays: list[str] | None = None) -> dict:
+def collect_home_quick_status_snapshot(
+    project_root: str,
+    git_executable: str,
+    project_start_date: str = "",
+    skip_weekends: bool = True,
+    holidays: list[str] | None = None,
+) -> dict:
     started = time.perf_counter()
     root = Path(project_root)
     paths = resolve_project_paths(root)
@@ -247,10 +281,13 @@ def collect_home_quick_status_snapshot(project_root: str, git_executable: str, p
             "Dashboard Cache": cache_status.warning or "No cache yet",
             "Daily Summary Schedule": scheduled_status.get("daily", {}).get("schedule", "Monday-Thursday at 7:00 PM"),
             "Latest Daily Summary": scheduled_status.get("daily", {}).get("last_report_date") or "No daily summary yet",
-            "Missed Daily Summaries": ", ".join(scheduled_status.get("daily", {}).get("missed_dates", [])) or "None detected",
+            "Missed Daily Summaries": ", ".join(scheduled_status.get("daily", {}).get("missed_dates", []))
+            or "None detected",
             "Weekly Summary Schedule": scheduled_status.get("weekly", {}).get("schedule", "Friday at 7:00 PM"),
-            "Latest Weekly Summary": scheduled_status.get("weekly", {}).get("last_report_date") or "No weekly summary yet",
-            "Missed Weekly Summaries": ", ".join(scheduled_status.get("weekly", {}).get("missed_dates", [])) or "None detected",
+            "Latest Weekly Summary": scheduled_status.get("weekly", {}).get("last_report_date")
+            or "No weekly summary yet",
+            "Missed Weekly Summaries": ", ".join(scheduled_status.get("weekly", {}).get("missed_dates", []))
+            or "None detected",
         }
         recommendations = [root_status.message]
         lines = ["Showing quick project status. Use Deep Refresh to recompute workbook metrics."]
@@ -269,11 +306,19 @@ def collect_home_quick_status_snapshot(project_root: str, git_executable: str, p
     scheduled_status = get_scheduled_report_status(root, check_tasks=False)
     cards["Daily Summary Schedule"] = scheduled_status.get("daily", {}).get("schedule", "Monday-Thursday at 7:00 PM")
     cards["Latest Daily Summary"] = scheduled_status.get("daily", {}).get("last_report_date") or "No daily summary yet"
-    cards["Missed Daily Summaries"] = ", ".join(scheduled_status.get("daily", {}).get("missed_dates", [])) or "None detected"
+    cards["Missed Daily Summaries"] = (
+        ", ".join(scheduled_status.get("daily", {}).get("missed_dates", [])) or "None detected"
+    )
     cards["Weekly Summary Schedule"] = scheduled_status.get("weekly", {}).get("schedule", "Friday at 7:00 PM")
-    cards["Latest Weekly Summary"] = scheduled_status.get("weekly", {}).get("last_report_date") or "No weekly summary yet"
-    cards["Missed Weekly Summaries"] = ", ".join(scheduled_status.get("weekly", {}).get("missed_dates", [])) or "None detected"
-    resolved_day = resolve_project_day_for_project(root, project_start_date=project_start_date, skip_weekends=skip_weekends, holidays=holidays or [])
+    cards["Latest Weekly Summary"] = (
+        scheduled_status.get("weekly", {}).get("last_report_date") or "No weekly summary yet"
+    )
+    cards["Missed Weekly Summaries"] = (
+        ", ".join(scheduled_status.get("weekly", {}).get("missed_dates", [])) or "None detected"
+    )
+    resolved_day = resolve_project_day_for_project(
+        root, project_start_date=project_start_date, skip_weekends=skip_weekends, holidays=holidays or []
+    )
     cards["Resolved Project Day"] = f"Week {resolved_day.week} Day {resolved_day.day} from {resolved_day.source}"
     snapshot_out = {
         "project_root": str(root),
@@ -337,8 +382,14 @@ class HomePage(QWidget):
             ("Choose Real Project Folder", self.select_project_root),
             ("Refresh", self.refresh_status),
             ("Deep Refresh", self.deep_refresh_status),
-            ("Open Project Folder", lambda: self.open_path(resolve_project_paths(self.config.project_root).project_root)),
-            ("Open Activity Log Folder", lambda: self.open_path(resolve_project_paths(self.config.project_root).activity_logs)),
+            (
+                "Open Project Folder",
+                lambda: self.open_path(resolve_project_paths(self.config.project_root).project_root),
+            ),
+            (
+                "Open Activity Log Folder",
+                lambda: self.open_path(resolve_project_paths(self.config.project_root).activity_logs),
+            ),
         ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
@@ -349,7 +400,15 @@ class HomePage(QWidget):
         self._add_card_section(
             content_layout,
             "Today's Work",
-            ["Resolved Project Day", "Current Schedule", "Not Started", "In Progress", "Blocked", "Complete", "Latest Morning Plan"],
+            [
+                "Resolved Project Day",
+                "Current Schedule",
+                "Not Started",
+                "In Progress",
+                "Blocked",
+                "Complete",
+                "Latest Morning Plan",
+            ],
         )
         daily_actions = QHBoxLayout()
         self.morning_plan_button = QPushButton("Generate Morning Plan")
@@ -369,57 +428,114 @@ class HomePage(QWidget):
         self._add_card_section(
             content_layout,
             "Project Health",
-            ["Data Mode", "Active Project Root", "Master Workbook Path", "Project Root", "Master Workbook", "Git Status", "Workbook Health", "Tool Registry", "Activity Log", "Dashboard Cache"],
+            [
+                "Data Mode",
+                "Active Project Root",
+                "Master Workbook Path",
+                "Project Root",
+                "Master Workbook",
+                "Git Status",
+                "Workbook Health",
+                "Tool Registry",
+                "Activity Log",
+                "Dashboard Cache",
+            ],
         )
         self._add_card_section(
             content_layout,
             "Automation",
-            ["Daily Summary Schedule", "Latest Daily Summary", "Missed Daily Summaries", "Weekly Summary Schedule", "Latest Weekly Summary", "Missed Weekly Summaries"],
+            [
+                "Daily Summary Schedule",
+                "Latest Daily Summary",
+                "Missed Daily Summaries",
+                "Weekly Summary Schedule",
+                "Latest Weekly Summary",
+                "Missed Weekly Summaries",
+            ],
         )
-        self._add_card_section(content_layout, "Data Progress", ["EOATs Audited", "Photos Indexed", "Interviews Logged", "Issues Logged", "Documentation Gaps", "KPI Rows", "Pilot Candidates"])
+        self._add_card_section(
+            content_layout,
+            "Data Progress",
+            [
+                "EOATs Audited",
+                "Photos Indexed",
+                "Interviews Logged",
+                "Issues Logged",
+                "Documentation Gaps",
+                "KPI Rows",
+                "Pilot Candidates",
+            ],
+        )
         self.open_items_panel = OpenItemsPanel(self.config, self.navigate_requested.emit)
         content_layout.addWidget(self.open_items_panel)
 
         workflow_grid = QGridLayout()
         workflow_cards = [
-            WorkflowCard("Capture Data", "Add EOAT audits, interview notes, and photos.", [
-                ("Add Audit Entry", lambda: self.navigate_requested.emit("audit")),
-                ("Open Notes", lambda: self.navigate_requested.emit("notes")),
-                ("Open Tags", lambda: self.navigate_requested.emit("tags")),
-                ("Intake Photos", lambda: self.navigate_requested.emit("photos")),
-                ("Add Interview Note", lambda: self.navigate_requested.emit("audit")),
-                ("Open Master Workbook", lambda: self.open_path(resolve_project_paths(self.config.project_root).master_workbook)),
-            ]),
-            WorkflowCard("Validate & Clean", "Check structure, workbook health, and missing documentation.", [
-                ("Validate Project Foundation", self.run_validation),
-                ("Run Documentation Gap Scan", self.run_documentation_gap_scan),
-                ("Run Full System Audit", self.run_system_audit),
-            ]),
-            WorkflowCard("Analyze", "Turn audit data into issue, risk, KPI, and pilot insight.", [
-                ("Run Issue Analysis", self.run_issue_analysis),
-                ("Run FMEA-Lite Analysis", self.run_fmea_analysis),
-                ("Rank Pilot Candidates", self.run_pilot_ranking),
-                ("Build KPI Dashboard", self.run_kpi_dashboard),
-            ]),
-            WorkflowCard("Standardize", "Generate PM, BOM, and standards outputs.", [
-                ("Generate PM Checklist", self.run_pm_checklist),
-                ("Run BOM/Spare Parts Report", self.run_bom_report),
-                ("Open Standards Docs", lambda: self.navigate_requested.emit("standards_docs")),
-            ]),
-            WorkflowCard("Report & Handoff", "Prepare summaries, presentation assets, and final package checks.", [
-                ("Generate Weekly Summary", self.run_weekly_summary),
-                ("Generate Mentor Brief", self.run_mentor_brief),
-                ("Generate Presentation Assets", self.run_presentation_assets),
-                ("Build Final Handoff Package", self.run_final_handoff_dry_run),
-            ]),
-            WorkflowCard("Admin Tools", "Setup, backups, registry, and release readiness.", [
-                ("Create/Verify Project Structure", self.create_or_verify_project),
-                ("Run Weekly Review Workflow", lambda: self.run_workflow_action("weekly-review")),
-                ("Run Final Review Workflow", lambda: self.run_workflow_action("final-review")),
-                ("Open Tool Registry", lambda: self.navigate_requested.emit("tool_registry")),
-                ("Open Backup Manager", lambda: self.navigate_requested.emit("backup_manager")),
-                ("Open Release Readiness", lambda: self.navigate_requested.emit("release_readiness")),
-            ]),
+            WorkflowCard(
+                "Capture Data",
+                "Add EOAT audits, interview notes, and photos.",
+                [
+                    ("Add Audit Entry", lambda: self.navigate_requested.emit("audit")),
+                    ("Open Notes", lambda: self.navigate_requested.emit("notes")),
+                    ("Open Tags", lambda: self.navigate_requested.emit("tags")),
+                    ("Intake Photos", lambda: self.navigate_requested.emit("photos")),
+                    ("Add Interview Note", lambda: self.navigate_requested.emit("audit")),
+                    (
+                        "Open Master Workbook",
+                        lambda: self.open_path(resolve_project_paths(self.config.project_root).master_workbook),
+                    ),
+                ],
+            ),
+            WorkflowCard(
+                "Validate & Clean",
+                "Check structure, workbook health, and missing documentation.",
+                [
+                    ("Validate Project Foundation", self.run_validation),
+                    ("Run Documentation Gap Scan", self.run_documentation_gap_scan),
+                    ("Run Full System Audit", self.run_system_audit),
+                ],
+            ),
+            WorkflowCard(
+                "Analyze",
+                "Turn audit data into issue, risk, KPI, and pilot insight.",
+                [
+                    ("Run Issue Analysis", self.run_issue_analysis),
+                    ("Run FMEA-Lite Analysis", self.run_fmea_analysis),
+                    ("Rank Pilot Candidates", self.run_pilot_ranking),
+                    ("Build KPI Dashboard", self.run_kpi_dashboard),
+                ],
+            ),
+            WorkflowCard(
+                "Standardize",
+                "Generate PM, BOM, and standards outputs.",
+                [
+                    ("Generate PM Checklist", self.run_pm_checklist),
+                    ("Run BOM/Spare Parts Report", self.run_bom_report),
+                    ("Open Standards Docs", lambda: self.navigate_requested.emit("standards_docs")),
+                ],
+            ),
+            WorkflowCard(
+                "Report & Handoff",
+                "Prepare summaries, presentation assets, and final package checks.",
+                [
+                    ("Generate Weekly Summary", self.run_weekly_summary),
+                    ("Generate Mentor Brief", self.run_mentor_brief),
+                    ("Generate Presentation Assets", self.run_presentation_assets),
+                    ("Build Final Handoff Package", self.run_final_handoff_dry_run),
+                ],
+            ),
+            WorkflowCard(
+                "Admin Tools",
+                "Setup, backups, registry, and release readiness.",
+                [
+                    ("Create/Verify Project Structure", self.create_or_verify_project),
+                    ("Run Weekly Review Workflow", lambda: self.run_workflow_action("weekly-review")),
+                    ("Run Final Review Workflow", lambda: self.run_workflow_action("final-review")),
+                    ("Open Tool Registry", lambda: self.navigate_requested.emit("tool_registry")),
+                    ("Open Backup Manager", lambda: self.navigate_requested.emit("backup_manager")),
+                    ("Open Release Readiness", lambda: self.navigate_requested.emit("release_readiness")),
+                ],
+            ),
         ]
         for index, card in enumerate(workflow_cards):
             workflow_grid.addWidget(card, index // 3, index % 3)
@@ -437,7 +553,9 @@ class HomePage(QWidget):
         content_layout.addWidget(QLabel("Recent Activity"))
         content_layout.addWidget(self.result_panel)
         root_status = validate_project_root(self.config.project_root)
-        self.project_root_label.setText(f"Active project root: {self.config.project_root}\nData mode: {root_status.mode_label}\n{root_status.message}")
+        self.project_root_label.setText(
+            f"Active project root: {self.config.project_root}\nData mode: {root_status.mode_label}\n{root_status.message}"
+        )
         self.result_panel.show_text("Dashboard loaded. Showing quick cached status...")
         if QTimer is not None:
             QTimer.singleShot(0, self.open_items_panel.refresh_async)
@@ -466,14 +584,22 @@ class HomePage(QWidget):
                 name="Dashboard Quick Refresh",
                 category="home",
                 callable=collect_home_quick_status_snapshot,
-                args=(self.config.project_root, self.config.git_executable, self.config.project_start_date, self.config.skip_weekends, self.config.holidays),
+                args=(
+                    self.config.project_root,
+                    self.config.git_executable,
+                    self.config.project_start_date,
+                    self.config.skip_weekends,
+                    self.config.holidays,
+                ),
             ),
             on_finished=self._apply_status_result,
         )
 
     def on_event(self, event) -> bool:
         if getattr(event, "event_type", "") == EVENT_AUDIT_SAVED:
-            self.result_panel.show_text("Audit saved. Dashboard cache marked stale; use Refresh when you want updated overview metrics.")
+            self.result_panel.show_text(
+                "Audit saved. Dashboard cache marked stale; use Refresh when you want updated overview metrics."
+            )
             return True
         self.refresh_status()
         return True
@@ -486,7 +612,13 @@ class HomePage(QWidget):
                 name="Dashboard Deep Refresh",
                 category="home",
                 callable=collect_home_status_snapshot,
-                args=(self.config.project_root, self.config.git_executable, self.config.project_start_date, self.config.skip_weekends, self.config.holidays),
+                args=(
+                    self.config.project_root,
+                    self.config.git_executable,
+                    self.config.project_start_date,
+                    self.config.skip_weekends,
+                    self.config.holidays,
+                ),
             ),
             on_finished=self._apply_status_result,
         )
@@ -505,7 +637,9 @@ class HomePage(QWidget):
             self._set_card(key, value)
         if hasattr(self, "open_items_panel"):
             self.open_items_panel.refresh_async()
-        self.morning_plan_button.setText(f"Generate Morning Plan for Week {snapshot['resolved_week']} Day {snapshot['resolved_day']}")
+        self.morning_plan_button.setText(
+            f"Generate Morning Plan for Week {snapshot['resolved_week']} Day {snapshot['resolved_day']}"
+        )
         self.recommendations_label.setText("\n".join(f"- {item}" for item in snapshot["recommendations"]))
         self.result_panel.show_text(snapshot["activity_text"])
 
@@ -531,42 +665,82 @@ class HomePage(QWidget):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        self._run_tool_task("home_project_setup", "Create/Verify Project Structure", lambda: run_project_setup_safe(root), modifies_files=True)
+        self._run_tool_task(
+            "home_project_setup",
+            "Create/Verify Project Structure",
+            lambda: run_project_setup_safe(root),
+            modifies_files=True,
+        )
 
     def run_validation(self) -> None:
         from core.validation import run_foundation_validation
 
-        self._run_tool_task("home_foundation_validation", "Foundation Validation", lambda: run_foundation_validation(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_foundation_validation",
+            "Foundation Validation",
+            lambda: run_foundation_validation(self.config.project_root),
+            modifies_files=True,
+        )
 
     def generate_audit_progress_report(self) -> None:
         from core.audit_progress import generate_audit_progress_report
 
-        self._run_tool_task("home_audit_progress", "Audit Progress Report", lambda: generate_audit_progress_report(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_audit_progress",
+            "Audit Progress Report",
+            lambda: generate_audit_progress_report(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_issue_analysis(self) -> None:
         from core.issue_analysis import generate_issue_analysis_report
 
-        self._run_tool_task("home_issue_analysis", "Issue Analysis", lambda: generate_issue_analysis_report(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_issue_analysis",
+            "Issue Analysis",
+            lambda: generate_issue_analysis_report(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_documentation_gap_scan(self) -> None:
         from core.documentation_gaps import generate_documentation_gap_report
 
-        self._run_tool_task("home_documentation_gap", "Documentation Gap Scan", lambda: generate_documentation_gap_report(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_documentation_gap",
+            "Documentation Gap Scan",
+            lambda: generate_documentation_gap_report(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_fmea_analysis(self) -> None:
         from core.fmea_analysis import generate_fmea_report
 
-        self._run_tool_task("home_fmea", "FMEA-Lite Analysis", lambda: generate_fmea_report(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_fmea",
+            "FMEA-Lite Analysis",
+            lambda: generate_fmea_report(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_pilot_ranking(self) -> None:
         from core.pilot_scoring import generate_pilot_ranking_report
 
-        self._run_tool_task("home_pilot_ranking", "Pilot Candidate Ranking", lambda: generate_pilot_ranking_report(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_pilot_ranking",
+            "Pilot Candidate Ranking",
+            lambda: generate_pilot_ranking_report(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_kpi_dashboard(self) -> None:
         from core.kpi_analysis import generate_kpi_dashboard_report
 
-        self._run_tool_task("home_kpi_dashboard", "KPI Dashboard Report", lambda: generate_kpi_dashboard_report(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_kpi_dashboard",
+            "KPI Dashboard Report",
+            lambda: generate_kpi_dashboard_report(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_morning_plan(self) -> None:
         from core.morning_planner import generate_morning_plan
@@ -590,47 +764,92 @@ class HomePage(QWidget):
 
         weeks = available_schedule_weeks(self.config.project_root)
         week = weeks[0] if weeks else 1
-        self._run_tool_task("home_weekly_summary", "Weekly Summary", lambda: generate_weekly_summary(self.config.project_root, week=week), modifies_files=True)
+        self._run_tool_task(
+            "home_weekly_summary",
+            "Weekly Summary",
+            lambda: generate_weekly_summary(self.config.project_root, week=week),
+            modifies_files=True,
+        )
 
     def run_mentor_brief(self) -> None:
         from core.mentor_brief import generate_mentor_brief
 
-        self._run_tool_task("home_mentor_brief", "Mentor Brief", lambda: generate_mentor_brief(self.config.project_root, days=7), modifies_files=True)
+        self._run_tool_task(
+            "home_mentor_brief",
+            "Mentor Brief",
+            lambda: generate_mentor_brief(self.config.project_root, days=7),
+            modifies_files=True,
+        )
 
     def run_pm_checklist(self) -> None:
         from core.pm_checklists import generate_pm_checklists
 
-        self._run_tool_task("home_pm_checklist", "PM Checklist", lambda: generate_pm_checklists(self.config.project_root, generic=True), modifies_files=True)
+        self._run_tool_task(
+            "home_pm_checklist",
+            "PM Checklist",
+            lambda: generate_pm_checklists(self.config.project_root, generic=True),
+            modifies_files=True,
+        )
 
     def run_bom_report(self) -> None:
         from core.bom_standardization import generate_bom_standardization_report
 
-        self._run_tool_task("home_bom_report", "BOM/Spare Parts Report", lambda: generate_bom_standardization_report(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_bom_report",
+            "BOM/Spare Parts Report",
+            lambda: generate_bom_standardization_report(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_final_deliverable_check(self) -> None:
         from core.deliverable_check import run_final_deliverable_check
 
-        self._run_tool_task("home_final_deliverable_check", "Final Deliverable Check", lambda: run_final_deliverable_check(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_final_deliverable_check",
+            "Final Deliverable Check",
+            lambda: run_final_deliverable_check(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_presentation_assets(self) -> None:
         from core.presentation_export import export_presentation_assets
 
-        self._run_tool_task("home_presentation_assets", "Presentation Assets", lambda: export_presentation_assets(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_presentation_assets",
+            "Presentation Assets",
+            lambda: export_presentation_assets(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_final_summary(self) -> None:
         from core.final_summary import generate_final_project_summary
 
-        self._run_tool_task("home_final_summary", "Final Summary Draft", lambda: generate_final_project_summary(self.config.project_root), modifies_files=True)
+        self._run_tool_task(
+            "home_final_summary",
+            "Final Summary Draft",
+            lambda: generate_final_project_summary(self.config.project_root),
+            modifies_files=True,
+        )
 
     def run_final_handoff_dry_run(self) -> None:
         from core.final_handoff import build_final_handoff_package
 
-        self._run_tool_task("home_final_handoff_dry_run", "Final Handoff Dry Run", lambda: build_final_handoff_package(self.config.project_root, dry_run=True), modifies_files=False)
+        self._run_tool_task(
+            "home_final_handoff_dry_run",
+            "Final Handoff Dry Run",
+            lambda: build_final_handoff_package(self.config.project_root, dry_run=True),
+            modifies_files=False,
+        )
 
     def run_system_audit(self) -> None:
         from core.system_audit import run_system_audit
 
-        self._run_tool_task("home_system_audit", "Full System Audit", lambda: run_system_audit(self.config.project_root, check_cli_help=False), modifies_files=True)
+        self._run_tool_task(
+            "home_system_audit",
+            "Full System Audit",
+            lambda: run_system_audit(self.config.project_root, check_cli_help=False),
+            modifies_files=True,
+        )
 
     def run_workflow_action(self, workflow: str) -> None:
         from core.workflows import run_workflow
@@ -653,7 +872,9 @@ class HomePage(QWidget):
         if not result.success:
             self.result_panel.show_result(result)
 
-    def _run_tool_task(self, task_id: str, name: str, func, modifies_files: bool = False, workbook_lock: bool = False) -> None:
+    def _run_tool_task(
+        self, task_id: str, name: str, func, modifies_files: bool = False, workbook_lock: bool = False
+    ) -> None:
         self.result_panel.show_text(f"Running: {name}...")
         get_task_manager().run_task(
             TaskRequest(

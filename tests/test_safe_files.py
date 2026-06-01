@@ -28,4 +28,3 @@ def test_backup_and_safe_copy(tmp_path):
 
     assert backup.exists()
     assert copied.read_text(encoding="utf-8") == "hello"
-

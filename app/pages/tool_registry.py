@@ -39,7 +39,8 @@ class ToolRegistryPage(QWidget):
             "Requires Git?",
         ]
         tools = [
-            tool for tool in registry.list_tools()
+            tool
+            for tool in registry.list_tools()
             if not query or query in " ".join(str(value) for value in tool.to_dict().values()).lower()
         ]
         self.table.setColumnCount(len(headers))

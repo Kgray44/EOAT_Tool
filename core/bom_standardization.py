@@ -57,7 +57,9 @@ def _missing_table(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(missing, key=lambda row: int(row["Missing Field Count"]), reverse=True)
 
 
-def _opportunities(rows: list[dict[str, Any]], counts: dict[str, dict[str, int]], missing_rows: list[dict[str, Any]]) -> list[str]:
+def _opportunities(
+    rows: list[dict[str, Any]], counts: dict[str, dict[str, int]], missing_rows: list[dict[str, Any]]
+) -> list[str]:
     opportunities: list[str] = []
     if not rows:
         return ["Start by auditing representative EOATs before standardizing parts."]
@@ -81,11 +83,19 @@ def analyze_bom_standardization(project_root: str | Path) -> tuple[dict[str, Any
     paths = resolve_project_paths(project_root)
     warnings: list[str] = []
     if not paths.master_workbook.exists():
-        return {"rows": [], "counts": {}, "missing_rows": [], "opportunities": []}, [f"Master workbook not found: {paths.master_workbook}"], []
+        return (
+            {"rows": [], "counts": {}, "missing_rows": [], "opportunities": []},
+            [f"Master workbook not found: {paths.master_workbook}"],
+            [],
+        )
     try:
         rows = [repair_legacy_audit_lookup_shift(row) for row in row_dicts(paths.master_workbook, "EOAT Inventory")]
     except Exception as exc:
-        return {"rows": [], "counts": {}, "missing_rows": [], "opportunities": []}, [f"Could not read EOAT Inventory: {exc}"], []
+        return (
+            {"rows": [], "counts": {}, "missing_rows": [], "opportunities": []},
+            [f"Could not read EOAT Inventory: {exc}"],
+            [],
+        )
 
     counts = {
         "vacuum cup counts": _count(rows, CUP_COUNT_FIELD),
@@ -101,7 +111,11 @@ def analyze_bom_standardization(project_root: str | Path) -> tuple[dict[str, Any
     missing_rows = _missing_table(rows)
     opportunities = _opportunities(rows, counts, missing_rows)
     details = [f"Read {len(rows)} EOAT Inventory row(s)."]
-    return {"rows": rows, "counts": counts, "missing_rows": missing_rows, "opportunities": opportunities}, warnings, details
+    return (
+        {"rows": rows, "counts": counts, "missing_rows": missing_rows, "opportunities": opportunities},
+        warnings,
+        details,
+    )
 
 
 def generate_bom_standardization_report(project_root: str | Path) -> ToolResult:

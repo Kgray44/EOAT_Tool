@@ -18,7 +18,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = None
-    QCheckBox = QComboBox = QDateEdit = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QTextEdit = QToolButton = QVBoxLayout = QWidget = None
+    QCheckBox = QComboBox = QDateEdit = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QTextEdit = (
+        QToolButton
+    ) = QVBoxLayout = QWidget = None
 
 
 class NoteEditor(QWidget):

@@ -14,7 +14,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QFileDialog = QComboBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QFileDialog = QComboBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QTableWidget = QTableWidgetItem = (
+        QVBoxLayout
+    ) = QWidget = None
 
 from app.widgets.report_viewer import ReportViewer
 from app.widgets.tool_run_panel import ToolRunPanel
@@ -58,7 +60,9 @@ class DataImportPage(QWidget):
         layout.addWidget(self.result_panel, stretch=1)
 
     def browse(self) -> None:
-        path, _filter = QFileDialog.getOpenFileName(self, "Select import file", "", "Data Files (*.csv *.tsv *.txt *.xlsx *.xlsm);;All Files (*)")
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Select import file", "", "Data Files (*.csv *.tsv *.txt *.xlsx *.xlsm);;All Files (*)"
+        )
         if path:
             self.path_edit.setText(path)
 
@@ -88,7 +92,9 @@ class DataImportPage(QWidget):
 
     def dry_run(self) -> None:
         try:
-            dry_run = dry_run_import(self.config.project_root, self.path_edit.text().strip(), import_type=self._selected_type())
+            dry_run = dry_run_import(
+                self.config.project_root, self.path_edit.text().strip(), import_type=self._selected_type()
+            )
             self._populate(dry_run.mapped_rows)
             self.preview.show_markdown_text(
                 "\n".join(
@@ -109,7 +115,9 @@ class DataImportPage(QWidget):
             self.result_panel.show_text(f"Dry run failed: {exc}")
 
     def confirm(self) -> None:
-        result = confirm_import(self.config.project_root, self.path_edit.text().strip(), import_type=self._selected_type(), confirmed=True)
+        result = confirm_import(
+            self.config.project_root, self.path_edit.text().strip(), import_type=self._selected_type(), confirmed=True
+        )
         self.result_panel.show_result(result)
 
     def _populate(self, rows) -> None:

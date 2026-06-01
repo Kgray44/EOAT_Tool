@@ -40,4 +40,3 @@ def test_guided_audit_plan_respects_manual_override():
     assert plan.percent_complete == 100
     assert plan.steps == ()
     assert "Manual completion override" in plan.summary
-

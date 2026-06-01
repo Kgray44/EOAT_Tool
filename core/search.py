@@ -51,7 +51,9 @@ class SearchResult:
         return asdict(self)
 
 
-def search_project(project_root: str | Path, query: str = "", filters: SearchFilters | None = None, *, limit: int = 100) -> list[SearchResult]:
+def search_project(
+    project_root: str | Path, query: str = "", filters: SearchFilters | None = None, *, limit: int = 100
+) -> list[SearchResult]:
     filters = filters or SearchFilters()
     query_text = query.strip()
     results: list[SearchResult] = []
@@ -94,10 +96,19 @@ def sqlite_fts_status(project_root: str | Path) -> dict[str, Any]:
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND lower(sql) LIKE '%virtual table%' AND lower(sql) LIKE '%fts%'"
             ).fetchall()
     except sqlite3.Error as exc:
-        return {"available": False, "mode": "like_fallback", "reason": f"Could not inspect annotation FTS tables: {exc}"}
+        return {
+            "available": False,
+            "mode": "like_fallback",
+            "reason": f"Could not inspect annotation FTS tables: {exc}",
+        }
     tables = [str(row[0]) for row in rows]
     if tables:
-        return {"available": True, "mode": "sqlite_fts", "tables": tables, "reason": "Annotation FTS tables are available."}
+        return {
+            "available": True,
+            "mode": "sqlite_fts",
+            "tables": tables,
+            "reason": "Annotation FTS tables are available.",
+        }
     return {
         "available": False,
         "mode": "like_fallback",
@@ -122,7 +133,17 @@ def _audit_results(project_root: str | Path, _query: str, _filters: SearchFilter
         status = text_value(row.get("Status"))
         entry_type = normalize_entry_type(row.get("Entry Type"))
         title = f"Audit {audit_id}"
-        subtitle = " | ".join(piece for piece in [f"Press {machine}" if machine else "", f"Machine {machine}" if machine else "", text_value(row.get("EOAT Type")), status, entry_type] if piece)
+        subtitle = " | ".join(
+            piece
+            for piece in [
+                f"Press {machine}" if machine else "",
+                f"Machine {machine}" if machine else "",
+                text_value(row.get("EOAT Type")),
+                status,
+                entry_type,
+            ]
+            if piece
+        )
         detail = " | ".join(
             piece
             for piece in [
@@ -161,7 +182,13 @@ def _machine_results(project_root: str | Path, _query: str, _filters: SearchFilt
     for machine, rows in grouped.items():
         physical = sum(1 for row in rows if normalize_entry_type(row.get("Entry Type")) != "Compatible")
         compatible = len(rows) - physical
-        tools = sorted({part_number_from_row(row) or text_value(row.get(TOOL_FIELD)) for row in rows if part_number_from_row(row) or text_value(row.get(TOOL_FIELD))})
+        tools = sorted(
+            {
+                part_number_from_row(row) or text_value(row.get(TOOL_FIELD))
+                for row in rows
+                if part_number_from_row(row) or text_value(row.get(TOOL_FIELD))
+            }
+        )
         results.append(
             SearchResult(
                 result_id=f"machine:{machine}",
@@ -203,13 +230,21 @@ def _note_results(project_root: str | Path, query: str, filters: SearchFilters) 
                 result_id=f"note:{note_id}",
                 result_type="note",
                 title=str(note.get("subject") or "Note"),
-                subtitle=" | ".join(piece for piece in [str(note.get("importance") or ""), str(note.get("status") or ""), audit_id, machine] if piece),
+                subtitle=" | ".join(
+                    piece
+                    for piece in [str(note.get("importance") or ""), str(note.get("status") or ""), audit_id, machine]
+                    if piece
+                ),
                 detail=str(note.get("body_markdown") or ""),
                 audit_id=audit_id,
                 machine=machine,
                 target_id=note_id,
                 action="open_note",
-                metadata={"status": note.get("status") or "", "due_date": note.get("follow_up_date") or "", "date": note.get("updated_at") or note.get("created_at") or ""},
+                metadata={
+                    "status": note.get("status") or "",
+                    "due_date": note.get("follow_up_date") or "",
+                    "date": note.get("updated_at") or note.get("created_at") or "",
+                },
             )
         )
     return results
@@ -236,7 +271,9 @@ def _tag_results(project_root: str | Path, query: str, filters: SearchFilters) -
                 metadata={"tag": tag.name, "status": "Archived" if tag.is_archived else "Open", "date": tag.updated_at},
             )
         )
-    for assignment in service.list_tag_assignments(query=query, audit_id=filters.audit_id or None, machine_id=filters.machine or None):
+    for assignment in service.list_tag_assignments(
+        query=query, audit_id=filters.audit_id or None, machine_id=filters.machine or None
+    ):
         tag_name = str(assignment.get("tag_name") or "")
         if filters.tag and filters.tag.casefold() not in tag_name.casefold():
             continue
@@ -252,7 +289,10 @@ def _tag_results(project_root: str | Path, query: str, filters: SearchFilters) -
                 field=str(assignment.get("field_label") or assignment.get("field_key") or ""),
                 target_id=str(assignment.get("assignment_id") or ""),
                 action="open_tag",
-                metadata={"tag": tag_name, "date": assignment.get("assignment_updated_at") or assignment.get("updated_at") or ""},
+                metadata={
+                    "tag": tag_name,
+                    "date": assignment.get("assignment_updated_at") or assignment.get("updated_at") or "",
+                },
             )
         )
     return results
@@ -272,7 +312,12 @@ def _open_item_results(project_root: str | Path, _query: str, _filters: SearchFi
             field=item.field,
             target_id=item.id,
             action="open_open_item",
-            metadata={"status": item.status, "severity": item.severity, "due_date": item.due_date, "date": item.updated_at or item.created_at},
+            metadata={
+                "status": item.status,
+                "severity": item.severity,
+                "due_date": item.due_date,
+                "date": item.updated_at or item.created_at,
+            },
         )
         for item in items
     ]
@@ -289,14 +334,26 @@ def _validation_results(project_root: str | Path, _query: str, _filters: SearchF
                 result_id=f"validation:{finding_id}",
                 result_type="validation",
                 title=str(finding.get("message") or "Validation finding"),
-                subtitle=" | ".join(piece for piece in [str(finding.get("severity") or ""), str(finding.get("category") or ""), str(finding.get("sheet_name") or "")] if piece),
+                subtitle=" | ".join(
+                    piece
+                    for piece in [
+                        str(finding.get("severity") or ""),
+                        str(finding.get("category") or ""),
+                        str(finding.get("sheet_name") or ""),
+                    ]
+                    if piece
+                ),
                 detail=str(finding.get("recommended_action") or finding.get("expected_behavior") or ""),
                 audit_id=str(finding.get("audit_id") or ""),
                 machine=str(finding.get("machine_number") or ""),
                 field=str(finding.get("column_name") or ""),
                 target_id=finding_id,
                 action="open_validation",
-                metadata={"severity": finding.get("severity") or "", "category": finding.get("category") or "", "path": payload.get("_path", "")},
+                metadata={
+                    "severity": finding.get("severity") or "",
+                    "category": finding.get("category") or "",
+                    "path": payload.get("_path", ""),
+                },
             )
         )
     return results
@@ -307,7 +364,11 @@ def _report_results(project_root: str | Path, query: str, _filters: SearchFilter
     for folder in report_folders(project_root, limit=20):
         for path in folder.recent_files:
             detail = ""
-            if query and query.casefold() not in path.name.casefold() and path.suffix.lower() in {".md", ".txt", ".json", ".csv", ".log", ".jsonl"}:
+            if (
+                query
+                and query.casefold() not in path.name.casefold()
+                and path.suffix.lower() in {".md", ".txt", ".json", ".csv", ".log", ".jsonl"}
+            ):
                 preview, _warning = read_report_preview(path, max_chars=1500)
                 detail = preview[:500]
             results.append(
@@ -346,8 +407,14 @@ def _photo_results(project_root: str | Path, _query: str, _filters: SearchFilter
                 result_id=f"photo:{photo_id or filename}",
                 result_type="photo",
                 title=filename or photo_id,
-                subtitle=" | ".join(piece for piece in [text_value(row.get("EOAT Area Shown")), text_value(row.get("Date Taken"))] if piece),
-                detail=" | ".join(piece for piece in [text_value(row.get("Description")), text_value(row.get("Notes"))] if piece),
+                subtitle=" | ".join(
+                    piece
+                    for piece in [text_value(row.get("EOAT Area Shown")), text_value(row.get("Date Taken"))]
+                    if piece
+                ),
+                detail=" | ".join(
+                    piece for piece in [text_value(row.get("Description")), text_value(row.get("Notes"))] if piece
+                ),
                 audit_id=text_value(row.get("Related Audit ID")),
                 machine=text_value(row.get("Press/Machine #")),
                 path=path,
@@ -362,7 +429,9 @@ def _latest_validation_payload(project_root: str | Path) -> dict[str, Any]:
     folder = resolve_project_paths(project_root).validation_reports
     if not folder.exists():
         return {}
-    for path in sorted(folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+    for path in sorted(
+        folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True
+    ):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
@@ -415,7 +484,9 @@ def _matches_filters(result: SearchResult, filters: SearchFilters) -> bool:
         if expected and expected.casefold() not in actual.casefold():
             return False
     if filters.tag:
-        tag_text = " ".join([str(result.metadata.get("tag") or ""), result.title, result.subtitle, result.detail]).casefold()
+        tag_text = " ".join(
+            [str(result.metadata.get("tag") or ""), result.title, result.subtitle, result.detail]
+        ).casefold()
         if filters.tag.casefold() not in tag_text:
             return False
     return True

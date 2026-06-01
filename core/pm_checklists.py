@@ -177,13 +177,19 @@ def build_pm_checklist_markdown(row: dict[str, Any] | None = None, eoat_type: st
     return "\n".join(lines) + "\n", warnings
 
 
-def _filter_rows(rows: list[dict[str, Any]], audit_id: str | None, press: str | None, all_audited: bool) -> list[dict[str, Any]]:
+def _filter_rows(
+    rows: list[dict[str, Any]], audit_id: str | None, press: str | None, all_audited: bool
+) -> list[dict[str, Any]]:
     if audit_id:
         return [row for row in rows if _clean(row.get("Audit ID")).lower() == audit_id.strip().lower()]
     if press:
         return [row for row in rows if _clean(row.get("Press/Machine #")).lower() == press.strip().lower()]
     if all_audited:
-        return [row for row in rows if _clean(row.get("Status")).lower() in {"audited", "needs follow-up", "candidate for pilot"}]
+        return [
+            row
+            for row in rows
+            if _clean(row.get("Status")).lower() in {"audited", "needs follow-up", "candidate for pilot"}
+        ]
     return []
 
 
@@ -254,7 +260,11 @@ def generate_pm_checklists(
         for type_name in GENERIC_TYPES:
             markdown, row_warnings = build_pm_checklist_markdown(None, eoat_type=type_name)
             warnings.extend(row_warnings)
-            path = safe_write_text(_unique_markdown_path(output_dir, f"PM_Checklist_Generic_{_slug(type_name)}", stamp), markdown, overwrite=False)
+            path = safe_write_text(
+                _unique_markdown_path(output_dir, f"PM_Checklist_Generic_{_slug(type_name)}", stamp),
+                markdown,
+                overwrite=False,
+            )
             files_created.append(str(path))
             if "docx" in formats:
                 docx = _write_docx_if_requested(path, markdown)
@@ -268,7 +278,9 @@ def generate_pm_checklists(
             markdown, row_warnings = build_pm_checklist_markdown(row)
             warnings.extend(row_warnings)
             name = _slug(_clean(row.get("Press/Machine #")) or _clean(row.get("Audit ID")) or "EOAT")
-            path = safe_write_text(_unique_markdown_path(output_dir, f"PM_Checklist_{name}", stamp), markdown, overwrite=False)
+            path = safe_write_text(
+                _unique_markdown_path(output_dir, f"PM_Checklist_{name}", stamp), markdown, overwrite=False
+            )
             files_created.append(str(path))
             if "docx" in formats:
                 docx = _write_docx_if_requested(path, markdown)

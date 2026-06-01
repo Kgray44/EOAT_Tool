@@ -9,7 +9,32 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.photo_indexing import PHOTO_VIEW_FOLDERS, intake_photos, list_incoming_photos, preview_photo_intake
+
+PHOTO_VIEW_TYPES = [
+    "Overall",
+    "Overall EOAT",
+    "Robot Connection",
+    "Tool Connection",
+    "EOAT-Side Pneumatic Circuits",
+    "EOAT-Side Pneumatics",
+    "Robot-Side Pneumatics",
+    "Vacuum Cups / Grippers",
+    "Grippers",
+    "Vacuum Cups",
+    "Cylinders",
+    "Tubing Routing",
+    "Sensors",
+    "Sensor Mounting",
+    "Quick Disconnects",
+    "Mounting Hardware",
+    "Cable Management",
+    "Wear / Damage",
+    "Wear/Damage",
+    "Tool Label / ID Plate",
+    "Process Binder Reference",
+    "Process Binder/Documentation Reference",
+    "Other",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -23,7 +48,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plant-area", default="")
     parser.add_argument("--press", default="")
     parser.add_argument("--date-taken", default="")
-    parser.add_argument("--view-type", choices=list(PHOTO_VIEW_FOLDERS.keys()), default="Overall")
+    parser.add_argument("--view-type", choices=PHOTO_VIEW_TYPES, default="Overall")
     parser.add_argument("--related-audit-id", default="")
     parser.add_argument("--related-issue-id", default="")
     parser.add_argument("--description", default="")
@@ -32,6 +57,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def collect_interactive(args: argparse.Namespace) -> argparse.Namespace:
+    from core.photo_indexing import list_incoming_photos
+
     incoming = list_incoming_photos(args.project_root)
     print("Incoming photos:")
     for index, photo in enumerate(incoming, start=1):
@@ -43,7 +70,7 @@ def collect_interactive(args: argparse.Namespace) -> argparse.Namespace:
     args.press = input("Press/Machine #: ").strip()
     args.date_taken = input("Date Taken (YYYY-MM-DD): ").strip()
     print("View types:")
-    for view in PHOTO_VIEW_FOLDERS:
+    for view in PHOTO_VIEW_TYPES:
         print(f"- {view}")
     args.view_type = input("EOAT Area Shown: ").strip() or "Overall"
     args.related_audit_id = input("Related Audit ID: ").strip()
@@ -56,6 +83,8 @@ def collect_interactive(args: argparse.Namespace) -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    from core.photo_indexing import intake_photos, list_incoming_photos, preview_photo_intake
+
     if args.list_incoming:
         for photo in list_incoming_photos(args.project_root):
             print(photo)
@@ -63,7 +92,9 @@ def main() -> int:
     if args.interactive:
         args = collect_interactive(args)
     if args.preview:
-        plan = preview_photo_intake(args.project_root, args.photos, args.plant_area, args.press, args.date_taken, args.view_type)
+        plan = preview_photo_intake(
+            args.project_root, args.photos, args.plant_area, args.press, args.date_taken, args.view_type
+        )
         for item in plan:
             print(f"{item.source} -> {item.target}")
         return 0
@@ -86,4 +117,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

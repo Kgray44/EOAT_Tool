@@ -23,13 +23,19 @@ class KpiDashboardPage(QWidget):
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
         buttons = QHBoxLayout()
-        for label, callback in [("Run KPI Analysis", self.run_report), ("Open KPI Dashboard Exports Folder", self.open_reports), ("Refresh", self.refresh)]:
+        for label, callback in [
+            ("Run KPI Analysis", self.run_report),
+            ("Open KPI Dashboard Exports Folder", self.open_reports),
+            ("Refresh", self.refresh),
+        ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
             buttons.addWidget(button)
         layout.addLayout(buttons)
         grid = QGridLayout()
-        self.cards = add_cards(grid, ["KPI Rows", "Downtime Minutes", "Part Drops", "Mis-Picks", "Scrap Qty", "Missing KPI Data"])
+        self.cards = add_cards(
+            grid, ["KPI Rows", "Downtime Minutes", "Part Drops", "Mis-Picks", "Scrap Qty", "Missing KPI Data"]
+        )
         layout.addLayout(grid)
         tables = QHBoxLayout()
         self.by_press_table = QTableWidget()
@@ -95,7 +101,11 @@ class KpiDashboardPage(QWidget):
                 continue
             if metric:
                 label = summary.card_truth(metric)
-                card.set_detail(label.card_detail() if label else "Source: missing data\nRange: No dated records\nRecords: 0/0\nConfidence: Missing\nMissing: No KPI label available.")
+                card.set_detail(
+                    label.card_detail()
+                    if label
+                    else "Source: missing data\nRange: No dated records\nRecords: 0/0\nConfidence: Missing\nMissing: No KPI label available."
+                )
             else:
                 card.set_detail(
                     "\n".join(

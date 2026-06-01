@@ -104,7 +104,9 @@ class ChangeValidationChecklist:
         return "\n".join(lines) + "\n"
 
 
-def build_change_validation_checklist(project_root: str | Path, *, audit_id: str = "", machine: str = "", change_id: str = "") -> ChangeValidationChecklist | None:
+def build_change_validation_checklist(
+    project_root: str | Path, *, audit_id: str = "", machine: str = "", change_id: str = ""
+) -> ChangeValidationChecklist | None:
     row = _select_audit_row(project_root, audit_id=audit_id, machine=machine)
     if row is None:
         return None
@@ -135,13 +137,23 @@ def generate_change_validation_checklist(
     start = time.perf_counter()
     checklist = build_change_validation_checklist(project_root, audit_id=audit_id, machine=machine, change_id=change_id)
     if checklist is None:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, "No matching EOAT Inventory audit row found; change validation was not generated.")
+        return ToolResult.fail(
+            TOOL_ID, TOOL_NAME, "No matching EOAT Inventory audit row found; change validation was not generated."
+        )
     output_dir = ensure_directory(resolve_project_paths(project_root).change_validation / _slug(checklist.change_id))
     stamp = timestamp_for_report()
     files_created: list[str] = []
     try:
-        markdown_path = safe_write_text(output_dir / f"Change_Validation_{_slug(checklist.change_id)}_{stamp}.md", checklist.to_markdown(), overwrite=False)
-        json_path = safe_write_text(output_dir / f"Change_Validation_{_slug(checklist.change_id)}_{stamp}.json", json.dumps(checklist.to_dict(), indent=2, sort_keys=True) + "\n", overwrite=False)
+        markdown_path = safe_write_text(
+            output_dir / f"Change_Validation_{_slug(checklist.change_id)}_{stamp}.md",
+            checklist.to_markdown(),
+            overwrite=False,
+        )
+        json_path = safe_write_text(
+            output_dir / f"Change_Validation_{_slug(checklist.change_id)}_{stamp}.json",
+            json.dumps(checklist.to_dict(), indent=2, sort_keys=True) + "\n",
+            overwrite=False,
+        )
         files_created.extend([str(markdown_path), str(json_path)])
     except Exception as exc:
         return ToolResult.fail(TOOL_ID, TOOL_NAME, "Could not write change validation checklist.", errors=[str(exc)])
@@ -149,7 +161,11 @@ def generate_change_validation_checklist(
         TOOL_ID,
         TOOL_NAME,
         "Generated EOAT change validation checklist.",
-        details=[f"Change ID: {checklist.change_id}", f"Audit ID: {checklist.audit_id}", f"Output folder: {output_dir}"],
+        details=[
+            f"Change ID: {checklist.change_id}",
+            f"Audit ID: {checklist.audit_id}",
+            f"Output folder: {output_dir}",
+        ],
         warnings=list(checklist.warnings),
         files_created=files_created,
         output_reports=files_created,
@@ -208,14 +224,18 @@ def _item_for(row: dict[str, Any], item_id: str, label: str) -> ChangeValidation
             notes = f"Photo folder/link: {_display(row.get('Photo Folder/Link'))}."
     elif item_id == "signoff_completed":
         evidence_source = "Manual signoff"
-    return ChangeValidationItem(item_id=item_id, label=label, status=status, evidence_source=evidence_source, notes=notes)
+    return ChangeValidationItem(
+        item_id=item_id, label=label, status=status, evidence_source=evidence_source, notes=notes
+    )
 
 
 def _function_notes(row: dict[str, Any]) -> str:
     eoat_type = _clean(row.get("EOAT Type")).casefold()
     parts: list[str] = []
     if "vacuum" in eoat_type or "hybrid" in eoat_type:
-        parts.append(f"vacuum cups {_display(row.get('# of Cups'))}, circuits {_display(row.get('EOAT Vacuum Circuits'))}")
+        parts.append(
+            f"vacuum cups {_display(row.get('# of Cups'))}, circuits {_display(row.get('EOAT Vacuum Circuits'))}"
+        )
     if "gripper" in eoat_type or "mechanical" in eoat_type or "hybrid" in eoat_type:
         parts.append(f"grippers {_display(row.get('# of Grippers'))}, model {_display(row.get('Gripper Model'))}")
     if not parts:
@@ -228,7 +248,11 @@ def _warnings_for(row: dict[str, Any]) -> list[str]:
     warnings: list[str] = []
     if not _yes(row.get("Photos Taken?")) or not _clean(row.get("Photo Folder/Link")):
         warnings.append(f"{machine}: photos are missing or not linked.")
-    for label, field in [("CAD/drawing", "Drawing/CAD Available?"), ("BOM", "BOM Available?"), ("process binder", "Process Binder Complete?")]:
+    for label, field in [
+        ("CAD/drawing", "Drawing/CAD Available?"),
+        ("BOM", "BOM Available?"),
+        ("process binder", "Process Binder Complete?"),
+    ]:
         if not _yes(row.get(field)):
             warnings.append(f"{machine}: {label} not documented as available.")
     return warnings

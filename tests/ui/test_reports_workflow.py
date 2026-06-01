@@ -20,7 +20,9 @@ class _AcceptedWeeklyDialog:
         return QDialog.DialogCode.Accepted
 
 
-def test_reports_page_refresh_preview_open_stub_and_weekly_summary(qapp, fake_config, fake_project, captured_open_requests, monkeypatch):
+def test_reports_page_refresh_preview_open_stub_and_weekly_summary(
+    qapp, fake_config, fake_project, captured_open_requests, monkeypatch
+):
     import app.pages.reports as reports_module
 
     monkeypatch.setattr(reports_module, "WeeklySummaryDialog", _AcceptedWeeklyDialog)

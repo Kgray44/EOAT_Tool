@@ -307,17 +307,27 @@ def build_technical_appendix_markdown(project_root: str | Path) -> str:
         ),
         "",
         "## Standards Gaps",
-        "Standards analysis unavailable." if standards_error else f"- Audits scored: {standards.metrics.get('audits_scored', 0) if standards else 0}",
+        "Standards analysis unavailable."
+        if standards_error
+        else f"- Audits scored: {standards.metrics.get('audits_scored', 0) if standards else 0}",
         *table_from_rows(standards_rows[:40], ["Audit ID", "Press/Machine #", "Category", "Status", "Reason"]),
         "",
         "## FMEA Details",
-        *table_from_rows(top_fmea_risks(project_root, limit=20), ["Press/Machine #", "Failure Mode", "RPN", "Recommended Action"]),
+        *table_from_rows(
+            top_fmea_risks(project_root, limit=20), ["Press/Machine #", "Failure Mode", "RPN", "Recommended Action"]
+        ),
         "",
         "## Integrated Risk Insight",
         *_risk_insight_summary_lines(risk_insights),
         "",
         "## PM/BOM Findings",
-        *report_references_markdown({"PM Checklists": reports["PM Checklists"], "BOM": reports["BOM"], "Risk Insights": reports["Risk Insights"]}),
+        *report_references_markdown(
+            {
+                "PM Checklists": reports["PM Checklists"],
+                "BOM": reports["BOM"],
+                "Risk Insights": reports["Risk Insights"],
+            }
+        ),
         "",
         "## KPI Dashboard / Export",
         "KPI analysis unavailable." if kpi_error else f"- KPI rows: {kpi.metrics.get('kpi_rows', 0) if kpi else 0}",
@@ -327,7 +337,10 @@ def build_technical_appendix_markdown(project_root: str | Path) -> str:
         *table_from_rows(photo_rows[:40], ["Audit ID", "Press/Machine #", "Missing Required", "Follow-Up Needed"]),
         "",
         "## Open Items",
-        *table_from_rows(open_rows, ["Source", "Severity", "Category", "Title", "Status", "Audit ID", "Machine", "Recommended Action"]),
+        *table_from_rows(
+            open_rows,
+            ["Source", "Severity", "Category", "Title", "Status", "Audit ID", "Machine", "Recommended Action"],
+        ),
         "",
         "## Compatibility Health Summary",
         f"- Compatibility findings: {len(compatibility)}",
@@ -362,7 +375,21 @@ def build_open_items_carryover_markdown(project_root: str | Path) -> str:
         f"- Unresolved open items: {len(items)}",
         "",
         "## Carryover Items",
-        *table_from_rows(rows, ["Source", "Severity", "Category", "Title", "Status", "Audit ID", "Machine", "Field", "Due Date", "Recommended Action"]),
+        *table_from_rows(
+            rows,
+            [
+                "Source",
+                "Severity",
+                "Category",
+                "Title",
+                "Status",
+                "Audit ID",
+                "Machine",
+                "Field",
+                "Due Date",
+                "Recommended Action",
+            ],
+        ),
         "",
         "## Handoff Note",
         "These unresolved items should be assigned an owner or explicitly dismissed after review. They are not hidden by the final package builder.",
@@ -370,7 +397,13 @@ def build_open_items_carryover_markdown(project_root: str | Path) -> str:
     return "\n".join(lines) + "\n"
 
 
-def export_leadership_summary(project_root: str | Path, output_dir: str | Path | None = None, *, filename: str | None = None, log_activity: bool = True) -> ToolResult:
+def export_leadership_summary(
+    project_root: str | Path,
+    output_dir: str | Path | None = None,
+    *,
+    filename: str | None = None,
+    log_activity: bool = True,
+) -> ToolResult:
     return _export_markdown(
         project_root,
         "leadership_summary_export",
@@ -382,31 +415,51 @@ def export_leadership_summary(project_root: str | Path, output_dir: str | Path |
     )
 
 
-def export_technical_appendix(project_root: str | Path, output_dir: str | Path | None = None, *, filename: str | None = None, log_activity: bool = True) -> ToolResult:
+def export_technical_appendix(
+    project_root: str | Path,
+    output_dir: str | Path | None = None,
+    *,
+    filename: str | None = None,
+    log_activity: bool = True,
+) -> ToolResult:
     return _export_markdown(
         project_root,
         "technical_appendix_export",
         "Technical Appendix Export",
         build_technical_appendix_markdown(project_root),
         Path(output_dir) if output_dir else technical_appendix_dir(project_root),
-        filename or ("Technical_Appendix.md" if output_dir else f"Technical_Appendix_{time.strftime('%Y%m%d_%H%M')}.md"),
+        filename
+        or ("Technical_Appendix.md" if output_dir else f"Technical_Appendix_{time.strftime('%Y%m%d_%H%M')}.md"),
         log_activity,
     )
 
 
-def export_open_items_carryover(project_root: str | Path, output_dir: str | Path | None = None, *, filename: str | None = None, log_activity: bool = True) -> ToolResult:
+def export_open_items_carryover(
+    project_root: str | Path,
+    output_dir: str | Path | None = None,
+    *,
+    filename: str | None = None,
+    log_activity: bool = True,
+) -> ToolResult:
     return _export_markdown(
         project_root,
         "open_items_carryover_export",
         "Open Items Carryover Export",
         build_open_items_carryover_markdown(project_root),
         Path(output_dir) if output_dir else open_items_carryover_dir(project_root),
-        filename or ("Open_Items_Carryover.md" if output_dir else f"Open_Items_Carryover_{time.strftime('%Y%m%d_%H%M')}.md"),
+        filename
+        or ("Open_Items_Carryover.md" if output_dir else f"Open_Items_Carryover_{time.strftime('%Y%m%d_%H%M')}.md"),
         log_activity,
     )
 
 
-def export_deliverable_readiness(project_root: str | Path, output_dir: str | Path | None = None, *, filename: str | None = None, log_activity: bool = True) -> ToolResult:
+def export_deliverable_readiness(
+    project_root: str | Path,
+    output_dir: str | Path | None = None,
+    *,
+    filename: str | None = None,
+    log_activity: bool = True,
+) -> ToolResult:
     readiness = build_final_handoff_readiness(project_root)
     return _export_markdown(
         project_root,
@@ -414,20 +467,28 @@ def export_deliverable_readiness(project_root: str | Path, output_dir: str | Pat
         "Final Deliverable Readiness Export",
         readiness.to_markdown(),
         Path(output_dir) if output_dir else deliverable_readiness_dir(project_root),
-        filename or ("Deliverable_Readiness.md" if output_dir else f"Deliverable_Readiness_{time.strftime('%Y%m%d_%H%M')}.md"),
+        filename
+        or ("Deliverable_Readiness.md" if output_dir else f"Deliverable_Readiness_{time.strftime('%Y%m%d_%H%M')}.md"),
         log_activity,
         metrics=readiness.metrics,
     )
 
 
-def export_machine_summary_report(project_root: str | Path, output_dir: str | Path | None = None, *, filename: str | None = None, log_activity: bool = True) -> ToolResult:
+def export_machine_summary_report(
+    project_root: str | Path,
+    output_dir: str | Path | None = None,
+    *,
+    filename: str | None = None,
+    log_activity: bool = True,
+) -> ToolResult:
     return _export_markdown(
         project_root,
         "machine_summary_report",
         "Machine Summary Report",
         build_machine_summary_report_markdown(project_root),
         Path(output_dir) if output_dir else machine_summary_dir(project_root),
-        filename or ("Machine_Summary_Report.md" if output_dir else f"Machine_Summary_Report_{time.strftime('%Y%m%d_%H%M')}.md"),
+        filename
+        or ("Machine_Summary_Report.md" if output_dir else f"Machine_Summary_Report_{time.strftime('%Y%m%d_%H%M')}.md"),
         log_activity,
     )
 
@@ -478,10 +539,28 @@ def _safe_output_path(path: Path) -> Path:
 
 def _eoat_database(workbook: Path, inventory: list[dict[str, Any]]) -> FinalDeliverableReadiness:
     if not workbook.exists():
-        return FinalDeliverableReadiness("eoat_database", "EOAT Database", MISSING, recommended_action="Restore or create the EOAT master tracker workbook.")
+        return FinalDeliverableReadiness(
+            "eoat_database",
+            "EOAT Database",
+            MISSING,
+            recommended_action="Restore or create the EOAT master tracker workbook.",
+        )
     if not inventory:
-        return FinalDeliverableReadiness("eoat_database", "EOAT Database", DRAFT, (str(workbook),), ("Workbook exists but no EOAT Inventory rows were found.",), "Complete or import audit rows.")
-    return FinalDeliverableReadiness("eoat_database", "EOAT Database", READY, (str(workbook),), recommended_action="Review workbook before final distribution.")
+        return FinalDeliverableReadiness(
+            "eoat_database",
+            "EOAT Database",
+            DRAFT,
+            (str(workbook),),
+            ("Workbook exists but no EOAT Inventory rows were found.",),
+            "Complete or import audit rows.",
+        )
+    return FinalDeliverableReadiness(
+        "eoat_database",
+        "EOAT Database",
+        READY,
+        (str(workbook),),
+        recommended_action="Review workbook before final distribution.",
+    )
 
 
 def _standards_guidelines(project_root: str | Path) -> FinalDeliverableReadiness:
@@ -489,10 +568,28 @@ def _standards_guidelines(project_root: str | Path) -> FinalDeliverableReadiness
     guideline_files = _files(paths.standards / "EOAT_Design_Guideline_Draft")
     standards_reports = _files(paths.documentation_gap_reports) + _files(paths.bom_standardization_reports)
     if guideline_files:
-        return FinalDeliverableReadiness("standards_guidelines", "Standards Guidelines", READY, tuple(str(path) for path in guideline_files[:3]), recommended_action="Confirm mentor-approved guideline status.")
+        return FinalDeliverableReadiness(
+            "standards_guidelines",
+            "Standards Guidelines",
+            READY,
+            tuple(str(path) for path in guideline_files[:3]),
+            recommended_action="Confirm mentor-approved guideline status.",
+        )
     if standards_reports:
-        return FinalDeliverableReadiness("standards_guidelines", "Standards Guidelines", DRAFT, tuple(str(path) for path in standards_reports[:3]), ("Reports exist, but no guideline draft file was found.",), "Create or add the standards guideline draft.")
-    return FinalDeliverableReadiness("standards_guidelines", "Standards Guidelines", MISSING, recommended_action="Create the standards guideline draft or document why it is unavailable.")
+        return FinalDeliverableReadiness(
+            "standards_guidelines",
+            "Standards Guidelines",
+            DRAFT,
+            tuple(str(path) for path in standards_reports[:3]),
+            ("Reports exist, but no guideline draft file was found.",),
+            "Create or add the standards guideline draft.",
+        )
+    return FinalDeliverableReadiness(
+        "standards_guidelines",
+        "Standards Guidelines",
+        MISSING,
+        recommended_action="Create the standards guideline draft or document why it is unavailable.",
+    )
 
 
 def _pm_checklist_package(project_root: str | Path) -> FinalDeliverableReadiness:
@@ -500,28 +597,78 @@ def _pm_checklist_package(project_root: str | Path) -> FinalDeliverableReadiness
     checklists = _files(paths.pm_generated_checklists)
     templates = _files(paths.standards / "PM_Checklist_Draft")
     if checklists:
-        return FinalDeliverableReadiness("pm_checklist_package", "PM Checklist Package", READY, tuple(str(path) for path in checklists[:3]), recommended_action="Review generated PM checklist coverage.")
+        return FinalDeliverableReadiness(
+            "pm_checklist_package",
+            "PM Checklist Package",
+            READY,
+            tuple(str(path) for path in checklists[:3]),
+            recommended_action="Review generated PM checklist coverage.",
+        )
     if templates:
-        return FinalDeliverableReadiness("pm_checklist_package", "PM Checklist Package", DRAFT, tuple(str(path) for path in templates[:3]), ("Only templates were found.",), "Generate audit-specific PM checklists where needed.")
-    return FinalDeliverableReadiness("pm_checklist_package", "PM Checklist Package", MISSING, recommended_action="Generate PM checklist outputs.")
+        return FinalDeliverableReadiness(
+            "pm_checklist_package",
+            "PM Checklist Package",
+            DRAFT,
+            tuple(str(path) for path in templates[:3]),
+            ("Only templates were found.",),
+            "Generate audit-specific PM checklists where needed.",
+        )
+    return FinalDeliverableReadiness(
+        "pm_checklist_package", "PM Checklist Package", MISSING, recommended_action="Generate PM checklist outputs."
+    )
 
 
 def _fmea_output(project_root: str | Path, rows: list[dict[str, Any]]) -> FinalDeliverableReadiness:
     reports = _files(resolve_project_paths(project_root).fmea_reports)
     if rows and reports:
-        return FinalDeliverableReadiness("fmea_output", "FMEA Output", READY, tuple(str(path) for path in reports[:3]), recommended_action="Confirm FMEA rows remain draft/reviewed as appropriate.")
+        return FinalDeliverableReadiness(
+            "fmea_output",
+            "FMEA Output",
+            READY,
+            tuple(str(path) for path in reports[:3]),
+            recommended_action="Confirm FMEA rows remain draft/reviewed as appropriate.",
+        )
     if rows or reports:
-        return FinalDeliverableReadiness("fmea_output", "FMEA Output", DRAFT, tuple(str(path) for path in reports[:3]), ("FMEA rows or report output are incomplete.",), "Generate/review the FMEA report and accepted draft rows.")
-    return FinalDeliverableReadiness("fmea_output", "FMEA Output", MISSING, recommended_action="Generate FMEA analysis output.")
+        return FinalDeliverableReadiness(
+            "fmea_output",
+            "FMEA Output",
+            DRAFT,
+            tuple(str(path) for path in reports[:3]),
+            ("FMEA rows or report output are incomplete.",),
+            "Generate/review the FMEA report and accepted draft rows.",
+        )
+    return FinalDeliverableReadiness(
+        "fmea_output", "FMEA Output", MISSING, recommended_action="Generate FMEA analysis output."
+    )
 
 
 def _kpi_output(project_root: str | Path, rows: list[dict[str, Any]]) -> FinalDeliverableReadiness:
     reports = _files(resolve_project_paths(project_root).kpi_dashboard_exports)
     if rows and reports:
-        return FinalDeliverableReadiness("kpi_dashboard_export", "KPI Dashboard/Export", READY, tuple(str(path) for path in reports[:3]), ("KPI impact still requires before/after evidence before claims.",), "Review KPI baseline versus any pilot evidence.")
+        return FinalDeliverableReadiness(
+            "kpi_dashboard_export",
+            "KPI Dashboard/Export",
+            READY,
+            tuple(str(path) for path in reports[:3]),
+            ("KPI impact still requires before/after evidence before claims.",),
+            "Review KPI baseline versus any pilot evidence.",
+        )
     if rows or reports:
-        return FinalDeliverableReadiness("kpi_dashboard_export", "KPI Dashboard/Export", DRAFT, tuple(str(path) for path in reports[:3]), ("Only KPI rows or reports were found.",), "Generate KPI export or complete baseline data.")
-    return FinalDeliverableReadiness("kpi_dashboard_export", "KPI Dashboard/Export", MISSING, warnings=("KPI impact unavailable.",), recommended_action="Add KPI baseline/export if required; do not claim impact without evidence.")
+        return FinalDeliverableReadiness(
+            "kpi_dashboard_export",
+            "KPI Dashboard/Export",
+            DRAFT,
+            tuple(str(path) for path in reports[:3]),
+            ("Only KPI rows or reports were found.",),
+            "Generate KPI export or complete baseline data.",
+        )
+    return FinalDeliverableReadiness(
+        "kpi_dashboard_export",
+        "KPI Dashboard/Export",
+        MISSING,
+        warnings=("KPI impact unavailable.",),
+        recommended_action="Add KPI baseline/export if required; do not claim impact without evidence.",
+    )
 
 
 def _pilot_output(project_root: str | Path) -> FinalDeliverableReadiness:
@@ -530,55 +677,144 @@ def _pilot_output(project_root: str | Path) -> FinalDeliverableReadiness:
     pilot_reports = _files(paths.pilot_project / "Pilot_Reports")
     candidate_packets = _files(paths.pilot_project / "Candidate_Cells")
     if before_after and pilot_reports:
-        return FinalDeliverableReadiness("pilot_results_or_packets", "Pilot Results or Pilot Candidate Packets", READY, tuple(str(path) for path in (pilot_reports + before_after)[:3]), recommended_action="Review before/after evidence before stating pilot results.")
+        return FinalDeliverableReadiness(
+            "pilot_results_or_packets",
+            "Pilot Results or Pilot Candidate Packets",
+            READY,
+            tuple(str(path) for path in (pilot_reports + before_after)[:3]),
+            recommended_action="Review before/after evidence before stating pilot results.",
+        )
     if candidate_packets:
-        return FinalDeliverableReadiness("pilot_results_or_packets", "Pilot Results or Pilot Candidate Packets", DRAFT, tuple(str(path) for path in candidate_packets[:3]), ("Pilot candidate packets exist; final pilot results are unavailable unless before/after data is added.",), "Use candidate packets as recommendation evidence only.")
-    return FinalDeliverableReadiness("pilot_results_or_packets", "Pilot Results or Pilot Candidate Packets", MISSING, warnings=("Pilot results unavailable.",), recommended_action="Generate pilot candidate evidence packets or add pilot results when measured.")
+        return FinalDeliverableReadiness(
+            "pilot_results_or_packets",
+            "Pilot Results or Pilot Candidate Packets",
+            DRAFT,
+            tuple(str(path) for path in candidate_packets[:3]),
+            ("Pilot candidate packets exist; final pilot results are unavailable unless before/after data is added.",),
+            "Use candidate packets as recommendation evidence only.",
+        )
+    return FinalDeliverableReadiness(
+        "pilot_results_or_packets",
+        "Pilot Results or Pilot Candidate Packets",
+        MISSING,
+        warnings=("Pilot results unavailable.",),
+        recommended_action="Generate pilot candidate evidence packets or add pilot results when measured.",
+    )
 
 
 def _training_materials(project_root: str | Path) -> FinalDeliverableReadiness:
     paths = resolve_project_paths(project_root)
     files = _files(paths.training_materials) + _files(paths.standards / "Work_Instructions")
     if files:
-        return FinalDeliverableReadiness("training_materials", "Training Materials", READY, tuple(str(path) for path in files[:3]), recommended_action="Confirm training materials are appropriate for final audience.")
-    return FinalDeliverableReadiness("training_materials", "Training Materials", MISSING, recommended_action="Add training/work instruction material or mark as unavailable.")
+        return FinalDeliverableReadiness(
+            "training_materials",
+            "Training Materials",
+            READY,
+            tuple(str(path) for path in files[:3]),
+            recommended_action="Confirm training materials are appropriate for final audience.",
+        )
+    return FinalDeliverableReadiness(
+        "training_materials",
+        "Training Materials",
+        MISSING,
+        recommended_action="Add training/work instruction material or mark as unavailable.",
+    )
 
 
 def _documentation_gap_summary(project_root: str | Path) -> FinalDeliverableReadiness:
     files = _files(resolve_project_paths(project_root).documentation_gap_reports)
     if files:
-        return FinalDeliverableReadiness("documentation_gap_summary", "Documentation Gap Summary", READY, tuple(str(path) for path in files[:3]), recommended_action="Review open documentation gaps before handoff.")
-    return FinalDeliverableReadiness("documentation_gap_summary", "Documentation Gap Summary", MISSING, recommended_action="Generate documentation gap summary.")
+        return FinalDeliverableReadiness(
+            "documentation_gap_summary",
+            "Documentation Gap Summary",
+            READY,
+            tuple(str(path) for path in files[:3]),
+            recommended_action="Review open documentation gaps before handoff.",
+        )
+    return FinalDeliverableReadiness(
+        "documentation_gap_summary",
+        "Documentation Gap Summary",
+        MISSING,
+        recommended_action="Generate documentation gap summary.",
+    )
 
 
 def _open_items_carryover(project_root: str | Path, items: list[OpenItem]) -> FinalDeliverableReadiness:
     files = _files(open_items_carryover_dir(project_root)) + _package_files(project_root, "Open_Items_Carryover.md")
     if files:
-        return FinalDeliverableReadiness("open_items_carryover", "Open Items Carryover", READY, tuple(str(path) for path in files[:3]), warnings=((f"{len(items)} unresolved item(s) remain.",) if items else ()), recommended_action="Assign ownership for unresolved carryover items.")
+        return FinalDeliverableReadiness(
+            "open_items_carryover",
+            "Open Items Carryover",
+            READY,
+            tuple(str(path) for path in files[:3]),
+            warnings=((f"{len(items)} unresolved item(s) remain.",) if items else ()),
+            recommended_action="Assign ownership for unresolved carryover items.",
+        )
     if items:
-        return FinalDeliverableReadiness("open_items_carryover", "Open Items Carryover", NEEDS_REVIEW, warnings=(f"{len(items)} unresolved open item(s) need carryover export.",), recommended_action="Export open items carryover.")
-    return FinalDeliverableReadiness("open_items_carryover", "Open Items Carryover", READY, warnings=("No unresolved open items found.",), recommended_action="No carryover export is required unless new items are added.")
+        return FinalDeliverableReadiness(
+            "open_items_carryover",
+            "Open Items Carryover",
+            NEEDS_REVIEW,
+            warnings=(f"{len(items)} unresolved open item(s) need carryover export.",),
+            recommended_action="Export open items carryover.",
+        )
+    return FinalDeliverableReadiness(
+        "open_items_carryover",
+        "Open Items Carryover",
+        READY,
+        warnings=("No unresolved open items found.",),
+        recommended_action="No carryover export is required unless new items are added.",
+    )
 
 
 def _executive_summary(project_root: str | Path) -> FinalDeliverableReadiness:
-    files = _files(resolve_project_paths(project_root).executive_summary) + _package_files(project_root, "Executive_Summary.md")
+    files = _files(resolve_project_paths(project_root).executive_summary) + _package_files(
+        project_root, "Executive_Summary.md"
+    )
     if files:
-        return FinalDeliverableReadiness("executive_summary", "Executive Summary", READY, tuple(str(path) for path in files[:3]), recommended_action="Review wording for leadership audience.")
-    return FinalDeliverableReadiness("executive_summary", "Executive Summary", MISSING, recommended_action="Export leadership summary.")
+        return FinalDeliverableReadiness(
+            "executive_summary",
+            "Executive Summary",
+            READY,
+            tuple(str(path) for path in files[:3]),
+            recommended_action="Review wording for leadership audience.",
+        )
+    return FinalDeliverableReadiness(
+        "executive_summary", "Executive Summary", MISSING, recommended_action="Export leadership summary."
+    )
 
 
 def _technical_appendix(project_root: str | Path) -> FinalDeliverableReadiness:
     files = _files(technical_appendix_dir(project_root)) + _package_files(project_root, "Technical_Appendix.md")
     if files:
-        return FinalDeliverableReadiness("technical_appendix", "Technical Appendix", READY, tuple(str(path) for path in files[:3]), recommended_action="Review appendix for source evidence completeness.")
-    return FinalDeliverableReadiness("technical_appendix", "Technical Appendix", MISSING, recommended_action="Export technical appendix.")
+        return FinalDeliverableReadiness(
+            "technical_appendix",
+            "Technical Appendix",
+            READY,
+            tuple(str(path) for path in files[:3]),
+            recommended_action="Review appendix for source evidence completeness.",
+        )
+    return FinalDeliverableReadiness(
+        "technical_appendix", "Technical Appendix", MISSING, recommended_action="Export technical appendix."
+    )
 
 
 def _machine_summary_report(project_root: str | Path) -> FinalDeliverableReadiness:
     files = _files(machine_summary_dir(project_root)) + _package_files(project_root, "Machine_Summary_Report.md")
     if files:
-        return FinalDeliverableReadiness("machine_summary_report", "Machine Summary Report", READY, tuple(str(path) for path in files[:3]), recommended_action="Review machine-level recommendations before handoff.")
-    return FinalDeliverableReadiness("machine_summary_report", "Machine Summary Report", MISSING, recommended_action="Generate machine summary report.")
+        return FinalDeliverableReadiness(
+            "machine_summary_report",
+            "Machine Summary Report",
+            READY,
+            tuple(str(path) for path in files[:3]),
+            recommended_action="Review machine-level recommendations before handoff.",
+        )
+    return FinalDeliverableReadiness(
+        "machine_summary_report",
+        "Machine Summary Report",
+        MISSING,
+        recommended_action="Generate machine summary report.",
+    )
 
 
 def _safe_open_items(project_root: str | Path) -> list[OpenItem]:
@@ -669,7 +905,8 @@ def _report_map(project_root: str | Path) -> dict[str, list[Path]]:
         "Audit Progress": list_recent_files(paths.audit_progress_reports, 5),
         "Issue Analysis": list_recent_files(paths.issue_analysis_reports, 5),
         "Documentation Gaps": list_recent_files(paths.documentation_gap_reports, 5),
-        "Standards": list_recent_files(paths.documentation_gap_reports, 5) + list_recent_files(paths.bom_standardization_reports, 5),
+        "Standards": list_recent_files(paths.documentation_gap_reports, 5)
+        + list_recent_files(paths.bom_standardization_reports, 5),
         "FMEA": list_recent_files(paths.fmea_reports, 5),
         "Pilot Candidates": list_recent_files(paths.pilot_project / "Candidate_Cells", 5),
         "KPI": list_recent_files(paths.kpi_dashboard_exports, 5),
@@ -680,7 +917,10 @@ def _report_map(project_root: str | Path) -> dict[str, list[Path]]:
     }
 
 
-def _files(folder: Path, patterns: tuple[str, ...] = ("*.md", "*.docx", "*.pdf", "*.xlsx", "*.csv", "*.png", "*.pptx", "*.json")) -> list[Path]:
+def _files(
+    folder: Path,
+    patterns: tuple[str, ...] = ("*.md", "*.docx", "*.pdf", "*.xlsx", "*.csv", "*.png", "*.pptx", "*.json"),
+) -> list[Path]:
     if not folder.exists():
         return []
     found: list[Path] = []

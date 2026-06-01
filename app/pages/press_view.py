@@ -19,7 +19,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = QTimer = None
-    QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QComboBox = QGridLayout = QHBoxLayout = QLabel = QLineEdit = QPushButton = QSplitter = QTableWidget = (
+        QTableWidgetItem
+    ) = QVBoxLayout = QWidget = None
 
 from app.event_bus import EVENT_AUDIT_SAVED
 from app.page_async import AsyncRefreshMixin, log_page_performance
@@ -68,6 +70,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             self._filter_timer.setSingleShot(True)
             self._filter_timer.setInterval(150)
             self._filter_timer.timeout.connect(self.apply_filters)
+        self._last_on_show_at = 0.0
 
         layout = QVBoxLayout(self)
         heading = QLabel("Press View")
@@ -84,8 +87,13 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         for label, widget in [("Search", self.search_edit), ("Status", self.status_filter)]:
             controls.addWidget(QLabel(label))
             controls.addWidget(widget)
+        self.reload_cache_button = QPushButton("Reload Cache")
+        self.reload_cache_button.clicked.connect(lambda: self.reload_cache(force=True))
+        self.deep_rebuild_button = QPushButton("Deep Rebuild Press View")
+        self.deep_rebuild_button.clicked.connect(lambda: self.deep_rebuild(force=True))
+        for button in [self.reload_cache_button, self.deep_rebuild_button]:
+            controls.addWidget(button)
         for label, callback in [
-            ("Refresh", lambda: self.refresh(force=True)),
             ("Auto Size Columns", self.auto_size_columns),
             ("Open Audit", self.open_selected_audit),
             ("Open Machine Group", self.open_machine_group),
@@ -152,7 +160,9 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.linked_compatible_table.setHorizontalHeaderLabels(self.ENTRY_COLUMNS)
         self.linked_compatible_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.linked_compatible_table.setAlternatingRowColors(True)
-        self.linked_compatible_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.linked_compatible_table))
+        self.linked_compatible_table.itemSelectionChanged.connect(
+            lambda: self._entry_selection_changed(self.linked_compatible_table)
+        )
         self._apply_default_table_widths(self.linked_compatible_table)
         right_layout.addWidget(self.linked_compatible_table)
         splitter.addWidget(right)
@@ -167,6 +177,9 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.on_show()
 
     def refresh(self, *_args, force: bool = False) -> bool:
+        return self.deep_rebuild(force=force)
+
+    def deep_rebuild(self, *_args, force: bool = False) -> bool:
         def _load() -> dict:
             started = time.perf_counter()
             groups = build_press_view_groups(self.config.project_root)
@@ -187,16 +200,22 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                     "compatible": sum(len(group.compatible_entries) for group in groups),
                     "linked_compatible": sum(len(group.linked_compatible_entries) for group in groups),
                 },
+                "cached": False,
             }
 
         return self._begin_background_refresh(
-            task_id="press_view_refresh",
-            name="Press View Refresh",
+            task_id="press_view_deep_rebuild",
+            name="Deep Rebuild Press View",
             load=_load,
             apply_result=self._apply_refresh_result,
+            button=self.deep_rebuild_button,
             force=force,
             loading_text=self._loading_text(),
         )
+
+    def reload_cache(self, *_args, force: bool = False) -> bool:
+        self._show_cached_groups()
+        return True
 
     def apply_filters(self, *_args) -> None:
         status = self.status_filter.currentText()
@@ -204,7 +223,10 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.groups = [
             group
             for group in self.all_groups
-            if (status in {"", "All"} or any(status.casefold() in entry.status.casefold() for entry in self._filter_entries(group)))
+            if (
+                status in {"", "All"}
+                or any(status.casefold() in entry.status.casefold() for entry in self._filter_entries(group))
+            )
             and (not query or self._matches_group_query(group, query))
         ]
         self._refresh_status_filter()
@@ -225,18 +247,33 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self._filter_timer.start()
 
     def refresh_data(self) -> None:
-        self.refresh()
+        self.reload_cache()
 
     def on_show(self) -> None:
+        now = time.monotonic()
+        if now - self._last_on_show_at < 0.2:
+            return True
+        self._last_on_show_at = now
+        started = time.perf_counter()
         self._show_cached_groups()
-        self.refresh()
+        log_page_performance(
+            self.config.project_root,
+            "press_view",
+            "cached_show",
+            time.perf_counter() - started,
+            details={"row_count": len(self.all_groups), "cached_only": True},
+        )
         return True
 
     def on_event(self, event) -> None:
         if getattr(event, "event_type", "") == EVENT_AUDIT_SAVED:
-            self.result_panel.show_text("Audit saved. Press View is marked stale; click Refresh or reopen this page to rebuild generated groups.")
+            self.result_panel.show_text(
+                "Audit saved. Press View is marked stale; use Reload Cache for cached data or Deep Rebuild Press View for a full rebuild."
+            )
             return True
-        self.refresh()
+        self.result_panel.show_text(
+            "Press View cache may be stale; use Reload Cache for cached data or Deep Rebuild Press View for a full rebuild."
+        )
         return True
 
     def on_project_root_changed(self, config) -> None:
@@ -244,7 +281,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.all_groups = []
         self.groups = []
         self._populate_group_table()
-        self.refresh(force=True)
+        self._show_cached_groups()
 
     def select_machine(self, machine: str) -> bool:
         target = str(machine or "").strip().casefold()
@@ -301,16 +338,36 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             details={"cache_status": "hit" if groups else "miss", "group_count": len(groups)},
         )
         if not groups:
-            self.result_panel.show_text(f"{warning or 'No cached press view yet.'} Loading press data in background...")
+            self.all_groups = []
+            self.groups = []
+            self._populate_group_table()
+            self._populate_entry_table(self.physical_table, [])
+            self._populate_entry_table(self.compatible_table, [])
+            self._populate_entry_table(self.linked_compatible_table, [])
+            self._refresh_cards()
+            message = "No cached Press View found. Click Deep Rebuild Press View to generate it."
+            if warning and warning != "No cached press view found.":
+                message = f"{warning} Click Deep Rebuild Press View to generate it."
+            self.result_panel.show_text(message)
             return
+        render_started = time.perf_counter()
         self.all_groups = groups
         self.apply_filters()
-        self.result_panel.show_text(f"Showing cached press data from {_time_label(generated_at)}. Refreshing in background...")
+        render_seconds = time.perf_counter() - render_started
+        log_performance(
+            self.config.project_root,
+            "press_view.render",
+            render_seconds,
+            source="press_view",
+            page_tool="press_view",
+            details={"row_count": len(self.groups), "cached": True},
+        )
+        self.result_panel.show_text(f"Showing cached press data from {_time_label(generated_at)}.")
 
     def _loading_text(self) -> str:
         if self.all_groups:
-            return "Showing cached press data. Refreshing in background..."
-        return "Loading press data in background..."
+            return "Showing cached press data. Deep rebuilding Press View in background..."
+        return "Deep rebuilding Press View in background..."
 
     def _apply_refresh_result(self, payload: dict, data_load_seconds: float) -> None:
         render_started = time.perf_counter()
@@ -332,7 +389,22 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             render_seconds,
             details={"row_count": len(self.groups), "source_counts": source_counts},
         )
-        self.result_panel.show_text(f"Loaded {len(self.groups)} press group(s) in {data_load_seconds:.1f}s.")
+        log_performance(
+            self.config.project_root,
+            "press_view.render",
+            render_seconds,
+            source="press_view",
+            page_tool="press_view",
+            details={
+                "row_count": len(self.groups),
+                "source_counts": source_counts,
+                "cached": bool(payload.get("cached")),
+            },
+        )
+        if payload.get("cached"):
+            self.result_panel.show_text(f"Loaded {len(self.groups)} cached press group(s) in {data_load_seconds:.1f}s.")
+        else:
+            self.result_panel.show_text(f"Deep rebuilt {len(self.groups)} press group(s) in {data_load_seconds:.1f}s.")
 
     def populate_entries(self) -> None:
         group = self.selected_group()
@@ -360,7 +432,9 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         if group is None:
             self.result_panel.show_text("Select a press/machine group first.")
             return
-        self.result_panel.show_text(f"Opened {group.display_name}. Use the audit tables to jump into physical, assigned compatible, or linked compatible entries.")
+        self.result_panel.show_text(
+            f"Opened {group.display_name}. Use the audit tables to jump into physical, assigned compatible, or linked compatible entries."
+        )
 
     def export_selected_press_summary(self) -> None:
         group = self.selected_group()
@@ -373,12 +447,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
     def _refresh_status_filter(self) -> None:
         current = self.status_filter.currentText()
         statuses = sorted(
-            {
-                entry.status
-                for group in self.all_groups
-                for entry in self._filter_entries(group)
-                if entry.status
-            },
+            {entry.status for group in self.all_groups for entry in self._filter_entries(group) if entry.status},
             key=str.casefold,
         )
         self.status_filter.blockSignals(True)
@@ -431,7 +500,15 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         try:
             table.setRowCount(len(entries))
             for row, entry in enumerate(entries):
-                values = [entry.audit_id, entry.entry_type, entry.tool, entry.eoat_type, entry.status, entry.source_audit_id, entry.known_issues]
+                values = [
+                    entry.audit_id,
+                    entry.entry_type,
+                    entry.tool,
+                    entry.eoat_type,
+                    entry.status,
+                    entry.source_audit_id,
+                    entry.known_issues,
+                ]
                 for col, value in enumerate(values):
                     item = QTableWidgetItem(str(value or ""))
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)

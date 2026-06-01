@@ -96,9 +96,22 @@ IMPORT_TYPE_SPECS: dict[str, ImportTypeSpec] = {
         ("Machine No.", "NGW Part Number"),
         ("NGW Part Description", "Plant/Area", "Press Tonnage"),
         aliases={
-            "Machine No.": ("Machine No.", "Machine No", "Machine #", "Machine Number", "Press", "Press #", "Press/Machine #"),
+            "Machine No.": (
+                "Machine No.",
+                "Machine No",
+                "Machine #",
+                "Machine Number",
+                "Press",
+                "Press #",
+                "Press/Machine #",
+            ),
             "NGW Part Number": ("NGW Part Number", "NGW Part #", "Part Number", "Part #", "Tool #"),
-            "NGW Part Description": ("NGW Part Description", "Part Description", "Description", "Part Name/Description"),
+            "NGW Part Description": (
+                "NGW Part Description",
+                "Part Description",
+                "Description",
+                "Part Name/Description",
+            ),
             "Plant/Area": ("Plant/Area", "Plant", "Area"),
             "Press Tonnage": ("Press Tonnage", "Tonnage", "Capacity"),
         },
@@ -142,7 +155,12 @@ IMPORT_TYPE_SPECS: dict[str, ImportTypeSpec] = {
         aliases={
             "Date": ("Date", "Event Date", "Timestamp"),
             "Press/Machine #": ("Press/Machine #", "Machine", "Machine Number", "Press", "Press #"),
-            "Maintenance Event Count": ("Maintenance Event Count", "Event Count", "Maintenance Count", "Work Order Count"),
+            "Maintenance Event Count": (
+                "Maintenance Event Count",
+                "Event Count",
+                "Maintenance Count",
+                "Work Order Count",
+            ),
             "Maintenance Notes": ("Maintenance Notes", "Work Order Notes", "Description"),
             "Data Source": ("Data Source", "Source"),
             "Notes": ("Notes", "Comment", "Comments"),
@@ -221,7 +239,9 @@ def detect_import_type(file_path: str | Path) -> str:
         for type_id in IMPORT_TYPE_SPECS:
             if all(part in lowered for part in type_id.split("_")[:2]):
                 return type_id
-        raise ValueError("Could not detect import type from headers." + (f" Warnings: {'; '.join(warnings)}" if warnings else ""))
+        raise ValueError(
+            "Could not detect import type from headers." + (f" Warnings: {'; '.join(warnings)}" if warnings else "")
+        )
     return detected
 
 
@@ -256,7 +276,9 @@ def suggest_column_mapping(headers: list[str] | tuple[str, ...], import_type: st
     return mapping
 
 
-def validate_import_file(file_path: str | Path, *, import_type: str | None = None, column_mapping: dict[str, str] | None = None) -> tuple[ImportPreview, tuple[ImportValidationIssue, ...]]:
+def validate_import_file(
+    file_path: str | Path, *, import_type: str | None = None, column_mapping: dict[str, str] | None = None
+) -> tuple[ImportPreview, tuple[ImportValidationIssue, ...]]:
     preview = preview_import_file(file_path, import_type=import_type)
     type_id = preview.import_type
     spec = _spec(type_id)
@@ -270,11 +292,22 @@ def validate_import_file(file_path: str | Path, *, import_type: str | None = Non
         for field in spec.required_fields:
             source = mapping.get(field, "")
             if source and _is_blank(row.get(source)):
-                issues.append(ImportValidationIssue("warning", field, f"Required field is blank in source column {source}.", row_number=row_number))
+                issues.append(
+                    ImportValidationIssue(
+                        "warning", field, f"Required field is blank in source column {source}.", row_number=row_number
+                    )
+                )
         for field in spec.numeric_fields:
             source = mapping.get(field, "")
             if source and not _is_blank(row.get(source)) and _to_number(row.get(source)) is None:
-                issues.append(ImportValidationIssue("warning", field, f"Numeric field could not be parsed from source column {source}.", row_number=row_number))
+                issues.append(
+                    ImportValidationIssue(
+                        "warning",
+                        field,
+                        f"Numeric field could not be parsed from source column {source}.",
+                        row_number=row_number,
+                    )
+                )
     return preview, tuple(issues)
 
 
@@ -322,7 +355,9 @@ def confirm_import(
     start = time.perf_counter()
     if not confirmed:
         return ToolResult.fail(TOOL_ID, TOOL_NAME, "Import was not confirmed; no files were written.")
-    dry_run = dry_run_import(project_root, file_path, import_type=import_type, column_mapping=column_mapping, max_rows=100000)
+    dry_run = dry_run_import(
+        project_root, file_path, import_type=import_type, column_mapping=column_mapping, max_rows=100000
+    )
     if dry_run.blockers:
         return ToolResult.fail(
             TOOL_ID,
@@ -349,7 +384,9 @@ def confirm_import(
         safe_write_text(output_path, json.dumps(payload, indent=2, sort_keys=True) + "\n", overwrite=False)
         log_path = _append_import_log(project_root, payload, output_path)
     except Exception as exc:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, "Could not write imported data snapshot or import log.", errors=[str(exc)])
+        return ToolResult.fail(
+            TOOL_ID, TOOL_NAME, "Could not write imported data snapshot or import log.", errors=[str(exc)]
+        )
     result = ToolResult.ok(
         TOOL_ID,
         TOOL_NAME,
@@ -364,7 +401,10 @@ def confirm_import(
         files_created=[str(output_path), str(log_path)],
         output_reports=[str(output_path), str(log_path)],
         structured_data={**dry_run.to_dict(), "confirmed": True},
-        metrics={"row_count": dry_run.row_count, "warning_count": sum(issue.severity == "warning" for issue in dry_run.issues)},
+        metrics={
+            "row_count": dry_run.row_count,
+            "warning_count": sum(issue.severity == "warning" for issue in dry_run.issues),
+        },
         duration_seconds=time.perf_counter() - start,
     )
     if log_activity:
@@ -467,13 +507,17 @@ def _rows_from_values(values: list[list[Any]]) -> tuple[list[str], list[dict[str
     for values_row in values[header_index + 1 :]:
         if not any(not _is_blank(value) for value in values_row):
             continue
-        rows.append({headers[index]: values_row[index] if index < len(values_row) else "" for index in range(len(headers))})
+        rows.append(
+            {headers[index]: values_row[index] if index < len(values_row) else "" for index in range(len(headers))}
+        )
     return headers, rows, warnings
 
 
 def _mapping_score(headers: list[str], spec: ImportTypeSpec) -> int:
     mapping = suggest_column_mapping(headers, spec.type_id)
-    return len(set(spec.required_fields).intersection(mapping)) * 10 + len(set(spec.optional_fields).intersection(mapping))
+    return len(set(spec.required_fields).intersection(mapping)) * 10 + len(
+        set(spec.optional_fields).intersection(mapping)
+    )
 
 
 def _spec(import_type: str) -> ImportTypeSpec:

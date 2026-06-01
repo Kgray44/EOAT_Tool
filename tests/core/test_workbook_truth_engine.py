@@ -64,7 +64,9 @@ def test_truth_engine_flags_stale_hidden_values_and_preview_is_read_only(fake_pr
     findings = findings_from_result(result)
 
     assert result.metrics["stale_hidden_value_count"] >= 2
-    assert any(finding.audit_id == "AUD-TRUTH-STALE" and finding.fix_id == FIX_CLEAR_STALE_HIDDEN_NA for finding in findings)
+    assert any(
+        finding.audit_id == "AUD-TRUTH-STALE" and finding.fix_id == FIX_CLEAR_STALE_HIDDEN_NA for finding in findings
+    )
 
     before_hash = _hash_file(workbook_path)
     preview = preview_safe_fix(fake_project, FIX_CLEAR_STALE_HIDDEN_NA)

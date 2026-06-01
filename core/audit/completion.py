@@ -64,6 +64,7 @@ NON_COUNTING_STATES = {
 DEFAULT_EXCLUDED_FIELDS = frozenset(
     {
         "Tubing Routing Notes",
+        "Robot Notes",
         "Notes",
         "Final Notes",
         SOURCE_AUDIT_ID_FIELD,
@@ -77,7 +78,12 @@ DEFAULT_EXCLUDED_FIELDS = frozenset(
 
 IDENTITY_FIELDS = {"Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Status"}
 COMPATIBILITY_COMPLETION_FIELDS = {"Audit ID", ENTRY_TYPE_FIELD, "Press/Machine #", TOOL_FIELD}
-VISIBILITY_CONTROLLER_FIELDS = {"EOAT Type", "Sensors Present?", "Electrical/Wiring Present?", "Quick Disconnects Present?"}
+VISIBILITY_CONTROLLER_FIELDS = {
+    "EOAT Type",
+    "Sensors Present?",
+    "Electrical/Wiring Present?",
+    "Quick Disconnects Present?",
+}
 EOAT_TOOLING_FIELDS = {
     TOOL_FIELD,
     "Part Family",
@@ -115,7 +121,14 @@ MAJOR_ENGINEERING_FIELDS = {
     "Priority",
     "Pilot Candidate?",
 }
-SENSOR_PNEUMATIC_ELECTRICAL_GROUPS = {"sensor", "electrical", "pneumatic", "pneumatic_circuit", "routing", "quick_disconnect"}
+SENSOR_PNEUMATIC_ELECTRICAL_GROUPS = {
+    "sensor",
+    "electrical",
+    "pneumatic",
+    "pneumatic_circuit",
+    "routing",
+    "quick_disconnect",
+}
 DOCUMENTATION_GROUPS = {"documentation", "photo"}
 
 
@@ -222,7 +235,9 @@ def calculate_audit_completion(
     required_fields = set(requirements.get("required", ()))
     important_fields = set(requirements.get("important", ()))
     if entry_type.casefold() != ENTRY_TYPE_COMPATIBLE.casefold():
-        required_fields.update(field for field in IDENTITY_FIELDS if field in current_entry or field in _section_fields(section_map))
+        required_fields.update(
+            field for field in IDENTITY_FIELDS if field in current_entry or field in _section_fields(section_map)
+        )
 
     raw_section_statuses: list[SectionCompletionStatus] = []
     raw_statuses: list[FieldCompletionStatus] = []
@@ -248,7 +263,9 @@ def calculate_audit_completion(
     override_requested = manual_completion_override_enabled(current_entry)
     ignored_override_fields = ignored_empty_fields_at_override(current_entry)
     override_applied = bool(override_requested and allow_manual_override)
-    final_statuses = _apply_manual_override(raw_statuses, ignored_override_fields) if override_applied else tuple(raw_statuses)
+    final_statuses = (
+        _apply_manual_override(raw_statuses, ignored_override_fields) if override_applied else tuple(raw_statuses)
+    )
     section_statuses = _sections_from_final_statuses(section_map, final_statuses)
 
     actionable_statuses = sorted(
@@ -272,7 +289,9 @@ def calculate_audit_completion(
         can_finish=True if override_applied else not guided_fields and not blocking_findings,
         manual_completion_override=override_requested,
         manual_completion_override_applied=override_applied,
-        manual_completion_override_timestamp=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD)),
+        manual_completion_override_timestamp=normalize_text(
+            current_entry.get(MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD)
+        ),
         manual_completion_override_user=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_USER_FIELD)),
         ignored_empty_fields_at_override=ignored_override_fields,
         applicable_field_count=len(raw_counted),
@@ -280,18 +299,30 @@ def calculate_audit_completion(
         verified_complete_count=verified_count,
         missing_fields=tuple(status.field for status in final_statuses if status.state == STATE_MISSING),
         truth_missing_fields=tuple(status.field for status in final_statuses if status.truth_state == STATE_MISSING),
-        unknown_not_checked_fields=tuple(status.field for status in final_statuses if status.state == STATE_UNKNOWN_NOT_CHECKED),
+        unknown_not_checked_fields=tuple(
+            status.field for status in final_statuses if status.state == STATE_UNKNOWN_NOT_CHECKED
+        ),
         not_applicable_fields=tuple(status for status in final_statuses if status.state == STATE_NOT_APPLICABLE),
         follow_up_fields=tuple(status.field for status in final_statuses if status.state == STATE_FOLLOW_UP_NEEDED),
         stale_conflict_fields=tuple(status.field for status in final_statuses if status.state == STATE_STALE_CONFLICT),
         excluded_fields=tuple(status.field for status in final_statuses if status.state == STATE_EXCLUDED),
-        ignored_by_optional_group_fields=tuple(status.field for status in final_statuses if status.state == STATE_IGNORED_BY_OPTIONAL_GROUP),
-        ignored_by_manual_override_fields=tuple(status.field for status in final_statuses if status.state == STATE_IGNORED_BY_MANUAL_OVERRIDE),
-        missing_required_fields=tuple(status.field for status in final_statuses if status.required and status.is_actionable),
-        missing_important_fields=tuple(status.field for status in final_statuses if status.important and status.is_actionable),
+        ignored_by_optional_group_fields=tuple(
+            status.field for status in final_statuses if status.state == STATE_IGNORED_BY_OPTIONAL_GROUP
+        ),
+        ignored_by_manual_override_fields=tuple(
+            status.field for status in final_statuses if status.state == STATE_IGNORED_BY_MANUAL_OVERRIDE
+        ),
+        missing_required_fields=tuple(
+            status.field for status in final_statuses if status.required and status.is_actionable
+        ),
+        missing_important_fields=tuple(
+            status.field for status in final_statuses if status.important and status.is_actionable
+        ),
         guided_fields=guided_fields,
         next_best_field=next_status.field if next_status else "",
-        next_best_reason="Manual completion override is applied." if override_applied else _next_best_reason(next_status),
+        next_best_reason="Manual completion override is applied."
+        if override_applied
+        else _next_best_reason(next_status),
         sections=section_statuses,
         findings=findings,
     )
@@ -416,7 +447,9 @@ def classify_completion_field(
     )
 
 
-def _apply_manual_override(statuses: list[FieldCompletionStatus], ignored_fields: tuple[str, ...]) -> tuple[FieldCompletionStatus, ...]:
+def _apply_manual_override(
+    statuses: list[FieldCompletionStatus], ignored_fields: tuple[str, ...]
+) -> tuple[FieldCompletionStatus, ...]:
     ignored = {field.casefold() for field in ignored_fields}
     final: list[FieldCompletionStatus] = []
     for status in statuses:
@@ -451,8 +484,12 @@ def _section_summary(section_name: str, statuses: tuple[FieldCompletionStatus, .
         follow_up_needed_count=sum(1 for status in statuses if status.state == STATE_FOLLOW_UP_NEEDED),
         stale_conflict_count=sum(1 for status in statuses if status.state == STATE_STALE_CONFLICT),
         excluded_count=sum(1 for status in statuses if status.state == STATE_EXCLUDED),
-        ignored_by_optional_group_count=sum(1 for status in statuses if status.state == STATE_IGNORED_BY_OPTIONAL_GROUP),
-        ignored_by_manual_override_count=sum(1 for status in statuses if status.state == STATE_IGNORED_BY_MANUAL_OVERRIDE),
+        ignored_by_optional_group_count=sum(
+            1 for status in statuses if status.state == STATE_IGNORED_BY_OPTIONAL_GROUP
+        ),
+        ignored_by_manual_override_count=sum(
+            1 for status in statuses if status.state == STATE_IGNORED_BY_MANUAL_OVERRIDE
+        ),
         percent_complete=_percent(verified_count, len(counted)),
         fields=statuses,
     )
@@ -463,7 +500,10 @@ def _sections_from_final_statuses(
     statuses: tuple[FieldCompletionStatus, ...],
 ) -> tuple[SectionCompletionStatus, ...]:
     by_field = {status.field: status for status in statuses}
-    return tuple(_section_summary(str(section_name), tuple(by_field[field] for field in fields if field in by_field)) for section_name, fields in sections.items())
+    return tuple(
+        _section_summary(str(section_name), tuple(by_field[field] for field in fields if field in by_field))
+        for section_name, fields in sections.items()
+    )
 
 
 def _completion_findings(entry: dict[str, str], statuses: tuple[FieldCompletionStatus, ...]) -> tuple[str, ...]:

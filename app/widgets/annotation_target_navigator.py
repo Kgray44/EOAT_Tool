@@ -19,7 +19,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = None
-    QDialog = QDialogButtonBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QDialog = QDialogButtonBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QTableWidget = (
+        QTableWidgetItem
+    ) = QVBoxLayout = QWidget = None
 
 
 def _target_value(target: Any, key: str, default: str = "") -> str:
@@ -88,7 +90,17 @@ class AnnotationTargetPickerDialog(QDialog):
         for target in self.targets:
             haystack = " ".join(
                 str(target.get(key) or "")
-                for key in ["target_type", "target_label", "audit_id", "machine_id", "field_key", "field_label", "comment", "updated_at", "assignment_updated_at"]
+                for key in [
+                    "target_type",
+                    "target_label",
+                    "audit_id",
+                    "machine_id",
+                    "field_key",
+                    "field_label",
+                    "comment",
+                    "updated_at",
+                    "assignment_updated_at",
+                ]
             ).casefold()
             if not needle or needle in haystack:
                 rows.append(target)
@@ -154,9 +166,14 @@ class AnnotationTargetNavigator:
                 page = self._page("press_view")
                 if hasattr(page, "select_machine"):
                     page.select_machine(machine)
-                self._page_message("press_view", f"Machine target opened: {data.get('target_label') or machine or 'machine'}.")
+                self._page_message(
+                    "press_view", f"Machine target opened: {data.get('target_label') or machine or 'machine'}."
+                )
                 return True
-            return self._open_page_with_message("audit_progress", f"Machine target opened as far as possible: {data.get('target_label') or machine or 'machine'}.")
+            return self._open_page_with_message(
+                "audit_progress",
+                f"Machine target opened as far as possible: {data.get('target_label') or machine or 'machine'}.",
+            )
         if target_type == "note":
             note_id = str(data.get("object_ref") or data.get("id") or "").strip()
             self._navigate_to_page("notes")
@@ -169,14 +186,25 @@ class AnnotationTargetNavigator:
             return self.open_tag(assignment_id=assignment_id)
         if target_type == "compatibility_entry":
             self._navigate_to_page("audit")
-            self._page_message("audit", f"Opened EOAT Audit. Compatibility target: {data.get('target_label') or data.get('object_ref') or 'entry'}.")
+            self._page_message(
+                "audit",
+                f"Opened EOAT Audit. Compatibility target: {data.get('target_label') or data.get('object_ref') or 'entry'}.",
+            )
             return True
         if target_type == "photo":
-            return self._open_page_with_message("photos", f"Photo/documentation target: {data.get('target_label') or data.get('object_ref') or 'item'}.")
+            return self._open_page_with_message(
+                "photos", f"Photo/documentation target: {data.get('target_label') or data.get('object_ref') or 'item'}."
+            )
         if target_type == "workbook_warning":
-            return self._open_page_with_message("workbook_health", f"Workbook warning target: {data.get('target_label') or data.get('object_ref') or 'warning'}.")
+            return self._open_page_with_message(
+                "workbook_health",
+                f"Workbook warning target: {data.get('target_label') or data.get('object_ref') or 'warning'}.",
+            )
         if target_type == "pilot_candidate":
-            return self._open_page_with_message("pilot_candidates", f"Pilot candidate target: {data.get('target_label') or data.get('object_ref') or 'candidate'}.")
+            return self._open_page_with_message(
+                "pilot_candidates",
+                f"Pilot candidate target: {data.get('target_label') or data.get('object_ref') or 'candidate'}.",
+            )
         self._message("Open Target", "This target type cannot be opened directly yet.")
         return False
 

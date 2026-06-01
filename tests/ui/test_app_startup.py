@@ -10,7 +10,9 @@ from tests.ui.helpers import wait_for_background_tasks, wait_until
 pytestmark = pytest.mark.usability
 
 
-def test_full_app_startup_uses_fake_project_and_resolves_day2(qapp, fake_config, fake_project, frozen_project_date, monkeypatch):
+def test_full_app_startup_uses_fake_project_and_resolves_day2(
+    qapp, fake_config, fake_project, frozen_project_date, monkeypatch
+):
     import app.dashboard_ui as dashboard_ui
 
     monkeypatch.setattr(dashboard_ui, "load_config", lambda: fake_config)
@@ -25,7 +27,11 @@ def test_full_app_startup_uses_fake_project_and_resolves_day2(qapp, fake_config,
     assert window.stack.currentWidget() is window.pages["home"]
 
     home = window.pages["home"]
-    wait_until(lambda: bool(home.cards["Resolved Project Day"].value_label.text()), timeout_ms=2000, message="home dashboard resolved day")
+    wait_until(
+        lambda: bool(home.cards["Resolved Project Day"].value_label.text()),
+        timeout_ms=2000,
+        message="home dashboard resolved day",
+    )
     assert home.cards["Resolved Project Day"].value_label.text().startswith("Week 1 Day 2")
     assert str(fake_project) in home.project_root_label.text()
 

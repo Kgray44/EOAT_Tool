@@ -74,7 +74,9 @@ def build_compatibility_impact_preview(
         return CompatibilityImpactPreview(source_audit_id="", warnings=("No source audit ID was provided.",))
     workbook_path = resolve_project_paths(project_root).master_workbook
     if not workbook_path.exists():
-        return CompatibilityImpactPreview(source_audit_id=audit_id, warnings=(f"Master workbook is missing: {workbook_path}",))
+        return CompatibilityImpactPreview(
+            source_audit_id=audit_id, warnings=(f"Master workbook is missing: {workbook_path}",)
+        )
     rows = row_dicts(workbook_path, "EOAT Inventory")
     source = next((row for row in rows if text_value(row.get("Audit ID")) == audit_id), None)
     entry_type = normalize_entry_type((proposed_entry or source or {}).get(ENTRY_TYPE_FIELD))
@@ -97,7 +99,9 @@ def build_compatibility_impact_preview(
     return CompatibilityImpactPreview(
         source_audit_id=audit_id,
         compatible_row_count=len(linked_rows),
-        compatible_audit_ids=tuple(text_value(row.get("Audit ID")) for row in linked_rows if text_value(row.get("Audit ID"))),
+        compatible_audit_ids=tuple(
+            text_value(row.get("Audit ID")) for row in linked_rows if text_value(row.get("Audit ID"))
+        ),
         fields_likely_to_propagate=tuple(compatibility_sync_fields(headers)),
         will_sync_linked_rows=will_sync and bool(linked_rows),
         will_run_autorun=will_autorun,

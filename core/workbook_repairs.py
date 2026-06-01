@@ -145,7 +145,11 @@ def preview_safe_fix_action(project_root: str | Path, fix_id: str) -> ToolResult
         f"Previewed safe fix {preview.fix_id}.",
         details=preview.to_markdown().splitlines(),
         warnings=list(preview.warnings),
-        metrics={"fix_id": preview.fix_id, "preview_change_count": len(preview.changes), "can_apply": preview.can_apply},
+        metrics={
+            "fix_id": preview.fix_id,
+            "preview_change_count": len(preview.changes),
+            "can_apply": preview.can_apply,
+        },
         structured_data={"safe_fix_preview": _preview_dict(preview)},
     )
 
@@ -166,7 +170,11 @@ def apply_safe_fix(
             "Safe fix confirmation is required before applying workbook changes.",
             errors=["Preview the fix and rerun with confirm=True to apply it."],
             details=preview.to_markdown().splitlines(),
-            metrics={"fix_id": preview.fix_id, "preview_change_count": len(preview.changes), "can_apply": preview.can_apply},
+            metrics={
+                "fix_id": preview.fix_id,
+                "preview_change_count": len(preview.changes),
+                "can_apply": preview.can_apply,
+            },
             structured_data={"safe_fix_preview": _preview_dict(preview)},
             duration_seconds=time.perf_counter() - started,
         )
@@ -492,7 +500,9 @@ def _preview_create_missing_report_folders(project_root: str | Path) -> SafeFixP
     )
 
 
-def _generic_preview(fix_id: str, title: str, description: str, change_text: str, project_root: str | Path) -> SafeFixPreview:
+def _generic_preview(
+    fix_id: str, title: str, description: str, change_text: str, project_root: str | Path
+) -> SafeFixPreview:
     paths = resolve_project_paths(project_root)
     if not paths.master_workbook.exists():
         return SafeFixPreview(
@@ -506,7 +516,14 @@ def _generic_preview(fix_id: str, title: str, description: str, change_text: str
         fix_id=fix_id,
         title=title,
         description=description,
-        changes=[RepairChange(sheet_name="EOAT Inventory", current_value="current workbook", new_value="refreshed workbook structure", reason=change_text)],
+        changes=[
+            RepairChange(
+                sheet_name="EOAT Inventory",
+                current_value="current workbook",
+                new_value="refreshed workbook structure",
+                reason=change_text,
+            )
+        ],
         can_apply=True,
     )
 
@@ -664,7 +681,9 @@ def _apply_normalize_dropdown_casing(project_root: str | Path, preview: SafeFixP
     )
 
 
-def _apply_create_missing_report_folders(project_root: str | Path, preview: SafeFixPreview, started: float) -> ToolResult:
+def _apply_create_missing_report_folders(
+    project_root: str | Path, preview: SafeFixPreview, started: float
+) -> ToolResult:
     created: list[str] = []
     for change in preview.changes:
         folder = Path(change.new_value)
@@ -683,7 +702,9 @@ def _apply_create_missing_report_folders(project_root: str | Path, preview: Safe
     )
 
 
-def _append_workbook_repair_history(project_root: str | Path, preview: SafeFixPreview, files_modified: list[str]) -> None:
+def _append_workbook_repair_history(
+    project_root: str | Path, preview: SafeFixPreview, files_modified: list[str]
+) -> None:
     try:
         append_audit_history(
             project_root,

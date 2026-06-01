@@ -19,7 +19,13 @@ def test_morning_plan_user_flow_creates_week1_day2_plan(qapp, fake_config, fake_
     click_button(page, "Generate Morning Plan")
     wait_for_background_tasks()
 
-    output = wait_for_path(fake_project / "00_Project_Admin" / "Daily_Status_Reports" / "Morning_Plans" / "Week1_Day2_Morning_Plan_2026-05-19.md")
+    output = wait_for_path(
+        fake_project
+        / "00_Project_Admin"
+        / "Daily_Status_Reports"
+        / "Morning_Plans"
+        / "Week1_Day2_Morning_Plan_2026-05-19.md"
+    )
     text = output.read_text(encoding="utf-8")
 
     assert "# Week 1 Day 2 Morning Plan" in text
@@ -33,11 +39,19 @@ def test_morning_plan_user_flow_creates_week1_day2_plan(qapp, fake_config, fake_
     assert "## Source Availability" not in text
     assert "## Recent Activity" not in text
     assert len(text.split()) <= 250
-    details = fake_project / "00_Project_Admin" / "Daily_Status_Reports" / "Morning_Plans" / "Week1_Day2_Planning_Context_Details_2026-05-19.md"
+    details = (
+        fake_project
+        / "00_Project_Admin"
+        / "Daily_Status_Reports"
+        / "Morning_Plans"
+        / "Week1_Day2_Planning_Context_Details_2026-05-19.md"
+    )
     assert details.exists()
 
 
-def test_daily_start_workflow_from_home_generates_outputs_and_activity(qapp, fake_config, fake_project, frozen_project_date):
+def test_daily_start_workflow_from_home_generates_outputs_and_activity(
+    qapp, fake_config, fake_project, frozen_project_date
+):
     page = HomePage(fake_config)
     page.show()
     wait_for_background_tasks()

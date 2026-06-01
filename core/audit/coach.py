@@ -32,8 +32,14 @@ UNKNOWN_NOT_CHECKED_VALUE = "Unknown / Not Checked"
 
 UNKNOWN_VALUES = {"unknown / not checked", "unknown", "not checked"}
 IDENTITY_FIELDS = {"Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Status"}
-OPTIONAL_COMPLETION_FIELDS = {"Tubing Routing Notes", "Notes", "Final Notes"}
-VISIBILITY_CONTROLLER_FIELDS = {"EOAT Type", "Sensors Present?", "Electrical/Wiring Present?", "Quick Disconnects Present?"}
+OPTIONAL_COMPLETION_FIELDS = {"Tubing Routing Notes", "Robot Notes", "Notes", "Final Notes"}
+NON_COUNTING_COACH_OPTIONAL_FIELDS = {"Robot Notes"}
+VISIBILITY_CONTROLLER_FIELDS = {
+    "EOAT Type",
+    "Sensors Present?",
+    "Electrical/Wiring Present?",
+    "Quick Disconnects Present?",
+}
 EOAT_TOOLING_FIELDS = {
     "Tool #",
     "Part Family",
@@ -72,7 +78,14 @@ MAJOR_ENGINEERING_FIELDS = {
     "Priority",
     "Pilot Candidate?",
 }
-SENSOR_PNEUMATIC_ELECTRICAL_GROUPS = {"sensor", "electrical", "pneumatic", "pneumatic_circuit", "routing", "quick_disconnect"}
+SENSOR_PNEUMATIC_ELECTRICAL_GROUPS = {
+    "sensor",
+    "electrical",
+    "pneumatic",
+    "pneumatic_circuit",
+    "routing",
+    "quick_disconnect",
+}
 DOCUMENTATION_GROUPS = {"documentation", "photo"}
 
 
@@ -204,7 +217,9 @@ def calculate_audit_coach_summary(
         missing_required_fields=completion.missing_required_fields,
         missing_important_fields=completion.missing_important_fields,
         manual_completion_override=completion.manual_completion_override_applied,
-        manual_completion_override_timestamp=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD)),
+        manual_completion_override_timestamp=normalize_text(
+            current_entry.get(MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD)
+        ),
         manual_completion_override_user=normalize_text(current_entry.get(MANUAL_COMPLETION_OVERRIDE_USER_FIELD)),
         ignored_empty_fields_at_override=completion.ignored_empty_fields_at_override,
     )
@@ -239,6 +254,12 @@ def _coach_status_from_completion(status: FieldCompletionStatus) -> AuditCoachFi
         applies = False
         required = False
         important = False
+    elif state == STATE_EXCLUDED and status.field in NON_COUNTING_COACH_OPTIONAL_FIELDS:
+        state = STATE_NOT_APPLICABLE
+        applies = False
+        required = False
+        important = False
+        reason = "Optional robot-side narrative field; excluded from audit completion percentage."
     elif state == STATE_EXCLUDED and status.field in OPTIONAL_COMPLETION_FIELDS:
         state = STATE_VERIFIED_COMPLETE
         applies = True

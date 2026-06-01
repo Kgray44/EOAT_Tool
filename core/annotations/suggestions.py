@@ -25,7 +25,11 @@ class SuggestedAnnotation:
 
 def meaningful(value: Any) -> bool:
     text = str(value or "").strip()
-    return bool(text) and text.upper() not in {"N/A", "NA"} and text.casefold() not in {"unknown", "unknown / not checked", "not applicable"}
+    return (
+        bool(text)
+        and text.upper() not in {"N/A", "NA"}
+        and text.casefold() not in {"unknown", "unknown / not checked", "not applicable"}
+    )
 
 
 def suggestion_fingerprint(*parts: Any) -> str:
@@ -112,7 +116,8 @@ def suggested_annotations_for_audit(entry: dict[str, Any]) -> list[SuggestedAnno
             )
         )
     if str(entry.get("Quick Disconnects Present?") or "").strip().casefold() == "no" and (
-        meaningful(entry.get("Pneumatic Quick Disconnect Type")) or meaningful(entry.get("Electrical Quick Disconnect Type"))
+        meaningful(entry.get("Pneumatic Quick Disconnect Type"))
+        or meaningful(entry.get("Electrical Quick Disconnect Type"))
     ):
         suggestions.append(
             make_suggestion(
@@ -130,7 +135,9 @@ def suggested_annotations_for_audit(entry: dict[str, Any]) -> list[SuggestedAnno
                 ),
             )
         )
-    if str(entry.get("Photos Taken?") or "").strip().casefold() == "no" and str(entry.get("Priority") or "").strip().casefold() in {"high", "critical"}:
+    if str(entry.get("Photos Taken?") or "").strip().casefold() == "no" and str(
+        entry.get("Priority") or ""
+    ).strip().casefold() in {"high", "critical"}:
         suggestions.append(
             make_suggestion(
                 tag_name="Missing Evidence",

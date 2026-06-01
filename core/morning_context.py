@@ -25,7 +25,22 @@ WORKBOOK_SHEETS = [
     "Photo Index",
 ]
 OPEN_ACTION_STATUSES = {"", "open", "not started", "needs follow-up", "in progress", "blocked", "new"}
-RECENT_FILE_EXTENSIONS = {".md", ".txt", ".json", ".jsonl", ".xlsx", ".xls", ".csv", ".png", ".jpg", ".jpeg", ".heic", ".py", ".ps1", ".bat"}
+RECENT_FILE_EXTENSIONS = {
+    ".md",
+    ".txt",
+    ".json",
+    ".jsonl",
+    ".xlsx",
+    ".xls",
+    ".csv",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".heic",
+    ".py",
+    ".ps1",
+    ".bat",
+}
 IGNORED_RECENT_PARTS = {"__pycache__", ".pytest_cache"}
 
 
@@ -92,7 +107,10 @@ class MorningPlanningContext:
 
     @property
     def confidence(self) -> tuple[str, str]:
-        has_progress = (self.source("task_progress_weekN.json") or SourceStatus("", "missing", "")).status in {"found", "empty"}
+        has_progress = (self.source("task_progress_weekN.json") or SourceStatus("", "missing", "")).status in {
+            "found",
+            "empty",
+        }
         has_schedule = (self.source("project_schedule_weekN.json") or SourceStatus("", "missing", "")).status == "found"
         has_activity = (self.source("activity_log.jsonl") or SourceStatus("", "missing", "")).status == "found"
         has_workbook = (self.source("EOAT master workbook") or SourceStatus("", "missing", "")).status == "found"
@@ -132,11 +150,17 @@ def collect_morning_planning_context(
 def detect_generic_morning_report(markdown: str, schedule_tasks: list[str] | None = None) -> list[str]:
     issues: list[str] = []
     lowered = markdown.lower()
-    if "## main todo" not in lowered and "## top priorities" not in lowered and "## recommended next actions" not in lowered:
+    if (
+        "## main todo" not in lowered
+        and "## top priorities" not in lowered
+        and "## recommended next actions" not in lowered
+    ):
         issues.append("missing prioritized action section")
     if "## if blocked" not in lowered and "## if you do not get floor access" not in lowered:
         issues.append("missing blocked/no-floor-access fallback")
-    if ("## do first" in lowered or "## top priorities" in lowered or "## recommended next actions" in lowered) and not any(line.startswith(("1. ", "2. ", "3. ")) for line in markdown.splitlines()):
+    if (
+        "## do first" in lowered or "## top priorities" in lowered or "## recommended next actions" in lowered
+    ) and not any(line.startswith(("1. ", "2. ", "3. ")) for line in markdown.splitlines()):
         issues.append("recommended actions are not ranked")
 
     schedule_tasks = schedule_tasks or []
@@ -170,7 +194,9 @@ def detect_generic_morning_report(markdown: str, schedule_tasks: list[str] | Non
     return issues
 
 
-def _add_source(ctx: MorningPlanningContext, name: str, status: str, detail: str, path: Path | str | None = None) -> None:
+def _add_source(
+    ctx: MorningPlanningContext, name: str, status: str, detail: str, path: Path | str | None = None
+) -> None:
     ctx.source_statuses.append(SourceStatus(name=name, status=status, detail=detail, path=str(path or "")))
 
 
@@ -187,7 +213,13 @@ def _collect_schedule_and_progress(ctx: MorningPlanningContext) -> None:
         detail = f"found {len(ctx.schedule_tasks)} static task(s) for Week {ctx.week} Day {ctx.day}"
         _add_source(ctx, "project_schedule_weekN.json", "found", detail, schedule_path)
     else:
-        _add_source(ctx, "project_schedule_weekN.json", "missing", f"missing project_schedule_week{ctx.week}.json", schedule_path)
+        _add_source(
+            ctx,
+            "project_schedule_weekN.json",
+            "missing",
+            f"missing project_schedule_week{ctx.week}.json",
+            schedule_path,
+        )
 
     raw_progress = load_task_progress(progress_path)
     ctx.progress_tasks = extract_tasks(raw_progress)
@@ -196,9 +228,17 @@ def _collect_schedule_and_progress(ctx: MorningPlanningContext) -> None:
             detail = f"found {len(ctx.progress_tasks)} progress task record(s)"
             _add_source(ctx, "task_progress_weekN.json", "found", detail, progress_path)
         else:
-            _add_source(ctx, "task_progress_weekN.json", "empty", "progress file exists but contains no task records", progress_path)
+            _add_source(
+                ctx,
+                "task_progress_weekN.json",
+                "empty",
+                "progress file exists but contains no task records",
+                progress_path,
+            )
     else:
-        _add_source(ctx, "task_progress_weekN.json", "missing", f"missing task_progress_week{ctx.week}.json", progress_path)
+        _add_source(
+            ctx, "task_progress_weekN.json", "missing", f"missing task_progress_week{ctx.week}.json", progress_path
+        )
 
 
 def _collect_previous_reports(ctx: MorningPlanningContext, recent_days: int) -> None:
@@ -215,11 +255,25 @@ def _collect_previous_reports(ctx: MorningPlanningContext, recent_days: int) -> 
     cutoff = _start_of_day(ctx.plan_date - timedelta(days=recent_days))
     ctx.previous_reports = [path for path in reports if _mtime(path) >= cutoff][:6]
     if ctx.previous_reports:
-        _add_source(ctx, "previous daily activity summaries", "found", f"found {len(ctx.previous_reports)} recent previous daily report(s)", paths.daily_reports)
+        _add_source(
+            ctx,
+            "previous daily activity summaries",
+            "found",
+            f"found {len(ctx.previous_reports)} recent previous daily report(s)",
+            paths.daily_reports,
+        )
     elif paths.daily_reports.exists():
-        _add_source(ctx, "previous daily activity summaries", "empty", "daily report folder exists but no recent previous daily summaries matched", paths.daily_reports)
+        _add_source(
+            ctx,
+            "previous daily activity summaries",
+            "empty",
+            "daily report folder exists but no recent previous daily summaries matched",
+            paths.daily_reports,
+        )
     else:
-        _add_source(ctx, "previous daily activity summaries", "missing", "daily report folder is missing", paths.daily_reports)
+        _add_source(
+            ctx, "previous daily activity summaries", "missing", "daily report folder is missing", paths.daily_reports
+        )
 
     for report in ctx.previous_reports:
         _parse_previous_report(ctx, report)
@@ -293,7 +347,9 @@ def _collect_activity(ctx: MorningPlanningContext, limit: int) -> None:
     if activity_path.exists() and activity:
         _add_source(ctx, "activity_log.jsonl", "found", f"read {len(activity)} recent tool/app run(s)", activity_path)
     elif activity_path.exists():
-        _add_source(ctx, "activity_log.jsonl", "empty", "activity log exists but has no readable entries", activity_path)
+        _add_source(
+            ctx, "activity_log.jsonl", "empty", "activity log exists but has no readable entries", activity_path
+        )
     else:
         _add_source(ctx, "activity_log.jsonl", "missing", "activity log file is missing", activity_path)
     if warning:
@@ -306,7 +362,13 @@ def _collect_workbook_state(ctx: MorningPlanningContext) -> None:
     ctx.workbook_path = workbook
     if not workbook.exists():
         _add_source(ctx, "EOAT master workbook", "missing", "master workbook is missing", workbook)
-        _add_source(ctx, "open action items", "missing", "could not check action items because master workbook is missing", workbook)
+        _add_source(
+            ctx,
+            "open action items",
+            "missing",
+            "could not check action items because master workbook is missing",
+            workbook,
+        )
         return
 
     try:
@@ -323,7 +385,9 @@ def _collect_workbook_state(ctx: MorningPlanningContext) -> None:
                 ctx.action_source_checked = True
                 ctx.open_actions = [row for row in rows if _clean(row.get("Status")).lower() in OPEN_ACTION_STATUSES]
         missing = [sheet for sheet in WORKBOOK_SHEETS if sheet not in sheets]
-        detail = "read workbook; rows by sheet: " + ", ".join(f"{sheet}={ctx.workbook_counts.get(sheet, 0)}" for sheet in WORKBOOK_SHEETS)
+        detail = "read workbook; rows by sheet: " + ", ".join(
+            f"{sheet}={ctx.workbook_counts.get(sheet, 0)}" for sheet in WORKBOOK_SHEETS
+        )
         if missing:
             detail += f"; missing sheets: {', '.join(missing)}"
         _add_source(ctx, "EOAT master workbook", "found", detail, workbook)
@@ -332,7 +396,9 @@ def _collect_workbook_state(ctx: MorningPlanningContext) -> None:
             detail = f"checked Action Items sheet; {len(ctx.open_actions)} open item(s)"
             _add_source(ctx, "open action items", status, detail, workbook)
         else:
-            _add_source(ctx, "open action items", "missing", "Action Items sheet is missing from master workbook", workbook)
+            _add_source(
+                ctx, "open action items", "missing", "Action Items sheet is missing from master workbook", workbook
+            )
     except Exception as exc:
         _add_source(ctx, "EOAT master workbook", "error", f"could not read workbook: {exc}", workbook)
         _add_source(ctx, "open action items", "error", f"could not check action items: {exc}", workbook)
@@ -343,22 +409,50 @@ def _collect_validation_and_reports(ctx: MorningPlanningContext) -> None:
     paths = resolve_project_paths(ctx.project_root)
     ctx.validation_reports = list_recent_files(paths.validation_reports, limit=6)
     if ctx.validation_reports:
-        _add_source(ctx, "workbook validation reports", "found", f"found {len(ctx.validation_reports)} recent validation/system audit report(s)", paths.validation_reports)
+        _add_source(
+            ctx,
+            "workbook validation reports",
+            "found",
+            f"found {len(ctx.validation_reports)} recent validation/system audit report(s)",
+            paths.validation_reports,
+        )
     elif paths.validation_reports.exists():
-        _add_source(ctx, "workbook validation reports", "empty", "validation report folder exists but no reports were found", paths.validation_reports)
+        _add_source(
+            ctx,
+            "workbook validation reports",
+            "empty",
+            "validation report folder exists but no reports were found",
+            paths.validation_reports,
+        )
     else:
-        _add_source(ctx, "workbook validation reports", "missing", "validation report folder is missing", paths.validation_reports)
+        _add_source(
+            ctx,
+            "workbook validation reports",
+            "missing",
+            "validation report folder is missing",
+            paths.validation_reports,
+        )
 
     recent: list[Path] = []
     for folder in report_folders(ctx.project_root, limit=3):
         if folder.label == "Morning Plans":
             continue
         recent.extend(folder.recent_files)
-    ctx.recent_reports = sorted(set(recent), key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True)[:12]
+    ctx.recent_reports = sorted(
+        set(recent), key=lambda item: item.stat().st_mtime if item.exists() else 0, reverse=True
+    )[:12]
     if ctx.recent_reports:
-        _add_source(ctx, "generated reports from last 1-3 days", "found", f"found {len(ctx.recent_reports)} recent generated report/data file(s)", ctx.project_root)
+        _add_source(
+            ctx,
+            "generated reports from last 1-3 days",
+            "found",
+            f"found {len(ctx.recent_reports)} recent generated report/data file(s)",
+            ctx.project_root,
+        )
     else:
-        _add_source(ctx, "generated reports from last 1-3 days", "empty", "no recent generated reports found", ctx.project_root)
+        _add_source(
+            ctx, "generated reports from last 1-3 days", "empty", "no recent generated reports found", ctx.project_root
+        )
 
 
 def _collect_recent_modified_files(ctx: MorningPlanningContext, recent_days: int) -> None:
@@ -379,16 +473,30 @@ def _collect_recent_modified_files(ctx: MorningPlanningContext, recent_days: int
             modified = _mtime(path)
             if modified < cutoff:
                 continue
-            files.append(RecentFile(path=path.relative_to(ctx.project_root), modified=modified, size=path.stat().st_size))
+            files.append(
+                RecentFile(path=path.relative_to(ctx.project_root), modified=modified, size=path.stat().st_size)
+            )
     except OSError as exc:
         _add_source(ctx, "recent files modified", "error", f"could not scan project files: {exc}", ctx.project_root)
         ctx.warnings.append(f"Recent file scan failed: {exc}")
         return
     ctx.recent_modified_files = sorted(files, key=lambda item: item.modified, reverse=True)[:14]
     if ctx.recent_modified_files:
-        _add_source(ctx, "recent files modified", "found", f"found {len(ctx.recent_modified_files)} recently modified project file(s)", ctx.project_root)
+        _add_source(
+            ctx,
+            "recent files modified",
+            "found",
+            f"found {len(ctx.recent_modified_files)} recently modified project file(s)",
+            ctx.project_root,
+        )
     else:
-        _add_source(ctx, "recent files modified", "empty", f"no files modified in the last {recent_days} day(s)", ctx.project_root)
+        _add_source(
+            ctx,
+            "recent files modified",
+            "empty",
+            f"no files modified in the last {recent_days} day(s)",
+            ctx.project_root,
+        )
 
 
 def _collect_press_sources(ctx: MorningPlanningContext) -> None:
@@ -402,9 +510,17 @@ def _collect_press_sources(ctx: MorningPlanningContext) -> None:
     found = [path.name for path in [master, capacity] if path.exists()]
     missing = [path.name for path in [master, capacity] if not path.exists()]
     if found:
-        _add_source(ctx, "imported press list / press capacity files", "found", f"found {', '.join(found)}; missing {', '.join(missing) if missing else 'none'}", data_dir)
+        _add_source(
+            ctx,
+            "imported press list / press capacity files",
+            "found",
+            f"found {', '.join(found)}; missing {', '.join(missing) if missing else 'none'}",
+            data_dir,
+        )
     else:
-        _add_source(ctx, "imported press list / press capacity files", "missing", f"missing {', '.join(missing)}", data_dir)
+        _add_source(
+            ctx, "imported press list / press capacity files", "missing", f"missing {', '.join(missing)}", data_dir
+        )
 
 
 def _collect_config_state(ctx: MorningPlanningContext) -> None:
@@ -425,7 +541,13 @@ def _collect_config_state(ctx: MorningPlanningContext) -> None:
     for key in ["project_start_date", "theme", "skip_weekends", "holidays"]:
         if key in data:
             ctx.config_state.append(f"{key}: {data[key]}")
-    _add_source(ctx, "known user/app configuration changes", "found", f"read config values: {', '.join(ctx.config_state) if ctx.config_state else 'no tracked values'}", config_path)
+    _add_source(
+        ctx,
+        "known user/app configuration changes",
+        "found",
+        f"read config values: {', '.join(ctx.config_state) if ctx.config_state else 'no tracked values'}",
+        config_path,
+    )
 
 
 def _collect_app_state(ctx: MorningPlanningContext) -> None:
@@ -447,7 +569,9 @@ def _collect_app_state(ctx: MorningPlanningContext) -> None:
     else:
         ctx.app_pending.append("Plant/Area menu options are pending.")
     if "lookup_press" in audit_text and MASTER_FILE_NAME in press_text and CAPACITY_FILE_NAME in press_text:
-        ctx.app_state.append("Machine number lookup/autofill can use master press list and Plant 4 capacity data when those files are present.")
+        ctx.app_state.append(
+            "Machine number lookup/autofill can use master press list and Plant 4 capacity data when those files are present."
+        )
     else:
         ctx.app_pending.append("Machine number autofill from press/capacity data is pending.")
     if "dark" in theme_text and "light" in theme_text:
@@ -458,7 +582,13 @@ def _collect_app_state(ctx: MorningPlanningContext) -> None:
         ctx.app_state.append("Recent responsiveness/dark-mode work is documented.")
 
     if ctx.app_state or ctx.app_pending:
-        _add_source(ctx, "real app/app-state awareness", "found", f"detected {len(ctx.app_state)} implemented app feature(s) and {len(ctx.app_pending)} pending item(s)", root)
+        _add_source(
+            ctx,
+            "real app/app-state awareness",
+            "found",
+            f"detected {len(ctx.app_state)} implemented app feature(s) and {len(ctx.app_pending)} pending item(s)",
+            root,
+        )
     else:
         _add_source(ctx, "real app/app-state awareness", "empty", "no tracked app-state signals found", root)
 

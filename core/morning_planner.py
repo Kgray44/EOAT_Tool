@@ -117,7 +117,9 @@ def _task_action(task: TaskItem) -> str:
         return "capture the priority questions while the right people are available"
     if "walkthrough" in lowered or "audit" in lowered:
         if "approved" in lowered or "approval" in lowered:
-            return "confirm the first safe walkthrough or audit target, then start the audit entry if access is approved"
+            return (
+                "confirm the first safe walkthrough or audit target, then start the audit entry if access is approved"
+            )
         return f"make progress on {text[0].lower() + text[1:] if text else 'the audit work'}"
     if "validation" in lowered or "validate" in lowered:
         return "run workbook validation after any audit or template changes"
@@ -183,7 +185,10 @@ def _previous_daily_report(paths, week: int, day: int) -> Path | None:
 
 def _phase_for_week(week: int) -> tuple[str, str]:
     if 1 <= week <= 3:
-        return "Discovery", "audit setup, EOAT data capture, photos, interviews, target-cell selection, and workbook validation"
+        return (
+            "Discovery",
+            "audit setup, EOAT data capture, photos, interviews, target-cell selection, and workbook validation",
+        )
     if 4 <= week <= 6:
         return "Analysis", "issue analysis, FMEA-lite, documentation gaps, and pilot-candidate selection"
     if 7 <= week <= 10:
@@ -208,7 +213,14 @@ def _scheduled_tasks_for_day(schedule, day: int) -> list[TaskItem]:
     schedule_only: list[TaskItem] = []
     for index, description in enumerate(schedule.days.get(str(day), []), start=1):
         if _clean(description).lower() not in known_descriptions:
-            schedule_only.append(TaskItem(id=f"W{schedule.week}D{day}S{index}", description=_clean(description), day=str(day), status="Not started"))
+            schedule_only.append(
+                TaskItem(
+                    id=f"W{schedule.week}D{day}S{index}",
+                    description=_clean(description),
+                    day=str(day),
+                    status="Not started",
+                )
+            )
     return _unique_tasks(progress_tasks + schedule_only)
 
 
@@ -233,7 +245,8 @@ def _collect_project_state(project_root: str | Path) -> tuple[dict[str, Any], li
                 "photos_indexed_count": metrics.get("photos_indexed_count", 0),
                 "interviews_logged_count": metrics.get("interviews_logged_count", 0),
                 "issues_logged_count": metrics.get("issues_logged_count", 0),
-                "pilot_candidates": metrics.get("pilot_candidate_yes_count", 0) + metrics.get("pilot_candidate_maybe_count", 0),
+                "pilot_candidates": metrics.get("pilot_candidate_yes_count", 0)
+                + metrics.get("pilot_candidate_maybe_count", 0),
                 "open_action_items_count": metrics.get("open_action_items_count", 0),
             }
         )
@@ -270,7 +283,9 @@ def _recommended_next_actions(
     context: MorningPlanningContext | None = None,
 ) -> list[str]:
     actions: list[str] = []
-    press_available = bool(context and (context.press_files.get("master_press_list") or context.press_files.get("press_capacity")))
+    press_available = bool(
+        context and (context.press_files.get("master_press_list") or context.press_files.get("press_capacity"))
+    )
     for task in today_open[:4]:
         text = _task_text(task)
         lowered = text.lower()
@@ -294,7 +309,10 @@ def _recommended_next_actions(
     for task in blockers[:2]:
         text = _task_text(task)
         if text:
-            actions.insert(0, f"Unblock {text[0].lower() + text[1:]} by recording the exact access, decision, or owner needed before starting dependent floor work")
+            actions.insert(
+                0,
+                f"Unblock {text[0].lower() + text[1:]} by recording the exact access, decision, or owner needed before starting dependent floor work",
+            )
     for task in carryover[:2]:
         text = _task_text(task)
         if text:
@@ -323,10 +341,14 @@ def _recommended_next_actions(
                 "Do not start scoring pilots or drafting final recommendations until at least a few real audit rows, photos, or issue records exist",
             ]
         )
-    return _dedupe_lines(actions, 5) or ["Pick the next unresolved scheduled task and define what would make it complete today."]
+    return _dedupe_lines(actions, 5) or [
+        "Pick the next unresolved scheduled task and define what would make it complete today."
+    ]
 
 
-def _questions_for_phase(week: int, today_open: list[TaskItem] | None = None, blockers: list[TaskItem] | None = None) -> list[str]:
+def _questions_for_phase(
+    week: int, today_open: list[TaskItem] | None = None, blockers: list[TaskItem] | None = None
+) -> list[str]:
     today_open = today_open or []
     blockers = blockers or []
     task_text = " ".join(_task_text(task).lower() for task in today_open + blockers)
@@ -349,29 +371,29 @@ def _questions_for_phase(week: int, today_open: list[TaskItem] | None = None, bl
     if 1 <= week <= 3:
         questions.extend(
             [
-            "Which robot cells should be prioritized first?",
-            "Where is EOAT downtime or part-drop history tracked?",
-            "Are there known high-problem EOATs maintenance wants reviewed first?",
-            "Are process binders, CAD, or BOMs stored in a consistent location?",
-            "What fields are mandatory for the final EOAT database?",
+                "Which robot cells should be prioritized first?",
+                "Where is EOAT downtime or part-drop history tracked?",
+                "Are there known high-problem EOATs maintenance wants reviewed first?",
+                "Are process binders, CAD, or BOMs stored in a consistent location?",
+                "What fields are mandatory for the final EOAT database?",
             ]
         )
     if 4 <= week <= 6:
         questions.extend(
             [
-            "Which issue categories matter most to maintenance and production?",
-            "What failure modes should be treated as safety or uptime risks?",
-            "Which documentation gaps block repeatable PM or repair work?",
-            "Which candidate cell has enough evidence for a practical pilot?",
+                "Which issue categories matter most to maintenance and production?",
+                "What failure modes should be treated as safety or uptime risks?",
+                "Which documentation gaps block repeatable PM or repair work?",
+                "Which candidate cell has enough evidence for a practical pilot?",
             ]
         )
     if 7 <= week <= 10:
         questions.extend(
             [
-            "What baseline KPI should be frozen before pilot changes?",
-            "Who needs to approve PM, BOM, or setup-document updates?",
-            "What result would prove the pilot is worth keeping?",
-            "What before/after photos or signoffs are required?",
+                "What baseline KPI should be frozen before pilot changes?",
+                "Who needs to approve PM, BOM, or setup-document updates?",
+                "What result would prove the pilot is worth keeping?",
+                "What before/after photos or signoffs are required?",
             ]
         )
     if week > 10:
@@ -389,10 +411,21 @@ def _questions_for_phase(week: int, today_open: list[TaskItem] | None = None, bl
 def _latest_validation_ran_today(paths, plan_date: date) -> bool:
     reports = list_recent_files(paths.validation_reports, limit=5)
     today = plan_date.isoformat()
-    return any(today in report.name and ("Foundation_Validation" in report.name or "System_Audit" in report.name) for report in reports)
+    return any(
+        today in report.name and ("Foundation_Validation" in report.name or "System_Audit" in report.name)
+        for report in reports
+    )
 
 
-def _primary_focus(phase: str, phase_detail: str, week: int, day: int, today_open: list[TaskItem], carryover: list[TaskItem], state: dict[str, Any]) -> str:
+def _primary_focus(
+    phase: str,
+    phase_detail: str,
+    week: int,
+    day: int,
+    today_open: list[TaskItem],
+    carryover: list[TaskItem],
+    state: dict[str, Any],
+) -> str:
     priority_tasks = carryover[:2] + today_open[:3]
     if priority_tasks:
         actions = [_task_action(task) for task in priority_tasks[:3]]
@@ -410,19 +443,29 @@ def _primary_focus(phase: str, phase_detail: str, week: int, day: int, today_ope
     return f"Use the {phase.lower()} phase priorities to move the project forward through {phase_detail}."
 
 
-def _if_blocked_lines(phase: str, today_open: list[TaskItem], blockers: list[TaskItem], carryover: list[TaskItem]) -> list[str]:
+def _if_blocked_lines(
+    phase: str, today_open: list[TaskItem], blockers: list[TaskItem], carryover: list[TaskItem]
+) -> list[str]:
     lines: list[str] = []
     for task in blockers[:2]:
         text = _task_text(task)
         if text:
-            lines.append(f"If {text} stays blocked, write down the blocker, who can clear it, and the next useful follow-up")
+            lines.append(
+                f"If {text} stays blocked, write down the blocker, who can clear it, and the next useful follow-up"
+            )
     task_text = " ".join(_task_text(task).lower() for task in today_open + carryover)
     if phase == "Discovery":
         if "audit" in task_text or "walkthrough" in task_text or not task_text:
-            lines.append("If floor access is not available, prepare the audit template and refine the target-cell list from known robot/press information")
+            lines.append(
+                "If floor access is not available, prepare the audit template and refine the target-cell list from known robot/press information"
+            )
         if "photo" in task_text or not task_text:
-            lines.append("If no photos can be taken yet, finalize the naming convention and confirm the folder path before importing more images")
-        lines.append("If mentor or supervisor is unavailable, write the priority questions clearly and continue workbook/photo setup")
+            lines.append(
+                "If no photos can be taken yet, finalize the naming convention and confirm the folder path before importing more images"
+            )
+        lines.append(
+            "If mentor or supervisor is unavailable, write the priority questions clearly and continue workbook/photo setup"
+        )
         lines.append("If audit work pauses, run workbook validation and review documentation gaps")
     elif phase == "Analysis":
         lines.extend(
@@ -451,7 +494,9 @@ def _if_blocked_lines(phase: str, today_open: list[TaskItem], blockers: list[Tas
     return _dedupe_lines(lines, 5)
 
 
-def _definition_of_done_lines(today_open: list[TaskItem], carryover: list[TaskItem], blockers: list[TaskItem]) -> list[str]:
+def _definition_of_done_lines(
+    today_open: list[TaskItem], carryover: list[TaskItem], blockers: list[TaskItem]
+) -> list[str]:
     lines = [_task_done_outcome(task) for task in (today_open[:4] + carryover[:1])]
     if blockers:
         lines.append("Blocked items have the blocker reason, owner/source, and next follow-up recorded")
@@ -505,7 +550,9 @@ def _display_activity(entry: dict[str, Any]) -> str:
     timestamp = _clean(entry.get("timestamp"))
     display = timestamp.replace("T", " ")[:16] if timestamp else "time unavailable"
     tool = _clean(entry.get("tool_name")) or _clean(entry.get("tool_id")) or "Unknown tool"
-    summary = _clean(entry.get("summary")) or ("success" if entry.get("success") else "failed" if entry.get("success") is False else "no summary")
+    summary = _clean(entry.get("summary")) or (
+        "success" if entry.get("success") else "failed" if entry.get("success") is False else "no summary"
+    )
     created = len(entry.get("files_created") or [])
     modified = len(entry.get("files_modified") or [])
     file_note = f"; files created {created}, modified {modified}" if created or modified else ""
@@ -529,7 +576,9 @@ def _workbook_state_lines(context: MorningPlanningContext) -> list[str]:
             f"actions={counts.get('Action Items', 0)}."
         )
         if context.workbook_mtime:
-            lines.append(f"Master workbook last modified: {context.workbook_mtime.astimezone().strftime('%Y-%m-%d %H:%M')}.")
+            lines.append(
+                f"Master workbook last modified: {context.workbook_mtime.astimezone().strftime('%Y-%m-%d %H:%M')}."
+            )
         if context.audit_rows:
             latest = context.audit_rows[-1]
             press = _clean(latest.get("Press/Machine #")) or "unknown press"
@@ -539,7 +588,9 @@ def _workbook_state_lines(context: MorningPlanningContext) -> list[str]:
             lines.append(f"Latest workbook audit row: {press}, status {status}{tail}.")
         if context.photo_rows:
             latest_photo = context.photo_rows[-1]
-            filename = _clean(latest_photo.get("Photo Filename")) or _clean(latest_photo.get("Photo ID")) or "latest photo row"
+            filename = (
+                _clean(latest_photo.get("Photo Filename")) or _clean(latest_photo.get("Photo ID")) or "latest photo row"
+            )
             lines.append(f"Photo index has {len(context.photo_rows)} row(s); latest: {filename}.")
     else:
         source = context.source("EOAT master workbook")
@@ -547,7 +598,9 @@ def _workbook_state_lines(context: MorningPlanningContext) -> list[str]:
     return _limit_lines(lines, 6)
 
 
-def _continuity_reason(today_open: list[TaskItem], carryover: list[TaskItem], blockers: list[TaskItem], context: MorningPlanningContext) -> str:
+def _continuity_reason(
+    today_open: list[TaskItem], carryover: list[TaskItem], blockers: list[TaskItem], context: MorningPlanningContext
+) -> str:
     if blockers:
         return f"Today's plan starts with blocked work because {blockers[0].description} needs an owner, access window, or decision before dependent floor work."
     if carryover:
@@ -609,8 +662,14 @@ def reduce_morning_tasks(
         if not _press_data_available(context):
             do_first = "Open the EOAT Audit page and start the Plant 4 target-cell list, marking press details that need manual confirmation."
     else:
-        mission = f"Move Week {week} Day {day} {phase.lower()} work forward by closing the highest-value unfinished task."
-        do_first = _task_action(today_open[0]) if today_open else "Pick the highest-value unfinished task and define today's completion point."
+        mission = (
+            f"Move Week {week} Day {day} {phase.lower()} work forward by closing the highest-value unfinished task."
+        )
+        do_first = (
+            _task_action(today_open[0])
+            if today_open
+            else "Pick the highest-value unfinished task and define today's completion point."
+        )
 
     main_todo = [
         "Ask mentor/supervisor which 3-5 Plant 4 robot cells should be audited first.",
@@ -792,7 +851,9 @@ def build_morning_plan_markdown(
     carryover = _unique_tasks(carryover)
     open_actions = context.open_actions
     activity = context.activity_entries
-    previous_report = context.previous_reports[0] if context.previous_reports else _previous_daily_report(paths, week, day)
+    previous_report = (
+        context.previous_reports[0] if context.previous_reports else _previous_daily_report(paths, week, day)
+    )
     previous_text = ""
     if previous_report:
         previous_text, _ = read_report_preview(previous_report, max_chars=5000)
@@ -810,7 +871,9 @@ def build_morning_plan_markdown(
     warnings.extend(state_warnings)
     phase, phase_detail = _phase_for_week(week)
     latest_validation_today = _latest_validation_ran_today(paths, resolved_day.date)
-    recommendations = _recommended_next_actions(phase, state, today_open, carryover, blockers, open_actions, latest_validation_today, context)
+    recommendations = _recommended_next_actions(
+        phase, state, today_open, carryover, blockers, open_actions, latest_validation_today, context
+    )
     primary = _primary_focus(phase, phase_detail, week, day, today_open, carryover, state)
     latest_activity = activity[0] if activity else None
     carryover_and_blockers = _unique_tasks(blockers + carryover)
@@ -873,16 +936,22 @@ def build_morning_plan_markdown(
         lines.append("Yesterday's completed tasks:")
         lines.extend(f"- {item}" for item in _limit_lines(context.previous_completed, 6))
     else:
-        lines.append("- Yesterday's completed tasks: no completed-task details were found in the previous daily summaries.")
+        lines.append(
+            "- Yesterday's completed tasks: no completed-task details were found in the previous daily summaries."
+        )
     if context.previous_blockers:
         lines.append("Yesterday's unresolved blockers:")
         lines.extend(f"- {item}" for item in _limit_lines(context.previous_blockers, 5))
     else:
         previous_status = _status_lookup(context, "previous daily activity summaries")
         if previous_status == "found":
-            lines.append("- Yesterday's unresolved blockers: confirmed none listed in the previous summaries that were readable.")
+            lines.append(
+                "- Yesterday's unresolved blockers: confirmed none listed in the previous summaries that were readable."
+            )
         else:
-            lines.append("- Yesterday's unresolved blockers: could not confirm because previous daily summaries were missing or empty.")
+            lines.append(
+                "- Yesterday's unresolved blockers: could not confirm because previous daily summaries were missing or empty."
+            )
     if context.previous_reports:
         lines.append("Reports generated or reviewed yesterday:")
         lines.extend(f"- {report.name}" for report in context.previous_reports[:5])
@@ -893,7 +962,9 @@ def build_morning_plan_markdown(
         lines.extend(f"- Created: {item}" for item in _limit_lines(context.previous_created_files, 4))
         lines.extend(f"- Modified: {item}" for item in _limit_lines(context.previous_modified_files, 6))
     else:
-        lines.append("- Workbook or app/project files changed yesterday: no changed-file list was found in the previous summaries.")
+        lines.append(
+            "- Workbook or app/project files changed yesterday: no changed-file list was found in the previous summaries."
+        )
     if notes.strip() or context.previous_notes:
         lines.append("User notes or manual overrides:")
         if notes.strip():
@@ -906,30 +977,40 @@ def build_morning_plan_markdown(
     lines.extend(["", "## What Changed Since Yesterday"])
     changed_lines = []
     if context.previous_completed:
-        changed_lines.append(f"Day {day - 1 if day > 1 else '?'} completion signal: {_phrase_list(context.previous_completed[:3])}")
+        changed_lines.append(
+            f"Day {day - 1 if day > 1 else '?'} completion signal: {_phrase_list(context.previous_completed[:3])}"
+        )
     if context.activity_entries:
         changed_lines.extend(_display_activity(entry) for entry in context.activity_entries[:4])
     if context.validation_reports:
         changed_lines.append(f"Latest validation/system audit report available: {context.validation_reports[0].name}")
     if context.workbook_mtime:
-        changed_lines.append(f"EOAT master workbook timestamp: {context.workbook_mtime.astimezone().strftime('%Y-%m-%d %H:%M')}")
+        changed_lines.append(
+            f"EOAT master workbook timestamp: {context.workbook_mtime.astimezone().strftime('%Y-%m-%d %H:%M')}"
+        )
     if context.recent_reports:
         changed_lines.append(f"Recent generated report/data file: {context.recent_reports[0].name}")
     if changed_lines:
         lines.extend(f"- {item}" for item in _limit_lines(changed_lines, 8))
     else:
-        lines.append("- No recent activity, report, workbook, or file-change signals were available beyond the static schedule.")
+        lines.append(
+            "- No recent activity, report, workbook, or file-change signals were available beyond the static schedule."
+        )
 
     lines.extend(["", "## Current App and Project State"])
     lines.extend(f"- {item}" for item in _workbook_state_lines(context))
     if context.recent_modified_files:
-        lines.append("- Recently modified files are listed below and should be treated as active context for today's work.")
+        lines.append(
+            "- Recently modified files are listed below and should be treated as active context for today's work."
+        )
     if context.validation_reports:
         lines.append(f"- Workbook validation/audit evidence exists: {context.validation_reports[0].name}.")
     if context.press_files:
         master_status = "available" if context.press_files.get("master_press_list") else "missing"
         capacity_status = "available" if context.press_files.get("press_capacity") else "missing"
-        lines.append(f"- Press lookup sources: master press list {master_status}; Plant 4 capacity file {capacity_status}.")
+        lines.append(
+            f"- Press lookup sources: master press list {master_status}; Plant 4 capacity file {capacity_status}."
+        )
 
     lines.extend(
         [
@@ -971,7 +1052,9 @@ def build_morning_plan_markdown(
     if today_open:
         lines.extend(_format_task(task) for task in today_open)
     elif scheduled_all:
-        lines.append(f"- No unfinished scheduled tasks were found for Week {week} Day {day}; scheduled tasks for this day are already complete or skipped.")
+        lines.append(
+            f"- No unfinished scheduled tasks were found for Week {week} Day {day}; scheduled tasks for this day are already complete or skipped."
+        )
     else:
         lines.append(
             f"- No unfinished scheduled tasks were found for Week {week} Day {day}. Suggested fallback: run workbook validation, review audit coverage, and add the next EOAT audit entry."
@@ -985,11 +1068,17 @@ def build_morning_plan_markdown(
     else:
         progress_status = _status_lookup(context, "task_progress_weekN.json")
         if progress_status == "found":
-            lines.append(f"- Confirmed from task_progress_week{week}.json: no unfinished Day {day} or carryover task records were found.")
+            lines.append(
+                f"- Confirmed from task_progress_week{week}.json: no unfinished Day {day} or carryover task records were found."
+            )
         elif progress_status == "empty":
-            lines.append(f"- task_progress_week{week}.json exists but contains no task records, so unfinished work could not be inferred from progress data.")
+            lines.append(
+                f"- task_progress_week{week}.json exists but contains no task records, so unfinished work could not be inferred from progress data."
+            )
         else:
-            lines.append(f"- Could not confirm unfinished work because task_progress_week{week}.json was not available.")
+            lines.append(
+                f"- Could not confirm unfinished work because task_progress_week{week}.json was not available."
+            )
     if blockers:
         lines.append("Blocked:")
         lines.extend(_format_task(task) for task in blockers[:6])
@@ -1029,7 +1118,9 @@ def build_morning_plan_markdown(
 
     lines.extend(["", "## If Blocked / Floor Access Unavailable"])
     lines.extend(f"- {item}" for item in if_blocked[:4])
-    lines.append("- Safe desk work: reconcile workbook rows, review validation reports, prepare audit questions, clean photo naming rules, and inspect press/capacity source availability.")
+    lines.append(
+        "- Safe desk work: reconcile workbook rows, review validation reports, prepare audit questions, clean photo naming rules, and inspect press/capacity source availability."
+    )
 
     lines.extend(["", "## Optional Stretch"])
     stretch_lines = []
@@ -1056,9 +1147,13 @@ def build_morning_plan_markdown(
         "Do not start pilot ranking or final recommendations until workbook audit/issue/photo evidence exists for candidate cells.",
     ]
     if not context.press_files.get("master_press_list") or not context.press_files.get("press_capacity"):
-        not_yet.append("Do not rely on press autofill for final machine details until the missing press list/capacity source file is imported.")
+        not_yet.append(
+            "Do not rely on press autofill for final machine details until the missing press list/capacity source file is imported."
+        )
     if not latest_validation_today:
-        not_yet.append("Do not consider workbook changes validated until today's validation/system audit report has been generated or reviewed.")
+        not_yet.append(
+            "Do not consider workbook changes validated until today's validation/system audit report has been generated or reviewed."
+        )
     lines.extend(f"- {item}" for item in _dedupe_lines(not_yet, 5))
 
     lines.extend(["", "## Questions to Ask Today"])
@@ -1096,7 +1191,9 @@ def build_morning_plan_markdown(
     confidence, confidence_reason = context.confidence
     lines.extend(["", "## Confidence / Data Quality"])
     lines.append(f"- Confidence: {confidence} - {confidence_reason}.")
-    lines.append(f"- Source coverage: {sum(1 for source in context.source_statuses if source.status == 'found')} found, {sum(1 for source in context.source_statuses if source.status == 'empty')} empty, {sum(1 for source in context.source_statuses if source.status == 'missing')} missing, {sum(1 for source in context.source_statuses if source.status == 'error')} error.")
+    lines.append(
+        f"- Source coverage: {sum(1 for source in context.source_statuses if source.status == 'found')} found, {sum(1 for source in context.source_statuses if source.status == 'empty')} empty, {sum(1 for source in context.source_statuses if source.status == 'missing')} missing, {sum(1 for source in context.source_statuses if source.status == 'error')} error."
+    )
     if confidence != "High":
         lines.append("- Treat recommendations as planning guidance until the missing live-state sources are filled in.")
 
@@ -1118,7 +1215,9 @@ def build_morning_plan_markdown(
     if previous_report:
         lines.extend(["", "## Yesterday / Recent Context", f"- Previous daily report reviewed: {previous_report.name}"])
     if previous_text:
-        reminders = [line.strip("- ").strip() for line in previous_text.splitlines() if line.strip().startswith("- ")][:4]
+        reminders = [line.strip("- ").strip() for line in previous_text.splitlines() if line.strip().startswith("- ")][
+            :4
+        ]
         lines.extend(f"- {reminder}" for reminder in reminders if reminder)
     if notes.strip():
         lines.extend(["", "## Manual Notes", notes.strip()])
@@ -1201,11 +1300,20 @@ def generate_morning_plan(
     plan_date = current_date or date.today()
     path = paths.morning_plans / f"Week{resolved_week}_Day{resolved_day}_Morning_Plan_{plan_date.isoformat()}.md"
     if path.exists():
-        path = paths.morning_plans / f"Week{resolved_week}_Day{resolved_day}_Morning_Plan_{time.strftime('%Y-%m-%d_%H%M%S')}.md"
+        path = (
+            paths.morning_plans
+            / f"Week{resolved_week}_Day{resolved_day}_Morning_Plan_{time.strftime('%Y-%m-%d_%H%M%S')}.md"
+        )
     output = safe_write_text(path, markdown, overwrite=False)
-    details_path = paths.morning_plans / f"Week{resolved_week}_Day{resolved_day}_Planning_Context_Details_{plan_date.isoformat()}.md"
+    details_path = (
+        paths.morning_plans
+        / f"Week{resolved_week}_Day{resolved_day}_Planning_Context_Details_{plan_date.isoformat()}.md"
+    )
     if details_path.exists():
-        details_path = paths.morning_plans / f"Week{resolved_week}_Day{resolved_day}_Planning_Context_Details_{time.strftime('%Y-%m-%d_%H%M%S')}.md"
+        details_path = (
+            paths.morning_plans
+            / f"Week{resolved_week}_Day{resolved_day}_Planning_Context_Details_{time.strftime('%Y-%m-%d_%H%M%S')}.md"
+        )
     details_markdown = build_morning_plan_details_markdown(project_root, resolved_week, resolved_day, plan_date)
     details_output = safe_write_text(details_path, details_markdown, overwrite=False)
     result = ToolResult.ok(

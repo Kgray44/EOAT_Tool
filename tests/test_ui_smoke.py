@@ -83,7 +83,9 @@ def test_home_page_contains_workflow_cards_and_key_actions():
 def test_schedule_page_displays_resolved_day_and_morning_button(fake_project):
     _app()
     admin = fake_project / "00_Project_Admin"
-    (admin / "project_schedule_week1.json").write_text(json.dumps({"days": {"1": ["Task A"], "2": ["Task B"]}}), encoding="utf-8")
+    (admin / "project_schedule_week1.json").write_text(
+        json.dumps({"days": {"1": ["Task A"], "2": ["Task B"]}}), encoding="utf-8"
+    )
     (admin / "task_progress_week1.json").write_text(
         json.dumps({"tasks": [{"task_id": "W1D2T1", "day": "2", "task_text": "Task B", "status": "Not started"}]}),
         encoding="utf-8",

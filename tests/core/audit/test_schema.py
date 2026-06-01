@@ -3,8 +3,11 @@ from __future__ import annotations
 from collections import defaultdict
 
 from core.audit.schema import (
+    PNEUMATIC_CIRCUITS_SECTION,
     STORAGE_NONE,
     all_audit_fields,
+    audit_section_groups,
+    audit_sections,
     dropdown_values_for,
     expected_workbook_headers,
     field_by_header,
@@ -14,7 +17,13 @@ from core.audit.schema import (
 )
 from core.audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD
 from core.audit_entries import LEGACY_VACUUM_CUPS_FIELD, NUMBER_OF_PARTS_PICKED_FIELD
-from core.gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD
+from core.gripper_fields import (
+    CUP_COUNT_FIELD,
+    GRIPPER_COUNT_FIELD,
+    GRIPPER_MODEL_FIELD,
+    GRIPPER_SIZE_FIELD,
+    GRIPPER_TYPE_FIELD,
+)
 from core.tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
 from core.workbook_schema import get_expected_headers
 
@@ -81,6 +90,25 @@ def test_numeric_fields_are_marked():
     assert GRIPPER_COUNT_FIELD in numeric_headers
     assert CUP_COUNT_FIELD in numeric_headers
     assert "EOAT Vacuum Circuits" in numeric_headers
+    assert "Robot Notes" not in numeric_headers
+
+
+def test_robot_notes_is_robot_side_textarea_outside_eoat_inventory_schema():
+    spec = field_by_id("robot_notes")
+    sections = audit_sections()
+    groups = dict(audit_section_groups()[PNEUMATIC_CIRCUITS_SECTION])
+
+    assert spec.storage_target == STORAGE_NONE
+    assert spec.workbook_header == ""
+    assert spec.widget_type == "textarea"
+    assert sections[PNEUMATIC_CIRCUITS_SECTION][-1] == "Robot Notes"
+    assert groups["Robot Side"] == [
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+        "Robot Notes",
+    ]
+    assert "Robot Notes" not in get_expected_headers("EOAT Inventory")
 
 
 def test_required_and_important_fields_are_marked():
@@ -101,3 +129,30 @@ def test_sections_and_groups_expose_specs():
     assert "Audit Header" in grouped
     assert "Audit Identity" in grouped["Audit Header"]
     assert grouped["EOAT Type and Tooling"]["Cylinder Details"][0].workbook_header == CYLINDER_COUNT_FIELD
+
+
+def test_eoat_tooling_grouping_keeps_parts_picked_out_of_gripper_details():
+    group_layout = audit_section_groups()["EOAT Type and Tooling"]
+    groups = dict(group_layout)
+
+    assert [group_name for group_name, _fields in group_layout] == [
+        "EOAT Classification",
+        "Part Handling",
+        "Gripper Details",
+        "Cylinder Details",
+        "Vacuum / Cup Details",
+        "Physical Details",
+    ]
+    assert groups["Part Handling"] == [NUMBER_OF_PARTS_PICKED_FIELD]
+    assert NUMBER_OF_PARTS_PICKED_FIELD not in groups["Gripper Details"]
+    assert groups["Gripper Details"] == [
+        GRIPPER_COUNT_FIELD,
+        GRIPPER_TYPE_FIELD,
+        GRIPPER_MODEL_FIELD,
+        GRIPPER_SIZE_FIELD,
+    ]
+
+    grouped_specs = fields_grouped_by_section()["EOAT Type and Tooling"]
+    assert grouped_specs["Part Handling"][0].workbook_header == NUMBER_OF_PARTS_PICKED_FIELD
+    assert field_by_header(NUMBER_OF_PARTS_PICKED_FIELD).workbook_header == NUMBER_OF_PARTS_PICKED_FIELD
+    assert expected_workbook_headers() == tuple(get_expected_headers("EOAT Inventory"))

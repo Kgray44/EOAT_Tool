@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from .constants import TOOLKIT_ROOT
 from .logging import log_tool_run
 from .paths import resolve_project_paths
-from .report_context import build_daily_report_context, daily_summary_cli_items
+from .performance import log_performance_event
 from .result import ToolResult
 from .safe_files import ensure_directory
 from .schedule import resolve_project_day_for_project
@@ -175,7 +175,9 @@ def _daily_report_infos(project_root: str | Path) -> list[ReportFileInfo]:
             continue
         week, day, report_date = match.groups()
         try:
-            reports.append(ReportFileInfo(path=path, report_date=date.fromisoformat(report_date), week=int(week), day=int(day)))
+            reports.append(
+                ReportFileInfo(path=path, report_date=date.fromisoformat(report_date), week=int(week), day=int(day))
+            )
         except ValueError:
             continue
     return sorted(reports, key=lambda item: (item.report_date or date.min, item.path.stat().st_mtime), reverse=True)
@@ -242,7 +244,9 @@ def scheduler_timezone(timezone_name: str = DEFAULT_SCHEDULE_TIMEZONE):
         raise
 
 
-def local_scheduler_datetime(current: datetime | None = None, timezone_name: str = DEFAULT_SCHEDULE_TIMEZONE) -> datetime:
+def local_scheduler_datetime(
+    current: datetime | None = None, timezone_name: str = DEFAULT_SCHEDULE_TIMEZONE
+) -> datetime:
     tz = scheduler_timezone(timezone_name)
     if current is None:
         return datetime.now(tz)
@@ -280,14 +284,34 @@ def _parse_date_list(items: list[str | date]) -> list[date]:
     return sorted(set(dates))
 
 
-def _daily_expected_report_path(project_root: str | Path, target_date: date, *, dry_run: bool, resolved_week: int, resolved_day: int, output_dir: str | Path | None = None) -> Path:
-    folder = Path(output_dir).expanduser() if output_dir else (dry_run_daily_reports_dir(project_root) if dry_run else resolve_project_paths(project_root).daily_reports)
+def _daily_expected_report_path(
+    project_root: str | Path,
+    target_date: date,
+    *,
+    dry_run: bool,
+    resolved_week: int,
+    resolved_day: int,
+    output_dir: str | Path | None = None,
+) -> Path:
+    folder = (
+        Path(output_dir).expanduser()
+        if output_dir
+        else (dry_run_daily_reports_dir(project_root) if dry_run else resolve_project_paths(project_root).daily_reports)
+    )
     suffix = "_DRY_RUN" if dry_run else ""
     return folder / f"Week{resolved_week}_Day{resolved_day}_Status_{target_date.isoformat()}{suffix}.md"
 
 
-def _weekly_expected_report_path(project_root: str | Path, target_date: date, *, dry_run: bool, week: int, output_dir: str | Path | None = None) -> Path:
-    folder = Path(output_dir).expanduser() if output_dir else (dry_run_weekly_reports_dir(project_root) if dry_run else resolve_project_paths(project_root).weekly_reports)
+def _weekly_expected_report_path(
+    project_root: str | Path, target_date: date, *, dry_run: bool, week: int, output_dir: str | Path | None = None
+) -> Path:
+    folder = (
+        Path(output_dir).expanduser()
+        if output_dir
+        else (
+            dry_run_weekly_reports_dir(project_root) if dry_run else resolve_project_paths(project_root).weekly_reports
+        )
+    )
     suffix = "_DRY_RUN" if dry_run else ""
     return folder / f"Week{week}_Summary_{target_date.isoformat()}{suffix}.md"
 
@@ -316,14 +340,56 @@ def evaluate_summary_schedule(
             skip_weekends=skip_weekends,
             holidays=holidays or [],
         )
-        output_path = _daily_expected_report_path(project_root, target_date, dry_run=dry_run, resolved_week=resolved.week, resolved_day=resolved.day)
+        output_path = _daily_expected_report_path(
+            project_root, target_date, dry_run=dry_run, resolved_week=resolved.week, resolved_day=resolved.day
+        )
         if not expected_daily_summary_day(target_date):
-            return SummaryScheduleDecision(automation, "skip", "not a Monday-Thursday daily summary day", target_date, local_now, timezone_name, output_path, resolved.week, resolved.day)
+            return SummaryScheduleDecision(
+                automation,
+                "skip",
+                "not a Monday-Thursday daily summary day",
+                target_date,
+                local_now,
+                timezone_name,
+                output_path,
+                resolved.week,
+                resolved.day,
+            )
         if not _scheduled_time_reached(local_now):
-            return SummaryScheduleDecision(automation, "skip", f"before scheduled time {SCHEDULE_TIME_LABEL}", target_date, local_now, timezone_name, output_path, resolved.week, resolved.day)
+            return SummaryScheduleDecision(
+                automation,
+                "skip",
+                f"before scheduled time {SCHEDULE_TIME_LABEL}",
+                target_date,
+                local_now,
+                timezone_name,
+                output_path,
+                resolved.week,
+                resolved.day,
+            )
         if output_path.exists() and not force:
-            return SummaryScheduleDecision(automation, "skip", "daily summary already exists for this date", target_date, local_now, timezone_name, output_path, resolved.week, resolved.day)
-        return SummaryScheduleDecision(automation, "run", "weekday Monday-Thursday at or after 19:00", target_date, local_now, timezone_name, output_path, resolved.week, resolved.day)
+            return SummaryScheduleDecision(
+                automation,
+                "skip",
+                "daily summary already exists for this date",
+                target_date,
+                local_now,
+                timezone_name,
+                output_path,
+                resolved.week,
+                resolved.day,
+            )
+        return SummaryScheduleDecision(
+            automation,
+            "run",
+            "weekday Monday-Thursday at or after 19:00",
+            target_date,
+            local_now,
+            timezone_name,
+            output_path,
+            resolved.week,
+            resolved.day,
+        )
 
     if automation == "weekly_summary":
         resolved = resolve_project_day_for_project(
@@ -337,14 +403,56 @@ def evaluate_summary_schedule(
         target_week = resolved.week
         output_path = _weekly_expected_report_path(project_root, target_date, dry_run=dry_run, week=target_week)
         if not expected_weekly_summary_day(target_date):
-            return SummaryScheduleDecision(automation, "skip", "not a Friday weekly summary day", target_date, local_now, timezone_name, output_path, target_week, 5)
+            return SummaryScheduleDecision(
+                automation,
+                "skip",
+                "not a Friday weekly summary day",
+                target_date,
+                local_now,
+                timezone_name,
+                output_path,
+                target_week,
+                5,
+            )
         if not _scheduled_time_reached(local_now):
-            return SummaryScheduleDecision(automation, "skip", f"before scheduled time {SCHEDULE_TIME_LABEL}", target_date, local_now, timezone_name, output_path, target_week, 5)
+            return SummaryScheduleDecision(
+                automation,
+                "skip",
+                f"before scheduled time {SCHEDULE_TIME_LABEL}",
+                target_date,
+                local_now,
+                timezone_name,
+                output_path,
+                target_week,
+                5,
+            )
         if output_path.exists() and not force:
-            return SummaryScheduleDecision(automation, "skip", "weekly summary already exists for this date", target_date, local_now, timezone_name, output_path, target_week, 5)
-        return SummaryScheduleDecision(automation, "run", "Friday at or after 19:00", target_date, local_now, timezone_name, output_path, target_week, 5)
+            return SummaryScheduleDecision(
+                automation,
+                "skip",
+                "weekly summary already exists for this date",
+                target_date,
+                local_now,
+                timezone_name,
+                output_path,
+                target_week,
+                5,
+            )
+        return SummaryScheduleDecision(
+            automation,
+            "run",
+            "Friday at or after 19:00",
+            target_date,
+            local_now,
+            timezone_name,
+            output_path,
+            target_week,
+            5,
+        )
 
-    return SummaryScheduleDecision(automation, "skip", f"unknown automation: {automation}", target_date, local_now, timezone_name)
+    return SummaryScheduleDecision(
+        automation, "skip", f"unknown automation: {automation}", target_date, local_now, timezone_name
+    )
 
 
 def preview_summary_schedule(
@@ -500,7 +608,9 @@ def log_scheduled_attempt(
         return None
 
 
-def detect_missed_daily_summaries(project_root: str | Path, today: date | None = None, lookback_days: int = 7) -> list[date]:
+def detect_missed_daily_summaries(
+    project_root: str | Path, today: date | None = None, lookback_days: int = 7
+) -> list[date]:
     current = today or date.today()
     missed: list[date] = []
     for offset in range(lookback_days):
@@ -510,7 +620,9 @@ def detect_missed_daily_summaries(project_root: str | Path, today: date | None =
     return sorted(missed)
 
 
-def detect_missed_weekly_summary(project_root: str | Path, today: date | None = None, lookback_days: int = 7) -> list[date]:
+def detect_missed_weekly_summary(
+    project_root: str | Path, today: date | None = None, lookback_days: int = 7
+) -> list[date]:
     current = today or date.today()
     missed: list[date] = []
     for offset in range(lookback_days):
@@ -638,7 +750,9 @@ def _task_status(task_name: str) -> dict[str, Any]:
     return data
 
 
-def get_scheduled_report_status(project_root: str | Path, today: date | None = None, check_tasks: bool = True) -> dict[str, Any]:
+def get_scheduled_report_status(
+    project_root: str | Path, today: date | None = None, check_tasks: bool = True
+) -> dict[str, Any]:
     daily = find_latest_daily_summary(project_root)
     weekly = find_latest_weekly_summary(project_root)
     daily_task = _task_status(DAILY_TASK_NAME) if check_tasks else {"installed": "Unknown"}
@@ -696,7 +810,9 @@ def next_expected_run(start_date: date, automation: str, timezone_name: str = DE
     return datetime.combine(start_date, datetime_time(SCHEDULE_HOUR, SCHEDULE_MINUTE), tzinfo=tz)
 
 
-def _tool_result_from_subprocess(tool_id: str, tool_name: str, completed: subprocess.CompletedProcess[str], started: float, output_path: str = "") -> ToolResult:
+def _tool_result_from_subprocess(
+    tool_id: str, tool_name: str, completed: subprocess.CompletedProcess[str], started: float, output_path: str = ""
+) -> ToolResult:
     elapsed = time.perf_counter() - started
     output = "\n".join(part for part in [completed.stdout.strip(), completed.stderr.strip()] if part)
     if not output_path:
@@ -707,12 +823,30 @@ def _tool_result_from_subprocess(tool_id: str, tool_name: str, completed: subpro
     if completed.returncode == 0:
         details = [line for line in output.splitlines() if line.strip()][:20]
         files = [output_path] if output_path else []
-        return ToolResult.ok(tool_id, tool_name, f"{tool_name} completed.", details=details, files_created=files, output_reports=files, duration_seconds=elapsed)
-    return ToolResult.fail(tool_id, tool_name, f"{tool_name} failed.", errors=[output or f"Exit code {completed.returncode}"], duration_seconds=elapsed)
+        return ToolResult.ok(
+            tool_id,
+            tool_name,
+            f"{tool_name} completed.",
+            details=details,
+            files_created=files,
+            output_reports=files,
+            duration_seconds=elapsed,
+        )
+    return ToolResult.fail(
+        tool_id,
+        tool_name,
+        f"{tool_name} failed.",
+        errors=[output or f"Exit code {completed.returncode}"],
+        duration_seconds=elapsed,
+    )
 
 
-def _context_cli_values(project_root: str | Path, target_date: date, week: int, day: int, run_mode: str) -> dict[str, list[str]]:
+def _context_cli_values(
+    project_root: str | Path, target_date: date, week: int, day: int, run_mode: str
+) -> dict[str, list[str]]:
     try:
+        from .report_context import build_daily_report_context, daily_summary_cli_items
+
         context = build_daily_report_context(project_root, target_date=target_date, week=week, day=day)
         values = daily_summary_cli_items(context)
     except Exception as exc:
@@ -775,11 +909,31 @@ def run_daily_summary_now(
         manual_override=week is not None and day is not None,
     )
     paths = resolve_project_paths(project_root)
-    output_folder = Path(output_dir).expanduser() if output_dir else (dry_run_daily_reports_dir(project_root) if dry_run else paths.daily_reports)
-    expected_report = _daily_expected_report_path(project_root, target_date, dry_run=dry_run, resolved_week=resolved.week, resolved_day=resolved.day, output_dir=output_folder)
+    output_folder = (
+        Path(output_dir).expanduser()
+        if output_dir
+        else (dry_run_daily_reports_dir(project_root) if dry_run else paths.daily_reports)
+    )
+    expected_report = _daily_expected_report_path(
+        project_root,
+        target_date,
+        dry_run=dry_run,
+        resolved_week=resolved.week,
+        resolved_day=resolved.day,
+        output_dir=output_folder,
+    )
     run_mode = mode or ("scheduled" if scheduled else "manual")
+    skip_check_started = time.perf_counter()
     if expected_report.exists():
         elapsed = time.perf_counter() - started
+        log_performance_event(
+            project_root,
+            "scheduled_reports.skip_check",
+            time.perf_counter() - skip_check_started,
+            source="scheduled_reports",
+            page_tool="scheduled_reports",
+            details={"output_path": str(expected_report), "skipped": True},
+        )
         log_scheduled_attempt(
             project_root,
             automation="daily_summary",
@@ -806,6 +960,14 @@ def run_daily_summary_now(
         if warning:
             result.warnings.append(warning)
         return result
+    log_performance_event(
+        project_root,
+        "scheduled_reports.skip_check",
+        time.perf_counter() - skip_check_started,
+        source="scheduled_reports",
+        page_tool="scheduled_reports",
+        details={"output_path": str(expected_report), "skipped": False},
+    )
     log_scheduled_attempt(
         project_root,
         automation="daily_summary",
@@ -846,7 +1008,13 @@ def run_daily_summary_now(
     if dry_run:
         args.append("--dry-run")
     completed = subprocess.run(args, cwd=TOOLKIT_ROOT, capture_output=True, text=True, timeout=180, check=False)
-    result = _tool_result_from_subprocess("daily_status_summary", "Daily Status Summary Generator", completed, started, str(expected_report) if expected_report.exists() else "")
+    result = _tool_result_from_subprocess(
+        "daily_status_summary",
+        "Daily Status Summary Generator",
+        completed,
+        started,
+        str(expected_report) if expected_report.exists() else "",
+    )
     result.metrics["scheduled"] = scheduled
     result.metrics["dry_run"] = dry_run
     if result.success:
@@ -1013,7 +1181,14 @@ def run_scheduler_preflight(project_root: str | Path, *, check_tasks: bool = Tru
     )
     if powershell:
         completed = subprocess.run(
-            [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "Get-Command Get-ScheduledTask -ErrorAction Stop | Out-Null; 'OK'"],
+            [
+                powershell,
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Get-Command Get-ScheduledTask -ErrorAction Stop | Out-Null; 'OK'",
+            ],
             capture_output=True,
             text=True,
             timeout=20,
@@ -1022,7 +1197,9 @@ def run_scheduler_preflight(project_root: str | Path, *, check_tasks: bool = Tru
         add(
             "Task Scheduler commands",
             "PASS" if completed.returncode == 0 else "WARNING",
-            "Task Scheduler commands are accessible." if completed.returncode == 0 else "Task Scheduler commands were not accessible.",
+            "Task Scheduler commands are accessible."
+            if completed.returncode == 0
+            else "Task Scheduler commands were not accessible.",
             (completed.stderr or completed.stdout).strip(),
         )
     else:
@@ -1039,13 +1216,27 @@ def run_scheduler_preflight(project_root: str | Path, *, check_tasks: bool = Tru
     add(
         "Scheduled report scripts",
         "ERROR" if missing_scripts else "PASS",
-        "All scheduled report scripts exist." if not missing_scripts else "One or more scheduled report scripts are missing.",
+        "All scheduled report scripts exist."
+        if not missing_scripts
+        else "One or more scheduled report scripts are missing.",
         "; ".join(missing_scripts),
     )
-    add("Python executable", "PASS" if Path(sys.executable).exists() else "ERROR", f"Python executable: {sys.executable}.")
-    add("Project root", "PASS" if root.exists() else "ERROR", f"Project root {'exists' if root.exists() else 'does not exist'}: {root}.")
+    add(
+        "Python executable",
+        "PASS" if Path(sys.executable).exists() else "ERROR",
+        f"Python executable: {sys.executable}.",
+    )
+    add(
+        "Project root",
+        "PASS" if root.exists() else "ERROR",
+        f"Project root {'exists' if root.exists() else 'does not exist'}: {root}.",
+    )
 
-    for label, folder in [("Daily output folder", paths.daily_reports), ("Weekly output folder", paths.weekly_reports), ("Log folder", paths.logs)]:
+    for label, folder in [
+        ("Daily output folder", paths.daily_reports),
+        ("Weekly output folder", paths.weekly_reports),
+        ("Log folder", paths.logs),
+    ]:
         try:
             ensure_directory(folder)
             probe = folder / ".scheduled_preflight_write_test.tmp"
@@ -1066,8 +1257,15 @@ def run_scheduler_preflight(project_root: str | Path, *, check_tasks: bool = Tru
         add("Scheduled log readable", "WARNING", f"{log_path} does not exist yet; it will be created on first run.")
 
     if check_tasks:
-        for label, task_name in [("Daily scheduled task", DAILY_TASK_NAME), ("Weekly scheduled task", WEEKLY_TASK_NAME)]:
-            task = _task_status(task_name) if powershell else {"installed": "Unknown", "warning": "PowerShell unavailable."}
+        for label, task_name in [
+            ("Daily scheduled task", DAILY_TASK_NAME),
+            ("Weekly scheduled task", WEEKLY_TASK_NAME),
+        ]:
+            task = (
+                _task_status(task_name)
+                if powershell
+                else {"installed": "Unknown", "warning": "PowerShell unavailable."}
+            )
             installed = task.get("installed")
             if installed is True:
                 add(label, "PASS", f"{task_name} is installed.", json.dumps(task, ensure_ascii=True))
@@ -1083,11 +1281,17 @@ def run_scheduler_preflight(project_root: str | Path, *, check_tasks: bool = Tru
         tool_id="scheduled_report_preflight",
         tool_name="Scheduled Report Preflight",
         success=not errors,
-        summary="Scheduled report preflight completed." if not errors else "Scheduled report preflight found blocking issues.",
+        summary="Scheduled report preflight completed."
+        if not errors
+        else "Scheduled report preflight found blocking issues.",
         details=[f"{check.status}: {check.name} - {check.message}" for check in checks],
         warnings=warnings,
         errors=errors,
-        metrics={"pass": sum(1 for check in checks if check.status == "PASS"), "warning": len(warnings), "error": len(errors)},
+        metrics={
+            "pass": sum(1 for check in checks if check.status == "PASS"),
+            "warning": len(warnings),
+            "error": len(errors),
+        },
         structured_data={"checks": rows},
         duration_seconds=time.perf_counter() - started,
     )
@@ -1123,8 +1327,16 @@ def run_weekly_summary_now(
         manual_override=week is not None,
     )
     target_week = int(week or resolved.week)
-    output_folder = Path(output_dir).expanduser() if output_dir else (dry_run_weekly_reports_dir(project_root) if dry_run else resolve_project_paths(project_root).weekly_reports)
-    expected_report = _weekly_expected_report_path(project_root, target_date, dry_run=dry_run, week=target_week, output_dir=output_folder)
+    output_folder = (
+        Path(output_dir).expanduser()
+        if output_dir
+        else (
+            dry_run_weekly_reports_dir(project_root) if dry_run else resolve_project_paths(project_root).weekly_reports
+        )
+    )
+    expected_report = _weekly_expected_report_path(
+        project_root, target_date, dry_run=dry_run, week=target_week, output_dir=output_folder
+    )
     run_mode = mode or ("scheduled" if scheduled else "manual")
     if expected_report.exists():
         elapsed = time.perf_counter() - started
@@ -1166,7 +1378,15 @@ def run_weekly_summary_now(
         timezone_name=timezone_name,
         output_path=expected_report,
     )
-    result = generate_weekly_summary(project_root, week=target_week, notes=notes, scheduled=scheduled, output_dir=output_folder, report_date=target_date, dry_run=dry_run)
+    result = generate_weekly_summary(
+        project_root,
+        week=target_week,
+        notes=notes,
+        scheduled=scheduled,
+        output_dir=output_folder,
+        report_date=target_date,
+        dry_run=dry_run,
+    )
     result.metrics["scheduled"] = scheduled
     result.metrics["dry_run"] = dry_run
     if result.success:
@@ -1354,7 +1574,9 @@ def _read_new_log_lines(path: Path, offset: int) -> list[str]:
 
 
 def _line_mentions_automation(line: str, automation: str) -> bool:
-    return automation in line or ("daily_summary" in line if automation == "daily_summary" else "weekly_summary" in line)
+    return automation in line or (
+        "daily_summary" in line if automation == "daily_summary" else "weekly_summary" in line
+    )
 
 
 def _log_line_output_path(line: str) -> str:
@@ -1436,7 +1658,12 @@ def run_actual_scheduled_task_now(
 
     powershell = shutil.which("powershell.exe") or shutil.which("powershell")
     if not powershell:
-        return ToolResult.fail("actual_scheduled_task", "Run Actual Scheduled Task", "PowerShell is not available.", errors=["PowerShell executable was not found."])
+        return ToolResult.fail(
+            "actual_scheduled_task",
+            "Run Actual Scheduled Task",
+            "PowerShell is not available.",
+            errors=["PowerShell executable was not found."],
+        )
 
     scheduled_log = scheduled_tools_log_path(project_root)
     emergency_log = scheduled_task_emergency_log_path()
@@ -1453,10 +1680,22 @@ def run_actual_scheduled_task_now(
     try:
         completed = subprocess.run(command, capture_output=True, text=True, timeout=20, check=False)
     except Exception as exc:
-        return ToolResult.fail("actual_scheduled_task", "Run Actual Scheduled Task", "Could not start the scheduled task.", errors=[str(exc)], duration_seconds=time.perf_counter() - started)
+        return ToolResult.fail(
+            "actual_scheduled_task",
+            "Run Actual Scheduled Task",
+            "Could not start the scheduled task.",
+            errors=[str(exc)],
+            duration_seconds=time.perf_counter() - started,
+        )
     if completed.returncode != 0:
         output = "\n".join(part for part in [completed.stdout.strip(), completed.stderr.strip()] if part)
-        return ToolResult.fail("actual_scheduled_task", "Run Actual Scheduled Task", "Task Scheduler rejected the start request.", errors=[output or f"Exit code {completed.returncode}"], duration_seconds=time.perf_counter() - started)
+        return ToolResult.fail(
+            "actual_scheduled_task",
+            "Run Actual Scheduled Task",
+            "Task Scheduler rejected the start request.",
+            errors=[output or f"Exit code {completed.returncode}"],
+            duration_seconds=time.perf_counter() - started,
+        )
 
     scheduled_lines: list[str] = []
     emergency_lines: list[str] = []
@@ -1468,7 +1707,9 @@ def run_actual_scheduled_task_now(
         scheduled_lines = _read_new_log_lines(scheduled_log, scheduled_offset)
         emergency_lines = _read_new_log_lines(emergency_log, emergency_offset)
         combined = scheduled_lines + emergency_lines
-        launch_confirmed = any("launch_diagnostic" in line and _line_mentions_automation(line, automation_name) for line in combined)
+        launch_confirmed = any(
+            "launch_diagnostic" in line and _line_mentions_automation(line, automation_name) for line in combined
+        )
         report_created = _confirmed_created_report_from_lines(combined, automation_name)
         report_result = _report_result_from_lines(combined, automation_name)
         if report_created or report_result in {"Failed", "Skipped - report already existed"}:
@@ -1549,14 +1790,27 @@ def _run_schedule_script(script_name: str, project_root: str | Path, *, dry_run:
     started = time.perf_counter()
     script = TOOLKIT_ROOT / "scripts" / script_name
     if not script.exists():
-        return ToolResult.fail("summary_schedule_tasks", "Summary Schedule Tasks", "Schedule script is missing.", errors=[str(script)])
-    args = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), "-ProjectRoot", str(project_root)]
+        return ToolResult.fail(
+            "summary_schedule_tasks", "Summary Schedule Tasks", "Schedule script is missing.", errors=[str(script)]
+        )
+    args = [
+        "powershell.exe",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script),
+        "-ProjectRoot",
+        str(project_root),
+    ]
     if dry_run:
         args.append("-DryRun")
     try:
         completed = subprocess.run(args, cwd=TOOLKIT_ROOT, capture_output=True, text=True, timeout=60, check=False)
     except Exception as exc:
-        return ToolResult.fail("summary_schedule_tasks", "Summary Schedule Tasks", "Could not run schedule script.", errors=[str(exc)])
+        return ToolResult.fail(
+            "summary_schedule_tasks", "Summary Schedule Tasks", "Could not run schedule script.", errors=[str(exc)]
+        )
     return _tool_result_from_subprocess("summary_schedule_tasks", "Summary Schedule Tasks", completed, started)
 
 

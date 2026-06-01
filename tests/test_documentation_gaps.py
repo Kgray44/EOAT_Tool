@@ -23,4 +23,3 @@ def test_documentation_gap_scanner_detects_missing_fields(fake_project):
     result = generate_documentation_gap_report(fake_project)
     assert result.success is True
     assert len(result.output_reports) == 2
-

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import pytest
 
@@ -81,4 +81,3 @@ def test_missing_reference_file_does_not_crash(fake_project):
     assert result.master_matched is False
     assert result.capacity_matched is False
     assert any("reference file not found" in warning for warning in result.warnings)
-

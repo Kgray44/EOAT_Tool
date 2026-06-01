@@ -80,4 +80,3 @@ def run_python_script(
         if warning:
             result.warnings.append(warning)
     return result
-

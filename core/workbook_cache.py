@@ -49,7 +49,9 @@ def row_dicts_cached(workbook_path: str | Path, sheet_name: str, data_only: bool
     with _LOCK:
         cached = _ROW_CACHE.get(key)
         if cached is not None:
-            _log_cache_event(workbook_path, "workbook_cache.hit", started, sheet_name=sheet_name, cache_type="row_dicts")
+            _log_cache_event(
+                workbook_path, "workbook_cache.hit", started, sheet_name=sheet_name, cache_type="row_dicts"
+            )
             return [dict(row) for row in cached]
     rows = row_dicts(workbook_path, sheet_name)
     snapshot = tuple(copy.deepcopy(row) for row in rows)

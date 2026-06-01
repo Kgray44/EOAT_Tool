@@ -9,8 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.interview_entries import INTERVIEW_QUESTIONS, save_interview_entry
-from core.workbook_schema import get_expected_headers
 
 FIELD_ARG_MAP = {
     "Interview ID": "interview_id",
@@ -41,6 +39,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def collect_interactive() -> dict[str, str]:
+    from core.interview_entries import INTERVIEW_QUESTIONS
+    from core.workbook_schema import get_expected_headers
+
     print("Suggested questions:")
     for question in INTERVIEW_QUESTIONS:
         print(f"- {question}")
@@ -49,11 +50,15 @@ def collect_interactive() -> dict[str, str]:
 
 
 def entry_from_args(args: argparse.Namespace) -> dict[str, str]:
-    return {field: getattr(args, arg_name, "") for field, arg_name in FIELD_ARG_MAP.items() if getattr(args, arg_name, "")}
+    return {
+        field: getattr(args, arg_name, "") for field, arg_name in FIELD_ARG_MAP.items() if getattr(args, arg_name, "")
+    }
 
 
 def main() -> int:
     args = parse_args()
+    from core.interview_entries import INTERVIEW_QUESTIONS, save_interview_entry
+
     if args.questions:
         for question in INTERVIEW_QUESTIONS:
             print(question)
@@ -66,4 +71,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

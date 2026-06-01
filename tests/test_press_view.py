@@ -10,7 +10,7 @@ from core.audit_constants import (
     SOURCE_AUDIT_ID_FIELD,
 )
 from core.paths import get_press_capacity_file, resolve_project_paths
-from core.press_view import build_press_view_groups, export_press_summary
+from core.press_view import PressViewBuildOptions, build_press_view_groups, export_press_summary
 from core.workbook_schema import get_expected_headers
 
 
@@ -63,6 +63,28 @@ def test_press_view_groups_physical_and_compatible_entries(usability_fake_projec
     assert group.pilot_candidacy == "Yes"
     assert group.average_compliance_score >= 0
     assert isinstance(group.worst_compliance_category, str)
+
+
+def test_press_view_keeps_multiple_physical_audits_for_same_machine(usability_fake_project):
+    paths = resolve_project_paths(usability_fake_project)
+    _append_inventory_row(
+        paths.master_workbook,
+        {
+            "Audit ID": "AUD-PHYSICAL-101-B",
+            "Audit Date": "2026-05-20",
+            "Press/Machine #": "Press 101",
+            "Tool #": "TOOL-B",
+            "EOAT Type": "Mechanical / Gripper",
+            "Status": "In Progress",
+            ENTRY_TYPE_FIELD: "Audited",
+        },
+    )
+
+    groups = build_press_view_groups(usability_fake_project)
+    group = next(item for item in groups if item.machine == "101")
+
+    assert {entry.audit_id for entry in group.physical_audits} == {"AUD-20260518-001", "AUD-PHYSICAL-101-B"}
+    assert group.tools == ["TOOL-A", "TOOL-B"]
 
 
 def test_press_view_counts_compatible_links_from_machine_source_audits(fake_project):
@@ -138,12 +160,28 @@ def test_press_view_counts_compatible_links_from_machine_source_audits(fake_proj
     compatibility_tab_result = build_compatibility_candidates(fake_project, source_audit_id)
     actions = {candidate.machine_no: candidate.recommended_action for candidate in compatibility_tab_result.candidates}
     linked_in_compatibility_tab = {
-        machine
-        for machine, action in actions.items()
-        if action == "Already Compatible - Linked to this source"
+        machine for machine, action in actions.items() if action == "Already Compatible - Linked to this source"
     }
     assert actions["1"] == "Already Audited"
     assert linked_in_compatibility_tab == set(linked_machines)
+
+
+def test_press_view_base_build_skips_expensive_layers(usability_fake_project, monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise AssertionError("base Press View grouping must not run expensive derived layers")
+
+    monkeypatch.setattr("core.press_view._open_item_counts", fail)
+    monkeypatch.setattr("core.press_view._validation_counts", fail)
+    monkeypatch.setattr("core.press_view._photo_counts", fail)
+    monkeypatch.setattr("core.press_view._compliance_rollups", fail)
+
+    groups = build_press_view_groups(usability_fake_project, options=PressViewBuildOptions.base_only())
+
+    assert groups
+    assert all(group.open_item_count == 0 for group in groups)
+    assert all(group.validation_warning_count == 0 for group in groups)
+    assert all(group.photo_count == 0 for group in groups)
+    assert all(group.average_compliance_score == 0 for group in groups)
 
 
 def test_press_view_export_is_no_overwrite_project_output(usability_fake_project):

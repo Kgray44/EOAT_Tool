@@ -38,7 +38,11 @@ class PilotEvidencePacket:
     recommended_next_action: str = ""
 
     def to_markdown(self) -> str:
-        risk_lines = [f"- {risk}" for risk in self.risks] if self.risks else ["- No explicit risks found in current local evidence. Review manually before selection."]
+        risk_lines = (
+            [f"- {risk}" for risk in self.risks]
+            if self.risks
+            else ["- No explicit risks found in current local evidence. Review manually before selection."]
+        )
         lines = [
             f"# Pilot Candidate Evidence Packet - {self.candidate_id or self.audit_id or self.machine or 'Unassigned'}",
             "",
@@ -50,7 +54,10 @@ class PilotEvidencePacket:
             f"- Known Issues: {self.known_issues or 'None documented'}",
             "",
             "## Failure Modes For Review",
-            *table_from_rows(list(self.failure_modes), ["Failure Mode", "Evidence", "Suggested Severity", "Suggested Frequency", "Suggested Detectability"]),
+            *table_from_rows(
+                list(self.failure_modes),
+                ["Failure Mode", "Evidence", "Suggested Severity", "Suggested Frequency", "Suggested Detectability"],
+            ),
             "",
             "## Standards Gaps",
             *table_from_rows(list(self.standards_gaps), ["Category", "Status", "Reason", "Recommended Action"]),
@@ -89,16 +96,32 @@ def build_pilot_evidence_packet(
 ) -> tuple[PilotEvidencePacket | None, ToolResult | None]:
     paths = resolve_project_paths(project_root)
     if not paths.master_workbook.exists():
-        return None, ToolResult.fail("pilot_evidence_packet", "Pilot Candidate Evidence Packet", "Master workbook is missing.", errors=[str(paths.master_workbook)])
+        return None, ToolResult.fail(
+            "pilot_evidence_packet",
+            "Pilot Candidate Evidence Packet",
+            "Master workbook is missing.",
+            errors=[str(paths.master_workbook)],
+        )
     try:
-        inventory = [repair_legacy_audit_lookup_shift(row) for row in row_dicts(paths.master_workbook, "EOAT Inventory")]
+        inventory = [
+            repair_legacy_audit_lookup_shift(row) for row in row_dicts(paths.master_workbook, "EOAT Inventory")
+        ]
         candidates = row_dicts(paths.master_workbook, "Pilot Candidates")
         kpis = row_dicts(paths.master_workbook, "KPI Baseline")
     except Exception as exc:
-        return None, ToolResult.fail("pilot_evidence_packet", "Pilot Candidate Evidence Packet", "Could not read workbook context.", errors=[str(exc)])
+        return None, ToolResult.fail(
+            "pilot_evidence_packet",
+            "Pilot Candidate Evidence Packet",
+            "Could not read workbook context.",
+            errors=[str(exc)],
+        )
     candidate, audit = _resolve_candidate(candidate_id, audit_id, machine, candidates, inventory, project_root)
     if candidate is None and audit is None:
-        return None, ToolResult.fail("pilot_evidence_packet", "Pilot Candidate Evidence Packet", "No matching pilot candidate or audit row found.")
+        return None, ToolResult.fail(
+            "pilot_evidence_packet",
+            "Pilot Candidate Evidence Packet",
+            "No matching pilot candidate or audit row found.",
+        )
     machine_value = _text(machine or (candidate or {}).get("Press/Machine #") or (audit or {}).get("Press/Machine #"))
     audit_id_value = _text(audit_id or (audit or {}).get("Audit ID") or (candidate or {}).get("Candidate ID"))
     eoat_type = _text((audit or candidate or {}).get("EOAT Type"))
@@ -120,7 +143,8 @@ def build_pilot_evidence_packet(
         kpi_context=tuple(kpi_rows),
         photo_evidence=tuple(photo_rows),
         open_items=tuple(open_rows),
-        expected_improvement_area=_text((candidate or {}).get("Expected KPI Improvement")) or _expected_improvement_area(audit, kpi_rows),
+        expected_improvement_area=_text((candidate or {}).get("Expected KPI Improvement"))
+        or _expected_improvement_area(audit, kpi_rows),
         implementation_difficulty=_text((candidate or {}).get("Ease of Implementation")) or "Unknown / review required",
         risks=tuple(risks),
         recommended_next_action="Review the evidence packet, confirm missing baseline/evidence items, and edit FMEA values before final pilot selection.",
@@ -137,16 +161,25 @@ def generate_pilot_evidence_packet(
     log_activity: bool = True,
 ) -> ToolResult:
     started = time.perf_counter()
-    packet, error = build_pilot_evidence_packet(project_root, candidate_id=candidate_id, audit_id=audit_id, machine=machine)
+    packet, error = build_pilot_evidence_packet(
+        project_root, candidate_id=candidate_id, audit_id=audit_id, machine=machine
+    )
     if error:
         return error
     assert packet is not None
     folder = ensure_directory(resolve_project_paths(project_root).pilot_project / "Candidate_Cells")
-    safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", packet.candidate_id or packet.audit_id or packet.machine or "pilot_candidate").strip("_")
+    safe_name = re.sub(
+        r"[^A-Za-z0-9_-]+", "_", packet.candidate_id or packet.audit_id or packet.machine or "pilot_candidate"
+    ).strip("_")
     try:
         report = write_timestamped_report(folder, f"Pilot_Evidence_Packet_{safe_name}", packet.to_markdown())
     except Exception as exc:
-        return ToolResult.fail("pilot_evidence_packet", "Pilot Candidate Evidence Packet", "Could not write pilot evidence packet.", errors=[str(exc)])
+        return ToolResult.fail(
+            "pilot_evidence_packet",
+            "Pilot Candidate Evidence Packet",
+            "Could not write pilot evidence packet.",
+            errors=[str(exc)],
+        )
     result = ToolResult.ok(
         "pilot_evidence_packet",
         "Pilot Candidate Evidence Packet",
@@ -154,7 +187,11 @@ def generate_pilot_evidence_packet(
         details=[f"Packet: {report}"],
         files_created=[str(report)],
         output_reports=[str(report)],
-        metrics={"failure_modes": len(packet.failure_modes), "standards_gaps": len(packet.standards_gaps), "open_items": len(packet.open_items)},
+        metrics={
+            "failure_modes": len(packet.failure_modes),
+            "standards_gaps": len(packet.standards_gaps),
+            "open_items": len(packet.open_items),
+        },
         duration_seconds=time.perf_counter() - started,
     )
     if log_activity:
@@ -211,14 +248,26 @@ def _standards_rows(project_root: str | Path, audit: dict[str, Any] | None) -> l
     compliance = score_audit_compliance(project_root, audit)
     rows = []
     for category in [*compliance.failed_standards, *compliance.warnings, *compliance.unknown_items]:
-        rows.append({"Category": category.label, "Status": category.status, "Reason": category.reason, "Recommended Action": category.recommended_action})
+        rows.append(
+            {
+                "Category": category.label,
+                "Status": category.status,
+                "Reason": category.reason,
+                "Recommended Action": category.recommended_action,
+            }
+        )
     return rows
 
 
 def _fmea_rows(project_root: str | Path, audit_id: str, machine: str) -> list[dict[str, Any]]:
     rows = []
     for suggestion in build_fmea_suggestions(project_root):
-        if audit_id and suggestion.get("Audit ID") == audit_id or machine and suggestion.get("Press/Machine #") == machine:
+        if (
+            audit_id
+            and suggestion.get("Audit ID") == audit_id
+            or machine
+            and suggestion.get("Press/Machine #") == machine
+        ):
             rows.append(suggestion)
     return rows[:12]
 
@@ -250,13 +299,23 @@ def _open_item_rows(project_root: str | Path, audit_id: str, machine: str) -> li
     rows = []
     for item in items:
         if audit_id and item.audit_id == audit_id or machine and item.machine == machine:
-            rows.append({"Source": item.source, "Severity": item.severity, "Title": item.title, "Status": item.status, "Recommended Action": item.recommended_action})
+            rows.append(
+                {
+                    "Source": item.source,
+                    "Severity": item.severity,
+                    "Title": item.title,
+                    "Status": item.status,
+                    "Recommended Action": item.recommended_action,
+                }
+            )
     return rows[:15]
 
 
 def _kpi_rows(kpis: list[dict[str, Any]], machine: str, audit: dict[str, Any] | None) -> list[dict[str, Any]]:
     rows = []
-    related = [row for row in kpis if _text(row.get("Press/Machine #")).casefold() == machine.casefold()] if machine else []
+    related = (
+        [row for row in kpis if _text(row.get("Press/Machine #")).casefold() == machine.casefold()] if machine else []
+    )
     metrics = {
         "Downtime Minutes": sum(numeric(row.get("Downtime Minutes")) for row in related),
         "Scrap Quantity": sum(numeric(row.get("Scrap Quantity")) for row in related),
@@ -275,10 +334,19 @@ def _kpi_rows(kpis: list[dict[str, Any]], machine: str, audit: dict[str, Any] | 
     return rows
 
 
-def _risk_lines(standards: list[dict[str, Any]], photo_rows: list[dict[str, Any]], open_rows: list[dict[str, Any]], fmea_rows: list[dict[str, Any]]) -> list[str]:
+def _risk_lines(
+    standards: list[dict[str, Any]],
+    photo_rows: list[dict[str, Any]],
+    open_rows: list[dict[str, Any]],
+    fmea_rows: list[dict[str, Any]],
+) -> list[str]:
     risks: list[str] = []
     risks.extend(f"Standards gap: {row['Category']} ({row['Status']})" for row in standards[:5])
-    risks.extend(f"Missing photo evidence: {row['Category']}" for row in photo_rows if row.get("Required") == "Yes" and row.get("Present") == "No")
+    risks.extend(
+        f"Missing photo evidence: {row['Category']}"
+        for row in photo_rows
+        if row.get("Required") == "Yes" and row.get("Present") == "No"
+    )
     risks.extend(f"Open item: {row['Title']}" for row in open_rows[:5])
     risks.extend(f"Review FMEA mode: {row.get('Failure Mode')}" for row in fmea_rows[:5])
     return list(dict.fromkeys(risks))
@@ -292,7 +360,10 @@ def _expected_improvement_area(audit: dict[str, Any] | None, kpi_rows: list[dict
             return "Quality and scrap reduction review"
         if _text(audit.get("Known Issues")):
             return "Reliability issue reduction review"
-    if any(row.get("Metric") in {"Downtime Minutes", "Part Drops", "Mis-Picks"} and row.get("Value") != "Not available" for row in kpi_rows):
+    if any(
+        row.get("Metric") in {"Downtime Minutes", "Part Drops", "Mis-Picks"} and row.get("Value") != "Not available"
+        for row in kpi_rows
+    ):
         return "Reliability and uptime review"
     return "Review required; no quantified improvement claimed"
 

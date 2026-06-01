@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -51,7 +52,6 @@ ALLOW_PREFIXES = (
     ("templates",),
     ("tests",),
     ("data_templates",),
-    ("docs",),
 )
 DATA_ALLOW_PREFIXES = (
     ("examples", "demo_project"),
@@ -117,7 +117,9 @@ LINE_RULES: list[tuple[str, str, re.Pattern[str]]] = [
     (
         "WARNING",
         "Public company reference appears near operational context; review before publishing.",
-        re.compile(r"(?i)\b(?:nolato|gw\s*plastics|gwplastics)\b.{0,120}\b(?:capacity|cycle\s*time|downtime|scrap|mold|part\s*(?:number|no\.?|#)|customer|press|maintenance)\b"),
+        re.compile(
+            r"(?i)\b(?:nolato|gw\s*plastics|gwplastics)\b.{0,120}\b(?:capacity|cycle\s*time|downtime|scrap|mold|part\s*(?:number|no\.?|#)|customer|press|maintenance)\b"
+        ),
     ),
 ]
 
@@ -240,7 +242,8 @@ def _path_matches_blocker(rel: str, pattern: str) -> bool:
 
 def iter_files(root: Path) -> list[Path]:
     files: list[Path] = []
-    for current, dirs, names in root.walk():
+    for current_text, dirs, names in os.walk(root):
+        current = Path(current_text)
         dirs[:] = [name for name in dirs if not should_skip_dir(current / name, root)]
         for name in names:
             path = current / name
@@ -248,6 +251,28 @@ def iter_files(root: Path) -> list[Path]:
                 continue
             files.append(path)
     return files
+
+
+def git_repo_files(root: str | Path, git_executable: str = "git") -> tuple[list[Path] | None, str | None]:
+    root_path = Path(root).resolve()
+    if not (root_path / ".git").exists():
+        return None, None
+    try:
+        completed = subprocess.run(
+            [git_executable, "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            cwd=root_path,
+            check=False,
+            capture_output=True,
+            text=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, f"Could not list git candidate files: {exc}"
+    if completed.returncode != 0:
+        error = completed.stderr.decode("utf-8", errors="replace").strip()
+        return None, f"Could not list git candidate files: {error or completed.returncode}"
+    names = [name.decode("utf-8", errors="replace") for name in completed.stdout.split(b"\0") if name]
+    return [root_path / name for name in names], None
 
 
 def git_staged_files(root: str | Path, git_executable: str = "git") -> tuple[list[Path], str | None]:
@@ -305,10 +330,9 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
     for pattern, message in PATH_BLOCKERS:
         if _path_matches_blocker(rel_lower, pattern.lower()):
             findings.append(Finding("BLOCKER", path, message))
-    if (
-        path.name.lower() in LOCAL_CONFIG_NAMES
-        or path.name.lower().endswith(".local.json")
-    ) and not any(finding.message == "Local config file must not be committed." for finding in findings):
+    if (path.name.lower() in LOCAL_CONFIG_NAMES or path.name.lower().endswith(".local.json")) and not any(
+        finding.message == "Local config file must not be committed." for finding in findings
+    ):
         findings.append(Finding("BLOCKER", path, "Local config file must not be committed."))
 
     if not allowed:
@@ -321,17 +345,35 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
 
         normalized = rel_lower.replace("-", "_").replace(" ", "_")
         if any(part in GENERATED_PATH_PARTS for part in parts_lower):
-            findings.append(Finding("BLOCKER", path, "Generated reports/logs/cache/backups/exports path is outside the demo/template/test allowlist."))
+            findings.append(
+                Finding(
+                    "BLOCKER",
+                    path,
+                    "Generated reports/logs/cache/backups/exports path is outside the demo/template/test allowlist.",
+                )
+            )
 
         if any(word.replace(" ", "_") in normalized for word in SENSITIVE_PATH_WORDS):
             if path.suffix.lower() in DATA_SUFFIXES | IMAGE_SUFFIXES or "reports" in normalized or "logs" in normalized:
-                findings.append(Finding("BLOCKER", path, "Operational data/output path is outside the demo/template/test allowlist."))
+                findings.append(
+                    Finding(
+                        "BLOCKER", path, "Operational data/output path is outside the demo/template/test allowlist."
+                    )
+                )
 
         if path.suffix.lower() in DATA_SUFFIXES | IMAGE_SUFFIXES and path.stat().st_size > max_large_file_bytes:
-            findings.append(Finding("WARNING", path, "Large data/media file found outside the allowlist; review for real operational content."))
+            findings.append(
+                Finding(
+                    "WARNING",
+                    path,
+                    "Large data/media file found outside the allowlist; review for real operational content.",
+                )
+            )
 
     if path.suffix.lower() in WORKBOOK_SUFFIXES and not allowed_data:
-        findings.append(Finding("BLOCKER", path, "Workbook file is outside allowed demo/template/test/data-template paths."))
+        findings.append(
+            Finding("BLOCKER", path, "Workbook file is outside allowed demo/template/test/data-template paths.")
+        )
     if path.suffix.lower() in IMAGE_SUFFIXES and not allowed_image:
         findings.append(Finding("BLOCKER", path, "Photo/image file is outside allowed demo/template/test/docs paths."))
 
@@ -358,7 +400,10 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
 def audit_repo(root: str | Path) -> list[Finding]:
     root_path = Path(root).resolve()
     findings: list[Finding] = []
-    for path in iter_files(root_path):
+    files, warning = git_repo_files(root_path)
+    if warning:
+        findings.append(Finding("WARNING", root_path, warning))
+    for path in files if files is not None else iter_files(root_path):
         findings.extend(audit_file(path, root_path))
     return findings
 
@@ -375,7 +420,9 @@ def print_findings(findings: list[Finding], root: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Scan the EOAT toolkit repository for NDA-sensitive files or content before commit.")
+    parser = argparse.ArgumentParser(
+        description="Scan the EOAT toolkit repository for NDA-sensitive files or content before commit."
+    )
     parser.add_argument("--root", default=".", help="Repository root to scan. Defaults to the current directory.")
     parser.add_argument("--staged", action="store_true", help="Scan only staged files using git diff --cached.")
     parser.add_argument("--git", default="git", help="Git executable to use with --staged.")

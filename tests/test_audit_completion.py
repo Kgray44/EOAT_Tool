@@ -40,7 +40,9 @@ def _entry(**overrides):
 
 
 def test_completion_policy_reports_missing_actionable_fields():
-    result = evaluate_completion(_entry(**{"Press/Machine #": "", "Sensors Present?": "Yes", "Sensor Type": UNKNOWN_NOT_CHECKED}))
+    result = evaluate_completion(
+        _entry(**{"Press/Machine #": "", "Sensors Present?": "Yes", "Sensor Type": UNKNOWN_NOT_CHECKED})
+    )
 
     assert result.can_finish is False
     assert result.percent_complete < 100
@@ -68,14 +70,18 @@ def test_completion_policy_accepts_manual_override_truthfully():
 
 
 def test_completion_policy_can_disable_manual_override():
-    result = evaluate_completion(_entry(**{MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes"}), CompletionPolicy(allow_manual_override=False))
+    result = evaluate_completion(
+        _entry(**{MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes"}), CompletionPolicy(allow_manual_override=False)
+    )
 
     assert result.manual_completion_override is False
     assert result.can_finish is False
 
 
 def test_next_completion_actions_returns_ranked_fields():
-    actions = next_completion_actions(_entry(**{"Press/Machine #": "", "Tubing Condition": UNKNOWN_NOT_CHECKED}), limit=2)
+    actions = next_completion_actions(
+        _entry(**{"Press/Machine #": "", "Tubing Condition": UNKNOWN_NOT_CHECKED}), limit=2
+    )
 
     assert actions[0]["field"] == "Press/Machine #"
     assert len(actions) == 2

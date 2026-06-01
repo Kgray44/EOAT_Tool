@@ -69,7 +69,9 @@ def test_note_crud_search_filter_sort_and_links(fake_project):
     assert updated.subject == "Sensor question updated"
     assert updated.importance == "Critical"
 
-    matches = service.search_notes("sensor", importance="Critical", status="Open", tag_name="Needs Review", sort_by="subject")
+    matches = service.search_notes(
+        "sensor", importance="Critical", status="Open", tag_name="Needs Review", sort_by="subject"
+    )
     assert [item["id"] for item in matches] == [note.id]
     assert matches[0]["tags"][0]["name"] == "Needs Review"
     assert matches[0]["targets"][0]["audit_id"] == "AUD-NOTE-001"
@@ -107,7 +109,9 @@ def test_tag_crud_search_filter_sort_and_multiple_tags_per_target(fake_project):
 
 def test_info_tag_is_neutral_searchable_and_not_an_open_issue(fake_project):
     service = AnnotationService(fake_project)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-INFO-001", machine_id="26", field_key="Notes", field_label="Notes")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-INFO-001", machine_id="26", field_key="Notes", field_label="Notes"
+    )
     info = service.get_tag_by_name("Info")
     before_open_items = open_items_summary(fake_project, today=date(2026, 5, 26))["total_open_items"]
 
@@ -124,7 +128,10 @@ def test_info_tag_is_neutral_searchable_and_not_an_open_issue(fake_project):
     assert service_summary["info_tags"] == 1
     assert service_summary["fields_needing_review"] == 0
     assert service_summary["data_conflicts"] == 0
-    assert not any(item.source == "tag" and item.title.startswith("Info:") for item in list_open_items(fake_project, include_resolved=True))
+    assert not any(
+        item.source == "tag" and item.title.startswith("Info:")
+        for item in list_open_items(fake_project, include_resolved=True)
+    )
     assert open_items_summary(fake_project, today=date(2026, 5, 26))["total_open_items"] == before_open_items
 
 
@@ -132,7 +139,9 @@ def test_note_and_tag_exports_markdown_and_excel(fake_project):
     service = AnnotationService(fake_project)
     target = service.create_or_get_target("audit", audit_id="AUD-EXPORT-001")
     tag = service.get_tag_by_name("Documentation Gap")
-    note = service.create_note("Exportable note", "Body **markdown**", "Neutral", target_ids=[target.id], tag_ids=[tag.id])
+    note = service.create_note(
+        "Exportable note", "Body **markdown**", "Neutral", target_ids=[target.id], tag_ids=[tag.id]
+    )
     service.assign_tag_to_target(tag.id, target.id, comment="Missing CAD.", sync_workbook=False)
 
     note_rows = service.search_notes("Exportable")
@@ -143,6 +152,7 @@ def test_note_and_tag_exports_markdown_and_excel(fake_project):
     tag_xlsx = service.export_tags_excel(tag_rows)
 
     assert note.subject in note_md.read_text(encoding="utf-8")
+    assert note_md.parent == fake_project / "06_Final_Handoff" / "Annotation_Exports"
     assert note_xlsx.exists()
     assert "Documentation Gap" in tag_md.read_text(encoding="utf-8")
     assert tag_xlsx.exists()
@@ -154,7 +164,9 @@ def test_open_items_summary_counts_and_suggestions(fake_project):
     service.create_note("Critical open", "Body", "Critical", status="Open")
     service.create_note("Important open", "Body", "Important", status="Open", follow_up_date=due)
     service.create_note("Resolved critical", "Body", "Critical", status="Resolved")
-    target = service.create_or_get_target("audit_field", audit_id="AUD-OPEN-001", field_key="Sensor Type", field_label="Sensor Type")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-OPEN-001", field_key="Sensor Type", field_label="Sensor Type"
+    )
     for tag_name in ["Needs Review", "Data Conflict", "Missing Evidence", "Compatibility Concern", "Documentation Gap"]:
         service.assign_tag_to_target(service.get_tag_by_name(tag_name).id, target.id, sync_workbook=False)
 
@@ -235,7 +247,9 @@ def test_workbook_cell_color_sync_priority_and_safe_clear(fake_project):
 
 def test_missing_workbook_sync_returns_friendly_warning(tmp_path):
     service = AnnotationService(tmp_path)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-MISSING", field_key="Sensor Type", header_name="Sensor Type")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-MISSING", field_key="Sensor Type", header_name="Sensor Type"
+    )
 
     result = service.sync_target_colors_to_workbook(target.id)
 
@@ -248,7 +262,11 @@ def _field_fill(project_root, audit_id: str, header: str) -> str:
     try:
         ws = workbook["EOAT Inventory"]
         headers = [cell.value for cell in ws[1]]
-        row = next(row for row in range(2, ws.max_row + 1) if ws.cell(row=row, column=headers.index("Audit ID") + 1).value == audit_id)
+        row = next(
+            row
+            for row in range(2, ws.max_row + 1)
+            if ws.cell(row=row, column=headers.index("Audit ID") + 1).value == audit_id
+        )
         cell = ws.cell(row=row, column=headers.index(header) + 1)
         return cell.fill.fgColor.rgb or ""
     finally:

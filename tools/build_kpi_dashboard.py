@@ -9,13 +9,14 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.kpi_analysis import generate_kpi_dashboard_report
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate an EOAT KPI dashboard report.")
     parser.add_argument("--project-root", default=str(DEFAULT_PROJECT_ROOT))
     args = parser.parse_args()
+    from core.kpi_analysis import generate_kpi_dashboard_report
+
     result = generate_kpi_dashboard_report(args.project_root)
     print(result.to_markdown())
     return 0 if result.success else 1
@@ -23,4 +24,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

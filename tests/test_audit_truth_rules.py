@@ -117,7 +117,11 @@ def test_hybrid_and_semantic_warnings_are_non_blocking(fake_project):
 
 
 def test_sensor_electrical_and_quick_disconnect_rules_are_separate():
-    no_sensors = {"EOAT Type": "Vacuum", "Sensors Present?": "No", "Electrical/Wiring Present?": "Unknown / Not Checked"}
+    no_sensors = {
+        "EOAT Type": "Vacuum",
+        "Sensors Present?": "No",
+        "Electrical/Wiring Present?": "Unknown / Not Checked",
+    }
     assert not field_applies(no_sensors, "Sensor Type")
     assert not field_applies(no_sensors, "Sensor Brand/Model")
     assert not field_applies(no_sensors, "Part-Present Detection Present?")
@@ -127,7 +131,11 @@ def test_sensor_electrical_and_quick_disconnect_rules_are_separate():
     assert not field_applies(no_wiring, "Cable Management Condition")
     assert not field_applies(no_wiring, "Electrical Quick Disconnect Type")
 
-    old_schema_no_wiring_control = {"EOAT Type": "Vacuum", "Sensors Present?": "No", "Cable Management Condition": "N/A"}
+    old_schema_no_wiring_control = {
+        "EOAT Type": "Vacuum",
+        "Sensors Present?": "No",
+        "Cable Management Condition": "N/A",
+    }
     assert not field_applies(old_schema_no_wiring_control, "Cable Management Condition")
     old_schema_with_evidence = {"EOAT Type": "Vacuum", "Sensors Present?": "No", "Cable Management Condition": "OK"}
     assert field_applies(old_schema_with_evidence, "Cable Management Condition")
@@ -212,7 +220,9 @@ def test_empty_only_filters_to_applicable_empty_fields():
     }
     fields = ["Gripper Model", "Cup Type/Material", "Sensor Type", "Cable Management Condition"]
 
-    visible = get_empty_only_visible_fields(row, {field: object() for field in fields}, lambda field: field_applies(row, field))
+    visible = get_empty_only_visible_fields(
+        row, {field: object() for field in fields}, lambda field: field_applies(row, field)
+    )
 
     assert [field.name for field in visible] == ["Gripper Model", "Cable Management Condition"]
 
@@ -235,7 +245,9 @@ def test_audit_by_press_counts_physical_and_compatible_rows(fake_project):
         },
     )
     assert source.success, source.errors
-    created = create_compatibility_entries(fake_project, "AUD-PRESS-SOURCE", ["70"], reference_root / "press_capacity.xlsx")
+    created = create_compatibility_entries(
+        fake_project, "AUD-PRESS-SOURCE", ["70"], reference_root / "press_capacity.xlsx"
+    )
     assert created.success, created.errors
 
     workbook = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)

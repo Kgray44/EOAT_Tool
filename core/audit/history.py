@@ -8,6 +8,7 @@ from typing import Any
 
 from core.paths import resolve_project_paths
 from core.safe_files import ensure_directory
+from core.workbook_cache import WorkbookFileSignature
 
 HISTORY_FILE_NAME = "audit_history.jsonl"
 
@@ -20,6 +21,11 @@ class AuditHistoryRecord:
     changed_fields: list[str]
     old_values: dict[str, str] = field(default_factory=dict)
     new_values: dict[str, str] = field(default_factory=dict)
+    previous_row_data: dict[str, str] = field(default_factory=dict)
+    new_row_data: dict[str, str] = field(default_factory=dict)
+    workbook_signature_before: dict[str, object] = field(default_factory=dict)
+    workbook_signature_after: dict[str, object] = field(default_factory=dict)
+    auditor: str = ""
     source: str = "audit_entry_save"
     files_modified: list[str] = field(default_factory=list)
 
@@ -41,9 +47,7 @@ def changed_audit_fields(before: dict[str, Any] | None, after: dict[str, Any] | 
     after = after or {}
     keys = set(before) | set(after)
     changed = [
-        key
-        for key in keys
-        if normalize_history_value(before.get(key)) != normalize_history_value(after.get(key))
+        key for key in keys if normalize_history_value(before.get(key)) != normalize_history_value(after.get(key))
     ]
     return sorted(changed)
 
@@ -54,6 +58,9 @@ def build_audit_history_record(
     before: dict[str, Any] | None,
     after: dict[str, Any] | None,
     *,
+    workbook_signature_before: WorkbookFileSignature | dict[str, Any] | None = None,
+    workbook_signature_after: WorkbookFileSignature | dict[str, Any] | None = None,
+    auditor: str = "",
     source: str = "audit_entry_save",
     files_modified: list[str] | None = None,
 ) -> AuditHistoryRecord:
@@ -67,6 +74,11 @@ def build_audit_history_record(
         changed_fields=fields,
         old_values={field: normalize_history_value(before.get(field)) for field in fields},
         new_values={field: normalize_history_value(after.get(field)) for field in fields},
+        previous_row_data={field: normalize_history_value(value) for field, value in before.items()},
+        new_row_data={field: normalize_history_value(value) for field, value in after.items()},
+        workbook_signature_before=_signature_dict(workbook_signature_before),
+        workbook_signature_after=_signature_dict(workbook_signature_after),
+        auditor=str(auditor or after.get("Auditor") or before.get("Auditor") or ""),
         source=source,
         files_modified=list(files_modified or []),
     )
@@ -79,6 +91,9 @@ def append_audit_history(
     before: dict[str, Any] | None,
     after: dict[str, Any] | None,
     *,
+    workbook_signature_before: WorkbookFileSignature | dict[str, Any] | None = None,
+    workbook_signature_after: WorkbookFileSignature | dict[str, Any] | None = None,
+    auditor: str = "",
     source: str = "audit_entry_save",
     files_modified: list[str] | None = None,
 ) -> Path:
@@ -89,12 +104,28 @@ def append_audit_history(
         event_type,
         before,
         after,
+        workbook_signature_before=workbook_signature_before,
+        workbook_signature_after=workbook_signature_after,
+        auditor=auditor,
         source=source,
         files_modified=files_modified,
     )
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
     return path
+
+
+def _signature_dict(signature: WorkbookFileSignature | dict[str, Any] | None) -> dict[str, object]:
+    if signature is None:
+        return {}
+    if isinstance(signature, dict):
+        return dict(signature)
+    return {
+        "path": signature.path,
+        "exists": signature.exists,
+        "mtime_ns": signature.mtime_ns,
+        "size": signature.size,
+    }
 
 
 def read_audit_history(project_root: str | Path) -> list[dict[str, Any]]:

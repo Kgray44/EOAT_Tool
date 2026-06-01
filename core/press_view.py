@@ -19,6 +19,7 @@ from .audit_compatibility import (
 from .logging import log_tool_run
 from .open_items import list_open_items
 from .paths import resolve_project_paths
+from .performance import log_performance_event
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .standards_compliance import analyze_standards_compliance
@@ -68,9 +69,7 @@ class PressViewGroup:
     @property
     def compatibility_family_machine_count(self) -> int:
         machines = {
-            entry.machine
-            for entry in [*self.physical_audits, *self.linked_compatible_entries]
-            if entry.machine
+            entry.machine for entry in [*self.physical_audits, *self.linked_compatible_entries] if entry.machine
         }
         return len(machines)
 
@@ -81,18 +80,105 @@ class PressViewGroup:
         return data
 
 
-def build_press_view_groups(project_root: str | Path, *, status_filter: str = "", query: str = "") -> list[PressViewGroup]:
+@dataclass(frozen=True)
+class PressViewBuildOptions:
+    include_open_items: bool = True
+    include_validation_counts: bool = True
+    include_photo_counts: bool = True
+    include_compliance: bool = True
+
+    @classmethod
+    def base_only(cls) -> PressViewBuildOptions:
+        return cls(
+            include_open_items=False,
+            include_validation_counts=False,
+            include_photo_counts=False,
+            include_compliance=False,
+        )
+
+
+def build_press_view_groups(
+    project_root: str | Path,
+    *,
+    status_filter: str = "",
+    query: str = "",
+    options: PressViewBuildOptions | None = None,
+    include_open_items: bool | None = None,
+    include_validation_counts: bool | None = None,
+    include_photo_counts: bool | None = None,
+    include_compliance: bool | None = None,
+) -> list[PressViewGroup]:
+    options = _resolve_build_options(
+        options,
+        include_open_items=include_open_items,
+        include_validation_counts=include_validation_counts,
+        include_photo_counts=include_photo_counts,
+        include_compliance=include_compliance,
+    )
     paths = resolve_project_paths(project_root)
     if not paths.master_workbook.exists():
+        _log_press_view_step(project_root, "audit_rows", 0.0, row_count=0, missing_workbook=True)
         return []
+    rows_started = time.perf_counter()
     try:
         rows = row_dicts(paths.master_workbook, "EOAT Inventory")
-    except Exception:
+    except Exception as exc:
+        _log_press_view_step(
+            project_root, "audit_rows", time.perf_counter() - rows_started, row_count=0, error=str(exc)
+        )
         return []
-    open_counts = _open_item_counts(project_root)
-    validation_counts = _validation_counts(project_root)
-    photo_counts = _photo_counts(project_root)
-    compliance_rollups = _compliance_rollups(project_root)
+    _log_press_view_step(project_root, "audit_rows", time.perf_counter() - rows_started, row_count=len(rows))
+    open_counts = _timed_press_view_layer(
+        project_root, "open_items", options.include_open_items, lambda: _open_item_counts(project_root)
+    )
+    validation_counts = _timed_press_view_layer(
+        project_root, "validation_counts", options.include_validation_counts, lambda: _validation_counts(project_root)
+    )
+    photo_counts = _timed_press_view_layer(
+        project_root, "photo_counts", options.include_photo_counts, lambda: _photo_counts(project_root)
+    )
+    compliance_rollups = _timed_press_view_layer(
+        project_root, "compliance", options.include_compliance, lambda: _compliance_rollups(project_root)
+    )
+    grouping_started = time.perf_counter()
+    groups = _group_press_view_rows(
+        rows,
+        open_counts=open_counts,
+        validation_counts=validation_counts,
+        photo_counts=photo_counts,
+        compliance_rollups=compliance_rollups,
+        status_filter=status_filter,
+        query=query,
+    )
+    _log_press_view_step(
+        project_root,
+        "grouping",
+        time.perf_counter() - grouping_started,
+        group_count=len(groups),
+        query=bool(query),
+        status_filter=status_filter or "",
+    )
+    return groups
+
+
+def build_press_view_base_groups(
+    project_root: str | Path, *, status_filter: str = "", query: str = ""
+) -> list[PressViewGroup]:
+    return build_press_view_groups(
+        project_root, status_filter=status_filter, query=query, options=PressViewBuildOptions.base_only()
+    )
+
+
+def _group_press_view_rows(
+    rows: list[dict[str, Any]],
+    *,
+    open_counts: dict[str, int],
+    validation_counts: dict[str, int],
+    photo_counts: dict[str, int],
+    compliance_rollups: dict[str, dict[str, Any]],
+    status_filter: str = "",
+    query: str = "",
+) -> list[PressViewGroup]:
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
         machine = machine_from_audit_row(row)
@@ -101,7 +187,9 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
         entry = _entry_from_row(row, machine)
         if status_filter and status_filter != "All" and status_filter.casefold() not in entry.status.casefold():
             continue
-        group = grouped.setdefault(machine, {"physical": [], "compatible": [], "tools": set(), "pilot": [], "dates": []})
+        group = grouped.setdefault(
+            machine, {"physical": [], "compatible": [], "tools": set(), "pilot": [], "dates": []}
+        )
         if is_compatibility_row(row):
             group["compatible"].append(entry)
         else:
@@ -140,11 +228,54 @@ def build_press_view_groups(project_root: str | Path, *, status_filter: str = ""
     return sorted(groups, key=lambda group: _machine_sort_key(group.machine))
 
 
+def _resolve_build_options(
+    options: PressViewBuildOptions | None,
+    *,
+    include_open_items: bool | None,
+    include_validation_counts: bool | None,
+    include_photo_counts: bool | None,
+    include_compliance: bool | None,
+) -> PressViewBuildOptions:
+    resolved = options or PressViewBuildOptions()
+    overrides = {
+        "include_open_items": include_open_items,
+        "include_validation_counts": include_validation_counts,
+        "include_photo_counts": include_photo_counts,
+        "include_compliance": include_compliance,
+    }
+    for field_name, value in overrides.items():
+        if value is not None:
+            resolved = replace(resolved, **{field_name: bool(value)})
+    return resolved
+
+
+def _timed_press_view_layer(project_root: str | Path, step: str, enabled: bool, func) -> dict:
+    if not enabled:
+        _log_press_view_step(project_root, step, 0.0, skipped=True)
+        return {}
+    started = time.perf_counter()
+    data = func()
+    _log_press_view_step(project_root, step, time.perf_counter() - started, item_count=len(data))
+    return data
+
+
+def _log_press_view_step(project_root: str | Path, step: str, duration_seconds: float, **details: object) -> None:
+    log_performance_event(
+        project_root,
+        f"press_view.rebuild.{step}",
+        duration_seconds,
+        source="press_view",
+        page_tool="press_view",
+        details=details,
+    )
+
+
 def press_view_cache_path(project_root: str | Path) -> Path:
     return resolve_project_paths(project_root).cache / "press_view_groups.json"
 
 
 def save_press_view_cache(project_root: str | Path, groups: list[PressViewGroup]) -> Path:
+    started = time.perf_counter()
     path = press_view_cache_path(project_root)
     ensure_directory(path.parent)
     payload = {
@@ -152,6 +283,7 @@ def save_press_view_cache(project_root: str | Path, groups: list[PressViewGroup]
         "groups": [group.to_dict() for group in groups],
     }
     path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+    _log_press_view_step(project_root, "cache_write", time.perf_counter() - started, group_count=len(groups))
     return path
 
 
@@ -172,10 +304,14 @@ def load_cached_press_view_groups(project_root: str | Path) -> tuple[list[PressV
 
 def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
     started = time.perf_counter()
-    groups = build_press_view_groups(project_root)
+    groups, _generated_at, _warning = load_cached_press_view_groups(project_root)
+    if not groups:
+        groups = build_press_view_base_groups(project_root)
     group = next((item for item in groups if item.machine == machine), None)
     if group is None:
-        return ToolResult.fail("press_view_export", "Press View Summary Export", f"Press/Machine {machine} was not found.")
+        return ToolResult.fail(
+            "press_view_export", "Press View Summary Export", f"Press/Machine {machine} was not found."
+        )
     lines = [
         f"# {group.display_name} Summary",
         "",
@@ -208,7 +344,9 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
     try:
         saved = safe_write_text(path, "\n".join(lines).rstrip() + "\n", overwrite=False)
     except Exception as exc:
-        return ToolResult.fail("press_view_export", "Press View Summary Export", "Could not export press summary.", errors=[str(exc)])
+        return ToolResult.fail(
+            "press_view_export", "Press View Summary Export", "Could not export press summary.", errors=[str(exc)]
+        )
     result = ToolResult.ok(
         "press_view_export",
         "Press View Summary Export",
@@ -275,7 +413,9 @@ def _entry_from_dict(data: dict[str, Any]) -> PressAuditEntry:
 def _group_from_dict(data: dict[str, Any]) -> PressViewGroup:
     physical = [_entry_from_dict(item) for item in data.get("physical_audits", []) if isinstance(item, dict)]
     compatible = [_entry_from_dict(item) for item in data.get("compatible_entries", []) if isinstance(item, dict)]
-    linked_compatible = [_entry_from_dict(item) for item in data.get("linked_compatible_entries", []) if isinstance(item, dict)]
+    linked_compatible = [
+        _entry_from_dict(item) for item in data.get("linked_compatible_entries", []) if isinstance(item, dict)
+    ]
     group = PressViewGroup(
         machine=str(data.get("machine") or ""),
         display_name=str(data.get("display_name") or ""),
@@ -316,7 +456,9 @@ def _validation_counts(project_root: str | Path) -> dict[str, int]:
     if not folder.exists():
         return {}
     payload: dict[str, Any] = {}
-    for path in sorted(folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+    for path in sorted(
+        folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True
+    ):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             break

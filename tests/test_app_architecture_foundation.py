@@ -13,7 +13,14 @@ def test_page_registry_defines_existing_navigation():
 
     assert len(keys) == len(set(keys))
     assert keys == [item.page_key for item in NAV_ITEMS]
-    assert [section.label for section in NAV_SECTIONS] == ["Overview", "Capture", "Analysis", "Standards", "Output", "System"]
+    assert [section.label for section in NAV_SECTIONS] == [
+        "Overview",
+        "Capture",
+        "Analysis",
+        "Standards",
+        "Output",
+        "System",
+    ]
     assert [section for section, _specs in page_specs_by_section()] == [section.label for section in NAV_SECTIONS]
     assert get_page_spec("home").factory_path == "app.pages.home:HomePage"
     assert not get_page_spec("tool_registry").requires_config
@@ -59,7 +66,7 @@ def test_dashboard_lifecycle_helpers_tolerate_absent_and_present_hooks():
             self.calls.append("show")
             return "shown"
 
-        def can_close(self):
+        def can_close(self, destination_page=None):
             return False, "Not yet"
 
     hooked = Hooked()

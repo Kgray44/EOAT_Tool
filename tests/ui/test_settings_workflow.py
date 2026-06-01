@@ -10,7 +10,9 @@ from tests.ui.helpers import click_button, wait_for_background_tasks
 pytestmark = pytest.mark.usability
 
 
-def test_settings_save_reload_theme_audit_backups_and_open_stub(qapp, fake_config, fake_project, captured_open_requests, monkeypatch, tmp_path):
+def test_settings_save_reload_theme_audit_backups_and_open_stub(
+    qapp, fake_config, fake_project, captured_open_requests, monkeypatch, tmp_path
+):
     import app.pages.settings as settings_module
 
     saved_path = tmp_path / "fake_config.json"

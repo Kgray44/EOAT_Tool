@@ -15,7 +15,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = None
-    QComboBox = QHBoxLayout = QLabel = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QComboBox = QHBoxLayout = QLabel = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QVBoxLayout = (
+        QWidget
+    ) = None
 
 from app.page_tasks import run_tool_background
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator

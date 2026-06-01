@@ -301,7 +301,8 @@ try {
     $elapsed = [Math]::Round(((Get-Date) - $started).TotalSeconds, 2)
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $message = $_.Exception.Message -replace '"', "'"
-    $line = "[$timestamp] FAILURE weekly_summary elapsed=${elapsed}s error=`"$message`""
+    $trace = ($_ | Out-String).Trim() -replace '"', "'"
+    $line = "[$timestamp] FAILURE weekly_summary elapsed=${elapsed}s error=`"$message`" traceback=`"$trace`""
     Write-EmergencyLog -Line $line
     if ($projectRootForLogging) {
         Write-ScheduledToolLog -Root $projectRootForLogging -Line $line | Out-Null
