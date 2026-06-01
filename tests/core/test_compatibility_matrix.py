@@ -111,8 +111,14 @@ def test_matrix_details_separate_physical_and_compatibility_rows(fake_project):
 
 
 def test_conflict_needs_review_and_not_compatible_states(fake_project):
-    _append_inventory_row(fake_project, {"Audit ID": "AUD-CONFLICT-A", "Press/Machine #": "Press 3", "Tool #": "TOOL-B", "EOAT Type": "Vacuum"})
-    _append_inventory_row(fake_project, {"Audit ID": "AUD-CONFLICT-B", "Press/Machine #": "Press 3", "Tool #": "TOOL-B", "EOAT Type": "Hybrid"})
+    _append_inventory_row(
+        fake_project,
+        {"Audit ID": "AUD-CONFLICT-A", "Press/Machine #": "Press 3", "Tool #": "TOOL-B", "EOAT Type": "Vacuum"},
+    )
+    _append_inventory_row(
+        fake_project,
+        {"Audit ID": "AUD-CONFLICT-B", "Press/Machine #": "Press 3", "Tool #": "TOOL-B", "EOAT Type": "Hybrid"},
+    )
     _append_inventory_row(
         fake_project,
         {
@@ -150,7 +156,15 @@ def test_conflict_needs_review_and_not_compatible_states(fake_project):
 
 
 def test_source_audit_and_part_family_column_modes(fake_project):
-    _append_inventory_row(fake_project, {"Audit ID": "AUD-SOURCE-FAM", "Press/Machine #": "Press 10", "Tool #": "TOOL-F", "Part Family": "Shared Family"})
+    _append_inventory_row(
+        fake_project,
+        {
+            "Audit ID": "AUD-SOURCE-FAM",
+            "Press/Machine #": "Press 10",
+            "Tool #": "TOOL-F",
+            "Part Family": "Shared Family",
+        },
+    )
     _append_inventory_row(
         fake_project,
         {
@@ -174,7 +188,9 @@ def test_source_audit_and_part_family_column_modes(fake_project):
 
 
 def test_export_csv_markdown_includes_cell_details_without_creating_rows(fake_project):
-    _append_inventory_row(fake_project, {"Audit ID": "AUD-EXPORT-001", "Press/Machine #": "Press 20", "Tool #": "TOOL-X"})
+    _append_inventory_row(
+        fake_project, {"Audit ID": "AUD-EXPORT-001", "Press/Machine #": "Press 20", "Tool #": "TOOL-X"}
+    )
     before_count = len(row_dicts(resolve_project_paths(fake_project).master_workbook, "EOAT Inventory"))
 
     result = export_compatibility_matrix(fake_project, log_activity=False)

@@ -45,7 +45,9 @@ def test_clear_stale_hidden_values_requires_confirmation_backs_up_and_logs_histo
 
     preview = preview_safe_fix(fake_project, FIX_CLEAR_STALE_HIDDEN_NA)
     assert preview.can_apply
-    assert any(change.audit_id == "AUD-STALE-HIDDEN-001" and change.column_name == "Sensor Type" for change in preview.changes)
+    assert any(
+        change.audit_id == "AUD-STALE-HIDDEN-001" and change.column_name == "Sensor Type" for change in preview.changes
+    )
 
     blocked = apply_safe_fix(fake_project, FIX_CLEAR_STALE_HIDDEN_NA)
     assert not blocked.success

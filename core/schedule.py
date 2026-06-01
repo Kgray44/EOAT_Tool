@@ -72,7 +72,9 @@ def resolve_project_day(
     if manual_override:
         week = int(manual_week or 1)
         day = int(manual_day or 1)
-        return ProjectDay(week=week, day=day, date=current_date, source="manual override", project_start_date=project_start_date)
+        return ProjectDay(
+            week=week, day=day, date=current_date, source="manual override", project_start_date=project_start_date
+        )
 
     holiday_set = set(holidays or [])
     if current_date < project_start_date:
@@ -100,7 +102,14 @@ def resolve_project_day(
     elapsed_workdays = max(elapsed_workdays, 1)
     week = ((elapsed_workdays - 1) // 5) + 1
     day = ((elapsed_workdays - 1) % 5) + 1
-    return ProjectDay(week=week, day=day, date=current_date, source="project calendar", project_start_date=project_start_date, warning=warning)
+    return ProjectDay(
+        week=week,
+        day=day,
+        date=current_date,
+        source="project calendar",
+        project_start_date=project_start_date,
+        warning=warning,
+    )
 
 
 def resolve_project_day_for_project(

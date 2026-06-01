@@ -29,6 +29,7 @@ STATUS_MISSING = "missing"
 STATUS_NOT_APPLICABLE = "not applicable"
 STATUS_FOLLOW_UP = "follow-up needed"
 
+
 @dataclass(frozen=True)
 class PhotoEvidenceCategory:
     key: str
@@ -100,7 +101,9 @@ def _category_from_rule(rule) -> PhotoEvidenceCategory:
     )
 
 
-PHOTO_EVIDENCE_CATEGORIES: tuple[PhotoEvidenceCategory, ...] = tuple(_category_from_rule(rule) for rule in all_photo_evidence_rules())
+PHOTO_EVIDENCE_CATEGORIES: tuple[PhotoEvidenceCategory, ...] = tuple(
+    _category_from_rule(rule) for rule in all_photo_evidence_rules()
+)
 
 PHOTO_CATEGORY_ALIASES = photo_evidence_aliases()
 
@@ -117,7 +120,9 @@ def audit_photo_intake_folder(project_root: str | Path, audit_id: str) -> Path:
     return audit_photo_intake_root(project_root) / _safe_folder_part(audit_id or "Unassigned_Audit")
 
 
-def create_audit_photo_intake_folder(project_root: str | Path, audit_id: str, *, log_activity: bool = True) -> ToolResult:
+def create_audit_photo_intake_folder(
+    project_root: str | Path, audit_id: str, *, log_activity: bool = True
+) -> ToolResult:
     started = time.perf_counter()
     audit_id = _text(audit_id)
     if not audit_id:
@@ -148,7 +153,9 @@ def export_photo_checklist(project_root: str | Path, audit_id: str, *, log_activ
     row = _find_audit_row(project_root, audit_id)
     markdown = build_photo_checklist_markdown(project_root, audit_id, row=row)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = safe_write_text(folder / f"Photo_Checklist_{_safe_folder_part(audit_id)}_{stamp}.md", markdown, overwrite=False)
+    path = safe_write_text(
+        folder / f"Photo_Checklist_{_safe_folder_part(audit_id)}_{stamp}.md", markdown, overwrite=False
+    )
     result = ToolResult.ok(
         "photo_evidence_checklist",
         PHOTO_EVIDENCE_TOOL_NAME,
@@ -166,7 +173,9 @@ def export_photo_checklist(project_root: str | Path, audit_id: str, *, log_activ
     return result
 
 
-def build_photo_checklist_markdown(project_root: str | Path, audit_id: str, *, row: dict[str, Any] | None = None) -> str:
+def build_photo_checklist_markdown(
+    project_root: str | Path, audit_id: str, *, row: dict[str, Any] | None = None
+) -> str:
     audit_id = _text(audit_id)
     row = row if row is not None else _find_audit_row(project_root, audit_id)
     coverage = evidence_coverage_for_audit(project_root, audit_id, row=row)
@@ -235,8 +244,12 @@ def evidence_coverage_for_audit(
         return None
     photo_rows = photo_rows if photo_rows is not None else _photo_rows(project_root)
     related_photos = _photo_rows_for_audit(photo_rows, row)
-    statuses = tuple(_coverage_status_for_category(row, category, related_photos) for category in PHOTO_EVIDENCE_CATEGORIES)
-    return AuditEvidenceCoverage(audit_id=audit_id, machine=_text(row.get("Press/Machine #")), statuses=statuses, row_data=dict(row))
+    statuses = tuple(
+        _coverage_status_for_category(row, category, related_photos) for category in PHOTO_EVIDENCE_CATEGORIES
+    )
+    return AuditEvidenceCoverage(
+        audit_id=audit_id, machine=_text(row.get("Press/Machine #")), statuses=statuses, row_data=dict(row)
+    )
 
 
 def indexed_photos_for_audit(project_root: str | Path, audit_id: str) -> list[dict[str, Any]]:
@@ -255,7 +268,9 @@ def resolve_indexed_photo_path(project_root: str | Path, photo_row: dict[str, An
     return folder / filename if filename else folder
 
 
-def photo_index_path_findings(project_root: str | Path, photo_rows: list[dict[str, Any]] | None = None) -> list[ValidationFinding]:
+def photo_index_path_findings(
+    project_root: str | Path, photo_rows: list[dict[str, Any]] | None = None
+) -> list[ValidationFinding]:
     photo_rows = photo_rows if photo_rows is not None else _photo_rows(project_root)
     findings: list[ValidationFinding] = []
     for row in photo_rows:
@@ -287,7 +302,9 @@ def photo_index_path_findings(project_root: str | Path, photo_rows: list[dict[st
     return findings
 
 
-def link_photo_to_audit_field(project_root: str | Path, photo_id: str, audit_field: str, *, log_activity: bool = True) -> ToolResult:
+def link_photo_to_audit_field(
+    project_root: str | Path, photo_id: str, audit_field: str, *, log_activity: bool = True
+) -> ToolResult:
     started = time.perf_counter()
     photo_id = _text(photo_id)
     audit_field = _text(audit_field)
@@ -298,7 +315,12 @@ def link_photo_to_audit_field(project_root: str | Path, photo_id: str, audit_fie
     paths = resolve_project_paths(project_root)
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
-        return ToolResult.fail("photo_evidence_link_field", PHOTO_EVIDENCE_TOOL_NAME, "Master workbook is missing.", errors=[str(workbook_path)])
+        return ToolResult.fail(
+            "photo_evidence_link_field",
+            PHOTO_EVIDENCE_TOOL_NAME,
+            "Master workbook is missing.",
+            errors=[str(workbook_path)],
+        )
 
     workbook = None
     try:
@@ -322,7 +344,9 @@ def link_photo_to_audit_field(project_root: str | Path, photo_id: str, audit_fie
         notes_cell = ws.cell(row=target_row, column=notes_col)
         existing = _text(notes_cell.value)
         link_note = f"Linked audit field: {audit_field}"
-        notes_cell.value = existing if link_note in existing else "\n".join(part for part in (existing, link_note) if part)
+        notes_cell.value = (
+            existing if link_note in existing else "\n".join(part for part in (existing, link_note) if part)
+        )
         workbook.save(workbook_path)
         workbook.close()
         workbook = None
@@ -472,7 +496,9 @@ def _category_recommended(row: dict[str, Any], key: str) -> bool:
         return False
 
 
-def _specific_photo_evidence_findings(coverage: AuditEvidenceCoverage, row: dict[str, Any] | None) -> list[ValidationFinding]:
+def _specific_photo_evidence_findings(
+    coverage: AuditEvidenceCoverage, row: dict[str, Any] | None
+) -> list[ValidationFinding]:
     if row is None:
         return []
     status_by_key = {status.category: status for status in coverage.statuses}
@@ -487,10 +513,23 @@ def _specific_photo_evidence_findings(coverage: AuditEvidenceCoverage, row: dict
             )
         )
     if _is_pilot_candidate(row) and not _any_present(coverage):
-        findings.append(_photo_finding(coverage, "Pilot candidate lacks before photo evidence.", "Pilot Candidate?", row.get("Pilot Candidate?")))
+        findings.append(
+            _photo_finding(
+                coverage,
+                "Pilot candidate lacks before photo evidence.",
+                "Pilot Candidate?",
+                row.get("Pilot Candidate?"),
+            )
+        )
     if _has_meaningful_issue(row) and not _any_present(coverage):
-        findings.append(_photo_finding(coverage, "Audit issue has no supporting photo evidence.", "Known Issues", row.get("Known Issues")))
-    if _documentation_marked_complete(row) and not (_text(row.get("Photo Folder/Link")) or status_by_key.get("process_binder_reference", _empty_status()).present):
+        findings.append(
+            _photo_finding(
+                coverage, "Audit issue has no supporting photo evidence.", "Known Issues", row.get("Known Issues")
+            )
+        )
+    if _documentation_marked_complete(row) and not (
+        _text(row.get("Photo Folder/Link")) or status_by_key.get("process_binder_reference", _empty_status()).present
+    ):
         findings.append(
             _photo_finding(
                 coverage,
@@ -501,7 +540,14 @@ def _specific_photo_evidence_findings(coverage: AuditEvidenceCoverage, row: dict
         )
     sensor_status = status_by_key.get("sensors")
     if _is_yes(row.get("Sensors Present?")) and sensor_status and not sensor_status.present:
-        findings.append(_photo_finding(coverage, "Sensors Present? is Yes but no sensor photo is indexed.", "Sensors Present?", row.get("Sensors Present?")))
+        findings.append(
+            _photo_finding(
+                coverage,
+                "Sensors Present? is Yes but no sensor photo is indexed.",
+                "Sensors Present?",
+                row.get("Sensors Present?"),
+            )
+        )
     qd_status = status_by_key.get("quick_disconnects")
     if _is_yes(row.get("Quick Disconnects Present?")) and qd_status and not qd_status.present:
         findings.append(
@@ -515,7 +561,9 @@ def _specific_photo_evidence_findings(coverage: AuditEvidenceCoverage, row: dict
     return findings
 
 
-def _photo_finding(coverage: AuditEvidenceCoverage, message: str, column_name: str, current_value: Any) -> ValidationFinding:
+def _photo_finding(
+    coverage: AuditEvidenceCoverage, message: str, column_name: str, current_value: Any
+) -> ValidationFinding:
     return make_finding(
         ValidationSeverity.WARNING,
         "missing_evidence",
@@ -602,20 +650,40 @@ def _is_yes_or_partial(value: Any) -> bool:
 
 
 def _has_issue_or_damage(row: dict[str, Any]) -> bool:
-    condition_fields = ["Tubing Condition", "Cable Management Condition", "Mounting Hardware Condition", "EOAT Alignment Condition"]
+    condition_fields = [
+        "Tubing Condition",
+        "Cable Management Condition",
+        "Mounting Hardware Condition",
+        "EOAT Alignment Condition",
+    ]
     bad_tokens = ("worn", "damage", "damaged", "poor", "loose", "missing", "misaligned", "follow-up", "follow up")
-    return _has_meaningful_issue(row) or any(any(token in _text(row.get(field)).casefold() for token in bad_tokens) for field in condition_fields)
+    return _has_meaningful_issue(row) or any(
+        any(token in _text(row.get(field)).casefold() for token in bad_tokens) for field in condition_fields
+    )
 
 
 def _has_meaningful_issue(row: dict[str, Any]) -> bool:
     issue = _text(row.get("Known Issues")).casefold()
     if not issue:
         return False
-    return issue not in {"none", "no", "n/a", "na", "no issue observed.", "no issues observed", "unknown / not checked", "unknown"}
+    return issue not in {
+        "none",
+        "no",
+        "n/a",
+        "na",
+        "no issue observed.",
+        "no issues observed",
+        "unknown / not checked",
+        "unknown",
+    }
 
 
 def _documentation_marked_complete(row: dict[str, Any]) -> bool:
-    return _is_yes(row.get("Process Binder Complete?")) or _is_yes(row.get("Drawing/CAD Available?")) or _is_yes(row.get("BOM Available?"))
+    return (
+        _is_yes(row.get("Process Binder Complete?"))
+        or _is_yes(row.get("Drawing/CAD Available?"))
+        or _is_yes(row.get("BOM Available?"))
+    )
 
 
 def _any_present(coverage: AuditEvidenceCoverage) -> bool:

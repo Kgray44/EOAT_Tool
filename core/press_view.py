@@ -69,9 +69,7 @@ class PressViewGroup:
     @property
     def compatibility_family_machine_count(self) -> int:
         machines = {
-            entry.machine
-            for entry in [*self.physical_audits, *self.linked_compatible_entries]
-            if entry.machine
+            entry.machine for entry in [*self.physical_audits, *self.linked_compatible_entries] if entry.machine
         }
         return len(machines)
 
@@ -125,13 +123,23 @@ def build_press_view_groups(
     try:
         rows = row_dicts(paths.master_workbook, "EOAT Inventory")
     except Exception as exc:
-        _log_press_view_step(project_root, "audit_rows", time.perf_counter() - rows_started, row_count=0, error=str(exc))
+        _log_press_view_step(
+            project_root, "audit_rows", time.perf_counter() - rows_started, row_count=0, error=str(exc)
+        )
         return []
     _log_press_view_step(project_root, "audit_rows", time.perf_counter() - rows_started, row_count=len(rows))
-    open_counts = _timed_press_view_layer(project_root, "open_items", options.include_open_items, lambda: _open_item_counts(project_root))
-    validation_counts = _timed_press_view_layer(project_root, "validation_counts", options.include_validation_counts, lambda: _validation_counts(project_root))
-    photo_counts = _timed_press_view_layer(project_root, "photo_counts", options.include_photo_counts, lambda: _photo_counts(project_root))
-    compliance_rollups = _timed_press_view_layer(project_root, "compliance", options.include_compliance, lambda: _compliance_rollups(project_root))
+    open_counts = _timed_press_view_layer(
+        project_root, "open_items", options.include_open_items, lambda: _open_item_counts(project_root)
+    )
+    validation_counts = _timed_press_view_layer(
+        project_root, "validation_counts", options.include_validation_counts, lambda: _validation_counts(project_root)
+    )
+    photo_counts = _timed_press_view_layer(
+        project_root, "photo_counts", options.include_photo_counts, lambda: _photo_counts(project_root)
+    )
+    compliance_rollups = _timed_press_view_layer(
+        project_root, "compliance", options.include_compliance, lambda: _compliance_rollups(project_root)
+    )
     grouping_started = time.perf_counter()
     groups = _group_press_view_rows(
         rows,
@@ -153,8 +161,12 @@ def build_press_view_groups(
     return groups
 
 
-def build_press_view_base_groups(project_root: str | Path, *, status_filter: str = "", query: str = "") -> list[PressViewGroup]:
-    return build_press_view_groups(project_root, status_filter=status_filter, query=query, options=PressViewBuildOptions.base_only())
+def build_press_view_base_groups(
+    project_root: str | Path, *, status_filter: str = "", query: str = ""
+) -> list[PressViewGroup]:
+    return build_press_view_groups(
+        project_root, status_filter=status_filter, query=query, options=PressViewBuildOptions.base_only()
+    )
 
 
 def _group_press_view_rows(
@@ -175,7 +187,9 @@ def _group_press_view_rows(
         entry = _entry_from_row(row, machine)
         if status_filter and status_filter != "All" and status_filter.casefold() not in entry.status.casefold():
             continue
-        group = grouped.setdefault(machine, {"physical": [], "compatible": [], "tools": set(), "pilot": [], "dates": []})
+        group = grouped.setdefault(
+            machine, {"physical": [], "compatible": [], "tools": set(), "pilot": [], "dates": []}
+        )
         if is_compatibility_row(row):
             group["compatible"].append(entry)
         else:
@@ -295,7 +309,9 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
         groups = build_press_view_base_groups(project_root)
     group = next((item for item in groups if item.machine == machine), None)
     if group is None:
-        return ToolResult.fail("press_view_export", "Press View Summary Export", f"Press/Machine {machine} was not found.")
+        return ToolResult.fail(
+            "press_view_export", "Press View Summary Export", f"Press/Machine {machine} was not found."
+        )
     lines = [
         f"# {group.display_name} Summary",
         "",
@@ -328,7 +344,9 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
     try:
         saved = safe_write_text(path, "\n".join(lines).rstrip() + "\n", overwrite=False)
     except Exception as exc:
-        return ToolResult.fail("press_view_export", "Press View Summary Export", "Could not export press summary.", errors=[str(exc)])
+        return ToolResult.fail(
+            "press_view_export", "Press View Summary Export", "Could not export press summary.", errors=[str(exc)]
+        )
     result = ToolResult.ok(
         "press_view_export",
         "Press View Summary Export",
@@ -395,7 +413,9 @@ def _entry_from_dict(data: dict[str, Any]) -> PressAuditEntry:
 def _group_from_dict(data: dict[str, Any]) -> PressViewGroup:
     physical = [_entry_from_dict(item) for item in data.get("physical_audits", []) if isinstance(item, dict)]
     compatible = [_entry_from_dict(item) for item in data.get("compatible_entries", []) if isinstance(item, dict)]
-    linked_compatible = [_entry_from_dict(item) for item in data.get("linked_compatible_entries", []) if isinstance(item, dict)]
+    linked_compatible = [
+        _entry_from_dict(item) for item in data.get("linked_compatible_entries", []) if isinstance(item, dict)
+    ]
     group = PressViewGroup(
         machine=str(data.get("machine") or ""),
         display_name=str(data.get("display_name") or ""),
@@ -436,7 +456,9 @@ def _validation_counts(project_root: str | Path) -> dict[str, int]:
     if not folder.exists():
         return {}
     payload: dict[str, Any] = {}
-    for path in sorted(folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+    for path in sorted(
+        folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True
+    ):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             break

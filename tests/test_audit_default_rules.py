@@ -8,7 +8,16 @@ from core.config import UserConfig
 def test_default_applies_to_empty_new_audit_field():
     result = apply_audit_default_rules(
         {},
-        [{"id": "auditor_default", "enabled": True, "field": "Auditor", "value": "KG", "scope": "new_audit", "overwrite_policy": "empty_only"}],
+        [
+            {
+                "id": "auditor_default",
+                "enabled": True,
+                "field": "Auditor",
+                "value": "KG",
+                "scope": "new_audit",
+                "overwrite_policy": "empty_only",
+            }
+        ],
     )
 
     assert result.values["Auditor"] == "KG"
@@ -18,7 +27,16 @@ def test_default_applies_to_empty_new_audit_field():
 def test_default_does_not_overwrite_existing_value():
     result = apply_audit_default_rules(
         {"Auditor": "Existing"},
-        [{"id": "auditor_default", "enabled": True, "field": "Auditor", "value": "KG", "scope": "new_audit", "overwrite_policy": "empty_only"}],
+        [
+            {
+                "id": "auditor_default",
+                "enabled": True,
+                "field": "Auditor",
+                "value": "KG",
+                "scope": "new_audit",
+                "overwrite_policy": "empty_only",
+            }
+        ],
     )
 
     assert result.values["Auditor"] == "Existing"
@@ -99,7 +117,9 @@ def test_existing_matching_default_does_not_report_changed_field():
 
 
 def test_controller_respects_explicit_disabled_default_rules():
-    config = UserConfig(audit_default_rules=[{"id": "disabled_auditor", "enabled": False, "field": "Auditor", "value": "KG"}])
+    config = UserConfig(
+        audit_default_rules=[{"id": "disabled_auditor", "enabled": False, "field": "Auditor", "value": "KG"}]
+    )
     controller = AuditDefaultsController(config)
 
     assert "Auditor" not in controller.initial_form_defaults()

@@ -24,7 +24,11 @@ TAG_COLOR_PALETTE: dict[str, TagColor] = {
 }
 
 DEFAULT_TAG_DEFINITIONS: tuple[dict[str, object], ...] = (
-    {"name": "Info", "color_key": "gray", "description": "Neutral context or useful information; does not imply a problem."},
+    {
+        "name": "Info",
+        "color_key": "gray",
+        "description": "Neutral context or useful information; does not imply a problem.",
+    },
     {"name": "Needs Review", "color_key": "yellow", "description": "Field or item needs engineering review."},
     {"name": "Question", "color_key": "purple", "description": "Open question or unclear observation."},
     {"name": "Verified", "color_key": "green", "description": "Information has been checked and confirmed."},
@@ -32,7 +36,11 @@ DEFAULT_TAG_DEFINITIONS: tuple[dict[str, object], ...] = (
     {"name": "Data Conflict", "color_key": "orange", "description": "Two pieces of project data disagree."},
     {"name": "Follow Up", "color_key": "yellow", "description": "Needs follow-up action."},
     {"name": "Pilot Candidate Evidence", "color_key": "blue", "description": "Evidence that supports pilot selection."},
-    {"name": "Maintenance Concern", "color_key": "teal", "description": "Maintenance reliability or serviceability concern."},
+    {
+        "name": "Maintenance Concern",
+        "color_key": "teal",
+        "description": "Maintenance reliability or serviceability concern.",
+    },
     {"name": "Compatibility Concern", "color_key": "blue", "description": "Machine/tool compatibility needs review."},
     {"name": "Documentation Gap", "color_key": "orange", "description": "Missing or incomplete documentation."},
     {"name": "Safety Concern", "color_key": "red", "description": "Safety concern requiring priority attention."},
@@ -62,6 +70,7 @@ NEUTRAL_CONTEXT_TAG_NAMES = frozenset({"info", "neutral", "verified"})
 
 def is_neutral_context_tag(name: str) -> bool:
     return (name or "").strip().casefold() in NEUTRAL_CONTEXT_TAG_NAMES
+
 
 COLOR_PRIORITY: dict[str, int] = {
     "red": 10,
@@ -94,7 +103,13 @@ def highest_priority_tag(tags: list[dict[str, object]]) -> dict[str, object] | N
     active = [tag for tag in tags if tag.get("color_key")]
     if not active:
         return None
-    return sorted(active, key=lambda tag: (tag_priority(str(tag.get("name") or ""), str(tag.get("color_key") or "")), str(tag.get("name") or "").casefold()))[0]
+    return sorted(
+        active,
+        key=lambda tag: (
+            tag_priority(str(tag.get("name") or ""), str(tag.get("color_key") or "")),
+            str(tag.get("name") or "").casefold(),
+        ),
+    )[0]
 
 
 def excel_fill_for_color(color_key: str) -> str:

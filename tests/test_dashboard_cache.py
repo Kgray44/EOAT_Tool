@@ -95,7 +95,9 @@ def test_dashboard_cache_source_metadata_tracks_phase6_sources(fake_project):
 
 
 def test_cached_snapshot_status_explains_staleness(fake_project):
-    save_dashboard_cache(fake_project, {"cards": {"Dashboard Cache": "Updated"}, "recommendations": [], "activity_text": "ok"})
+    save_dashboard_cache(
+        fake_project, {"cards": {"Dashboard Cache": "Updated"}, "recommendations": [], "activity_text": "ok"}
+    )
     activity_log = fake_project / "00_Project_Admin" / "Activity_Logs" / "activity_log.jsonl"
     activity_log.write_text('{"tool_name":"test"}\n', encoding="utf-8")
 

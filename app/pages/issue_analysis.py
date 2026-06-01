@@ -32,7 +32,11 @@ class IssueAnalysisPage(QWidget):
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
         buttons = QHBoxLayout()
-        for label, callback in [("Run Issue Analysis", self.run_report), ("Open Issue Analysis Reports Folder", self.open_reports), ("Refresh", self.refresh)]:
+        for label, callback in [
+            ("Run Issue Analysis", self.run_report),
+            ("Open Issue Analysis Reports Folder", self.open_reports),
+            ("Refresh", self.refresh),
+        ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
             buttons.addWidget(button)
@@ -45,7 +49,12 @@ class IssueAnalysisPage(QWidget):
         self.cells_table = QTableWidget()
         self.missing_table = QTableWidget()
         self.fmea_table = QTableWidget()
-        for label, table in [("Issues by Category", self.category_table), ("Top Problem Cells", self.cells_table), ("Missing Risk Data", self.missing_table), ("Suggested FMEA Candidates", self.fmea_table)]:
+        for label, table in [
+            ("Issues by Category", self.category_table),
+            ("Top Problem Cells", self.cells_table),
+            ("Missing Risk Data", self.missing_table),
+            ("Suggested FMEA Candidates", self.fmea_table),
+        ]:
             tab = QWidget()
             box = QVBoxLayout(tab)
             box.addWidget(table)
@@ -68,10 +77,20 @@ class IssueAnalysisPage(QWidget):
         self.cards["Open Issues"].set_value(str(summary.metrics.get("open_issues", 0)))
         self.cards["High Priority"].set_value(str(summary.metrics.get("high_priority_count", 0)))
         self.cards["Missing Risk Data"].set_value(str(summary.metrics.get("missing_risk_count", 0)))
-        populate_table(self.category_table, counts_to_rows(summary.category_counts, "Issue Category"), ["Issue Category", "Count"])
-        populate_table(self.cells_table, counts_to_rows(summary.press_counts, "Press/Machine #"), ["Press/Machine #", "Count"])
-        populate_table(self.missing_table, summary.missing_risk_rows, ["Issue ID", "Press/Machine #", "Issue Category", "Missing Fields"])
-        populate_table(self.fmea_table, summary.suggested_fmea, ["Issue Category", "Issue Count", "Suggested Failure Mode"])
+        populate_table(
+            self.category_table, counts_to_rows(summary.category_counts, "Issue Category"), ["Issue Category", "Count"]
+        )
+        populate_table(
+            self.cells_table, counts_to_rows(summary.press_counts, "Press/Machine #"), ["Press/Machine #", "Count"]
+        )
+        populate_table(
+            self.missing_table,
+            summary.missing_risk_rows,
+            ["Issue ID", "Press/Machine #", "Issue Category", "Missing Fields"],
+        )
+        populate_table(
+            self.fmea_table, summary.suggested_fmea, ["Issue Category", "Issue Count", "Suggested Failure Mode"]
+        )
         self.preview.show_markdown_text(summary.to_markdown())
 
     def run_report(self) -> None:

@@ -132,9 +132,7 @@ def _build_snapshot(project_root: Path, workbook_path: Path, signature: Workbook
                 sheets[sheet_name] = tuple(_sheet_rows(workbook[sheet_name]))
         audit_rows = sheets.get("EOAT Inventory", ())
         audit_by_id = {
-            str(row.get("Audit ID") or ""): dict(row)
-            for row in audit_rows
-            if str(row.get("Audit ID") or "").strip()
+            str(row.get("Audit ID") or ""): dict(row) for row in audit_rows if str(row.get("Audit ID") or "").strip()
         }
         compatibility_rows = tuple(
             dict(row)
@@ -152,7 +150,8 @@ def _build_snapshot(project_root: Path, workbook_path: Path, signature: Workbook
             "physical_audits": sum(
                 1
                 for row in audit_rows
-                if str(row.get(ENTRY_TYPE_FIELD) or ENTRY_TYPE_AUDITED).strip().casefold() == ENTRY_TYPE_AUDITED.casefold()
+                if str(row.get(ENTRY_TYPE_FIELD) or ENTRY_TYPE_AUDITED).strip().casefold()
+                == ENTRY_TYPE_AUDITED.casefold()
             ),
             "compatibility_rows": len(compatibility_rows),
             "action_items": len(sheets.get("Action Items", ())),

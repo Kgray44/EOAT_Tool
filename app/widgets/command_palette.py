@@ -18,7 +18,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = QTimer = None
-    QComboBox = QDialog = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QComboBox = QDialog = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QTabWidget = QTableWidget = (
+        QTableWidgetItem
+    ) = QVBoxLayout = QWidget = None
 
 from app.command_registry import CommandRegistry, CommandSpec
 from app.task_runner import TaskRequest, get_task_manager
@@ -29,7 +31,9 @@ class CommandPalette(QDialog):
     COMMAND_COLUMNS = ["Command", "Category", "Writes Files", "Safety", "Status", "Context", "Description"]
     SEARCH_COLUMNS = ["Type", "Title", "Subtitle", "Audit ID", "Machine", "Status/Severity"]
 
-    def __init__(self, registry: CommandRegistry, project_root: str, parent=None, *, current_page_key: str | None = None):
+    def __init__(
+        self, registry: CommandRegistry, project_root: str, parent=None, *, current_page_key: str | None = None
+    ):
         super().__init__(parent)
         self.registry = registry
         self.project_root = project_root
@@ -83,7 +87,9 @@ class CommandPalette(QDialog):
         search_container = _Container(search_tab)
         filter_row = QHBoxLayout()
         self.type_filter = QComboBox()
-        self.type_filter.addItems(["All", "audit", "machine", "note", "tag", "open_item", "validation", "report", "photo"])
+        self.type_filter.addItems(
+            ["All", "audit", "machine", "note", "tag", "open_item", "validation", "report", "photo"]
+        )
         self.audit_filter = QLineEdit()
         self.audit_filter.setPlaceholderText("Audit ID")
         self.machine_filter = QLineEdit()
@@ -112,7 +118,16 @@ class CommandPalette(QDialog):
             filter_row.addWidget(widget)
         filter_row.addStretch(1)
         search_tab.addLayout(filter_row)
-        for widget in [self.type_filter, self.audit_filter, self.machine_filter, self.tag_filter, self.status_filter, self.severity_filter, self.date_filter, self.due_filter]:
+        for widget in [
+            self.type_filter,
+            self.audit_filter,
+            self.machine_filter,
+            self.tag_filter,
+            self.status_filter,
+            self.severity_filter,
+            self.date_filter,
+            self.due_filter,
+        ]:
             if isinstance(widget, QComboBox):
                 widget.currentTextChanged.connect(self.schedule_search_refresh)
             else:
@@ -148,19 +163,29 @@ class CommandPalette(QDialog):
         self.schedule_search_refresh()
 
     def refresh_commands(self) -> None:
-        self.command_rows = self.registry.filter(self.query_edit.text(), category=self.command_category.currentText(), current_page_key=self.current_page_key)
+        self.command_rows = self.registry.filter(
+            self.query_edit.text(), category=self.command_category.currentText(), current_page_key=self.current_page_key
+        )
         self._populate_command_table(self.command_rows)
 
     def show_current_page_commands(self) -> None:
         if not self.current_page_key:
             self.command_rows = []
         else:
-            self.command_rows = [command for command in self.registry.filter(self.query_edit.text(), current_page_key=self.current_page_key) if command.is_context_command(self.current_page_key)]
+            self.command_rows = [
+                command
+                for command in self.registry.filter(self.query_edit.text(), current_page_key=self.current_page_key)
+                if command.is_context_command(self.current_page_key)
+            ]
         self._populate_command_table(self.command_rows)
 
     def show_recent_commands(self) -> None:
         query = self.query_edit.text().casefold().strip()
-        self.command_rows = [command for command in self.registry.recent_commands(limit=8) if not query or query in command.searchable_text()]
+        self.command_rows = [
+            command
+            for command in self.registry.recent_commands(limit=8)
+            if not query or query in command.searchable_text()
+        ]
         self._populate_command_table(self.command_rows)
 
     def _populate_command_table(self, rows: list[CommandSpec]) -> None:
@@ -172,7 +197,9 @@ class CommandPalette(QDialog):
             self.command_table.setRowCount(len(rows))
             for row, command in enumerate(rows):
                 status = "Enabled" if command.enabled else command.disabled_reason
-                context = "Current page" if command.is_context_command(self.current_page_key) else (command.page_key or "")
+                context = (
+                    "Current page" if command.is_context_command(self.current_page_key) else (command.page_key or "")
+                )
                 values = [
                     command.display_name,
                     command.category,
@@ -262,7 +289,14 @@ class CommandPalette(QDialog):
             self.search_table.setRowCount(len(rows))
             for row, result in enumerate(rows):
                 status_or_severity = result.metadata.get("severity") or result.metadata.get("status") or ""
-                values = [result.result_type, result.title, result.subtitle, result.audit_id, result.machine, status_or_severity]
+                values = [
+                    result.result_type,
+                    result.title,
+                    result.subtitle,
+                    result.audit_id,
+                    result.machine,
+                    status_or_severity,
+                ]
                 for col, value in enumerate(values):
                     item = QTableWidgetItem(str(value or ""))
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -284,7 +318,9 @@ class CommandPalette(QDialog):
         command = self.command_rows[row]
         if not command.enabled:
             if QMessageBox is not None:
-                QMessageBox.information(self, "Command Unavailable", command.disabled_reason or "This command is unavailable.")
+                QMessageBox.information(
+                    self, "Command Unavailable", command.disabled_reason or "This command is unavailable."
+                )
             return False
         if command.requires_confirmation and not self._confirm_command(command):
             return False

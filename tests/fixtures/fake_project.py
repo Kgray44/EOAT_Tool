@@ -150,7 +150,12 @@ def _write_schedule_files(root: Path) -> None:
         "week": 2,
         "tasks": [
             {"id": "W2D1T1", "day": "1", "task": "Continue audit sweep", "status": "Not started"},
-            {"id": "W2D5STRETCH1", "day": "5", "task": "Future stretch task: prepare pilot candidate review", "status": "Not started"},
+            {
+                "id": "W2D5STRETCH1",
+                "day": "5",
+                "task": "Future stretch task: prepare pilot candidate review",
+                "status": "Not started",
+            },
         ],
     }
     for name, data in {
@@ -169,7 +174,9 @@ def _write_seed_reports(root: Path) -> None:
         encoding="utf-8",
     )
     (paths.daily_reports / "Week1_Day1_Activity_Summary_2026-05-18.json").write_text(
-        json.dumps({"week": 1, "day": 1, "completed": ["Project setup review"], "blocked": ["Press 101 access"]}, indent=2),
+        json.dumps(
+            {"week": 1, "day": 1, "completed": ["Project setup review"], "blocked": ["Press 101 access"]}, indent=2
+        ),
         encoding="utf-8",
     )
     (paths.validation_reports / "Foundation_Validation_2026-05-18_0800.md").write_text(

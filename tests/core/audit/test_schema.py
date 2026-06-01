@@ -145,7 +145,12 @@ def test_eoat_tooling_grouping_keeps_parts_picked_out_of_gripper_details():
     ]
     assert groups["Part Handling"] == [NUMBER_OF_PARTS_PICKED_FIELD]
     assert NUMBER_OF_PARTS_PICKED_FIELD not in groups["Gripper Details"]
-    assert groups["Gripper Details"] == [GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD]
+    assert groups["Gripper Details"] == [
+        GRIPPER_COUNT_FIELD,
+        GRIPPER_TYPE_FIELD,
+        GRIPPER_MODEL_FIELD,
+        GRIPPER_SIZE_FIELD,
+    ]
 
     grouped_specs = fields_grouped_by_section()["EOAT Type and Tooling"]
     assert grouped_specs["Part Handling"][0].workbook_header == NUMBER_OF_PARTS_PICKED_FIELD

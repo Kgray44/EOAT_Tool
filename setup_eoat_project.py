@@ -41,12 +41,7 @@ except ImportError as exc:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR / "EOAT_Standardization_Project"
-WORKBOOK_PATH = (
-    PROJECT_ROOT
-    / "01_EOAT_Audit"
-    / "EOAT_Audit_Database"
-    / "EOAT_Master_Tracker.xlsx"
-)
+WORKBOOK_PATH = PROJECT_ROOT / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
 ADMIN_DIR = PROJECT_ROOT / "00_Project_Admin"
 SCHEDULE_PATH = ADMIN_DIR / "project_schedule_week1.json"
 PROGRESS_PATH = ADMIN_DIR / "task_progress_week1.json"
@@ -93,12 +88,7 @@ def configure_project_root(project_root: Path) -> None:
     """Update module paths so setup can target a selected project root."""
     global PROJECT_ROOT, WORKBOOK_PATH, ADMIN_DIR, SCHEDULE_PATH, PROGRESS_PATH
     PROJECT_ROOT = project_root
-    WORKBOOK_PATH = (
-        PROJECT_ROOT
-        / "01_EOAT_Audit"
-        / "EOAT_Audit_Database"
-        / "EOAT_Master_Tracker.xlsx"
-    )
+    WORKBOOK_PATH = PROJECT_ROOT / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
     ADMIN_DIR = PROJECT_ROOT / "00_Project_Admin"
     SCHEDULE_PATH = ADMIN_DIR / "project_schedule_week1.json"
     PROGRESS_PATH = ADMIN_DIR / "task_progress_week1.json"
@@ -380,8 +370,22 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
         "Photos Taken?": ["Yes", "No"],
         "Follow-Up Needed": ["Yes", "No"],
         "Tubing Condition": ["OK", "Worn", "Damaged", "Poor Routing", "Needs Follow-Up", "Unknown / Not Checked"],
-        "Cable Management Condition": ["OK", "Loose", "Damaged", "Poor Routing", "Needs Follow-Up", "Unknown / Not Checked"],
-        "Mounting Hardware Condition": ["OK", "Loose", "Missing Hardware", "Damaged", "Needs Follow-Up", "Unknown / Not Checked"],
+        "Cable Management Condition": [
+            "OK",
+            "Loose",
+            "Damaged",
+            "Poor Routing",
+            "Needs Follow-Up",
+            "Unknown / Not Checked",
+        ],
+        "Mounting Hardware Condition": [
+            "OK",
+            "Loose",
+            "Missing Hardware",
+            "Damaged",
+            "Needs Follow-Up",
+            "Unknown / Not Checked",
+        ],
         "EOAT Alignment Condition": ["OK", "Slightly Off", "Misaligned", "Needs Follow-Up", "Unknown / Not Checked"],
         "Changeover Difficulty": ["Low", "Medium", "High", "Unknown / Not Checked"],
         "Status": ["Not Started", "In Progress", "Complete", "Needs Follow-Up", "Blocked"],
@@ -408,7 +412,15 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
         "Severity": ["1 - Very Low", "2 - Low", "3 - Medium", "4 - High", "5 - Critical"],
         "Frequency": ["1 - Very Low", "2 - Low", "3 - Medium", "4 - High", "5 - Critical"],
         "Detectability": ["1 - Very Low", "2 - Low", "3 - Medium", "4 - High", "5 - Critical"],
-        "Status": ["Open", "Investigating", "Waiting on parts", "Waiting on approval", "In progress", "Resolved", "Closed"],
+        "Status": [
+            "Open",
+            "Investigating",
+            "Waiting on parts",
+            "Waiting on approval",
+            "In progress",
+            "Resolved",
+            "Closed",
+        ],
     },
     "KPI Baseline": {
         "EOAT Type": ["Vacuum", "Mechanical gripper", "Hybrid", "Custom/other", "Unknown", "Miscellaneous"],
@@ -677,11 +689,7 @@ def schedule_help_files_for_week(week: int) -> list[Path]:
     """Find local schedule help documents for a week."""
     if not HELP_DOCUMENTS_DIR.exists():
         return []
-    return [
-        path
-        for path in HELP_DOCUMENTS_DIR.iterdir()
-        if path.is_file() and schedule_file_matches_week(path, week)
-    ]
+    return [path for path in HELP_DOCUMENTS_DIR.iterdir() if path.is_file() and schedule_file_matches_week(path, week)]
 
 
 def extract_schedule_from_pdf(path: Path, week: int) -> dict[str, list[str]]:
@@ -877,8 +885,8 @@ def add_fmea_formulas(ws, headers: list[str]) -> None:
 
     for row in range(2, 101):
         ws.cell(row=row, column=rpn_col).value = (
-            f'=IFERROR(VALUE(LEFT({severity_col}{row},1))*'
-            f'VALUE(LEFT({frequency_col}{row},1))*'
+            f"=IFERROR(VALUE(LEFT({severity_col}{row},1))*"
+            f"VALUE(LEFT({frequency_col}{row},1))*"
             f'VALUE(LEFT({detectability_col}{row},1)),"")'
         )
 
@@ -922,7 +930,9 @@ def create_workbook(safe: bool = False, dry_run: bool = False) -> list[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Create or verify the EOAT project workspace.")
     parser.add_argument("--project-root", default=str(PROJECT_ROOT), help="Target EOAT_Standardization_Project path.")
-    parser.add_argument("--safe", action="store_true", help="Create missing items only; do not overwrite existing files.")
+    parser.add_argument(
+        "--safe", action="store_true", help="Create missing items only; do not overwrite existing files."
+    )
     parser.add_argument("--dry-run", action="store_true", help="Show what would be created without writing files.")
     return parser.parse_args()
 

@@ -21,7 +21,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     QTimer = None
-    QAbstractItemView = QHBoxLayout = QLabel = QLineEdit = QProgressBar = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QAbstractItemView = QHBoxLayout = QLabel = QLineEdit = QProgressBar = QPushButton = QTableWidget = (
+        QTableWidgetItem
+    ) = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
 from app.task_runner import TaskRequest, get_task_manager
@@ -263,7 +265,10 @@ class Machine360Page(QWidget):
         elapsed = time.perf_counter() - started_at
         payload = task_result.result_data if isinstance(task_result.result_data, dict) else {}
         machine = str(payload.get("machine") or self._current_search_machine or self.machine_edit.text().strip())
-        stale = expected_generation != self._search_generation or int(payload.get("generation") or expected_generation) != self._search_generation
+        stale = (
+            expected_generation != self._search_generation
+            or int(payload.get("generation") or expected_generation) != self._search_generation
+        )
         if stale:
             self._log_search_event(
                 "machine_360_search_finished",
@@ -370,7 +375,9 @@ class Machine360Page(QWidget):
     def _populate_context(self, context: Machine360Context) -> None:
         self.last_refreshed_label.setText(f"Last refreshed: {context.last_refreshed or 'Unknown'}")
         self.data_source_label.setText(f"Data source: {self._data_source_label(context)}")
-        self.status_label.setText(f"{context.metrics.get('physical_audit_count', 0)} physical / {context.metrics.get('compatible_entry_count', 0)} compatible")
+        self.status_label.setText(
+            f"{context.metrics.get('physical_audit_count', 0)} physical / {context.metrics.get('compatible_entry_count', 0)} compatible"
+        )
         summary_rows = self._summary_rows(context)
         self.summary_table.setRowCount(len(summary_rows))
         for row, (section, metric, value) in enumerate(summary_rows):
@@ -415,7 +422,11 @@ class Machine360Page(QWidget):
             ("Mechanical / Routing", "Tubing condition", context.mechanical_routing.get("tubing_condition")),
             ("Reliability / Performance", "Open items", context.metrics.get("open_item_count", 0)),
             ("Documentation / Photos", "Photo index rows", context.metrics.get("photo_index_rows", 0)),
-            ("Documentation / Photos", "Missing required evidence", context.metrics.get("missing_required_photo_evidence", 0)),
+            (
+                "Documentation / Photos",
+                "Missing required evidence",
+                context.metrics.get("missing_required_photo_evidence", 0),
+            ),
             ("Risk / FMEA", "Highest RPN", context.risk_fmea.get("highest_rpn", 0)),
             ("KPI Signals", "Downtime minutes", context.kpi_signals.get("downtime_minutes", 0)),
             ("PM Status", "Due now", context.pm_status.get("due_now", 0)),
@@ -442,8 +453,14 @@ class Machine360Page(QWidget):
             ("Sensors and Detection", context.sensors_detection),
             ("Mechanical / Routing", context.mechanical_routing),
             ("Reliability / Performance", context.reliability_performance),
-            ("Documentation / Photos", {k: v for k, v in context.documentation_photos.items() if k != "evidence_items"}),
-            ("Open Items", {"count": len(context.open_items), "items": [item.get("title", "") for item in context.open_items[:8]]}),
+            (
+                "Documentation / Photos",
+                {k: v for k, v in context.documentation_photos.items() if k != "evidence_items"},
+            ),
+            (
+                "Open Items",
+                {"count": len(context.open_items), "items": [item.get("title", "") for item in context.open_items[:8]]},
+            ),
             ("Risk / FMEA", context.risk_fmea),
             ("KPI Signals", context.kpi_signals),
             ("PM Status", {k: v for k, v in context.pm_status.items() if k != "items"}),
@@ -486,10 +503,18 @@ class Machine360Page(QWidget):
         if not audit_id:
             self._set_action_result("No physical audit is available to open for this machine.")
             return
-        self.navigator.open_target({"target_type": "audit", "audit_id": audit_id, "machine_id": self.context.machine_number if self.context else ""})
+        self.navigator.open_target(
+            {
+                "target_type": "audit",
+                "audit_id": audit_id,
+                "machine_id": self.context.machine_number if self.context else "",
+            }
+        )
 
     def _open_press_view(self, machine: str) -> None:
-        self.navigator.open_target({"target_type": "machine", "machine_id": machine, "target_label": self._display_name()})
+        self.navigator.open_target(
+            {"target_type": "machine", "machine_id": machine, "target_label": self._display_name()}
+        )
 
     def _create_follow_up(self, machine: str) -> None:
         run_tool_background(
@@ -523,7 +548,9 @@ class Machine360Page(QWidget):
             self.result_panel,
             "machine_360_summary",
             "Machine 360 Summary",
-            lambda: generate_machine_360_summary(self.config.project_root, self.context.machine_number if self.context else "", self.context),
+            lambda: generate_machine_360_summary(
+                self.config.project_root, self.context.machine_number if self.context else "", self.context
+            ),
             modifies_files=True,
         )
 
@@ -535,7 +562,9 @@ class Machine360Page(QWidget):
         result = open_path(Path(path))
         self._set_action_result(result.summary if result.success else result.to_markdown())
         if not result.success:
-            self._navigate_with_message("photos", f"Photo folder could not be opened directly for {self._display_name()}.")
+            self._navigate_with_message(
+                "photos", f"Photo folder could not be opened directly for {self._display_name()}."
+            )
 
     def _generate_pm_checklist(self, machine: str) -> None:
         run_tool_background(

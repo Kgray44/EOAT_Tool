@@ -91,4 +91,3 @@ def numeric(value: Any) -> float:
     except (TypeError, ValueError):
         parsed = parse_score(value)
         return float(parsed or 0)
-

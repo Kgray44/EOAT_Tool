@@ -14,4 +14,3 @@ def write_markdown_report(
     directory = Path(output_dir)
     filename = f"{base_name}.md" if overwrite else timestamped_filename(base_name, ".md")
     return safe_write_text(directory / filename, markdown, overwrite=overwrite)
-

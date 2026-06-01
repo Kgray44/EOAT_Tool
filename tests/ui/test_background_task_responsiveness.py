@@ -11,8 +11,22 @@ pytestmark = pytest.mark.usability
 
 def test_duplicate_project_writing_policy_rejects_conflicting_workbook_tasks():
     guard = ActiveTaskGuard()
-    first = TaskRequest(id="first", name="First Workbook Write", category="test", callable=lambda: None, modifies_files=True, requires_workbook_lock=True)
-    duplicate = TaskRequest(id="duplicate", name="Duplicate Workbook Write", category="test", callable=lambda: None, modifies_files=True, requires_workbook_lock=True)
+    first = TaskRequest(
+        id="first",
+        name="First Workbook Write",
+        category="test",
+        callable=lambda: None,
+        modifies_files=True,
+        requires_workbook_lock=True,
+    )
+    duplicate = TaskRequest(
+        id="duplicate",
+        name="Duplicate Workbook Write",
+        category="test",
+        callable=lambda: None,
+        modifies_files=True,
+        requires_workbook_lock=True,
+    )
 
     allowed, reason = guard.try_start(first)
     assert allowed

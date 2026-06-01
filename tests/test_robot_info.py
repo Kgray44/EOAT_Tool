@@ -186,14 +186,21 @@ def test_robot_info_schema_repair_adds_robot_notes_without_destroying_data(fake_
     ws.append(old_headers)
     ws.append(
         [
-            "Plant 4" if header == "Plant/Area" else
-            "Press 12" if header == "Machine Number" else
-            "Wittmann R9" if header == "Robot Type" else
-            3 if header == "Robot Vacuum Circuits" else
-            2 if header == "Robot Pressure Circuits" else
-            0 if header == "Robot Interchangeable Circuits" else
-            "AUD-OLD" if header == "Last Audit ID" else
-            ""
+            "Plant 4"
+            if header == "Plant/Area"
+            else "Press 12"
+            if header == "Machine Number"
+            else "Wittmann R9"
+            if header == "Robot Type"
+            else 3
+            if header == "Robot Vacuum Circuits"
+            else 2
+            if header == "Robot Pressure Circuits"
+            else 0
+            if header == "Robot Interchangeable Circuits"
+            else "AUD-OLD"
+            if header == "Last Audit ID"
+            else ""
             for header in old_headers
         ]
     )

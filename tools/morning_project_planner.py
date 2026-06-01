@@ -9,7 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.morning_planner import generate_morning_plan
 
 
 def main() -> int:
@@ -20,7 +19,11 @@ def main() -> int:
     parser.add_argument("--notes", default="")
     parser.add_argument("--detail-level", choices=["todo", "summary", "debug"], default="todo")
     args = parser.parse_args()
-    result = generate_morning_plan(args.project_root, week=args.week, day=args.day, notes=args.notes, detail_level=args.detail_level)
+    from core.morning_planner import generate_morning_plan
+
+    result = generate_morning_plan(
+        args.project_root, week=args.week, day=args.day, notes=args.notes, detail_level=args.detail_level
+    )
     print(result.to_markdown())
     return 0 if result.success else 1
 

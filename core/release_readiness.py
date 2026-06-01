@@ -65,7 +65,12 @@ class ReleaseReadinessSummary:
         }
 
     def to_markdown(self) -> str:
-        lines = ["# Release Readiness", "", f"- Branch: {self.branch or 'Unknown'}", f"- Ready: {'Yes' if self.ready else 'No'}"]
+        lines = [
+            "# Release Readiness",
+            "",
+            f"- Branch: {self.branch or 'Unknown'}",
+            f"- Ready: {'Yes' if self.ready else 'No'}",
+        ]
         if self.git_warning:
             lines.append(f"- Git warning: {self.git_warning}")
         lines.extend(["", "## Checks", "| Check | Status | Details |", "| --- | --- | --- |"])
@@ -84,7 +89,9 @@ def collect_release_readiness(
     root = Path(repo_root).resolve()
     staged_paths, staged_warning = git_staged_files(root, git_executable)
     staged_rel = tuple(_relative_string(path, root) for path in staged_paths)
-    staged_findings = audit_staged_files(root, git_executable) if include_staged_safety_scan and not staged_warning else []
+    staged_findings = (
+        audit_staged_files(root, git_executable) if include_staged_safety_scan and not staged_warning else []
+    )
     blocker_count = sum(1 for finding in staged_findings if finding.severity == "BLOCKER")
     warning_count = sum(1 for finding in staged_findings if finding.severity == "WARNING")
     git_status, git_status_warning = _git_status(root, git_executable)
@@ -104,7 +111,9 @@ def collect_release_readiness(
             "app_smoke_test",
             "App smoke test",
             UNKNOWN if (root / "tests" / "test_ui_smoke.py").exists() else WARNING,
-            "Smoke test is available; run tests." if (root / "tests" / "test_ui_smoke.py").exists() else "No app smoke test file found.",
+            "Smoke test is available; run tests."
+            if (root / "tests" / "test_ui_smoke.py").exists()
+            else "No app smoke test file found.",
             "warning",
         ),
     ]
@@ -114,7 +123,13 @@ def collect_release_readiness(
                 ReleaseCheck("staged_workbooks", "No real workbooks staged", UNKNOWN, staged_warning, "blocker"),
                 ReleaseCheck("staged_photos", "No real photos staged", UNKNOWN, staged_warning, "blocker"),
                 ReleaseCheck("staged_local_config", "No local config staged", UNKNOWN, staged_warning, "blocker"),
-                ReleaseCheck("staged_generated_outputs", "No generated reports/logs/cache staged", UNKNOWN, staged_warning, "blocker"),
+                ReleaseCheck(
+                    "staged_generated_outputs",
+                    "No generated reports/logs/cache staged",
+                    UNKNOWN,
+                    staged_warning,
+                    "blocker",
+                ),
                 ReleaseCheck("staged_safety_scan", "Staged safety scan", UNKNOWN, staged_warning, "blocker"),
             ]
         )
@@ -124,11 +139,23 @@ def collect_release_readiness(
                 _staged_check("staged_workbooks", "No real workbooks staged", staged_paths, root, _is_unsafe_workbook),
                 _staged_check("staged_photos", "No real photos staged", staged_paths, root, _is_unsafe_photo),
                 _staged_check("staged_local_config", "No local config staged", staged_paths, root, _is_local_config),
-                _staged_check("staged_generated_outputs", "No generated reports/logs/cache staged", staged_paths, root, _is_generated_output),
+                _staged_check(
+                    "staged_generated_outputs",
+                    "No generated reports/logs/cache staged",
+                    staged_paths,
+                    root,
+                    _is_generated_output,
+                ),
                 ReleaseCheck(
                     "staged_safety_scan",
                     "Staged safety scan",
-                    FAIL if blocker_count else WARNING if warning_count else PASS if include_staged_safety_scan else UNKNOWN,
+                    FAIL
+                    if blocker_count
+                    else WARNING
+                    if warning_count
+                    else PASS
+                    if include_staged_safety_scan
+                    else UNKNOWN,
                     (
                         f"Blockers: {blocker_count}; warnings: {warning_count}; staged files: {len(staged_paths)}"
                         if include_staged_safety_scan
@@ -140,16 +167,42 @@ def collect_release_readiness(
         )
     checks.extend(
         [
-            ReleaseCheck("readme_usage", "README/USAGE present", PASS if _readme_usage_present(root) else FAIL, "README.md and USAGE.md/docs/USAGE.md checked.", "blocker"),
-            ReleaseCheck("demo_project", "Demo project present", PASS if (root / "examples" / "demo_project").exists() else FAIL, "examples/demo_project checked.", "blocker"),
-            ReleaseCheck("git_status", "Git status visible", PASS if not git_status_warning else UNKNOWN, f"{len(git_status)} status line(s)." if not git_status_warning else git_status_warning, "warning"),
-            ReleaseCheck("branch_status", "Branch status visible", PASS if branch else UNKNOWN, branch or branch_warning or "Branch unavailable.", "warning"),
+            ReleaseCheck(
+                "readme_usage",
+                "README/USAGE present",
+                PASS if _readme_usage_present(root) else FAIL,
+                "README.md and USAGE.md/docs/USAGE.md checked.",
+                "blocker",
+            ),
+            ReleaseCheck(
+                "demo_project",
+                "Demo project present",
+                PASS if (root / "examples" / "demo_project").exists() else FAIL,
+                "examples/demo_project checked.",
+                "blocker",
+            ),
+            ReleaseCheck(
+                "git_status",
+                "Git status visible",
+                PASS if not git_status_warning else UNKNOWN,
+                f"{len(git_status)} status line(s)." if not git_status_warning else git_status_warning,
+                "warning",
+            ),
+            ReleaseCheck(
+                "branch_status",
+                "Branch status visible",
+                PASS if branch else UNKNOWN,
+                branch or branch_warning or "Branch unavailable.",
+                "warning",
+            ),
         ]
     )
     return ReleaseReadinessSummary(tuple(checks), staged_rel, tuple(git_status), branch, git_warning)
 
 
-def run_repo_safety_audit(repo_root: str | Path = TOOLKIT_ROOT, *, staged_only: bool = False, git_executable: str = "git") -> ToolResult:
+def run_repo_safety_audit(
+    repo_root: str | Path = TOOLKIT_ROOT, *, staged_only: bool = False, git_executable: str = "git"
+) -> ToolResult:
     started = time.perf_counter()
     root = Path(repo_root).resolve()
     findings = audit_staged_files(root, git_executable) if staged_only else audit_repo(root)
@@ -160,7 +213,12 @@ def run_repo_safety_audit(repo_root: str | Path = TOOLKIT_ROOT, *, staged_only: 
         tool_name=TOOL_NAME,
         success=not blockers,
         summary=("Repo safety audit passed." if not blockers else "Repo safety audit found blockers."),
-        details=[f"Scope: {'staged files' if staged_only else 'working tree'}", f"Blockers: {len(blockers)}", f"Warnings: {len(warnings)}", *blockers[:25]],
+        details=[
+            f"Scope: {'staged files' if staged_only else 'working tree'}",
+            f"Blockers: {len(blockers)}",
+            f"Warnings: {len(warnings)}",
+            *blockers[:25],
+        ],
         warnings=warnings[:25],
         errors=blockers,
         metrics={"blockers": len(blockers), "warnings": len(warnings), "staged_only": staged_only},
@@ -168,7 +226,9 @@ def run_repo_safety_audit(repo_root: str | Path = TOOLKIT_ROOT, *, staged_only: 
     )
 
 
-def run_release_tests(repo_root: str | Path = TOOLKIT_ROOT, *, smoke_only: bool = False, timeout_seconds: int = 600) -> ToolResult:
+def run_release_tests(
+    repo_root: str | Path = TOOLKIT_ROOT, *, smoke_only: bool = False, timeout_seconds: int = 600
+) -> ToolResult:
     started = time.perf_counter()
     root = Path(repo_root).resolve()
     command = [sys.executable, "-m", "pytest", "-q"]
@@ -177,7 +237,13 @@ def run_release_tests(repo_root: str | Path = TOOLKIT_ROOT, *, smoke_only: bool 
     try:
         completed = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=timeout_seconds)
     except (OSError, subprocess.SubprocessError) as exc:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, "Could not run pytest.", errors=[str(exc)], duration_seconds=time.perf_counter() - started)
+        return ToolResult.fail(
+            TOOL_ID,
+            TOOL_NAME,
+            "Could not run pytest.",
+            errors=[str(exc)],
+            duration_seconds=time.perf_counter() - started,
+        )
     output = "\n".join((completed.stdout or "", completed.stderr or "").splitlines()[-30:])
     return ToolResult(
         tool_id=TOOL_ID,
@@ -196,7 +262,13 @@ def show_staged_files(repo_root: str | Path = TOOLKIT_ROOT, *, git_executable: s
     root = Path(repo_root).resolve()
     files, warning = git_staged_files(root, git_executable)
     if warning:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, "Could not list staged files.", errors=[warning], duration_seconds=time.perf_counter() - started)
+        return ToolResult.fail(
+            TOOL_ID,
+            TOOL_NAME,
+            "Could not list staged files.",
+            errors=[warning],
+            duration_seconds=time.perf_counter() - started,
+        )
     rel = [_relative_string(path, root) for path in files]
     return ToolResult.ok(
         TOOL_ID,
@@ -208,12 +280,20 @@ def show_staged_files(repo_root: str | Path = TOOLKIT_ROOT, *, git_executable: s
     )
 
 
-def install_pre_commit_hook(repo_root: str | Path = TOOLKIT_ROOT, *, git_executable: str = "git", force: bool = False) -> ToolResult:
+def install_pre_commit_hook(
+    repo_root: str | Path = TOOLKIT_ROOT, *, git_executable: str = "git", force: bool = False
+) -> ToolResult:
     started = time.perf_counter()
     root = Path(repo_root).resolve()
     git_dir, warning = _git_dir(root, git_executable)
     if warning or git_dir is None:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, "Could not locate .git directory.", errors=[warning or "Unknown git error"], duration_seconds=time.perf_counter() - started)
+        return ToolResult.fail(
+            TOOL_ID,
+            TOOL_NAME,
+            "Could not locate .git directory.",
+            errors=[warning or "Unknown git error"],
+            duration_seconds=time.perf_counter() - started,
+        )
     hooks = ensure_directory(git_dir / "hooks")
     hook_path = hooks / "pre-commit"
     text = """#!/bin/sh
@@ -264,7 +344,13 @@ def commit_checklist_markdown() -> str:
 
 def _staged_check(key: str, label: str, staged_paths: list[Path], root: Path, predicate) -> ReleaseCheck:
     offenders = [_relative_string(path, root) for path in staged_paths if predicate(path, root)]
-    return ReleaseCheck(key, label, FAIL if offenders else PASS, "; ".join(offenders[:5]) if offenders else "No offenders staged.", "blocker")
+    return ReleaseCheck(
+        key,
+        label,
+        FAIL if offenders else PASS,
+        "; ".join(offenders[:5]) if offenders else "No offenders staged.",
+        "blocker",
+    )
 
 
 def _is_unsafe_workbook(path: Path, root: Path) -> bool:
@@ -272,17 +358,38 @@ def _is_unsafe_workbook(path: Path, root: Path) -> bool:
 
 
 def _is_unsafe_photo(path: Path, root: Path) -> bool:
-    return path.suffix.lower() in IMAGE_SUFFIXES and not _relative_string(path, root).startswith(("examples/demo_project/", "templates/", "tests/", "data_templates/", "docs/"))
+    return path.suffix.lower() in IMAGE_SUFFIXES and not _relative_string(path, root).startswith(
+        ("examples/demo_project/", "templates/", "tests/", "data_templates/", "docs/")
+    )
 
 
 def _is_local_config(path: Path, root: Path) -> bool:
     rel = _relative_string(path, root).lower()
-    return rel in {"config/local_config.json", "config/user_config.json", "config/config.json", "local_config.json", "user_config.json"} or rel.endswith(".local.json")
+    return rel in {
+        "config/local_config.json",
+        "config/user_config.json",
+        "config/config.json",
+        "local_config.json",
+        "user_config.json",
+    } or rel.endswith(".local.json")
 
 
 def _is_generated_output(path: Path, root: Path) -> bool:
     parts = {part.lower().replace("-", "_").replace(" ", "_") for part in Path(_relative_string(path, root)).parts}
-    return bool(parts & {"reports", "logs", "cache", "backups", "_backups", "exports", "snapshots", "activity_logs", "validation_reports"})
+    return bool(
+        parts
+        & {
+            "reports",
+            "logs",
+            "cache",
+            "backups",
+            "_backups",
+            "exports",
+            "snapshots",
+            "activity_logs",
+            "validation_reports",
+        }
+    )
 
 
 def _readme_usage_present(root: Path) -> bool:
@@ -291,7 +398,9 @@ def _readme_usage_present(root: Path) -> bool:
 
 def _git_status(root: Path, git_executable: str) -> tuple[list[str], str | None]:
     try:
-        completed = subprocess.run([git_executable, "status", "--short"], cwd=root, capture_output=True, text=True, timeout=30)
+        completed = subprocess.run(
+            [git_executable, "status", "--short"], cwd=root, capture_output=True, text=True, timeout=30
+        )
     except (OSError, subprocess.SubprocessError) as exc:
         return [], str(exc)
     if completed.returncode != 0:
@@ -301,7 +410,9 @@ def _git_status(root: Path, git_executable: str) -> tuple[list[str], str | None]
 
 def _git_branch(root: Path, git_executable: str) -> tuple[str, str | None]:
     try:
-        completed = subprocess.run([git_executable, "rev-parse", "--abbrev-ref", "HEAD"], cwd=root, capture_output=True, text=True, timeout=30)
+        completed = subprocess.run(
+            [git_executable, "rev-parse", "--abbrev-ref", "HEAD"], cwd=root, capture_output=True, text=True, timeout=30
+        )
     except (OSError, subprocess.SubprocessError) as exc:
         return "", str(exc)
     if completed.returncode != 0:
@@ -311,7 +422,9 @@ def _git_branch(root: Path, git_executable: str) -> tuple[str, str | None]:
 
 def _git_dir(root: Path, git_executable: str) -> tuple[Path | None, str | None]:
     try:
-        completed = subprocess.run([git_executable, "rev-parse", "--git-dir"], cwd=root, capture_output=True, text=True, timeout=30)
+        completed = subprocess.run(
+            [git_executable, "rev-parse", "--git-dir"], cwd=root, capture_output=True, text=True, timeout=30
+        )
     except (OSError, subprocess.SubprocessError) as exc:
         return None, str(exc)
     if completed.returncode != 0:

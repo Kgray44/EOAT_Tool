@@ -80,7 +80,12 @@ def save_interview_entry(
     paths = resolve_project_paths(project_root)
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
-        return ToolResult.fail("interview_form", "Operator/Technician Interview Form Tool", "Master workbook is missing.", errors=[str(workbook_path)])
+        return ToolResult.fail(
+            "interview_form",
+            "Operator/Technician Interview Form Tool",
+            "Master workbook is missing.",
+            errors=[str(workbook_path)],
+        )
     data = normalize_interview_entry(project_root, entry)
     errors, warnings = validate_interview_entry(data)
     if errors:

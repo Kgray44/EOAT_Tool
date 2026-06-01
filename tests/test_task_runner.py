@@ -37,15 +37,21 @@ def test_background_task_success_and_failure():
     assert ok.ok
     assert ok.result_data == "done"
 
-    failed = _wait_for_task(manager, TaskRequest("dummy_fail", "Dummy Fail", "test", lambda: (_ for _ in ()).throw(ValueError("boom"))))
+    failed = _wait_for_task(
+        manager, TaskRequest("dummy_fail", "Dummy Fail", "test", lambda: (_ for _ in ()).throw(ValueError("boom")))
+    )
     assert not failed.ok
     assert "ValueError" in failed.error
 
 
 def test_task_guard_rejects_conflicting_workbook_writes():
     guard = ActiveTaskGuard()
-    first = TaskRequest("write_one", "Write One", "test", lambda: None, modifies_files=True, requires_workbook_lock=True)
-    second = TaskRequest("write_two", "Write Two", "test", lambda: None, modifies_files=True, requires_workbook_lock=True)
+    first = TaskRequest(
+        "write_one", "Write One", "test", lambda: None, modifies_files=True, requires_workbook_lock=True
+    )
+    second = TaskRequest(
+        "write_two", "Write Two", "test", lambda: None, modifies_files=True, requires_workbook_lock=True
+    )
 
     allowed, reason = guard.try_start(first)
     assert allowed

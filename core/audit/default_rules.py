@@ -70,7 +70,9 @@ class AuditDefaultApplyResult:
 ApplicableFields = Collection[str] | Callable[[str], bool] | None
 
 
-def default_rules_from_audit_defaults(defaults: Mapping[str, Any] | None = None, *, source: str = "system_default") -> list[dict[str, Any]]:
+def default_rules_from_audit_defaults(
+    defaults: Mapping[str, Any] | None = None, *, source: str = "system_default"
+) -> list[dict[str, Any]]:
     source_defaults = dict(DEFAULT_AUDIT_DEFAULTS if defaults is None else defaults)
     rules: list[dict[str, Any]] = []
     for field, value in source_defaults.items():
@@ -224,7 +226,9 @@ def _normalize_conditions(raw_conditions: Any) -> list[AuditDefaultCondition]:
             AuditDefaultCondition(
                 field=field,
                 operator=_choice(raw.get("operator"), CONDITION_OPERATORS, "equals"),
-                value="" if raw.get("value", raw.get("when_value")) is None else str(raw.get("value", raw.get("when_value"))),
+                value=""
+                if raw.get("value", raw.get("when_value")) is None
+                else str(raw.get("value", raw.get("when_value"))),
                 values=_string_tuple(values),
             )
         )

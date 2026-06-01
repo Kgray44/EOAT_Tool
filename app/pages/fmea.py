@@ -39,10 +39,17 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
         buttons = QHBoxLayout()
-        workflow = QLabel("Workflow: 1. Run analysis  ->  2. Review suggestions  ->  3. Check RPN  ->  4. Export/open report")
+        workflow = QLabel(
+            "Workflow: 1. Run analysis  ->  2. Review suggestions  ->  3. Check RPN  ->  4. Export/open report"
+        )
         workflow.setStyleSheet("color: #627d98;")
         layout.addWidget(workflow)
-        for label, callback in [("Run FMEA Analysis", self.run_report), ("Calculate RPN / Refresh", lambda: self.refresh(force=True)), ("Suggest FMEA Entries", lambda: self.refresh(force=True)), ("Open FMEA Reports Folder", self.open_reports)]:
+        for label, callback in [
+            ("Run FMEA Analysis", self.run_report),
+            ("Calculate RPN / Refresh", lambda: self.refresh(force=True)),
+            ("Suggest FMEA Entries", lambda: self.refresh(force=True)),
+            ("Open FMEA Reports Folder", self.open_reports),
+        ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
             buttons.addWidget(button)
@@ -103,7 +110,11 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
         self.cards["Suggested Entries"].set_value(str(summary.metrics.get("suggested_entries", 0)))
         self.cards["Missing Risk Rows"].set_value(str(summary.metrics.get("missing_risk_rows", 0)))
         self.cards["Top RPN"].set_value(str(summary.metrics.get("top_rpn", 0)))
-        populate_table(self.risk_table, summary.ranked_rows[:10], ["FMEA ID", "Press/Machine #", "Failure Mode", "RPN", "Recommended Action"])
+        populate_table(
+            self.risk_table,
+            summary.ranked_rows[:10],
+            ["FMEA ID", "Press/Machine #", "Failure Mode", "RPN", "Recommended Action"],
+        )
         self._populate_suggestion_table(summary.suggestions)
         self.preview.show_markdown_text(summary.to_markdown())
         render_seconds = time.perf_counter() - render_started
@@ -169,7 +180,12 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
             self.suggest_table.setItem(row_index, 0, accept_item)
             for col_index, column in enumerate(columns[1:], start=1):
                 item = QTableWidgetItem(str(suggestion.get(column, "")))
-                if column not in {"Suggested Severity", "Suggested Frequency", "Suggested Detectability", "Suggested Mitigation"}:
+                if column not in {
+                    "Suggested Severity",
+                    "Suggested Frequency",
+                    "Suggested Detectability",
+                    "Suggested Mitigation",
+                }:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.suggest_table.setItem(row_index, col_index, item)
         self.suggest_table.resizeColumnsToContents()
@@ -216,13 +232,20 @@ class FmeaPage(AsyncRefreshMixin, QWidget):
 
     def reject_selected_suggestions(self) -> None:
         rows = self._selected_suggestion_rows()
-        result = reject_fmea_suggestions(self.config.project_root, [row.get("Suggestion ID", "") for row in rows], reason="Rejected in FMEA page review.")
+        result = reject_fmea_suggestions(
+            self.config.project_root,
+            [row.get("Suggestion ID", "") for row in rows],
+            reason="Rejected in FMEA page review.",
+        )
         self.result_panel.show_result(result)
         if result.success:
             self.refresh(force=True)
 
     def export_suggestion_draft(self) -> None:
-        rows = self._selected_suggestion_rows() or [dict(self.suggest_table.item(row, 0).data(Qt.ItemDataRole.UserRole) or {}) for row in range(self.suggest_table.rowCount())]
+        rows = self._selected_suggestion_rows() or [
+            dict(self.suggest_table.item(row, 0).data(Qt.ItemDataRole.UserRole) or {})
+            for row in range(self.suggest_table.rowCount())
+        ]
         result = export_fmea_evidence_report(self.config.project_root, rows)
         self.result_panel.show_result(result)
         if result.output_reports:

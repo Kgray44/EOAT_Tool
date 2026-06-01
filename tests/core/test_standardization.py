@@ -42,7 +42,11 @@ def _append_inventory_row(project_root, values: dict[str, object]) -> None:
 
 
 def _component_row(analysis, category: str, component: str) -> dict[str, object]:
-    return next(row for row in analysis.component_frequency_table if row["Category"] == category and row["Component"] == component)
+    return next(
+        row
+        for row in analysis.component_frequency_table
+        if row["Category"] == category and row["Component"] == component
+    )
 
 
 def test_alias_normalization_and_config_alias_file(tmp_path):
@@ -92,7 +96,9 @@ def test_frequency_counts_recommendations_and_alias_cleanup(fake_project):
     assert gripper_model["Count"] == 2
     assert "Large Double Gripper" in gripper_model["Raw Values"]
     assert sensor_type["Count"] == 2
-    assert any(row["Recommended Part"] == "MHZL2-16D" and row["Count"] == 2 for row in analysis.recommended_standard_parts_list)
+    assert any(
+        row["Recommended Part"] == "MHZL2-16D" and row["Count"] == 2 for row in analysis.recommended_standard_parts_list
+    )
     assert any(
         row["Action Type"] == "Alias normalization"
         and row["Audit ID"] == "AUD-STD-001"
@@ -116,9 +122,18 @@ def test_unknown_model_detection(fake_project):
 
     analysis = analyze_standardization_opportunities(fake_project)
 
-    assert any(row["Audit ID"] == "AUD-STD-UNKNOWN" and row["Field"] == "Gripper Model" for row in analysis.unknown_missing_part_number_table)
-    assert any(row["Audit ID"] == "AUD-STD-UNKNOWN" and row["Field"] == "Sensor Brand/Model" for row in analysis.unknown_missing_part_number_table)
-    assert any(row["Action Type"] == "Part/model lookup" and row["Audit ID"] == "AUD-STD-UNKNOWN" for row in analysis.candidate_bom_cleanup_actions)
+    assert any(
+        row["Audit ID"] == "AUD-STD-UNKNOWN" and row["Field"] == "Gripper Model"
+        for row in analysis.unknown_missing_part_number_table
+    )
+    assert any(
+        row["Audit ID"] == "AUD-STD-UNKNOWN" and row["Field"] == "Sensor Brand/Model"
+        for row in analysis.unknown_missing_part_number_table
+    )
+    assert any(
+        row["Action Type"] == "Part/model lookup" and row["Audit ID"] == "AUD-STD-UNKNOWN"
+        for row in analysis.candidate_bom_cleanup_actions
+    )
 
 
 def test_documentation_gap_cleanup_actions(fake_project):
@@ -137,8 +152,14 @@ def test_documentation_gap_cleanup_actions(fake_project):
 
     analysis = analyze_standardization_opportunities(fake_project)
 
-    assert any(row["Audit ID"] == "AUD-STD-DOC" and "BOM Available?" in row["Missing Fields"] for row in analysis.documentation_gap_table)
-    assert any(row["Action Type"] == "Documentation status cleanup" and row["Audit ID"] == "AUD-STD-DOC" for row in analysis.candidate_bom_cleanup_actions)
+    assert any(
+        row["Audit ID"] == "AUD-STD-DOC" and "BOM Available?" in row["Missing Fields"]
+        for row in analysis.documentation_gap_table
+    )
+    assert any(
+        row["Action Type"] == "Documentation status cleanup" and row["Audit ID"] == "AUD-STD-DOC"
+        for row in analysis.candidate_bom_cleanup_actions
+    )
 
 
 def test_export_includes_machines_and_audits(fake_project):

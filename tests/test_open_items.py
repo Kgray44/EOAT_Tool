@@ -126,10 +126,19 @@ def test_open_items_aggregate_notes_tags_actions_and_status_overrides(fake_proje
         field_key="Sensor Type",
         field_label="Sensor Type",
     )
-    service.create_note("Important unresolved note", "Check sensor wiring.", "Important", status="Open", follow_up_date=(date.today() + timedelta(days=1)).isoformat(), target_ids=[target.id])
+    service.create_note(
+        "Important unresolved note",
+        "Check sensor wiring.",
+        "Important",
+        status="Open",
+        follow_up_date=(date.today() + timedelta(days=1)).isoformat(),
+        target_ids=[target.id],
+    )
     tag = service.get_tag_by_name("Needs Review")
     service.assign_tag_to_target(tag.id, target.id, comment="Confirm sensor type.", sync_workbook=False)
-    action_result = add_action_item(fake_project, "Resolve synthetic open item.", related_cell_press="12", priority="High")
+    action_result = add_action_item(
+        fake_project, "Resolve synthetic open item.", related_cell_press="12", priority="High"
+    )
     assert action_result.success
 
     items = list_open_items(fake_project, include_validation=False)
@@ -154,7 +163,9 @@ def test_open_items_aggregate_notes_tags_actions_and_status_overrides(fake_proje
 
 def test_open_items_summary_counts_validation_and_dismissal(fake_project):
     service = AnnotationService(fake_project)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-OPEN-SUMMARY-001", field_key="Photos Taken?", field_label="Photos Taken?")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-OPEN-SUMMARY-001", field_key="Photos Taken?", field_label="Photos Taken?"
+    )
     service.assign_tag_to_target(service.get_tag_by_name("Missing Evidence").id, target.id, sync_workbook=False)
 
     items = list_open_items(fake_project, include_validation=True)
@@ -241,7 +252,11 @@ def test_cup_count_validation_open_item_disappears_when_source_field_is_filled(f
 
 def test_dismiss_with_reason_hides_open_item_and_records_override(fake_project):
     _append_inventory_row(fake_project, _audit_row("AUD-DISMISS-001", **{"Process Binder Complete?": "No"}))
-    item = next(item for item in list_open_items(fake_project, include_validation=False) if item.field == "Process Binder Complete?")
+    item = next(
+        item
+        for item in list_open_items(fake_project, include_validation=False)
+        if item.field == "Process Binder Complete?"
+    )
     before_summary = open_items_summary(fake_project)
 
     dismissed = dismiss_open_item(fake_project, item.id, reason="Binder confirmed in controlled document system.")

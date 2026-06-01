@@ -34,7 +34,9 @@ def test_timeline_tracks_reports_pm_and_photo_evidence(fake_project):
             "pm_checklist_generator",
             "PM Checklist",
             "Generated PM checklist.",
-            files_created=[str(fake_project / "03_Standards" / "PM_Checklist_Draft" / "Generated_Checklists" / "PM.md")],
+            files_created=[
+                str(fake_project / "03_Standards" / "PM_Checklist_Draft" / "Generated_Checklists" / "PM.md")
+            ],
         ),
         fake_project,
     )
@@ -51,7 +53,15 @@ def test_timeline_tracks_reports_pm_and_photo_evidence(fake_project):
     ws = workbook["Photo Index"]
     headers = get_expected_headers("Photo Index")
     row = {header: "" for header in headers}
-    row.update({"Photo ID": "PHOTO-1", "Photo Filename": "eoat.jpg", "Related Audit ID": "AUD-TL-002", "Press/Machine #": "Press 12", "Date Taken": "2026-05-18"})
+    row.update(
+        {
+            "Photo ID": "PHOTO-1",
+            "Photo Filename": "eoat.jpg",
+            "Related Audit ID": "AUD-TL-002",
+            "Press/Machine #": "Press 12",
+            "Date Taken": "2026-05-18",
+        }
+    )
     ws.append([row.get(header, "") for header in headers])
     workbook.save(resolve_project_paths(fake_project).master_workbook)
     workbook.close()

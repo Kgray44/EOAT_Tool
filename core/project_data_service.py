@@ -138,11 +138,7 @@ class ProjectDataService:
         target = _text(audit_id)
         if not target:
             return []
-        return [
-            dict(row)
-            for row in self._rows("Photo Index")
-            if _text(row.get("Related Audit ID")) == target
-        ]
+        return [dict(row) for row in self._rows("Photo Index") if _text(row.get("Related Audit ID")) == target]
 
     def get_validation_findings(self, scope: str, target_id: str) -> list[dict[str, Any]]:
         scope_key = _text(scope).casefold()
@@ -160,12 +156,12 @@ class ProjectDataService:
         except Exception:
             return []
 
-    def _rows_for_machine(self, sheet_name: str, machine_number: str, *, machine_header: str = "Press/Machine #") -> list[dict[str, Any]]:
+    def _rows_for_machine(
+        self, sheet_name: str, machine_number: str, *, machine_header: str = "Press/Machine #"
+    ) -> list[dict[str, Any]]:
         target = normalize_machine_token(machine_number)
         return [
-            dict(row)
-            for row in self._rows(sheet_name)
-            if normalize_machine_token(row.get(machine_header)) == target
+            dict(row) for row in self._rows(sheet_name) if normalize_machine_token(row.get(machine_header)) == target
         ]
 
 
@@ -194,7 +190,9 @@ def build_machine_360_context(project_root: str | Path, machine_number: str) -> 
     fmea_rows = _machine_sheet_rows(paths, "FMEA Draft", machine, warnings, data_sources, "FMEA draft")
     pilot_rows = _machine_sheet_rows(paths, "Pilot Candidates", machine, warnings, data_sources, "pilot candidates")
     interview_rows = _machine_sheet_rows(paths, "Interview Notes", machine, warnings, data_sources, "interview notes")
-    action_rows = _machine_sheet_rows(paths, "Action Items", machine, warnings, data_sources, "action items", machine_header="Related Cell/Press")
+    action_rows = _machine_sheet_rows(
+        paths, "Action Items", machine, warnings, data_sources, "action items", machine_header="Related Cell/Press"
+    )
     open_items = _merge_open_items(open_items, _open_items_from_action_rows(action_rows, machine))
     photo_rows = _machine_sheet_rows(paths, "Photo Index", machine, warnings, data_sources, "photo index")
     validation_findings = _latest_validation_findings(paths, machine, data_sources)
@@ -213,7 +211,11 @@ def build_machine_360_context(project_root: str | Path, machine_number: str) -> 
     pm_summary = _pm_status(project_root, physical_rows)
     metrics = {
         "physical_audit_count": len(physical_rows) if physical_rows else len(group.physical_audits) if group else 0,
-        "compatible_entry_count": len(compatible_rows) if compatible_rows else len(group.compatible_entries) if group else 0,
+        "compatible_entry_count": len(compatible_rows)
+        if compatible_rows
+        else len(group.compatible_entries)
+        if group
+        else 0,
         "linked_compatible_count": len(linked),
         "open_item_count": len(open_items),
         "missing_required_photo_evidence": sum(item.get("missing_required_count", 0) for item in evidence),
@@ -273,7 +275,9 @@ def build_machine_360_context(project_root: str | Path, machine_number: str) -> 
     )
 
 
-def generate_machine_360_summary(project_root: str | Path, machine_number: str, context: Machine360Context | None = None) -> ToolResult:
+def generate_machine_360_summary(
+    project_root: str | Path, machine_number: str, context: Machine360Context | None = None
+) -> ToolResult:
     context = context or build_machine_360_context(project_root, machine_number)
     if not context.machine_number:
         return ToolResult.fail("machine_360_summary", "Machine 360 Summary", "No machine was selected.")
@@ -322,15 +326,21 @@ def _inventory_rows(workbook: Path, warnings: list[str], data_sources: list[dict
         return []
     try:
         rows = row_dicts(workbook, "EOAT Inventory")
-        data_sources.append({"name": "EOAT Inventory", "status": "loaded", "path": str(workbook), "row_count": len(rows)})
+        data_sources.append(
+            {"name": "EOAT Inventory", "status": "loaded", "path": str(workbook), "row_count": len(rows)}
+        )
         return rows
     except Exception as exc:
         warnings.append(f"Could not read EOAT Inventory: {exc}")
-        data_sources.append({"name": "EOAT Inventory", "status": "error", "path": str(workbook), "error": str(exc), "row_count": 0})
+        data_sources.append(
+            {"name": "EOAT Inventory", "status": "error", "path": str(workbook), "error": str(exc), "row_count": 0}
+        )
         return []
 
 
-def _cached_press_groups(project_root: str | Path, warnings: list[str], data_sources: list[dict[str, Any]]) -> tuple[list[PressViewGroup], str]:
+def _cached_press_groups(
+    project_root: str | Path, warnings: list[str], data_sources: list[dict[str, Any]]
+) -> tuple[list[PressViewGroup], str]:
     try:
         groups, generated_at, warning = load_cached_press_view_groups(project_root)
     except Exception as exc:
@@ -338,9 +348,23 @@ def _cached_press_groups(project_root: str | Path, warnings: list[str], data_sou
         data_sources.append({"name": "Press View cache", "status": "error", "error": str(exc), "row_count": 0})
         return [], ""
     if groups:
-        data_sources.append({"name": "Press View cache", "status": "loaded", "generated_at": generated_at or "", "row_count": len(groups)})
+        data_sources.append(
+            {
+                "name": "Press View cache",
+                "status": "loaded",
+                "generated_at": generated_at or "",
+                "row_count": len(groups),
+            }
+        )
         return groups, generated_at or ""
-    data_sources.append({"name": "Press View cache", "status": "missing", "warning": warning or "No cached press view found.", "row_count": 0})
+    data_sources.append(
+        {
+            "name": "Press View cache",
+            "status": "missing",
+            "warning": warning or "No cached press view found.",
+            "row_count": 0,
+        }
+    )
     return [], ""
 
 
@@ -352,14 +376,23 @@ def _find_press_group(groups: list[PressViewGroup], machine: str) -> PressViewGr
     return None
 
 
-def _machine_open_items(project_root: str | Path, machine: str, data_sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _machine_open_items(
+    project_root: str | Path, machine: str, data_sources: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     try:
         items, generated_at, warning = load_cached_open_items(project_root)
     except Exception as exc:
         data_sources.append({"name": "Open items snapshot", "status": "error", "error": str(exc), "row_count": 0})
         return []
     if not items:
-        data_sources.append({"name": "Open items snapshot", "status": "missing_optional", "warning": warning or "No cached open-items snapshot found.", "row_count": 0})
+        data_sources.append(
+            {
+                "name": "Open items snapshot",
+                "status": "missing_optional",
+                "warning": warning or "No cached open-items snapshot found.",
+                "row_count": 0,
+            }
+        )
         return []
     target = normalize_machine_token(machine)
     rows = [
@@ -378,7 +411,9 @@ def _machine_open_items(project_root: str | Path, machine: str, data_sources: li
         for item in items
         if normalize_machine_token(item.machine) == target
     ]
-    data_sources.append({"name": "Open items snapshot", "status": "loaded", "generated_at": generated_at or "", "row_count": len(rows)})
+    data_sources.append(
+        {"name": "Open items snapshot", "status": "loaded", "generated_at": generated_at or "", "row_count": len(rows)}
+    )
     return rows
 
 
@@ -421,7 +456,14 @@ def _annotations_for_machine(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     paths = resolve_project_paths(project_root)
     if not paths.annotations_database.exists():
-        data_sources.append({"name": "Annotation database", "status": "missing_optional", "path": str(paths.annotations_database), "row_count": 0})
+        data_sources.append(
+            {
+                "name": "Annotation database",
+                "status": "missing_optional",
+                "path": str(paths.annotations_database),
+                "row_count": 0,
+            }
+        )
         return [], []
     try:
         from .annotations.service import AnnotationService
@@ -446,10 +488,25 @@ def _annotations_for_machine(
                 tags_by_id[str(tag.get("assignment_id") or len(tags_by_id))] = dict(tag)
         notes = list(notes_by_id.values())
         tags = list(tags_by_id.values())
-        data_sources.append({"name": "Annotation database", "status": "loaded", "path": str(paths.annotations_database), "row_count": len(notes) + len(tags)})
+        data_sources.append(
+            {
+                "name": "Annotation database",
+                "status": "loaded",
+                "path": str(paths.annotations_database),
+                "row_count": len(notes) + len(tags),
+            }
+        )
         return notes, tags
     except Exception as exc:
-        data_sources.append({"name": "Annotation database", "status": "error", "path": str(paths.annotations_database), "error": str(exc), "row_count": 0})
+        data_sources.append(
+            {
+                "name": "Annotation database",
+                "status": "error",
+                "path": str(paths.annotations_database),
+                "error": str(exc),
+                "row_count": 0,
+            }
+        )
         return [], []
 
 
@@ -468,11 +525,21 @@ def _machine_sheet_rows(
     try:
         rows = row_dicts(paths.master_workbook, sheet_name)
     except Exception as exc:
-        data_sources.append({"name": source_label, "status": "error", "sheet": sheet_name, "error": str(exc), "row_count": 0})
+        data_sources.append(
+            {"name": source_label, "status": "error", "sheet": sheet_name, "error": str(exc), "row_count": 0}
+        )
         return []
     target = normalize_machine_token(machine)
     matches = [row for row in rows if normalize_machine_token(row.get(machine_header)) == target]
-    data_sources.append({"name": source_label, "status": "loaded", "sheet": sheet_name, "row_count": len(matches), "total_rows": len(rows)})
+    data_sources.append(
+        {
+            "name": source_label,
+            "status": "loaded",
+            "sheet": sheet_name,
+            "row_count": len(matches),
+            "total_rows": len(rows),
+        }
+    )
     return [dict(row) for row in matches]
 
 
@@ -488,7 +555,11 @@ def _open_items_from_action_rows(action_rows: list[dict[str, Any]], machine: str
             {
                 "id": f"action_item:{action_id}",
                 "source": "action_item",
-                "severity": "Critical" if priority.casefold() == "critical" else "High" if priority.casefold() == "high" else "Medium",
+                "severity": "Critical"
+                if priority.casefold() == "critical"
+                else "High"
+                if priority.casefold() == "high"
+                else "Medium",
                 "category": "follow_up",
                 "title": _text(row.get("Action Item")) or "Open action item",
                 "machine": machine,
@@ -517,17 +588,29 @@ def _merge_open_items(first: list[dict[str, Any]], second: list[dict[str, Any]])
 def _latest_validation_findings(paths, machine: str, data_sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     folder = paths.validation_reports
     if not folder.exists():
-        data_sources.append({"name": "Latest validation report", "status": "missing_optional", "path": str(folder), "row_count": 0})
+        data_sources.append(
+            {"name": "Latest validation report", "status": "missing_optional", "path": str(folder), "row_count": 0}
+        )
         return []
     files = sorted(folder.glob("Foundation_Validation_*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
     if not files:
-        data_sources.append({"name": "Latest validation report", "status": "missing_optional", "path": str(folder), "row_count": 0})
+        data_sources.append(
+            {"name": "Latest validation report", "status": "missing_optional", "path": str(folder), "row_count": 0}
+        )
         return []
     path = files[0]
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        data_sources.append({"name": "Latest validation report", "status": "error", "path": str(path), "error": str(exc), "row_count": 0})
+        data_sources.append(
+            {
+                "name": "Latest validation report",
+                "status": "error",
+                "path": str(path),
+                "error": str(exc),
+                "row_count": 0,
+            }
+        )
         return []
     target = normalize_machine_token(machine)
     findings = [
@@ -535,7 +618,9 @@ def _latest_validation_findings(paths, machine: str, data_sources: list[dict[str
         for finding in payload.get("findings", [])
         if isinstance(finding, dict) and normalize_machine_token(finding.get("machine_number")) == target
     ]
-    data_sources.append({"name": "Latest validation report", "status": "loaded", "path": str(path), "row_count": len(findings)})
+    data_sources.append(
+        {"name": "Latest validation report", "status": "loaded", "path": str(path), "row_count": len(findings)}
+    )
     return findings
 
 
@@ -555,7 +640,11 @@ def _latest_validation_findings_for_scope(paths, scope: str, target_id: str) -> 
     if scope == "project":
         return findings
     if scope == "machine":
-        return [finding for finding in findings if normalize_machine_token(finding.get("machine_number")) == normalize_machine_token(target_id)]
+        return [
+            finding
+            for finding in findings
+            if normalize_machine_token(finding.get("machine_number")) == normalize_machine_token(target_id)
+        ]
     if scope == "audit":
         return [finding for finding in findings if _text(finding.get("audit_id")) == target_id]
     if scope == "field":
@@ -566,8 +655,7 @@ def _latest_validation_findings_for_scope(paths, scope: str, target_id: str) -> 
         if target_id
         and target_id.casefold()
         in " ".join(
-            _text(finding.get(key))
-            for key in ("audit_id", "machine_number", "column_name", "message", "category")
+            _text(finding.get(key)) for key in ("audit_id", "machine_number", "column_name", "message", "category")
         ).casefold()
     ]
 
@@ -594,7 +682,11 @@ def _reports_for_machine(paths, machine: str, data_sources: list[dict[str, Any]]
         if not folder.exists():
             continue
         try:
-            candidates.extend(path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json", ".csv"})
+            candidates.extend(
+                path
+                for path in folder.iterdir()
+                if path.is_file() and path.suffix.lower() in {".md", ".txt", ".json", ".csv"}
+            )
         except OSError:
             continue
     candidates = sorted(candidates, key=lambda item: item.stat().st_mtime, reverse=True)[:80]
@@ -615,7 +707,9 @@ def _reports_for_machine(paths, machine: str, data_sources: list[dict[str, Any]]
                     "modified": datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds"),
                 }
             )
-    data_sources.append({"name": "Report references", "status": "loaded", "candidate_count": len(candidates), "row_count": len(matches)})
+    data_sources.append(
+        {"name": "Report references", "status": "loaded", "candidate_count": len(candidates), "row_count": len(matches)}
+    )
     return matches
 
 
@@ -630,7 +724,11 @@ def _machine_identity(
     first = rows[0] if rows else {}
     return {
         "machine_number": machine,
-        "display_name": group.display_name if group else f"Press/Machine {machine}" if machine else "No Machine Selected",
+        "display_name": group.display_name
+        if group
+        else f"Press/Machine {machine}"
+        if machine
+        else "No Machine Selected",
         "plant_area": _first_value(rows, "Plant/Area"),
         "robot_type": _first_value(rows, "Robot Type"),
         "robot_model_controller": _first_value(rows, "Robot Model/Controller"),
@@ -653,13 +751,17 @@ def _physical_audit_summary(rows: list[dict[str, Any]], guided: list[dict[str, A
     }
 
 
-def _compatibility_summary(compatible_rows: list[dict[str, Any]], linked: list[dict[str, Any]], group: PressViewGroup | None) -> dict[str, Any]:
+def _compatibility_summary(
+    compatible_rows: list[dict[str, Any]], linked: list[dict[str, Any]], group: PressViewGroup | None
+) -> dict[str, Any]:
     return {
         "compatible_assigned_here": len(compatible_rows),
         "linked_compatible_from_source_audits": len(linked),
         "source_audit_ids": _unique_values(compatible_rows, "Source Audit ID"),
         "compatibility_sources": _unique_values(compatible_rows, "Compatibility Source"),
-        "compatibility_family_machine_count": group.compatibility_family_machine_count if group else len({entry.get("machine") for entry in linked if entry.get("machine")}),
+        "compatibility_family_machine_count": group.compatibility_family_machine_count
+        if group
+        else len({entry.get("machine") for entry in linked if entry.get("machine")}),
         "physical_audits_counted_separately": True,
     }
 
@@ -687,7 +789,8 @@ def _pneumatic_summary(rows: list[dict[str, Any]], robot_info: list[dict[str, An
         "quick_disconnects_present": _value_counts(rows, "Quick Disconnects Present?"),
         "robot_side_rows": len(robot_info),
         "robot_notes": _unique_values(robot_info, "Robot Notes"),
-        "robot_side_air_sources": _unique_values(robot_info, "Robot Pneumatic Notes") or _unique_values(robot_info, "Pneumatic Notes"),
+        "robot_side_air_sources": _unique_values(robot_info, "Robot Pneumatic Notes")
+        or _unique_values(robot_info, "Pneumatic Notes"),
     }
 
 
@@ -713,7 +816,9 @@ def _mechanical_routing_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _reliability_summary(rows: list[dict[str, Any]], issue_rows: list[dict[str, Any]], action_rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _reliability_summary(
+    rows: list[dict[str, Any]], issue_rows: list[dict[str, Any]], action_rows: list[dict[str, Any]]
+) -> dict[str, Any]:
     return {
         "known_issues": _unique_values(rows, "Known Issues"),
         "drop_mispick_history": _unique_values(rows, "Drop/Mis-Pick History"),
@@ -721,7 +826,13 @@ def _reliability_summary(rows: list[dict[str, Any]], issue_rows: list[dict[str, 
         "cycle_time_concern": _value_counts(rows, "Cycle Time Concern?"),
         "scrap_quality_concern": _value_counts(rows, "Scrap/Quality Concern?"),
         "issue_log_rows": len(issue_rows),
-        "open_action_items": len([row for row in action_rows if _text(row.get("Status")).casefold() not in {"resolved", "closed", "complete", "completed"}]),
+        "open_action_items": len(
+            [
+                row
+                for row in action_rows
+                if _text(row.get("Status")).casefold() not in {"resolved", "closed", "complete", "completed"}
+            ]
+        ),
     }
 
 
@@ -750,7 +861,9 @@ def _documentation_photo_summary(
     }
 
 
-def _risk_fmea_summary(issue_rows: list[dict[str, Any]], fmea_rows: list[dict[str, Any]], pilot_rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _risk_fmea_summary(
+    issue_rows: list[dict[str, Any]], fmea_rows: list[dict[str, Any]], pilot_rows: list[dict[str, Any]]
+) -> dict[str, Any]:
     rpns = [_int(row.get("RPN")) for row in fmea_rows if _int(row.get("RPN")) is not None]
     issue_severity = [_int(row.get("Severity")) for row in issue_rows if _int(row.get("Severity")) is not None]
     return {
@@ -802,11 +915,20 @@ def _machine_actions(
     photo_folder = _text(documentation_summary.get("primary_folder_path"))
     machine_payload = {"machine": machine, "display_name": display_name}
     return [
-        Machine360Action("open_audit", "Open Audit", "audit", "audit", {"audit_id": primary_audit, **machine_payload}, available=bool(primary_audit)),
+        Machine360Action(
+            "open_audit",
+            "Open Audit",
+            "audit",
+            "audit",
+            {"audit_id": primary_audit, **machine_payload},
+            available=bool(primary_audit),
+        ),
         Machine360Action("open_press_view", "Open Press View", "press_view", "machine", machine_payload),
         Machine360Action("add_note", "Add Note", "notes", "machine", machine_payload),
         Machine360Action("add_tag", "Add Tag", "tags", "machine", machine_payload),
-        Machine360Action("create_follow_up", "Create Follow-Up", "open_items", "machine", machine_payload, modifies_files=True),
+        Machine360Action(
+            "create_follow_up", "Create Follow-Up", "open_items", "machine", machine_payload, modifies_files=True
+        ),
         Machine360Action(
             "run_machine_validation",
             "Run Machine Validation",
@@ -817,7 +939,14 @@ def _machine_actions(
             modifies_files=True,
             help_text="Runs foundation validation only after this explicit button click.",
         ),
-        Machine360Action("generate_machine_summary", "Generate Machine Summary", "machine_360", "machine", machine_payload, modifies_files=True),
+        Machine360Action(
+            "generate_machine_summary",
+            "Generate Machine Summary",
+            "machine_360",
+            "machine",
+            machine_payload,
+            modifies_files=True,
+        ),
         Machine360Action(
             "open_photo_folder",
             "Open Photo Folder",
@@ -826,7 +955,14 @@ def _machine_actions(
             {"path": photo_folder, **machine_payload},
             available=bool(photo_folder),
         ),
-        Machine360Action("generate_pm_checklist", "Generate PM Checklist", "pm_checklists", "machine", machine_payload, modifies_files=True),
+        Machine360Action(
+            "generate_pm_checklist",
+            "Generate PM Checklist",
+            "pm_checklists",
+            "machine",
+            machine_payload,
+            modifies_files=True,
+        ),
         Machine360Action(
             "generate_work_instruction_draft",
             "Generate Work Instruction Draft",

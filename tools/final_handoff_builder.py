@@ -9,7 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.final_handoff import build_final_handoff_package
 
 
 def main() -> int:
@@ -19,9 +18,15 @@ def main() -> int:
     parser.add_argument("--include-weekly-reports", action="store_true", default=True)
     parser.add_argument("--include-mentor-briefs", action="store_true")
     parser.add_argument("--include-photo-files", action="store_true")
-    parser.add_argument("--include-photos-index-only", action="store_true", help="Default behavior; actual photo files are only copied with --include-photo-files.")
+    parser.add_argument(
+        "--include-photos-index-only",
+        action="store_true",
+        help="Default behavior; actual photo files are only copied with --include-photo-files.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    from core.final_handoff import build_final_handoff_package
+
     result = build_final_handoff_package(
         args.project_root,
         include_daily_reports=args.include_daily_reports,

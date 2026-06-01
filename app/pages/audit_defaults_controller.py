@@ -43,5 +43,9 @@ class AuditDefaultsController:
     def changeover_default(self, connection_type: str) -> str | None:
         return connection_changeover_default(connection_type, self.config)
 
-    def smart_defaults(self, entry: dict[str, Any], *, only_unset: bool = True, applicable_fields=None) -> SmartDefaultResult:
-        return apply_configured_smart_defaults(entry, self.config, only_unset=only_unset, applicable_fields=applicable_fields)
+    def smart_defaults(
+        self, entry: dict[str, Any], *, only_unset: bool = True, applicable_fields=None
+    ) -> SmartDefaultResult:
+        return apply_configured_smart_defaults(
+            entry, self.config, only_unset=only_unset, applicable_fields=applicable_fields
+        )

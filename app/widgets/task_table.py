@@ -15,4 +15,3 @@ class TaskTable(QTableWidget):
             for col_index, value in enumerate(row):
                 self.setItem(row_index, col_index, QTableWidgetItem(str(value)))
         self.resizeColumnsToContents()
-

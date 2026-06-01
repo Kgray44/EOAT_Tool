@@ -62,19 +62,72 @@ def _audit_history_events(project_root: str | Path) -> list[TimelineEvent]:
         audit_id = str(record.get("audit_id") or "")
         timestamp = str(record.get("timestamp") or "")
         if event_type == "created":
-            events.append(TimelineEvent(timestamp, "audit_created", f"Audit created: {audit_id}", "audit_history", audit_id=audit_id, metadata=record))
+            events.append(
+                TimelineEvent(
+                    timestamp,
+                    "audit_created",
+                    f"Audit created: {audit_id}",
+                    "audit_history",
+                    audit_id=audit_id,
+                    metadata=record,
+                )
+            )
         elif event_type in {"updated", "audit_updated"}:
-            events.append(TimelineEvent(timestamp, "audit_updated", f"Audit updated: {audit_id}", "audit_history", audit_id=audit_id, detail=", ".join(changed_fields), metadata=record))
+            events.append(
+                TimelineEvent(
+                    timestamp,
+                    "audit_updated",
+                    f"Audit updated: {audit_id}",
+                    "audit_history",
+                    audit_id=audit_id,
+                    detail=", ".join(changed_fields),
+                    metadata=record,
+                )
+            )
         elif event_type == "compatibility_sync":
-            events.append(TimelineEvent(timestamp, "compatibility_rows_updated", f"Compatibility rows updated for {audit_id}", "audit_history", audit_id=audit_id, detail=", ".join(changed_fields), metadata=record))
+            events.append(
+                TimelineEvent(
+                    timestamp,
+                    "compatibility_rows_updated",
+                    f"Compatibility rows updated for {audit_id}",
+                    "audit_history",
+                    audit_id=audit_id,
+                    detail=", ".join(changed_fields),
+                    metadata=record,
+                )
+            )
         elif event_type in {"validation_auto_fix", "workbook_repair"}:
-            events.append(TimelineEvent(timestamp, "field_changed", f"Workbook fields changed for {audit_id}", "audit_history", audit_id=audit_id, detail=", ".join(changed_fields), metadata=record))
+            events.append(
+                TimelineEvent(
+                    timestamp,
+                    "field_changed",
+                    f"Workbook fields changed for {audit_id}",
+                    "audit_history",
+                    audit_id=audit_id,
+                    detail=", ".join(changed_fields),
+                    metadata=record,
+                )
+            )
         else:
-            events.append(TimelineEvent(timestamp, event_type or "audit_updated", f"Audit history event: {audit_id}", "audit_history", audit_id=audit_id, detail=", ".join(changed_fields), metadata=record))
+            events.append(
+                TimelineEvent(
+                    timestamp,
+                    event_type or "audit_updated",
+                    f"Audit history event: {audit_id}",
+                    "audit_history",
+                    audit_id=audit_id,
+                    detail=", ".join(changed_fields),
+                    metadata=record,
+                )
+            )
         for field in changed_fields:
             old_value = (record.get("old_values") or {}).get(field, "")
             new_value = (record.get("new_values") or {}).get(field, "")
-            field_type = "manual_override_applied" if field == "Manual Completion Override" and str(new_value).casefold() == "yes" else "field_changed"
+            field_type = (
+                "manual_override_applied"
+                if field == "Manual Completion Override" and str(new_value).casefold() == "yes"
+                else "field_changed"
+            )
             events.append(
                 TimelineEvent(
                     timestamp,
@@ -87,8 +140,23 @@ def _audit_history_events(project_root: str | Path) -> list[TimelineEvent]:
                     metadata=record,
                 )
             )
-            if field.startswith("Robot") or field in {"EOAT Vacuum Circuits", "EOAT Pressure Circuits", "EOAT Interchangeable Circuits"}:
-                events.append(TimelineEvent(timestamp, "robot_info_updated", f"Robot info related field changed on {audit_id}", "audit_history", audit_id=audit_id, field=field, detail=f"{old_value} -> {new_value}", metadata=record))
+            if field.startswith("Robot") or field in {
+                "EOAT Vacuum Circuits",
+                "EOAT Pressure Circuits",
+                "EOAT Interchangeable Circuits",
+            }:
+                events.append(
+                    TimelineEvent(
+                        timestamp,
+                        "robot_info_updated",
+                        f"Robot info related field changed on {audit_id}",
+                        "audit_history",
+                        audit_id=audit_id,
+                        field=field,
+                        detail=f"{old_value} -> {new_value}",
+                        metadata=record,
+                    )
+                )
     return events
 
 
@@ -100,7 +168,11 @@ def _activity_events(project_root: str | Path) -> list[TimelineEvent]:
         tool_name = str(entry.get("tool_name") or tool_id or "Activity")
         timestamp = str(entry.get("timestamp") or "")
         files_created = [str(path) for path in entry.get("files_created") or []]
-        event_type = "report_generated" if any(_is_report_file(path) for path in files_created) or "report" in tool_id else "activity"
+        event_type = (
+            "report_generated"
+            if any(_is_report_file(path) for path in files_created) or "report" in tool_id
+            else "activity"
+        )
         if "pm_checklist" in tool_id:
             event_type = "pm_checklist_generated"
         if "photo" in tool_id:
@@ -241,7 +313,16 @@ def _report_file_events(project_root: str | Path) -> list[TimelineEvent]:
     events: list[TimelineEvent] = []
     for folder in report_folders(project_root, limit=20):
         for path in folder.recent_files:
-            events.append(TimelineEvent(_file_timestamp(path), "report_generated", path.name, folder.label, path=str(path), metadata={"folder": folder.label}))
+            events.append(
+                TimelineEvent(
+                    _file_timestamp(path),
+                    "report_generated",
+                    path.name,
+                    folder.label,
+                    path=str(path),
+                    metadata={"folder": folder.label},
+                )
+            )
     return events
 
 

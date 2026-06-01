@@ -33,7 +33,9 @@ class IndexedSearchResult:
         return asdict(self)
 
 
-def search_index(project_root: str | Path, query: str = "", filters: SearchFilters | None = None, *, limit: int = 100) -> list[IndexedSearchResult]:
+def search_index(
+    project_root: str | Path, query: str = "", filters: SearchFilters | None = None, *, limit: int = 100
+) -> list[IndexedSearchResult]:
     query_text = query.strip()
     rows: list[IndexedSearchResult] = []
     rows.extend(_wrap_existing_search(project_root, query_text, filters))
@@ -45,11 +47,15 @@ def search_index(project_root: str | Path, query: str = "", filters: SearchFilte
     return filtered[: max(1, int(limit))]
 
 
-def _wrap_existing_search(project_root: str | Path, query: str, filters: SearchFilters | None) -> list[IndexedSearchResult]:
+def _wrap_existing_search(
+    project_root: str | Path, query: str, filters: SearchFilters | None
+) -> list[IndexedSearchResult]:
     results = search_project(project_root, query, filters, limit=500)
     wrapped: list[IndexedSearchResult] = []
     for result in results:
-        matched_field, snippet, score, why = _score_text(query, result.title, result.subtitle, result.detail, result.audit_id, result.machine, result.path)
+        matched_field, snippet, score, why = _score_text(
+            query, result.title, result.subtitle, result.detail, result.audit_id, result.machine, result.path
+        )
         wrapped.append(
             IndexedSearchResult(
                 result_id=result.result_id,
@@ -194,10 +200,17 @@ def _score_text(query: str, *parts: str) -> tuple[str, str, float, str]:
             if field_score > score:
                 score = float(field_score)
                 best_text = text
-                best_field = ["title", "subtitle", "detail", "audit_id", "machine", "path"][index] if index < 6 else "text"
+                best_field = (
+                    ["title", "subtitle", "detail", "audit_id", "machine", "path"][index] if index < 6 else "text"
+                )
     if score <= 0:
         return best_field, _snippet(" ".join(cleaned), query), 0.0, "Query terms were not found."
-    return best_field, _snippet(best_text or " ".join(cleaned), query), score, f"Matched {int(score)} weighted query signal(s) in {best_field}."
+    return (
+        best_field,
+        _snippet(best_text or " ".join(cleaned), query),
+        score,
+        f"Matched {int(score)} weighted query signal(s) in {best_field}.",
+    )
 
 
 def _snippet(text: str, query: str, length: int = 180) -> str:
@@ -241,7 +254,9 @@ def _source_label(result_type: str) -> str:
 def _matches_query(row: IndexedSearchResult, query: str) -> bool:
     if not query:
         return True
-    haystack = " ".join([row.title, row.matched_source, row.matched_field, row.snippet, row.audit_id, row.machine, row.path]).casefold()
+    haystack = " ".join(
+        [row.title, row.matched_source, row.matched_field, row.snippet, row.audit_id, row.machine, row.path]
+    ).casefold()
     return all(term in haystack for term in query.casefold().split() if term)
 
 

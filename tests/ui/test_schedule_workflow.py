@@ -10,7 +10,9 @@ from tests.ui.helpers import click_button, wait_for_background_tasks
 pytestmark = pytest.mark.usability
 
 
-def test_schedule_task_status_persists_and_completed_task_leaves_main_plan(qapp, fake_config, fake_project, frozen_project_date):
+def test_schedule_task_status_persists_and_completed_task_leaves_main_plan(
+    qapp, fake_config, fake_project, frozen_project_date
+):
     page = SchedulePage(fake_config)
     page.show()
     page.task_table.selectRow(0)
@@ -32,6 +34,10 @@ def test_schedule_task_status_persists_and_completed_task_leaves_main_plan(qapp,
     page.day_spin.setValue(1)
     click_button(page, "Generate Morning Plan")
     wait_for_background_tasks()
-    generated = sorted((fake_project / "00_Project_Admin" / "Daily_Status_Reports" / "Morning_Plans").glob("Week1_Day1_Morning_Plan_*.md"))[-1]
+    generated = sorted(
+        (fake_project / "00_Project_Admin" / "Daily_Status_Reports" / "Morning_Plans").glob(
+            "Week1_Day1_Morning_Plan_*.md"
+        )
+    )[-1]
     text = generated.read_text(encoding="utf-8")
     assert "[Complete] Confirm project folder structure" not in text

@@ -20,4 +20,3 @@ def test_tool_result_to_dict_and_markdown():
     assert "# Sample Tool" in markdown
     assert "Checked folders" in markdown
     assert "count: 2" in markdown
-

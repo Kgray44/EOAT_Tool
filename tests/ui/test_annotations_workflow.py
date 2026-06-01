@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import pytest
 from openpyxl import load_workbook
@@ -104,7 +104,9 @@ def test_field_tag_dialog_persists_assignment_and_tags_page_returns_target(qapp,
 
     tags_page = TagsPage(fake_config)
     assert tags_page.assignment_table.rowCount() == 1
-    row_values = [tags_page.assignment_table.item(0, col).text() for col in range(tags_page.assignment_table.columnCount())]
+    row_values = [
+        tags_page.assignment_table.item(0, col).text() for col in range(tags_page.assignment_table.columnCount())
+    ]
     assert "Needs Review" in row_values
     assert "audit_field" in row_values
     assert "AUD-FIELD-TAG-001" in row_values
@@ -112,7 +114,9 @@ def test_field_tag_dialog_persists_assignment_and_tags_page_returns_target(qapp,
     assert _field_fill(fake_project, "AUD-FIELD-TAG-001", "EOAT Vacuum Circuits") == "00FACC15"
 
 
-def test_field_note_dialog_stages_linked_note_and_notes_page_returns_after_commit(qapp, fake_config, fake_project, monkeypatch):
+def test_field_note_dialog_stages_linked_note_and_notes_page_returns_after_commit(
+    qapp, fake_config, fake_project, monkeypatch
+):
     service = AnnotationService(fake_config.project_root)
     target = service.create_or_get_target(
         "audit_field",
@@ -152,7 +156,12 @@ def test_field_note_dialog_stages_linked_note_and_notes_page_returns_after_commi
 
 def test_field_tag_popup_uses_read_only_tag_color_preview(qapp, fake_config):
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-COLOR-PREVIEW", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
+    target = service.create_or_get_target(
+        "audit_field",
+        audit_id="AUD-COLOR-PREVIEW",
+        field_key="EOAT Vacuum Circuits",
+        field_label="EOAT Vacuum Circuits",
+    )
     dialog = FieldTagDialog(service, target, field_label="EOAT Vacuum Circuits", current_value="")
 
     assert not hasattr(dialog, "color_combo")
@@ -186,7 +195,9 @@ def test_field_annotation_icon_is_calm_and_active_for_tags_or_notes(qapp, fake_c
 
 def test_field_tag_popup_existing_rows_stage_delete_and_cancel_truthfully(qapp, fake_config, monkeypatch):
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-TAG-ROW", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-TAG-ROW", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits"
+    )
     tag = service.get_tag_by_name("Documentation Gap")
     service.assign_tag_to_target(tag.id, target.id, comment="Ask Jake", sync_workbook=False)
 
@@ -212,7 +223,9 @@ def test_field_tag_popup_existing_rows_stage_delete_and_cancel_truthfully(qapp, 
 
 def test_field_tag_popup_edit_tag_updates_assignment_only_after_commit(qapp, fake_config):
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-EDIT-TAG", field_key="Gripper Model", field_label="Gripper Model")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-EDIT-TAG", field_key="Gripper Model", field_label="Gripper Model"
+    )
     tag = service.get_tag_by_name("Documentation Gap")
     service.assign_tag_to_target(tag.id, target.id, comment="Ask Jake", sync_workbook=False)
 
@@ -237,7 +250,9 @@ def test_field_tag_popup_edit_tag_updates_assignment_only_after_commit(qapp, fak
 
 def test_field_tag_popup_edit_tag_can_change_assignment_tag_and_cancel(qapp, fake_config):
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-EDIT-CHANGE", field_key="Gripper Model", field_label="Gripper Model")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-EDIT-CHANGE", field_key="Gripper Model", field_label="Gripper Model"
+    )
     original = service.get_tag_by_name("Documentation Gap")
     replacement = service.get_tag_by_name("Maintenance Concern")
     service.assign_tag_to_target(original.id, target.id, comment="Ask Jake", sync_workbook=False)
@@ -272,7 +287,9 @@ def test_field_tag_popup_edit_tag_can_change_assignment_tag_and_cancel(qapp, fak
 
 def test_field_tag_row_blank_comment_uses_fallback(qapp, fake_config):
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-NO-COMMENT", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-NO-COMMENT", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits"
+    )
     tag = service.get_tag_by_name("Needs Review")
     service.assign_tag_to_target(tag.id, target.id, sync_workbook=False)
 
@@ -283,7 +300,9 @@ def test_field_tag_row_blank_comment_uses_fallback(qapp, fake_config):
 
 def test_field_note_cancel_discards_staged_note(qapp, fake_config, monkeypatch):
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-NOTE-CANCEL", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-NOTE-CANCEL", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits"
+    )
 
     def save_note_editor(note_dialog):
         note_dialog.subject_edit.setText("Temporary field note")
@@ -342,7 +361,9 @@ def test_navigation_to_notes_and_tags_refreshes_after_external_annotation_change
     assert tags_page.assignment_table.rowCount() == 0
 
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-NAV-001", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
+    target = service.create_or_get_target(
+        "audit_field", audit_id="AUD-NAV-001", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits"
+    )
     tag = service.get_tag_by_name("Needs Review")
     service.assign_tag_to_target(tag.id, target.id, sync_workbook=False)
     service.create_note("Navigation refresh note", "Body", "Neutral", target_ids=[target.id])
@@ -369,9 +390,17 @@ def test_tags_page_go_to_target_loads_audit_field(qapp, fake_config, fake_projec
         },
     )
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-GO-TARGET-001", machine_id="12", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
+    target = service.create_or_get_target(
+        "audit_field",
+        audit_id="AUD-GO-TARGET-001",
+        machine_id="12",
+        field_key="EOAT Vacuum Circuits",
+        field_label="EOAT Vacuum Circuits",
+    )
     tag = service.get_tag_by_name("Documentation Gap")
-    service.assign_tag_to_target(tag.id, target.id, comment="What do i put here for this type? took picture.", sync_workbook=False)
+    service.assign_tag_to_target(
+        tag.id, target.id, comment="What do i put here for this type? took picture.", sync_workbook=False
+    )
 
     window = DashboardWindow(fake_config)
     window._show_page("tags")
@@ -403,7 +432,13 @@ def test_go_to_target_switches_to_field_section_and_preserves_tag_color(qapp, fa
         },
     )
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-GRIPPER-TARGET-001", machine_id="12", field_key="Gripper Model", field_label="Gripper Model")
+    target = service.create_or_get_target(
+        "audit_field",
+        audit_id="AUD-GRIPPER-TARGET-001",
+        machine_id="12",
+        field_key="Gripper Model",
+        field_label="Gripper Model",
+    )
     tag = service.get_tag_by_name("Documentation Gap")
     service.assign_tag_to_target(tag.id, target.id, comment="Ask Jake", sync_workbook=False)
 
@@ -415,7 +450,9 @@ def test_go_to_target_switches_to_field_section_and_preserves_tag_color(qapp, fa
 
     audit_page = window.pages["audit"]
     assert audit_section_for_field("Gripper Model") == "EOAT Type and Tooling"
-    assert audit_page.audit_section_tabs.tabText(audit_page.audit_section_tabs.currentIndex()) == "EOAT Type and Tooling"
+    assert (
+        audit_page.audit_section_tabs.tabText(audit_page.audit_section_tabs.currentIndex()) == "EOAT Type and Tooling"
+    )
     field_style = audit_page.audit_fields["Gripper Model"].styleSheet()
     assert "#f97316" in field_style
     assert "#eff6ff" not in field_style
@@ -441,7 +478,9 @@ def test_unknown_field_target_loads_audit_with_friendly_message(qapp, fake_confi
     window = DashboardWindow(fake_config)
     navigator = annotation_target_navigator.AnnotationTargetNavigator(window)
 
-    assert navigator.open_target({"target_type": "audit_field", "audit_id": "AUD-UNKNOWN-FIELD-001", "field_key": "Mystery Field"})
+    assert navigator.open_target(
+        {"target_type": "audit_field", "audit_id": "AUD-UNKNOWN-FIELD-001", "field_key": "Mystery Field"}
+    )
 
     audit_page = window.pages["audit"]
     assert audit_page.audit_fields["Audit ID"].text() == "AUD-UNKNOWN-FIELD-001"
@@ -464,7 +503,13 @@ def test_notes_page_go_to_target_loads_linked_audit_field(qapp, fake_config, fak
         },
     )
     service = AnnotationService(fake_config.project_root)
-    target = service.create_or_get_target("audit_field", audit_id="AUD-NOTE-GO-001", machine_id="12", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
+    target = service.create_or_get_target(
+        "audit_field",
+        audit_id="AUD-NOTE-GO-001",
+        machine_id="12",
+        field_key="EOAT Vacuum Circuits",
+        field_label="EOAT Vacuum Circuits",
+    )
     note = service.create_note("Linked navigation note", "Body", "Important", target_ids=[target.id])
 
     window = DashboardWindow(fake_config)
@@ -481,8 +526,12 @@ def test_notes_page_go_to_target_loads_linked_audit_field(qapp, fake_config, fak
 def test_multiple_tag_targets_use_picker_before_navigation(qapp, fake_config, monkeypatch):
     service = AnnotationService(fake_config.project_root)
     tag = service.get_tag_by_name("Needs Review")
-    first = service.create_or_get_target("audit_field", audit_id="AUD-PICK-001", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
-    second = service.create_or_get_target("audit_field", audit_id="AUD-PICK-002", field_key="Sensor Type", field_label="Sensor Type")
+    first = service.create_or_get_target(
+        "audit_field", audit_id="AUD-PICK-001", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits"
+    )
+    second = service.create_or_get_target(
+        "audit_field", audit_id="AUD-PICK-002", field_key="Sensor Type", field_label="Sensor Type"
+    )
     service.assign_tag_to_target(tag.id, first.id, comment="First", sync_workbook=False)
     service.assign_tag_to_target(tag.id, second.id, comment="Second", sync_workbook=False)
     opened = {}
@@ -507,8 +556,15 @@ def test_multiple_tag_targets_use_picker_before_navigation(qapp, fake_config, mo
 def test_tags_page_tag_level_go_to_target_uses_multiple_target_picker(qapp, fake_config, monkeypatch):
     service = AnnotationService(fake_config.project_root)
     tag = service.get_tag_by_name("Needs Review")
-    first = service.create_or_get_target("audit_field", audit_id="AUD-PAGE-PICK-001", field_key="EOAT Vacuum Circuits", field_label="EOAT Vacuum Circuits")
-    second = service.create_or_get_target("audit_field", audit_id="AUD-PAGE-PICK-002", field_key="Sensor Type", field_label="Sensor Type")
+    first = service.create_or_get_target(
+        "audit_field",
+        audit_id="AUD-PAGE-PICK-001",
+        field_key="EOAT Vacuum Circuits",
+        field_label="EOAT Vacuum Circuits",
+    )
+    second = service.create_or_get_target(
+        "audit_field", audit_id="AUD-PAGE-PICK-002", field_key="Sensor Type", field_label="Sensor Type"
+    )
     service.assign_tag_to_target(tag.id, first.id, comment="First", sync_workbook=False)
     service.assign_tag_to_target(tag.id, second.id, comment="Second", sync_workbook=False)
     captured = {}
@@ -531,7 +587,11 @@ def _field_fill(project_root, audit_id: str, header: str) -> str:
     try:
         ws = workbook["EOAT Inventory"]
         headers = [cell.value for cell in ws[1]]
-        row = next(row for row in range(2, ws.max_row + 1) if ws.cell(row=row, column=headers.index("Audit ID") + 1).value == audit_id)
+        row = next(
+            row
+            for row in range(2, ws.max_row + 1)
+            if ws.cell(row=row, column=headers.index("Audit ID") + 1).value == audit_id
+        )
         return ws.cell(row=row, column=headers.index(header) + 1).fill.fgColor.rgb or ""
     finally:
         workbook.close()
@@ -576,7 +636,9 @@ def test_save_audit_preserves_form_and_combined_summary(qapp, fake_config, fake_
     assert page.has_unsaved_changes() is False
 
 
-def test_save_audit_workflow_records_timing_and_defers_annotation_sync(qapp, fake_config, monkeypatch, frozen_project_date):
+def test_save_audit_workflow_records_timing_and_defers_annotation_sync(
+    qapp, fake_config, monkeypatch, frozen_project_date
+):
     page = AuditPage(fake_config)
     page.show()
     audit_id = page.audit_fields["Audit ID"].text()

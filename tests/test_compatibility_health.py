@@ -10,7 +10,9 @@ from tests.test_audit_compatibility import _save_audit, _write_press_capacity
 
 
 def test_compatibility_health_flags_compatible_row_missing_source(fake_project):
-    _save_audit(fake_project, "AUD-COMPAT-HEALTH-MISSING-SOURCE", "2", "PN-X", entry_type=ENTRY_TYPE_COMPATIBLE, source_id="")
+    _save_audit(
+        fake_project, "AUD-COMPAT-HEALTH-MISSING-SOURCE", "2", "PN-X", entry_type=ENTRY_TYPE_COMPATIBLE, source_id=""
+    )
 
     findings = validate_compatibility_health(fake_project)
 
@@ -41,7 +43,5 @@ def test_compatibility_health_flags_stale_inherited_values(fake_project):
     findings = validate_compatibility_health(fake_project)
 
     assert any(
-        finding.column_name == "Known Issues"
-        and "stale inherited value" in finding.message
-        for finding in findings
+        finding.column_name == "Known Issues" and "stale inherited value" in finding.message for finding in findings
     )

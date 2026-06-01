@@ -16,7 +16,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QApplication = QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTextEdit = QVBoxLayout = QWidget = None
+    QApplication = QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTextEdit = QVBoxLayout = (
+        QWidget
+    ) = None
 
 from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.page_tasks import run_tool_background
@@ -93,7 +95,9 @@ class ReleaseReadinessPage(AsyncRefreshMixin, QWidget):
         return self._begin_background_refresh(
             task_id="release_readiness_refresh",
             name="Release Readiness Refresh",
-            load=lambda: collect_release_readiness(TOOLKIT_ROOT, git_executable=self.config.git_executable, include_staged_safety_scan=False),
+            load=lambda: collect_release_readiness(
+                TOOLKIT_ROOT, git_executable=self.config.git_executable, include_staged_safety_scan=False
+            ),
             apply_result=self._apply_refresh_result,
             button=self.refresh_button,
             force=force,
@@ -109,7 +113,13 @@ class ReleaseReadinessPage(AsyncRefreshMixin, QWidget):
         return True
 
     def run_tests(self) -> None:
-        run_tool_background(self.result_panel, "release_run_tests", "Release Tests", lambda: run_release_tests(TOOLKIT_ROOT), lambda _result: self.refresh(force=True))
+        run_tool_background(
+            self.result_panel,
+            "release_run_tests",
+            "Release Tests",
+            lambda: run_release_tests(TOOLKIT_ROOT),
+            lambda _result: self.refresh(force=True),
+        )
 
     def run_safety_audit(self) -> None:
         run_tool_background(
@@ -126,7 +136,9 @@ class ReleaseReadinessPage(AsyncRefreshMixin, QWidget):
             "release_show_staged",
             "Show Staged Files",
             lambda: show_staged_files(TOOLKIT_ROOT, git_executable=self.config.git_executable),
-            lambda result: self.staged_preview.setPlainText("\n".join(result.details or result.errors or ["No staged files."])),
+            lambda result: self.staged_preview.setPlainText(
+                "\n".join(result.details or result.errors or ["No staged files."])
+            ),
         )
 
     def open_sanitization_report(self) -> None:
@@ -154,7 +166,9 @@ class ReleaseReadinessPage(AsyncRefreshMixin, QWidget):
             self.result_panel.show_text(f"{warning or 'No cached release readiness yet.'} Checking in background...")
             return
         self._show_summary_data(data)
-        self.result_panel.show_text(f"Showing cached release readiness from {_time_label(generated_at)}. Checking in background...")
+        self.result_panel.show_text(
+            f"Showing cached release readiness from {_time_label(generated_at)}. Checking in background..."
+        )
 
     def _apply_refresh_result(self, summary, data_load_seconds: float) -> None:
         render_started = time.perf_counter()
@@ -167,7 +181,10 @@ class ReleaseReadinessPage(AsyncRefreshMixin, QWidget):
             "release_readiness",
             "data_load",
             data_load_seconds,
-            details={"row_count": len(summary.checks), "source_counts": {"staged_files": len(summary.staged_files), "git_status": len(summary.git_status)}},
+            details={
+                "row_count": len(summary.checks),
+                "source_counts": {"staged_files": len(summary.staged_files), "git_status": len(summary.git_status)},
+            },
         )
         log_page_performance(
             self.config.project_root,
@@ -188,7 +205,9 @@ class ReleaseReadinessPage(AsyncRefreshMixin, QWidget):
         self.cards["Staged Files"].set_value(str(len(summary.staged_files)))
         self.cards["Failed Checks"].set_value(str(len(failed)))
         self.cards["Warnings"].set_value(str(len(warnings)))
-        self.cards["Git Status"].set_value(f"{len(summary.git_status)} line(s)" if not summary.git_warning else "Warning")
+        self.cards["Git Status"].set_value(
+            f"{len(summary.git_status)} line(s)" if not summary.git_warning else "Warning"
+        )
         populate_table(
             self.table,
             [check.to_dict() for check in summary.checks],
@@ -236,7 +255,15 @@ def _write_cache(project_root, summary: dict) -> None:
 
     path = _cache_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"generated_at": datetime.now().isoformat(timespec="seconds"), "summary": summary}, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {"generated_at": datetime.now().isoformat(timespec="seconds"), "summary": summary},
+            ensure_ascii=True,
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _time_label(value: str | None) -> str:

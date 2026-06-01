@@ -96,8 +96,12 @@ AUDIT_DROPDOWN_ALLOWED_VALUES = {
 }
 AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, CYLINDER_COUNT_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD}
 
-BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS | frozenset(MANUAL_COMPLETION_OVERRIDE_FIELDS)
-BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = "Source Audit ID, Compatibility Source, and manual completion override metadata"
+BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS | frozenset(
+    MANUAL_COMPLETION_OVERRIDE_FIELDS
+)
+BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = (
+    "Source Audit ID, Compatibility Source, and manual completion override metadata"
+)
 
 FIX_CLEAR_STALE_HIDDEN_NA = "clear_stale_hidden_na"
 FIX_REPAIR_LEGACY_HEADERS = "repair_legacy_headers"
@@ -108,7 +112,11 @@ FIX_CREATE_MISSING_REPORT_FOLDERS = "create_missing_report_folders"
 SCHEMA_VERSION_UNKNOWN = "Unknown"
 
 
-def validate_project_foundation(project_root: str | Path) -> ToolResult:
+def validate_project_foundation(
+    project_root: str | Path,
+    *,
+    include_open_item_cache_references: bool = True,
+) -> ToolResult:
     started = time.perf_counter()
     paths = resolve_project_paths(project_root)
     details: list[str] = []
@@ -128,13 +136,16 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
                 source_validator="foundation",
             )
         )
-        return attach_findings(ToolResult.fail(
-            "workbook_validator",
-            "EOAT Project Foundation Validation",
-            "Project root does not exist.",
-            errors=[f"Missing project root: {paths.project_root}"],
-            duration_seconds=time.perf_counter() - started,
-        ), findings)
+        return attach_findings(
+            ToolResult.fail(
+                "workbook_validator",
+                "EOAT Project Foundation Validation",
+                "Project root does not exist.",
+                errors=[f"Missing project root: {paths.project_root}"],
+                duration_seconds=time.perf_counter() - started,
+            ),
+            findings,
+        )
 
     details.append(f"Project root exists: {paths.project_root}")
 
@@ -182,16 +193,19 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
                 source_validator="foundation",
             )
         )
-        return attach_findings(ToolResult.fail(
-            "workbook_validator",
-            "EOAT Project Foundation Validation",
-            "Master workbook is missing.",
-            details=details,
-            warnings=warnings,
-            errors=errors,
-            metrics=metrics,
-            duration_seconds=time.perf_counter() - started,
-        ), findings)
+        return attach_findings(
+            ToolResult.fail(
+                "workbook_validator",
+                "EOAT Project Foundation Validation",
+                "Master workbook is missing.",
+                details=details,
+                warnings=warnings,
+                errors=errors,
+                metrics=metrics,
+                duration_seconds=time.perf_counter() - started,
+            ),
+            findings,
+        )
 
     details.append(f"Found master workbook: {workbook_path}")
     try:
@@ -209,16 +223,19 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
                 source_validator="foundation",
             )
         )
-        return attach_findings(ToolResult.fail(
-            "workbook_validator",
-            "EOAT Project Foundation Validation",
-            "Master workbook exists but could not be opened.",
-            details=details,
-            warnings=warnings,
-            errors=errors,
-            metrics=metrics,
-            duration_seconds=time.perf_counter() - started,
-        ), findings)
+        return attach_findings(
+            ToolResult.fail(
+                "workbook_validator",
+                "EOAT Project Foundation Validation",
+                "Master workbook exists but could not be opened.",
+                details=details,
+                warnings=warnings,
+                errors=errors,
+                metrics=metrics,
+                duration_seconds=time.perf_counter() - started,
+            ),
+            findings,
+        )
 
     expected_sheets = get_expected_sheets()
     missing_sheets = [sheet for sheet in expected_sheets if sheet not in workbook.sheetnames]
@@ -229,7 +246,9 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
     metrics["expected_workbook_schema_version"] = expected_schema_version
     metrics["workbook_schema_version"] = workbook_schema_version
     if workbook_schema_version == SCHEMA_VERSION_UNKNOWN:
-        details.append(f"Workbook schema version is unknown; validating headers against template schema {expected_schema_version}.")
+        details.append(
+            f"Workbook schema version is unknown; validating headers against template schema {expected_schema_version}."
+        )
         findings.append(
             make_finding(
                 ValidationSeverity.INFO,
@@ -312,7 +331,9 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         required_headers = get_expected_headers("EOAT Inventory")
         missing_full_headers = [header for header in required_headers if header not in headers]
         missing_key_headers = [header for header in get_key_inventory_headers() if header not in headers]
-        missing_major_headers = [header for header in MAJOR_AUDIT_COLUMNS if header in required_headers and header not in headers]
+        missing_major_headers = [
+            header for header in MAJOR_AUDIT_COLUMNS if header in required_headers and header not in headers
+        ]
         schema_upgrade_headers = []
         if ELECTRICAL_WIRING_PRESENT_FIELD in missing_full_headers:
             schema_upgrade_headers.append(ELECTRICAL_WIRING_PRESENT_FIELD)
@@ -396,7 +417,9 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
                     )
                 )
         if ELECTRICAL_WIRING_PRESENT_FIELD in schema_upgrade_headers:
-            message = "Workbook is missing Electrical/Wiring Present?. Run Repair Workbook Schema to upgrade old workbooks."
+            message = (
+                "Workbook is missing Electrical/Wiring Present?. Run Repair Workbook Schema to upgrade old workbooks."
+            )
             warnings.append(message)
             findings.append(
                 make_finding(
@@ -496,7 +519,9 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
                 "the columns still remain part of the workbook schema."
             )
         valid_audit_ids, valid_machines = _inventory_identity_sets(ws, headers)
-        inventory_warnings, inventory_metrics, inventory_findings = _validate_inventory_rows(ws, headers, paths.project_root)
+        inventory_warnings, inventory_metrics, inventory_findings = _validate_inventory_rows(
+            ws, headers, paths.project_root
+        )
         warnings.extend(inventory_warnings)
         metrics.update(inventory_metrics)
         findings.extend(inventory_findings)
@@ -519,7 +544,12 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
 
     workbook.close()
     if "valid_audit_ids" in locals() and "valid_machines" in locals():
-        orphan_warnings, orphan_metrics, orphan_findings = _validate_orphan_local_references(paths.project_root, valid_audit_ids, valid_machines)
+        orphan_warnings, orphan_metrics, orphan_findings = _validate_orphan_local_references(
+            paths.project_root,
+            valid_audit_ids,
+            valid_machines,
+            include_open_item_cache_references=include_open_item_cache_references,
+        )
         warnings.extend(orphan_warnings)
         metrics.update(orphan_metrics)
         findings.extend(orphan_findings)
@@ -572,20 +602,25 @@ def validate_project_foundation(project_root: str | Path) -> ToolResult:
         summary = "Project foundation validation completed with warnings."
     if errors:
         summary = "Project foundation validation failed."
-    return attach_findings(ToolResult(
-        tool_id="workbook_validator",
-        tool_name="EOAT Project Foundation Validation",
-        success=not errors,
-        summary=summary,
-        details=details,
-        warnings=warnings,
-        errors=errors,
-        metrics=metrics,
-        duration_seconds=time.perf_counter() - started,
-    ), findings)
+    return attach_findings(
+        ToolResult(
+            tool_id="workbook_validator",
+            tool_name="EOAT Project Foundation Validation",
+            success=not errors,
+            summary=summary,
+            details=details,
+            warnings=warnings,
+            errors=errors,
+            metrics=metrics,
+            duration_seconds=time.perf_counter() - started,
+        ),
+        findings,
+    )
 
 
-def _validate_inventory_rows(ws, headers: list[str], project_root: str | Path) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
+def _validate_inventory_rows(
+    ws, headers: list[str], project_root: str | Path
+) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
     warnings: list[str] = []
     findings: list[ValidationFinding] = []
     metrics = {
@@ -797,7 +832,9 @@ def _validate_inventory_rows(ws, headers: list[str], project_root: str | Path) -
                 )
             if not source_id and (_cell_text(row_data.get("Audit Date")) or _cell_text(row_data.get("Auditor"))):
                 metrics["compatibility_truth_warning_count"] += 1
-                message = f"Row is marked Compatible but has physical-audit fields and no source metadata: row {row_number}"
+                message = (
+                    f"Row is marked Compatible but has physical-audit fields and no source metadata: row {row_number}"
+                )
                 compatibility_warning_examples.append(message)
                 findings.append(
                     make_finding(
@@ -816,7 +853,10 @@ def _validate_inventory_rows(ws, headers: list[str], project_root: str | Path) -
 
         for photo_finding in _photo_link_findings(project_root, row_number, row_data):
             photo_warning_examples.append(photo_finding.message)
-            if photo_finding.column_name == "Photo Folder/Link" and "missing local photo evidence link" in photo_finding.message:
+            if (
+                photo_finding.column_name == "Photo Folder/Link"
+                and "missing local photo evidence link" in photo_finding.message
+            ):
                 metrics["photos_yes_without_link_count"] += 1
             elif photo_finding.column_name == "Photos Taken?" and "marked No" in photo_finding.message:
                 metrics["photo_link_while_no_count"] += 1
@@ -828,7 +868,11 @@ def _validate_inventory_rows(ws, headers: list[str], project_root: str | Path) -
         for required_field in requirements["required"]:
             if required_field in BLANK_CELL_VALIDATION_IGNORED_FIELDS:
                 continue
-            if required_field in header_positions and field_applies(row_data, required_field) and _is_missing_audit_value(row_data.get(required_field)):
+            if (
+                required_field in header_positions
+                and field_applies(row_data, required_field)
+                and _is_missing_audit_value(row_data.get(required_field))
+            ):
                 add_major_na(row_number, required_field, row_data)
 
         for header in get_expected_headers("EOAT Inventory"):
@@ -840,7 +884,11 @@ def _validate_inventory_rows(ws, headers: list[str], project_root: str | Path) -
             if _cell_text(value) == "":
                 blank_cells += 1
             applies = audit_field_applies(row_data, header)
-            if missing_electrical_wiring_control and header in ELECTRICAL_DETAIL_FIELDS and not is_meaningful_value(value):
+            if (
+                missing_electrical_wiring_control
+                and header in ELECTRICAL_DETAIL_FIELDS
+                and not is_meaningful_value(value)
+            ):
                 applies = False
             if (
                 header in MAJOR_AUDIT_COLUMNS
@@ -1045,29 +1093,53 @@ def _validate_inventory_rows(ws, headers: list[str], project_root: str | Path) -
     if duplicate_ids:
         warnings.append(f"Duplicate Audit ID value(s): {', '.join(sorted(duplicate_ids))}")
     if duplicate_physical_examples:
-        warnings.append(f"{len(duplicate_physical_examples)} duplicate physical audit row warning(s); see structured findings for row details.")
+        warnings.append(
+            f"{len(duplicate_physical_examples)} duplicate physical audit row warning(s); see structured findings for row details."
+        )
     if compatibility_warning_examples:
-        warnings.append(f"{len(compatibility_warning_examples)} compatibility relationship warning(s); see structured findings for metadata details.")
+        warnings.append(
+            f"{len(compatibility_warning_examples)} compatibility relationship warning(s); see structured findings for metadata details."
+        )
     if photo_warning_examples:
-        warnings.append(f"{len(photo_warning_examples)} photo link/evidence warning(s): {', '.join(photo_warning_examples[:5])}")
+        warnings.append(
+            f"{len(photo_warning_examples)} photo link/evidence warning(s): {', '.join(photo_warning_examples[:5])}"
+        )
     if robot_mismatch_examples:
-        warnings.append(f"{len(robot_mismatch_examples)} robot-side circuit mismatch warning(s): {', '.join(robot_mismatch_examples[:5])}")
+        warnings.append(
+            f"{len(robot_mismatch_examples)} robot-side circuit mismatch warning(s): {', '.join(robot_mismatch_examples[:5])}"
+        )
     if major_na_list:
-        warnings.append(f"{len(major_na_list)} applicable major EOAT Inventory cell(s) are blank or contain {NA_VALUE}: {', '.join(major_na_list[:10])}")
+        warnings.append(
+            f"{len(major_na_list)} applicable major EOAT Inventory cell(s) are blank or contain {NA_VALUE}: {', '.join(major_na_list[:10])}"
+        )
     if stale_hidden_value_examples:
-        warnings.append(f"{len(stale_hidden_value_examples)} non-applicable EOAT Inventory cell(s) contain stale values: {', '.join(stale_hidden_value_examples[:10])}")
+        warnings.append(
+            f"{len(stale_hidden_value_examples)} non-applicable EOAT Inventory cell(s) contain stale values: {', '.join(stale_hidden_value_examples[:10])}"
+        )
     if hybrid_warning_examples:
-        warnings.append(f"{len(hybrid_warning_examples)} Hybrid EOAT completeness warning(s): {', '.join(hybrid_warning_examples[:5])}")
+        warnings.append(
+            f"{len(hybrid_warning_examples)} Hybrid EOAT completeness warning(s): {', '.join(hybrid_warning_examples[:5])}"
+        )
     if semantic_warning_examples:
-        warnings.append(f"{len(semantic_warning_examples)} semantic EOAT warning(s): {', '.join(semantic_warning_examples[:5])}")
+        warnings.append(
+            f"{len(semantic_warning_examples)} semantic EOAT warning(s): {', '.join(semantic_warning_examples[:5])}"
+        )
     if invalid_dropdown_examples:
-        warnings.append(f"{len(invalid_dropdown_examples)} invalid EOAT Inventory dropdown value(s): {', '.join(invalid_dropdown_examples[:5])}")
+        warnings.append(
+            f"{len(invalid_dropdown_examples)} invalid EOAT Inventory dropdown value(s): {', '.join(invalid_dropdown_examples[:5])}"
+        )
     if dropdown_casing_examples:
-        warnings.append(f"{len(dropdown_casing_examples)} dropdown value(s) can be safely normalized by casing: {', '.join(dropdown_casing_examples[:5])}")
+        warnings.append(
+            f"{len(dropdown_casing_examples)} dropdown value(s) can be safely normalized by casing: {', '.join(dropdown_casing_examples[:5])}"
+        )
     if invalid_numeric_examples:
-        warnings.append(f"{len(invalid_numeric_examples)} invalid EOAT Inventory whole-number value(s): {', '.join(invalid_numeric_examples[:5])}")
+        warnings.append(
+            f"{len(invalid_numeric_examples)} invalid EOAT Inventory whole-number value(s): {', '.join(invalid_numeric_examples[:5])}"
+        )
     if missing_eoat_moves_examples:
-        warnings.append(f"{len(missing_eoat_moves_examples)} EOAT Inventory row(s) are missing EOAT Moves: {', '.join(missing_eoat_moves_examples[:5])}")
+        warnings.append(
+            f"{len(missing_eoat_moves_examples)} EOAT Inventory row(s) are missing EOAT Moves: {', '.join(missing_eoat_moves_examples[:5])}"
+        )
     if blank_cells:
         warnings.append(
             f"{blank_cells} saved EOAT Inventory cell(s) are blank; new saves should write {NA_VALUE} "
@@ -1094,7 +1166,13 @@ def _inventory_identity_sets(ws, headers: list[str]) -> tuple[set[str], set[str]
     return audit_ids, machines
 
 
-def _validate_orphan_local_references(project_root: str | Path, audit_ids: set[str], machines: set[str]) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
+def _validate_orphan_local_references(
+    project_root: str | Path,
+    audit_ids: set[str],
+    machines: set[str],
+    *,
+    include_open_item_cache_references: bool = True,
+) -> tuple[list[str], dict[str, int], list[ValidationFinding]]:
     warnings: list[str] = []
     findings: list[ValidationFinding] = []
     metrics = {
@@ -1102,19 +1180,25 @@ def _validate_orphan_local_references(project_root: str | Path, audit_ids: set[s
         "orphan_open_item_count": 0,
     }
     annotation_findings = _orphan_annotation_findings(project_root, audit_ids, machines)
-    open_item_findings = _orphan_open_item_findings(project_root, audit_ids, machines)
+    open_item_findings = (
+        _orphan_open_item_findings(project_root, audit_ids, machines) if include_open_item_cache_references else []
+    )
     metrics["orphan_annotation_target_count"] = len(annotation_findings)
     metrics["orphan_open_item_count"] = len(open_item_findings)
     findings.extend(annotation_findings)
     findings.extend(open_item_findings)
     if annotation_findings:
-        warnings.append(f"{len(annotation_findings)} annotation note/tag target(s) reference missing audits or machines.")
+        warnings.append(
+            f"{len(annotation_findings)} annotation note/tag target(s) reference missing audits or machines."
+        )
     if open_item_findings:
         warnings.append(f"{len(open_item_findings)} cached open item(s) reference missing audits or machines.")
     return warnings, metrics, findings
 
 
-def _orphan_annotation_findings(project_root: str | Path, audit_ids: set[str], machines: set[str]) -> list[ValidationFinding]:
+def _orphan_annotation_findings(
+    project_root: str | Path, audit_ids: set[str], machines: set[str]
+) -> list[ValidationFinding]:
     path = resolve_project_paths(project_root).annotations_database
     if not path.exists():
         return []
@@ -1135,8 +1219,12 @@ def _orphan_annotation_findings(project_root: str | Path, audit_ids: set[str], m
             target_type = _cell_text(row["target_type"]).casefold()
             audit_id = _cell_text(row["audit_id"])
             machine = _cell_text(row["machine_id"])
-            missing_audit = audit_id and audit_id.casefold() not in audit_ids and target_type in {"audit", "audit_field"}
-            missing_machine = machine and machine.casefold() not in machines and target_type in {"machine", "audit", "audit_field"}
+            missing_audit = (
+                audit_id and audit_id.casefold() not in audit_ids and target_type in {"audit", "audit_field"}
+            )
+            missing_machine = (
+                machine and machine.casefold() not in machines and target_type in {"machine", "audit", "audit_field"}
+            )
             if not missing_audit and not missing_machine:
                 continue
             reason = []
@@ -1165,7 +1253,9 @@ def _orphan_annotation_findings(project_root: str | Path, audit_ids: set[str], m
     return findings
 
 
-def _orphan_open_item_findings(project_root: str | Path, audit_ids: set[str], machines: set[str]) -> list[ValidationFinding]:
+def _orphan_open_item_findings(
+    project_root: str | Path, audit_ids: set[str], machines: set[str]
+) -> list[ValidationFinding]:
     open_items_dir = resolve_project_paths(project_root).project_admin / "open_items"
     if not open_items_dir.exists():
         return []
@@ -1213,7 +1303,9 @@ def _orphan_open_item_findings(project_root: str | Path, audit_ids: set[str], ma
     return findings
 
 
-def _photo_link_findings(project_root: str | Path, row_number: int, row_data: dict[str, object]) -> list[ValidationFinding]:
+def _photo_link_findings(
+    project_root: str | Path, row_number: int, row_data: dict[str, object]
+) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
     audit_id = _cell_text(row_data.get("Audit ID"))
     machine = _cell_text(row_data.get("Press/Machine #"))
@@ -1254,7 +1346,9 @@ def _photo_link_findings(project_root: str | Path, row_number: int, row_data: di
             )
         )
     if link and _looks_like_local_path(link):
-        missing_links = [candidate for candidate in _candidate_photo_links(project_root, link) if not candidate.exists()]
+        missing_links = [
+            candidate for candidate in _candidate_photo_links(project_root, link) if not candidate.exists()
+        ]
         if missing_links and len(missing_links) == len(_split_photo_links(link)):
             findings.append(
                 make_finding(
@@ -1275,7 +1369,9 @@ def _photo_link_findings(project_root: str | Path, row_number: int, row_data: di
     return findings
 
 
-def _robot_circuit_mismatch_findings(project_root: str | Path, rows: list[dict[str, object]]) -> list[ValidationFinding]:
+def _robot_circuit_mismatch_findings(
+    project_root: str | Path, rows: list[dict[str, object]]
+) -> list[ValidationFinding]:
     path = robot_info_workbook_path(project_root)
     if not path.exists():
         return []

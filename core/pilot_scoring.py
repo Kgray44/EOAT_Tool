@@ -51,60 +51,69 @@ class PilotRankingSummary:
             for key, value in self.weights.items()
             if key in PILOT_SCORE_LABELS
         ]
-        return "\n".join(
-            [
-                "# Pilot Candidate Ranking Report",
-                "",
-                "## Executive Summary",
-                f"- Candidates evaluated: {self.metrics.get('candidates_evaluated', 0)}",
-                f"- Top candidate: {self.metrics.get('top_candidate', 'No data yet')}",
-                f"- Top score: {self.metrics.get('top_score', 0)}",
-                "",
-                "## Ranked Candidates",
-                *table_from_rows(
-                    self.ranked_candidates,
-                    [
-                        "Rank",
-                        "Candidate ID",
-                        "Press/Machine #",
-                        "Main Problem",
-                        "Total Score",
-                        "Confidence",
-                        "Missing Evidence",
-                    ],
-                ),
-                "",
-                "## Score Explanations",
-                *table_from_rows(
-                    self.ranked_candidates,
-                    [
-                        "Rank",
-                        "Candidate ID",
-                        "Downtime/Reliability Score",
-                        "Quality/Scrap Score",
-                        "Ease Score",
-                        "Safety/Maintenance Score",
-                        "Standardization Score",
-                        "Score Explanation",
-                    ],
-                ),
-                "",
-                "## Scoring Method",
-                *weight_lines,
-                "- Scores are evidence weighted. Missing evidence is shown separately and does not become fake certainty.",
-                "- Weights can be adjusted by callers; values are normalized before scoring.",
-                "",
-                "## Sensitivity Analysis",
-                *table_from_rows(self.sensitivity_rows, ["Candidate ID", "Press/Machine #", "Most Sensitive Weight", "Approx +/-10pt Weight Swing"]),
-                "",
-                "## Recommended Top 1-2 Pilot Candidates",
-                *table_from_rows(self.ranked_candidates[:2], ["Rank", "Press/Machine #", "Total Score", "Confidence", "Recommended Action"]),
-                "",
-                "## Next Data To Collect",
-                "- Confirm downtime, drops, scrap, and maintenance baseline data.",
-                "- Add before/after measurement plan before final pilot selection.",
-            ]
-        ) + "\n"
+        return (
+            "\n".join(
+                [
+                    "# Pilot Candidate Ranking Report",
+                    "",
+                    "## Executive Summary",
+                    f"- Candidates evaluated: {self.metrics.get('candidates_evaluated', 0)}",
+                    f"- Top candidate: {self.metrics.get('top_candidate', 'No data yet')}",
+                    f"- Top score: {self.metrics.get('top_score', 0)}",
+                    "",
+                    "## Ranked Candidates",
+                    *table_from_rows(
+                        self.ranked_candidates,
+                        [
+                            "Rank",
+                            "Candidate ID",
+                            "Press/Machine #",
+                            "Main Problem",
+                            "Total Score",
+                            "Confidence",
+                            "Missing Evidence",
+                        ],
+                    ),
+                    "",
+                    "## Score Explanations",
+                    *table_from_rows(
+                        self.ranked_candidates,
+                        [
+                            "Rank",
+                            "Candidate ID",
+                            "Downtime/Reliability Score",
+                            "Quality/Scrap Score",
+                            "Ease Score",
+                            "Safety/Maintenance Score",
+                            "Standardization Score",
+                            "Score Explanation",
+                        ],
+                    ),
+                    "",
+                    "## Scoring Method",
+                    *weight_lines,
+                    "- Scores are evidence weighted. Missing evidence is shown separately and does not become fake certainty.",
+                    "- Weights can be adjusted by callers; values are normalized before scoring.",
+                    "",
+                    "## Sensitivity Analysis",
+                    *table_from_rows(
+                        self.sensitivity_rows,
+                        ["Candidate ID", "Press/Machine #", "Most Sensitive Weight", "Approx +/-10pt Weight Swing"],
+                    ),
+                    "",
+                    "## Recommended Top 1-2 Pilot Candidates",
+                    *table_from_rows(
+                        self.ranked_candidates[:2],
+                        ["Rank", "Press/Machine #", "Total Score", "Confidence", "Recommended Action"],
+                    ),
+                    "",
+                    "## Next Data To Collect",
+                    "- Confirm downtime, drops, scrap, and maintenance baseline data.",
+                    "- Add before/after measurement plan before final pilot selection.",
+                ]
+            )
+            + "\n"
+        )
 
 
 def normalize_pilot_weights(weights: dict[str, Any] | None = None) -> dict[str, float]:
@@ -146,10 +155,17 @@ def _candidate_from_inventory(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def rank_pilot_candidates(project_root: str | Path, weights: dict[str, Any] | None = None) -> tuple[PilotRankingSummary | None, ToolResult | None]:
+def rank_pilot_candidates(
+    project_root: str | Path, weights: dict[str, Any] | None = None
+) -> tuple[PilotRankingSummary | None, ToolResult | None]:
     workbook = resolve_project_paths(project_root).master_workbook
     if not workbook.exists():
-        return None, ToolResult.fail("pilot_candidate_ranking", "Pilot Candidate Ranking Tool", "Master workbook is missing.", errors=[str(workbook)])
+        return None, ToolResult.fail(
+            "pilot_candidate_ranking",
+            "Pilot Candidate Ranking Tool",
+            "Master workbook is missing.",
+            errors=[str(workbook)],
+        )
     try:
         candidates = row_dicts(workbook, "Pilot Candidates")
         inventory = [repair_legacy_audit_lookup_shift(row) for row in row_dicts(workbook, "EOAT Inventory")]
@@ -157,12 +173,15 @@ def rank_pilot_candidates(project_root: str | Path, weights: dict[str, Any] | No
         kpis = row_dicts(workbook, "KPI Baseline")
         photos = row_dicts(workbook, "Photo Index")
     except Exception as exc:
-        return None, ToolResult.fail("pilot_candidate_ranking", "Pilot Candidate Ranking Tool", "Could not read workbook.", errors=[str(exc)])
+        return None, ToolResult.fail(
+            "pilot_candidate_ranking", "Pilot Candidate Ranking Tool", "Could not read workbook.", errors=[str(exc)]
+        )
     if not candidates:
         candidates = [
             _candidate_from_inventory(row)
             for row in inventory
-            if str(row.get("Pilot Candidate?") or "").lower() in {"yes", "maybe"} or str(row.get("Status") or "").lower() == "candidate for pilot"
+            if str(row.get("Pilot Candidate?") or "").lower() in {"yes", "maybe"}
+            or str(row.get("Status") or "").lower() == "candidate for pilot"
         ]
     selected_weights = normalize_pilot_weights(weights)
     ranked: list[dict[str, Any]] = []
@@ -172,7 +191,9 @@ def rank_pilot_candidates(project_root: str | Path, weights: dict[str, Any] | No
         related_issues = [row for row in issues if str(row.get("Press/Machine #") or "") == press]
         related_kpi = [row for row in kpis if str(row.get("Press/Machine #") or "") == press]
         related_audit = [row for row in inventory if str(row.get("Press/Machine #") or "") == press]
-        component_scores = _component_scores(candidate, related_issues, related_kpi, related_audit, press in photo_press)
+        component_scores = _component_scores(
+            candidate, related_issues, related_kpi, related_audit, press in photo_press
+        )
         total = round(sum(component_scores[key] * selected_weights[key] for key in DEFAULT_PILOT_SCORE_WEIGHTS))
         evidence_count = sum(
             bool(item)
@@ -194,9 +215,18 @@ def rank_pilot_candidates(project_root: str | Path, weights: dict[str, Any] | No
             **baseline,
             "Issue Count": len(related_issues),
             "Total Score": total,
-            "Impact Score": round((component_scores["downtime_reliability"] * 0.55) + (component_scores["quality_scrap"] * 0.45)),
-            "Frequency Score": min(100, len(related_issues) * 20 + baseline["Baseline Part Drops"] * 4 + baseline["Baseline Mis-Picks"] * 4),
-            "Measurement Score": min(100, (35 if related_kpi else 0) + (25 if candidate.get("Expected KPI Improvement") else 0) + (20 if press in photo_press else 0)),
+            "Impact Score": round(
+                (component_scores["downtime_reliability"] * 0.55) + (component_scores["quality_scrap"] * 0.45)
+            ),
+            "Frequency Score": min(
+                100, len(related_issues) * 20 + baseline["Baseline Part Drops"] * 4 + baseline["Baseline Mis-Picks"] * 4
+            ),
+            "Measurement Score": min(
+                100,
+                (35 if related_kpi else 0)
+                + (25 if candidate.get("Expected KPI Improvement") else 0)
+                + (20 if press in photo_press else 0),
+            ),
             "Safety Score": component_scores["safety_maintenance"],
             "Confidence": confidence,
             "Missing Evidence": ", ".join(missing) or "None obvious",
@@ -234,7 +264,9 @@ def generate_pilot_ranking_report(project_root: str | Path, log_activity: bool =
     try:
         report = write_timestamped_report(folder, "Pilot_Candidate_Ranking", summary.to_markdown())
     except Exception as exc:
-        return ToolResult.fail("pilot_candidate_ranking", "Pilot Candidate Ranking Tool", "Could not write report.", errors=[str(exc)])
+        return ToolResult.fail(
+            "pilot_candidate_ranking", "Pilot Candidate Ranking Tool", "Could not write report.", errors=[str(exc)]
+        )
     result = ToolResult.ok(
         "pilot_candidate_ranking",
         "Pilot Candidate Ranking Tool",
@@ -264,8 +296,23 @@ def _component_scores(
     mispicks = baseline["Baseline Mis-Picks"]
     scrap = baseline["Baseline Scrap Quantity"]
     maintenance_events = baseline["Baseline Maintenance Events"]
-    downtime_reliability = min(100, int(downtime * 1.2) + int(drops * 6) + int(mispicks * 6) + len(issues) * 12 + int(maintenance_events * 8) + _impact_boost(candidate.get("Estimated Impact")))
-    quality_scrap = min(100, int(scrap * 5) + int(drops * 4) + int(mispicks * 4) + (20 if _truthy(candidate.get("Safety/Quality Risk")) else 0) + _audit_yes_count(audits, "Scrap/Quality Concern?") * 15)
+    downtime_reliability = min(
+        100,
+        int(downtime * 1.2)
+        + int(drops * 6)
+        + int(mispicks * 6)
+        + len(issues) * 12
+        + int(maintenance_events * 8)
+        + _impact_boost(candidate.get("Estimated Impact")),
+    )
+    quality_scrap = min(
+        100,
+        int(scrap * 5)
+        + int(drops * 4)
+        + int(mispicks * 4)
+        + (20 if _truthy(candidate.get("Safety/Quality Risk")) else 0)
+        + _audit_yes_count(audits, "Scrap/Quality Concern?") * 15,
+    )
     ease = _ease_score(candidate.get("Ease of Implementation"))
     if not candidate.get("Ease of Implementation") and has_photos:
         ease = max(ease, 50)
@@ -356,7 +403,9 @@ def _sensitivity_row(row: dict[str, Any], weights: dict[str, float]) -> dict[str
 
 def _candidate_sensitivity(row: dict[str, Any], component_scores: dict[str, int], weights: dict[str, float]) -> str:
     sensitive = _most_sensitive_weight({key: float(value) for key, value in component_scores.items()}, weights)
-    swing = _sensitivity_swing({key: float(value) for key, value in component_scores.items()}, float(row.get("Total Score") or 0))
+    swing = _sensitivity_swing(
+        {key: float(value) for key, value in component_scores.items()}, float(row.get("Total Score") or 0)
+    )
     return f"Most sensitive to {sensitive}; +/-10 weight points changes score by about {swing}."
 
 

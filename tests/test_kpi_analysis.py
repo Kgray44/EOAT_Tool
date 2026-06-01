@@ -19,7 +19,28 @@ def test_kpi_analysis_totals(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     wb = load_workbook(workbook_path)
     ws = wb["KPI Baseline"]
-    ws.append(["KPI-1", "2026-05-18", "Plant 4", "Press 12", "", "Family", "Vacuum", 30, "Yes", 3, 2, 12, "Drop", 15.5, 2, "", "Manual", ""])
+    ws.append(
+        [
+            "KPI-1",
+            "2026-05-18",
+            "Plant 4",
+            "Press 12",
+            "",
+            "Family",
+            "Vacuum",
+            30,
+            "Yes",
+            3,
+            2,
+            12,
+            "Drop",
+            15.5,
+            2,
+            "",
+            "Manual",
+            "",
+        ]
+    )
     wb.save(workbook_path)
     wb.close()
 
@@ -38,8 +59,50 @@ def test_kpi_truth_labels_distinguish_measured_from_estimated(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     wb = load_workbook(workbook_path)
     ws = wb["KPI Baseline"]
-    ws.append(["KPI-MEASURED", "2026-05-18", "Plant 4", "Press 21", "", "Family", "Vacuum", 42, "Yes", 2, 1, 5, "Drop", 15.5, 1, "", "MES export", "Actual measured downtime export."])
-    ws.append(["KPI-EST", "2026-05-19", "Plant 4", "Press 21", "", "Family", "Vacuum", 20, "Yes", 1, 0, 3, "Drop", 15.8, 1, "", "Estimated by supervisor", "Estimated downtime from shift discussion."])
+    ws.append(
+        [
+            "KPI-MEASURED",
+            "2026-05-18",
+            "Plant 4",
+            "Press 21",
+            "",
+            "Family",
+            "Vacuum",
+            42,
+            "Yes",
+            2,
+            1,
+            5,
+            "Drop",
+            15.5,
+            1,
+            "",
+            "MES export",
+            "Actual measured downtime export.",
+        ]
+    )
+    ws.append(
+        [
+            "KPI-EST",
+            "2026-05-19",
+            "Plant 4",
+            "Press 21",
+            "",
+            "Family",
+            "Vacuum",
+            20,
+            "Yes",
+            1,
+            0,
+            3,
+            "Drop",
+            15.8,
+            1,
+            "",
+            "Estimated by supervisor",
+            "Estimated downtime from shift discussion.",
+        ]
+    )
     wb.save(workbook_path)
     wb.close()
 
@@ -59,7 +122,28 @@ def test_kpi_missing_data_warnings_generated(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     wb = load_workbook(workbook_path)
     ws = wb["KPI Baseline"]
-    ws.append(["KPI-MISSING", "2026-05-18", "Plant 4", "Press 22", "", "Family", "Vacuum", 10, "Yes", "", 1, "", "", "", "", "", "Manual audit observation", "Audit-observed KPI row with blanks."])
+    ws.append(
+        [
+            "KPI-MISSING",
+            "2026-05-18",
+            "Plant 4",
+            "Press 22",
+            "",
+            "Family",
+            "Vacuum",
+            10,
+            "Yes",
+            "",
+            1,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "Manual audit observation",
+            "Audit-observed KPI row with blanks.",
+        ]
+    )
     wb.save(workbook_path)
     wb.close()
 
@@ -78,7 +162,28 @@ def test_kpi_report_includes_confidence_section(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     wb = load_workbook(workbook_path)
     ws = wb["KPI Baseline"]
-    ws.append(["KPI-REPORT", "2026-05-18", "Plant 4", "Press 23", "", "Family", "Vacuum", 15, "Yes", 1, 0, 2, "Drop", 14.5, 1, "", "PLC measured export", ""])
+    ws.append(
+        [
+            "KPI-REPORT",
+            "2026-05-18",
+            "Plant 4",
+            "Press 23",
+            "",
+            "Family",
+            "Vacuum",
+            15,
+            "Yes",
+            1,
+            0,
+            2,
+            "Drop",
+            14.5,
+            1,
+            "",
+            "PLC measured export",
+            "",
+        ]
+    )
     wb.save(workbook_path)
     wb.close()
 
@@ -89,4 +194,3 @@ def test_kpi_report_includes_confidence_section(fake_project):
     assert "## KPI Truth And Confidence" in report_text
     assert "actual measured data" in report_text
     assert "Confidence" in report_text
-

@@ -5,19 +5,18 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 TOOLKIT_ROOT = Path(__file__).resolve().parents[1]
 if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.result import ToolResult
-from core.scheduled_reports import (
-    DEFAULT_SCHEDULE_TIMEZONE,
-    run_daily_summary_now,
-    run_due_scheduled_summaries,
-    run_weekly_summary_now,
-)
+
+DEFAULT_SCHEDULE_TIMEZONE = "America/New_York"
+
+if TYPE_CHECKING:
+    from core.result import ToolResult
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -30,6 +29,8 @@ def _parse_datetime(value: str | None) -> datetime | None:
 
 
 def _aggregate(results: list[ToolResult]) -> ToolResult:
+    from core.result import ToolResult
+
     success = all(result.success for result in results)
     return ToolResult(
         tool_id="scheduled_summaries_test",
@@ -50,17 +51,28 @@ def main() -> int:
     parser.add_argument("--project-root", default=str(DEFAULT_PROJECT_ROOT), help="EOAT project root to test against.")
     parser.add_argument("--daily", action="store_true", help="Include the daily summary.")
     parser.add_argument("--weekly", action="store_true", help="Include the weekly summary.")
-    parser.add_argument("--dry-run", action="store_true", default=True, help="Write test outputs only. Enabled by default.")
+    parser.add_argument(
+        "--dry-run", action="store_true", default=True, help="Write test outputs only. Enabled by default."
+    )
     parser.add_argument("--now", help="Optional fake scheduler datetime, for example 2026-05-25T19:00:00-04:00.")
-    parser.add_argument("--timezone", default=DEFAULT_SCHEDULE_TIMEZONE, help="Scheduler timezone. Defaults to America/New_York.")
-    parser.add_argument("--force", action="store_true", help="Allow the scheduler harness to run even when the same-date test output exists.")
-    parser.add_argument("--verbose", action="store_true", help="Print structured result JSON after the Markdown summary.")
+    parser.add_argument(
+        "--timezone", default=DEFAULT_SCHEDULE_TIMEZONE, help="Scheduler timezone. Defaults to America/New_York."
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow the scheduler harness to run even when the same-date test output exists.",
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="Print structured result JSON after the Markdown summary."
+    )
     args = parser.parse_args()
 
     project_root = Path(args.project_root).expanduser().resolve()
     include_daily = args.daily or not args.weekly
     include_weekly = args.weekly or not args.daily
     fake_now = _parse_datetime(args.now)
+    from core.scheduled_reports import run_daily_summary_now, run_due_scheduled_summaries, run_weekly_summary_now
 
     if fake_now is not None:
         result = run_due_scheduled_summaries(
@@ -75,7 +87,14 @@ def main() -> int:
     else:
         results: list[ToolResult] = []
         if include_daily:
-            results.append(run_daily_summary_now(project_root, dry_run=args.dry_run, mode="manual_test", decision_reason="manual daily summary test run"))
+            results.append(
+                run_daily_summary_now(
+                    project_root,
+                    dry_run=args.dry_run,
+                    mode="manual_test",
+                    decision_reason="manual daily summary test run",
+                )
+            )
         if include_weekly:
             results.append(
                 run_weekly_summary_now(

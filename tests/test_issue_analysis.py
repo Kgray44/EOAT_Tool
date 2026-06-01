@@ -18,28 +18,30 @@ def test_issue_analysis_counts_and_suggestions(fake_project):
     workbook_path = resolve_project_paths(fake_project).master_workbook
     wb = load_workbook(workbook_path)
     ws = wb["Issue Log"]
-    ws.append([
-        "ISS-1",
-        "2026-05-18",
-        "Plant 4",
-        "Press 12",
-        "Wittmann R9",
-        "Vacuum",
-        "Vacuum loss",
-        "Part dropped",
-        "Cup wear",
-        "Operator note",
-        "Downtime",
-        "8 - High",
-        "",
-        "5",
-        "",
-        "Replace cups",
-        "",
-        "Open",
-        "",
-        "",
-    ])
+    ws.append(
+        [
+            "ISS-1",
+            "2026-05-18",
+            "Plant 4",
+            "Press 12",
+            "Wittmann R9",
+            "Vacuum",
+            "Vacuum loss",
+            "Part dropped",
+            "Cup wear",
+            "Operator note",
+            "Downtime",
+            "8 - High",
+            "",
+            "5",
+            "",
+            "Replace cups",
+            "",
+            "Open",
+            "",
+            "",
+        ]
+    )
     wb.save(workbook_path)
     wb.close()
 
@@ -53,4 +55,3 @@ def test_issue_analysis_counts_and_suggestions(fake_project):
     result = generate_issue_analysis_report(fake_project)
     assert result.success is True
     assert result.output_reports
-

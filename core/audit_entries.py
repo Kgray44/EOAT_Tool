@@ -62,6 +62,7 @@ class AuditSaveOptions:
     refresh_press_view: bool = False
     emit_refresh_mode: str = "invalidate_only"
 
+
 AUDIT_REQUIRED_FIELDS = [
     "Audit Date",
     "Auditor",
@@ -178,9 +179,7 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
 
 SENSOR_ELECTRICAL_TAGS = frozenset({"sensor"})
 SENSOR_ELECTRICAL_FIELDS = frozenset(
-    field_name
-    for field_name, metadata in AUDIT_FIELD_METADATA.items()
-    if metadata.tags & SENSOR_ELECTRICAL_TAGS
+    field_name for field_name, metadata in AUDIT_FIELD_METADATA.items() if metadata.tags & SENSOR_ELECTRICAL_TAGS
 )
 DOCUMENTATION_PHOTO_DEFAULT_FIELDS = frozenset(
     field_name
@@ -204,7 +203,14 @@ AUDIT_DROPDOWNS = {
     "Quick Disconnects Present?": ["Yes", "No", "Partial", UNKNOWN_NOT_CHECKED],
     "Tubing Condition": ["OK", "Worn", "Damaged", "Poor Routing", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
     "Cable Management Condition": ["OK", "Loose", "Damaged", "Poor Routing", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
-    "Mounting Hardware Condition": ["OK", "Loose", "Missing Hardware", "Damaged", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
+    "Mounting Hardware Condition": [
+        "OK",
+        "Loose",
+        "Missing Hardware",
+        "Damaged",
+        "Needs Follow-Up",
+        UNKNOWN_NOT_CHECKED,
+    ],
     "EOAT Alignment Condition": ["OK", "Slightly Off", "Misaligned", "Needs Follow-Up", UNKNOWN_NOT_CHECKED],
     "Changeover Difficulty": ["Easy", "Low", "Medium", "High", UNKNOWN_NOT_CHECKED],
     "Photos Taken?": ["Yes", "No"],
@@ -227,7 +233,9 @@ def repair_legacy_audit_lookup_shift(row: dict[str, Any]) -> dict[str, Any]:
     tolerant without changing the saved workbook.
     """
     legacy_lookup_shift = _text(row.get("Press Brand")) in EOAT_TYPE_VALUES
-    legacy_compact_shift = _text(row.get("Cleanroom/Non-Cleanroom")) in EOAT_TYPE_VALUES and not _text(row.get("EOAT Type"))
+    legacy_compact_shift = _text(row.get("Cleanroom/Non-Cleanroom")) in EOAT_TYPE_VALUES and not _text(
+        row.get("EOAT Type")
+    )
     if _text(row.get("EOAT Type")):
         return _repair_missing_connection_type_positional_shift(
             _repair_legacy_compact_tooling_shift(
@@ -285,10 +293,14 @@ def _repair_legacy_compact_tooling_shift(row: dict[str, Any]) -> dict[str, Any]:
     status_candidate = _text(repaired.get("BOM Available?"))
     priority_candidate = _text(repaired.get("Process Binder Complete?"))
     pilot_candidate = _text(repaired.get("Photos Taken?"))
-    if (
-        not _text(repaired.get("Status"))
-        and status_candidate.lower() in {"candidate for pilot", "complete", "needs follow-up", "in progress", "blocked", "not started"}
-    ):
+    if not _text(repaired.get("Status")) and status_candidate.lower() in {
+        "candidate for pilot",
+        "complete",
+        "needs follow-up",
+        "in progress",
+        "blocked",
+        "not started",
+    }:
         repaired["Status"] = repaired.get("BOM Available?")
         if priority_candidate in {"Low", "Medium", "High", "Critical"}:
             repaired["Priority"] = repaired.get("Process Binder Complete?")
@@ -303,7 +315,9 @@ def _repair_legacy_compact_tooling_shift(row: dict[str, Any]) -> dict[str, Any]:
 def _repair_missing_connection_type_positional_shift(row: dict[str, Any]) -> dict[str, Any]:
     """Read compact rows written by position before Connection Type existed."""
     connection_value = _text(row.get(CONNECTION_TYPE_FIELD))
-    if _looks_like_count(connection_value) and (_text(row.get("Cup Type/Material")) or _text(row.get("Cup Diameter/Size"))):
+    if _looks_like_count(connection_value) and (
+        _text(row.get("Cup Type/Material")) or _text(row.get("Cup Diameter/Size"))
+    ):
         repaired = dict(row)
         if not _text(repaired.get(NUMBER_OF_PARTS_PICKED_FIELD)):
             repaired[NUMBER_OF_PARTS_PICKED_FIELD] = row.get(CONNECTION_TYPE_FIELD)
@@ -311,7 +325,10 @@ def _repair_missing_connection_type_positional_shift(row: dict[str, Any]) -> dic
         return repaired
     shifted_after_connection = (
         _looks_like_count(connection_value)
-        or (_text(row.get("Status")) in {"Low", "Medium", "High", "Critical"} and _text(row.get("Priority")) in {"Yes", "No", "Maybe"})
+        or (
+            _text(row.get("Status")) in {"Low", "Medium", "High", "Critical"}
+            and _text(row.get("Priority")) in {"Yes", "No", "Maybe"}
+        )
         or (_text(row.get("Estimated EOAT Weight")) and not _text(row.get("Known Issues")))
     )
     if not shifted_after_connection:
@@ -323,7 +340,9 @@ def _repair_missing_connection_type_positional_shift(row: dict[str, Any]) -> dic
     start = headers.index(CONNECTION_TYPE_FIELD)
     for index in range(len(headers) - 1, start, -1):
         repaired[headers[index]] = row.get(headers[index - 1])
-    repaired[CONNECTION_TYPE_FIELD] = "" if connection_value not in CONNECTION_TYPE_VALUES else row.get(CONNECTION_TYPE_FIELD)
+    repaired[CONNECTION_TYPE_FIELD] = (
+        "" if connection_value not in CONNECTION_TYPE_VALUES else row.get(CONNECTION_TYPE_FIELD)
+    )
     return repaired
 
 
@@ -331,7 +350,10 @@ def _repair_missing_gripper_fields_positional_shift(row: dict[str, Any]) -> dict
     """Read rows written by position before Gripper Model/Size existed."""
     shifted_after_gripper_fields = (
         _looks_like_count(row.get(GRIPPER_MODEL_FIELD))
-        or (_text(row.get("Status")) in {"Low", "Medium", "High", "Critical"} and _text(row.get("Priority")) in {"Yes", "No", "Maybe"})
+        or (
+            _text(row.get("Status")) in {"Low", "Medium", "High", "Critical"}
+            and _text(row.get("Priority")) in {"Yes", "No", "Maybe"}
+        )
         or (_text(row.get("Estimated EOAT Weight")) and not _text(row.get("Known Issues")))
     )
     if not shifted_after_gripper_fields:
@@ -398,7 +420,9 @@ def generate_audit_id(project_root: str | Path, audit_date: str | None = None) -
                 headers = worksheet_headers(ws)
                 if "Audit ID" in headers:
                     audit_id_column = headers.index("Audit ID") + 1
-                    for row in ws.iter_rows(min_row=2, min_col=audit_id_column, max_col=audit_id_column, values_only=True):
+                    for row in ws.iter_rows(
+                        min_row=2, min_col=audit_id_column, max_col=audit_id_column, values_only=True
+                    ):
                         value = str((row[0] if row else "") or "")
                         if value.startswith(prefix):
                             try:
@@ -415,7 +439,9 @@ def normalize_audit_entry(project_root: str | Path, entry: dict[str, Any]) -> di
     return normalized
 
 
-def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def normalize_audit_entry_with_details(
+    project_root: str | Path, entry: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
     headers = get_expected_headers("EOAT Inventory")
     if TOOL_FIELD not in entry and LEGACY_TOOL_FIELD in entry:
         entry = {**entry, TOOL_FIELD: entry.get(LEGACY_TOOL_FIELD, "")}
@@ -430,7 +456,9 @@ def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str
     if entry_type != ENTRY_TYPE_COMPATIBLE.lower() and not normalized.get("Audit Date"):
         normalized["Audit Date"] = date.today().isoformat()
     if not normalized.get("Audit ID"):
-        normalized["Audit ID"] = generate_audit_id(project_root, str(normalized.get("Audit Date") or date.today().isoformat()))
+        normalized["Audit ID"] = generate_audit_id(
+            project_root, str(normalized.get("Audit Date") or date.today().isoformat())
+        )
     if not normalized.get("Cleanroom/Non-Cleanroom"):
         normalized["Cleanroom/Non-Cleanroom"] = CLEANROOM_DEFAULT
     eoat_type = normalized.get("EOAT Type")
@@ -449,10 +477,15 @@ def normalize_audit_entry_with_details(project_root: str | Path, entry: dict[str
     normalized = field_rules.normalize_cylinder_fields(normalized)
     if not _text(normalized.get("Cup Type/Material")) and cup_type_default_applies(eoat_type):
         normalized["Cup Type/Material"] = CUP_TYPE_DEFAULT
-    if not tooling_field_applies(eoat_type, "Cup Type/Material") and _text(normalized.get("Cup Type/Material")) == CUP_TYPE_DEFAULT:
+    if (
+        not tooling_field_applies(eoat_type, "Cup Type/Material")
+        and _text(normalized.get("Cup Type/Material")) == CUP_TYPE_DEFAULT
+    ):
         normalized["Cup Type/Material"] = ""
     apply_part_present_sensor_defaults(normalized)
-    if audit_field_applies(normalized, "Changeover Difficulty") and _can_apply_changeover_default(normalized.get("Changeover Difficulty")):
+    if audit_field_applies(normalized, "Changeover Difficulty") and _can_apply_changeover_default(
+        normalized.get("Changeover Difficulty")
+    ):
         connection_text = _text(normalized.get(CONNECTION_TYPE_FIELD)).casefold()
         if "ati" in connection_text:
             normalized["Changeover Difficulty"] = "Low"
@@ -503,8 +536,19 @@ def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
         and _text(entry.get(CYLINDER_TYPE_FIELD)) not in CYLINDER_TYPE_VALUES
     ):
         errors.append(f"{CYLINDER_TYPE_FIELD} must be one of: {', '.join(CYLINDER_TYPE_VALUES)}.")
-    for field in {NUMBER_OF_PARTS_PICKED_FIELD, CYLINDER_COUNT_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, *EOAT_PNEUMATIC_CIRCUIT_FIELDS}:
-        if field in entry and _text(entry.get(field)) and not is_na_value(entry.get(field)) and _parse_non_negative_int(entry.get(field)) is None:
+    for field in {
+        NUMBER_OF_PARTS_PICKED_FIELD,
+        CYLINDER_COUNT_FIELD,
+        CUP_COUNT_FIELD,
+        GRIPPER_COUNT_FIELD,
+        *EOAT_PNEUMATIC_CIRCUIT_FIELDS,
+    }:
+        if (
+            field in entry
+            and _text(entry.get(field))
+            and not is_na_value(entry.get(field))
+            and _parse_non_negative_int(entry.get(field)) is None
+        ):
             errors.append(f"{field} must be a non-negative whole number.")
     return errors, warnings
 
@@ -665,8 +709,12 @@ def _migrate_electrical_wiring_presence_rows(ws) -> dict[str, int]:
         row_data = {header: ws.cell(row=row_number, column=column).value for header, column in positions.items()}
         stats["rows_reviewed"] += 1
         sensors_present = _text(row_data.get("Sensors Present?")).casefold()
-        sensor_details_blank = not any(field_rules.is_meaningful_value(row_data.get(field)) for field in sensor_detail_fields)
-        electrical_values_blank = not any(field_rules.is_meaningful_value(row_data.get(field)) for field in electrical_evidence_fields)
+        sensor_details_blank = not any(
+            field_rules.is_meaningful_value(row_data.get(field)) for field in sensor_detail_fields
+        )
+        electrical_values_blank = not any(
+            field_rules.is_meaningful_value(row_data.get(field)) for field in electrical_evidence_fields
+        )
 
         if sensors_present == "no" and sensor_details_blank and electrical_values_blank:
             ws.cell(row=row_number, column=electrical_col).value = "No"
@@ -695,7 +743,9 @@ def _migrate_inventory_gripper_values(ws) -> dict[str, int]:
         row_values = [ws.cell(row=row_number, column=column).value for column in range(1, len(headers) + 1)]
         if not any(_text(value) for value in row_values):
             continue
-        if len([value for value in row_values if _text(value)]) == 1 and _text(row_values[-1]).startswith("Last Updated:"):
+        if len([value for value in row_values if _text(value)]) == 1 and _text(row_values[-1]).startswith(
+            "Last Updated:"
+        ):
             continue
         row_data = {header: ws.cell(row=row_number, column=column).value for header, column in positions.items()}
         stats["rows_reviewed"] += 1
@@ -724,7 +774,10 @@ def _create_vacuum_zones_removal_backup(workbook_path: Path) -> Path:
     target = backup_dir / f"{workbook_path.stem}_backup_before_removing_vacuum_zones_{stamp}{workbook_path.suffix}"
     counter = 2
     while target.exists():
-        target = backup_dir / f"{workbook_path.stem}_backup_before_removing_vacuum_zones_{stamp}_{counter}{workbook_path.suffix}"
+        target = (
+            backup_dir
+            / f"{workbook_path.stem}_backup_before_removing_vacuum_zones_{stamp}_{counter}{workbook_path.suffix}"
+        )
         counter += 1
     shutil.copy2(workbook_path, target)
     return target
@@ -1223,7 +1276,9 @@ def save_audit_entry(
     paths = resolve_project_paths(project_root)
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
-        return ToolResult.fail("eoat_audit_form", "EOAT Audit Form Tool", "Master workbook is missing.", errors=[str(workbook_path)])
+        return ToolResult.fail(
+            "eoat_audit_form", "EOAT Audit Form Tool", "Master workbook is missing.", errors=[str(workbook_path)]
+        )
 
     validation_entry, validation_details = normalize_audit_entry_with_details(project_root, entry)
     requirements = field_rules.entry_type_requirements(validation_entry)
@@ -1233,7 +1288,9 @@ def save_audit_entry(
     errors, warnings = validate_audit_entry(validation_entry)
     validate_seconds = time.perf_counter() - validate_started
     timing_metrics["audit_save.validate_form_seconds"] = round(validate_seconds, 3)
-    _log_audit_save_step(project_root, "audit_save.validate", validate_seconds, audit_id=str(entry.get("Audit ID") or ""))
+    _log_audit_save_step(
+        project_root, "audit_save.validate", validate_seconds, audit_id=str(entry.get("Audit ID") or "")
+    )
     if errors:
         return ToolResult.fail(
             "eoat_audit_form",
@@ -1268,7 +1325,9 @@ def save_audit_entry(
         workbook = load_workbook(workbook_path)
         workbook_open_seconds = time.perf_counter() - workbook_open_started
         timing_metrics["audit_save.workbook_open_load_seconds"] = round(workbook_open_seconds, 3)
-        _log_audit_save_step(project_root, "audit_save.workbook_open", workbook_open_seconds, audit_id=str(data.get("Audit ID") or ""))
+        _log_audit_save_step(
+            project_root, "audit_save.workbook_open", workbook_open_seconds, audit_id=str(data.get("Audit ID") or "")
+        )
         if "EOAT Inventory" not in workbook.sheetnames:
             raise ValueError("EOAT Inventory sheet is missing.")
         schema_check_started = time.perf_counter()
@@ -1342,8 +1401,7 @@ def save_audit_entry(
         if existing_row:
             headers = worksheet_headers(ws)
             previous_data = {
-                header: ws.cell(row=existing_row, column=column).value
-                for column, header in enumerate(headers, start=1)
+                header: ws.cell(row=existing_row, column=column).value for column, header in enumerate(headers, start=1)
             }
         if existing_row and not allow_update:
             workbook.close()
@@ -1373,7 +1431,9 @@ def save_audit_entry(
                     data[header] = existing_value
                 elif header in data and not audit_field_applies(data, header):
                     data[header] = NA_VALUE
-                    normalization_details.setdefault("fields_auto_set_to_na", {})[header] = field_rules.non_applicable_reason(data, header)
+                    normalization_details.setdefault("fields_auto_set_to_na", {})[header] = (
+                        field_rules.non_applicable_reason(data, header)
+                    )
         if backup is None:
             backup, backup_created, backup_seconds = _backup_workbook_for_audit_save(
                 project_root,
@@ -1388,7 +1448,13 @@ def save_audit_entry(
         write_row_by_headers(ws, row_number, data)
         row_write_seconds = time.perf_counter() - row_write_started
         timing_metrics["audit_save.row_write_update_seconds"] = round(row_write_seconds, 3)
-        _log_audit_save_step(project_root, "audit_save.row_write", row_write_seconds, audit_id=str(data.get("Audit ID") or ""), row=row_number)
+        _log_audit_save_step(
+            project_root,
+            "audit_save.row_write",
+            row_write_seconds,
+            audit_id=str(data.get("Audit ID") or ""),
+            row=row_number,
+        )
         if options.refresh_press_view:
             press_view_started = time.perf_counter()
             refresh_audit_by_press_view(workbook)
@@ -1397,14 +1463,22 @@ def save_audit_entry(
         workbook.save(workbook_path)
         workbook_save_seconds = time.perf_counter() - workbook_save_started
         timing_metrics["audit_save.workbook_save_seconds"] = round(workbook_save_seconds, 3)
-        _log_audit_save_step(project_root, "audit_save.workbook_save", workbook_save_seconds, audit_id=str(data.get("Audit ID") or ""), row=row_number)
+        _log_audit_save_step(
+            project_root,
+            "audit_save.workbook_save",
+            workbook_save_seconds,
+            audit_id=str(data.get("Audit ID") or ""),
+            row=row_number,
+        )
         workbook.close()
         workbook_signature_after = workbook_file_signature(workbook_path)
         cache_started = time.perf_counter()
         invalidate_workbook_cache(workbook_path)
         cache_seconds = time.perf_counter() - cache_started
         timing_metrics["audit_save.cache_invalidate_seconds"] = round(cache_seconds, 3)
-        _log_audit_save_step(project_root, "audit_save.cache_invalidate", cache_seconds, audit_id=str(data.get("Audit ID") or ""))
+        _log_audit_save_step(
+            project_root, "audit_save.cache_invalidate", cache_seconds, audit_id=str(data.get("Audit ID") or "")
+        )
         timing_metrics["audit_save.write_master_seconds"] = round(time.perf_counter() - write_started, 3)
         timing_metrics["audit_save.audit_by_press_refresh_seconds"] = round(press_view_refresh_seconds, 3)
     except Exception as exc:
@@ -1496,9 +1570,13 @@ def save_audit_entry(
                 f"Saved audit entry {data['Audit ID']}. "
                 f"Updated {sync_result.updated_count} linked compatibility entrie(s) from this source audit."
             )
-            details.append(f"Updated {sync_result.updated_count} linked compatibility entrie(s) from this source audit.")
+            details.append(
+                f"Updated {sync_result.updated_count} linked compatibility entrie(s) from this source audit."
+            )
         elif sync_result.missing_source:
-            details.append("No linked compatibility entries were updated because the saved source audit could not be reloaded.")
+            details.append(
+                "No linked compatibility entries were updated because the saved source audit could not be reloaded."
+            )
         else:
             summary = f"Saved audit entry {data['Audit ID']}. No linked compatibility entries found."
             details.append("No linked compatibility entries found.")
@@ -1686,7 +1764,9 @@ def _autorun_compatibility_entry(project_root: str | Path, audit_id: str) -> Too
             result.tool_id = "compatibility_entry_autorun"
             result.duration_seconds = result.duration_seconds or (time.perf_counter() - started)
             return result
-        conflicts = sum(1 for candidate in candidate_result.candidates if candidate.recommended_action == "Conflict / Review Needed")
+        conflicts = sum(
+            1 for candidate in candidate_result.candidates if candidate.recommended_action == "Conflict / Review Needed"
+        )
         return ToolResult.ok(
             "compatibility_entry_autorun",
             "Compatibility Entry",

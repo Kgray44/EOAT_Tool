@@ -59,7 +59,9 @@ def add_action_item(
     paths = resolve_project_paths(project_root)
     workbook_path = paths.master_workbook
     if not workbook_path.exists():
-        return ToolResult.fail("action_item", "Action Item Entry", "Master workbook is missing.", errors=[str(workbook_path)])
+        return ToolResult.fail(
+            "action_item", "Action Item Entry", "Master workbook is missing.", errors=[str(workbook_path)]
+        )
     if not action_item.strip():
         return ToolResult.fail("action_item", "Action Item Entry", "Action item text is required.")
     action_id = generate_action_id(project_root)

@@ -229,14 +229,18 @@ def _score_machine(
     )
 
 
-def _high_priority_count(audits: list[dict[str, Any]], issues: list[dict[str, Any]], fmeas: list[dict[str, Any]]) -> int:
+def _high_priority_count(
+    audits: list[dict[str, Any]], issues: list[dict[str, Any]], fmeas: list[dict[str, Any]]
+) -> int:
     audit_count = sum(1 for row in audits if text_value(row.get("Priority")).casefold() == "high")
     issue_count = sum(1 for row in issues if (parse_score(row.get("Severity")) or 0) >= 7)
     fmea_count = sum(1 for row in fmeas if _rpn(row) >= 100)
     return audit_count + issue_count + fmea_count
 
 
-def _critical_priority_count(audits: list[dict[str, Any]], issues: list[dict[str, Any]], fmeas: list[dict[str, Any]]) -> int:
+def _critical_priority_count(
+    audits: list[dict[str, Any]], issues: list[dict[str, Any]], fmeas: list[dict[str, Any]]
+) -> int:
     audit_count = sum(1 for row in audits if text_value(row.get("Priority")).casefold() == "critical")
     issue_count = sum(1 for row in issues if (parse_score(row.get("Severity")) or 0) >= 9)
     fmea_count = sum(1 for row in fmeas if _rpn(row) >= 200)
@@ -245,19 +249,31 @@ def _critical_priority_count(audits: list[dict[str, Any]], issues: list[dict[str
 
 def _follow_up_count(audits: list[dict[str, Any]], issues: list[dict[str, Any]]) -> int:
     audit_count = sum(1 for row in audits if text_value(row.get("Follow-Up Needed")).casefold() == "yes")
-    issue_count = sum(1 for row in issues if text_value(row.get("Status")).casefold() in OPEN_STATUSES or bool(text_value(row.get("Follow-Up Date"))))
+    issue_count = sum(
+        1
+        for row in issues
+        if text_value(row.get("Status")).casefold() in OPEN_STATUSES or bool(text_value(row.get("Follow-Up Date")))
+    )
     return audit_count + issue_count
 
 
 def _drop_history_count(audits: list[dict[str, Any]], issues: list[dict[str, Any]], kpis: list[dict[str, Any]]) -> int:
-    audit_count = sum(1 for row in audits if _has_signal(row.get("Drop/Mis-Pick History")) or _has_yes(row.get("Scrap/Quality Concern?")))
-    issue_count = sum(1 for row in issues if any(token in _issue_text(row) for token in ("drop", "mis-pick", "mispick", "mis pick")))
+    audit_count = sum(
+        1
+        for row in audits
+        if _has_signal(row.get("Drop/Mis-Pick History")) or _has_yes(row.get("Scrap/Quality Concern?"))
+    )
+    issue_count = sum(
+        1 for row in issues if any(token in _issue_text(row) for token in ("drop", "mis-pick", "mispick", "mis pick"))
+    )
     kpi_count = sum(1 for row in kpis if _numeric(row.get("Part Drops")) > 0 or _numeric(row.get("Mis-Picks")) > 0)
     return audit_count + issue_count + kpi_count
 
 
 def _scrap_concern_count(audits: list[dict[str, Any]], kpis: list[dict[str, Any]]) -> int:
-    return sum(1 for row in audits if _has_yes(row.get("Scrap/Quality Concern?"))) + sum(1 for row in kpis if _numeric(row.get("Scrap Quantity")) > 0)
+    return sum(1 for row in audits if _has_yes(row.get("Scrap/Quality Concern?"))) + sum(
+        1 for row in kpis if _numeric(row.get("Scrap Quantity")) > 0
+    )
 
 
 def _cycle_time_concern_count(audits: list[dict[str, Any]], kpis: list[dict[str, Any]]) -> int:
@@ -286,7 +302,9 @@ def _documentation_gap_penalty(audits: list[dict[str, Any]]) -> int:
     return sum(2 for row in audits for field in fields if _is_no_or_missing(row.get(field)))
 
 
-def _evidence_lines(audits: list[dict[str, Any]], issues: list[dict[str, Any]], kpis: list[dict[str, Any]], fmeas: list[dict[str, Any]]) -> list[str]:
+def _evidence_lines(
+    audits: list[dict[str, Any]], issues: list[dict[str, Any]], kpis: list[dict[str, Any]], fmeas: list[dict[str, Any]]
+) -> list[str]:
     lines: list[str] = []
     if audits:
         lines.append(f"{len(audits)} EOAT audit row(s).")
@@ -299,7 +317,9 @@ def _evidence_lines(audits: list[dict[str, Any]], issues: list[dict[str, Any]], 
     return lines
 
 
-def _missing_evidence_lines(audits: list[dict[str, Any]], issues: list[dict[str, Any]], kpis: list[dict[str, Any]], fmeas: list[dict[str, Any]]) -> list[str]:
+def _missing_evidence_lines(
+    audits: list[dict[str, Any]], issues: list[dict[str, Any]], kpis: list[dict[str, Any]], fmeas: list[dict[str, Any]]
+) -> list[str]:
     missing: list[str] = []
     if not audits:
         missing.append("No EOAT Inventory audit evidence for this machine.")
@@ -367,7 +387,17 @@ def _has_yes(value: Any) -> bool:
 
 def _has_signal(value: Any) -> bool:
     text = text_value(value).casefold()
-    return bool(text) and text not in {"no", "none", "n/a", "na", "unknown", "unknown / not checked", "not checked", "no issue observed.", "no issues observed"}
+    return bool(text) and text not in {
+        "no",
+        "none",
+        "n/a",
+        "na",
+        "unknown",
+        "unknown / not checked",
+        "not checked",
+        "no issue observed.",
+        "no issues observed",
+    }
 
 
 def _numeric(value: Any) -> float:

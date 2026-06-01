@@ -74,7 +74,9 @@ def build_qr_labels(
             if not _clean(machine):
                 continue
             value = machine_qr_value(machine)
-            labels.append(QRLabel("machine", _minimal_machine_id(machine), f"Machine {_minimal_machine_id(machine)}", value))
+            labels.append(
+                QRLabel("machine", _minimal_machine_id(machine), f"Machine {_minimal_machine_id(machine)}", value)
+            )
     if include_audits:
         for audit_id in audit_values:
             if not _clean(audit_id):
@@ -94,7 +96,13 @@ def export_qr_label_sheet(
     log_activity: bool = True,
 ) -> ToolResult:
     start = time.perf_counter()
-    labels = build_qr_labels(project_root, include_machines=include_machines, include_audits=include_audits, machines=machines, audit_ids=audit_ids)
+    labels = build_qr_labels(
+        project_root,
+        include_machines=include_machines,
+        include_audits=include_audits,
+        machines=machines,
+        audit_ids=audit_ids,
+    )
     if not labels:
         return ToolResult.fail(TOOL_ID, TOOL_NAME, "No QR labels were generated.")
     output_dir = ensure_directory(resolve_project_paths(project_root).qr_labels)
@@ -106,9 +114,13 @@ def export_qr_label_sheet(
         if png_path:
             files_created.append(str(png_path))
         else:
-            warnings.append("Scannable QR image export requires the optional qrcode package; wrote printable SVG value sheet instead.")
+            warnings.append(
+                "Scannable QR image export requires the optional qrcode package; wrote printable SVG value sheet instead."
+            )
         svg_path = safe_write_text(output_dir / f"EOAT_QR_Label_Sheet_{stamp}.svg", _svg_sheet(labels), overwrite=False)
-        markdown_path = safe_write_text(output_dir / f"EOAT_QR_Label_Values_{stamp}.md", _markdown_sheet(labels), overwrite=False)
+        markdown_path = safe_write_text(
+            output_dir / f"EOAT_QR_Label_Values_{stamp}.md", _markdown_sheet(labels), overwrite=False
+        )
         files_created.extend([str(svg_path), str(markdown_path)])
     except Exception as exc:
         return ToolResult.fail(TOOL_ID, TOOL_NAME, "Could not export QR label sheet.", errors=[str(exc)])

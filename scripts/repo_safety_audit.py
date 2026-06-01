@@ -117,7 +117,9 @@ LINE_RULES: list[tuple[str, str, re.Pattern[str]]] = [
     (
         "WARNING",
         "Public company reference appears near operational context; review before publishing.",
-        re.compile(r"(?i)\b(?:nolato|gw\s*plastics|gwplastics)\b.{0,120}\b(?:capacity|cycle\s*time|downtime|scrap|mold|part\s*(?:number|no\.?|#)|customer|press|maintenance)\b"),
+        re.compile(
+            r"(?i)\b(?:nolato|gw\s*plastics|gwplastics)\b.{0,120}\b(?:capacity|cycle\s*time|downtime|scrap|mold|part\s*(?:number|no\.?|#)|customer|press|maintenance)\b"
+        ),
     ),
 ]
 
@@ -328,10 +330,9 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
     for pattern, message in PATH_BLOCKERS:
         if _path_matches_blocker(rel_lower, pattern.lower()):
             findings.append(Finding("BLOCKER", path, message))
-    if (
-        path.name.lower() in LOCAL_CONFIG_NAMES
-        or path.name.lower().endswith(".local.json")
-    ) and not any(finding.message == "Local config file must not be committed." for finding in findings):
+    if (path.name.lower() in LOCAL_CONFIG_NAMES or path.name.lower().endswith(".local.json")) and not any(
+        finding.message == "Local config file must not be committed." for finding in findings
+    ):
         findings.append(Finding("BLOCKER", path, "Local config file must not be committed."))
 
     if not allowed:
@@ -344,17 +345,35 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
 
         normalized = rel_lower.replace("-", "_").replace(" ", "_")
         if any(part in GENERATED_PATH_PARTS for part in parts_lower):
-            findings.append(Finding("BLOCKER", path, "Generated reports/logs/cache/backups/exports path is outside the demo/template/test allowlist."))
+            findings.append(
+                Finding(
+                    "BLOCKER",
+                    path,
+                    "Generated reports/logs/cache/backups/exports path is outside the demo/template/test allowlist.",
+                )
+            )
 
         if any(word.replace(" ", "_") in normalized for word in SENSITIVE_PATH_WORDS):
             if path.suffix.lower() in DATA_SUFFIXES | IMAGE_SUFFIXES or "reports" in normalized or "logs" in normalized:
-                findings.append(Finding("BLOCKER", path, "Operational data/output path is outside the demo/template/test allowlist."))
+                findings.append(
+                    Finding(
+                        "BLOCKER", path, "Operational data/output path is outside the demo/template/test allowlist."
+                    )
+                )
 
         if path.suffix.lower() in DATA_SUFFIXES | IMAGE_SUFFIXES and path.stat().st_size > max_large_file_bytes:
-            findings.append(Finding("WARNING", path, "Large data/media file found outside the allowlist; review for real operational content."))
+            findings.append(
+                Finding(
+                    "WARNING",
+                    path,
+                    "Large data/media file found outside the allowlist; review for real operational content.",
+                )
+            )
 
     if path.suffix.lower() in WORKBOOK_SUFFIXES and not allowed_data:
-        findings.append(Finding("BLOCKER", path, "Workbook file is outside allowed demo/template/test/data-template paths."))
+        findings.append(
+            Finding("BLOCKER", path, "Workbook file is outside allowed demo/template/test/data-template paths.")
+        )
     if path.suffix.lower() in IMAGE_SUFFIXES and not allowed_image:
         findings.append(Finding("BLOCKER", path, "Photo/image file is outside allowed demo/template/test/docs paths."))
 
@@ -401,7 +420,9 @@ def print_findings(findings: list[Finding], root: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Scan the EOAT toolkit repository for NDA-sensitive files or content before commit.")
+    parser = argparse.ArgumentParser(
+        description="Scan the EOAT toolkit repository for NDA-sensitive files or content before commit."
+    )
     parser.add_argument("--root", default=".", help="Repository root to scan. Defaults to the current directory.")
     parser.add_argument("--staged", action="store_true", help="Scan only staged files using git diff --cached.")
     parser.add_argument("--git", default="git", help="Git executable to use with --staged.")

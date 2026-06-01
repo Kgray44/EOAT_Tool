@@ -22,7 +22,9 @@ def test_safety_audit_flags_private_paths(tmp_path: Path):
 def test_safety_audit_flags_local_config_files(tmp_path: Path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    (config_dir / "local_config.json").write_text('{"project_root": "C:\\\\Users\\\\demo\\\\private"}', encoding="utf-8")
+    (config_dir / "local_config.json").write_text(
+        '{"project_root": "C:\\\\Users\\\\demo\\\\private"}', encoding="utf-8"
+    )
 
     findings = audit_repo(tmp_path)
 

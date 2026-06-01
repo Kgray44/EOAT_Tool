@@ -8,7 +8,10 @@ from core.workflows import run_workflow
 def test_daily_start_workflow_generates_report(fake_project):
     admin = fake_project / "00_Project_Admin"
     (admin / "project_schedule_week1.json").write_text(json.dumps({"days": {"1": ["Start audit"]}}), encoding="utf-8")
-    (admin / "task_progress_week1.json").write_text(json.dumps({"tasks": [{"id": "T1", "day": "1", "task": "Start audit", "status": "Not started"}]}), encoding="utf-8")
+    (admin / "task_progress_week1.json").write_text(
+        json.dumps({"tasks": [{"id": "T1", "day": "1", "task": "Start audit", "status": "Not started"}]}),
+        encoding="utf-8",
+    )
 
     result = run_workflow(fake_project, "daily-start", week=1, day=1)
 

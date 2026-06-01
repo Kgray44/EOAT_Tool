@@ -9,7 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.presentation_export import export_presentation_assets
 
 
 def main() -> int:
@@ -17,6 +16,8 @@ def main() -> int:
     parser.add_argument("--project-root", default=str(DEFAULT_PROJECT_ROOT))
     parser.add_argument("--include-docx", action="store_true")
     args = parser.parse_args()
+    from core.presentation_export import export_presentation_assets
+
     result = export_presentation_assets(args.project_root, include_docx=args.include_docx)
     print(result.to_markdown())
     return 0 if result.success else 1

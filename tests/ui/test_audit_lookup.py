@@ -90,7 +90,9 @@ def _append_inventory_row(project_root, values: dict[str, str]) -> None:
     workbook.close()
 
 
-def _machine_audit_row(audit_id: str, machine: str, entry_type: str = ENTRY_TYPE_AUDITED, **overrides) -> dict[str, str]:
+def _machine_audit_row(
+    audit_id: str, machine: str, entry_type: str = ENTRY_TYPE_AUDITED, **overrides
+) -> dict[str, str]:
     row = {
         "Audit ID": audit_id,
         "Audit Date": "2026-05-18",
@@ -210,12 +212,32 @@ def test_connection_type_and_eoat_type_dropdown_options(qapp, fake_config):
     assert "Whiteroom" in _combo_items(cleanroom)
 
     tooling_fields = list(page.audit_fields)
-    assert tooling_fields.index("EOAT Type") < tooling_fields.index("EOAT Moves") < tooling_fields.index("Connection Type")
-    assert tooling_fields.index("Number of Parts Picked") < tooling_fields.index("# of Grippers") < tooling_fields.index("Gripper Type") < tooling_fields.index("Gripper Model")
-    assert tooling_fields.index("Number of Parts Picked") < tooling_fields.index(CYLINDER_COUNT_FIELD) < tooling_fields.index(CYLINDER_TYPE_FIELD)
-    assert tooling_fields.index("# of Cups") < tooling_fields.index("Cup Type/Material") < tooling_fields.index("Cup Diameter/Size") < tooling_fields.index("Vacuum Generator Type")
+    assert (
+        tooling_fields.index("EOAT Type") < tooling_fields.index("EOAT Moves") < tooling_fields.index("Connection Type")
+    )
+    assert (
+        tooling_fields.index("Number of Parts Picked")
+        < tooling_fields.index("# of Grippers")
+        < tooling_fields.index("Gripper Type")
+        < tooling_fields.index("Gripper Model")
+    )
+    assert (
+        tooling_fields.index("Number of Parts Picked")
+        < tooling_fields.index(CYLINDER_COUNT_FIELD)
+        < tooling_fields.index(CYLINDER_TYPE_FIELD)
+    )
+    assert (
+        tooling_fields.index("# of Cups")
+        < tooling_fields.index("Cup Type/Material")
+        < tooling_fields.index("Cup Diameter/Size")
+        < tooling_fields.index("Vacuum Generator Type")
+    )
     assert "Vacuum Zones" not in page.audit_fields
-    assert tooling_fields.index("Connection Type") < tooling_fields.index("Number of Parts Picked") < tooling_fields.index("# of Cups")
+    assert (
+        tooling_fields.index("Connection Type")
+        < tooling_fields.index("Number of Parts Picked")
+        < tooling_fields.index("# of Cups")
+    )
     cups = page.audit_fields["# of Cups"]
     assert isinstance(cups, QLineEdit)
     cups.setText("3")
@@ -584,7 +606,9 @@ def test_machine_lookup_treats_blank_entry_type_as_physical_audit(qapp, fake_con
     assert page.audit_fields["Audit ID"].text() == "AUD-BLANK-TYPE-047"
 
 
-def test_machine_lookup_multiple_physical_selector_excludes_compatible_rows(qapp, fake_config, fake_project, monkeypatch):
+def test_machine_lookup_multiple_physical_selector_excludes_compatible_rows(
+    qapp, fake_config, fake_project, monkeypatch
+):
     _append_inventory_row(fake_project, _machine_audit_row("AUD-COMPAT-048", "48", ENTRY_TYPE_COMPATIBLE))
     _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-048-A", "48", ENTRY_TYPE_AUDITED))
     _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-048-B", "48", ENTRY_TYPE_AUDITED))
@@ -627,13 +651,24 @@ def test_existing_machine_audits_dialog_lists_required_columns_and_rows(qapp, fa
     matches = find_existing_audits_for_machine(fake_project, "55")
 
     dialog = ExistingMachineAuditsDialog("55", matches)
-    headers = [dialog.audit_table.horizontalHeaderItem(index).text() for index in range(dialog.audit_table.columnCount())]
+    headers = [
+        dialog.audit_table.horizontalHeaderItem(index).text() for index in range(dialog.audit_table.columnCount())
+    ]
     label_text = "\n".join(label.text() for label in dialog.findChildren(QLabel))
 
     assert dialog.windowTitle() == "Existing Audits Found"
     assert "Machine 55 already has existing audit records" in label_text
     assert "Starting a new audit keeps the machine context" in label_text
-    assert headers == ["Audit ID", "Audit Date", "Tool #", "EOAT Type", "Status", "Priority", "Entry Type", "Completion %"]
+    assert headers == [
+        "Audit ID",
+        "Audit Date",
+        "Tool #",
+        "EOAT Type",
+        "Status",
+        "Priority",
+        "Entry Type",
+        "Completion %",
+    ]
     assert dialog.audit_table.rowCount() == 2
     assert dialog.audit_table.item(0, 0).text() == "AUD-DIALOG-055-A"
     assert dialog.audit_table.item(1, 2).text() == "TOOL-55B"
@@ -641,7 +676,9 @@ def test_existing_machine_audits_dialog_lists_required_columns_and_rows(qapp, fa
 
 def test_continue_selected_existing_audit_loads_selected_match(qapp, fake_config, fake_project, monkeypatch):
     _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-053-A", "53", ENTRY_TYPE_AUDITED))
-    _append_inventory_row(fake_project, _machine_audit_row("AUD-PHYSICAL-053-B", "53", ENTRY_TYPE_AUDITED, **{"Tool #": "SELECTED-TOOL"}))
+    _append_inventory_row(
+        fake_project, _machine_audit_row("AUD-PHYSICAL-053-B", "53", ENTRY_TYPE_AUDITED, **{"Tool #": "SELECTED-TOOL"})
+    )
     page = AuditPage(fake_config)
     monkeypatch.setattr(
         page,
@@ -660,7 +697,9 @@ def test_continue_selected_existing_audit_loads_selected_match(qapp, fake_config
     assert page.audit_fields["Tool #"].text() == "SELECTED-TOOL"
 
 
-def test_start_new_audit_for_existing_machine_uses_reference_context_without_old_tooling(qapp, fake_config, fake_project, monkeypatch):
+def test_start_new_audit_for_existing_machine_uses_reference_context_without_old_tooling(
+    qapp, fake_config, fake_project, monkeypatch
+):
     create_press_reference_workbooks(fake_project / "reference-data")
     _append_inventory_row(
         fake_project,
@@ -914,7 +953,9 @@ def test_saving_start_new_same_machine_creates_unique_row_without_overwriting_un
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
 
-    rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
+    rows = row_dicts(
+        fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
+    )
     old_row = next(row for row in rows if row["Audit ID"] == "AUD-UNFINISHED-012")
     new_row = next(row for row in rows if row["Audit ID"] == new_audit_id)
     machine_12_ids = {row["Audit ID"] for row in rows if row["Press/Machine #"] == "12"}
@@ -948,7 +989,9 @@ def test_save_writes_clean_audit_fields_not_reference_values(qapp, fake_config, 
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
 
-    rows = row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory")
+    rows = row_dicts(
+        fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
+    )
     row = next(row for row in rows if row["Audit ID"] == audit_id)
     assert row["Auditor"] == "Kato Gray"
     assert row["Plant/Area"] == "Plant 4"
@@ -989,4 +1032,3 @@ def test_lookup_does_not_overwrite_manual_tool_number(qapp, fake_config, fake_pr
 
     assert page.audit_fields["Tool #"].text() == "MANUAL-TOOL"
     assert "different Tool # suggestion" in page.lookup_note_label.text()
-

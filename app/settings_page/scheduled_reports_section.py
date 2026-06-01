@@ -16,7 +16,9 @@ from .widgets import settings_group
 
 
 def build_scheduled_reports_section(page, layout) -> None:
-    group, group_layout = settings_group(page, "Scheduled Reports", "scheduled reports daily weekly time timezone duplicate missed dry run log")
+    group, group_layout = settings_group(
+        page, "Scheduled Reports", "scheduled reports daily weekly time timezone duplicate missed dry run log"
+    )
     form = QFormLayout()
     scheduled = dict(default_scheduled_reports_config())
     scheduled.update(dict(getattr(page.config, "scheduled_reports", {}) or {}))
@@ -25,7 +27,9 @@ def build_scheduled_reports_section(page, layout) -> None:
     page.daily_reports_check.setChecked(bool(scheduled.get("daily_enabled", True)))
     page.weekly_reports_check = QCheckBox()
     page.weekly_reports_check.setChecked(bool(scheduled.get("weekly_enabled", True)))
-    page.daily_weekdays_edit = QLineEdit(", ".join(scheduled.get("daily_weekdays") or default_scheduled_reports_config()["daily_weekdays"]))
+    page.daily_weekdays_edit = QLineEdit(
+        ", ".join(scheduled.get("daily_weekdays") or default_scheduled_reports_config()["daily_weekdays"])
+    )
     page.daily_report_time_edit = QLineEdit(str(scheduled.get("daily_time", "19:00")))
     page.weekly_weekday_combo = QComboBox()
     page.weekly_weekday_combo.addItems(SCHEDULED_REPORT_WEEKDAYS)

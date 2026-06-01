@@ -105,7 +105,9 @@ def build_mentor_brief_markdown(
         "## Completed Since Last Check-In",
     ]
     if recent_activity:
-        lines.extend(f"- {entry.get('tool_name', 'Tool')}: {entry.get('summary', '')}" for entry in recent_activity[:10])
+        lines.extend(
+            f"- {entry.get('tool_name', 'Tool')}: {entry.get('summary', '')}" for entry in recent_activity[:10]
+        )
     elif report_bullets:
         lines.extend(f"- {bullet}" for bullet in report_bullets[:8])
     else:
@@ -113,7 +115,9 @@ def build_mentor_brief_markdown(
 
     lines.extend(["", "## Current Blockers"])
     if blockers:
-        lines.extend(f"- {row.get('Action Item', 'Action item')} ({row.get('Related Cell/Press', '')})" for row in blockers[:8])
+        lines.extend(
+            f"- {row.get('Action Item', 'Action item')} ({row.get('Related Cell/Press', '')})" for row in blockers[:8]
+        )
     else:
         lines.append("- No blocked action items were found.")
 
@@ -136,14 +140,18 @@ def build_mentor_brief_markdown(
     lines.extend(["", "## Top Issues / Risks"])
     if open_issues:
         for row in open_issues[:8]:
-            lines.append(f"- {row.get('Press/Machine #', '')}: {row.get('Issue Category', 'Issue')} - {row.get('Issue Description', '')}")
+            lines.append(
+                f"- {row.get('Press/Machine #', '')}: {row.get('Issue Category', 'Issue')} - {row.get('Issue Description', '')}"
+            )
     else:
         lines.append("- No open issue rows were found.")
 
     lines.extend(["", "## Pilot Candidates to Review"])
     if pilot_rows:
         for row in pilot_rows[:6]:
-            lines.append(f"- {row.get('Press/Machine #', '')}: {row.get('Main Problem', '')} ({row.get('Approval Status', 'No status')})")
+            lines.append(
+                f"- {row.get('Press/Machine #', '')}: {row.get('Main Problem', '')} ({row.get('Approval Status', 'No status')})"
+            )
     else:
         lines.append("- No Pilot Candidates sheet rows were found yet.")
 
@@ -175,7 +183,9 @@ def build_mentor_brief_markdown(
     return "\n".join(lines) + "\n", warnings, metrics
 
 
-def generate_mentor_brief(project_root: str | Path, days: int = 7, since: str | None = None, notes: str = "") -> ToolResult:
+def generate_mentor_brief(
+    project_root: str | Path, days: int = 7, since: str | None = None, notes: str = ""
+) -> ToolResult:
     start = time.perf_counter()
     paths = resolve_project_paths(project_root)
     ensure_directory(paths.mentor_briefs)

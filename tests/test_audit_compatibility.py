@@ -36,7 +36,9 @@ def _write_press_capacity(project_root, rows):
     return path
 
 
-def _save_audit(project_root, audit_id, machine, part_number, *, description="Part X", entry_type="Audited", source_id=""):
+def _save_audit(
+    project_root, audit_id, machine, part_number, *, description="Part X", entry_type="Audited", source_id=""
+):
     entry = {
         "Audit ID": audit_id,
         "Audit Date": "2026-05-18",
@@ -63,7 +65,11 @@ def _inventory_rows(project_root):
     try:
         ws = workbook["EOAT Inventory"]
         headers = [cell.value for cell in ws[1]]
-        return [{headers[index]: value for index, value in enumerate(row)} for row in ws.iter_rows(min_row=2, values_only=True) if any(value not in (None, "") for value in row)]
+        return [
+            {headers[index]: value for index, value in enumerate(row)}
+            for row in ws.iter_rows(min_row=2, values_only=True)
+            if any(value not in (None, "") for value in row)
+        ]
     finally:
         workbook.close()
 
@@ -75,7 +81,11 @@ def test_blank_or_missing_entry_type_counts_as_audited(fake_project):
     workbook.remove(workbook.active)
     for sheet_name in get_expected_sheets():
         ws = workbook.create_sheet(sheet_name)
-        headers = [header for header in get_expected_headers(sheet_name) if header not in {"Entry Type", "Source Audit ID", "Compatibility Source"}]
+        headers = [
+            header
+            for header in get_expected_headers(sheet_name)
+            if header not in {"Entry Type", "Source Audit ID", "Compatibility Source"}
+        ]
         ws.append(headers)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
@@ -119,7 +129,12 @@ def test_audit_options_sort_by_machine_number_numerically(fake_project):
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
     row = [""] * len(headers)
-    for field, value in {"Audit ID": "AUD-SORT-BLANK", "Tool #": "PN-BLANK", "Part Name/Description": "Blank machine", "Entry Type": "Audited"}.items():
+    for field, value in {
+        "Audit ID": "AUD-SORT-BLANK",
+        "Tool #": "PN-BLANK",
+        "Part Name/Description": "Blank machine",
+        "Entry Type": "Audited",
+    }.items():
         row[headers.index(field)] = value
     ws.append(row)
     workbook.save(workbook_path)
@@ -128,7 +143,12 @@ def test_audit_options_sort_by_machine_number_numerically(fake_project):
     options = list_audit_options(fake_project)
     sorted_ids = [option.audit_id for option in options]
 
-    assert sorted_ids.index("AUD-SORT-001") < sorted_ids.index("AUD-SORT-002") < sorted_ids.index("AUD-SORT-010") < sorted_ids.index("AUD-SORT-026")
+    assert (
+        sorted_ids.index("AUD-SORT-001")
+        < sorted_ids.index("AUD-SORT-002")
+        < sorted_ids.index("AUD-SORT-010")
+        < sorted_ids.index("AUD-SORT-026")
+    )
     assert sorted_ids.index("AUD-SORT-WEIRD") > sorted_ids.index("AUD-SORT-026")
     assert sorted_ids.index("AUD-SORT-BLANK") > sorted_ids.index("AUD-SORT-026")
 
@@ -144,7 +164,11 @@ def test_compatibility_source_options_sort_by_machine_number_numerically(fake_pr
     options = list_audited_source_options(fake_project)
     sorted_ids = [option.audit_id for option in options]
 
-    assert sorted_ids.index("AUD-COMPAT-SORT-003") < sorted_ids.index("AUD-COMPAT-SORT-011") < sorted_ids.index("AUD-COMPAT-SORT-070")
+    assert (
+        sorted_ids.index("AUD-COMPAT-SORT-003")
+        < sorted_ids.index("AUD-COMPAT-SORT-011")
+        < sorted_ids.index("AUD-COMPAT-SORT-070")
+    )
 
 
 def test_audited_source_creates_compatibility_opportunities(fake_project):
@@ -176,7 +200,9 @@ def test_compatibility_entry_skips_audited_and_compatible_duplicates(fake_projec
     workbook = load_workbook(resolve_project_paths(fake_project).master_workbook, read_only=True)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    rows = [{headers[index]: value for index, value in enumerate(row)} for row in ws.iter_rows(min_row=2, values_only=True)]
+    rows = [
+        {headers[index]: value for index, value in enumerate(row)} for row in ws.iter_rows(min_row=2, values_only=True)
+    ]
     compatible_rows = [row for row in rows if row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE]
     assert len(compatible_rows) == 1
     assert compatible_rows[0][SOURCE_AUDIT_ID_FIELD] == "AUD-SOURCE-001"
@@ -226,7 +252,10 @@ def test_progress_separates_covered_remaining_and_missing_reasons(fake_project):
     assert summary.metrics["compatible_relationships"] == 1
     assert summary.metrics["total_covered_relationships"] == 2
     assert summary.metrics["remaining_relationships"] == 2
-    missing_actions = {(row["Machine No."], row["NGW Part Number"]): row["Suggested Next Action"] for row in summary.missing_relationships}
+    missing_actions = {
+        (row["Machine No."], row["NGW Part Number"]): row["Suggested Next Action"]
+        for row in summary.missing_relationships
+    }
     assert missing_actions[("3", "PN-X")] == "Use Compatibility Entry"
     assert missing_actions[("4", "PN-Y")] == "Needs Physical Audit"
 
@@ -332,8 +361,12 @@ def test_saving_compatible_row_does_not_recursively_sync_linked_rows(fake_projec
     _save_audit(fake_project, "AUD-SOURCE-001", "1", "PN-X")
     assert create_compatibility_entries(fake_project, "AUD-SOURCE-001", ["2", "3"]).success
     rows = _inventory_rows(fake_project)
-    compatible_two = next(row for row in rows if row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE and row["Press/Machine #"] == "2")
-    compatible_three_before = next(row for row in rows if row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE and row["Press/Machine #"] == "3")
+    compatible_two = next(
+        row for row in rows if row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE and row["Press/Machine #"] == "2"
+    )
+    compatible_three_before = next(
+        row for row in rows if row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE and row["Press/Machine #"] == "3"
+    )
 
     result = save_audit_entry(
         fake_project,
@@ -358,7 +391,15 @@ def test_sync_does_not_overwrite_different_source_compatible_rows(fake_project):
     _write_press_capacity(fake_project, [("1, 2", "PN-X", "Part X")])
     _save_audit(fake_project, "AUD-SOURCE-001", "1", "PN-X")
     _save_audit(fake_project, "AUD-SOURCE-OTHER", "4", "PN-X")
-    _save_audit(fake_project, "AUD-COMP-DIFFERENT", "2", "PN-X", description="Different source child", entry_type=ENTRY_TYPE_COMPATIBLE, source_id="AUD-SOURCE-OTHER")
+    _save_audit(
+        fake_project,
+        "AUD-COMP-DIFFERENT",
+        "2",
+        "PN-X",
+        description="Different source child",
+        entry_type=ENTRY_TYPE_COMPATIBLE,
+        source_id="AUD-SOURCE-OTHER",
+    )
 
     result = save_audit_entry(
         fake_project,
@@ -392,7 +433,9 @@ def test_compatibility_candidates_distinguish_linked_and_different_sources(fake_
     _save_audit(fake_project, "AUD-SOURCE-001", "1", "PN-X")
     _save_audit(fake_project, "AUD-SOURCE-OTHER", "4", "PN-X")
     assert create_compatibility_entries(fake_project, "AUD-SOURCE-001", ["2"]).success
-    _save_audit(fake_project, "AUD-COMP-DIFFERENT", "3", "PN-X", entry_type=ENTRY_TYPE_COMPATIBLE, source_id="AUD-SOURCE-OTHER")
+    _save_audit(
+        fake_project, "AUD-COMP-DIFFERENT", "3", "PN-X", entry_type=ENTRY_TYPE_COMPATIBLE, source_id="AUD-SOURCE-OTHER"
+    )
 
     result = build_compatibility_candidates(fake_project, "AUD-SOURCE-001")
     actions = {candidate.machine_no: candidate.recommended_action for candidate in result.candidates}

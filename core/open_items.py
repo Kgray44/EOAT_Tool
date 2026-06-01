@@ -26,7 +26,16 @@ STATUS_FIXED_AT_SOURCE = "Fixed at Source"
 OPEN_ITEMS_SUMMARY_CACHE_SCHEMA_VERSION = 1
 OPEN_ITEM_STATUSES = ("Open", "In Progress", "Waiting on Info", "Blocked", STATUS_DISMISSED, STATUS_FIXED_AT_SOURCE)
 UNRESOLVED_STATUSES = {"Open", "In Progress", "Waiting on Info", "Blocked"}
-ACTION_OPEN_STATUSES = {"", "open", "not started", "needs follow-up", "in progress", "blocked", "new", "waiting on info"}
+ACTION_OPEN_STATUSES = {
+    "",
+    "open",
+    "not started",
+    "needs follow-up",
+    "in progress",
+    "blocked",
+    "new",
+    "waiting on info",
+}
 RESOLVED_SOURCE_STATUSES = {"resolved", "archived", "closed", "complete", "completed", "done", "dismissed"}
 
 
@@ -77,7 +86,13 @@ class OpenItem:
                 "object_ref": self.message,
             }
         if self.audit_id and self.field:
-            return {"target_type": "audit_field", "audit_id": self.audit_id, "machine_id": self.machine, "field_key": self.field, "field_label": self.field}
+            return {
+                "target_type": "audit_field",
+                "audit_id": self.audit_id,
+                "machine_id": self.machine,
+                "field_key": self.field,
+                "field_label": self.field,
+            }
         if self.audit_id:
             return {"target_type": "audit", "audit_id": self.audit_id, "machine_id": self.machine}
         if self.machine:
@@ -90,7 +105,12 @@ class OpenItem:
             return {"target_type": "note", "id": note_id, "object_ref": note_id, "target_label": self.title}
         if self.source == "tag":
             assignment_id = self.id.split(":", 1)[1] if ":" in self.id else ""
-            return {"target_type": "tag_assignment", "id": assignment_id, "object_ref": assignment_id, "target_label": self.title}
+            return {
+                "target_type": "tag_assignment",
+                "id": assignment_id,
+                "object_ref": assignment_id,
+                "target_label": self.title,
+            }
         return self.target_payload()
 
 
@@ -124,7 +144,11 @@ def list_open_items(
         time.perf_counter() - started,
         source="open_items",
         page_tool="open_items",
-        details={"include_validation": include_validation, "include_resolved": include_resolved, "item_count": len(output)},
+        details={
+            "include_validation": include_validation,
+            "include_resolved": include_resolved,
+            "item_count": len(output),
+        },
     )
     return output
 
@@ -139,12 +163,18 @@ def _generated_open_items(project_root: Path, *, include_validation: bool = True
     items.extend(tags)
     action_items = _timed_open_items_step(project_root, "action_items", lambda: _action_items(project_root), timings)
     items.extend(action_items)
-    missing_evidence = _timed_open_items_step(project_root, "missing_evidence", lambda: _missing_evidence_items(project_root), timings)
+    missing_evidence = _timed_open_items_step(
+        project_root, "missing_evidence", lambda: _missing_evidence_items(project_root), timings
+    )
     items.extend(missing_evidence)
-    documentation_gaps = _timed_open_items_step(project_root, "documentation_gaps", lambda: _documentation_gap_items(project_root), timings)
+    documentation_gaps = _timed_open_items_step(
+        project_root, "documentation_gaps", lambda: _documentation_gap_items(project_root), timings
+    )
     items.extend(documentation_gaps)
     if include_validation:
-        validation_items = _timed_open_items_step(project_root, "validation", lambda: _validation_items(project_root), timings)
+        validation_items = _timed_open_items_step(
+            project_root, "validation", lambda: _validation_items(project_root), timings
+        )
         items.extend(validation_items)
     else:
         _log_open_items_step(project_root, "validation", 0.0, skipped=True)
@@ -236,7 +266,9 @@ def summarize_open_items(items: Iterable[OpenItem], *, today: date | None = None
     return {
         "total_open_items": len(unresolved),
         "critical_open_items": sum(1 for item in unresolved if item.severity.casefold() == "critical"),
-        "overdue_followups": sum(1 for item in unresolved if item.due_date and (_date_or_none(item.due_date) or today) < today),
+        "overdue_followups": sum(
+            1 for item in unresolved if item.due_date and (_date_or_none(item.due_date) or today) < today
+        ),
         "missing_evidence_count": sum(1 for item in unresolved if item.category == "missing_evidence"),
         "data_conflict_count": sum(1 for item in unresolved if item.category == "data_conflict"),
         "dismissed_overridden_count": sum(1 for item in rows if item.status == STATUS_DISMISSED),
@@ -263,7 +295,9 @@ def dismiss_open_item(project_root: str | Path, item_id: str, *, reason: str) ->
     current_items = _generated_open_items(root, include_validation=True)
     item = next((candidate for candidate in current_items if candidate.id == item_id), None)
     if item is None:
-        item = next((candidate for candidate in list_open_items(root, include_resolved=True) if candidate.id == item_id), None)
+        item = next(
+            (candidate for candidate in list_open_items(root, include_resolved=True) if candidate.id == item_id), None
+        )
     if item is None:
         raise KeyError(item_id)
     now = utc_now()
@@ -277,7 +311,9 @@ def dismiss_open_item(project_root: str | Path, item_id: str, *, reason: str) ->
     }
     _append_jsonl(_override_path(root), record)
     _append_jsonl(_state_ledger_path(root), record)
-    return next((candidate for candidate in list_open_items(root, include_resolved=True) if candidate.id == item_id), None)
+    return next(
+        (candidate for candidate in list_open_items(root, include_resolved=True) if candidate.id == item_id), None
+    )
 
 
 def export_open_items_report(project_root: str | Path, items: Iterable[OpenItem] | None = None) -> Path:
@@ -414,9 +450,14 @@ def _action_items(project_root: Path) -> list[OpenItem]:
     items: list[OpenItem] = []
     for index, row in enumerate(rows, start=2):
         status = _status_from_source(row.get("Status"))
-        if str(row.get("Status") or "").strip().casefold() not in ACTION_OPEN_STATUSES and status not in UNRESOLVED_STATUSES:
+        if (
+            str(row.get("Status") or "").strip().casefold() not in ACTION_OPEN_STATUSES
+            and status not in UNRESOLVED_STATUSES
+        ):
             continue
-        action_id = str(row.get("Action ID") or "").strip() or _short_hash("action", index, row.get("Action Item"), row.get("Related Cell/Press"))
+        action_id = str(row.get("Action ID") or "").strip() or _short_hash(
+            "action", index, row.get("Action Item"), row.get("Related Cell/Press")
+        )
         title = str(row.get("Action Item") or "Open action item").strip()
         items.append(
             OpenItem(
@@ -438,7 +479,7 @@ def _action_items(project_root: Path) -> list[OpenItem]:
 
 
 def _validation_items(project_root: Path) -> list[OpenItem]:
-    result = validate_project_foundation(project_root)
+    result = validate_project_foundation(project_root, include_open_item_cache_references=False)
     items: list[OpenItem] = []
     findings = findings_from_result(result)
     if findings:
@@ -556,7 +597,7 @@ def _documentation_gap_items(project_root: Path) -> list[OpenItem]:
             value = str(row.get(field) or "").strip().casefold()
             if value in {"no", "", "unknown / not checked"}:
                 items.append(
-                        OpenItem(
+                    OpenItem(
                         id=f"documentation_gap:{audit_id}:{field}",
                         source="documentation_gap",
                         severity="Info",
@@ -651,7 +692,13 @@ def _apply_overrides(items: list[OpenItem], overrides: dict[str, dict[str, objec
     return resolved
 
 
-def _record_source_fixes(project_root: str | Path, current_items: list[OpenItem], overrides: dict[str, dict[str, object]], *, include_validation: bool = True) -> None:
+def _record_source_fixes(
+    project_root: str | Path,
+    current_items: list[OpenItem],
+    overrides: dict[str, dict[str, object]],
+    *,
+    include_validation: bool = True,
+) -> None:
     snapshot_path = _snapshot_path(project_root, include_validation=include_validation)
     previous = _read_snapshot(snapshot_path)
     current_records = [_item_record(item) for item in current_items]

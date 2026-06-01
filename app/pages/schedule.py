@@ -16,7 +16,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QCheckBox = QComboBox = QHBoxLayout = QLabel = QListWidget = QPushButton = QSpinBox = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QCheckBox = QComboBox = QHBoxLayout = QLabel = QListWidget = QPushButton = QSpinBox = QTableWidget = (
+        QTableWidgetItem
+    ) = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
@@ -161,7 +163,11 @@ class SchedulePage(QWidget):
             skip_weekends=self.config.skip_weekends,
             holidays=self.config.holidays,
         )
-        if not self.override_checkbox.isChecked() and selected_week is not None and (int(selected_week) != auto_day.week or selected_day != auto_day.day):
+        if (
+            not self.override_checkbox.isChecked()
+            and selected_week is not None
+            and (int(selected_week) != auto_day.week or selected_day != auto_day.day)
+        ):
             label += "\nSelected day differs from today's resolved project day. Enable manual override to use selected values."
         self.resolved_label.setText(label)
         suffix = " (manual override)" if self.override_checkbox.isChecked() else ""
@@ -176,7 +182,9 @@ class SchedulePage(QWidget):
         task_id_item = self.task_table.item(row, 3)
         if task_id_item is None:
             return
-        progress_path = self.current_schedule.progress_path or progress_file_for_week(self.config.project_root, self.current_schedule.week)
+        progress_path = self.current_schedule.progress_path or progress_file_for_week(
+            self.config.project_root, self.current_schedule.week
+        )
         if update_task_status(progress_path, task_id_item.text(), status):
             self.load_selected_week()
 

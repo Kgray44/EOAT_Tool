@@ -9,7 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.final_summary import generate_final_project_summary
 
 
 def main() -> int:
@@ -18,6 +17,8 @@ def main() -> int:
     parser.add_argument("--include-docx", action="store_true")
     parser.add_argument("--notes", default="")
     args = parser.parse_args()
+    from core.final_summary import generate_final_project_summary
+
     result = generate_final_project_summary(args.project_root, include_docx=args.include_docx, notes=args.notes)
     print(result.to_markdown())
     return 0 if result.success else 1

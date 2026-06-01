@@ -23,7 +23,12 @@ def test_audit_progress_metrics_and_report(fake_project):
     ).success
     assert save_interview_entry(
         fake_project,
-        {"Date": "2026-05-18", "Role/Department": "Operator", "Plant/Area": "Plant 4", "Notes": "Drops parts sometimes."},
+        {
+            "Date": "2026-05-18",
+            "Role/Department": "Operator",
+            "Plant/Area": "Plant 4",
+            "Notes": "Drops parts sometimes.",
+        },
     ).success
     photo = fake_project / "photo.jpg"
     photo.write_bytes(b"fake")

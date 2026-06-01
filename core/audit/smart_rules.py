@@ -151,7 +151,9 @@ def apply_smart_default_rules(
         proposed_by_field[rule.set_field] = (rule.id, rule.set_value)
         values[rule.set_field] = rule.set_value
         applied.append(rule.id)
-    return SmartDefaultResult(values=values, applied_rules=tuple(applied), skipped_rules=tuple(skipped), warnings=tuple(warnings))
+    return SmartDefaultResult(
+        values=values, applied_rules=tuple(applied), skipped_rules=tuple(skipped), warnings=tuple(warnings)
+    )
 
 
 def smart_default_rules_from_config(config: Any | None) -> list[SmartDefaultRule]:

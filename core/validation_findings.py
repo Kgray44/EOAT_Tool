@@ -256,7 +256,9 @@ def repair_suggestions_from_findings(findings: Iterable[ValidationFinding]) -> l
     )
 
 
-def validation_json_payload(project_root: str | Path, result: Any, findings: Iterable[ValidationFinding] | None = None) -> dict[str, Any]:
+def validation_json_payload(
+    project_root: str | Path, result: Any, findings: Iterable[ValidationFinding] | None = None
+) -> dict[str, Any]:
     finding_rows = list(findings) if findings is not None else findings_from_result(result)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -271,7 +273,9 @@ def validation_json_payload(project_root: str | Path, result: Any, findings: Ite
     }
 
 
-def write_validation_json_report(project_root: str | Path, result: Any, findings: Iterable[ValidationFinding] | None = None) -> Path:
+def write_validation_json_report(
+    project_root: str | Path, result: Any, findings: Iterable[ValidationFinding] | None = None
+) -> Path:
     paths = resolve_project_paths(project_root)
     ensure_directory(paths.validation_reports)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M")

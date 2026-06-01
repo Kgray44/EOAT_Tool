@@ -33,4 +33,3 @@ def test_interview_validation_requires_notes(fake_project):
 
     assert result.success is False
     assert any("Notes" in error for error in result.errors)
-

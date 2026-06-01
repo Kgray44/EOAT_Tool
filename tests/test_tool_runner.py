@@ -8,4 +8,3 @@ def test_tool_runner_handles_missing_script(tmp_path):
 
     assert result.success is False
     assert "Script does not exist" in result.summary
-

@@ -20,7 +20,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = None
-    QComboBox = QFormLayout = QHeaderView = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QSplitter = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QComboBox = QFormLayout = QHeaderView = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QSplitter = (
+        QTableWidget
+    ) = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from core.annotations.service import AnnotationService
@@ -49,7 +51,20 @@ class TagsPage(QWidget):
             self.color_filter.addItem(color.label, color.key)
         self.color_filter.currentTextChanged.connect(self.refresh)
         self.target_filter = QComboBox()
-        self.target_filter.addItems(["All", "audit", "audit_field", "machine", "note", "compatibility_entry", "photo", "workbook_warning", "pilot_candidate", "project_item"])
+        self.target_filter.addItems(
+            [
+                "All",
+                "audit",
+                "audit_field",
+                "machine",
+                "note",
+                "compatibility_entry",
+                "photo",
+                "workbook_warning",
+                "pilot_candidate",
+                "project_item",
+            ]
+        )
         self.target_filter.currentTextChanged.connect(self.refresh)
         self.sort_combo = QComboBox()
         self.sort_combo.addItems(["Updated Date", "Tag Name", "Color", "Target Type"])
@@ -58,7 +73,14 @@ class TagsPage(QWidget):
         export_md.clicked.connect(self.export_markdown)
         export_xlsx = QPushButton("Export Excel")
         export_xlsx.clicked.connect(self.export_excel)
-        for widget in [self.search_edit, self.color_filter, self.target_filter, self.sort_combo, export_md, export_xlsx]:
+        for widget in [
+            self.search_edit,
+            self.color_filter,
+            self.target_filter,
+            self.sort_combo,
+            export_md,
+            export_xlsx,
+        ]:
             filter_row.addWidget(widget)
         layout.addLayout(filter_row)
 
@@ -102,7 +124,9 @@ class TagsPage(QWidget):
         right_layout.addWidget(QLabel("Tagged Targets"))
         self.assignment_table = QTableWidget()
         self.assignment_table.setColumnCount(8)
-        self.assignment_table.setHorizontalHeaderLabels(["Tag", "Color", "Target Type", "Target", "Audit ID", "Machine", "Field", "Comment"])
+        self.assignment_table.setHorizontalHeaderLabels(
+            ["Tag", "Color", "Target Type", "Target", "Audit ID", "Machine", "Field", "Comment"]
+        )
         self.assignment_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.assignment_table.setAlternatingRowColors(True)
         self.assignment_table.setWordWrap(True)
@@ -137,7 +161,11 @@ class TagsPage(QWidget):
         self._update_go_to_target_state()
 
     def refresh_tags(self) -> None:
-        self.tags = self.service.search_tags(self.search_edit.text(), color_key=str(self.color_filter.currentData() or "All"), sort_by=self.sort_combo.currentText())
+        self.tags = self.service.search_tags(
+            self.search_edit.text(),
+            color_key=str(self.color_filter.currentData() or "All"),
+            sort_by=self.sort_combo.currentText(),
+        )
         self.tag_table.setRowCount(len(self.tags))
         for row_index, tag in enumerate(self.tags):
             values = [tag.name, tag.color_key, "Yes" if tag.is_default else "No", tag.updated_at]
@@ -233,7 +261,9 @@ class TagsPage(QWidget):
     def archive_tag(self) -> None:
         if not self.selected_tag_id:
             return
-        answer = QMessageBox.question(self, "Archive Tag", "Archive this tag definition? Existing assignment history stays in the database.")
+        answer = QMessageBox.question(
+            self, "Archive Tag", "Archive this tag definition? Existing assignment history stays in the database."
+        )
         if answer != QMessageBox.StandardButton.Yes:
             return
         self.service.archive_tag(self.selected_tag_id)
@@ -291,7 +321,9 @@ class TagsPage(QWidget):
                 assignment_ids.append(str(item.data(Qt.ItemDataRole.UserRole)))
         if not assignment_ids:
             return
-        answer = QMessageBox.question(self, "Bulk Edit Tags", f"Archive {len(assignment_ids)} selected tag assignment(s)?")
+        answer = QMessageBox.question(
+            self, "Bulk Edit Tags", f"Archive {len(assignment_ids)} selected tag assignment(s)?"
+        )
         if answer != QMessageBox.StandardButton.Yes:
             return
         self.service.archive_assignments(assignment_ids)
@@ -300,7 +332,9 @@ class TagsPage(QWidget):
     def sync_colors(self) -> None:
         result = self.service.sync_all_tag_colors_to_workbook()
         warning_text = "; ".join(result.get("warnings", []))
-        self.status_label.setText(f"Workbook color sync checked {result.get('synced_count', 0)} target(s). {warning_text}")
+        self.status_label.setText(
+            f"Workbook color sync checked {result.get('synced_count', 0)} target(s). {warning_text}"
+        )
 
     def export_markdown(self) -> None:
         path = self.service.export_tags_markdown(self.assignments)

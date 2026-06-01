@@ -10,7 +10,9 @@ pytestmark = pytest.mark.usability
 
 
 def test_press_view_page_loads_machine_groups(qapp, usability_fake_config):
-    save_press_view_cache(usability_fake_config.project_root, build_press_view_groups(usability_fake_config.project_root))
+    save_press_view_cache(
+        usability_fake_config.project_root, build_press_view_groups(usability_fake_config.project_root)
+    )
     page = PressViewPage(usability_fake_config)
     page.show()
 

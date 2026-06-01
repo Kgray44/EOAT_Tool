@@ -39,13 +39,20 @@ class StandardsDocsPage(AsyncRefreshMixin, QWidget):
             buttons.addWidget(button)
         layout.addLayout(buttons)
         grid = QGridLayout()
-        self.cards = add_cards(grid, ["EOATs Scanned", "Total Gaps", "Critical Gaps", "Important Gaps", "Avg Compliance", "Standards Fails"])
+        self.cards = add_cards(
+            grid,
+            ["EOATs Scanned", "Total Gaps", "Critical Gaps", "Important Gaps", "Avg Compliance", "Standards Fails"],
+        )
         layout.addLayout(grid)
         tables = QHBoxLayout()
         self.top_table = QTableWidget()
         self.missing_table = QTableWidget()
         self.compliance_table = QTableWidget()
-        for label, table in [("Top EOATs by Gap Count", self.top_table), ("Top Missing Fields", self.missing_table), ("Standards Compliance", self.compliance_table)]:
+        for label, table in [
+            ("Top EOATs by Gap Count", self.top_table),
+            ("Top Missing Fields", self.missing_table),
+            ("Standards Compliance", self.compliance_table),
+        ]:
             box = QVBoxLayout()
             box.addWidget(QLabel(label))
             box.addWidget(table)
@@ -95,8 +102,16 @@ class StandardsDocsPage(AsyncRefreshMixin, QWidget):
         self.cards["Total Gaps"].set_value(str(summary.metrics.get("total_gaps", 0)))
         self.cards["Critical Gaps"].set_value(str(summary.metrics.get("critical_gaps", 0)))
         self.cards["Important Gaps"].set_value(str(summary.metrics.get("important_gaps", 0)))
-        populate_table(self.top_table, summary.top_eoats, ["Audit ID", "Press/Machine #", "Gap Count", "Critical", "Important", "Nice-to-have"])
-        populate_table(self.missing_table, counts_to_rows(summary.missing_field_counts, "Missing Field"), ["Missing Field", "Count"])
+        populate_table(
+            self.top_table,
+            summary.top_eoats,
+            ["Audit ID", "Press/Machine #", "Gap Count", "Critical", "Important", "Nice-to-have"],
+        )
+        populate_table(
+            self.missing_table,
+            counts_to_rows(summary.missing_field_counts, "Missing Field"),
+            ["Missing Field", "Count"],
+        )
         self.cards["Avg Compliance"].set_value(str(compliance.metrics.get("average_compliance_score", 0)))
         self.cards["Standards Fails"].set_value(str(compliance.metrics.get("failed_standard_count", 0)))
         populate_table(
@@ -121,7 +136,13 @@ class StandardsDocsPage(AsyncRefreshMixin, QWidget):
             "standards_docs",
             "data_load",
             data_load_seconds,
-            details={"row_count": len(compliance.audits), "source_counts": {"top_eoats": len(summary.top_eoats), "missing_fields": len(summary.missing_field_counts)}},
+            details={
+                "row_count": len(compliance.audits),
+                "source_counts": {
+                    "top_eoats": len(summary.top_eoats),
+                    "missing_fields": len(summary.missing_field_counts),
+                },
+            },
         )
         log_page_performance(
             self.config.project_root,

@@ -29,7 +29,9 @@ def test_build_qr_labels_from_fake_project_excludes_operational_details(usabilit
 
 
 def test_export_qr_label_sheet_writes_printable_outputs_and_handoff_source(fake_project):
-    result = export_qr_label_sheet(fake_project, machines=["Press 44"], audit_ids=["EOAT-2026-0001"], log_activity=False)
+    result = export_qr_label_sheet(
+        fake_project, machines=["Press 44"], audit_ids=["EOAT-2026-0001"], log_activity=False
+    )
 
     assert result.success is True
     assert result.metrics["label_count"] == 2

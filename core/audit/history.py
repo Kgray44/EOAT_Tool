@@ -47,9 +47,7 @@ def changed_audit_fields(before: dict[str, Any] | None, after: dict[str, Any] | 
     after = after or {}
     keys = set(before) | set(after)
     changed = [
-        key
-        for key in keys
-        if normalize_history_value(before.get(key)) != normalize_history_value(after.get(key))
+        key for key in keys if normalize_history_value(before.get(key)) != normalize_history_value(after.get(key))
     ]
     return sorted(changed)
 

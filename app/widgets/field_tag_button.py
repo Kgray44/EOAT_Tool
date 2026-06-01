@@ -22,7 +22,9 @@ try:
     )
 except ImportError:  # pragma: no cover
     QSize = Qt = QColor = QIcon = QPainter = QPen = QPixmap = None
-    QComboBox = QDialog = QDialogButtonBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QMessageBox = QPushButton = QTextEdit = QToolButton = QVBoxLayout = QWidget = None
+    QComboBox = QDialog = QDialogButtonBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = (
+        QListWidgetItem
+    ) = QMessageBox = QPushButton = QTextEdit = QToolButton = QVBoxLayout = QWidget = None
 
 from core.annotations.service import AnnotationService
 from core.annotations.tag_colors import TAG_COLOR_PALETTE
@@ -167,7 +169,9 @@ class FieldTagDialog(QDialog):
         self.resize(620, 620)
 
         layout = QVBoxLayout(self)
-        header = QLabel(f"{field_label}\nAudit ID: {target.audit_id or 'Unsaved'}\nCurrent value: {current_value or '(blank)'}")
+        header = QLabel(
+            f"{field_label}\nAudit ID: {target.audit_id or 'Unsaved'}\nCurrent value: {current_value or '(blank)'}"
+        )
         header.setWordWrap(True)
         layout.addWidget(header)
 
@@ -247,7 +251,9 @@ class FieldTagDialog(QDialog):
 
     def refresh(self) -> None:
         self._available_tags = self.service.list_tags()
-        self._staged_assignments = [self._assignment_from_service_tag(tag) for tag in self.service.get_tags_for_target(self.target.id)]
+        self._staged_assignments = [
+            self._assignment_from_service_tag(tag) for tag in self.service.get_tags_for_target(self.target.id)
+        ]
         self._deleted_assignments = []
         self._staged_notes = []
         self._staged_note_links = []
@@ -369,7 +375,11 @@ class FieldTagDialog(QDialog):
         if self._editor_mode == "edit" and self._editing_index is not None:
             assignment = self._staged_assignments[self._editing_index]
             duplicate = next(
-                (item for index, item in enumerate(self._staged_assignments) if index != self._editing_index and item.get("tag_id") == tag.id),
+                (
+                    item
+                    for index, item in enumerate(self._staged_assignments)
+                    if index != self._editing_index and item.get("tag_id") == tag.id
+                ),
                 None,
             )
             if duplicate is not None:
@@ -450,16 +460,22 @@ class FieldTagDialog(QDialog):
     def commit_changes(self) -> bool:
         try:
             for assignment in self._deleted_assignments:
-                self.service.remove_tag_from_target(str(assignment.get("original_tag_id") or assignment["tag_id"]), self.target.id, sync_workbook=False)
+                self.service.remove_tag_from_target(
+                    str(assignment.get("original_tag_id") or assignment["tag_id"]), self.target.id, sync_workbook=False
+                )
             for assignment in self._staged_assignments:
                 comment = str(assignment.get("comment") or "")
                 original_tag_id = str(assignment.get("original_tag_id") or "")
                 current_tag_id = str(assignment["tag_id"])
                 if original_tag_id and original_tag_id != current_tag_id:
                     self.service.remove_tag_from_target(original_tag_id, self.target.id, sync_workbook=False)
-                    self.service.assign_tag_to_target(current_tag_id, self.target.id, comment=comment, sync_workbook=False)
+                    self.service.assign_tag_to_target(
+                        current_tag_id, self.target.id, comment=comment, sync_workbook=False
+                    )
                 elif assignment.get("is_new") or comment != str(assignment.get("original_comment") or ""):
-                    self.service.assign_tag_to_target(str(assignment["tag_id"]), self.target.id, comment=comment, sync_workbook=False)
+                    self.service.assign_tag_to_target(
+                        str(assignment["tag_id"]), self.target.id, comment=comment, sync_workbook=False
+                    )
             for payload in self._staged_notes:
                 note = self.service.create_note(
                     str(payload["subject"]),
@@ -503,7 +519,9 @@ class FieldTagDialog(QDialog):
         box = QMessageBox(self)
         box.setWindowTitle("Remove Tag")
         box.setText("Remove this tag from this field?")
-        box.setInformativeText("This will remove the selected tag assignment from this field. It will not delete the tag itself.")
+        box.setInformativeText(
+            "This will remove the selected tag assignment from this field. It will not delete the tag itself."
+        )
         cancel_button = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         remove_button = box.addButton("Remove Tag", QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(cancel_button)
@@ -541,6 +559,8 @@ class FieldTagDialog(QDialog):
         tag_id = item.data(self.TAG_ID_ROLE)
         assignment_id = item.data(self.ASSIGNMENT_ID_ROLE)
         if hasattr(window, "open_annotation_tag"):
-            window.open_annotation_tag(tag_id=str(tag_id) if tag_id else None, assignment_id=str(assignment_id) if assignment_id else None)
+            window.open_annotation_tag(
+                tag_id=str(tag_id) if tag_id else None, assignment_id=str(assignment_id) if assignment_id else None
+            )
             return
         QMessageBox.information(self, "Open Tag", "Open the Tags page to review this tag assignment.")

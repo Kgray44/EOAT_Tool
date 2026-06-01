@@ -82,4 +82,3 @@ def _recommended_action(state: str) -> str:
     if state == "stale_conflict":
         return "Review the controlling answer and save to clear non-applicable stale data."
     return "Review this field."
-

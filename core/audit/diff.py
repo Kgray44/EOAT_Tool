@@ -96,9 +96,15 @@ def build_audit_save_preview(
         after_value = current.get(field, "")
         change_type = _change_type(field, before_value, after_value, smart_defaulted)
         source = "robot_info" if field in ROBOT_INFO_FIELDS else "audit"
-        changes.append(AuditFieldChange(field=field, before=before_value, after=after_value, change_type=change_type, source=source))
+        changes.append(
+            AuditFieldChange(
+                field=field, before=before_value, after=after_value, change_type=change_type, source=source
+            )
+        )
 
-    robot_changes = tuple(change for change in changes if change.field in ROBOT_INFO_FIELDS and change.change_type != CHANGE_UNCHANGED)
+    robot_changes = tuple(
+        change for change in changes if change.field in ROBOT_INFO_FIELDS and change.change_type != CHANGE_UNCHANGED
+    )
     for field in ROBOT_INFO_FIELDS:
         if field not in current and field in robot_previous:
             change = AuditFieldChange(
@@ -111,7 +117,11 @@ def build_audit_save_preview(
             )
             robot_changes = (*robot_changes, change)
 
-    changed = tuple(change.field for change in changes if change.change_type in {CHANGE_ADDED, CHANGE_CHANGED, CHANGE_SMART_DEFAULTED})
+    changed = tuple(
+        change.field
+        for change in changes
+        if change.change_type in {CHANGE_ADDED, CHANGE_CHANGED, CHANGE_SMART_DEFAULTED}
+    )
     cleared = tuple(change.field for change in changes if change.change_type == CHANGE_CLEARED)
     set_to_na = tuple(change.field for change in changes if change.change_type == CHANGE_SET_TO_NA)
     unknowns = tuple(change.field for change in changes if change.change_type == CHANGE_UNKNOWN_NOT_CHECKED)
