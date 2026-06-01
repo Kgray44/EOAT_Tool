@@ -8,6 +8,8 @@ python run_dashboard.py
 
 The default project root is `examples/demo_project/` when no ignored local config exists. This demo root contains synthetic workbooks, reports, schedules, reference data, and placeholder photos.
 
+`Gripper Size` has been removed from the current audit workflow because it was too broad to be useful. Use `# of Grippers`, `Gripper Type`, and `Gripper Model`; old workbook columns named `Gripper Size` are ignored when loading and validation runs.
+
 CLI tools can also run directly against the demo root:
 
 ```powershell

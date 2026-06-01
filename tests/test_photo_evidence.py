@@ -126,6 +126,31 @@ def test_photo_evidence_uses_photo_index_without_requiring_photo_files(fake_proj
     assert _status(coverage, "sensors").photo_count == 1
 
 
+def test_indexed_photos_with_photos_taken_no_create_actionable_status_finding(fake_project):
+    _append_sheet_row(
+        fake_project,
+        "EOAT Inventory",
+        _audit_row("AUD-PHOTO-STATUS-006", "Vacuum", **{"Photos Taken?": "No"}),
+    )
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-STATUS-001",
+            "Date Taken": "2026-05-18",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 6",
+            "EOAT Area Shown": "Overall EOAT",
+            "Related Audit ID": "AUD-PHOTO-STATUS-006",
+        },
+    )
+
+    warnings, _metrics, findings = validate_photo_evidence(fake_project)
+
+    assert any("Photos Taken? is not marked Yes" in warning for warning in warnings)
+    assert any(finding.audit_id == "AUD-PHOTO-STATUS-006" for finding in findings)
+
+
 def test_audit_photo_intake_folder_and_checklist_export(fake_project):
     result = create_audit_photo_intake_folder(fake_project, "AUD-CHECK-006", log_activity=False)
 

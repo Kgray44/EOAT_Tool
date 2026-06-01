@@ -5,7 +5,13 @@ import hashlib
 from openpyxl import load_workbook
 
 from core.paths import resolve_project_paths
-from core.photo_evidence import photo_index_path_findings, validate_photo_evidence
+from core.photo_evidence import (
+    evidence_coverage_for_audit,
+    link_photo_to_audit_field,
+    linked_audit_field_for_photo,
+    photo_index_path_findings,
+    validate_photo_evidence,
+)
 from core.photo_evidence_rules import photo_evidence_rule_by_key, required_photo_evidence_rules
 from core.photo_indexing import intake_photos, list_incoming_photos, preview_photo_intake
 from core.search import search_project
@@ -53,6 +59,10 @@ def _required_keys(row: dict[str, str]) -> set[str]:
     return {rule.key for rule in required_photo_evidence_rules(row)}
 
 
+def _status(coverage, category: str):
+    return next(status for status in coverage.statuses if status.category == category)
+
+
 def _file_hash(path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -93,6 +103,11 @@ def test_required_shots_by_eoat_type_and_audit_details():
         "eoat_pneumatic_circuits",
     }.issubset(detailed)
     assert photo_evidence_rule_by_key("Tool Connection").key == "robot_connection"
+    assert photo_evidence_rule_by_key("Grippers").linked_fields == (
+        "# of Grippers",
+        "Gripper Type",
+        "Gripper Model",
+    )
 
 
 def test_broken_photo_path_creates_finding(fake_project):
@@ -170,3 +185,99 @@ def test_confirmed_intake_updates_index_safely(usability_fake_project):
     assert any(path.endswith(".jpg") or path.endswith(".png") for path in result.files_created)
     assert any(row["Related Audit ID"] == "AUD-20260518-001" and row["EOAT Area Shown"] == "Cylinders" for row in rows)
     assert photos[0].exists()
+
+
+def test_structured_and_legacy_linked_audit_field_values_are_read(fake_project):
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-LINK-STRUCTURED",
+            "Date Taken": "2026-05-18",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 1",
+            "EOAT Area Shown": "Sensors",
+            "Linked Audit Field": "Sensor Type",
+        },
+    )
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-LINK-LEGACY",
+            "Date Taken": "2026-05-18",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 1",
+            "EOAT Area Shown": "Cylinders",
+            "Notes": "Linked audit field: # of Cylinders",
+        },
+    )
+
+    rows = row_dicts(resolve_project_paths(fake_project).master_workbook, "Photo Index")
+
+    assert linked_audit_field_for_photo(rows[0]) == "Sensor Type"
+    assert linked_audit_field_for_photo(rows[1]) == "# of Cylinders"
+
+
+def test_link_photo_to_audit_field_updates_structured_column(fake_project):
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-LINK-WRITE",
+            "Date Taken": "2026-05-18",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 1",
+            "EOAT Area Shown": "Grippers",
+        },
+    )
+
+    result = link_photo_to_audit_field(fake_project, "PHO-LINK-WRITE", "Gripper Model", log_activity=False)
+    rows = row_dicts(resolve_project_paths(fake_project).master_workbook, "Photo Index")
+    row = next(row for row in rows if row["Photo ID"] == "PHO-LINK-WRITE")
+
+    assert result.success is True
+    assert row["Linked Audit Field"] == "Gripper Model"
+
+
+def test_photo_evidence_fallback_uses_machine_and_tool_when_audit_id_is_blank(fake_project):
+    _append_sheet_row(
+        fake_project,
+        "EOAT Inventory",
+        _audit_row(
+            "AUD-TOOL-MATCH-001",
+            "Mechanical / Gripper",
+            **{"Press/Machine #": "Press 55", "Tool #": "TOOL-A"},
+        ),
+    )
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-WRONG-TOOL",
+            "Date Taken": "2026-05-18",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 55",
+            "Tool #": "TOOL-B",
+            "EOAT Area Shown": "Grippers",
+        },
+    )
+
+    coverage = evidence_coverage_for_audit(fake_project, "AUD-TOOL-MATCH-001")
+    assert _status(coverage, "grippers").present is False
+
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-RIGHT-TOOL",
+            "Date Taken": "2026-05-18",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 55",
+            "Tool #": "TOOL-A",
+            "EOAT Area Shown": "Grippers",
+        },
+    )
+
+    coverage = evidence_coverage_for_audit(fake_project, "AUD-TOOL-MATCH-001")
+    assert _status(coverage, "grippers").present is True

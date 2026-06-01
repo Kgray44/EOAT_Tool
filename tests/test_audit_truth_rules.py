@@ -66,7 +66,6 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
             "# of Grippers": "2",
             "Gripper Type": "Single Pressure",
             "Gripper Model": "STALE-GRIPPER",
-            "Gripper Size": "25 mm",
             "Status": "In Progress",
         },
     )
@@ -77,7 +76,6 @@ def test_shared_rules_match_eoat_type_visibility_and_normalization(fake_project)
     assert loaded["# of Grippers"] == "N/A"
     assert loaded["Gripper Type"] == "N/A"
     assert loaded["Gripper Model"] == "N/A"
-    assert loaded["Gripper Size"] == "N/A"
     health = validate_project_foundation(fake_project)
     assert "Gripper Model" not in "\n".join(health.warnings)
 

@@ -52,7 +52,6 @@ EOAT_TOOLING_FIELDS = {
     "# of Grippers",
     "Gripper Type",
     "Gripper Model",
-    "Gripper Size",
     "# of Cylinders",
     "Cylinder Type",
     "Cup Type/Material",

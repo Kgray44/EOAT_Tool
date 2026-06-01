@@ -51,6 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--view-type", choices=PHOTO_VIEW_TYPES, default="Overall")
     parser.add_argument("--related-audit-id", default="")
     parser.add_argument("--related-issue-id", default="")
+    parser.add_argument("--tool-number", default="")
+    parser.add_argument("--linked-audit-field", default="")
     parser.add_argument("--description", default="")
     parser.add_argument("--notes", default="")
     return parser.parse_args()
@@ -75,6 +77,8 @@ def collect_interactive(args: argparse.Namespace) -> argparse.Namespace:
     args.view_type = input("EOAT Area Shown: ").strip() or "Overall"
     args.related_audit_id = input("Related Audit ID: ").strip()
     args.related_issue_id = input("Related Issue ID: ").strip()
+    args.tool_number = input("Tool #: ").strip()
+    args.linked_audit_field = input("Linked Audit Field: ").strip()
     args.description = input("Description: ").strip()
     args.notes = input("Notes: ").strip()
     args.move = input("Move originals instead of copy? Type YES to move: ").strip() == "YES"
@@ -107,6 +111,8 @@ def main() -> int:
         args.view_type,
         related_audit_id=args.related_audit_id,
         related_issue_id=args.related_issue_id,
+        tool_number=args.tool_number,
+        linked_audit_field=args.linked_audit_field,
         description=args.description,
         notes=args.notes,
         copy_mode=not args.move,

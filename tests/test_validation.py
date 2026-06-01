@@ -4,6 +4,7 @@ from openpyxl import Workbook, load_workbook
 
 from core.audit_by_press import AUDIT_BY_PRESS_SHEET
 from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_entries import load_audit_entry
 from core.audit_field_rules import ELECTRICAL_WIRING_PRESENT_FIELD
 from core.constants import EXPECTED_NUMBERED_FOLDERS
 from core.paths import resolve_project_paths
@@ -41,6 +42,46 @@ def test_validate_project_foundation_on_temp_project(tmp_path):
     assert result.metrics["missing_key_inventory_header_count"] == 0
     assert any("Audit by Press view missing or stale" in warning for warning in result.warnings)
     assert any("Missing Robot Info workbook" in warning for warning in result.warnings)
+
+
+def test_legacy_gripper_size_header_is_ignored_for_backward_compatibility(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    insert_at = headers.index("Gripper Model") + 2
+    ws.insert_cols(insert_at)
+    ws.cell(row=1, column=insert_at).value = "Gripper Size"
+    headers = [cell.value for cell in ws[1]]
+    row = {header: "" for header in headers}
+    row.update(
+        {
+            "Audit ID": "AUD-LEGACY-GRIPPER-SIZE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 12",
+            "Tool #": "DEMO-PN-1200",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Mechanical / Gripper",
+            "# of Grippers": "2",
+            "Gripper Type": "Single Pressure",
+            "Gripper Model": "Zimmer GPP",
+            "Gripper Size": "25 mm",
+            "Status": "Complete",
+        }
+    )
+    ws.append([row.get(header, "") for header in headers])
+    workbook.save(workbook_path)
+    workbook.close()
+
+    loaded = load_audit_entry(fake_project, "AUD-LEGACY-GRIPPER-SIZE")
+    result = validate_project_foundation(fake_project)
+
+    assert loaded is not None
+    assert "Gripper Size" not in loaded
+    assert not any("Unexpected EOAT Inventory header: Gripper Size" in warning for warning in result.warnings)
+    assert "Legacy Gripper Size column is present and ignored" in "\n".join(result.details)
 
 
 def test_validate_project_foundation_missing_project(tmp_path):
@@ -457,7 +498,6 @@ def test_workbook_health_deduplicates_missing_major_row_field_pairs(fake_project
             "# of Grippers": "N/A",
             "Gripper Type": "N/A",
             "Gripper Model": "N/A",
-            "Gripper Size": "N/A",
             "Sensors Present?": "Yes",
             "Vacuum Confirmation Present?": "Yes",
             "Part-Present Detection Present?": "No",
@@ -508,7 +548,6 @@ def test_workbook_health_allows_na_for_non_applicable_tooling_fields(fake_projec
             "# of Grippers": "2",
             "Gripper Type": "Single Pressure",
             "Gripper Model": "Zimmer GPP",
-            "Gripper Size": "25 mm",
         }
     )
     _append_inventory_row(workbook_path, values)
