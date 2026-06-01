@@ -10,6 +10,7 @@ from urllib.parse import unquote, urlparse
 from openpyxl import load_workbook
 
 from .audit.relationships import is_compatibility_row, is_physical_audit_row, source_audit_for_compatibility_row
+from .audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from .audit_by_press import AUDIT_BY_PRESS_SHEET, audit_by_press_last_refreshed
 from .audit_constants import (
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
@@ -865,8 +866,11 @@ def _validate_inventory_rows(
             findings.append(photo_finding)
 
         requirements = entry_type_requirements(row_data)
+        uninstalled_audit = is_uninstalled_eoat_audit(row_data)
         for required_field in requirements["required"]:
             if required_field in BLANK_CELL_VALIDATION_IGNORED_FIELDS:
+                continue
+            if uninstalled_audit and required_field in UNINSTALLED_MACHINE_CONTEXT_FIELDS:
                 continue
             if (
                 required_field in header_positions
@@ -892,6 +896,7 @@ def _validate_inventory_rows(
                 applies = False
             if (
                 header in MAJOR_AUDIT_COLUMNS
+                and not (uninstalled_audit and header in UNINSTALLED_MACHINE_CONTEXT_FIELDS)
                 and (header != CUP_COUNT_FIELD or header in requirements["important"])
                 and _is_missing_audit_value(value)
                 and applies

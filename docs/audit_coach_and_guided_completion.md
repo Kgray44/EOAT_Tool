@@ -64,6 +64,14 @@ The workflow actions are:
 
 Restricted numeric-count fields are not overwritten with `Unknown / Not Checked`, because current workbook validation and the small `Robot_Info.xlsx` circuit-count workbook require numeric counts.
 
+## Uninstalled EOAT Audits
+
+The audit form infers uninstalled EOAT audit mode when `Tool #` is filled and `Press/Machine #` is blank. In that mode, the shared completion and validation rules ignore `Plant/Area`, `Press/Machine #`, `Robot Type`, and `Robot Model/Controller` so a bench audit is not penalized for missing machine context.
+
+Entering `Tool #` without a machine number looks up the tool in the EOAT Inventory workbook and fills safe tool-owned fields such as `Part Family`, `Part Name/Description`, `EOAT Type`, tooling details, sensor details, and documentation fields when those values are available. Machine, robot, current assignment, status, priority, photo, and compatibility metadata fields are not copied by the tool lookup.
+
+Uninstalled audit saves append `EOAT Not Installed.` to `Notes` once and skip linked machine compatibility creation or propagation by default.
+
 ## Safety Notes
 
 - The coach does not implement the full Robot Info entity system.
