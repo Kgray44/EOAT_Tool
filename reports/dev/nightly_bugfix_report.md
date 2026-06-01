@@ -84,8 +84,8 @@ These are now bounded by the 300-second per-test timeout. They are still worth f
 ## Branches
 
 - Preserved local and remote backup branch: `backup/nightly-bugfix-start-20260529-1632`.
-- Preserved local active worktree branch: `fix/nightly-bugfix-stabilization` at `c15a15f6`; its remote branch was deleted after merge.
-- Deleted local merged branches: `codex/audit-page-latency-fix`, `codex/eoat-audit-p0-state-performance`, `feature/full-overnight-expansion`, `fix/audit-save-fast-path-and-refresh-isolation`, `fix/pre-merge-safety-and-handoff`.
+- Preserved local active worktree branch: `fix/remove-gripper-size-and-photo-workflow` at `c15a15f6`; it is merged into `main` but remains checked out in the original worktree.
+- Deleted local merged branches: `codex/audit-page-latency-fix`, `codex/eoat-audit-p0-state-performance`, `feature/full-overnight-expansion`, `fix/audit-save-fast-path-and-refresh-isolation`, `fix/nightly-bugfix-stabilization`, `fix/pre-merge-safety-and-handoff`.
 - Deleted remote merged branches: `origin/codex/audit-page-latency-fix`, `origin/codex/eoat-audit-p0-state-performance`, `origin/fix/nightly-bugfix-stabilization`, `origin/fix/pre-merge-safety-and-handoff`.
 - Remaining remote branches after cleanup: `origin/main`, `origin/backup/nightly-bugfix-start-20260529-1632`.
 - Branches needing human review: none found; no unmerged branches remained after main was pushed.
