@@ -9,6 +9,7 @@ EOAT Command Center is a local-first toolkit for EOAT standardization, audit tra
 - Maintains an EOAT master tracker workbook.
 - Tracks EOAT-side pneumatic circuit data in the master tracker and robot-side circuit data separately in `Robot_Info.xlsx`.
 - Supports audit entry, photo indexing, interview notes, issue analysis, FMEA-lite analysis, KPI summaries, pilot-candidate scoring, PM checklist generation, and final handoff packaging.
+- Gripper audits use `# of Grippers`, `Gripper Type`, and `Gripper Model`; the old broad `Gripper Size` column is treated as legacy-only when present in older workbooks.
 - Loads real project data from a user-selected project root outside the repository.
 - Ships with `examples/demo_project/` so the app can run without any private operational data.
 

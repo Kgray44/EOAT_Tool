@@ -16,7 +16,6 @@ from core.gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
     GRIPPER_MODEL_FIELD,
-    GRIPPER_SIZE_FIELD,
     GRIPPER_TYPE_FIELD,
 )
 
@@ -41,7 +40,7 @@ def test_audit_sections_and_groups_are_registry_driven():
     assert groups["EOAT Type and Tooling"][:3] == [
         ("EOAT Classification", ["EOAT Type", "EOAT Moves", "Connection Type"]),
         ("Part Handling", [NUMBER_OF_PARTS_PICKED_FIELD]),
-        ("Gripper Details", [GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD]),
+        ("Gripper Details", [GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD]),
     ]
     assert ("Cylinder Details", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]) in groups["EOAT Type and Tooling"]
     assert audit_field_order()[:4] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area"]

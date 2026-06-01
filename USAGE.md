@@ -52,9 +52,11 @@ python tools/validate_project_foundation.py --project-root "examples/demo_projec
 
 In the app, use Workbook Health or Home > Validate Project Foundation. Workbook Health distinguishes physical audit rows from compatibility entries, ignores `N/A` in fields that truly do not apply, and warns when applicable major fields are `N/A`, hidden fields contain stale values, or Hybrid EOATs are missing vacuum-side or gripper-side details.
 
-On the EOAT Audit page, hidden non-applicable fields save as `N/A`. Hybrid EOATs keep both vacuum and gripper fields visible and use warnings instead of blocking save.
+On the EOAT Audit page, hidden non-applicable fields save as `N/A`. Hybrid EOATs keep both vacuum and gripper fields visible and use warnings instead of blocking save. `Gripper Size` is no longer part of the audit because it was too broad to be useful; use `# of Grippers`, `Gripper Type`, and `Gripper Model` for gripper capture. Old workbook columns named `Gripper Size` are ignored for compatibility.
 
 The EOAT Audit workflow includes a `Pneumatic Circuits` tab. EOAT-side circuit counts are saved to the EOAT Master Tracker, while robot-side circuit counts are saved to `Robot_Info.xlsx` beside the master tracker and upserted by plant, machine, and robot identity. The legacy `Number of Vacuum Cups` column is migrated to `Number of Parts Picked` so the audit tracks parts picked per cycle rather than tooling components.
+
+Photo intake uses `01_EOAT_Audit/Cell_Photos/Incoming_Photos` as the drop folder. Select an audit, assign a shot type, preview the rename, then confirm intake. Files are named as `<PlantArea>_<PressMachine>_EOAT_<date>_<ShotType>_<sequence>.<ext>`, written to Photo Index, and reflected in evidence coverage.
 
 ## Run Reports
 

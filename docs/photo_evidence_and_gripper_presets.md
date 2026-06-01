@@ -2,6 +2,22 @@
 
 Phase 9 adds a local-first evidence coverage layer for audit photos plus reference-backed gripper presets.
 
+## Gripper Fields
+
+`Gripper Size` has been removed from the current audit schema because it was too broad to be useful across EOAT styles and vendors. Old workbooks that still contain that column remain readable; the app ignores the legacy column and does not write new values to it.
+
+Current gripper capture uses:
+
+- `# of Grippers`
+- `Gripper Type`
+- `Gripper Model`
+
+Vacuum cup fields remain separate and unchanged:
+
+- `# of Cups`
+- `Cup Type/Material`
+- `Cup Diameter/Size`
+
 ## Photo Evidence Coverage
 
 The core model lives in `core/photo_evidence.py`. It defines evidence categories with:
@@ -28,7 +44,7 @@ Supported categories:
 - Wear / Damage
 - Process Binder Reference
 
-Coverage is calculated per audit from the EOAT Inventory row and existing Photo Index rows. It does not require photo files to exist during validation, which keeps tests and demo projects synthetic and prevents real photos from being pulled into source control.
+Coverage is calculated per audit from the EOAT Inventory row and existing Photo Index rows. The primary match is exact `Related Audit ID`. If that is blank on the photo row, the matcher can fall back to machine number and uses `Tool #` when it is available to avoid cross-tool matches. Coverage does not require photo files to exist during category matching, which keeps tests and demo projects synthetic and prevents real photos from being pulled into source control.
 
 Coverage statuses distinguish:
 
@@ -38,11 +54,26 @@ Coverage statuses distinguish:
 - `not applicable`
 - `follow-up needed`
 
-Validation adds structured missing-evidence findings when evidence-sensitive audit decisions are incomplete, including complete audits missing required evidence, pilot candidates without before photos, issues without supporting photos, documentation marked complete without a reference, sensors without sensor photos, and quick disconnects without quick disconnect photos.
+Validation adds structured missing-evidence findings when evidence-sensitive audit decisions are incomplete, including complete audits missing required evidence, pilot candidates without before photos, issues without supporting photos, documentation marked complete without a reference, sensors without sensor photos, quick disconnects without quick disconnect photos, broken indexed photo paths, and photo-status mismatches between EOAT Inventory and Photo Index.
 
 ## Phone-Friendly Intake
 
 The Photos page now includes an Audit Photo Evidence section beside the existing intake workflow. Existing incoming-photo behavior is unchanged.
+
+Photo intake workflow:
+
+- Put JPG, JPEG, PNG, or HEIC files in `01_EOAT_Audit/Cell_Photos/Incoming_Photos`.
+- Select an audit from Audit Lookup or enter `Related Audit ID`.
+- Assign `EOAT Area Shown`; use Batch Review when different photos need different shot types.
+- Preview the rename.
+- Confirm intake to copy or move files, write Photo Index rows, and update the matching EOAT Inventory row.
+- Refresh evidence coverage to see remaining required or recommended shots.
+
+The naming convention is:
+
+`<PlantArea>_<PressMachine>_EOAT_<YYYY-MM-DD>_<ShotType>_<sequence>.<ext>`
+
+When photos are intaken with a matching `Related Audit ID`, the audit row is updated to `Photos Taken? = Yes` and `Photo Folder/Link` is populated or appended without duplicating existing references.
 
 New local actions:
 
@@ -51,6 +82,7 @@ New local actions:
 - Export a markdown photo checklist.
 - Copy the audit intake path.
 - Open the audit intake folder.
+- Use Next Missing Shot Type.
 
 Audit-specific intake folders are created under:
 

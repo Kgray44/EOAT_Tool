@@ -36,7 +36,6 @@ from ..gripper_fields import (
     GRIPPER_COUNT_FIELD,
     GRIPPER_MODEL_FIELD,
     GRIPPER_MODEL_PRESET_LABELS,
-    GRIPPER_SIZE_FIELD,
     GRIPPER_TYPE_FIELD,
 )
 from ..tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
@@ -86,7 +85,6 @@ AUDIT_SECTION_LAYOUT: dict[str, list[str]] = {
         GRIPPER_COUNT_FIELD,
         GRIPPER_TYPE_FIELD,
         GRIPPER_MODEL_FIELD,
-        GRIPPER_SIZE_FIELD,
         CUP_COUNT_FIELD,
         "Cup Type/Material",
         "Cup Diameter/Size",
@@ -152,7 +150,7 @@ AUDIT_GROUP_LAYOUT: dict[str, list[tuple[str, list[str]]]] = {
     "EOAT Type and Tooling": [
         ("EOAT Classification", ["EOAT Type", "EOAT Moves", "Connection Type"]),
         ("Part Handling", [NUMBER_OF_PARTS_PICKED_FIELD]),
-        ("Gripper Details", [GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_SIZE_FIELD]),
+        ("Gripper Details", [GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD]),
         ("Cylinder Details", [CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD]),
         ("Vacuum / Cup Details", [CUP_COUNT_FIELD, "Cup Type/Material", "Cup Diameter/Size", "Vacuum Generator Type"]),
         ("Physical Details", ["Estimated EOAT Weight"]),

@@ -16,12 +16,15 @@ from .paths import resolve_project_paths
 from .photo_evidence_rules import all_photo_evidence_rules, photo_evidence_aliases, photo_evidence_rule_by_key
 from .result import ToolResult
 from .safe_files import backup_file, ensure_directory, safe_write_text
+from .tool_fields import TOOL_FIELD
 from .validation_findings import ValidationFinding, ValidationSeverity, make_finding
 from .workbook_cache import invalidate_workbook_cache
 from .workbook_cache import row_dicts_cached as row_dicts
 from .workbook_io import worksheet_headers
+from .workbook_schema import get_expected_headers
 
 PHOTO_EVIDENCE_TOOL_NAME = "EOAT Photo Evidence Coverage"
+LINKED_AUDIT_FIELD_HEADER = "Linked Audit Field"
 
 STATUS_COMPLETE = "complete"
 STATUS_PARTIAL = "partial"
@@ -65,6 +68,7 @@ class AuditEvidenceCoverage:
     machine: str
     statuses: tuple[EvidenceCoverageStatus, ...]
     row_data: dict[str, Any] | None = field(default=None, repr=False, compare=False)
+    related_photo_count: int = 0
 
     @property
     def missing_required_count(self) -> int:
@@ -85,6 +89,7 @@ class AuditEvidenceCoverage:
             "missing_required_count": self.missing_required_count,
             "follow_up_needed_count": self.follow_up_needed_count,
             "complete_count": self.complete_count,
+            "related_photo_count": self.related_photo_count,
             "statuses": [status.to_dict() for status in self.statuses],
         }
 
@@ -248,7 +253,11 @@ def evidence_coverage_for_audit(
         _coverage_status_for_category(row, category, related_photos) for category in PHOTO_EVIDENCE_CATEGORIES
     )
     return AuditEvidenceCoverage(
-        audit_id=audit_id, machine=_text(row.get("Press/Machine #")), statuses=statuses, row_data=dict(row)
+        audit_id=audit_id,
+        machine=_text(row.get("Press/Machine #")),
+        statuses=statuses,
+        row_data=dict(row),
+        related_photo_count=len(related_photos),
     )
 
 
@@ -256,7 +265,11 @@ def indexed_photos_for_audit(project_root: str | Path, audit_id: str) -> list[di
     target = _text(audit_id).casefold()
     if not target:
         return []
-    return [dict(row) for row in _photo_rows(project_root) if _text(row.get("Related Audit ID")).casefold() == target]
+    audit_row = _find_audit_row(project_root, audit_id)
+    photos = _photo_rows(project_root)
+    if audit_row is None:
+        return [dict(row) for row in photos if _text(row.get("Related Audit ID")).casefold() == target]
+    return [dict(row) for row in _photo_rows_for_audit(photos, audit_row)]
 
 
 def resolve_indexed_photo_path(project_root: str | Path, photo_row: dict[str, Any]) -> Path:
@@ -329,11 +342,13 @@ def link_photo_to_audit_field(
         if "Photo Index" not in workbook.sheetnames:
             raise ValueError("Photo Index sheet is missing.")
         ws = workbook["Photo Index"]
+        _ensure_headers(ws, get_expected_headers("Photo Index"))
         headers = worksheet_headers(ws)
-        if "Photo ID" not in headers or "Notes" not in headers:
-            raise ValueError("Photo Index sheet is missing Photo ID or Notes headers.")
+        if "Photo ID" not in headers:
+            raise ValueError("Photo Index sheet is missing Photo ID header.")
         photo_id_col = headers.index("Photo ID") + 1
-        notes_col = headers.index("Notes") + 1
+        linked_col = headers.index(LINKED_AUDIT_FIELD_HEADER) + 1 if LINKED_AUDIT_FIELD_HEADER in headers else None
+        notes_col = headers.index("Notes") + 1 if "Notes" in headers else None
         target_row = None
         for row_number in range(2, ws.max_row + 1):
             if _text(ws.cell(row=row_number, column=photo_id_col).value).casefold() == photo_id.casefold():
@@ -341,12 +356,15 @@ def link_photo_to_audit_field(
                 break
         if target_row is None:
             raise ValueError(f"Photo ID not found: {photo_id}")
-        notes_cell = ws.cell(row=target_row, column=notes_col)
-        existing = _text(notes_cell.value)
-        link_note = f"Linked audit field: {audit_field}"
-        notes_cell.value = (
-            existing if link_note in existing else "\n".join(part for part in (existing, link_note) if part)
-        )
+        if linked_col is not None:
+            ws.cell(row=target_row, column=linked_col).value = audit_field
+        elif notes_col is not None:
+            notes_cell = ws.cell(row=target_row, column=notes_col)
+            existing = _text(notes_cell.value)
+            link_note = f"Linked audit field: {audit_field}"
+            notes_cell.value = (
+                existing if link_note in existing else "\n".join(part for part in (existing, link_note) if part)
+            )
         workbook.save(workbook_path)
         workbook.close()
         workbook = None
@@ -422,6 +440,7 @@ def photo_evidence_findings_from_coverages(coverages: Iterable[AuditEvidenceCove
                         source_validator="photo_evidence",
                     )
                 )
+        findings.extend(_photo_status_consistency_findings(coverage, row))
         findings.extend(_specific_photo_evidence_findings(coverage, row))
     return findings
 
@@ -561,6 +580,36 @@ def _specific_photo_evidence_findings(
     return findings
 
 
+def _photo_status_consistency_findings(
+    coverage: AuditEvidenceCoverage, row: dict[str, Any] | None
+) -> list[ValidationFinding]:
+    if row is None:
+        return []
+    findings: list[ValidationFinding] = []
+    photos_taken = _text(row.get("Photos Taken?")).casefold()
+    link = _text(row.get("Photo Folder/Link"))
+    has_indexed_photos = coverage.related_photo_count > 0
+    if photos_taken == "yes" and not has_indexed_photos and not link:
+        findings.append(
+            _photo_finding(
+                coverage,
+                "Photos Taken? is Yes but no indexed photos or Photo Folder/Link are recorded.",
+                "Photo Folder/Link",
+                row.get("Photo Folder/Link"),
+            )
+        )
+    if photos_taken in {"", "no"} and has_indexed_photos:
+        findings.append(
+            _photo_finding(
+                coverage,
+                "Indexed photos exist but Photos Taken? is not marked Yes.",
+                "Photos Taken?",
+                row.get("Photos Taken?"),
+            )
+        )
+    return findings
+
+
 def _photo_finding(
     coverage: AuditEvidenceCoverage, message: str, column_name: str, current_value: Any
 ) -> ValidationFinding:
@@ -582,11 +631,23 @@ def _photo_finding(
 def _photo_rows_for_audit(photo_rows: list[dict[str, Any]], row: dict[str, Any]) -> list[dict[str, Any]]:
     audit_id = _text(row.get("Audit ID")).casefold()
     machine = _text(row.get("Press/Machine #")).casefold()
+    tool = _text(row.get(TOOL_FIELD)).casefold()
     matches: list[dict[str, Any]] = []
     for photo in photo_rows:
         related_audit = _text(photo.get("Related Audit ID")).casefold()
         photo_machine = _text(photo.get("Press/Machine #")).casefold()
-        if audit_id and related_audit == audit_id or machine and not related_audit and photo_machine == machine:
+        photo_tool = _text(photo.get(TOOL_FIELD)).casefold()
+        if audit_id and related_audit == audit_id:
+            matches.append(photo)
+            continue
+        if related_audit:
+            continue
+        if machine and photo_machine == machine:
+            if tool and photo_tool and photo_tool != tool:
+                continue
+            matches.append(photo)
+            continue
+        if tool and not photo_machine and photo_tool == tool:
             matches.append(photo)
     return matches
 
@@ -602,8 +663,39 @@ def _photo_rows_for_category(photo_rows: list[dict[str, Any]], category_key: str
 
 
 def _photo_search_text(row: dict[str, Any]) -> str:
-    fields = ["EOAT Area Shown", "Description", "Photo Filename", "Folder Path", "Notes"]
+    fields = [
+        "EOAT Area Shown",
+        "Description",
+        "Photo Filename",
+        "Folder Path",
+        TOOL_FIELD,
+        LINKED_AUDIT_FIELD_HEADER,
+        "Notes",
+    ]
     return " ".join(_text(row.get(field)).casefold() for field in fields)
+
+
+def linked_audit_field_for_photo(row: dict[str, Any]) -> str:
+    structured = _text(row.get(LINKED_AUDIT_FIELD_HEADER))
+    if structured:
+        return structured
+    notes = _text(row.get("Notes"))
+    for line in notes.splitlines():
+        if line.casefold().startswith("linked audit field:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def _ensure_headers(ws, expected_headers: list[str]) -> list[str]:
+    headers = worksheet_headers(ws)
+    added: list[str] = []
+    for header in expected_headers:
+        if header in headers:
+            continue
+        ws.cell(row=1, column=len(headers) + 1).value = header
+        headers.append(header)
+        added.append(header)
+    return added
 
 
 def _photo_rows(project_root: str | Path) -> list[dict[str, Any]]:
@@ -717,6 +809,7 @@ __all__ = [
     "export_photo_checklist",
     "indexed_photos_for_audit",
     "link_photo_to_audit_field",
+    "linked_audit_field_for_photo",
     "missing_evidence_findings",
     "photo_index_path_findings",
     "photo_evidence_categories",

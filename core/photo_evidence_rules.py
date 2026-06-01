@@ -245,7 +245,7 @@ PHOTO_EVIDENCE_RULES: tuple[PhotoEvidenceRule, ...] = (
         recommended=_physical_and(_gripper_required_type),
         help_text="Required for mechanical/gripper and hybrid EOAT rows.",
         aliases=("gripper", "grippers", "jaw", "finger", "vacuum cups / grippers", "vacuum_cups_grippers"),
-        linked_fields=("# of Grippers", "Gripper Type", "Gripper Model", "Gripper Size"),
+        linked_fields=("# of Grippers", "Gripper Type", "Gripper Model"),
     ),
     PhotoEvidenceRule(
         "cylinders",
