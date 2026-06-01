@@ -119,6 +119,7 @@ def list_open_items(
     *,
     include_resolved: bool = False,
     include_validation: bool = True,
+    record_source_fixes: bool = True,
     today: date | None = None,
 ) -> list[OpenItem]:
     started = time.perf_counter()
@@ -128,7 +129,10 @@ def list_open_items(
     overrides_started = time.perf_counter()
     overrides = _override_map(root)
     _log_open_items_step(root, "overrides", time.perf_counter() - overrides_started, override_count=len(overrides))
-    _record_source_fixes(root, items, overrides, include_validation=include_validation)
+    if record_source_fixes:
+        _record_source_fixes(root, items, overrides, include_validation=include_validation)
+    else:
+        _log_open_items_step(root, "source_fixes", 0.0, skipped=True)
     resolved = _apply_overrides(items, overrides)
     if include_resolved:
         fixed_started = time.perf_counter()

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .logging import read_recent_activity
-from .open_items import list_open_items, open_items_summary
+from .open_items import list_open_items, summarize_open_items
 from .paths import resolve_project_paths
 from .reports import list_recent_files, read_report_preview
 from .schedule import load_week_schedule
@@ -75,14 +75,19 @@ def _validation_summary(project_root: str | Path) -> dict[str, Any]:
 
 
 def _safe_open_items(
-    project_root: str | Path, *, limit: int = 12
+    project_root: str | Path, *, limit: int | None = 12
 ) -> tuple[list[dict[str, Any]], dict[str, int], list[str]]:
     paths = resolve_project_paths(project_root)
     if not paths.annotations_database.exists():
         return [], {}, []
     try:
-        items = list_open_items(project_root, include_resolved=False, include_validation=False)
-        summary = open_items_summary(project_root)
+        items = list_open_items(
+            project_root,
+            include_resolved=False,
+            include_validation=False,
+            record_source_fixes=False,
+        )
+        summary = summarize_open_items(items)
     except Exception as exc:
         return [], {}, [f"Open items could not be read: {exc}"]
     rows = [
@@ -96,7 +101,7 @@ def _safe_open_items(
             "due_date": item.due_date,
             "recommended_action": item.recommended_action,
         }
-        for item in items[:limit]
+        for item in (items if limit is None else items[:limit])
     ]
     return rows, summary, []
 
@@ -249,7 +254,7 @@ def build_weekly_report_context(
     target_date: date | str | None = None,
 ) -> dict[str, Any]:
     activity, warnings = _recent_activity(project_root, limit=80)
-    open_items, open_summary, item_warnings = _safe_open_items(project_root, limit=15)
+    open_items, open_summary, item_warnings = _safe_open_items(project_root, limit=None)
     validation = _validation_summary(project_root)
     schedule = _schedule_context(project_root, week)
     daily_reports = _daily_report_paths(project_root, week)
