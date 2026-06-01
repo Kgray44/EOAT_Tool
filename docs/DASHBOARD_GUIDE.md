@@ -35,7 +35,7 @@ Both tabs can optionally create follow-up action items.
 
 ## Photos
 
-The Photos page lists supported incoming image files, previews the target naming convention, copies or moves photos to the correct category folder, and writes Photo Index rows.
+The Photos page lists supported incoming image files, previews the target naming convention, copies or moves photos to the correct category folder, and writes Photo Index rows. It can look up an audit row, autofill machine context, assign per-photo shot types in Batch Review, update `Photos Taken?` and `Photo Folder/Link` after intake, and guide the next missing evidence shot.
 
 ## Audit Progress
 

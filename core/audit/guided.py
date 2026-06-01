@@ -62,7 +62,6 @@ GUIDED_AUDIT_STEPS: tuple[GuidedAuditStep, ...] = (
             "# of Grippers",
             "Gripper Type",
             "Gripper Model",
-            "Gripper Size",
             "Estimated EOAT Weight",
         ),
         section_hint="EOAT Type and Tooling",

@@ -40,7 +40,6 @@ def test_generate_audit_id_and_add_row(fake_project):
             "EOAT Moves": "Both",
             "Connection Type": "ATI",
             "Gripper Model": "DESTACO-GRIP",
-            "Gripper Size": "40 mm",
             "Status": "Audited",
         },
     )
@@ -56,7 +55,7 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     assert "Vacuum Zones" not in headers
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 13] == [
+    assert headers[tooling_start : tooling_start + 12] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
@@ -66,7 +65,6 @@ def test_generate_audit_id_and_add_row(fake_project):
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
-        "Gripper Size",
         "# of Cups",
         "Cup Type/Material",
         "Cup Diameter/Size",
@@ -80,7 +78,6 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values[CYLINDER_COUNT_FIELD] == "N/A"
     assert row_values[CYLINDER_TYPE_FIELD] == "N/A"
     assert row_values["Gripper Model"] == "N/A"
-    assert row_values["Gripper Size"] == "N/A"
     assert row_values["# of Grippers"] == "N/A"
     assert row_values["Gripper Type"] == "N/A"
     assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
@@ -105,7 +102,6 @@ def test_number_of_parts_picked_save_load_and_header_order_are_unchanged(fake_pr
             "# of Grippers": "2",
             "Gripper Type": "Single Pressure",
             "Gripper Model": "Zimmer GPP",
-            "Gripper Size": "25 mm",
             "Status": "Audited",
         },
     )
@@ -1214,7 +1210,7 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
         headers = [
             header
             for header in get_expected_headers(sheet_name)
-            if header not in {"# of Grippers", "Gripper Model", "Gripper Size"}
+            if header not in {"# of Grippers", "Gripper Model"}
         ]
         ws.append(headers)
     inventory = workbook["EOAT Inventory"]
@@ -1253,7 +1249,6 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
             "# of Grippers": "2",
             "Gripper Type": "Single Pressure",
             "Gripper Model": "Zimmer GPP",
-            "Gripper Size": "25 mm",
         },
         allow_update=True,
     )
@@ -1266,7 +1261,7 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
         headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
     }
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 13] == [
+    assert headers[tooling_start : tooling_start + 12] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
@@ -1276,7 +1271,6 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
-        "Gripper Size",
         "# of Cups",
         "Cup Type/Material",
         "Cup Diameter/Size",
@@ -1284,7 +1278,6 @@ def test_save_migrates_missing_gripper_columns_without_overwriting_existing_data
     assert values["# of Grippers"] == "2"
     assert values["Gripper Type"] == "Single Pressure"
     assert values["Gripper Model"] == "Zimmer GPP"
-    assert values["Gripper Size"] == "25 mm"
     assert values["Cup Type/Material"] == "N/A"
     assert values["Cup Diameter/Size"] == "N/A"
     assert values["Cleanroom/Non-Cleanroom"] == "Cleanroom"
@@ -1306,7 +1299,7 @@ def test_setup_generated_master_tracker_uses_tool_header(tmp_path):
     assert headers[:6] == ["Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Tool #"]
     assert headers[headers.index("Press/Machine #") + 1] == "Tool #"
     tooling_start = headers.index("EOAT Type")
-    assert headers[tooling_start : tooling_start + 13] == [
+    assert headers[tooling_start : tooling_start + 12] == [
         "EOAT Type",
         "EOAT Moves",
         "Connection Type",
@@ -1316,7 +1309,6 @@ def test_setup_generated_master_tracker_uses_tool_header(tmp_path):
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
-        "Gripper Size",
         "# of Cups",
         "Cup Type/Material",
         "Cup Diameter/Size",
@@ -1338,7 +1330,7 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
     workbook = load_workbook(workbook_path)
     ws = workbook["EOAT Inventory"]
     headers = [cell.value for cell in ws[1]]
-    for header in ["Connection Type", "# of Grippers", "Gripper Type", "Gripper Model", "Gripper Size"]:
+    for header in ["Connection Type", "# of Grippers", "Gripper Type", "Gripper Model"]:
         ws.delete_cols(headers.index(header) + 1)
         headers = [cell.value for cell in ws[1]]
     workbook.save(workbook_path)
@@ -1388,7 +1380,6 @@ def test_migrated_tooling_columns_match_neighbor_formatting_and_validation(tmp_p
         ("# of Cups", "Number of Parts Picked"),
         ("Gripper Type", "Connection Type"),
         ("Gripper Model", "Gripper Type"),
-        ("Gripper Size", "Gripper Model"),
     ]
     for target, source in pairs:
         target_col = headers.index(target) + 1

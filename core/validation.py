@@ -65,6 +65,7 @@ from .validation_findings import (
     make_finding,
     write_validation_json_report,
 )
+from .workbook_io import row_dicts as workbook_row_dicts
 from .workbook_schema import get_expected_headers, get_expected_sheets, get_key_inventory_headers, load_workbook_schema
 from .workbook_truth import analyze_truth_from_rows
 
@@ -110,6 +111,7 @@ FIX_NORMALIZE_DROPDOWN_CASING = "normalize_dropdown_casing"
 FIX_CREATE_MISSING_REPORT_FOLDERS = "create_missing_report_folders"
 
 SCHEMA_VERSION_UNKNOWN = "Unknown"
+LEGACY_GRIPPER_SIZE_FIELD = "Gripper Size"
 
 
 def validate_project_foundation(
@@ -345,7 +347,7 @@ def validate_project_foundation(
         unexpected_headers = [
             header
             for header in headers
-            if header and header not in required_headers and header != LEGACY_VACUUM_CUPS_FIELD
+            if header and header not in required_headers and header not in {LEGACY_VACUUM_CUPS_FIELD, LEGACY_GRIPPER_SIZE_FIELD}
         ]
         duplicate_headers = sorted({header for header in headers if header and headers.count(header) > 1})
         legacy_vacuum_header_present = LEGACY_VACUUM_CUPS_FIELD in headers
@@ -478,6 +480,8 @@ def validate_project_foundation(
                     source_validator="foundation",
                 )
             )
+        if LEGACY_GRIPPER_SIZE_FIELD in headers:
+            details.append("Legacy Gripper Size column is present and ignored for backward compatibility.")
         if unexpected_headers:
             for header in unexpected_headers:
                 message = f"Unexpected EOAT Inventory header: {header}"
@@ -642,6 +646,7 @@ def _validate_inventory_rows(
         "broken_photo_link_count": 0,
         "photos_yes_without_link_count": 0,
         "photo_link_while_no_count": 0,
+        "indexed_photos_while_status_not_yes_count": 0,
         "robot_side_circuit_mismatch_count": 0,
         "invalid_dropdown_value_count": 0,
         "dropdown_casing_fixable_count": 0,
@@ -673,6 +678,7 @@ def _validate_inventory_rows(
     inventory_rows_for_truth: list[dict[str, object]] = []
     source_eoat_moves_by_audit_id: dict[str, str] = {}
     major_na_seen: set[tuple[int, str]] = set()
+    indexed_photo_audit_ids, indexed_photo_machines = _indexed_photo_reference_sets(project_root)
 
     def add_major_na(row_number: int, field_name: str, row_data: dict[str, object]) -> None:
         if (row_number, field_name) in major_na_seen:
@@ -851,7 +857,13 @@ def _validate_inventory_rows(
                     )
                 )
 
-        for photo_finding in _photo_link_findings(project_root, row_number, row_data):
+        has_indexed_photos = (
+            bool(audit_id and audit_id.casefold() in indexed_photo_audit_ids)
+            or bool(_cell_text(row_data.get("Press/Machine #")).casefold() in indexed_photo_machines)
+        )
+        for photo_finding in _photo_link_findings(
+            project_root, row_number, row_data, has_indexed_photos=has_indexed_photos
+        ):
             photo_warning_examples.append(photo_finding.message)
             if (
                 photo_finding.column_name == "Photo Folder/Link"
@@ -860,6 +872,8 @@ def _validate_inventory_rows(
                 metrics["photos_yes_without_link_count"] += 1
             elif photo_finding.column_name == "Photos Taken?" and "marked No" in photo_finding.message:
                 metrics["photo_link_while_no_count"] += 1
+            elif "indexed photos exist" in photo_finding.message:
+                metrics["indexed_photos_while_status_not_yes_count"] += 1
             elif "broken local photo link" in photo_finding.message:
                 metrics["broken_photo_link_count"] += 1
             findings.append(photo_finding)
@@ -1303,15 +1317,37 @@ def _orphan_open_item_findings(
     return findings
 
 
+def _indexed_photo_reference_sets(project_root: str | Path) -> tuple[set[str], set[str]]:
+    try:
+        workbook_path = resolve_project_paths(project_root).master_workbook
+        photo_rows = workbook_row_dicts(workbook_path, "Photo Index")
+    except Exception:
+        return set(), set()
+    audit_ids: set[str] = set()
+    machines_without_audit: set[str] = set()
+    for row in photo_rows:
+        audit_id = _cell_text(row.get("Related Audit ID")).casefold()
+        machine = _cell_text(row.get("Press/Machine #")).casefold()
+        if audit_id:
+            audit_ids.add(audit_id)
+        elif machine:
+            machines_without_audit.add(machine)
+    return audit_ids, machines_without_audit
+
+
 def _photo_link_findings(
-    project_root: str | Path, row_number: int, row_data: dict[str, object]
+    project_root: str | Path,
+    row_number: int,
+    row_data: dict[str, object],
+    *,
+    has_indexed_photos: bool = False,
 ) -> list[ValidationFinding]:
     findings: list[ValidationFinding] = []
     audit_id = _cell_text(row_data.get("Audit ID"))
     machine = _cell_text(row_data.get("Press/Machine #"))
     photos_taken = _cell_text(row_data.get("Photos Taken?")).casefold()
     link = _cell_text(row_data.get("Photo Folder/Link"))
-    if photos_taken == "yes" and not link:
+    if photos_taken == "yes" and not link and not has_indexed_photos:
         findings.append(
             make_finding(
                 ValidationSeverity.WARNING,
@@ -1325,6 +1361,23 @@ def _photo_link_findings(
                 current_value=link,
                 expected_behavior="Rows marked as having photos should include a local photo folder/link or indexed evidence.",
                 recommended_action="Add the local photo folder/link or intake/index the evidence through the Photos page.",
+                source_validator="inventory_photo_truth",
+            )
+        )
+    if photos_taken in {"", "no"} and has_indexed_photos:
+        findings.append(
+            make_finding(
+                ValidationSeverity.WARNING,
+                "photo_evidence",
+                f"Indexed photos exist but Photos Taken? is not marked Yes: row {row_number}",
+                sheet_name="EOAT Inventory",
+                row_number=row_number,
+                column_name="Photos Taken?",
+                audit_id=audit_id,
+                machine_number=machine,
+                current_value=row_data.get("Photos Taken?"),
+                expected_behavior="Rows with indexed photo evidence should mark Photos Taken? as Yes.",
+                recommended_action="Use the Photos page intake workflow or update the audit row after confirming the indexed evidence belongs to this audit.",
                 source_validator="inventory_photo_truth",
             )
         )

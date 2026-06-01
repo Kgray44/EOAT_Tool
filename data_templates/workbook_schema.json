@@ -23,7 +23,6 @@
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
-        "Gripper Size",
         "# of Cups",
         "Cup Type/Material",
         "Cup Diameter/Size",
@@ -199,12 +198,14 @@
         "Date Taken",
         "Plant/Area",
         "Press/Machine #",
+        "Tool #",
         "EOAT Area Shown",
         "Photo Filename",
         "Folder Path",
         "Description",
         "Related Audit ID",
         "Related Issue ID",
+        "Linked Audit Field",
         "Notes"
       ]
     }

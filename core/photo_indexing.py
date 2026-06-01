@@ -3,9 +3,11 @@ from __future__ import annotations
 import re
 import shutil
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from openpyxl import load_workbook
 
@@ -13,11 +15,13 @@ from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file, ensure_directory, safe_copy_file
+from .tool_fields import TOOL_FIELD
 from .workbook_cache import invalidate_workbook_cache
-from .workbook_io import next_empty_row, row_dicts, write_row_by_headers
+from .workbook_io import next_empty_row, row_dicts, worksheet_headers, write_row_by_headers
 from .workbook_schema import get_expected_headers
 
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic"}
+LINKED_AUDIT_FIELD_HEADER = "Linked Audit Field"
 
 PHOTO_VIEW_FOLDERS = {
     "Overall": "Overall",
@@ -78,6 +82,12 @@ class PhotoPlanItem:
     target: Path
     photo_id: str
     collision_avoided: bool = False
+    view_type: str = ""
+    description: str = ""
+    related_audit_id: str = ""
+    related_issue_id: str = ""
+    linked_audit_field: str = ""
+    tool_number: str = ""
 
 
 def sanitize_filename_part(value: str) -> str:
@@ -148,13 +158,26 @@ def preview_photo_intake(
     press_machine: str,
     date_taken: str,
     view_type: str,
+    per_photo_metadata: list[Mapping[str, Any]] | None = None,
 ) -> list[PhotoPlanItem]:
-    folder = destination_folder(project_root, view_type)
-    sequence = _next_existing_photo_sequence(project_root, date_taken, plant_area, press_machine, view_type)
     plan: list[PhotoPlanItem] = []
+    next_sequences: dict[str, int] = {}
     photo_sequence = 1
-    for source_raw in photo_paths:
-        source = Path(source_raw)
+    for item_data in _photo_items(
+        photo_paths,
+        view_type=view_type,
+        per_photo_metadata=per_photo_metadata,
+    ):
+        source = Path(item_data["source"])
+        item_view_type = item_data["view_type"] or view_type
+        if not item_view_type:
+            continue
+        folder = destination_folder(project_root, item_view_type)
+        if item_view_type not in next_sequences:
+            next_sequences[item_view_type] = _next_existing_photo_sequence(
+                project_root, date_taken, plant_area, press_machine, item_view_type
+            )
+        sequence = next_sequences[item_view_type]
         ext = ".jpg" if source.suffix.lower() == ".jpeg" else source.suffix.lower()
         if ext not in SUPPORTED_IMAGE_EXTENSIONS:
             continue
@@ -163,7 +186,7 @@ def preview_photo_intake(
             filename = (
                 f"{sanitize_filename_part(plant_area)}_"
                 f"{sanitize_filename_part(press_machine)}_EOAT_"
-                f"{date_taken}_{PHOTO_VIEW_FILENAME.get(view_type, sanitize_filename_part(view_type))}_"
+                f"{date_taken}_{PHOTO_VIEW_FILENAME.get(item_view_type, sanitize_filename_part(item_view_type))}_"
                 f"{sequence:03d}{ext}"
             )
             target = folder / filename
@@ -177,9 +200,16 @@ def preview_photo_intake(
                 target=target,
                 photo_id=f"PHO-{date_taken.replace('-', '')}-{photo_sequence:03d}",
                 collision_avoided=collision_avoided,
+                view_type=item_view_type,
+                description=item_data["description"],
+                related_audit_id=item_data["related_audit_id"],
+                related_issue_id=item_data["related_issue_id"],
+                linked_audit_field=item_data["linked_audit_field"],
+                tool_number=item_data["tool_number"],
             )
         )
         sequence += 1
+        next_sequences[item_view_type] = sequence
         photo_sequence += 1
     return plan
 
@@ -195,6 +225,9 @@ def intake_photos(
     related_issue_id: str = "",
     description: str = "",
     notes: str = "",
+    linked_audit_field: str = "",
+    tool_number: str = "",
+    per_photo_metadata: list[Mapping[str, Any]] | None = None,
     copy_mode: bool = True,
     log_activity: bool = True,
 ) -> ToolResult:
@@ -214,14 +247,36 @@ def intake_photos(
         "Plant/Area": plant_area,
         "Press/Machine #": press_machine,
         "Date Taken": date_taken,
-        "EOAT Area Shown": view_type,
     }.items():
         if not str(value).strip():
             return ToolResult.fail(
                 "photo_intake", "EOAT Photo Intake and Renaming Tool", f"Missing required field: {field_name}"
             )
 
-    plan = preview_photo_intake(project_root, photo_paths, plant_area, press_machine, date_taken, view_type)
+    metadata = _photo_items(
+        photo_paths,
+        view_type=view_type,
+        related_audit_id=related_audit_id,
+        related_issue_id=related_issue_id,
+        description=description,
+        linked_audit_field=linked_audit_field,
+        tool_number=tool_number,
+        per_photo_metadata=per_photo_metadata,
+    )
+    if any(not item["view_type"] for item in metadata):
+        return ToolResult.fail(
+            "photo_intake", "EOAT Photo Intake and Renaming Tool", "Missing required field: EOAT Area Shown"
+        )
+    selected_photo_paths = [item["source"] for item in metadata]
+    plan = preview_photo_intake(
+        project_root,
+        selected_photo_paths,
+        plant_area,
+        press_machine,
+        date_taken,
+        view_type,
+        per_photo_metadata=metadata,
+    )
     if not plan:
         return ToolResult.fail(
             "photo_intake", "EOAT Photo Intake and Renaming Tool", "No supported image files selected."
@@ -235,7 +290,8 @@ def intake_photos(
     workbook = None
     moved_or_copied: list[str] = []
     try:
-        ensure_directory(destination_folder(project_root, view_type))
+        for folder in sorted({item.target.parent for item in plan}):
+            ensure_directory(folder)
         for item in plan:
             if item.target.exists():
                 raise FileExistsError(f"Target already exists: {item.target}")
@@ -252,6 +308,8 @@ def intake_photos(
         if "Photo Index" not in workbook.sheetnames:
             raise ValueError("Photo Index sheet is missing.")
         ws = workbook["Photo Index"]
+        _ensure_headers(ws, get_expected_headers("Photo Index"))
+        audit_rows_by_id = _audit_rows_by_id(workbook)
         rows_written: list[int] = []
         rows = row_dicts(workbook_path, "Photo Index")
         next_photo_number = 1
@@ -268,23 +326,27 @@ def intake_photos(
             next_photo_number += 1
             row_number = next_empty_row(ws)
             data = {header: "" for header in get_expected_headers("Photo Index")}
+            audit_row = audit_rows_by_id.get(_text(item.related_audit_id).casefold(), {})
             data.update(
                 {
                     "Photo ID": photo_id,
                     "Date Taken": date_taken,
                     "Plant/Area": plant_area,
                     "Press/Machine #": press_machine,
-                    "EOAT Area Shown": view_type,
+                    TOOL_FIELD: item.tool_number or _text(audit_row.get(TOOL_FIELD)),
+                    "EOAT Area Shown": item.view_type,
                     "Photo Filename": item.target.name,
                     "Folder Path": str(item.target.parent),
-                    "Description": description,
-                    "Related Audit ID": related_audit_id,
-                    "Related Issue ID": related_issue_id,
+                    "Description": item.description,
+                    "Related Audit ID": item.related_audit_id,
+                    "Related Issue ID": item.related_issue_id,
+                    LINKED_AUDIT_FIELD_HEADER: item.linked_audit_field,
                     "Notes": notes,
                 }
             )
             write_row_by_headers(ws, row_number, data)
             rows_written.append(row_number)
+        audit_update_details, audit_update_warnings, updated_audit_rows = _update_related_audit_rows(workbook, plan)
         workbook.save(workbook_path)
         workbook.close()
         invalidate_workbook_cache(workbook_path)
@@ -307,13 +369,16 @@ def intake_photos(
         "photo_intake",
         "EOAT Photo Intake and Renaming Tool",
         f"{'Copied' if copy_mode else 'Moved'} and indexed {len(plan)} photo(s).",
-        details=[f"{item.source} -> {item.target}" for item in plan] + [f"Workbook backup: {backup}"],
-        warnings=["Filename collision avoided for one or more photos."]
-        if any(item.collision_avoided for item in plan)
-        else [],
+        details=[f"{item.source} -> {item.target}" for item in plan]
+        + [f"Workbook backup: {backup}"]
+        + audit_update_details,
+        warnings=(
+            ["Filename collision avoided for one or more photos."] if any(item.collision_avoided for item in plan) else []
+        )
+        + audit_update_warnings,
         files_created=[str(backup), *moved_or_copied],
         files_modified=[str(workbook_path)],
-        metrics={"photo_count": len(plan), "copy_mode": copy_mode},
+        metrics={"photo_count": len(plan), "copy_mode": copy_mode, "audit_rows_updated": updated_audit_rows},
         duration_seconds=time.perf_counter() - started,
     )
     if log_activity:
@@ -321,3 +386,124 @@ def intake_photos(
         if warning:
             result.warnings.append(warning)
     return result
+
+
+def _photo_items(
+    photo_paths: list[str | Path],
+    *,
+    view_type: str,
+    related_audit_id: str = "",
+    related_issue_id: str = "",
+    description: str = "",
+    linked_audit_field: str = "",
+    tool_number: str = "",
+    per_photo_metadata: list[Mapping[str, Any]] | None = None,
+) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for index, source_raw in enumerate(photo_paths):
+        override = per_photo_metadata[index] if per_photo_metadata and index < len(per_photo_metadata) else {}
+        include = override.get("include", True)
+        if isinstance(include, str) and include.strip().casefold() in {"false", "0", "no"}:
+            continue
+        if include is False:
+            continue
+        source = Path(override.get("source") or override.get("path") or source_raw)
+        items.append(
+            {
+                "source": str(source),
+                "view_type": _text(override.get("view_type") or override.get("EOAT Area Shown") or view_type),
+                "related_audit_id": _text(
+                    override.get("related_audit_id") or override.get("Related Audit ID") or related_audit_id
+                ),
+                "related_issue_id": _text(
+                    override.get("related_issue_id") or override.get("Related Issue ID") or related_issue_id
+                ),
+                "description": _text(override.get("description") or override.get("Description") or description),
+                "linked_audit_field": _text(
+                    override.get("linked_audit_field")
+                    or override.get(LINKED_AUDIT_FIELD_HEADER)
+                    or linked_audit_field
+                ),
+                "tool_number": _text(override.get("tool_number") or override.get(TOOL_FIELD) or tool_number),
+            }
+        )
+    return items
+
+
+def _ensure_headers(ws, expected_headers: list[str]) -> list[str]:
+    headers = worksheet_headers(ws)
+    added: list[str] = []
+    for header in expected_headers:
+        if header in headers:
+            continue
+        ws.cell(row=1, column=len(headers) + 1).value = header
+        headers.append(header)
+        added.append(header)
+    return added
+
+
+def _audit_rows_by_id(workbook) -> dict[str, dict[str, object]]:
+    if "EOAT Inventory" not in workbook.sheetnames:
+        return {}
+    ws = workbook["EOAT Inventory"]
+    headers = worksheet_headers(ws)
+    positions = {header: index for index, header in enumerate(headers)}
+    rows: dict[str, dict[str, object]] = {}
+    if "Audit ID" not in positions:
+        return rows
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        data = {header: row[index] for header, index in positions.items() if index < len(row)}
+        audit_id = _text(data.get("Audit ID")).casefold()
+        if audit_id:
+            rows[audit_id] = data
+    return rows
+
+
+def _update_related_audit_rows(workbook, plan: list[PhotoPlanItem]) -> tuple[list[str], list[str], int]:
+    grouped: dict[str, set[str]] = {}
+    for item in plan:
+        audit_id = _text(item.related_audit_id)
+        if not audit_id:
+            continue
+        grouped.setdefault(audit_id, set()).add(str(item.target.parent))
+    if not grouped:
+        return [], [], 0
+    if "EOAT Inventory" not in workbook.sheetnames:
+        return [], ["Related audit rows were not updated because EOAT Inventory is missing."], 0
+
+    ws = workbook["EOAT Inventory"]
+    headers = worksheet_headers(ws)
+    required = {"Audit ID", "Photos Taken?", "Photo Folder/Link"}
+    missing = sorted(required - set(headers))
+    if missing:
+        return [], [f"Related audit rows were not updated because EOAT Inventory is missing: {', '.join(missing)}"], 0
+
+    audit_id_col = headers.index("Audit ID") + 1
+    photos_taken_col = headers.index("Photos Taken?") + 1
+    photo_link_col = headers.index("Photo Folder/Link") + 1
+    details: list[str] = []
+    warnings: list[str] = []
+    updated = 0
+    for audit_id, references in grouped.items():
+        target_row = None
+        for row_number in range(2, ws.max_row + 1):
+            if _text(ws.cell(row=row_number, column=audit_id_col).value).casefold() == audit_id.casefold():
+                target_row = row_number
+                break
+        if target_row is None:
+            warnings.append(f"Related Audit ID was not found in EOAT Inventory: {audit_id}")
+            continue
+        ws.cell(row=target_row, column=photos_taken_col).value = "Yes"
+        link_cell = ws.cell(row=target_row, column=photo_link_col)
+        existing_lines = [_text(line) for line in _text(link_cell.value).splitlines() if _text(line)]
+        existing_folded = {line.casefold() for line in existing_lines}
+        new_lines = [ref for ref in sorted(references) if ref.casefold() not in existing_folded]
+        if new_lines:
+            link_cell.value = "\n".join([*existing_lines, *new_lines])
+        updated += 1
+        details.append(f"Updated EOAT Inventory row {target_row} for {audit_id}: Photos Taken?=Yes.")
+    return details, warnings, updated
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else str(value).strip()

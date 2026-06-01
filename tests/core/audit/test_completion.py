@@ -47,7 +47,6 @@ SECTIONS = {
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
-        "Gripper Size",
     ],
     "Sensors and Detection": [
         "Sensors Present?",
@@ -94,7 +93,6 @@ def _entry(**overrides):
         "# of Grippers": "N/A",
         "Gripper Type": "N/A",
         "Gripper Model": "N/A",
-        "Gripper Size": "N/A",
         "Sensors Present?": "Yes",
         "Sensor Type": "Reed Switch",
         "Sensor Brand/Model": "SMC",
@@ -163,7 +161,6 @@ def test_non_applicable_fields_are_ignored():
                 "# of Grippers": "2",
                 "Gripper Type": "Single Pressure",
                 "Gripper Model": "Demo Gripper",
-                "Gripper Size": "Small",
                 "Vacuum Confirmation Present?": "N/A",
             }
         ),
@@ -184,7 +181,6 @@ def test_stale_hidden_values_are_flagged():
                 "# of Grippers": "2",
                 "Gripper Type": "Single Pressure",
                 "Gripper Model": "Demo Gripper",
-                "Gripper Size": "Small",
             }
         ),
         SECTIONS,

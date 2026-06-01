@@ -154,7 +154,6 @@ def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
-        "Gripper Size",
         "Number of Parts Picked",
         CYLINDER_COUNT_FIELD,
         CYLINDER_TYPE_FIELD,
@@ -274,7 +273,6 @@ def test_eoat_type_controls_tooling_visibility(qapp, fake_config, eoat_type, vac
     assert page.audit_fields["Number of Parts Picked"].isHidden() is False
     assert page.audit_fields["# of Grippers"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Model"].isHidden() is (not gripper_visible)
-    assert page.audit_fields["Gripper Size"].isHidden() is (not gripper_visible)
     assert page.audit_fields["Gripper Type"].isHidden() is (not gripper_visible)
     assert page.audit_fields[CYLINDER_COUNT_FIELD].isHidden() is False
     assert page.audit_fields[CYLINDER_TYPE_FIELD].isHidden() is False
@@ -330,7 +328,6 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
     _set_field(page, "Cup Diameter/Size", "20 mm")
     _set_field(page, "# of Cups", "4")
     _set_field(page, "Gripper Model", "Zimmer GPP")
-    _set_field(page, "Gripper Size", "25 mm")
     _set_field(page, "# of Grippers", "2")
     _set_field(page, "Gripper Type", "Single Pressure")
     _set_field(page, "EOAT Type", "Mechanical / Gripper")
@@ -339,7 +336,6 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
     assert page.audit_fields["Cup Diameter/Size"].isHidden() is True
     assert page.audit_fields["# of Cups"].isHidden() is True
     assert page.audit_fields["Gripper Model"].isHidden() is False
-    assert page.audit_fields["Gripper Size"].isHidden() is False
     assert page.audit_fields["# of Grippers"].isHidden() is False
     assert page.audit_fields["Gripper Type"].isHidden() is False
     assert page.audit_fields["Cup Type/Material"].text() == "Nitrile"
@@ -348,17 +344,14 @@ def test_eoat_type_visibility_updates_immediately_and_preserves_hidden_values(qa
 
     _set_field(page, "EOAT Type", "Vacuum")
     assert page.audit_fields["Gripper Model"].isHidden() is True
-    assert page.audit_fields["Gripper Size"].isHidden() is True
     assert page.audit_fields["# of Grippers"].isHidden() is True
     assert page.audit_fields["Gripper Type"].isHidden() is True
     assert page._field_value(page.audit_fields["Gripper Model"]) == "Zimmer GPP"
-    assert page.audit_fields["Gripper Size"].text() == "25 mm"
     assert page.audit_fields["# of Grippers"].text() == "2"
     assert page._field_value(page.audit_fields["Gripper Type"]) == "Single Pressure"
 
     _set_field(page, "EOAT Type", "Miscellaneous")
     assert page.audit_fields["Gripper Model"].isHidden() is False
-    assert page.audit_fields["Gripper Size"].isHidden() is False
     assert page.audit_fields["# of Grippers"].isHidden() is False
     assert page.audit_fields["Gripper Type"].isHidden() is False
     assert page._field_value(page.audit_fields["Gripper Model"]) == "Zimmer GPP"
