@@ -63,6 +63,8 @@ powershell -ExecutionPolicy Bypass -File scripts/run_daily_summary.ps1
 powershell -ExecutionPolicy Bypass -File scripts/run_weekly_summary.ps1
 ```
 
+Weekly summaries are supervisor-facing Markdown reports. The generator summarizes daily reports, activity logs, workbook audit metrics, task progress, open follow-ups, and workbook validation output when available. It groups repeated follow-ups by severity and category, separates assigned action items from generated data-quality follow-ups, and avoids dumping raw activity logs into the final report. Run workbook validation before relying on a weekly summary for readiness or release claims; if validation JSON is missing, the report calls that out as a limitation.
+
 Scheduled runs log to `00_Project_Admin/logs/scheduled_tools.log` inside the active project root. Existing same-day reports are detected and not overwritten.
 
 ## Performance And Refresh
