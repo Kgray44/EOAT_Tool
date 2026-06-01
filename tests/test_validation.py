@@ -5,6 +5,7 @@ from openpyxl import Workbook, load_workbook
 from core.audit_by_press import AUDIT_BY_PRESS_SHEET
 from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, SOURCE_AUDIT_ID_FIELD
 from core.audit_field_rules import ELECTRICAL_WIRING_PRESENT_FIELD
+from core.audit_progress import calculate_audit_progress_from_rows
 from core.constants import EXPECTED_NUMBERED_FOLDERS
 from core.paths import resolve_project_paths
 from core.robot_info import ROBOT_INFO_SHEET, robot_info_workbook_path, upsert_robot_info_from_audit
@@ -434,6 +435,102 @@ def test_workbook_health_flags_na_in_major_columns(fake_project):
     assert any(
         "applicable major EOAT Inventory cell(s) are blank or contain N/A" in warning for warning in result.warnings
     )
+
+
+def test_workbook_health_ignores_machine_fields_for_uninstalled_tool_audits(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    _append_inventory_row(
+        workbook_path,
+        {
+            "Audit ID": "AUD-UNINSTALLED-VALID",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "N/A",
+            "Press/Machine #": "N/A",
+            "Tool #": "TOOL-UNINSTALLED",
+            "Robot Type": "N/A",
+            "Robot Model/Controller": "N/A",
+            "Part Family": "Bench Tool",
+            "Part Name/Description": "Bench EOAT sample",
+            "EOAT Type": "Vacuum",
+            "Connection Type": "ATI",
+            "Cleanroom/Non-Cleanroom": "Whiteroom",
+            "Status": "In Progress",
+            "Priority": "Medium",
+            "Known Issues": "Bench inspection.",
+            "Notes": "EOAT Not Installed.",
+        },
+    )
+    _append_inventory_row(
+        workbook_path,
+        {
+            "Audit ID": "AUD-INSTALLED-MISSING-ROBOT",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "N/A",
+            "Press/Machine #": "Press 44",
+            "Tool #": "TOOL-INSTALLED",
+            "Robot Type": "N/A",
+            "EOAT Type": "Vacuum",
+            "Connection Type": "ATI",
+            "Cleanroom/Non-Cleanroom": "Whiteroom",
+            "Status": "In Progress",
+            "Priority": "Medium",
+            "Known Issues": "Installed row should still require robot context.",
+        },
+    )
+
+    result = validate_project_foundation(fake_project)
+    findings = result.structured_data["validation_findings"]
+    uninstalled_fields = {
+        finding["column_name"] for finding in findings if finding.get("audit_id") == "AUD-UNINSTALLED-VALID"
+    }
+    installed_fields = {
+        finding["column_name"] for finding in findings if finding.get("audit_id") == "AUD-INSTALLED-MISSING-ROBOT"
+    }
+
+    assert {"Plant/Area", "Press/Machine #", "Robot Type", "Robot Model/Controller"}.isdisjoint(uninstalled_fields)
+    assert {"Plant/Area", "Robot Type"} <= installed_fields
+
+
+def test_audit_progress_labels_uninstalled_rows_without_robot_missing_count(tmp_path):
+    rows = [
+        {
+            "Audit ID": "AUD-UNINSTALLED-PROGRESS",
+            "Press/Machine #": "",
+            "Tool #": "TOOL-UNINSTALLED",
+            "Robot Type": "",
+            "EOAT Type": "Vacuum",
+            "EOAT Moves": "Part",
+            "# of Cups": "4",
+            "Tubing Condition": "OK",
+            "Cable Management Condition": "OK",
+            "Known Issues": "Bench inspection.",
+            "Photos Taken?": "No",
+            "Status": "In Progress",
+            "Priority": "Medium",
+        },
+        {
+            "Audit ID": "AUD-INSTALLED-PROGRESS",
+            "Press/Machine #": "Press 55",
+            "Tool #": "TOOL-INSTALLED",
+            "Robot Type": "",
+            "EOAT Type": "Vacuum",
+            "EOAT Moves": "Part",
+            "# of Cups": "4",
+            "Tubing Condition": "OK",
+            "Cable Management Condition": "OK",
+            "Known Issues": "Installed row.",
+            "Photos Taken?": "No",
+            "Status": "In Progress",
+            "Priority": "Medium",
+        },
+    ]
+
+    summary = calculate_audit_progress_from_rows(rows, tmp_path / "missing_capacity.xlsx")
+
+    assert summary.missing_field_counts["Robot Type"] == 1
+    assert summary.robot_type_counts["EOAT Not Installed"] == 1
 
 
 def test_workbook_health_deduplicates_missing_major_row_field_pairs(fake_project):

@@ -200,7 +200,7 @@ def test_follow_up_and_stale_hidden_values_are_actionable_findings():
 
 def test_next_best_field_prioritizes_required_identity_before_optional_gaps():
     summary = calculate_audit_coach_summary(
-        _base_entry(**{"Press/Machine #": "", "Cup Diameter/Size": "", "Sensor Brand/Model": ""}),
+        _base_entry(**{"Press/Machine #": "", "Tool #": "", "Cup Diameter/Size": "", "Sensor Brand/Model": ""}),
         SECTIONS,
     )
 
@@ -367,6 +367,7 @@ def test_manual_completion_override_forces_completion_for_current_audit():
         _base_entry(
             **{
                 "Press/Machine #": "",
+                "Tool #": "",
                 "Sensor Brand/Model": "",
                 MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes",
                 MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD: "2026-05-28T12:00:00+00:00",

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit.relationships import is_compatibility_row, is_physical_audit_row
+from .audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from .audit_compatibility import (
     load_required_relationships,
     parse_machine_tokens,
@@ -312,6 +313,7 @@ def calculate_audit_progress_from_rows(
             1
             for row in inventory
             if not manual_completion_override_enabled(row)
+            and not (is_uninstalled_eoat_audit(row) and field in UNINSTALLED_MACHINE_CONTEXT_FIELDS)
             and field_applies(row, field)
             and _missing_applicable_value(row.get(field))
         )
@@ -379,7 +381,7 @@ def calculate_audit_progress_from_rows(
         },
         warnings=warnings,
         eoat_type_counts=dict(Counter(str(row.get("EOAT Type") or "Blank") for row in inventory)),
-        robot_type_counts=dict(Counter(str(row.get("Robot Type") or "Blank") for row in inventory)),
+        robot_type_counts=dict(Counter(_robot_type_bucket(row) for row in inventory)),
         issue_category_counts=dict(Counter(str(row.get("Issue Category") or "Blank") for row in issues)),
         missing_field_counts=missing_counts,
     )
@@ -388,6 +390,12 @@ def calculate_audit_progress_from_rows(
 
 def _missing_applicable_value(value: Any) -> bool:
     return not text_value(value) or is_na_value(value)
+
+
+def _robot_type_bucket(row: dict[str, Any]) -> str:
+    if is_uninstalled_eoat_audit(row):
+        return "EOAT Not Installed"
+    return str(row.get("Robot Type") or "Blank")
 
 
 def _duplicate_relationship_rows(master_by_key: dict[tuple[str, str], list[dict[str, Any]]]) -> int:
