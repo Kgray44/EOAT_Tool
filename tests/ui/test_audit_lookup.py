@@ -80,6 +80,16 @@ def _finish_machine_lookup(page: AuditPage) -> None:
     wait_for_background_tasks()
 
 
+def _finish_tool_lookup(page: AuditPage) -> None:
+    page.audit_fields["Tool #"].editingFinished.emit()
+    wait_until(
+        lambda: page._tool_lookup_timer is None or not page._tool_lookup_timer.isActive(),
+        timeout_ms=5000,
+        message="tool lookup debounce timer",
+    )
+    wait_for_background_tasks()
+
+
 def _append_inventory_row(project_root, values: dict[str, str]) -> None:
     workbook_path = resolve_project_paths(project_root).master_workbook
     workbook = load_workbook(workbook_path)
@@ -418,6 +428,35 @@ def test_ui_lookup_runs_on_editing_finished_and_fills_clean_fields(qapp, fake_co
     assert page.audit_fields["Part Family"].text() == "DEMO-PN-1200 - Demo housing cap"
     assert page.audit_fields["Part Name/Description"].toPlainText() == "Demo housing cap"
     assert "Robot and part info filled" in page.lookup_note_label.text()
+
+
+def test_uninstalled_tool_lookup_fills_tool_details_without_machine_fields(qapp, fake_config, fake_project):
+    page = AuditPage(fake_config)
+
+    page.audit_fields["Tool #"].setText("TOOL-A")
+    _finish_tool_lookup(page)
+
+    assert page.audit_fields["Press/Machine #"].text() == ""
+    assert page.audit_fields["Robot Type"].currentText() == ""
+    assert page.audit_fields["Robot Model/Controller"].text() == ""
+    assert page.audit_fields["Part Family"].text() == "Part family A"
+    assert page.audit_fields["Part Name/Description"].toPlainText() == "Vacuum EOAT family A sample"
+    assert page.audit_fields["EOAT Type"].currentText() == "Vacuum"
+    assert "Uninstalled EOAT audit mode" in page.lookup_note_label.text()
+
+
+def test_unknown_uninstalled_tool_warns_and_allows_manual_entry(qapp, fake_config, fake_project):
+    page = AuditPage(fake_config)
+
+    page.audit_fields["Tool #"].setText("TOOL-DOES-NOT-EXIST")
+    _finish_tool_lookup(page)
+    page.audit_fields["Part Family"].setText("Manual family")
+    page.audit_fields["Part Name/Description"].setPlainText("Manual description")
+
+    assert "Tool # was not found" in page.lookup_note_label.text()
+    assert page.audit_fields["Part Family"].text() == "Manual family"
+    assert page.audit_fields["Part Name/Description"].toPlainText() == "Manual description"
+    assert "Uninstalled EOAT audit mode" in page.lookup_note_label.text()
 
 
 def test_manual_lookup_button_uses_same_lookup_path(qapp, fake_config, fake_project):

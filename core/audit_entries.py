@@ -15,6 +15,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from . import audit_field_rules as field_rules
 from .action_items import add_action_item
 from .audit.history import append_audit_history
+from .audit.uninstalled import append_uninstalled_note, is_uninstalled_eoat_audit
 from .audit_by_press import refresh_audit_by_press_view
 from .audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
@@ -452,6 +453,9 @@ def normalize_audit_entry_with_details(
         normalized[GRIPPER_MODEL_FIELD] = gripper_model_to_workbook(normalized.get(GRIPPER_MODEL_FIELD), project_root)
     if ENTRY_TYPE_FIELD in normalized and not _text(normalized.get(ENTRY_TYPE_FIELD)):
         normalized[ENTRY_TYPE_FIELD] = ENTRY_TYPE_AUDITED
+    uninstalled_audit = is_uninstalled_eoat_audit(normalized)
+    if uninstalled_audit:
+        normalized["Notes"] = append_uninstalled_note(normalized.get("Notes"))
     entry_type = _text(normalized.get(ENTRY_TYPE_FIELD)).lower()
     if entry_type != ENTRY_TYPE_COMPATIBLE.lower() and not normalized.get("Audit Date"):
         normalized["Audit Date"] = date.today().isoformat()
@@ -501,6 +505,7 @@ def normalize_audit_entry_with_details(
         "fields_auto_set_to_na": cleared_as_na,
         "hybrid_warnings": field_rules.hybrid_completeness_warnings(pre_default_normalized),
         "semantic_warnings": field_rules.semantic_consistency_warnings(normalized),
+        "uninstalled_eoat_audit": uninstalled_audit,
     }
     return normalized, details
 
@@ -1499,7 +1504,12 @@ def save_audit_entry(
 
     sync_result = None
     compatibility_started = time.perf_counter()
-    if options.sync_linked_compatibility and _text(data.get(ENTRY_TYPE_FIELD)).lower() == ENTRY_TYPE_AUDITED.lower():
+    uninstalled_audit = is_uninstalled_eoat_audit(data)
+    if (
+        options.sync_linked_compatibility
+        and not uninstalled_audit
+        and _text(data.get(ENTRY_TYPE_FIELD)).lower() == ENTRY_TYPE_AUDITED.lower()
+    ):
         from .audit_compatibility import sync_compatible_rows_from_source
 
         sync_result = sync_compatible_rows_from_source(workbook_path, str(data["Audit ID"]))
@@ -1556,6 +1566,7 @@ def save_audit_entry(
         sync_result is None
         and existing_row
         and not options.sync_linked_compatibility
+        and not uninstalled_audit
         and _text(data.get(ENTRY_TYPE_FIELD)).lower() == ENTRY_TYPE_AUDITED.lower()
     ):
         notice = "Linked compatibility rows may need review."
@@ -1646,7 +1657,11 @@ def save_audit_entry(
             "row": row_number,
             "updated": bool(existing_row),
             "audit_by_press_refreshed": bool(options.refresh_press_view),
-            "linked_compatibility_sync_requested": bool(options.sync_linked_compatibility),
+            "linked_compatibility_sync_requested": bool(options.sync_linked_compatibility and not uninstalled_audit),
+            "linked_compatibility_sync_skipped_uninstalled": bool(
+                options.sync_linked_compatibility and uninstalled_audit
+            ),
+            "uninstalled_eoat_audit": bool(uninstalled_audit),
             "refresh_mode": options.emit_refresh_mode,
             "compatibility_rows_synced": sync_result.updated_count if sync_result else 0,
             "compatibility_rows_skipped": sync_result.skipped_count if sync_result else 0,
@@ -1695,6 +1710,41 @@ def save_audit_entry_with_compatibility_autorun(
         return save_result
 
     audit_id = str(save_result.metrics.get("audit_id") or entry.get("Audit ID") or "").strip()
+    if is_uninstalled_eoat_audit(entry) or bool(save_result.metrics.get("uninstalled_eoat_audit")):
+        combined_summary = "\n".join(
+            [
+                "Audit Save Summary",
+                "------------------",
+                *_audit_save_summary_lines(save_result),
+                "",
+                "Compatibility Entry Summary",
+                "---------------------------",
+                "Skipped for uninstalled EOAT audit; no machine compatibility row is created automatically.",
+            ]
+        )
+        return ToolResult.ok(
+            "audit_save_with_compatibility",
+            "Save Audit Entry",
+            combined_summary,
+            details=[
+                *save_result.details,
+                "Compatibility autorun skipped for uninstalled EOAT audit.",
+            ],
+            warnings=save_result.warnings,
+            files_created=save_result.files_created,
+            files_modified=save_result.files_modified,
+            output_reports=save_result.output_reports,
+            metrics={
+                **save_result.metrics,
+                "compatibility_autorun_success": True,
+                "compatibility_autorun_skipped": True,
+                "compatibility_created": 0,
+                "compatibility_conflicts": 0,
+                "audit_save_seconds": round(save_seconds, 3),
+                "compatibility_autorun_seconds": 0.0,
+            },
+            duration_seconds=time.perf_counter() - started,
+        )
     compatibility_started = time.perf_counter()
     compatibility_result = _autorun_compatibility_entry(project_root, audit_id)
     compatibility_seconds = time.perf_counter() - compatibility_started

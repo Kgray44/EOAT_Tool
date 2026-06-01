@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from .audit_constants import (
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
     COMPATIBILITY_SOURCE_FIELD,
@@ -380,9 +381,16 @@ def entry_type_requirements(entry: dict[str, Any]) -> dict[str, list[str]]:
             "required": required,
             "important": [field for field in IMPORTANT_FIELDS if important_field_applies(entry, field)],
         }
-    required = [field for field in AUDITED_REQUIRED_FIELDS if field in entry or field != TOOL_FIELD]
+    ignored_fields = UNINSTALLED_MACHINE_CONTEXT_FIELDS if is_uninstalled_eoat_audit(entry) else frozenset()
+    required = [
+        field
+        for field in AUDITED_REQUIRED_FIELDS
+        if field not in ignored_fields and (field in entry or field != TOOL_FIELD)
+    ]
     return {
         "entry_type": ENTRY_TYPE_AUDITED,
         "required": required,
-        "important": [field for field in IMPORTANT_FIELDS if important_field_applies(entry, field)],
+        "important": [
+            field for field in IMPORTANT_FIELDS if field not in ignored_fields and important_field_applies(entry, field)
+        ],
     }

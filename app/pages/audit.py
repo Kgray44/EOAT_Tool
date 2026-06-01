@@ -69,6 +69,12 @@ from core.audit.completion import calculate_audit_completion
 from core.audit.diff import build_audit_save_preview
 from core.audit.drafts import discard_audit_draft, form_values_changed, load_audit_draft, save_audit_draft
 from core.audit.guided import GuidedAuditStep, all_guided_audit_steps
+from core.audit.tool_lookup import ToolLookupResult, lookup_tool_details
+from core.audit.uninstalled import (
+    UNINSTALLED_EOAT_STATUS_TEXT,
+    append_uninstalled_note,
+    is_uninstalled_eoat_audit,
+)
 from core.audit_compatibility import (
     MASTER_MACHINE_FIELDS,
     build_compatibility_candidates,
@@ -138,6 +144,7 @@ from core.robot_info import (
     ROBOT_NOTES_FIELD,
     load_robot_info_for_audit_entry,
 )
+from core.tool_fields import TOOL_FIELD
 
 PNEUMATIC_CIRCUITS_SECTION = "Pneumatic Circuits"
 EOAT_PNEUMATIC_FIELDS = [
@@ -512,7 +519,9 @@ class AuditPage(QWidget):
         self._audit_coach_refresh_pending = False
         self._manual_completion_override_data: dict[str, str] = {}
         self._machine_lookup_generation = 0
+        self._tool_lookup_generation = 0
         self._pending_machine_lookup_text = ""
+        self._pending_tool_lookup_text = ""
         self._pending_machine_lookup_allow_existing_audit_prompt = True
         self._suppress_machine_audit_selection_dialog = False
         self._machine_audit_selection_in_progress = False
@@ -526,6 +535,11 @@ class AuditPage(QWidget):
             self._machine_lookup_timer.setSingleShot(True)
             self._machine_lookup_timer.setInterval(200)
             self._machine_lookup_timer.timeout.connect(self._start_machine_lookup_request)
+        self._tool_lookup_timer = QTimer(self) if QTimer is not None else None
+        if self._tool_lookup_timer is not None:
+            self._tool_lookup_timer.setSingleShot(True)
+            self._tool_lookup_timer.setInterval(250)
+            self._tool_lookup_timer.timeout.connect(self._start_tool_lookup_request)
 
         layout = QVBoxLayout(self)
         heading = QLabel("EOAT Audit")
@@ -851,7 +865,7 @@ class AuditPage(QWidget):
 
     def _safe_compatibility_preview(self, entry: dict[str, str]) -> CompatibilityImpactPreview | None:
         audit_id = str(entry.get("Audit ID") or "").strip()
-        if not audit_id:
+        if not audit_id or is_uninstalled_eoat_audit(entry):
             return None
         try:
             return build_compatibility_impact_preview(self.config.project_root, audit_id, entry)
@@ -904,6 +918,33 @@ class AuditPage(QWidget):
         if self._initializing_form:
             return "initializing_form"
         return ""
+
+    def _tool_lookup_programmatic_suppression_reason(self) -> str:
+        if self._loading_audit:
+            return "loading_existing_audit"
+        if self._hydrating_form:
+            return "hydrating_form"
+        if self._programmatic_field_update:
+            return "programmatic_field_update"
+        if self._applying_defaults:
+            return "applying_defaults"
+        if self._autofilling_fields:
+            return "tool_lookup_autofill"
+        if self._initializing_form:
+            return "initializing_form"
+        return ""
+
+    def _current_form_is_uninstalled_eoat_audit(self) -> bool:
+        return is_uninstalled_eoat_audit(self._current_audit_form_values())
+
+    def _update_uninstalled_lookup_status(self, *, warning: str = "") -> None:
+        if not hasattr(self, "lookup_note_label"):
+            return
+        if self._current_form_is_uninstalled_eoat_audit():
+            message = UNINSTALLED_EOAT_STATUS_TEXT
+            if warning:
+                message = f"{message} {warning}"
+            self.lookup_note_label.setText(message)
 
     def _machine_audit_selection_suppression_reason(
         self,
@@ -1922,6 +1963,11 @@ class AuditPage(QWidget):
             edit.textChanged.connect(self._on_machine_lookup_text_changed)
             edit.editingFinished.connect(lambda: self.run_machine_lookup(immediate=True))
             return edit
+        if field == TOOL_FIELD:
+            edit = self._line()
+            edit.textChanged.connect(self._on_tool_lookup_text_changed)
+            edit.editingFinished.connect(lambda: self.run_tool_lookup(immediate=True))
+            return edit
         if field == "Robot Type":
             return self._combo(AUDIT_DROPDOWNS.get("Robot Type", []), editable=True)
         if field == GRIPPER_MODEL_FIELD:
@@ -2136,6 +2182,7 @@ class AuditPage(QWidget):
             self.current_lookup_result = None
             self._lookup_part_index = None
             self._lookup_conflict_warnings = []
+            self._pending_tool_lookup_text = ""
             if hasattr(self, "lookup_note_label"):
                 self.lookup_note_label.setText("Enter a machine number to look up robot and part info.")
                 self._set_capacity_choices([])
@@ -2212,6 +2259,8 @@ class AuditPage(QWidget):
             loaded_message
             or "Loaded existing audit in Empty Only view. Switch to Full Audit to review completed fields."
         )
+        if is_uninstalled_eoat_audit(entry):
+            note = f"{UNINSTALLED_EOAT_STATUS_TEXT} {note}"
         self.lookup_note_label.setText(note)
         result_message = loaded_message or f"Loaded audit entry {audit_id}."
         self.result_panel.show_text(
@@ -2805,9 +2854,11 @@ class AuditPage(QWidget):
         box.exec()
         return box.clickedButton() == save_button and box.clickedButton() != cancel_button
 
-    def _confirm_completed_audit_update(self, audit_id: str) -> tuple[bool, bool]:
+    def _confirm_completed_audit_update(
+        self, audit_id: str, *, allow_compatibility_update: bool = True
+    ) -> tuple[bool, bool]:
         if QMessageBox is None:
-            return True, True
+            return True, bool(allow_compatibility_update)
         box = QMessageBox(self)
         box.setWindowTitle("Update Completed Audit?")
         box.setText("This audit has already been completed. Saving will update the existing audit record.")
@@ -2816,13 +2867,16 @@ class AuditPage(QWidget):
             "The audit row saves first. Linked compatibility rows can be queued for review/update afterward."
         )
         checkbox = QCheckBox("Queue linked compatibility update after save")
-        checkbox.setChecked(True)
+        checkbox.setChecked(bool(allow_compatibility_update))
+        checkbox.setEnabled(bool(allow_compatibility_update))
+        if not allow_compatibility_update:
+            checkbox.setText("Compatibility update skipped for uninstalled EOAT audit")
         box.setCheckBox(checkbox)
         save_button = box.addButton("Save Update", QMessageBox.ButtonRole.AcceptRole)
         cancel_button = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         box.exec()
         accepted = box.clickedButton() == save_button and box.clickedButton() != cancel_button
-        update_compatibility = checkbox.isChecked()
+        update_compatibility = bool(checkbox.isChecked() and allow_compatibility_update)
         self._log_lifecycle_event(
             "audit_completed_update_prompt",
             {
@@ -2953,6 +3007,7 @@ class AuditPage(QWidget):
         collect_started = time.perf_counter()
         entry = dict(forced_entry) if forced_entry is not None else self.collect_complete_audit_form_state()
         collect_seconds = time.perf_counter() - collect_started
+        uninstalled_audit = is_uninstalled_eoat_audit(entry)
         current_audit_id = str(entry.get("Audit ID") or "").strip()
         allow_update = bool(
             self._current_audit_mode == "edit" and self._editing_audit_id and current_audit_id == self._editing_audit_id
@@ -2962,7 +3017,13 @@ class AuditPage(QWidget):
         if allow_update and not skip_completion_prompts:
             existing_completed = str(self._audit_form_baseline.get("Status") or "").strip().casefold() == "complete"
             if existing_completed:
-                accepted, update_compatibility = self._confirm_completed_audit_update(current_audit_id)
+                if uninstalled_audit:
+                    accepted, update_compatibility = self._confirm_completed_audit_update(
+                        current_audit_id,
+                        allow_compatibility_update=False,
+                    )
+                else:
+                    accepted, update_compatibility = self._confirm_completed_audit_update(current_audit_id)
                 completed_update_context = {
                     "audit_id": current_audit_id,
                     "existing_completed_audit": True,
@@ -2976,7 +3037,7 @@ class AuditPage(QWidget):
                     )
                     return
                 sync_linked_compatibility = update_compatibility
-            else:
+            elif not uninstalled_audit:
                 preview = build_compatibility_impact_preview(self.config.project_root, current_audit_id, entry)
                 if preview.has_impact:
                     if not self._confirm_compatibility_impact_preview(preview):
@@ -3041,6 +3102,8 @@ class AuditPage(QWidget):
             entry.get(CYLINDER_TYPE_FIELD) or ""
         ).strip().upper() in {"", NA_VALUE}:
             entry[CYLINDER_TYPE_FIELD] = CYLINDER_TYPE_DEFAULT
+        if is_uninstalled_eoat_audit(entry):
+            entry["Notes"] = append_uninstalled_note(entry.get("Notes"))
         entry.update(self._current_audit_metadata_values())
         return entry
 
@@ -3210,8 +3273,17 @@ class AuditPage(QWidget):
         if not audit_id or not hasattr(self, "load_audit_id_combo"):
             return
         machine = str(entry.get("Press/Machine #") or "").strip()
+        tool = str(entry.get(TOOL_FIELD) or "").strip()
         status = str(entry.get("Status") or "").strip()
-        label = " | ".join(piece for piece in [audit_id, f"Machine {machine}" if machine else "", status] if piece)
+        label = " | ".join(
+            piece
+            for piece in [
+                audit_id,
+                f"Machine {machine}" if machine else f"Tool {tool}" if tool else "",
+                status,
+            ]
+            if piece
+        )
         self.load_audit_id_combo.blockSignals(True)
         try:
             index = self.load_audit_id_combo.findData(audit_id)
@@ -3460,12 +3532,139 @@ class AuditPage(QWidget):
             workbook_lock=True,
         )
 
+    def _on_tool_lookup_text_changed(self, *_args) -> None:
+        if self._tool_lookup_programmatic_suppression_reason():
+            return
+        if self._field_value(self.audit_fields.get("Press/Machine #")):
+            return
+        tool_text = self._field_value(self.audit_fields.get(TOOL_FIELD))
+        self._pending_tool_lookup_text = tool_text
+        if tool_text:
+            self._update_uninstalled_lookup_status()
+        if self._tool_lookup_timer is not None and self._tool_lookup_timer.isActive():
+            self._tool_lookup_timer.start()
+
+    def run_tool_lookup(self, *args, immediate: bool = False) -> None:
+        if self._tool_lookup_programmatic_suppression_reason():
+            return
+        machine_text = self._field_value(self.audit_fields.get("Press/Machine #"))
+        if machine_text:
+            return
+        tool_text = self._field_value(self.audit_fields.get(TOOL_FIELD))
+        self._pending_tool_lookup_text = tool_text
+        if not tool_text:
+            self.lookup_note_label.setText("Enter a machine number to look up robot and part info.")
+            return
+        if immediate or self._tool_lookup_timer is None:
+            if self._tool_lookup_timer is not None:
+                self._tool_lookup_timer.stop()
+            self._start_tool_lookup_request()
+            return
+        self.lookup_note_label.setText(f"{UNINSTALLED_EOAT_STATUS_TEXT} Looking up Tool # {tool_text}...")
+        self._tool_lookup_timer.start()
+
+    def _start_tool_lookup_request(self) -> None:
+        tool_text = str(self._pending_tool_lookup_text or self._field_value(self.audit_fields.get(TOOL_FIELD))).strip()
+        if not tool_text:
+            return
+        if self._field_value(self.audit_fields.get("Press/Machine #")):
+            return
+        self._tool_lookup_generation += 1
+        generation = self._tool_lookup_generation
+        self.lookup_note_label.setText(f"{UNINSTALLED_EOAT_STATUS_TEXT} Looking up Tool # {tool_text}...")
+
+        def _lookup():
+            return {
+                "generation": generation,
+                "tool_text": tool_text,
+                "result": lookup_tool_details(self.config.project_root, tool_text),
+            }
+
+        get_task_manager().run_task(
+            TaskRequest(
+                id=f"audit_tool_lookup_{generation}",
+                name="Tool Lookup",
+                category="page_refresh",
+                callable=_lookup,
+            ),
+            on_finished=self._apply_tool_lookup_task_result,
+        )
+
+    def _apply_tool_lookup_task_result(self, task_result) -> None:
+        if not task_result.ok:
+            self.lookup_note_label.setText(
+                f"{UNINSTALLED_EOAT_STATUS_TEXT} Tool lookup failed: {task_result.error or task_result.message}"
+            )
+            return
+        payload = dict(task_result.result_data or {})
+        generation = int(payload.get("generation") or 0)
+        tool_text = str(payload.get("tool_text") or "")
+        if (
+            generation != self._tool_lookup_generation
+            or self._field_value(self.audit_fields.get(TOOL_FIELD)) != tool_text
+            or self._field_value(self.audit_fields.get("Press/Machine #"))
+        ):
+            return
+        result = payload.get("result")
+        if isinstance(result, ToolLookupResult):
+            self._apply_tool_lookup_result(result)
+
+    def _apply_tool_lookup_result(self, result: ToolLookupResult) -> None:
+        filled_fields: list[str] = []
+        previous_autofilling = self._autofilling_fields
+        self._autofilling_fields = True
+        try:
+            if result.matched:
+                for field_name, value in result.fields.items():
+                    if field_name == TOOL_FIELD or field_name not in self.audit_fields:
+                        continue
+                    current = self._field_value(self.audit_fields[field_name])
+                    if not is_meaningful_value(current):
+                        self._set_field_value(self.audit_fields[field_name], workbook_to_ui_value(value, field_name))
+                        filled_fields.append(field_name)
+        finally:
+            self._autofilling_fields = previous_autofilling
+        if result.matched:
+            detail = (
+                f" Tool details filled: {', '.join(filled_fields[:6])}."
+                if filled_fields
+                else " Existing tool data found; current field values were preserved."
+            )
+            if len(filled_fields) > 6:
+                detail = detail.rstrip(".") + ", ..."
+            self.lookup_note_label.setText(f"{UNINSTALLED_EOAT_STATUS_TEXT}{detail}")
+            self._log_tool_lookup(result, filled_fields)
+        else:
+            warning = (
+                " ".join(result.warnings)
+                or "Tool # was not found in the existing data source. You can continue manually."
+            )
+            self.lookup_note_label.setText(f"{UNINSTALLED_EOAT_STATUS_TEXT} {warning}")
+            self._log_tool_lookup(result, filled_fields)
+        self._update_audit_field_visibility()
+        self._refresh_audit_coach()
+
+    def _log_tool_lookup(self, result: ToolLookupResult, filled_fields: list[str]) -> None:
+        log_activity_event(
+            self.config.project_root,
+            "tool_lookup_completed",
+            {
+                "tool_number": result.tool_number,
+                "matched": result.matched,
+                "match_count": result.match_count,
+                "fields_filled": filled_fields,
+                "warnings": list(result.warnings),
+            },
+        )
+
     def _on_machine_lookup_text_changed(self, *_args) -> None:
         if self._programmatic_field_update or self._hydrating_form or self._loading_audit:
             return
         self._clear_recent_machine_audit_decision_if_machine_changed(
             self._field_value(self.audit_fields["Press/Machine #"])
         )
+        if not self._field_value(self.audit_fields["Press/Machine #"]):
+            self._update_uninstalled_lookup_status()
         if self._machine_lookup_timer is not None and self._machine_lookup_timer.isActive():
             self._pending_machine_lookup_text = self._field_value(self.audit_fields["Press/Machine #"])
             self._machine_lookup_timer.start()
@@ -3479,6 +3678,9 @@ class AuditPage(QWidget):
                 machine_text,
                 reason=programmatic_reason,
             )
+            return
+        if not machine_text and self._current_form_is_uninstalled_eoat_audit():
+            self.run_tool_lookup(immediate=immediate)
             return
         if self._consume_recent_machine_audit_lookup_suppression(machine_text):
             return
