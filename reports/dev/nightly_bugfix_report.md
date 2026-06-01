@@ -5,7 +5,9 @@
 - Backup branch: `backup/nightly-bugfix-start-20260529-1632`
 - Working branch: `fix/nightly-bugfix-stabilization`
 - Starting/backup commit: `a7ed1cb532c76669f857236cabed4bc77fdd6c02`
-- Final commit before merge: pending at report creation; see commit containing this file.
+- Final stabilization commit: `c15a15f66e5dba71f7deda5ef7dce20e3056f10f`
+- Main merge commit: `d8bc06b9`
+- Main pushed: yes, to `origin/main`
 
 ## What Was Protected
 
@@ -81,13 +83,14 @@ These are now bounded by the 300-second per-test timeout. They are still worth f
 
 ## Branches
 
-- Preserved: `backup/nightly-bugfix-start-20260529-1632`.
-- Not merged into main at report creation: `codex/audit-page-latency-fix`, `fix/nightly-bugfix-stabilization`, and the backup branch.
-- Merged branches visible before final cleanup: `codex/eoat-audit-p0-state-performance`, `feature/full-overnight-expansion`, `fix/audit-save-fast-path-and-refresh-isolation`, `fix/pre-merge-safety-and-handoff`, plus remote `origin/fix/pre-merge-safety-and-handoff`.
-- Branch cleanup status will be updated after merge/push.
+- Preserved local and remote backup branch: `backup/nightly-bugfix-start-20260529-1632`.
+- Preserved local active worktree branch: `fix/nightly-bugfix-stabilization` at `c15a15f6`; its remote branch was deleted after merge.
+- Deleted local merged branches: `codex/audit-page-latency-fix`, `codex/eoat-audit-p0-state-performance`, `feature/full-overnight-expansion`, `fix/audit-save-fast-path-and-refresh-isolation`, `fix/pre-merge-safety-and-handoff`.
+- Deleted remote merged branches: `origin/codex/audit-page-latency-fix`, `origin/codex/eoat-audit-p0-state-performance`, `origin/fix/nightly-bugfix-stabilization`, `origin/fix/pre-merge-safety-and-handoff`.
+- Remaining remote branches after cleanup: `origin/main`, `origin/backup/nightly-bugfix-start-20260529-1632`.
+- Branches needing human review: none found; no unmerged branches remained after main was pushed.
 
 ## Commands Run
-
 - `git status --short --branch`
 - `git branch -vv`
 - `git remote -v`
