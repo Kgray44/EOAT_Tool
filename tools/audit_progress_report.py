@@ -8,7 +8,6 @@ TOOLKIT_ROOT = Path(__file__).resolve().parents[1]
 if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
-from core.audit_progress import calculate_audit_progress, generate_audit_progress_report
 from core.constants import DEFAULT_PROJECT_ROOT
 
 
@@ -21,6 +20,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    from core.audit_progress import calculate_audit_progress, generate_audit_progress_report
+
     if args.metrics_only:
         summary, error = calculate_audit_progress(args.project_root)
         if error:
@@ -36,4 +37,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

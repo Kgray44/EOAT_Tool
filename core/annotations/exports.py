@@ -6,11 +6,12 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
+from core.paths import resolve_project_paths
 from core.safe_files import ensure_directory, safe_write_text
 
 
 def annotation_export_dir(project_root: str | Path) -> Path:
-    return Path(project_root) / "reports" / "exports"
+    return resolve_project_paths(project_root).annotation_exports
 
 
 def unique_export_path(project_root: str | Path, base_name: str, extension: str) -> Path:
@@ -46,13 +47,17 @@ def export_notes_markdown(project_root: str | Path, notes: Iterable[dict[str, ob
         )
         tags = note.get("tags") or []
         if tags:
-            lines.extend(["Related tags: " + ", ".join(str(tag.get("name") or "") for tag in tags if isinstance(tag, dict)), ""])
+            lines.extend(
+                ["Related tags: " + ", ".join(str(tag.get("name") or "") for tag in tags if isinstance(tag, dict)), ""]
+            )
         targets = note.get("targets") or []
         if targets:
             lines.extend(["Linked targets:"])
             for target in targets:
                 if isinstance(target, dict):
-                    lines.append(f"- {target.get('target_type')}: {target.get('target_label') or target.get('object_ref') or target.get('audit_id') or ''}")
+                    lines.append(
+                        f"- {target.get('target_type')}: {target.get('target_label') or target.get('object_ref') or target.get('audit_id') or ''}"
+                    )
             lines.append("")
     path = unique_export_path(project_root, "notes_export", ".md")
     return safe_write_text(path, "\n".join(lines).rstrip() + "\n", overwrite=False)
@@ -80,7 +85,11 @@ def export_notes_excel(project_root: str | Path, notes: Iterable[dict[str, objec
     ws.append(headers)
     for note in notes:
         tags = ", ".join(str(tag.get("name") or "") for tag in note.get("tags") or [] if isinstance(tag, dict))
-        targets = ", ".join(str(target.get("target_label") or target.get("object_ref") or "") for target in note.get("targets") or [] if isinstance(target, dict))
+        targets = ", ".join(
+            str(target.get("target_label") or target.get("object_ref") or "")
+            for target in note.get("targets") or []
+            if isinstance(target, dict)
+        )
         ws.append(
             [
                 note.get("id"),

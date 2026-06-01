@@ -38,7 +38,17 @@ class CommandSpec:
             object.__setattr__(self, "disabled_reason", "Unavailable in the current context.")
 
     def searchable_text(self) -> str:
-        return " ".join([self.command_id, self.display_name, self.category, self.description, self.page_key, self.disabled_reason, *self.aliases]).casefold()
+        return " ".join(
+            [
+                self.command_id,
+                self.display_name,
+                self.category,
+                self.description,
+                self.page_key,
+                self.disabled_reason,
+                *self.aliases,
+            ]
+        ).casefold()
 
     def is_context_command(self, current_page_key: str | None) -> bool:
         if not current_page_key:
@@ -63,7 +73,9 @@ class CommandRegistry:
                 return command
         raise KeyError(command_id)
 
-    def filter(self, query: str = "", *, category: str = "", current_page_key: str | None = None, include_recent: bool = True) -> list[CommandSpec]:
+    def filter(
+        self, query: str = "", *, category: str = "", current_page_key: str | None = None, include_recent: bool = True
+    ) -> list[CommandSpec]:
         needle = query.casefold().strip()
         rows = []
         for command in self.commands:
@@ -126,7 +138,11 @@ def build_dashboard_command_registry(window) -> CommandRegistry:
     registry = CommandRegistry()
 
     def navigate(page_key: str) -> Callable[[], None]:
-        return lambda: window.navigate_to_page(page_key) if hasattr(window, "navigate_to_page") else window._navigate_to_page(page_key)
+        return (
+            lambda: window.navigate_to_page(page_key)
+            if hasattr(window, "navigate_to_page")
+            else window._navigate_to_page(page_key)
+        )
 
     def call_page(page_key: str, method_name: str) -> Callable[[], None]:
         def _handler() -> None:

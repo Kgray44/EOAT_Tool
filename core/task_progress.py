@@ -53,7 +53,9 @@ def extract_tasks(progress_data: dict[str, Any]) -> list[TaskItem]:
     for index, item in enumerate(progress_data.get("tasks", []), start=1):
         if not isinstance(item, dict):
             continue
-        description = str(item.get("task") or item.get("task_text") or item.get("description") or item.get("name") or "")
+        description = str(
+            item.get("task") or item.get("task_text") or item.get("description") or item.get("name") or ""
+        )
         task_id = str(item.get("id") or item.get("task_id") or f"task_{index}")
         tasks.append(
             TaskItem(

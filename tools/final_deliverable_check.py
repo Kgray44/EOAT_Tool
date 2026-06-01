@@ -9,13 +9,14 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.deliverable_check import run_final_deliverable_check
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run final EOAT project deliverable check.")
     parser.add_argument("--project-root", default=str(DEFAULT_PROJECT_ROOT))
     args = parser.parse_args()
+    from core.deliverable_check import run_final_deliverable_check
+
     result = run_final_deliverable_check(args.project_root)
     print(result.to_markdown())
     return 0 if result.success else 1

@@ -17,4 +17,3 @@ class PlannedPage(QWidget):
         layout.addWidget(heading)
         layout.addWidget(body)
         layout.addStretch(1)
-

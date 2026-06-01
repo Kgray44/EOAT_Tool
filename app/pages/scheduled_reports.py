@@ -17,7 +17,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QApplication = QAbstractItemView = QComboBox = QGridLayout = QHBoxLayout = QLabel = QPushButton = QScrollArea = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QApplication = QAbstractItemView = QComboBox = QGridLayout = QHBoxLayout = QLabel = QPushButton = QScrollArea = (
+        QTableWidget
+    ) = QTableWidgetItem = QVBoxLayout = QWidget = None
     Qt = None
 
 from app.event_bus import EVENT_REPORT_GENERATED, EVENT_SCHEDULED_REPORT_RAN, get_event_bus
@@ -159,7 +161,9 @@ class ScheduledReportsPage(QWidget):
         content_layout.addLayout(preview_controls)
 
         self.preview_table = QTableWidget(0, 9)
-        self.preview_table.setHorizontalHeaderLabels(["Date", "Weekday", "Automation", "Time", "Status", "Week", "Day", "Existing Report", "Reason"])
+        self.preview_table.setHorizontalHeaderLabels(
+            ["Date", "Weekday", "Automation", "Time", "Status", "Week", "Day", "Existing Report", "Reason"]
+        )
         self.preview_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.preview_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.preview_table.setMinimumHeight(240)
@@ -213,7 +217,17 @@ class ScheduledReportsPage(QWidget):
         self._populate_table(
             self.preview_table,
             self.preview_rows,
-            ["date", "weekday", "expected_automation_type", "scheduled_time", "status", "week", "day", "existing_report_path", "decision_reason"],
+            [
+                "date",
+                "weekday",
+                "expected_automation_type",
+                "scheduled_time",
+                "status",
+                "week",
+                "day",
+                "existing_report_path",
+                "decision_reason",
+            ],
         )
 
     def run_preflight(self) -> None:
@@ -260,20 +274,34 @@ class ScheduledReportsPage(QWidget):
         self._set_card("Daily Schedule", daily.get("schedule", "Monday-Thursday at 7:00 PM"))
         self._set_card("Daily Task Installed", self._task_text(daily.get("task", {})))
         self._set_card("Daily Task Result", self._task_result_text(daily.get("task", {})))
-        self._set_card("Daily Last Status", daily.get("report_generation_result") or daily.get("last_status") or "No report-generation log recorded")
-        self._set_card("Daily Last Run", daily.get("task", {}).get("last_run_time") or daily.get("last_log_line") or "No run recorded")
+        self._set_card(
+            "Daily Last Status",
+            daily.get("report_generation_result") or daily.get("last_status") or "No report-generation log recorded",
+        )
+        self._set_card(
+            "Daily Last Run",
+            daily.get("task", {}).get("last_run_time") or daily.get("last_log_line") or "No run recorded",
+        )
         self._set_card("Daily Last Report", daily.get("last_report") or "No daily summary found")
         self._set_card("Daily Next Run", daily.get("next_expected_run") or "")
         self._set_card("Daily Missed", ", ".join(daily.get("missed_dates", [])) or "None detected")
         self._set_card("Weekly Schedule", weekly.get("schedule", "Friday at 7:00 PM"))
         self._set_card("Weekly Task Installed", self._task_text(weekly.get("task", {})))
         self._set_card("Weekly Task Result", self._task_result_text(weekly.get("task", {})))
-        self._set_card("Weekly Last Status", weekly.get("report_generation_result") or weekly.get("last_status") or "No report-generation log recorded")
-        self._set_card("Weekly Last Run", weekly.get("task", {}).get("last_run_time") or weekly.get("last_log_line") or "No run recorded")
+        self._set_card(
+            "Weekly Last Status",
+            weekly.get("report_generation_result") or weekly.get("last_status") or "No report-generation log recorded",
+        )
+        self._set_card(
+            "Weekly Last Run",
+            weekly.get("task", {}).get("last_run_time") or weekly.get("last_log_line") or "No run recorded",
+        )
         self._set_card("Weekly Last Report", weekly.get("last_report") or "No weekly summary found")
         self._set_card("Weekly Next Run", weekly.get("next_expected_run") or "")
         self._set_card("Weekly Missed", ", ".join(weekly.get("missed_dates", [])) or "None detected")
-        self._set_card("Reports Folders", f"Daily: {paths.get('daily_reports', '')}\nWeekly: {paths.get('weekly_reports', '')}")
+        self._set_card(
+            "Reports Folders", f"Daily: {paths.get('daily_reports', '')}\nWeekly: {paths.get('weekly_reports', '')}"
+        )
         self._set_card("Scheduled Tool Log", status.get("scheduled_log", "Not configured"))
         self._set_card("Emergency Log", status.get("emergency_log", "Not configured"))
         self.result_panel.show_text("Scheduled report status refreshed.")
@@ -298,7 +326,9 @@ class ScheduledReportsPage(QWidget):
         if created_reports:
             self.latest_output_report = created_reports[0]
         if result.success and created_reports:
-            get_event_bus().emit(EVENT_SCHEDULED_REPORT_RAN, {"outputs": created_reports}, source="ScheduledReportsPage")
+            get_event_bus().emit(
+                EVENT_SCHEDULED_REPORT_RAN, {"outputs": created_reports}, source="ScheduledReportsPage"
+            )
             get_event_bus().emit(EVENT_REPORT_GENERATED, {"outputs": created_reports}, source="ScheduledReportsPage")
         self.refresh_status()
         self.refresh_preview()
@@ -307,7 +337,9 @@ class ScheduledReportsPage(QWidget):
         if result.success and not result.files_created:
             result.success = False
             result.summary = f"{result.summary} No new report file was created."
-            result.warnings.append("No new report file was created; report generation was skipped or only an existing report was found.")
+            result.warnings.append(
+                "No new report file was created; report generation was skipped or only an existing report was found."
+            )
         return result
 
     def run_daily_dry_run(self) -> None:
@@ -315,7 +347,11 @@ class ScheduledReportsPage(QWidget):
             self.result_panel,
             "scheduled_reports_daily_dry_run",
             "Run Daily Dry Run",
-            lambda: self._require_created_report(run_daily_summary_now(self.config.project_root, scheduled=False, dry_run=True, decision_reason="manual daily dry run")),
+            lambda: self._require_created_report(
+                run_daily_summary_now(
+                    self.config.project_root, scheduled=False, dry_run=True, decision_reason="manual daily dry run"
+                )
+            ),
             self._after_report_action,
             modifies_files=True,
         )
@@ -325,7 +361,14 @@ class ScheduledReportsPage(QWidget):
             self.result_panel,
             "scheduled_reports_weekly_dry_run",
             "Run Weekly Dry Run",
-            lambda: self._require_created_report(run_weekly_summary_now(self.config.project_root, scheduled=False, dry_run=True, notes="Manual dry run from Scheduled Reports page.")),
+            lambda: self._require_created_report(
+                run_weekly_summary_now(
+                    self.config.project_root,
+                    scheduled=False,
+                    dry_run=True,
+                    notes="Manual dry run from Scheduled Reports page.",
+                )
+            ),
             self._after_report_action,
             modifies_files=True,
         )
@@ -364,13 +407,17 @@ class ScheduledReportsPage(QWidget):
     def catch_up_selected(self, automation: str) -> None:
         dates = self._selected_preview_dates(automation)
         if not dates:
-            self.result_panel.show_text("Select one or more missed preview rows, or refresh the preview to detect missed report dates.")
+            self.result_panel.show_text(
+                "Select one or more missed preview rows, or refresh the preview to detect missed report dates."
+            )
             return
         run_tool_background(
             self.result_panel,
             "scheduled_reports_catch_up",
             "Scheduled Report Catch-Up",
-            lambda: self._require_created_report(run_catch_up_summaries(self.config.project_root, dates, automation=automation)),
+            lambda: self._require_created_report(
+                run_catch_up_summaries(self.config.project_root, dates, automation=automation)
+            ),
             self._after_report_action,
             modifies_files=True,
         )

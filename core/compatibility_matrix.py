@@ -151,19 +151,31 @@ class CompatibilityMatrixSummary:
         }
 
 
-def build_compatibility_matrix(project_root: str | Path, *, column_mode: str = COLUMN_MODE_TOOL) -> CompatibilityMatrixSummary:
+def build_compatibility_matrix(
+    project_root: str | Path, *, column_mode: str = COLUMN_MODE_TOOL
+) -> CompatibilityMatrixSummary:
     column_mode = _normalize_column_mode(column_mode)
     workbook = resolve_project_paths(project_root).master_workbook
     warnings: list[str] = []
     if not workbook.exists():
-        return CompatibilityMatrixSummary(metrics={"tools": 0, "machines": 0}, warnings=[f"Master workbook is missing: {workbook}"], column_mode=column_mode)
+        return CompatibilityMatrixSummary(
+            metrics={"tools": 0, "machines": 0},
+            warnings=[f"Master workbook is missing: {workbook}"],
+            column_mode=column_mode,
+        )
     try:
         inventory_rows = [dict(row) for row in row_dicts(workbook, "EOAT Inventory")]
     except Exception as exc:
-        return CompatibilityMatrixSummary(metrics={"tools": 0, "machines": 0}, warnings=[f"Could not read EOAT Inventory: {exc}"], column_mode=column_mode)
+        return CompatibilityMatrixSummary(
+            metrics={"tools": 0, "machines": 0},
+            warnings=[f"Could not read EOAT Inventory: {exc}"],
+            column_mode=column_mode,
+        )
 
     rows_with_keys = [_row_with_key(row, column_mode) for row in inventory_rows]
-    machines = sorted({_machine(item["row"]) for item in rows_with_keys if _machine(item["row"])}, key=_machine_sort_key)
+    machines = sorted(
+        {_machine(item["row"]) for item in rows_with_keys if _machine(item["row"])}, key=_machine_sort_key
+    )
     columns = _build_columns(rows_with_keys, column_mode)
     source_by_id = {text_value(row.get("Audit ID")): row for row in inventory_rows if text_value(row.get("Audit ID"))}
     cells_by_pair: dict[tuple[str, str], list[dict[str, Any]]] = {}
@@ -176,7 +188,10 @@ def build_compatibility_matrix(project_root: str | Path, *, column_mode: str = C
 
     matrix_rows: list[CompatibilityMatrixRow] = []
     for machine in machines:
-        cells = tuple(_build_cell(machine, column, cells_by_pair.get((machine, column.key), []), inventory_rows, source_by_id) for column in columns)
+        cells = tuple(
+            _build_cell(machine, column, cells_by_pair.get((machine, column.key), []), inventory_rows, source_by_id)
+            for column in columns
+        )
         matrix_rows.append(CompatibilityMatrixRow(machine=machine, cells=cells))
 
     bom_data, bom_warnings, _details = analyze_bom_standardization(project_root)
@@ -211,13 +226,19 @@ def export_compatibility_matrix(
     markdown = compatibility_matrix_markdown(summary)
     md_path = write_timestamped_report(output_dir, f"Compatibility_Matrix_{summary.column_mode}", markdown)
     csv_rows = compatibility_matrix_csv_rows(summary)
-    csv_path = write_timestamped_csv(output_dir, f"Compatibility_Matrix_{summary.column_mode}", csv_rows) if csv_rows else None
+    csv_path = (
+        write_timestamped_csv(output_dir, f"Compatibility_Matrix_{summary.column_mode}", csv_rows) if csv_rows else None
+    )
     files = [str(md_path), *(str(csv_path) for csv_path in [csv_path] if csv_path is not None)]
     result = ToolResult.ok(
         TOOL_ID,
         TOOL_NAME,
         "Exported compatibility matrix.",
-        details=[f"Column mode: {summary.column_mode}", f"Machines: {len(summary.machines)}", f"Columns: {len(summary.columns)}"],
+        details=[
+            f"Column mode: {summary.column_mode}",
+            f"Machines: {len(summary.machines)}",
+            f"Columns: {len(summary.columns)}",
+        ],
         warnings=summary.warnings,
         files_created=files,
         output_reports=files,
@@ -278,7 +299,13 @@ def compatibility_matrix_markdown(summary: CompatibilityMatrixSummary) -> str:
         lines.append("| " + " | ".join("---" for _ in header) + " |")
         for row in summary.rows:
             status_by_key = {cell.column_key: cell.compatibility_status for cell in row.cells}
-            lines.append("| " + " | ".join([row.machine, *[status_by_key.get(column.key, STATE_UNKNOWN) for column in summary.columns]]) + " |")
+            lines.append(
+                "| "
+                + " | ".join(
+                    [row.machine, *[status_by_key.get(column.key, STATE_UNKNOWN) for column in summary.columns]]
+                )
+                + " |"
+            )
     lines.extend(["", "## Cell Details"])
     lines.extend(
         table_from_rows(
@@ -316,7 +343,9 @@ def _build_cell(
     physical_ids = tuple(_sorted_texts(text_value(row.get("Audit ID")) for row in physical_rows))
     compatibility_ids = tuple(_sorted_texts(text_value(row.get("Audit ID")) for row in compatibility_rows))
     source_ids = tuple(_sorted_texts(text_value(row.get(SOURCE_AUDIT_ID_FIELD)) for row in compatibility_rows))
-    compatibility_sources = tuple(_sorted_texts(text_value(row.get(COMPATIBILITY_SOURCE_FIELD)) for row in compatibility_rows))
+    compatibility_sources = tuple(
+        _sorted_texts(text_value(row.get(COMPATIBILITY_SOURCE_FIELD)) for row in compatibility_rows)
+    )
     conflicts = list(_cell_conflicts(physical_rows, compatibility_rows, column, source_by_id))
     missing_data = list(_missing_data(compatibility_rows, all_rows))
     fields_copied = tuple(_sorted_texts(_copied_fields(compatibility_rows, source_by_id)))
@@ -359,10 +388,18 @@ def _cell_conflicts(
     source_by_id: dict[str, dict[str, Any]],
 ) -> Iterable[str]:
     for field_name in CONFLICT_FIELDS:
-        values = {text_value(row.get(field_name)).casefold(): text_value(row.get(field_name)) for row in [*physical_rows, *compatibility_rows] if text_value(row.get(field_name))}
+        values = {
+            text_value(row.get(field_name)).casefold(): text_value(row.get(field_name))
+            for row in [*physical_rows, *compatibility_rows]
+            if text_value(row.get(field_name))
+        }
         if len(values) > 1:
             yield f"Conflicting {field_name}: {', '.join(sorted(values.values(), key=str.casefold))}"
-    source_ids = {text_value(row.get(SOURCE_AUDIT_ID_FIELD)) for row in compatibility_rows if text_value(row.get(SOURCE_AUDIT_ID_FIELD))}
+    source_ids = {
+        text_value(row.get(SOURCE_AUDIT_ID_FIELD))
+        for row in compatibility_rows
+        if text_value(row.get(SOURCE_AUDIT_ID_FIELD))
+    }
     if len(source_ids) > 1:
         yield f"Multiple source audit IDs: {', '.join(sorted(source_ids, key=str.casefold))}"
     if column.column_type == COLUMN_MODE_TOOL:
@@ -425,27 +462,43 @@ def _row_with_key(row: dict[str, Any], column_mode: str) -> dict[str, Any]:
 
 def _column_for_row(row: dict[str, Any], column_mode: str) -> CompatibilityMatrixColumn | None:
     if column_mode == COLUMN_MODE_SOURCE_AUDIT:
-        source_id = text_value(row.get("Audit ID")) if is_physical_audit_row(row) else text_value(row.get(SOURCE_AUDIT_ID_FIELD))
+        source_id = (
+            text_value(row.get("Audit ID"))
+            if is_physical_audit_row(row)
+            else text_value(row.get(SOURCE_AUDIT_ID_FIELD))
+        )
         if not source_id:
             return None
         tool = part_number_from_row(row)
         description = part_description_from_row(row)
         label = " | ".join(piece for piece in [source_id, tool, description] if piece)
-        return CompatibilityMatrixColumn(key=f"source::{source_id.casefold()}", label=label, column_type=column_mode, source_audit_id=source_id, tool=tool)
+        return CompatibilityMatrixColumn(
+            key=f"source::{source_id.casefold()}",
+            label=label,
+            column_type=column_mode,
+            source_audit_id=source_id,
+            tool=tool,
+        )
     if column_mode == COLUMN_MODE_PART_FAMILY:
         part_family = text_value(row.get("Part Family")) or part_description_from_row(row) or part_number_from_row(row)
         if not part_family:
             return None
-        return CompatibilityMatrixColumn(key=f"family::{part_family.casefold()}", label=part_family, column_type=column_mode, part_family=part_family)
+        return CompatibilityMatrixColumn(
+            key=f"family::{part_family.casefold()}", label=part_family, column_type=column_mode, part_family=part_family
+        )
     tool = part_number_from_row(row)
     if not tool:
         return None
     description = part_description_from_row(row)
     label = " | ".join(piece for piece in [tool, description] if piece)
-    return CompatibilityMatrixColumn(key=f"tool::{tool.casefold()}", label=label, column_type=COLUMN_MODE_TOOL, tool=tool)
+    return CompatibilityMatrixColumn(
+        key=f"tool::{tool.casefold()}", label=label, column_type=COLUMN_MODE_TOOL, tool=tool
+    )
 
 
-def _metrics(rows: list[CompatibilityMatrixRow], columns: list[CompatibilityMatrixColumn], machines: list[str]) -> dict[str, Any]:
+def _metrics(
+    rows: list[CompatibilityMatrixRow], columns: list[CompatibilityMatrixColumn], machines: list[str]
+) -> dict[str, Any]:
     cells = [cell for row in rows for cell in row.cells]
     return {
         "tools": len(columns),

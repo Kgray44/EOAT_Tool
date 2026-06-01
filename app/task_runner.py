@@ -182,7 +182,9 @@ class BackgroundTaskManager(QObject):
         self.pool.setMaxThreadCount(BACKGROUND_TASK_MAX_THREADS)
         self._active_runnables: list[_TaskRunnable] = []
 
-    def run_task(self, request: TaskRequest, on_finished: Callable[[TaskResult], None] | None = None, button=None) -> bool:
+    def run_task(
+        self, request: TaskRequest, on_finished: Callable[[TaskResult], None] | None = None, button=None
+    ) -> bool:
         allowed, reason = self.guard.try_start(request)
         if not allowed:
             result = TaskResult(id=request.id, name=request.name, ok=False, message=reason, error=reason)

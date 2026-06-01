@@ -54,4 +54,3 @@ class ToolRegistry:
 
     def implemented_tools(self) -> list[ToolMetadata]:
         return [tool for tool in self._tools if tool.implementation_status in {"implemented", "partial"}]
-

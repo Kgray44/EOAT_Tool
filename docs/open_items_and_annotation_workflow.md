@@ -80,6 +80,6 @@ The Home Open Items panel now links to the unified Open Items page.
 
 - Existing Notes and Tags pages are preserved.
 - Annotation databases remain local project data and should not be committed.
-- Open Items reports are generated under the local project exports area.
+- Open Items and annotation exports are generated under `06_Final_Handoff/Annotation_Exports` in the active project root.
 - No full Robot Info entity system is added.
 - `Robot_Info.xlsx` remains limited to robot-side pneumatic circuit counts.

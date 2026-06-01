@@ -54,9 +54,13 @@ def test_validation_emits_structured_findings_json_and_preserves_markdown(fake_p
     result = run_foundation_validation(fake_project, write_report=True, log_activity=False)
     findings = findings_from_result(result)
 
-    assert any(finding.severity == ValidationSeverity.ERROR.value and finding.column_name == "Audit ID" for finding in findings)
+    assert any(
+        finding.severity == ValidationSeverity.ERROR.value and finding.column_name == "Audit ID" for finding in findings
+    )
     assert "finding_id" not in result.to_markdown()
-    json_reports = sorted((fake_project / "00_Project_Admin" / "Validation_Reports").glob("Foundation_Validation_*.json"))
+    json_reports = sorted(
+        (fake_project / "00_Project_Admin" / "Validation_Reports").glob("Foundation_Validation_*.json")
+    )
     md_reports = sorted((fake_project / "00_Project_Admin" / "Validation_Reports").glob("Foundation_Validation_*.md"))
     assert json_reports
     assert md_reports

@@ -27,7 +27,9 @@ def _set_audit_field(page: AuditPage, field: str, value: str) -> None:
         widget.setText(value)
 
 
-def test_fake_user_day2_workflow_end_to_end(qapp, fake_config, fake_project, frozen_project_date, captured_open_requests, monkeypatch):
+def test_fake_user_day2_workflow_end_to_end(
+    qapp, fake_config, fake_project, frozen_project_date, captured_open_requests, monkeypatch
+):
     import app.dashboard_ui as dashboard_ui
 
     monkeypatch.setattr(dashboard_ui, "load_config", lambda: fake_config)
@@ -36,7 +38,11 @@ def test_fake_user_day2_workflow_end_to_end(qapp, fake_config, fake_project, fro
     wait_for_background_tasks()
 
     home = window.pages["home"]
-    wait_until(lambda: bool(home.cards["Resolved Project Day"].value_label.text()), timeout_ms=2000, message="home dashboard resolved day")
+    wait_until(
+        lambda: bool(home.cards["Resolved Project Day"].value_label.text()),
+        timeout_ms=2000,
+        message="home dashboard resolved day",
+    )
     assert home.cards["Resolved Project Day"].value_label.text().startswith("Week 1 Day 2")
 
     click_button(home, "Generate Morning Plan")
@@ -68,7 +74,12 @@ def test_fake_user_day2_workflow_end_to_end(qapp, fake_config, fake_project, fro
     audit_id = audit.audit_fields["Audit ID"].text()
     click_button(audit, "Save Audit Entry")
     wait_for_background_tasks(timeout_ms=30000)
-    assert any(row["Audit ID"] == audit_id for row in row_dicts(fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"))
+    assert any(
+        row["Audit ID"] == audit_id
+        for row in row_dicts(
+            fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
+        )
+    )
 
     window._show_page("photos")
     photos = window.pages["photos"]

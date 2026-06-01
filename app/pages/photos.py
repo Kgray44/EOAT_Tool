@@ -21,7 +21,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QApplication = QCheckBox = QComboBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QListWidgetItem = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QApplication = QCheckBox = QComboBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = (
+        QListWidgetItem
+    ) = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
 from app.widgets.tool_run_panel import ToolRunPanel
@@ -130,7 +132,9 @@ class PhotosPage(QWidget):
         self.missing_shots_label.setStyleSheet("color: #9f1239; font-weight: 600;")
         layout.addWidget(self.missing_shots_label)
         self.evidence_table = QTableWidget(0, 7)
-        self.evidence_table.setHorizontalHeaderLabels(["Category", "Applies", "Required", "Present", "Photos", "Status", "Warning"])
+        self.evidence_table.setHorizontalHeaderLabels(
+            ["Category", "Applies", "Required", "Present", "Photos", "Status", "Warning"]
+        )
         layout.addWidget(self.evidence_table, stretch=1)
 
         indexed_heading = QLabel("Indexed Photos for Audit")
@@ -251,7 +255,9 @@ class PhotosPage(QWidget):
             return
         coverage = evidence_coverage_for_audit(self.config.project_root, audit_id)
         if coverage is None:
-            self.result_panel.show_text(f"No audit row found for {audit_id}. You can still create an intake folder for phone photos.")
+            self.result_panel.show_text(
+                f"No audit row found for {audit_id}. You can still create an intake folder for phone photos."
+            )
             return
         self.evidence_table.setRowCount(len(coverage.statuses))
         for row_index, status in enumerate(coverage.statuses):

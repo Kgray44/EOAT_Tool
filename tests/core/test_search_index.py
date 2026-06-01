@@ -13,7 +13,9 @@ def test_search_index_returns_explained_audit_field_and_machine_matches(usabilit
     assert all(result.rank_score > 0 for result in results)
     assert all(result.why_matched for result in results)
     assert any(result.result_type == "field" and result.matched_field == "EOAT Type" for result in results)
-    assert any(result.result_type in {"machine", "press_group"} for result in search_index(usability_fake_project, "101"))
+    assert any(
+        result.result_type in {"machine", "press_group"} for result in search_index(usability_fake_project, "101")
+    )
 
 
 def test_search_index_indexes_reports_and_counts(usability_fake_project):

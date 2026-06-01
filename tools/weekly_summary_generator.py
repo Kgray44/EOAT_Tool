@@ -9,8 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.schedule import resolve_project_day_for_project
-from core.weekly_summary import generate_weekly_summary
 
 
 def main() -> int:
@@ -19,11 +17,16 @@ def main() -> int:
     parser.add_argument("--week", type=int)
     parser.add_argument("--notes", default="")
     parser.add_argument("--scheduled", action="store_true", help="Run in scheduled/noninteractive mode.")
-    parser.add_argument("--dry-run", action="store_true", help="Write test output only in the project Test_Reports folder.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Write test output only in the project Test_Reports folder."
+    )
     parser.add_argument("--output-dir", help="Optional output folder for the generated weekly summary.")
     parser.add_argument("--date", dest="report_date", help="Report date in YYYY-MM-DD format.")
     parser.add_argument("--verbose", action="store_true", help="Print structured execution details.")
     args = parser.parse_args()
+    from core.schedule import resolve_project_day_for_project
+    from core.weekly_summary import generate_weekly_summary
+
     week = args.week or resolve_project_day_for_project(args.project_root).week
     result = generate_weekly_summary(
         args.project_root,

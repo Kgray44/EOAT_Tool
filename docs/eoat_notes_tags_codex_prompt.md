@@ -470,14 +470,14 @@ Export requirements:
 - Allow exporting filtered notes.
 - Markdown export should produce readable project documentation.
 - Excel export should include note metadata columns.
-- Exports should be saved to a predictable reports/exports folder.
+- Exports should be saved to the predictable `06_Final_Handoff/Annotation_Exports` folder.
 - Never overwrite an existing export without either timestamping or asking confirmation.
 
 Suggested export paths:
 
 ```text
-<ProjectRoot>/reports/exports/notes_export_YYYYMMDD_HHMMSS.md
-<ProjectRoot>/reports/exports/notes_export_YYYYMMDD_HHMMSS.xlsx
+<ProjectRoot>/06_Final_Handoff/Annotation_Exports/notes_export_YYYYMMDD_HHMMSS.md
+<ProjectRoot>/06_Final_Handoff/Annotation_Exports/notes_export_YYYYMMDD_HHMMSS.xlsx
 ```
 
 ---
@@ -804,8 +804,8 @@ Export should support:
 Suggested export paths:
 
 ```text
-<ProjectRoot>/reports/exports/tags_export_YYYYMMDD_HHMMSS.md
-<ProjectRoot>/reports/exports/tags_export_YYYYMMDD_HHMMSS.xlsx
+<ProjectRoot>/06_Final_Handoff/Annotation_Exports/tags_export_YYYYMMDD_HHMMSS.md
+<ProjectRoot>/06_Final_Handoff/Annotation_Exports/tags_export_YYYYMMDD_HHMMSS.xlsx
 ```
 
 ---

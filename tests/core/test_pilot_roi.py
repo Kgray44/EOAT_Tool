@@ -41,9 +41,53 @@ def _seed_candidate(fake_project) -> None:
         ]
     )
     kpi = wb["KPI Baseline"]
-    kpi.append(["KPI-ROI-001", "2026-05-18", "Plant 4", "Press 82", "TOOL-82", "Family A", "Vacuum", 60, "Yes", 6, 2, 40, "Drop", 12.5, 3, "", "Manual", ""])
+    kpi.append(
+        [
+            "KPI-ROI-001",
+            "2026-05-18",
+            "Plant 4",
+            "Press 82",
+            "TOOL-82",
+            "Family A",
+            "Vacuum",
+            60,
+            "Yes",
+            6,
+            2,
+            40,
+            "Drop",
+            12.5,
+            3,
+            "",
+            "Manual",
+            "",
+        ]
+    )
     issues = wb["Issue Log"]
-    issues.append(["ISS-ROI-001", "2026-05-18", "Plant 4", "Press 82", "Wittmann R9", "Vacuum", "Part drop", "Part drops during transfer", "", "", "Downtime and scrap", "8", "5", "4", "", "", "", "Open", "", ""])
+    issues.append(
+        [
+            "ISS-ROI-001",
+            "2026-05-18",
+            "Plant 4",
+            "Press 82",
+            "Wittmann R9",
+            "Vacuum",
+            "Part drop",
+            "Part drops during transfer",
+            "",
+            "",
+            "Downtime and scrap",
+            "8",
+            "5",
+            "4",
+            "",
+            "",
+            "",
+            "Open",
+            "",
+            "",
+        ]
+    )
     wb.save(workbook_path)
     wb.close()
 
@@ -86,7 +130,9 @@ def test_pilot_roi_stores_assumptions_and_exports_report(fake_project):
     assumptions = {"hourly_downtime_cost": 75, "expected_downtime_reduction_minutes_per_year": 60}
 
     saved = save_pilot_roi_assumptions(fake_project, assumptions, candidate_id="PILOT-ROI-001")
-    result = export_pilot_roi_report(fake_project, candidate_id="PILOT-ROI-001", assumptions=assumptions, log_activity=False)
+    result = export_pilot_roi_report(
+        fake_project, candidate_id="PILOT-ROI-001", assumptions=assumptions, log_activity=False
+    )
 
     assert saved == pilot_roi_assumptions_path(fake_project)
     payload = json.loads(Path(saved).read_text(encoding="utf-8"))

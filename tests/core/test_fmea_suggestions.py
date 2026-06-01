@@ -87,7 +87,11 @@ def test_fmea_suggestions_require_review_before_acceptance(fake_project):
             "Known Issues": "Loose gripper finger causing mechanical wear review.",
         },
     )
-    suggestion = next(row for row in build_fmea_suggestions(fake_project) if row["Press/Machine #"] == "Press 41" and row["Failure Mode"] == "Mechanical wear")
+    suggestion = next(
+        row
+        for row in build_fmea_suggestions(fake_project)
+        if row["Press/Machine #"] == "Press 41" and row["Failure Mode"] == "Mechanical wear"
+    )
 
     unreviewed = accept_fmea_suggestions(fake_project, [suggestion], log_activity=False)
 
@@ -114,10 +118,16 @@ def test_fmea_suggestions_require_review_before_acceptance(fake_project):
 
 
 def test_fmea_suggestion_reject_and_export(fake_project):
-    _append_row(fake_project, "Issue Log", {"Issue ID": "ISS-FMEA-001", "Press/Machine #": "Press 51", "Issue Category": "Quick disconnect issue"})
+    _append_row(
+        fake_project,
+        "Issue Log",
+        {"Issue ID": "ISS-FMEA-001", "Press/Machine #": "Press 51", "Issue Category": "Quick disconnect issue"},
+    )
     suggestion = next(row for row in build_fmea_suggestions(fake_project) if row["Press/Machine #"] == "Press 51")
 
-    rejected = reject_fmea_suggestions(fake_project, [suggestion["Suggestion ID"]], reason="Synthetic test reject.", log_activity=False)
+    rejected = reject_fmea_suggestions(
+        fake_project, [suggestion["Suggestion ID"]], reason="Synthetic test reject.", log_activity=False
+    )
     exported = export_fmea_suggestion_draft(fake_project, [suggestion], log_activity=False)
     evidence_exported = export_fmea_evidence_report(fake_project, [suggestion], log_activity=False)
 

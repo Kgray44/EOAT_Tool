@@ -167,6 +167,26 @@ def test_new_audit_form_initialization_is_clean_and_can_close_without_prompt(qap
     assert page.can_close("notes") == (True, "")
 
 
+def test_hidden_audit_page_does_not_open_draft_recovery_dialog(qapp, fake_config, monkeypatch):
+    save_audit_draft(
+        fake_config.project_root,
+        audit_id="AUD-HIDDEN-DRAFT",
+        mode="new",
+        form_values={"Audit ID": "AUD-HIDDEN-DRAFT", "Known Issues": "Hidden stale draft."},
+        baseline_values={"Audit ID": "AUD-HIDDEN-DRAFT", "Known Issues": ""},
+    )
+    page = AuditPage(fake_config)
+
+    def fail_if_prompted(*_args, **_kwargs):
+        raise AssertionError("Hidden audit pages should not open draft recovery dialogs.")
+
+    monkeypatch.setattr("app.pages.audit.QMessageBox.exec", fail_if_prompted)
+
+    page._offer_draft_recovery(None)
+
+    assert load_audit_draft(fake_config.project_root) is not None
+
+
 def test_user_edit_marks_dirty_and_restoring_baseline_clears_dirty(qapp, fake_config):
     page = AuditPage(fake_config)
     page.show()
@@ -279,7 +299,10 @@ def test_save_audit_failure_preserves_visible_data_and_dirty_state(qapp, fake_co
     page._save_in_progress = True
     page._pending_save_snapshot = page._current_audit_form_values()
 
-    page._after_save_audit(ToolResult.fail("audit_save_entry", "Save Audit Entry", "Save failed.", errors=["boom"]), page.audit_fields["Audit ID"].text())
+    page._after_save_audit(
+        ToolResult.fail("audit_save_entry", "Save Audit Entry", "Save failed.", errors=["boom"]),
+        page.audit_fields["Audit ID"].text(),
+    )
 
     assert page.audit_fields["Known Issues"].toPlainText() == "Must remain visible."
     assert page.has_unsaved_changes() is True
@@ -298,7 +321,9 @@ def test_duplicate_save_click_is_ignored_while_save_in_progress(qapp, fake_confi
     assert "already in progress" in page.result_panel.viewer.toPlainText()
 
 
-def test_completed_audit_update_checkbox_choice_checked_runs_compatibility(qapp, fake_config, fake_project, monkeypatch):
+def test_completed_audit_update_checkbox_choice_checked_runs_compatibility(
+    qapp, fake_config, fake_project, monkeypatch
+):
     source_id = _save_source_audit(fake_project, "AUD-COMPLETE-CHECKED-001")
     completed_entry = load_audit_entry(fake_project, source_id)
     completed_entry["Status"] = "Complete"
@@ -327,7 +352,9 @@ def test_completed_audit_update_checkbox_choice_checked_runs_compatibility(qapp,
     assert "Compatibility update for completed audit was requested." in page.result_panel.viewer.toPlainText()
 
 
-def test_completed_audit_update_checkbox_choice_unchecked_skips_compatibility(qapp, fake_config, fake_project, monkeypatch):
+def test_completed_audit_update_checkbox_choice_unchecked_skips_compatibility(
+    qapp, fake_config, fake_project, monkeypatch
+):
     source_id = _save_source_audit(fake_project, "AUD-COMPLETE-UNCHECKED-001")
     completed_entry = load_audit_entry(fake_project, source_id)
     completed_entry["Status"] = "Complete"

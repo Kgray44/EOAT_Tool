@@ -16,5 +16,9 @@ def test_report_preview_reads_text_file(tmp_path):
 def test_report_folders_handles_missing_project(tmp_path):
     folders = report_folders(tmp_path)
 
-    assert {folder.label for folder in folders} >= {"Daily Status Reports", "Validation Reports", "Risk Insight Reports", "Activity Logs"}
-
+    assert {folder.label for folder in folders} >= {
+        "Daily Status Reports",
+        "Validation Reports",
+        "Risk Insight Reports",
+        "Activity Logs",
+    }

@@ -83,10 +83,20 @@ def classify_truth_cell(row: dict[str, Any], field: str, value: Any) -> TruthCel
     else:
         state = TRUTH_MEASURED
         reason = "Value is treated as user-entered physical audit data."
-    return TruthCell(row_index=int(row.get("_row_index") or 0), audit_id=audit_id, machine=machine, field=field, value=text, truth_state=state, reason=reason)
+    return TruthCell(
+        row_index=int(row.get("_row_index") or 0),
+        audit_id=audit_id,
+        machine=machine,
+        field=field,
+        value=text,
+        truth_state=state,
+        reason=reason,
+    )
 
 
-def analyze_truth_from_rows(rows: Iterable[dict[str, Any]], fields: Iterable[str] | None = None) -> WorkbookTruthSummary:
+def analyze_truth_from_rows(
+    rows: Iterable[dict[str, Any]], fields: Iterable[str] | None = None
+) -> WorkbookTruthSummary:
     state_counts: Counter[str] = Counter()
     field_state_counts: dict[str, Counter[str]] = {}
     row_count = 0
@@ -110,12 +120,20 @@ def analyze_truth_from_rows(rows: Iterable[dict[str, Any]], fields: Iterable[str
     )
 
 
-def analyze_workbook_truth(project_root: str | Path, sheet_name: str = "EOAT Inventory", fields: Iterable[str] | None = None) -> WorkbookTruthSummary:
+def analyze_workbook_truth(
+    project_root: str | Path, sheet_name: str = "EOAT Inventory", fields: Iterable[str] | None = None
+) -> WorkbookTruthSummary:
     workbook = resolve_project_paths(project_root).master_workbook
     if not workbook.exists():
-        return WorkbookTruthSummary(metrics={"rows_scanned": 0, "cells_scanned": 0, "truth_states": 0}, warnings=[f"Master workbook is missing: {workbook}"])
+        return WorkbookTruthSummary(
+            metrics={"rows_scanned": 0, "cells_scanned": 0, "truth_states": 0},
+            warnings=[f"Master workbook is missing: {workbook}"],
+        )
     try:
         rows = row_dicts(workbook, sheet_name)
     except Exception as exc:
-        return WorkbookTruthSummary(metrics={"rows_scanned": 0, "cells_scanned": 0, "truth_states": 0}, warnings=[f"Could not read {sheet_name}: {exc}"])
+        return WorkbookTruthSummary(
+            metrics={"rows_scanned": 0, "cells_scanned": 0, "truth_states": 0},
+            warnings=[f"Could not read {sheet_name}: {exc}"],
+        )
     return analyze_truth_from_rows(rows, fields=fields)

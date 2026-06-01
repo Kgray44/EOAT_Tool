@@ -13,4 +13,3 @@ class ChartPanel(QWidget):
         label = QLabel(title)
         label.setWordWrap(True)
         layout.addWidget(label)
-

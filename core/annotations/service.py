@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from openpyxl import load_workbook
@@ -66,11 +67,30 @@ class AnnotationService:
     def __init__(self, project_root: str | Path, db_path: str | Path | None = None, *, initialize: bool = True):
         self.project_root = Path(project_root)
         self.db_path = Path(db_path) if db_path else annotation_database_path(self.project_root)
+        self._initialize_lock = RLock()
+        self._initialized = False
         if initialize:
+            self.ensure_initialized()
+
+    @property
+    def initialized(self) -> bool:
+        return self._initialized
+
+    def mark_initialized(self) -> None:
+        self._initialized = True
+
+    def ensure_initialized(self) -> None:
+        if self._initialized:
+            return
+        with self._initialize_lock:
+            if self._initialized:
+                return
             initialize_annotation_database(self.project_root, self.db_path)
+            self._initialized = True
 
     @contextmanager
     def connection(self):
+        self.ensure_initialized()
         conn = connect_annotation_database(self.db_path)
         try:
             yield conn
@@ -105,7 +125,18 @@ class AnnotationService:
                 INSERT INTO notes(id, subject, body_markdown, importance, status, collection, note_type, follow_up_date, created_at, updated_at)
                 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (note_id, subject, body_markdown or "", importance, status, _none_empty(collection), _none_empty(note_type), _none_empty(follow_up_date), now, now),
+                (
+                    note_id,
+                    subject,
+                    body_markdown or "",
+                    importance,
+                    status,
+                    _none_empty(collection),
+                    _none_empty(note_type),
+                    _none_empty(follow_up_date),
+                    now,
+                    now,
+                ),
             )
             for target_id in target_ids or []:
                 self._link_note_to_target(conn, note_id, str(target_id))
@@ -210,16 +241,22 @@ class AnnotationService:
             clauses.append("notes.note_type = ?")
             params.append(note_type)
         if audit_id:
-            clauses.append("EXISTS (SELECT 1 FROM note_targets nt JOIN annotation_targets at ON at.id = nt.target_id WHERE nt.note_id = notes.id AND at.audit_id = ?)")
+            clauses.append(
+                "EXISTS (SELECT 1 FROM note_targets nt JOIN annotation_targets at ON at.id = nt.target_id WHERE nt.note_id = notes.id AND at.audit_id = ?)"
+            )
             params.append(audit_id)
         if machine_id:
-            clauses.append("EXISTS (SELECT 1 FROM note_targets nt JOIN annotation_targets at ON at.id = nt.target_id WHERE nt.note_id = notes.id AND at.machine_id = ?)")
+            clauses.append(
+                "EXISTS (SELECT 1 FROM note_targets nt JOIN annotation_targets at ON at.id = nt.target_id WHERE nt.note_id = notes.id AND at.machine_id = ?)"
+            )
             params.append(machine_id)
         if tag_id:
             clauses.append("EXISTS (SELECT 1 FROM note_tags ntag WHERE ntag.note_id = notes.id AND ntag.tag_id = ?)")
             params.append(tag_id)
         if tag_name:
-            clauses.append("EXISTS (SELECT 1 FROM note_tags ntag JOIN tags ON tags.id = ntag.tag_id WHERE ntag.note_id = notes.id AND lower(tags.name) = lower(?))")
+            clauses.append(
+                "EXISTS (SELECT 1 FROM note_tags ntag JOIN tags ON tags.id = ntag.tag_id WHERE ntag.note_id = notes.id AND lower(tags.name) = lower(?))"
+            )
             params.append(tag_name)
         if open_items_only:
             clauses.append("(notes.status IS NULL OR lower(notes.status) NOT IN ('resolved', 'archived'))")
@@ -232,13 +269,17 @@ class AnnotationService:
             rows = conn.execute(f"SELECT notes.* FROM notes {where} ORDER BY {order}", params).fetchall()
             return [self._enrich_note_row(conn, row) for row in rows]
 
-    def create_tag(self, name: str, color_key: str = "yellow", *, description: str | None = None, is_default: bool = False) -> Tag:
+    def create_tag(
+        self, name: str, color_key: str = "yellow", *, description: str | None = None, is_default: bool = False
+    ) -> Tag:
         name = str(name or "").strip()
         if not name:
             raise ValueError("Tag name is required.")
         color_key = normalize_color_key(color_key)
         with self.connection() as conn:
-            existing = conn.execute("SELECT * FROM tags WHERE lower(name) = lower(?) AND is_archived = 0", (name,)).fetchone()
+            existing = conn.execute(
+                "SELECT * FROM tags WHERE lower(name) = lower(?) AND is_archived = 0", (name,)
+            ).fetchone()
             if existing:
                 return _tag_from_row(existing)
             now = utc_now()
@@ -262,7 +303,9 @@ class AnnotationService:
 
     def get_tag_by_name(self, name: str) -> Tag | None:
         with self.connection() as conn:
-            row = conn.execute("SELECT * FROM tags WHERE lower(name) = lower(?) AND is_archived = 0", (name,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM tags WHERE lower(name) = lower(?) AND is_archived = 0", (name,)
+            ).fetchone()
         return _tag_from_row(row) if row else None
 
     def update_tag(self, tag_id: str, **updates: Any) -> Tag:
@@ -364,7 +407,13 @@ class AnnotationService:
                         ),
                     )
                 return self.get_target(existing_target.id)
-        target_id = target_id_for(target_type=normalized_type, audit_id=audit_id, machine_id=machine_id, field_key=identity_field_key, object_ref=object_ref)
+        target_id = target_id_for(
+            target_type=normalized_type,
+            audit_id=audit_id,
+            machine_id=machine_id,
+            field_key=identity_field_key,
+            object_ref=object_ref,
+        )
         label = display_label_for_target(
             target_type=normalized_type,
             target_label=target_label,
@@ -455,7 +504,9 @@ class AnnotationService:
             raise KeyError(target_id)
         return _target_from_row(row)
 
-    def assign_tag_to_target(self, tag_id: str, target_id: str, comment: str | None = None, *, sync_workbook: bool = True) -> TagAssignment:
+    def assign_tag_to_target(
+        self, tag_id: str, target_id: str, comment: str | None = None, *, sync_workbook: bool = True
+    ) -> TagAssignment:
         assignment_id: str | None = None
         now = utc_now()
         with self.connection() as conn:
@@ -466,7 +517,10 @@ class AnnotationService:
             if existing:
                 assignment_id = str(existing["id"])
                 if comment is not None:
-                    conn.execute("UPDATE tag_assignments SET comment = ?, updated_at = ? WHERE id = ?", (_none_empty(comment), now, assignment_id))
+                    conn.execute(
+                        "UPDATE tag_assignments SET comment = ?, updated_at = ? WHERE id = ?",
+                        (_none_empty(comment), now, assignment_id),
+                    )
             else:
                 assignment_id = _new_id("assignment")
                 conn.execute(
@@ -670,9 +724,24 @@ class AnnotationService:
         with self.connection() as conn:
             conn.execute("DELETE FROM note_tags WHERE note_id = ? AND tag_id = ?", (note_id, tag_id))
 
-    def attach_file(self, *, note_id: str | None = None, target_id: str | None = None, file_path: str | Path, display_name: str | None = None, description: str | None = None) -> str:
+    def attach_file(
+        self,
+        *,
+        note_id: str | None = None,
+        target_id: str | None = None,
+        file_path: str | Path,
+        display_name: str | None = None,
+        description: str | None = None,
+    ) -> str:
         with self.connection() as conn:
-            return self._attach_file(conn, note_id=note_id, target_id=target_id, file_path=file_path, display_name=display_name, description=description)
+            return self._attach_file(
+                conn,
+                note_id=note_id,
+                target_id=target_id,
+                file_path=file_path,
+                display_name=display_name,
+                description=description,
+            )
 
     def highest_priority_color_for_target(self, target_id: str) -> str | None:
         highest = highest_priority_tag(self.get_tags_for_target(target_id))
@@ -686,31 +755,67 @@ class AnnotationService:
         try:
             target = self.get_target(target_id)
         except KeyError:
-            return {"success": False, "warnings": [f"Annotation target not found: {target_id}"], "duration_seconds": 0.0}
+            return {
+                "success": False,
+                "warnings": [f"Annotation target not found: {target_id}"],
+                "duration_seconds": 0.0,
+            }
         if target.target_type != "audit_field":
-            return {"success": True, "warnings": ["Target is not an audit field; workbook sync skipped."], "duration_seconds": time.perf_counter() - started}
+            return {
+                "success": True,
+                "warnings": ["Target is not an audit field; workbook sync skipped."],
+                "duration_seconds": time.perf_counter() - started,
+            }
         audit_id = target.audit_id or ""
         header_name = target.header_name or target.field_key or target.field_label or ""
         sheet_name = target.sheet_name or "EOAT Inventory"
-        workbook_path = Path(target.workbook_path) if target.workbook_path else resolve_project_paths(self.project_root).master_workbook
+        workbook_path = (
+            Path(target.workbook_path)
+            if target.workbook_path
+            else resolve_project_paths(self.project_root).master_workbook
+        )
         if not audit_id:
-            return {"success": False, "warnings": ["Audit field target has no Audit ID; workbook sync skipped."], "duration_seconds": time.perf_counter() - started}
+            return {
+                "success": False,
+                "warnings": ["Audit field target has no Audit ID; workbook sync skipped."],
+                "duration_seconds": time.perf_counter() - started,
+            }
         if not header_name:
-            return {"success": False, "warnings": ["Audit field target has no field key/header; workbook sync skipped."], "duration_seconds": time.perf_counter() - started}
+            return {
+                "success": False,
+                "warnings": ["Audit field target has no field key/header; workbook sync skipped."],
+                "duration_seconds": time.perf_counter() - started,
+            }
         if not workbook_path.exists():
-            return {"success": False, "warnings": [f"Master workbook is missing: {workbook_path}"], "duration_seconds": time.perf_counter() - started}
+            return {
+                "success": False,
+                "warnings": [f"Master workbook is missing: {workbook_path}"],
+                "duration_seconds": time.perf_counter() - started,
+            }
         workbook = None
         try:
             backup = backup_file(workbook_path, workbook_path.parent / "_backups")
             files_created.append(str(backup))
             workbook = load_workbook(workbook_path)
             if sheet_name not in workbook.sheetnames:
-                return {"success": False, "warnings": [f"Workbook sheet not found: {sheet_name}"], "files_created": files_created, "duration_seconds": time.perf_counter() - started}
+                return {
+                    "success": False,
+                    "warnings": [f"Workbook sheet not found: {sheet_name}"],
+                    "files_created": files_created,
+                    "duration_seconds": time.perf_counter() - started,
+                }
             ws = workbook[sheet_name]
             headers = worksheet_headers(ws)
-            audit_header = "Audit ID" if "Audit ID" in headers else "Last Audit ID" if "Last Audit ID" in headers else ""
+            audit_header = (
+                "Audit ID" if "Audit ID" in headers else "Last Audit ID" if "Last Audit ID" in headers else ""
+            )
             if not audit_header:
-                return {"success": False, "warnings": ["Audit ID column is missing; workbook sync skipped."], "files_created": files_created, "duration_seconds": time.perf_counter() - started}
+                return {
+                    "success": False,
+                    "warnings": ["Audit ID column is missing; workbook sync skipped."],
+                    "files_created": files_created,
+                    "duration_seconds": time.perf_counter() - started,
+                }
             column_header = _resolve_header(headers, header_name, target.field_label or "")
             if not column_header:
                 return {
@@ -744,7 +849,10 @@ class AnnotationService:
             invalidate_workbook_cache(workbook_path)
             files_modified.append(str(workbook_path))
             with self.connection() as conn:
-                conn.execute("UPDATE annotation_targets SET cached_cell_ref = ?, updated_at = ? WHERE id = ?", (cell_ref, utc_now(), target_id))
+                conn.execute(
+                    "UPDATE annotation_targets SET cached_cell_ref = ?, updated_at = ? WHERE id = ?",
+                    (cell_ref, utc_now(), target_id),
+                )
             return {
                 "success": True,
                 "applied_color_key": color_key,
@@ -755,7 +863,12 @@ class AnnotationService:
                 "duration_seconds": time.perf_counter() - started,
             }
         except Exception as exc:
-            return {"success": False, "warnings": [f"Could not sync tag color to workbook: {exc}"], "files_created": files_created, "duration_seconds": time.perf_counter() - started}
+            return {
+                "success": False,
+                "warnings": [f"Could not sync tag color to workbook: {exc}"],
+                "files_created": files_created,
+                "duration_seconds": time.perf_counter() - started,
+            }
         finally:
             if workbook is not None:
                 workbook.close()
@@ -774,7 +887,12 @@ class AnnotationService:
         files_modified: list[str] = []
         unique_target_ids = [str(target_id) for target_id in dict.fromkeys(target_ids) if target_id]
         if not unique_target_ids:
-            return {"success": True, "synced_count": 0, "warnings": [], "duration_seconds": time.perf_counter() - started}
+            return {
+                "success": True,
+                "synced_count": 0,
+                "warnings": [],
+                "duration_seconds": time.perf_counter() - started,
+            }
 
         targets_by_workbook: dict[tuple[str, str], list[AnnotationTarget]] = {}
         for target_id in unique_target_ids:
@@ -786,7 +904,11 @@ class AnnotationService:
             if target.target_type != "audit_field":
                 warnings.append(f"Target is not an audit field; workbook sync skipped: {target_id}")
                 continue
-            workbook_path = Path(target.workbook_path) if target.workbook_path else resolve_project_paths(self.project_root).master_workbook
+            workbook_path = (
+                Path(target.workbook_path)
+                if target.workbook_path
+                else resolve_project_paths(self.project_root).master_workbook
+            )
             sheet_name = target.sheet_name or "EOAT Inventory"
             targets_by_workbook.setdefault((str(workbook_path), sheet_name), []).append(target)
 
@@ -808,7 +930,9 @@ class AnnotationService:
                     continue
                 ws = workbook[sheet_name]
                 headers = worksheet_headers(ws)
-                audit_header = "Audit ID" if "Audit ID" in headers else "Last Audit ID" if "Last Audit ID" in headers else ""
+                audit_header = (
+                    "Audit ID" if "Audit ID" in headers else "Last Audit ID" if "Last Audit ID" in headers else ""
+                )
                 if not audit_header:
                     warnings.append("Audit ID column is missing; workbook sync skipped.")
                     continue
@@ -885,9 +1009,15 @@ class AnnotationService:
         today = today or date.today()
         due_by = (today + timedelta(days=7)).isoformat()
         with self.connection() as conn:
-            open_note_clause = "(archived_at IS NULL AND (status IS NULL OR lower(status) NOT IN ('resolved', 'archived')))"
-            critical = conn.execute(f"SELECT COUNT(*) AS count FROM notes WHERE {open_note_clause} AND importance = 'Critical'").fetchone()["count"]
-            important = conn.execute(f"SELECT COUNT(*) AS count FROM notes WHERE {open_note_clause} AND importance = 'Important'").fetchone()["count"]
+            open_note_clause = (
+                "(archived_at IS NULL AND (status IS NULL OR lower(status) NOT IN ('resolved', 'archived')))"
+            )
+            critical = conn.execute(
+                f"SELECT COUNT(*) AS count FROM notes WHERE {open_note_clause} AND importance = 'Critical'"
+            ).fetchone()["count"]
+            important = conn.execute(
+                f"SELECT COUNT(*) AS count FROM notes WHERE {open_note_clause} AND importance = 'Important'"
+            ).fetchone()["count"]
             followups = conn.execute(
                 f"SELECT COUNT(*) AS count FROM notes WHERE {open_note_clause} AND follow_up_date IS NOT NULL AND follow_up_date <= ?",
                 (due_by,),
@@ -927,7 +1057,9 @@ class AnnotationService:
                 "followups_due_soon": int(followups),
             }
 
-    def get_suggested_annotations(self, audit_entry: dict[str, Any], *, include_ignored: bool = False) -> list[dict[str, object]]:
+    def get_suggested_annotations(
+        self, audit_entry: dict[str, Any], *, include_ignored: bool = False
+    ) -> list[dict[str, object]]:
         suggestions: list[dict[str, object]] = []
         for suggestion in suggested_annotations_for_audit(audit_entry):
             row = dict(suggestion.__dict__)
@@ -996,7 +1128,11 @@ class AnnotationService:
             header_name=str(suggestion.get("field_key") or ""),
             target_label=f"{suggestion.get('audit_id') or ''} / {suggestion.get('field_key') or ''}".strip(" /"),
         )
-        return self.assign_tag_to_target(tag.id, target.id, comment=str(suggestion.get("suggested_comment") or suggestion.get("reason") or "Suggested annotation"))
+        return self.assign_tag_to_target(
+            tag.id,
+            target.id,
+            comment=str(suggestion.get("suggested_comment") or suggestion.get("reason") or "Suggested annotation"),
+        )
 
     def apply_suggested_annotations(self, suggestions: Iterable[dict[str, object]]) -> list[TagAssignment]:
         return [self.apply_suggested_annotation(suggestion) for suggestion in suggestions]
@@ -1032,10 +1168,14 @@ class AnnotationService:
         return export_notes_excel(self.project_root, notes if notes is not None else self.search_notes())
 
     def export_tags_markdown(self, assignments: Iterable[dict[str, object]] | None = None) -> Path:
-        return export_tags_markdown(self.project_root, assignments if assignments is not None else self.list_tag_assignments())
+        return export_tags_markdown(
+            self.project_root, assignments if assignments is not None else self.list_tag_assignments()
+        )
 
     def export_tags_excel(self, assignments: Iterable[dict[str, object]] | None = None) -> Path:
-        return export_tags_excel(self.project_root, assignments if assignments is not None else self.list_tag_assignments())
+        return export_tags_excel(
+            self.project_root, assignments if assignments is not None else self.list_tag_assignments()
+        )
 
     def _enrich_note_row(self, conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, object]:
         note = dict(row)
@@ -1065,20 +1205,35 @@ class AnnotationService:
                 (row["id"],),
             ).fetchall()
         ]
-        note["attachments"] = [dict(attachment_row) for attachment_row in conn.execute("SELECT * FROM attachments WHERE note_id = ? ORDER BY created_at", (row["id"],)).fetchall()]
+        note["attachments"] = [
+            dict(attachment_row)
+            for attachment_row in conn.execute(
+                "SELECT * FROM attachments WHERE note_id = ? ORDER BY created_at", (row["id"],)
+            ).fetchall()
+        ]
         return note
 
     def _link_note_to_target(self, conn: sqlite3.Connection, note_id: str, target_id: str) -> None:
-        existing = conn.execute("SELECT id FROM note_targets WHERE note_id = ? AND target_id = ?", (note_id, target_id)).fetchone()
+        existing = conn.execute(
+            "SELECT id FROM note_targets WHERE note_id = ? AND target_id = ?", (note_id, target_id)
+        ).fetchone()
         if existing:
             return
-        conn.execute("INSERT INTO note_targets(id, note_id, target_id, created_at) VALUES(?, ?, ?, ?)", (_new_id("note_target"), note_id, target_id, utc_now()))
+        conn.execute(
+            "INSERT INTO note_targets(id, note_id, target_id, created_at) VALUES(?, ?, ?, ?)",
+            (_new_id("note_target"), note_id, target_id, utc_now()),
+        )
 
     def _link_note_to_tag(self, conn: sqlite3.Connection, note_id: str, tag_id: str) -> None:
-        existing = conn.execute("SELECT id FROM note_tags WHERE note_id = ? AND tag_id = ?", (note_id, tag_id)).fetchone()
+        existing = conn.execute(
+            "SELECT id FROM note_tags WHERE note_id = ? AND tag_id = ?", (note_id, tag_id)
+        ).fetchone()
         if existing:
             return
-        conn.execute("INSERT INTO note_tags(id, note_id, tag_id, created_at) VALUES(?, ?, ?, ?)", (_new_id("note_tag"), note_id, tag_id, utc_now()))
+        conn.execute(
+            "INSERT INTO note_tags(id, note_id, tag_id, created_at) VALUES(?, ?, ?, ?)",
+            (_new_id("note_tag"), note_id, tag_id, utc_now()),
+        )
 
     def _attach_file(
         self,
@@ -1097,7 +1252,15 @@ class AnnotationService:
             INSERT INTO attachments(id, note_id, target_id, file_path, display_name, description, created_at)
             VALUES(?, ?, ?, ?, ?, ?, ?)
             """,
-            (attachment_id, note_id, target_id, str(path), display_name or path.name, _none_empty(description), utc_now()),
+            (
+                attachment_id,
+                note_id,
+                target_id,
+                str(path),
+                display_name or path.name,
+                _none_empty(description),
+                utc_now(),
+            ),
         )
         return attachment_id
 

@@ -73,7 +73,9 @@ def _source_file_group(key: str, label: str, files: list[Path], *, optional: boo
     }
 
 
-def _source_folder(key: str, label: str, folder: Path, *, patterns: tuple[str, ...] = ("*",), optional: bool = True) -> dict[str, Any]:
+def _source_folder(
+    key: str, label: str, folder: Path, *, patterns: tuple[str, ...] = ("*",), optional: bool = True
+) -> dict[str, Any]:
     files: list[Path] = []
     if folder.exists():
         for pattern in patterns:
@@ -110,8 +112,12 @@ def source_metadata(project_root: str | Path) -> dict[str, Any]:
         _source_file("master_tracker_workbook", "EOAT_Master_Tracker.xlsx", paths.master_workbook, optional=False),
         _source_file("activity_log", "activity_log.jsonl", paths.activity_logs / "activity_log.jsonl"),
         _source_file("scheduled_report_log", "scheduled_tools.log", scheduled_tools_log_path(project_root)),
-        _source_folder("daily_report_folder", "Daily status reports folder", paths.daily_reports, patterns=("*.md", "*.json")),
-        _source_folder("weekly_report_folder", "Weekly status reports folder", paths.weekly_reports, patterns=("*.md", "*.json")),
+        _source_folder(
+            "daily_report_folder", "Daily status reports folder", paths.daily_reports, patterns=("*.md", "*.json")
+        ),
+        _source_folder(
+            "weekly_report_folder", "Weekly status reports folder", paths.weekly_reports, patterns=("*.md", "*.json")
+        ),
         _source_file_group(
             "task_schedule_files",
             "Project schedule/task files",
@@ -122,10 +128,19 @@ def source_metadata(project_root: str | Path) -> dict[str, Any]:
         _source_file_group(
             "validation_findings_json",
             "Validation findings JSON",
-            [path for path in paths.validation_reports.glob("Foundation_Validation_*.json") if paths.validation_reports.exists()],
+            [
+                path
+                for path in paths.validation_reports.glob("Foundation_Validation_*.json")
+                if paths.validation_reports.exists()
+            ],
         ),
         _source_file_group("photo_index_files", "Photo index files", _photo_index_files(paths)),
-        _source_folder("documentation_gap_outputs", "Documentation gap outputs", paths.documentation_gap_reports, patterns=("*.md", "*.csv", "*.json")),
+        _source_folder(
+            "documentation_gap_outputs",
+            "Documentation gap outputs",
+            paths.documentation_gap_reports,
+            patterns=("*.md", "*.csv", "*.json"),
+        ),
         _source_file_group(
             "open_items_outputs",
             "Open items outputs",

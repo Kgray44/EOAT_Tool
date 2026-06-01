@@ -15,7 +15,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QAbstractItemView = QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QAbstractItemView = QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTableWidgetItem = (
+        QVBoxLayout
+    ) = QWidget = None
 
 from app.page_async import AsyncRefreshMixin, log_page_performance
 from app.widgets.status_card import StatusCard
@@ -74,7 +76,9 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         layout.addLayout(grid)
 
         self.table = QTableWidget(0, 8)
-        self.table.setHorizontalHeaderLabels(["Operation", "Duration", "Source", "Page/Tool", "Warnings", "Errors", "Likely Cause", "Recommendation"])
+        self.table.setHorizontalHeaderLabels(
+            ["Operation", "Duration", "Source", "Page/Tool", "Warnings", "Errors", "Likely Cause", "Recommendation"]
+        )
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -93,7 +97,10 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         return self._begin_background_refresh(
             task_id="performance_page_refresh",
             name="Performance Page Refresh",
-            load=lambda: (*read_recent_performance_events(self.config.project_root, limit=300), *analyze_performance_doctor(self.config.project_root, limit=300)),
+            load=lambda: (
+                *read_recent_performance_events(self.config.project_root, limit=300),
+                *analyze_performance_doctor(self.config.project_root, limit=300),
+            ),
             apply_result=self._apply_refresh_result,
             button=self.refresh_button,
             force=force,
@@ -114,7 +121,9 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         self.cards["Events Logged"].set_value(str(summary["event_count"]))
         self.cards["Cache Hits"].set_value(str(summary["cache"]["hit"]))
         cache_total = summary["cache"]["hit"] + summary["cache"]["miss"]
-        self.cards["Cache Hit Rate"].set_value(f"{round(summary['cache']['hit'] * 100 / cache_total)}%" if cache_total else "n/a")
+        self.cards["Cache Hit Rate"].set_value(
+            f"{round(summary['cache']['hit'] * 100 / cache_total)}%" if cache_total else "n/a"
+        )
         self.cards["Cache Stale"].set_value(str(summary["cache"]["stale"]))
         self.cards["Cache Misses"].set_value(str(summary["cache"]["miss"]))
         self.cards["Warnings"].set_value(str(summary["warning_count"]))
@@ -127,8 +136,12 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         self.cards["Report Generation"].set_value(_event_duration(summary["latest"]["report_generation"]))
         self.cards["Slowest Operation"].set_value(doctor.slowest_operation or "n/a")
         first_finding = doctor.findings[0] if doctor.findings else None
-        self.cards["Likely Cause"].set_value(first_finding.likely_cause if first_finding else "No slow operation flagged")
-        self.cards["Recommendation"].set_value(first_finding.recommendation if first_finding else "Keep collecting performance events")
+        self.cards["Likely Cause"].set_value(
+            first_finding.likely_cause if first_finding else "No slow operation flagged"
+        )
+        self.cards["Recommendation"].set_value(
+            first_finding.recommendation if first_finding else "Keep collecting performance events"
+        )
 
         slowest = summary["slowest_operations"]
         self._populate_events_table(slowest, doctor.findings)
@@ -139,7 +152,9 @@ class PerformancePage(AsyncRefreshMixin, QWidget):
         if doctor_warning:
             lines.append(doctor_warning)
         if not events:
-            lines.append("No performance events logged yet. Run a dashboard refresh or tool action to populate diagnostics.")
+            lines.append(
+                "No performance events logged yet. Run a dashboard refresh or tool action to populate diagnostics."
+            )
         else:
             lines.append(f"Slowest displayed operation: {slowest[0].get('operation', '') if slowest else 'n/a'}.")
             if first_finding:

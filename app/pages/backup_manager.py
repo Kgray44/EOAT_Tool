@@ -41,7 +41,7 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
         layout.addWidget(heading)
 
         actions = QHBoxLayout()
-        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button = QPushButton("Full Backup Scan")
         self.refresh_button.clicked.connect(lambda: self.refresh(force=True))
         preview = QPushButton("Preview Cleanup")
         preview.clicked.connect(self.preview_cleanup)
@@ -55,13 +55,24 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
         layout.addLayout(actions)
 
         grid = QGridLayout()
-        for index, label in enumerate(["Backup Count", "Total Size", "Oldest Backup", "Newest Backup", "Cleanup Candidates", "Validation Blockers"]):
+        for index, label in enumerate(
+            [
+                "Backup Count",
+                "Total Size",
+                "Oldest Backup",
+                "Newest Backup",
+                "Cleanup Candidates",
+                "Validation Blockers",
+            ]
+        ):
             card = StatusCard(label)
             self.cards[label] = card
             grid.addWidget(card, index // 3, index % 3)
         layout.addLayout(grid)
 
-        policy = QLabel("Retention policy: keep all backups from the last 7 days, keep the newest 25 per workbook, keep milestone backups, and refuse cleanup when validation has blockers.")
+        policy = QLabel(
+            "Retention policy: keep all backups from the last 7 days, keep the newest 25 per workbook, keep milestone backups, and refuse cleanup when validation has blockers."
+        )
         policy.setWordWrap(True)
         layout.addWidget(policy)
 
@@ -92,12 +103,25 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
         self.refresh()
 
     def on_show(self) -> None:
+        started = time.perf_counter()
         self._show_cached_summary()
-        self.refresh()
+        log_page_performance(
+            self.config.project_root,
+            "backup_manager",
+            "cached_show",
+            time.perf_counter() - started,
+            details={"cached_only": True, "has_cache": bool(self._summary_data)},
+        )
         return True
 
     def preview_cleanup(self) -> None:
-        run_tool_background(self.result_panel, "backup_preview_cleanup", "Preview Backup Cleanup", lambda: preview_backup_cleanup(self.config.project_root), self._after_tool)
+        run_tool_background(
+            self.result_panel,
+            "backup_preview_cleanup",
+            "Preview Backup Cleanup",
+            lambda: preview_backup_cleanup(self.config.project_root),
+            self._after_tool,
+        )
 
     def clean_backups(self) -> None:
         summary = self._summary_data or {}
@@ -108,7 +132,9 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
             self._show_summary_data(summary)
             return
         if not candidates:
-            self.result_panel.show_text("No safe old backup cleanup candidates found. Refresh or preview cleanup before cleaning.")
+            self.result_panel.show_text(
+                "No safe old backup cleanup candidates found. Refresh or preview cleanup before cleaning."
+            )
             self._show_summary_data(summary)
             return
         answer = QMessageBox.question(
@@ -150,11 +176,13 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
     def _show_cached_summary(self) -> None:
         data, generated_at, warning = _read_cache(self.config.project_root)
         if not data:
-            self.result_panel.show_text(f"{warning or 'No cached backup summary yet.'} Scanning in background...")
+            self.result_panel.show_text(
+                f"{warning or 'No cached backup summary yet.'} Use Full Backup Scan to refresh inventory."
+            )
             return
         self._summary_data = data
         self._show_summary_data(data)
-        self.result_panel.show_text(f"Showing cached backup summary from {_time_label(generated_at)}. Scanning in background...")
+        self.result_panel.show_text(f"Showing cached backup summary from {_time_label(generated_at)}.")
 
     def _apply_refresh_result(self, summary, data_load_seconds: float) -> None:
         render_started = time.perf_counter()
@@ -170,7 +198,10 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
             data_load_seconds,
             details={
                 "row_count": len(summary.cleanup_candidates),
-                "source_counts": {"backups": summary.backup_count, "validation_blockers": len(summary.validation_blockers)},
+                "source_counts": {
+                    "backups": summary.backup_count,
+                    "validation_blockers": len(summary.validation_blockers),
+                },
             },
         )
         log_page_performance(
@@ -180,7 +211,10 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
             render_seconds,
             details={"row_count": len(summary.cleanup_candidates)},
         )
-        lines = [f"Loaded {summary.backup_count} backup(s) in {data_load_seconds:.1f}s.", "Backup cleanup always requires preview and confirmation."]
+        lines = [
+            f"Loaded {summary.backup_count} backup(s) in {data_load_seconds:.1f}s.",
+            "Backup cleanup always requires preview and confirmation.",
+        ]
         lines.extend(summary.warnings)
         self.result_panel.show_text("\n".join(lines))
 
@@ -203,7 +237,9 @@ class BackupManagerPage(AsyncRefreshMixin, QWidget):
         self._populate_candidate_rows(list(data.get("cleanup_candidates", [])))
 
     def _populate_candidate_rows(self, rows: list[dict]) -> None:
-        populate_table(self.table, rows, ["source_workbook", "age_days", "size_bytes", "milestone", "keep_reason", "path"])
+        populate_table(
+            self.table, rows, ["source_workbook", "age_days", "size_bytes", "milestone", "keep_reason", "path"]
+        )
 
 
 def _format_bytes(value: int) -> str:
@@ -236,7 +272,15 @@ def _write_cache(project_root, summary: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     from datetime import datetime
 
-    path.write_text(json.dumps({"generated_at": datetime.now().isoformat(timespec="seconds"), "summary": summary}, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {"generated_at": datetime.now().isoformat(timespec="seconds"), "summary": summary},
+            ensure_ascii=True,
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _time_label(value: str | None) -> str:

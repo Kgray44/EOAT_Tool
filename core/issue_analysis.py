@@ -90,7 +90,9 @@ class IssueAnalysisSummary:
             *table_from_counts(self.status_counts, "Status"),
             "",
             "## Missing Risk Ranking Data",
-            *table_from_rows(self.missing_risk_rows, ["Issue ID", "Press/Machine #", "Issue Category", "Missing Fields"]),
+            *table_from_rows(
+                self.missing_risk_rows, ["Issue ID", "Press/Machine #", "Issue Category", "Missing Fields"]
+            ),
             "",
             "## Suggested FMEA Candidate Failure Modes",
             *table_from_rows(self.suggested_fmea, ["Issue Category", "Issue Count", "Suggested Failure Mode"]),
@@ -108,11 +110,15 @@ class IssueAnalysisSummary:
 def analyze_issues(project_root: str | Path) -> tuple[IssueAnalysisSummary | None, ToolResult | None]:
     workbook = resolve_project_paths(project_root).master_workbook
     if not workbook.exists():
-        return None, ToolResult.fail("issue_analysis", "Issue Analysis Tool", "Master workbook is missing.", errors=[str(workbook)])
+        return None, ToolResult.fail(
+            "issue_analysis", "Issue Analysis Tool", "Master workbook is missing.", errors=[str(workbook)]
+        )
     try:
         issues = row_dicts(workbook, "Issue Log")
     except Exception as exc:
-        return None, ToolResult.fail("issue_analysis", "Issue Analysis Tool", "Could not read Issue Log.", errors=[str(exc)])
+        return None, ToolResult.fail(
+            "issue_analysis", "Issue Analysis Tool", "Could not read Issue Log.", errors=[str(exc)]
+        )
 
     category_counts = count_by(issues, "Issue Category")
     press_counts = count_by(issues, "Press/Machine #")
@@ -141,7 +147,9 @@ def analyze_issues(project_root: str | Path) -> tuple[IssueAnalysisSummary | Non
         {
             "Issue Category": category,
             "Issue Count": count,
-            "Suggested Failure Mode": FMEA_CATEGORY_SUGGESTIONS.get(category, f"Recurring {category.lower()} failure mode."),
+            "Suggested Failure Mode": FMEA_CATEGORY_SUGGESTIONS.get(
+                category, f"Recurring {category.lower()} failure mode."
+            ),
         }
         for category, count in sorted(category_counts.items(), key=lambda item: (-item[1], item[0]))
         if category != "Blank"
@@ -154,7 +162,9 @@ def analyze_issues(project_root: str | Path) -> tuple[IssueAnalysisSummary | Non
             "resolved_or_closed_issues": max(0, len(issues) - open_issues),
             "high_priority_count": len(high_priority),
             "missing_risk_count": len(missing_rows),
-            "top_issue_category": next(iter(sorted(category_counts.items(), key=lambda item: (-item[1], item[0]))), ("No data yet", 0))[0],
+            "top_issue_category": next(
+                iter(sorted(category_counts.items(), key=lambda item: (-item[1], item[0]))), ("No data yet", 0)
+            )[0],
         },
         category_counts=category_counts,
         press_counts=press_counts,
@@ -193,4 +203,3 @@ def generate_issue_analysis_report(project_root: str | Path, log_activity: bool 
         if warning:
             result.warnings.append(warning)
     return result
-

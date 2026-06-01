@@ -28,6 +28,7 @@ from .audit_entries import (
 from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file
+from .snapshots import get_workbook_snapshot
 from .tool_fields import TOOL_FIELD
 from .workbook_cache import invalidate_workbook_cache
 from .workbook_cache import row_dicts_cached as row_dicts
@@ -248,9 +249,8 @@ def find_capacity_file(project_root_or_path: str | Path) -> Path:
 
 
 def list_audited_source_options(project_root_or_master_path: str | Path) -> list[SourceAuditOption]:
-    master_path = _master_path(project_root_or_master_path)
     options: list[SourceAuditOption] = []
-    for row in row_dicts(master_path, "EOAT Inventory"):
+    for row in _inventory_rows_for_options(project_root_or_master_path):
         if normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) != ENTRY_TYPE_AUDITED:
             continue
         audit_id = text_value(row.get("Audit ID"))
@@ -261,14 +261,44 @@ def list_audited_source_options(project_root_or_master_path: str | Path) -> list
 
 
 def list_audit_options(project_root_or_master_path: str | Path) -> list[SourceAuditOption]:
-    master_path = _master_path(project_root_or_master_path)
     options: list[SourceAuditOption] = []
-    for row in row_dicts(master_path, "EOAT Inventory"):
+    for row in _inventory_rows_for_options(project_root_or_master_path):
         audit_id = text_value(row.get("Audit ID"))
         if not audit_id:
             continue
         options.append(SourceAuditOption(audit_id=audit_id, label=audit_option_label(row), row=row))
     return sorted(options, key=lambda option: (audit_row_machine_sort_key(option.row), option.audit_id.lower()))
+
+
+def _inventory_rows_for_options(project_root_or_master_path: str | Path) -> list[dict[str, Any]]:
+    path = Path(project_root_or_master_path)
+    if path.suffix.lower() in {".xlsx", ".xlsm"}:
+        return row_dicts(_master_path(path), "EOAT Inventory")
+    try:
+        return [dict(row) for row in get_workbook_snapshot(path).audit_rows]
+    except Exception:
+        return row_dicts(_master_path(path), "EOAT Inventory")
+
+
+def find_existing_audits_for_machine(
+    project_root_or_master_path: str | Path, machine_number: Any
+) -> list[SourceAuditOption]:
+    requested = set(parse_machine_tokens(machine_number))
+    if not requested:
+        return []
+    return [
+        option
+        for option in list_audit_options(project_root_or_master_path)
+        if normalize_entry_type(option.row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
+        and requested.intersection(_audit_row_machine_tokens(option.row))
+    ]
+
+
+def _audit_row_machine_tokens(row: dict[str, Any]) -> set[str]:
+    tokens: set[str] = set()
+    for field_name in MASTER_MACHINE_FIELDS:
+        tokens.update(parse_machine_tokens(row.get(field_name)))
+    return tokens
 
 
 def compatible_rows_by_source_audit_id(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -288,13 +318,17 @@ def build_compatibility_candidates(
     press_capacity_path: str | Path | None = None,
 ) -> CompatibilityCandidateResult:
     master_path = _master_path(project_root_or_master_path)
-    capacity_path = Path(press_capacity_path) if press_capacity_path else find_capacity_file(project_root_or_master_path)
+    capacity_path = (
+        Path(press_capacity_path) if press_capacity_path else find_capacity_file(project_root_or_master_path)
+    )
     inventory = row_dicts(master_path, "EOAT Inventory")
     source_row = next((row for row in inventory if text_value(row.get("Audit ID")) == source_audit_id), None)
     if not source_row:
         return CompatibilityCandidateResult(source=None, errors=[f"Source audit ID not found: {source_audit_id}"])
     if normalize_entry_type(source_row.get(ENTRY_TYPE_FIELD)) != ENTRY_TYPE_AUDITED:
-        return CompatibilityCandidateResult(source=None, errors=[f"Source audit ID is not an audited row: {source_audit_id}"])
+        return CompatibilityCandidateResult(
+            source=None, errors=[f"Source audit ID is not an audited row: {source_audit_id}"]
+        )
 
     source_option = SourceAuditOption(
         audit_id=source_audit_id,
@@ -313,7 +347,9 @@ def build_compatibility_candidates(
     )
     part_number = part_number_from_row(source_row)
     if not part_number:
-        return CompatibilityCandidateResult(source=source_option, errors=["Source audit row does not have an NGW Part Number / Tool #."])
+        return CompatibilityCandidateResult(
+            source=source_option, errors=["Source audit row does not have an NGW Part Number / Tool #."]
+        )
 
     required, warnings = load_required_relationships(capacity_path)
     source_part_key = text_value(part_number).upper()
@@ -329,7 +365,9 @@ def build_compatibility_candidates(
     for relationship in matching_required:
         status = by_key.get(relationship.key, [])
         entry_types = {item["entry_type"] for item in status}
-        audit_ids = tuple(text_value(item["row"].get("Audit ID")) for item in status if text_value(item["row"].get("Audit ID")))
+        audit_ids = tuple(
+            text_value(item["row"].get("Audit ID")) for item in status if text_value(item["row"].get("Audit ID"))
+        )
         conflict = relationship_has_conflict(status, relationship)
         if conflict:
             existing_status = "Conflict"
@@ -364,7 +402,11 @@ def build_compatibility_candidates(
                 existing_audit_ids=audit_ids,
             )
         )
-    return CompatibilityCandidateResult(source=source_option, candidates=sorted(candidates, key=lambda item: _machine_sort_key(item.machine_no)), warnings=warnings)
+    return CompatibilityCandidateResult(
+        source=source_option,
+        candidates=sorted(candidates, key=lambda item: _machine_sort_key(item.machine_no)),
+        warnings=warnings,
+    )
 
 
 def sync_compatible_rows_from_source(master_audit_path: str | Path, source_audit_id: str) -> SyncResult:
@@ -445,7 +487,9 @@ def create_compatibility_entries(
     paths = resolve_project_paths(project_root)
     master_path = paths.master_workbook
     if not master_path.exists():
-        return ToolResult.fail("compatibility_entry", "Compatibility Entry", "Master workbook is missing.", errors=[str(master_path)])
+        return ToolResult.fail(
+            "compatibility_entry", "Compatibility Entry", "Master workbook is missing.", errors=[str(master_path)]
+        )
 
     selected = set(parse_machine_tokens(",".join(str(machine) for machine in machine_numbers)))
     if not selected:
@@ -453,7 +497,12 @@ def create_compatibility_entries(
 
     candidate_result = build_compatibility_candidates(project_root, source_audit_id, press_capacity_path)
     if candidate_result.errors:
-        return ToolResult.fail("compatibility_entry", "Compatibility Entry", "Could not build compatibility candidates.", errors=candidate_result.errors)
+        return ToolResult.fail(
+            "compatibility_entry",
+            "Compatibility Entry",
+            "Could not build compatibility candidates.",
+            errors=candidate_result.errors,
+        )
     source = candidate_result.source
     if source is None:
         return ToolResult.fail("compatibility_entry", "Compatibility Entry", "Source audit row is missing.")
@@ -461,8 +510,12 @@ def create_compatibility_entries(
     selected_candidates = [candidate for candidate in candidate_result.candidates if candidate.machine_no in selected]
     create_candidates = [candidate for candidate in selected_candidates if candidate.can_create]
     skipped_audited = sum(1 for candidate in selected_candidates if candidate.recommended_action == "Already Audited")
-    skipped_compatible = sum(1 for candidate in selected_candidates if candidate.recommended_action.startswith("Already Compatible"))
-    conflicts = sum(1 for candidate in selected_candidates if candidate.recommended_action == "Conflict / Review Needed")
+    skipped_compatible = sum(
+        1 for candidate in selected_candidates if candidate.recommended_action.startswith("Already Compatible")
+    )
+    conflicts = sum(
+        1 for candidate in selected_candidates if candidate.recommended_action == "Conflict / Review Needed"
+    )
     if not create_candidates:
         return ToolResult.ok(
             "compatibility_entry",
@@ -537,7 +590,10 @@ def create_compatibility_entries(
         "compatibility_entry",
         "Compatibility Entry",
         f"Created {created} compatibility entries.",
-        details=[*_creation_summary(created, skipped_audited, skipped_compatible, conflicts), f"Workbook backup: {backup}"],
+        details=[
+            *_creation_summary(created, skipped_audited, skipped_compatible, conflicts),
+            f"Workbook backup: {backup}",
+        ],
         warnings=candidate_result.warnings,
         files_created=[str(backup)],
         files_modified=[str(master_path)],
@@ -587,7 +643,9 @@ def load_required_relationships(press_capacity_path: str | Path) -> tuple[list[R
                         source_row=row_number,
                     ),
                 )
-        return sorted(relationships.values(), key=lambda item: (_machine_sort_key(item.machine_no), item.part_number.upper())), []
+        return sorted(
+            relationships.values(), key=lambda item: (_machine_sort_key(item.machine_no), item.part_number.upper())
+        ), []
     except Exception as exc:
         return [], [f"Press Capacity workbook could not be read: {exc}"]
     finally:
@@ -603,22 +661,36 @@ def summarize_master_relationships(rows: list[dict[str, Any]]) -> dict[tuple[str
             continue
         for machine_no in parse_machine_tokens(row.get("Press/Machine #")):
             key = relationship_key(machine_no, part_number)
-            by_key[key].append({"row_number": index, "row": row, "entry_type": normalize_entry_type(row.get(ENTRY_TYPE_FIELD))})
+            by_key[key].append(
+                {"row_number": index, "row": row, "entry_type": normalize_entry_type(row.get(ENTRY_TYPE_FIELD))}
+            )
     return dict(by_key)
 
 
-def relationship_has_conflict(existing_rows: list[dict[str, Any]], required: RequiredRelationship | None = None) -> bool:
+def relationship_has_conflict(
+    existing_rows: list[dict[str, Any]], required: RequiredRelationship | None = None
+) -> bool:
     if not existing_rows:
         return False
     if required and required.part_description:
-        descriptions = {part_description_from_row(item["row"]) for item in existing_rows if part_description_from_row(item["row"])}
+        descriptions = {
+            part_description_from_row(item["row"]) for item in existing_rows if part_description_from_row(item["row"])
+        }
         if descriptions and required.part_description not in descriptions:
             return True
     for field_name in ["EOAT Type"]:
-        values = {text_value(item["row"].get(field_name)).lower() for item in existing_rows if text_value(item["row"].get(field_name))}
+        values = {
+            text_value(item["row"].get(field_name)).lower()
+            for item in existing_rows
+            if text_value(item["row"].get(field_name))
+        }
         if len(values) > 1:
             return True
-    descriptions = {part_description_from_row(item["row"]).lower() for item in existing_rows if part_description_from_row(item["row"])}
+    descriptions = {
+        part_description_from_row(item["row"]).lower()
+        for item in existing_rows
+        if part_description_from_row(item["row"])
+    }
     return len(descriptions) > 1
 
 

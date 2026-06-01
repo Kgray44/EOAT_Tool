@@ -25,7 +25,12 @@ def test_scheduled_reports_page_shows_preview_actions_and_preflight(qapp, fake_c
             },
             "weekly": {
                 "schedule": "Friday at 7:00 PM",
-                "task": {"installed": True, "state": "Ready", "last_result_raw": "1", "last_result_description": "Task failed / script returned error"},
+                "task": {
+                    "installed": True,
+                    "state": "Ready",
+                    "last_result_raw": "1",
+                    "last_result_description": "Task failed / script returned error",
+                },
                 "report_generation_result": "No report file confirmed",
                 "last_report": "",
                 "missed_dates": [],
@@ -45,7 +50,9 @@ def test_scheduled_reports_page_shows_preview_actions_and_preflight(qapp, fake_c
             "scheduled_report_preflight",
             "Scheduled Report Preflight",
             "Preflight ok.",
-            structured_data={"checks": [{"name": "PowerShell executable", "status": "PASS", "message": "found", "details": ""}]},
+            structured_data={
+                "checks": [{"name": "PowerShell executable", "status": "PASS", "message": "found", "details": ""}]
+            },
         )
 
     monkeypatch.setattr("app.pages.scheduled_reports.get_scheduled_report_status", fake_status)

@@ -52,7 +52,9 @@ def validate_settings_payload(payload: dict[str, Any]) -> SettingsValidationResu
     errors.extend(validate_non_negative_int(backups.get("retention_days"), "Backup retention days"))
     errors.extend(validate_non_negative_int(backups.get("newest_backups_per_workbook"), "Newest backups per workbook"))
     errors.extend(validate_non_negative_int(backups.get("light_backup_retention_count"), "Light backup retention"))
-    errors.extend(validate_non_negative_int(backups.get("workbook_backup_retention_count"), "Workbook backup retention"))
+    errors.extend(
+        validate_non_negative_int(backups.get("workbook_backup_retention_count"), "Workbook backup retention")
+    )
     return SettingsValidationResult(errors=tuple(errors))
 
 

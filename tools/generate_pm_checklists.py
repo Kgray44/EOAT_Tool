@@ -9,7 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.pm_checklists import generate_pm_checklists
 
 
 def main() -> int:
@@ -27,6 +26,8 @@ def main() -> int:
         formats.append("docx")
     if args.excel:
         formats.append("excel")
+    from core.pm_checklists import generate_pm_checklists
+
     result = generate_pm_checklists(
         args.project_root,
         audit_id=args.audit_id,

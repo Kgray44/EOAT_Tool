@@ -98,7 +98,9 @@ def test_pm_records_saved_outside_repo_in_project_root(usability_fake_project):
     summary = build_pm_due_summary(usability_fake_project, machine="101", today=date(2026, 5, 18))
     record = summary.records[0]
 
-    result = mark_pm_item_complete(usability_fake_project, record.record_id, notes="Completed during test.", completed_on=date(2026, 5, 18))
+    result = mark_pm_item_complete(
+        usability_fake_project, record.record_id, notes="Completed during test.", completed_on=date(2026, 5, 18)
+    )
 
     path = pm_records_path(usability_fake_project)
     saved = load_pm_records(usability_fake_project)

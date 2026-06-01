@@ -9,7 +9,6 @@ if str(TOOLKIT_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLKIT_ROOT))
 
 from core.constants import DEFAULT_PROJECT_ROOT
-from core.project_backup import backup_project
 
 
 def main() -> int:
@@ -18,6 +17,8 @@ def main() -> int:
     parser.add_argument("--mode", choices=["workbook", "config", "reports-index", "light"], default="workbook")
     parser.add_argument("--include-photos", action="store_true")
     args = parser.parse_args()
+    from core.project_backup import backup_project
+
     result = backup_project(args.project_root, mode=args.mode, include_photos=args.include_photos)
     print(result.to_markdown())
     return 0 if result.success else 1

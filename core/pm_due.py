@@ -140,18 +140,90 @@ class PmDueSummary:
 
 def default_pm_items() -> list[PMItem]:
     return [
-        PMItem("inspect_vacuum_cups", "Inspect vacuum cups for wear/damage", "vacuum", applies_to=("vacuum", "hybrid"), default_interval_days=7),
-        PMItem("inspect_pneumatic_tubing", "Inspect pneumatic tubing", "pneumatic", applies_to=("all",), default_interval_days=7),
-        PMItem("verify_sensor_operation", "Verify sensor operation", "sensors", applies_to=("sensors",), default_interval_days=30),
-        PMItem("inspect_mounting_hardware", "Inspect mounting hardware", "mechanical", applies_to=("all",), default_interval_days=30),
-        PMItem("verify_eoat_alignment", "Verify EOAT alignment", "mechanical", applies_to=("all",), default_interval_days=30),
-        PMItem("check_quick_disconnect_fittings", "Check quick disconnect fittings", "pneumatic", applies_to=("quick_disconnects",), default_interval_days=30),
-        PMItem("verify_cable_management_condition", "Verify cable management condition", "electrical", applies_to=("all",), default_interval_days=30),
-        PMItem("check_gripper_jaw_finger_wear", "Check gripper jaw/finger wear", "gripper", applies_to=("gripper", "hybrid"), default_interval_days=7),
-        PMItem("check_cylinder_movement", "Check cylinder movement if cylinder fields exist", "cylinders", applies_to=("cylinders",), default_interval_days=30),
-        PMItem("check_robot_side_pneumatic_labeling", "Check robot-side pneumatic circuit labeling", "pneumatic", applies_to=("robot_pneumatic",), default_interval_days=90),
-        PMItem("check_eoat_side_pneumatic_labeling", "Check EOAT-side pneumatic circuit labeling", "pneumatic", applies_to=("eoat_pneumatic",), default_interval_days=90),
-        PMItem("confirm_process_binder_documentation", "Confirm process binder documentation", "documentation", applies_to=("all",), default_interval_days=90),
+        PMItem(
+            "inspect_vacuum_cups",
+            "Inspect vacuum cups for wear/damage",
+            "vacuum",
+            applies_to=("vacuum", "hybrid"),
+            default_interval_days=7,
+        ),
+        PMItem(
+            "inspect_pneumatic_tubing",
+            "Inspect pneumatic tubing",
+            "pneumatic",
+            applies_to=("all",),
+            default_interval_days=7,
+        ),
+        PMItem(
+            "verify_sensor_operation",
+            "Verify sensor operation",
+            "sensors",
+            applies_to=("sensors",),
+            default_interval_days=30,
+        ),
+        PMItem(
+            "inspect_mounting_hardware",
+            "Inspect mounting hardware",
+            "mechanical",
+            applies_to=("all",),
+            default_interval_days=30,
+        ),
+        PMItem(
+            "verify_eoat_alignment",
+            "Verify EOAT alignment",
+            "mechanical",
+            applies_to=("all",),
+            default_interval_days=30,
+        ),
+        PMItem(
+            "check_quick_disconnect_fittings",
+            "Check quick disconnect fittings",
+            "pneumatic",
+            applies_to=("quick_disconnects",),
+            default_interval_days=30,
+        ),
+        PMItem(
+            "verify_cable_management_condition",
+            "Verify cable management condition",
+            "electrical",
+            applies_to=("all",),
+            default_interval_days=30,
+        ),
+        PMItem(
+            "check_gripper_jaw_finger_wear",
+            "Check gripper jaw/finger wear",
+            "gripper",
+            applies_to=("gripper", "hybrid"),
+            default_interval_days=7,
+        ),
+        PMItem(
+            "check_cylinder_movement",
+            "Check cylinder movement if cylinder fields exist",
+            "cylinders",
+            applies_to=("cylinders",),
+            default_interval_days=30,
+        ),
+        PMItem(
+            "check_robot_side_pneumatic_labeling",
+            "Check robot-side pneumatic circuit labeling",
+            "pneumatic",
+            applies_to=("robot_pneumatic",),
+            default_interval_days=90,
+        ),
+        PMItem(
+            "check_eoat_side_pneumatic_labeling",
+            "Check EOAT-side pneumatic circuit labeling",
+            "pneumatic",
+            applies_to=("eoat_pneumatic",),
+            default_interval_days=90,
+        ),
+        PMItem(
+            "confirm_process_binder_documentation",
+            "Confirm process binder documentation",
+            "documentation",
+            applies_to=("all",),
+            default_interval_days=90,
+        ),
     ]
 
 
@@ -167,7 +239,9 @@ def load_pm_records(project_root: str | Path) -> list[PMRecord]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
-    raw_records = payload.get("records", []) if isinstance(payload, dict) else payload if isinstance(payload, list) else []
+    raw_records = (
+        payload.get("records", []) if isinstance(payload, dict) else payload if isinstance(payload, list) else []
+    )
     return [PMRecord.from_dict(record) for record in raw_records if isinstance(record, dict)]
 
 
@@ -176,7 +250,10 @@ def save_pm_records(project_root: str | Path, records: Iterable[PMRecord]) -> Pa
     payload = {
         "schema_version": 1,
         "updated_at": _now(),
-        "records": [record.to_dict() for record in sorted(records, key=lambda item: (item.machine, item.audit_id, item.item_label.casefold()))],
+        "records": [
+            record.to_dict()
+            for record in sorted(records, key=lambda item: (item.machine, item.audit_id, item.item_label.casefold()))
+        ],
     }
     return safe_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n", overwrite=True)
 
@@ -202,13 +279,19 @@ def pm_item_applies(item: PMItem, row: dict[str, Any]) -> bool:
     if "quick_disconnects" in scopes:
         return _has_quick_disconnect_pm_scope(row)
     if "robot_pneumatic" in scopes:
-        return _has_any_meaningful(row, ("Robot Vacuum Circuits", "Robot Pressure Circuits", "Robot Interchangeable Circuits")) or _known_tooling_type(row)
+        return _has_any_meaningful(
+            row, ("Robot Vacuum Circuits", "Robot Pressure Circuits", "Robot Interchangeable Circuits")
+        ) or _known_tooling_type(row)
     if "eoat_pneumatic" in scopes:
-        return _has_any_meaningful(row, ("EOAT Vacuum Circuits", "EOAT Pressure Circuits", "EOAT Interchangeable Circuits")) or _known_tooling_type(row)
+        return _has_any_meaningful(
+            row, ("EOAT Vacuum Circuits", "EOAT Pressure Circuits", "EOAT Interchangeable Circuits")
+        ) or _known_tooling_type(row)
     return False
 
 
-def build_pm_records_for_audit(project_root: str | Path, row: dict[str, Any], *, today: date | None = None) -> list[PMRecord]:
+def build_pm_records_for_audit(
+    project_root: str | Path, row: dict[str, Any], *, today: date | None = None
+) -> list[PMRecord]:
     today = today or date.today()
     audit_id = _text(row.get("Audit ID"))
     machine = normalize_machine_token(row.get("Press/Machine #")) or _text(row.get("Press/Machine #"))
@@ -257,12 +340,16 @@ def build_pm_due_summary(
         target_type = eoat_type.strip().casefold()
         rows = [row for row in rows if target_type in _text(row.get("EOAT Type")).casefold()]
 
-    generated_records = [record for row in rows for record in build_pm_records_for_audit(project_root, row, today=today)]
+    generated_records = [
+        record for row in rows for record in build_pm_records_for_audit(project_root, row, today=today)
+    ]
     stored = {record.record_id: record for record in load_pm_records(project_root)}
     records = [_merge_record(generated, stored.get(generated.record_id), today) for generated in generated_records]
     items = [build_pm_due_item(project_root, row) for row in rows]
     items.sort(key=lambda item: (-item.risk_score, item.machine, item.audit_id))
-    records.sort(key=lambda record: (_status_sort(record.status), record.due_date, record.machine, record.item_label.casefold()))
+    records.sort(
+        key=lambda record: (_status_sort(record.status), record.due_date, record.machine, record.item_label.casefold())
+    )
     metrics = {
         "items": len(items),
         "records": len(records),
@@ -394,12 +481,18 @@ def export_pm_pack(
 ) -> ToolResult:
     start = time.perf_counter()
     summary = build_pm_due_summary(project_root, machine=machine, eoat_type=eoat_type, today=today)
-    checklist = generate_pm_checklists(project_root, press=machine, generic=False, formats=["markdown"]) if machine else None
+    checklist = (
+        generate_pm_checklists(project_root, press=machine, generic=False, formats=["markdown"]) if machine else None
+    )
     paths = resolve_project_paths(project_root)
     output_dir = ensure_directory(paths.pm_generated_checklists)
     stamp = timestamp_for_report()
     name = _slug("_".join(part for part in ["PM_Due_Pack", machine or "", eoat_type or ""] if part))
-    report_path = safe_write_text(output_dir / f"{name}_{stamp}.md", _pm_pack_markdown(summary, machine=machine, eoat_type=eoat_type), overwrite=False)
+    report_path = safe_write_text(
+        output_dir / f"{name}_{stamp}.md",
+        _pm_pack_markdown(summary, machine=machine, eoat_type=eoat_type),
+        overwrite=False,
+    )
     files_created = [str(report_path)]
     warnings = list(summary.warnings)
     if checklist is not None:
@@ -523,7 +616,10 @@ def _frequency_due_state(value: str) -> str:
 
 def _has_sensor_pm_scope(row: dict[str, Any]) -> bool:
     if _text(row.get("Sensors Present?")).casefold() == "no":
-        return _has_any_meaningful(row, ("Sensor Type", "Sensor Brand/Model", "Vacuum Confirmation Present?", "Part-Present Detection Present?"))
+        return _has_any_meaningful(
+            row,
+            ("Sensor Type", "Sensor Brand/Model", "Vacuum Confirmation Present?", "Part-Present Detection Present?"),
+        )
     return True
 
 
@@ -543,7 +639,9 @@ def _known_tooling_type(row: dict[str, Any]) -> bool:
 
 def _completed_recently(record: PMRecord, today: date) -> bool:
     completed = _parse_date(record.completed_at or record.last_completed)
-    return bool(completed and record.status == STATUS_COMPLETE and completed >= today - timedelta(days=RECENT_COMPLETION_DAYS))
+    return bool(
+        completed and record.status == STATUS_COMPLETE and completed >= today - timedelta(days=RECENT_COMPLETION_DAYS)
+    )
 
 
 def _parse_date(value: str) -> date | None:

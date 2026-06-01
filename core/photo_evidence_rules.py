@@ -97,7 +97,9 @@ def _quick_disconnect_applies(row: dict[str, Any]) -> bool:
 
 
 def _cable_applies(row: dict[str, Any]) -> bool:
-    return _is_yes_or_partial(row.get("Electrical/Wiring Present?")) or is_meaningful_value(row.get("Cable Management Condition"))
+    return _is_yes_or_partial(row.get("Electrical/Wiring Present?")) or is_meaningful_value(
+        row.get("Cable Management Condition")
+    )
 
 
 def _pneumatic_or_tooling_applies(row: dict[str, Any]) -> bool:
@@ -122,7 +124,9 @@ def _eoat_pneumatic_applies(row: dict[str, Any]) -> bool:
 
 
 def _documentation_applies(row: dict[str, Any]) -> bool:
-    return _any_meaningful(row, ("Process Binder Complete?", "Drawing/CAD Available?", "BOM Available?", "Photo Folder/Link"))
+    return _any_meaningful(
+        row, ("Process Binder Complete?", "Drawing/CAD Available?", "BOM Available?", "Photo Folder/Link")
+    )
 
 
 def _has_issue_or_damage(row: dict[str, Any]) -> bool:
@@ -147,14 +151,25 @@ def _has_issue_or_damage(row: dict[str, Any]) -> bool:
         "follow up",
         "issue",
     )
-    return _has_meaningful_issue(row) or any(any(token in _text(row.get(field)).casefold() for token in bad_tokens) for field in condition_fields)
+    return _has_meaningful_issue(row) or any(
+        any(token in _text(row.get(field)).casefold() for token in bad_tokens) for field in condition_fields
+    )
 
 
 def _has_meaningful_issue(row: dict[str, Any]) -> bool:
     issue = _text(row.get("Known Issues")).casefold()
     if not issue:
         return False
-    return issue not in {"none", "no", "n/a", "na", "no issue observed.", "no issues observed", "unknown / not checked", "unknown"}
+    return issue not in {
+        "none",
+        "no",
+        "n/a",
+        "na",
+        "no issue observed.",
+        "no issues observed",
+        "unknown / not checked",
+        "unknown",
+    }
 
 
 def _any_meaningful(row: dict[str, Any], fields: Iterable[str]) -> bool:
@@ -252,7 +267,13 @@ PHOTO_EVIDENCE_RULES: tuple[PhotoEvidenceRule, ...] = (
         recommended=_physical_and(_sensor_applies),
         help_text="Required when Sensors Present? is Yes.",
         aliases=("sensor", "sensors", "sensor mounting", "sensor_mounting"),
-        linked_fields=("Sensors Present?", "Sensor Type", "Sensor Brand/Model", "Vacuum Confirmation Present?", "Part-Present Detection Present?"),
+        linked_fields=(
+            "Sensors Present?",
+            "Sensor Type",
+            "Sensor Brand/Model",
+            "Vacuum Confirmation Present?",
+            "Part-Present Detection Present?",
+        ),
     ),
     PhotoEvidenceRule(
         "tubing_routing",
@@ -274,7 +295,11 @@ PHOTO_EVIDENCE_RULES: tuple[PhotoEvidenceRule, ...] = (
         recommended=_physical_and(_quick_disconnect_applies),
         help_text="Required when Quick Disconnects Present? is Yes.",
         aliases=("quick disconnect", "quick disconnects", "quick_disconnect", "quickdisconnect"),
-        linked_fields=("Quick Disconnects Present?", "Pneumatic Quick Disconnect Type", "Electrical Quick Disconnect Type"),
+        linked_fields=(
+            "Quick Disconnects Present?",
+            "Pneumatic Quick Disconnect Type",
+            "Electrical Quick Disconnect Type",
+        ),
     ),
     PhotoEvidenceRule(
         "cable_management",
@@ -295,18 +320,36 @@ PHOTO_EVIDENCE_RULES: tuple[PhotoEvidenceRule, ...] = (
         required=_physical_and(_robot_pneumatic_applies),
         recommended=_physical_and(_robot_pneumatic_applies),
         help_text="Required when robot-side pneumatic circuit counts are populated.",
-        aliases=("robot-side pneumatic", "robot side pneumatic", "robot pneumatics", "robot circuits", "robot-side pneumatics"),
+        aliases=(
+            "robot-side pneumatic",
+            "robot side pneumatic",
+            "robot pneumatics",
+            "robot circuits",
+            "robot-side pneumatics",
+        ),
         linked_fields=ROBOT_PNEUMATIC_CIRCUIT_FIELDS,
     ),
     PhotoEvidenceRule(
         "eoat_pneumatic_circuits",
         "EOAT-Side Pneumatics",
         "EOATSidePneumatics",
-        applies=_physical_and(lambda row: _eoat_pneumatic_applies(row) or eoat_type_uses_vacuum(row) or _gripper_required_type(row)),
+        applies=_physical_and(
+            lambda row: _eoat_pneumatic_applies(row) or eoat_type_uses_vacuum(row) or _gripper_required_type(row)
+        ),
         required=_physical_and(_eoat_pneumatic_applies),
-        recommended=_physical_and(lambda row: _eoat_pneumatic_applies(row) or eoat_type_uses_vacuum(row) or _gripper_required_type(row)),
+        recommended=_physical_and(
+            lambda row: _eoat_pneumatic_applies(row) or eoat_type_uses_vacuum(row) or _gripper_required_type(row)
+        ),
         help_text="Required when EOAT-side pneumatic circuit counts are populated.",
-        aliases=("eoat-side pneumatic", "eoat side pneumatic", "eoat pneumatics", "pneumatic circuit", "pneumatic", "circuits", "eoat-side pneumatics"),
+        aliases=(
+            "eoat-side pneumatic",
+            "eoat side pneumatic",
+            "eoat pneumatics",
+            "pneumatic circuit",
+            "pneumatic",
+            "circuits",
+            "eoat-side pneumatics",
+        ),
         linked_fields=EOAT_PNEUMATIC_CIRCUIT_FIELDS,
     ),
     PhotoEvidenceRule(
@@ -318,7 +361,13 @@ PHOTO_EVIDENCE_RULES: tuple[PhotoEvidenceRule, ...] = (
         recommended=_any_physical,
         help_text="Required when issues, wear, damage, poor routing, or loose hardware are documented.",
         aliases=("wear", "damage", "wear / damage", "wear_damage", "wear/damage"),
-        linked_fields=("Known Issues", "Drop/Mis-Pick History", "Tubing Condition", "Cable Management Condition", "Mounting Hardware Condition"),
+        linked_fields=(
+            "Known Issues",
+            "Drop/Mis-Pick History",
+            "Tubing Condition",
+            "Cable Management Condition",
+            "Mounting Hardware Condition",
+        ),
     ),
     PhotoEvidenceRule(
         "tool_label_id_plate",

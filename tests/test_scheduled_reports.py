@@ -188,6 +188,23 @@ def test_existing_daily_or_weekly_report_is_not_duplicated(fake_project):
     assert list(paths.weekly_reports.glob("Week1_Summary_2026-05-22*.md")) == [weekly]
 
 
+def test_existing_daily_report_skip_exits_before_context_load(fake_project, monkeypatch):
+    paths = resolve_project_paths(fake_project)
+    daily = paths.daily_reports / "Week1_Day1_Status_2026-05-18.md"
+    daily.write_text("# Daily\n", encoding="utf-8")
+
+    def fail_context(*_args, **_kwargs):
+        raise AssertionError("duplicate daily skip must not load report context or workbook machinery")
+
+    monkeypatch.setattr(scheduled_reports, "_context_cli_values", fail_context)
+
+    result = run_daily_summary_now(fake_project, report_date=date(2026, 5, 18), week=1, day=1)
+
+    assert result.success is True
+    assert result.metrics["skipped_duplicate"] is True
+    assert result.duration_seconds < 1.0
+
+
 def test_scheduled_task_script_files_exist_and_installer_dry_run(fake_project):
     scripts = [
         "scripts/run_daily_summary.ps1",

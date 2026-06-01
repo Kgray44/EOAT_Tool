@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from pathlib import Path
 
@@ -42,7 +42,23 @@ def _create_master(path: Path, *, duplicate_master: bool) -> None:
         "EDART UNIT PRESS SIDE",
     ]
     ws.append(headers)
-    row = [12, 80, "Nissei", "FNX80", 2018, "TACT", "25mm", "3.1 oz", "Wittmann", "W833", "ROB-12", 2019, "Yes", 2, "Left"]
+    row = [
+        12,
+        80,
+        "Nissei",
+        "FNX80",
+        2018,
+        "TACT",
+        "25mm",
+        "3.1 oz",
+        "Wittmann",
+        "W833",
+        "ROB-12",
+        2019,
+        "Yes",
+        2,
+        "Left",
+    ]
     ws.append(row)
     if duplicate_master:
         duplicate = row[:]
@@ -75,8 +91,21 @@ def _create_capacity(path: Path, *, multiple_capacity_rows: bool) -> None:
     ws.append(["12", "DEMO-PN-1200", "Demo housing cap", "Demo Customer A", 18.5, 4, 100000, 25000, 120, 30, 1440])
     if multiple_capacity_rows:
         ws.append(["12", "DEMO-PN-1201", "Demo housing base", "Demo Customer A", 22.0, 2, 80000, 18000, 90, 22.5, 1080])
-    ws.append(["1, 70", "DEMO-PN-0170", "Shared row for other machines", "Other demo customer", 30, 1, 1000, 500, 10, 2.5, 120])
+    ws.append(
+        [
+            "1, 70",
+            "DEMO-PN-0170",
+            "Shared row for other machines",
+            "Other demo customer",
+            30,
+            1,
+            1000,
+            500,
+            10,
+            2.5,
+            120,
+        ]
+    )
     ws.append(["Summary for Press 12 committed hours"])
     workbook.save(path)
     workbook.close()
-

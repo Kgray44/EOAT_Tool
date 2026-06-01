@@ -24,7 +24,9 @@ def _append_inventory_row(project_root, values: dict[str, str]) -> None:
     workbook.close()
 
 
-def test_photos_page_evidence_folder_checklist_and_open_actions(qapp, fake_config, fake_project, captured_open_requests):
+def test_photos_page_evidence_folder_checklist_and_open_actions(
+    qapp, fake_config, fake_project, captured_open_requests
+):
     _append_inventory_row(
         fake_project,
         {

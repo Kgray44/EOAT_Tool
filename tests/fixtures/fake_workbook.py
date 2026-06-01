@@ -5,6 +5,7 @@ from typing import Any
 
 from openpyxl import Workbook
 
+from core.audit_entries import CURRENT_WORKBOOK_SCHEMA_VERSION, WORKBOOK_METADATA_SHEET
 from core.workbook_schema import get_expected_headers, get_expected_sheets
 
 
@@ -21,6 +22,11 @@ def create_fake_master_workbook(path: str | Path) -> Path:
     for sheet_name in get_expected_sheets():
         ws = workbook.create_sheet(sheet_name)
         ws.append(get_expected_headers(sheet_name))
+    metadata = workbook.create_sheet(WORKBOOK_METADATA_SHEET)
+    metadata.sheet_state = "hidden"
+    metadata.append(["key", "value"])
+    metadata.append(["schema_version", CURRENT_WORKBOOK_SCHEMA_VERSION])
+    metadata.append(["app_name", "EOAT Command Center"])
 
     inventory = workbook["EOAT Inventory"]
     inventory.append(

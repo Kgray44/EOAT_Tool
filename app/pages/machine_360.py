@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ try:
         QHBoxLayout,
         QLabel,
         QLineEdit,
+        QProgressBar,
         QPushButton,
         QTableWidget,
         QTableWidgetItem,
@@ -19,11 +21,15 @@ try:
     )
 except ImportError:  # pragma: no cover
     QTimer = None
-    QAbstractItemView = QHBoxLayout = QLabel = QLineEdit = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QAbstractItemView = QHBoxLayout = QLabel = QLineEdit = QProgressBar = QPushButton = QTableWidget = (
+        QTableWidgetItem
+    ) = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
+from app.task_runner import TaskRequest, get_task_manager
 from app.widgets.annotation_target_navigator import AnnotationTargetNavigator
 from core.action_items import add_action_item
+from core.logging import log_activity_event
 from core.machine_360 import (
     Machine360Action,
     Machine360Context,
@@ -31,6 +37,7 @@ from core.machine_360 import (
     generate_machine_360_summary,
 )
 from core.openers import open_path
+from core.performance import log_performance
 from core.pm_checklists import generate_pm_checklists
 from core.validation import run_foundation_validation
 
@@ -71,10 +78,13 @@ class Machine360Page(QWidget):
         self.action_buttons: dict[str, QPushButton] = {}
         self.last_action_payload: dict[str, Any] = {}
         self._suppress_text_refresh = False
+        self._search_generation = 0
+        self._search_in_progress = False
+        self._current_search_machine = ""
         self._refresh_timer = QTimer(self) if QTimer is not None else None
         if self._refresh_timer is not None:
             self._refresh_timer.setSingleShot(True)
-            self._refresh_timer.setInterval(300)
+            self._refresh_timer.setInterval(400)
             self._refresh_timer.timeout.connect(self.refresh)
 
         layout = QVBoxLayout(self)
@@ -87,21 +97,28 @@ class Machine360Page(QWidget):
         self.machine_edit.setPlaceholderText("Press/Machine #")
         self.machine_edit.returnPressed.connect(self.refresh)
         self.machine_edit.textChanged.connect(self._schedule_refresh)
-        refresh_button = QPushButton("Refresh")
-        refresh_button.clicked.connect(self.refresh)
+        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button.clicked.connect(self.refresh)
         controls.addWidget(QLabel("Machine"))
         controls.addWidget(self.machine_edit)
-        controls.addWidget(refresh_button)
+        controls.addWidget(self.refresh_button)
         controls.addStretch(1)
         layout.addLayout(controls)
 
         status_row = QHBoxLayout()
         self.last_refreshed_label = QLabel("Last refreshed: Unknown")
         self.data_source_label = QLabel("Data source: Unknown")
+        self.search_status_label = QLabel("Idle")
+        self.search_progress = QProgressBar()
+        self.search_progress.setRange(0, 0)
+        self.search_progress.setFixedWidth(130)
+        self.search_progress.hide()
         self.status_label = QLabel("")
         status_row.addWidget(self.last_refreshed_label)
         status_row.addWidget(self.data_source_label)
         status_row.addStretch(1)
+        status_row.addWidget(self.search_status_label)
+        status_row.addWidget(self.search_progress)
         status_row.addWidget(self.status_label)
         layout.addLayout(status_row)
 
@@ -139,8 +156,17 @@ class Machine360Page(QWidget):
         if self._refresh_timer is not None:
             self._refresh_timer.stop()
         machine = self.machine_edit.text().strip()
-        self.context = build_machine_360_context(self.config.project_root, machine)
-        self._populate_context(self.context)
+        if not machine:
+            self._search_generation += 1
+            self._search_in_progress = False
+            self._current_search_machine = ""
+            self._set_search_busy(False, "No machine selected")
+            if self.context is None:
+                self._clear_context_tables()
+                self.detail_text.setPlainText("No machine selected.")
+                self._update_action_buttons()
+            return
+        self._start_machine_search(machine)
 
     def refresh_data(self) -> None:
         self.refresh()
@@ -152,7 +178,7 @@ class Machine360Page(QWidget):
         finally:
             self._suppress_text_refresh = False
         self.refresh()
-        return bool(self.context and self.context.machine_number)
+        return bool(str(machine or "").strip())
 
     def on_project_root_changed(self, config) -> None:
         self.config = config
@@ -200,10 +226,158 @@ class Machine360Page(QWidget):
             return
         self._refresh_timer.start()
 
+    def _start_machine_search(self, machine: str) -> None:
+        self._search_generation += 1
+        generation = self._search_generation
+        self._search_in_progress = True
+        self._current_search_machine = machine
+        started = time.perf_counter()
+        project_root = str(self.config.project_root)
+        self._set_search_busy(True, f"Searching Machine {machine}...")
+        self._log_search_event(
+            "machine_360_search_started",
+            machine=machine,
+            generation=generation,
+            duration_seconds=0.0,
+            stale=False,
+        )
+        get_task_manager().run_task(
+            TaskRequest(
+                id=f"machine_360_search_{generation}",
+                name=f"Machine 360 Search {machine}",
+                category="page_refresh",
+                callable=Machine360Page._build_context_for_search,
+                args=(project_root, machine, generation),
+            ),
+            on_finished=lambda result, expected_generation=generation, started_at=started: self._apply_search_result(
+                result,
+                expected_generation,
+                started_at,
+            ),
+        )
+
+    @staticmethod
+    def _build_context_for_search(project_root: str, machine: str, generation: int) -> dict[str, Any]:
+        context = build_machine_360_context(project_root, machine)
+        return {"generation": generation, "machine": machine, "context": context}
+
+    def _apply_search_result(self, task_result, expected_generation: int, started_at: float) -> None:
+        elapsed = time.perf_counter() - started_at
+        payload = task_result.result_data if isinstance(task_result.result_data, dict) else {}
+        machine = str(payload.get("machine") or self._current_search_machine or self.machine_edit.text().strip())
+        stale = (
+            expected_generation != self._search_generation
+            or int(payload.get("generation") or expected_generation) != self._search_generation
+        )
+        if stale:
+            self._log_search_event(
+                "machine_360_search_finished",
+                machine=machine,
+                generation=expected_generation,
+                duration_seconds=elapsed,
+                stale=True,
+            )
+            return
+        self._search_in_progress = False
+        if not task_result.ok:
+            safe_error = self._safe_error(task_result.error or task_result.message)
+            self._set_search_busy(False, f"Search failed: {safe_error}")
+            self.detail_text.setPlainText(f"Search failed: {safe_error}")
+            self._update_action_buttons()
+            self._log_search_event(
+                "machine_360_search_failed",
+                machine=machine,
+                generation=expected_generation,
+                duration_seconds=elapsed,
+                stale=False,
+                error=safe_error,
+            )
+            return
+        context = payload.get("context")
+        if not isinstance(context, Machine360Context):
+            safe_error = "Machine 360 search returned no usable context."
+            self._set_search_busy(False, f"Search failed: {safe_error}")
+            self.detail_text.setPlainText(f"Search failed: {safe_error}")
+            self._update_action_buttons()
+            self._log_search_event(
+                "machine_360_search_failed",
+                machine=machine,
+                generation=expected_generation,
+                duration_seconds=elapsed,
+                stale=False,
+                error=safe_error,
+            )
+            return
+        self.context = context
+        self._populate_context(context)
+        self._set_search_busy(False, f"Loaded Machine {context.machine_number or machine}")
+        self._log_search_event(
+            "machine_360_search_finished",
+            machine=machine,
+            generation=expected_generation,
+            duration_seconds=elapsed,
+            stale=False,
+            physical_audit_count=int(context.metrics.get("physical_audit_count") or 0),
+            compatible_entry_count=int(context.metrics.get("compatible_entry_count") or 0),
+            open_item_count=int(context.metrics.get("open_item_count") or 0),
+        )
+
+    def _set_search_busy(self, busy: bool, text: str) -> None:
+        self.search_status_label.setText(text)
+        self.search_progress.setVisible(bool(busy))
+        self.refresh_button.setText("Searching..." if busy else "Refresh")
+        self.refresh_button.setEnabled(not busy)
+
+    def _clear_context_tables(self) -> None:
+        self.summary_table.setRowCount(0)
+        self.audit_table.setRowCount(0)
+
+    def _safe_error(self, message: str) -> str:
+        text = str(message or "Unknown error").replace("\n", " ").strip()
+        return text[:180] or "Unknown error"
+
+    def _log_search_event(
+        self,
+        event_name: str,
+        *,
+        machine: str,
+        generation: int,
+        duration_seconds: float,
+        stale: bool,
+        physical_audit_count: int = 0,
+        compatible_entry_count: int = 0,
+        open_item_count: int = 0,
+        error: str = "",
+    ) -> None:
+        payload = {
+            "machine_number": machine,
+            "generation": generation,
+            "duration_seconds": round(duration_seconds, 4),
+            "physical_audit_count": physical_audit_count,
+            "compatible_entry_count": compatible_entry_count,
+            "open_item_count": open_item_count,
+            "stale_ignored": bool(stale),
+        }
+        if error:
+            payload["error"] = error
+        log_activity_event(self.config.project_root, event_name, payload)
+        log_performance(
+            self.config.project_root,
+            event_name,
+            duration_seconds,
+            source="machine_360",
+            page_tool="machine_360",
+            details=payload,
+            success=not error,
+            error_count=1 if error else 0,
+        )
+
     def _populate_context(self, context: Machine360Context) -> None:
         self.last_refreshed_label.setText(f"Last refreshed: {context.last_refreshed or 'Unknown'}")
         self.data_source_label.setText(f"Data source: {self._data_source_label(context)}")
-        self.status_label.setText(f"{context.metrics.get('physical_audit_count', 0)} physical / {context.metrics.get('compatible_entry_count', 0)} compatible")
+        self.status_label.setText(
+            f"{context.metrics.get('physical_audit_count', 0)} physical / {context.metrics.get('compatible_entry_count', 0)} compatible"
+        )
         summary_rows = self._summary_rows(context)
         self.summary_table.setRowCount(len(summary_rows))
         for row, (section, metric, value) in enumerate(summary_rows):
@@ -248,7 +422,11 @@ class Machine360Page(QWidget):
             ("Mechanical / Routing", "Tubing condition", context.mechanical_routing.get("tubing_condition")),
             ("Reliability / Performance", "Open items", context.metrics.get("open_item_count", 0)),
             ("Documentation / Photos", "Photo index rows", context.metrics.get("photo_index_rows", 0)),
-            ("Documentation / Photos", "Missing required evidence", context.metrics.get("missing_required_photo_evidence", 0)),
+            (
+                "Documentation / Photos",
+                "Missing required evidence",
+                context.metrics.get("missing_required_photo_evidence", 0),
+            ),
             ("Risk / FMEA", "Highest RPN", context.risk_fmea.get("highest_rpn", 0)),
             ("KPI Signals", "Downtime minutes", context.kpi_signals.get("downtime_minutes", 0)),
             ("PM Status", "Due now", context.pm_status.get("due_now", 0)),
@@ -275,8 +453,14 @@ class Machine360Page(QWidget):
             ("Sensors and Detection", context.sensors_detection),
             ("Mechanical / Routing", context.mechanical_routing),
             ("Reliability / Performance", context.reliability_performance),
-            ("Documentation / Photos", {k: v for k, v in context.documentation_photos.items() if k != "evidence_items"}),
-            ("Open Items", {"count": len(context.open_items), "items": [item.get("title", "") for item in context.open_items[:8]]}),
+            (
+                "Documentation / Photos",
+                {k: v for k, v in context.documentation_photos.items() if k != "evidence_items"},
+            ),
+            (
+                "Open Items",
+                {"count": len(context.open_items), "items": [item.get("title", "") for item in context.open_items[:8]]},
+            ),
             ("Risk / FMEA", context.risk_fmea),
             ("KPI Signals", context.kpi_signals),
             ("PM Status", {k: v for k, v in context.pm_status.items() if k != "items"}),
@@ -319,10 +503,18 @@ class Machine360Page(QWidget):
         if not audit_id:
             self._set_action_result("No physical audit is available to open for this machine.")
             return
-        self.navigator.open_target({"target_type": "audit", "audit_id": audit_id, "machine_id": self.context.machine_number if self.context else ""})
+        self.navigator.open_target(
+            {
+                "target_type": "audit",
+                "audit_id": audit_id,
+                "machine_id": self.context.machine_number if self.context else "",
+            }
+        )
 
     def _open_press_view(self, machine: str) -> None:
-        self.navigator.open_target({"target_type": "machine", "machine_id": machine, "target_label": self._display_name()})
+        self.navigator.open_target(
+            {"target_type": "machine", "machine_id": machine, "target_label": self._display_name()}
+        )
 
     def _create_follow_up(self, machine: str) -> None:
         run_tool_background(
@@ -356,7 +548,9 @@ class Machine360Page(QWidget):
             self.result_panel,
             "machine_360_summary",
             "Machine 360 Summary",
-            lambda: generate_machine_360_summary(self.config.project_root, self.context.machine_number if self.context else "", self.context),
+            lambda: generate_machine_360_summary(
+                self.config.project_root, self.context.machine_number if self.context else "", self.context
+            ),
             modifies_files=True,
         )
 
@@ -368,7 +562,9 @@ class Machine360Page(QWidget):
         result = open_path(Path(path))
         self._set_action_result(result.summary if result.success else result.to_markdown())
         if not result.success:
-            self._navigate_with_message("photos", f"Photo folder could not be opened directly for {self._display_name()}.")
+            self._navigate_with_message(
+                "photos", f"Photo folder could not be opened directly for {self._display_name()}."
+            )
 
     def _generate_pm_checklist(self, machine: str) -> None:
         run_tool_background(

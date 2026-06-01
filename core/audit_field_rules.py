@@ -99,6 +99,7 @@ FIELD_GROUPS = {
     "Robot Vacuum Circuits": "pneumatic_circuit",
     "Robot Pressure Circuits": "pneumatic_circuit",
     "Robot Interchangeable Circuits": "pneumatic_circuit",
+    "Robot Notes": "pneumatic_circuit",
     "Electrical Quick Disconnect Type": "electrical",
     "Tubing Condition": "pneumatic",
     "Tubing Routing Notes": "routing",
@@ -180,7 +181,11 @@ def is_na_value(value: Any) -> bool:
 
 def is_meaningful_value(value: Any) -> bool:
     text = normalize_text(value)
-    return bool(text) and not is_na_value(text) and text.casefold() not in {"unknown / not checked", "unknown", "not checked"}
+    return (
+        bool(text)
+        and not is_na_value(text)
+        and text.casefold() not in {"unknown / not checked", "unknown", "not checked"}
+    )
 
 
 def normalized_eoat_type(entry_or_value: dict[str, Any] | Any) -> str:
@@ -234,7 +239,9 @@ def field_applies(entry: dict[str, Any], field_name: str) -> bool:
     if field_name in SENSOR_DETAIL_FIELDS:
         if _is_no(entry.get("Sensors Present?")):
             return False
-        if field_name == "Vacuum Confirmation Present?" and not (_broad_tooling_type(entry) or eoat_type_uses_vacuum(entry)):
+        if field_name == "Vacuum Confirmation Present?" and not (
+            _broad_tooling_type(entry) or eoat_type_uses_vacuum(entry)
+        ):
             return False
     if field_name in ELECTRICAL_DETAIL_FIELDS:
         if ELECTRICAL_WIRING_PRESENT_FIELD not in entry:
@@ -256,6 +263,10 @@ def normalize_cylinder_fields(entry: dict[str, Any]) -> dict[str, Any]:
         cylinder_type = normalize_text(normalized.get(CYLINDER_TYPE_FIELD))
         if not cylinder_type or is_na_value(cylinder_type):
             normalized[CYLINDER_TYPE_FIELD] = CYLINDER_TYPE_DEFAULT
+    else:
+        cylinder_type = normalize_text(normalized.get(CYLINDER_TYPE_FIELD))
+        if cylinder_type.casefold() == CYLINDER_TYPE_DEFAULT.casefold():
+            normalized[CYLINDER_TYPE_FIELD] = ""
     return normalized
 
 
@@ -341,7 +352,9 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
     if eoat_type == EOAT_TYPE_VACUUM and _any_meaningful(entry, GRIPPER_TOOLING_FIELDS):
         warnings.append("Vacuum EOAT has meaningful gripper/mechanical-side field values.")
     if gripper_model and any(material in gripper_model for material in MATERIAL_LIKE_VALUES):
-        warnings.append("Gripper Model appears to contain a material value; check whether it belongs in Cup Type/Material.")
+        warnings.append(
+            "Gripper Model appears to contain a material value; check whether it belongs in Cup Type/Material."
+        )
     if eoat_type == EOAT_TYPE_GRIPPER and is_meaningful_value(cup_count):
         warnings.append(f"{CUP_COUNT_FIELD} contains a meaningful value on a Mechanical / Gripper row.")
     if eoat_type == EOAT_TYPE_GRIPPER and is_meaningful_value(cup_material):
@@ -349,7 +362,9 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
     if _is_no(entry.get("Sensors Present?")) and _any_meaningful(entry, SENSOR_DETAIL_FIELDS):
         warnings.append("Sensors Present? is No but sensor detail fields contain meaningful values.")
     if _is_no(entry.get("Quick Disconnects Present?")) and _any_meaningful(entry, QUICK_DISCONNECT_DETAIL_FIELDS):
-        warnings.append("Quick Disconnects Present? is No but quick disconnect detail fields contain meaningful values.")
+        warnings.append(
+            "Quick Disconnects Present? is No but quick disconnect detail fields contain meaningful values."
+        )
     return warnings
 
 

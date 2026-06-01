@@ -63,7 +63,16 @@ def run_workflow(project_root: str | Path, workflow: str, week: int = 1, day: in
     elif normalized == "daily-end":
         add(generate_audit_progress_report(project_root, log_activity=False))
         add(run_foundation_validation(project_root, write_report=True, log_activity=False))
-        add(ToolResult.ok("daily_summary_command", "Daily Summary Command Prep", "Run the daily summary tool interactively from Reports or terminal.", details=[f"python daily_status_summary.py --project-root \"{project_root}\" --week {week} --day {day} --interactive"]))
+        add(
+            ToolResult.ok(
+                "daily_summary_command",
+                "Daily Summary Command Prep",
+                "Run the daily summary tool interactively from Reports or terminal.",
+                details=[
+                    f'python daily_status_summary.py --project-root "{project_root}" --week {week} --day {day} --interactive'
+                ],
+            )
+        )
     elif normalized == "weekly-review":
         add(generate_audit_progress_report(project_root, log_activity=False))
         add(generate_issue_analysis_report(project_root))
@@ -79,10 +88,17 @@ def run_workflow(project_root: str | Path, workflow: str, week: int = 1, day: in
         add(generate_final_project_summary(project_root))
         add(build_final_handoff_package(project_root, dry_run=True))
     else:
-        return ToolResult.fail(TOOL_ID, TOOL_NAME, f"Unknown workflow: {workflow}", errors=["Use daily-start, daily-end, weekly-review, or final-review."])
+        return ToolResult.fail(
+            TOOL_ID,
+            TOOL_NAME,
+            f"Unknown workflow: {workflow}",
+            errors=["Use daily-start, daily-end, weekly-review, or final-review."],
+        )
 
     failed = [result for result in results if not result.success]
-    report = write_timestamped_report(paths.validation_reports, f"Workflow_{normalized.replace('-', '_')}", _workflow_report(normalized, results))
+    report = write_timestamped_report(
+        paths.validation_reports, f"Workflow_{normalized.replace('-', '_')}", _workflow_report(normalized, results)
+    )
     result = ToolResult(
         tool_id=TOOL_ID,
         tool_name=TOOL_NAME,

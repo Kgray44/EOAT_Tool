@@ -16,7 +16,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QAbstractItemView = QCheckBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None
+    QAbstractItemView = QCheckBox = QFormLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QPushButton = (
+        QTableWidget
+    ) = QTableWidgetItem = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
@@ -98,7 +100,9 @@ class PmChecklistsPage(QWidget):
         self.pm_due_summary_label = QLabel("PM due tracking has not been refreshed yet.")
         due_layout.addWidget(self.pm_due_summary_label)
         self.pm_due_table = QTableWidget(0, 8)
-        self.pm_due_table.setHorizontalHeaderLabels(["Status", "Due Date", "Machine", "Audit ID", "EOAT Type", "Item", "Notes", "Evidence"])
+        self.pm_due_table.setHorizontalHeaderLabels(
+            ["Status", "Due Date", "Machine", "Audit ID", "EOAT Type", "Item", "Notes", "Evidence"]
+        )
         self.pm_due_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.pm_due_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.pm_due_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -111,7 +115,9 @@ class PmChecklistsPage(QWidget):
         layout.addWidget(self.result_panel, stretch=1)
         layout.addWidget(QLabel("Latest generated checklist preview"))
         self.preview = ReportViewer()
-        self.preview.setPlaceholderText("No checklist generated yet. Generate a checklist to preview the latest Markdown output.")
+        self.preview.setPlaceholderText(
+            "No checklist generated yet. Generate a checklist to preview the latest Markdown output."
+        )
         self.preview.setMaximumHeight(260)
         layout.addWidget(self.preview, stretch=2)
 
@@ -237,7 +243,9 @@ class PmChecklistsPage(QWidget):
             self.result_panel,
             "pm_due_notes",
             "Add PM Notes",
-            lambda: update_pm_record(self.config.project_root, record.record_id, notes=self.pm_notes_edit.text().strip()),
+            lambda: update_pm_record(
+                self.config.project_root, record.record_id, notes=self.pm_notes_edit.text().strip()
+            ),
             self._pm_update_finished,
             modifies_files=True,
         )
@@ -251,7 +259,9 @@ class PmChecklistsPage(QWidget):
             self.result_panel,
             "pm_due_evidence",
             "Add PM Evidence Link",
-            lambda: update_pm_record(self.config.project_root, record.record_id, photo_evidence_link=self.pm_photo_link_edit.text().strip()),
+            lambda: update_pm_record(
+                self.config.project_root, record.record_id, photo_evidence_link=self.pm_photo_link_edit.text().strip()
+            ),
             self._pm_update_finished,
             modifies_files=True,
         )

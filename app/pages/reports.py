@@ -23,7 +23,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QCheckBox = QDialog = QDialogButtonBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = QPushButton = QSpinBox = QSplitter = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QCheckBox = QDialog = QDialogButtonBox = QFormLayout = QHBoxLayout = QLabel = QLineEdit = QListWidget = (
+        QPushButton
+    ) = QSpinBox = QSplitter = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
 from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
@@ -185,7 +187,9 @@ class ReportsPage(QWidget):
         right_layout = QVBoxLayout(right)
         right_layout.addWidget(QLabel("Report preview"))
         self.preview = ReportViewer()
-        self.preview.setPlaceholderText("No report selected. Select a folder and a Markdown/text report to preview it here.")
+        self.preview.setPlaceholderText(
+            "No report selected. Select a folder and a Markdown/text report to preview it here."
+        )
         right_layout.addWidget(self.preview, stretch=2)
         self.result_panel = ToolRunPanel()
         right_layout.addWidget(self.result_panel, stretch=1)
@@ -242,7 +246,10 @@ class ReportsPage(QWidget):
             return
 
         paths = resolve_project_paths(dialog.project_root_edit.text())
-        report_path = paths.daily_reports / f"Week{dialog.week_spin.value()}_Day{dialog.day_spin.value()}_Status_{date.today().isoformat()}.md"
+        report_path = (
+            paths.daily_reports
+            / f"Week{dialog.week_spin.value()}_Day{dialog.day_spin.value()}_Status_{date.today().isoformat()}.md"
+        )
         if report_path.exists():
             self.result_panel.show_text(
                 "A report for this week/day/date already exists, so the dashboard did not run the command automatically.\n\n"

@@ -69,7 +69,9 @@ def compatibility_entries_for_machine(rows: Iterable[dict[str, Any]], machine_nu
     ]
 
 
-def compatibility_entries_for_source_audit(rows: Iterable[dict[str, Any]], source_audit_id: str) -> list[dict[str, Any]]:
+def compatibility_entries_for_source_audit(
+    rows: Iterable[dict[str, Any]], source_audit_id: str
+) -> list[dict[str, Any]]:
     source_id = text_value(source_audit_id)
     if not source_id:
         return []
@@ -85,7 +87,9 @@ def source_audit_for_compatibility_row(
     compatibility_row: dict[str, Any],
 ) -> SourceAuditLookup:
     if not is_compatibility_row(compatibility_row):
-        return SourceAuditLookup(warnings=("Row is not a compatibility row.",), warning_codes=("not_compatibility_row",))
+        return SourceAuditLookup(
+            warnings=("Row is not a compatibility row.",), warning_codes=("not_compatibility_row",)
+        )
     source_id = text_value(compatibility_row.get(SOURCE_AUDIT_ID_FIELD))
     audit_id = text_value(compatibility_row.get("Audit ID")) or "compatibility row"
     if not source_id:
@@ -103,7 +107,9 @@ def source_audit_for_compatibility_row(
     if not is_physical_audit_row(source):
         return SourceAuditLookup(
             source_audit=dict(source),
-            warnings=(f"Compatible row {audit_id} references {source_id}, but that row is not a physical audit source.",),
+            warnings=(
+                f"Compatible row {audit_id} references {source_id}, but that row is not a physical audit source.",
+            ),
             warning_codes=("source_not_physical",),
         )
     return SourceAuditLookup(source_audit=dict(source))
@@ -135,13 +141,22 @@ def relationship_summary_for_machine(rows: Iterable[dict[str, Any]], machine_num
         "verified_physical_count": len(physical),
         "physical_verification_excludes_compatibility": True,
         "missing_source_metadata_count": sum(1 for warning in warnings if "missing Source Audit ID" in warning),
-        "tools": sorted({_part for _part in (part_number_from_row(row) for row in [*physical, *compatible]) if _part}, key=str.casefold),
+        "tools": sorted(
+            {_part for _part in (part_number_from_row(row) for row in [*physical, *compatible]) if _part},
+            key=str.casefold,
+        ),
     }
     return MachineRelationshipSummary(
         machine_number=machine,
         physical_audits=physical,
         compatibility_entries=compatible,
-        linked_compatibility_entries=sorted(linked, key=lambda row: (normalize_machine_token(machine_from_audit_row(row)), text_value(row.get("Audit ID")).casefold())),
+        linked_compatibility_entries=sorted(
+            linked,
+            key=lambda row: (
+                normalize_machine_token(machine_from_audit_row(row)),
+                text_value(row.get("Audit ID")).casefold(),
+            ),
+        ),
         warnings=tuple(dict.fromkeys(warnings)),
         metrics=metrics,
     )

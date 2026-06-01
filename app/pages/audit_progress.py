@@ -13,7 +13,9 @@ try:
         QWidget,
     )
 except ImportError:  # pragma: no cover
-    QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTableWidgetItem = QTabWidget = QVBoxLayout = QWidget = None
+    QGridLayout = QHBoxLayout = QLabel = QPushButton = QTableWidget = QTableWidgetItem = QTabWidget = QVBoxLayout = (
+        QWidget
+    ) = None
 
 from app.page_tasks import run_tool_background
 from app.widgets.report_viewer import ReportViewer
@@ -96,11 +98,17 @@ class AuditProgressPage(QWidget):
         self.cards["Compatible Relationships"].set_value(str(metrics.get("compatible_relationships", 0)))
         self.cards["Total Covered Relationships"].set_value(str(metrics.get("total_covered_relationships", 0)))
         self.cards["Remaining Relationships"].set_value(str(metrics.get("remaining_relationships", 0)))
-        self.cards["Compatibility Opportunities"].set_value(str(metrics.get("compatibility_opportunities_available", 0)))
+        self.cards["Compatibility Opportunities"].set_value(
+            str(metrics.get("compatibility_opportunities_available", 0))
+        )
         self.cards["Open Actions"].set_value(str(metrics.get("open_action_items_count", 0)))
         self.cards["Issues Logged"].set_value(str(metrics.get("issues_logged_count", 0)))
 
-        self._fill_table(self.counts_table, ["Metric", "Count"], [{"Metric": label, "Count": value} for label, value in summary.coverage_summary])
+        self._fill_table(
+            self.counts_table,
+            ["Metric", "Count"],
+            [{"Metric": label, "Count": value} for label, value in summary.coverage_summary],
+        )
         self._fill_table(
             self.missing_table,
             ["Machine No.", "NGW Part Number", "NGW Part Description", "Reason Missing", "Suggested Next Action"],
@@ -108,15 +116,33 @@ class AuditProgressPage(QWidget):
         )
         self._fill_table(
             self.opportunities_table,
-            ["NGW Part Number", "NGW Part Description", "Source Audited Machine", "Compatible Missing Machines", "Suggested Action"],
+            [
+                "NGW Part Number",
+                "NGW Part Description",
+                "Source Audited Machine",
+                "Compatible Missing Machines",
+                "Suggested Action",
+            ],
             summary.compatibility_opportunities,
         )
         self._fill_table(
             self.machine_table,
-            ["Machine No.", "Required Relationships", "Audited", "Compatible", "Covered Total", "Remaining", "Coverage %"],
+            [
+                "Machine No.",
+                "Required Relationships",
+                "Audited",
+                "Compatible",
+                "Covered Total",
+                "Remaining",
+                "Coverage %",
+            ],
             summary.machine_coverage,
         )
-        self._fill_table(self.entry_type_table, ["Entry Type", "Count"], [{"Entry Type": key, "Count": value} for key, value in summary.entry_type_counts.items()])
+        self._fill_table(
+            self.entry_type_table,
+            ["Entry Type", "Count"],
+            [{"Entry Type": key, "Count": value} for key, value in summary.entry_type_counts.items()],
+        )
         self.preview.show_markdown_text(summary.to_markdown())
 
     def _fill_table(self, table: QTableWidget, columns: list[str], rows: list[dict[str, object]]) -> None:

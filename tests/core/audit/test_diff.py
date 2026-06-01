@@ -50,6 +50,17 @@ def test_preview_detects_robot_side_pneumatic_changes():
     assert preview.robot_info_changes[0].source == "robot_info"
 
 
+def test_preview_detects_robot_notes_as_robot_info_change():
+    preview = build_audit_save_preview(
+        {"Audit ID": "AUD-001", "Robot Notes": ""},
+        {"Audit ID": "AUD-001", "Robot Notes": "Keep wrist-side air line labels."},
+    )
+
+    assert preview.robot_info_changes
+    assert preview.robot_info_changes[0].field == "Robot Notes"
+    assert preview.robot_info_changes[0].source == "robot_info"
+
+
 def test_preview_marks_autofilled_sensor_fields_defaulted():
     preview = build_audit_save_preview(
         {"Audit ID": "AUD-001", "Sensor Type": ""},

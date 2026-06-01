@@ -79,7 +79,9 @@ def test_generate_change_validation_writes_markdown_and_json_inside_project(fake
         },
     )
 
-    result = generate_change_validation_checklist(fake_project, audit_id="AUD-CHG-002", change_id="CHG-002", log_activity=False)
+    result = generate_change_validation_checklist(
+        fake_project, audit_id="AUD-CHG-002", change_id="CHG-002", log_activity=False
+    )
 
     assert result.success is True
     assert len(result.output_reports) == 2
@@ -105,7 +107,9 @@ def test_generated_work_instructions_and_change_validation_are_collected_for_fin
         },
     )
     generate_work_instructions(fake_project, audit_id="AUD-HANDOFF-CHG", log_activity=False)
-    generate_change_validation_checklist(fake_project, audit_id="AUD-HANDOFF-CHG", change_id="CHG-HANDOFF", log_activity=False)
+    generate_change_validation_checklist(
+        fake_project, audit_id="AUD-HANDOFF-CHG", change_id="CHG-HANDOFF", log_activity=False
+    )
 
     sources = collect_handoff_sources(fake_project)
 

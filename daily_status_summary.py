@@ -128,20 +128,36 @@ ALLOWED_STATUSES = ["Not started", "In progress", "Blocked", "Complete", "Skippe
 def parse_args() -> argparse.Namespace:
     """Read command-line arguments."""
     parser = argparse.ArgumentParser(description="Create one EOAT daily status report.")
-    parser.add_argument("--project-root", default=str(DEFAULT_PROJECT_ROOT), help="Path to EOAT_Standardization_Project.")
-    parser.add_argument("--week", type=int, help="Project week number. Defaults to 1, or the resolved project week in scheduled mode.")
+    parser.add_argument(
+        "--project-root", default=str(DEFAULT_PROJECT_ROOT), help="Path to EOAT_Standardization_Project."
+    )
+    parser.add_argument(
+        "--week", type=int, help="Project week number. Defaults to 1, or the resolved project week in scheduled mode."
+    )
     parser.add_argument("--day", type=int, help="Project day number, such as 1 or 2.")
-    parser.add_argument("--date", dest="report_date", default=date.today().isoformat(), help="Report date in YYYY-MM-DD format.")
+    parser.add_argument(
+        "--date", dest="report_date", default=date.today().isoformat(), help="Report date in YYYY-MM-DD format."
+    )
     parser.add_argument("--scheduled", action="store_true", help="Run in scheduled/noninteractive mode.")
-    parser.add_argument("--dry-run", action="store_true", help="Write test output only; do not persist task progress or activity snapshots.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Write test output only; do not persist task progress or activity snapshots.",
+    )
     parser.add_argument("--output-dir", help="Optional output folder for generated daily summary files.")
     parser.add_argument("--verbose", action="store_true", help="Print extra execution details.")
     parser.add_argument("--interactive", action="store_true", help="Force interactive prompts.")
     parser.add_argument("--include-git", action="store_true", help="Include Git status/log/diff summary if available.")
     parser.add_argument("--include-snapshot", action="store_true", help="Include local file snapshot comparison.")
-    parser.add_argument("--init-snapshot", action="store_true", help="Create a baseline snapshot without generating a report.")
-    parser.add_argument("--output-format", choices=["markdown", "docx"], default="markdown", help="Report format. Defaults to markdown.")
-    parser.add_argument("--include-diff-snippets", action="store_true", help="Include tiny snippets from changed safe text files.")
+    parser.add_argument(
+        "--init-snapshot", action="store_true", help="Create a baseline snapshot without generating a report."
+    )
+    parser.add_argument(
+        "--output-format", choices=["markdown", "docx"], default="markdown", help="Report format. Defaults to markdown."
+    )
+    parser.add_argument(
+        "--include-diff-snippets", action="store_true", help="Include tiny snippets from changed safe text files."
+    )
     parser.add_argument("--completed", nargs="*", help="Manual completed items.")
     parser.add_argument("--need", nargs="*", help="Manual needed items.")
     parser.add_argument("--plan", nargs="*", help="Manual next-day plan items to append.")
@@ -280,11 +296,7 @@ def schedule_help_files_for_week(project_root: Path, week: int) -> list[Path]:
     help_dir = project_root.parent / "Project_Help_Documents"
     if not help_dir.exists():
         return []
-    return [
-        path
-        for path in help_dir.iterdir()
-        if path.is_file() and schedule_file_matches_week(path, week)
-    ]
+    return [path for path in help_dir.iterdir() if path.is_file() and schedule_file_matches_week(path, week)]
 
 
 def extract_schedule_from_pdf(path: Path) -> dict[str, list[str]]:
@@ -533,10 +545,18 @@ def collect_git_activity(project_root: Path, report_date: str) -> dict[str, Any]
     """Collect concise Git activity without raw diffs."""
     git = git_executable()
     if not git:
-        return {"available": False, "used": False, "note": "Git is not available; used file snapshot comparison if enabled."}
+        return {
+            "available": False,
+            "used": False,
+            "note": "Git is not available; used file snapshot comparison if enabled.",
+        }
     root = git_root(project_root)
     if not root:
-        return {"available": False, "used": False, "note": "Git repository not initialized; used file snapshot comparison if enabled."}
+        return {
+            "available": False,
+            "used": False,
+            "note": "Git repository not initialized; used file snapshot comparison if enabled.",
+        }
 
     day_start = datetime.combine(datetime.strptime(report_date, "%Y-%m-%d").date(), time.min).isoformat()
     day_end = datetime.combine(datetime.strptime(report_date, "%Y-%m-%d").date(), time.max).isoformat()
@@ -674,7 +694,9 @@ def compare_snapshots(previous: dict[str, Any] | None, current: dict[str, Any]) 
         if old.get("sha256") and new.get("sha256"):
             changed = old["sha256"] != new["sha256"]
         else:
-            changed = old.get("size") != new.get("size") or old.get("modified_timestamp") != new.get("modified_timestamp")
+            changed = old.get("size") != new.get("size") or old.get("modified_timestamp") != new.get(
+                "modified_timestamp"
+            )
         if changed:
             modified.append({"path": path, "status": "modified", **new})
 
@@ -687,7 +709,13 @@ def compare_snapshots(previous: dict[str, Any] | None, current: dict[str, Any]) 
             renamed.append({"path": created_item["path"], "old_path": deleted_item["path"], "status": "renamed"})
 
     large_changed = [item for item in created + modified if item.get("is_large")]
-    return {"created": created, "modified": modified, "deleted": deleted, "renamed": renamed, "large_changed": large_changed}
+    return {
+        "created": created,
+        "modified": modified,
+        "deleted": deleted,
+        "renamed": renamed,
+        "large_changed": large_changed,
+    }
 
 
 def inspect_workbook(path: Path) -> dict[str, Any]:
@@ -720,7 +748,9 @@ def inspect_workbook(path: Path) -> dict[str, Any]:
 
     result["available"] = True
     result["sheet_names"] = workbook.sheetnames
-    result["missing_expected_sheets"] = [sheet for sheet in EXPECTED_WORKBOOK_SHEETS if sheet not in workbook.sheetnames]
+    result["missing_expected_sheets"] = [
+        sheet for sheet in EXPECTED_WORKBOOK_SHEETS if sheet not in workbook.sheetnames
+    ]
     result["expected_sheets_exist"] = not result["missing_expected_sheets"]
     result["eoat_inventory_exists"] = "EOAT Inventory" in workbook.sheetnames
 
@@ -747,7 +777,9 @@ def count_meaningful_data_rows(ws) -> int:
         values = [value for value in row if value not in (None, "")]
         if not values:
             continue
-        if all(isinstance(value, str) and (value.startswith("Last Updated:") or value.startswith("=")) for value in values):
+        if all(
+            isinstance(value, str) and (value.startswith("Last Updated:") or value.startswith("=")) for value in values
+        ):
             continue
         count += 1
     return count
@@ -829,7 +861,11 @@ def suggested_items_from_activity(project_root: Path, activity: dict[str, Any], 
         suggestions.append("Created or updated the Week 1 schedule tracking file")
     if any(path.endswith("task_progress_week1.json") for path in created | modified):
         suggestions.append("Updated Week 1 task progress tracking")
-    if project_root.exists() and (project_root / "00_Project_Admin").exists() and (project_root / "01_EOAT_Audit").exists():
+    if (
+        project_root.exists()
+        and (project_root / "00_Project_Admin").exists()
+        and (project_root / "01_EOAT_Audit").exists()
+    ):
         if any(path in created for path in ("README.md", "01_EOAT_Audit/EOAT_Audit_Database/EOAT_Master_Tracker.xlsx")):
             suggestions.append("Created EOAT_Standardization_Project folder structure")
 
@@ -868,7 +904,9 @@ def build_activity_summary(
         "used_snapshot": False,
     }
 
-    git_info = collect_git_activity(project_root, report_date) if include_git or git_root(project_root) else {"used": False}
+    git_info = (
+        collect_git_activity(project_root, report_date) if include_git or git_root(project_root) else {"used": False}
+    )
     if git_info.get("used"):
         summary["used_git"] = True
         parsed = git_info["parsed_status"]
@@ -883,17 +921,28 @@ def build_activity_summary(
         summary["notes"].append(git_info.get("note", "Git activity was requested but no Git repository was available."))
 
     if include_snapshot or not summary["used_git"]:
-        previous = load_json(latest_snapshot_path(project_root), {}) if latest_snapshot_path(project_root).exists() else None
+        previous = (
+            load_json(latest_snapshot_path(project_root), {}) if latest_snapshot_path(project_root).exists() else None
+        )
         current = build_snapshot(project_root)
         comparison = compare_snapshots(previous, current)
         summary["used_snapshot"] = True
         summary["created_files"].extend({"path": item["path"], "status": "added"} for item in comparison["created"])
-        summary["modified_files"].extend({"path": item["path"], "status": "modified"} for item in comparison["modified"])
+        summary["modified_files"].extend(
+            {"path": item["path"], "status": "modified"} for item in comparison["modified"]
+        )
         summary["deleted_files"].extend({"path": item["path"], "status": "deleted"} for item in comparison["deleted"])
-        summary["renamed_files"].extend({"path": item["path"], "old_path": item.get("old_path", ""), "status": "renamed"} for item in comparison["renamed"])
-        summary["large_files_changed"].extend({"path": item["path"], "status": item["status"]} for item in comparison["large_changed"])
+        summary["renamed_files"].extend(
+            {"path": item["path"], "old_path": item.get("old_path", ""), "status": "renamed"}
+            for item in comparison["renamed"]
+        )
+        summary["large_files_changed"].extend(
+            {"path": item["path"], "status": item["status"]} for item in comparison["large_changed"]
+        )
         if not previous:
-            summary["notes"].append("No previous file snapshot was found; current files were treated as newly detected.")
+            summary["notes"].append(
+                "No previous file snapshot was found; current files were treated as newly detected."
+            )
         summary["_current_snapshot"] = current
 
     summary["created_files"] = unique_file_items(summary["created_files"])
@@ -913,19 +962,17 @@ def build_activity_summary(
     )
     changed_paths = {item["path"] for item in changed_files}
     workbook_paths = sorted(
-        path for path in changed_paths | {"01_EOAT_Audit/EOAT_Audit_Database/EOAT_Master_Tracker.xlsx"} if path.lower().endswith(".xlsx")
+        path
+        for path in changed_paths | {"01_EOAT_Audit/EOAT_Audit_Database/EOAT_Master_Tracker.xlsx"}
+        if path.lower().endswith(".xlsx")
     )
     for relative in workbook_paths:
         workbook_path = project_root / relative
         if workbook_path.exists():
             summary["workbook_checks"].append(inspect_workbook(workbook_path))
 
-    summary["markdown_report_files_changed"] = [
-        item for item in changed_files if item["path"].lower().endswith(".md")
-    ]
-    summary["scripts_changed"] = [
-        item for item in changed_files if item["path"].lower().endswith((".py", ".ps1"))
-    ]
+    summary["markdown_report_files_changed"] = [item for item in changed_files if item["path"].lower().endswith(".md")]
+    summary["scripts_changed"] = [item for item in changed_files if item["path"].lower().endswith((".py", ".ps1"))]
     if include_diff_snippets:
         summary["diff_snippets"] = safe_snippets(project_root, changed_files)
 
@@ -950,7 +997,10 @@ def task_suggestions(activity: dict[str, Any], manual_completed: list[str]) -> d
     suggestions: dict[str, dict[str, Any]] = {}
     all_evidence = " ".join(activity.get("suggested_completed_items", []) + manual_completed)
     workbook_checks = activity.get("workbook_checks", [])
-    workbook_good = any(check.get("expected_sheets_exist") and check.get("important_inventory_headers_exist") for check in workbook_checks)
+    workbook_good = any(
+        check.get("expected_sheets_exist") and check.get("important_inventory_headers_exist")
+        for check in workbook_checks
+    )
     issue_rows = max((check.get("data_rows", {}).get("Issue Log", 0) for check in workbook_checks), default=0)
     interview_rows = max((check.get("data_rows", {}).get("Interview Notes", 0) for check in workbook_checks), default=0)
     pilot_rows = max((check.get("data_rows", {}).get("Pilot Candidates", 0) for check in workbook_checks), default=0)
@@ -959,12 +1009,23 @@ def task_suggestions(activity: dict[str, Any], manual_completed: list[str]) -> d
     def suggest(task_text: str, status: str, evidence: str) -> None:
         suggestions[task_text] = {"status": status, "evidence": evidence}
 
-    if "EOAT_Master_Tracker.xlsx" in all_evidence or any(path.endswith("EOAT_Master_Tracker.xlsx") for path in changed_paths):
+    if "EOAT_Master_Tracker.xlsx" in all_evidence or any(
+        path.endswith("EOAT_Master_Tracker.xlsx") for path in changed_paths
+    ):
         suggest("Start EOAT audit database", "Complete", "EOAT master tracker workbook activity detected.")
     if workbook_good:
-        suggest("Finalize audit template", "Complete", "Workbook has expected tabs and important EOAT Inventory headers.")
-    if any(path == "README.md" or path.endswith("README.md") for path in changed_paths) or "documentation" in all_evidence.lower():
-        suggest("Create project folder/document structure", "Complete", "Project documentation/folder setup activity detected.")
+        suggest(
+            "Finalize audit template", "Complete", "Workbook has expected tabs and important EOAT Inventory headers."
+        )
+    if (
+        any(path == "README.md" or path.endswith("README.md") for path in changed_paths)
+        or "documentation" in all_evidence.lower()
+    ):
+        suggest(
+            "Create project folder/document structure",
+            "Complete",
+            "Project documentation/folder setup activity detected.",
+        )
         suggest("Review EOAT project scope and deliverables", "Complete", "Project documentation activity detected.")
     if any(path.startswith("01_EOAT_Audit/Cell_Photos/") for path in changed_paths):
         suggest("Decide photo naming system", "In progress", "Cell photo folder activity detected.")
@@ -975,9 +1036,15 @@ def task_suggestions(activity: dict[str, Any], manual_completed: list[str]) -> d
     if issue_rows > 0:
         suggest("Start Issue Log tab", "Complete", "Issue Log contains rows beyond the header.")
     if interview_rows > 0:
-        suggest("Interview operator or technician for each audited cell", "In progress", "Interview Notes contains rows beyond the header.")
+        suggest(
+            "Interview operator or technician for each audited cell",
+            "In progress",
+            "Interview Notes contains rows beyond the header.",
+        )
     if pilot_rows > 0:
-        suggest("Flag possible pilot candidate cells", "In progress", "Pilot Candidates contains rows beyond the header.")
+        suggest(
+            "Flag possible pilot candidate cells", "In progress", "Pilot Candidates contains rows beyond the header."
+        )
     if any("Week1" in path and "Summary" in path for path in changed_paths):
         suggest("Create Week 1 summary", "Complete", "Week 1 summary file activity detected.")
 
@@ -1089,7 +1156,9 @@ def update_progress_interactively(
     for task, suggestion in future_suggestions:
         print(f"- Day {task['day']}: {task['task_text']} -> suggested {suggestion['status']}")
         if ask_yes_no("Mark this future task with the suggested status?", suggestion["status"] == "Complete"):
-            update_task(task, suggestion["status"], report_date, suggestion.get("evidence", "Future task activity detected."))
+            update_task(
+                task, suggestion["status"], report_date, suggestion.get("evidence", "Future task activity detected.")
+            )
 
 
 def update_progress_noninteractive(
@@ -1106,9 +1175,16 @@ def update_progress_noninteractive(
         if task["day"] <= day and keyword_match(task["task_text"], completed_text):
             update_task(task, "Complete", report_date, "Manual completed item matched this scheduled task.")
         elif suggested and task["day"] <= day:
-            update_task(task, suggested["status"], report_date, suggested.get("evidence", "Activity matched this scheduled task."))
+            update_task(
+                task,
+                suggested["status"],
+                report_date,
+                suggested.get("evidence", "Activity matched this scheduled task."),
+            )
         elif suggested and task["day"] > day and suggested["status"] == "Complete":
-            update_task(task, "Complete", report_date, suggested.get("evidence", "Obvious future task completion detected."))
+            update_task(
+                task, "Complete", report_date, suggested.get("evidence", "Obvious future task completion detected.")
+            )
 
 
 def task_counts(progress: dict, day: int) -> dict[str, int]:
@@ -1116,7 +1192,8 @@ def task_counts(progress: dict, day: int) -> dict[str, int]:
     current = [task for task in progress.get("tasks", []) if task["day"] == day]
     next_day = [task for task in progress.get("tasks", []) if task["day"] == day + 1]
     carryover = [
-        task for task in progress.get("tasks", [])
+        task
+        for task in progress.get("tasks", [])
         if task["day"] <= day and task.get("status") not in ("Complete", "Skipped")
     ]
     blocked = [task for task in progress.get("tasks", []) if task.get("status") == "Blocked"]
@@ -1135,9 +1212,7 @@ def build_next_day_plan(progress: dict, day: int, manual_plan: list[str]) -> dic
     next_day = day + 1
     tasks = progress.get("tasks", [])
     carryover_tasks = [
-        task["task_text"]
-        for task in tasks
-        if task["day"] <= day and task.get("status") not in ("Complete", "Skipped")
+        task["task_text"] for task in tasks if task["day"] <= day and task.get("status") not in ("Complete", "Skipped")
     ]
     next_tasks = [
         task["task_text"]
@@ -1259,7 +1334,9 @@ def build_markdown(
     if include_activity_section:
         counts = activity_counts(activity)
         staged_summary = f"{counts['staged']} staged file(s)" if counts["staged"] else "None detected"
-        uncommitted_summary = f"{counts['uncommitted']} uncommitted file(s)" if counts["uncommitted"] else "None detected"
+        uncommitted_summary = (
+            f"{counts['uncommitted']} uncommitted file(s)" if counts["uncommitted"] else "None detected"
+        )
         lines.extend(
             [
                 "",
@@ -1331,7 +1408,9 @@ def init_snapshot(project_root: Path, report_date: str) -> None:
     print(f"Created baseline snapshot: {path}")
 
 
-def log_dry_run_activity(project_root: Path, report_path: Path, summary_path: Path, duration_seconds: float | None = None) -> None:
+def log_dry_run_activity(
+    project_root: Path, report_path: Path, summary_path: Path, duration_seconds: float | None = None
+) -> None:
     """Record a dry-run activity entry without requiring the dashboard wrappers."""
     try:
         from core.logging import log_tool_run
@@ -1352,6 +1431,38 @@ def log_dry_run_activity(project_root: Path, report_path: Path, summary_path: Pa
             print(warning)
     except Exception as exc:
         print(f"Dry-run activity logging failed: {exc}")
+
+
+def resolve_daily_output_path(
+    project_root: Path, args: argparse.Namespace, report_date: str, day: int
+) -> tuple[Path, Path]:
+    if args.output_dir:
+        output_directory = Path(args.output_dir).expanduser()
+    elif args.dry_run:
+        output_directory = admin_dir(project_root) / "Test_Reports" / "Daily_Status_Reports"
+    else:
+        output_directory = report_dir(project_root)
+    if not output_directory.is_absolute():
+        output_directory = (SCRIPT_DIR / output_directory).resolve()
+    dry_run_suffix = "_DRY_RUN" if args.dry_run else ""
+    report_path = output_directory / f"Week{args.week}_Day{day}_Status_{report_date}{dry_run_suffix}.md"
+    return output_directory, report_path
+
+
+def log_scheduled_skip_check(project_root: Path, started: datetime, report_path: Path, skipped: bool) -> None:
+    try:
+        from core.performance import log_performance_event
+
+        log_performance_event(
+            project_root,
+            "scheduled_reports.skip_check",
+            (datetime.now() - started).total_seconds(),
+            source="scheduled_reports",
+            page_tool="daily_status_summary",
+            details={"output_path": str(report_path), "skipped": skipped},
+        )
+    except Exception:
+        pass
 
 
 def main() -> None:
@@ -1391,6 +1502,15 @@ def main() -> None:
         day = min(report_day.isoweekday(), 5)
     else:
         day = ask_int("Project day number", 1)
+
+    output_directory, report_path = resolve_daily_output_path(project_root, args, report_date, day)
+    if args.scheduled or args.dry_run:
+        skipped = report_path.exists()
+        log_scheduled_skip_check(project_root, started, report_path, skipped)
+        if skipped:
+            print(f"Daily status report already exists; no duplicate was created: {report_path}")
+            return
+
     schedule = ensure_schedule(project_root, args.week, persist=not args.dry_run)
     progress = ensure_progress(project_root, args.week, schedule, persist=not args.dry_run)
 
@@ -1442,21 +1562,16 @@ def main() -> None:
 
     next_plan = build_next_day_plan(progress, day, manual_plan)
     progress_counts = task_counts(progress, day)
-    include_activity_section = bool(args.include_git or args.include_snapshot or activity["used_git"] or activity["used_snapshot"])
+    include_activity_section = bool(
+        args.include_git or args.include_snapshot or activity["used_git"] or activity["used_snapshot"]
+    )
     if args.interactive:
-        include_activity_section = ask_yes_no("Do you want to include a repository activity section in the report?", True)
+        include_activity_section = ask_yes_no(
+            "Do you want to include a repository activity section in the report?", True
+        )
 
-    if args.output_dir:
-        output_directory = Path(args.output_dir).expanduser()
-    elif args.dry_run:
-        output_directory = admin_dir(project_root) / "Test_Reports" / "Daily_Status_Reports"
-    else:
-        output_directory = report_dir(project_root)
-    if not output_directory.is_absolute():
-        output_directory = (SCRIPT_DIR / output_directory).resolve()
     output_directory.mkdir(parents=True, exist_ok=True)
     dry_run_suffix = "_DRY_RUN" if args.dry_run else ""
-    report_path = output_directory / f"Week{args.week}_Day{day}_Status_{report_date}{dry_run_suffix}.md"
     markdown_text = build_markdown(
         args.week,
         day,
@@ -1472,8 +1587,7 @@ def main() -> None:
     if args.dry_run:
         markdown_text = (
             "> DRY RUN / TEST OUTPUT: This report was generated by the automation test harness. "
-            "It did not persist project task progress or activity snapshots.\n\n"
-            + markdown_text
+            "It did not persist project task progress or activity snapshots.\n\n" + markdown_text
         )
 
     if (args.scheduled or args.dry_run) and report_path.exists():

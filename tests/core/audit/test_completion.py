@@ -65,7 +65,7 @@ SECTIONS = {
         "Tubing Routing Notes",
     ],
     "Documentation / Photos": ["Photos Taken?", "Photo Folder/Link"],
-    "Pilot / Final Notes": ["Notes", "Source Audit ID", "Compatibility Source"],
+    "Pilot / Final Notes": ["Robot Notes", "Notes", "Source Audit ID", "Compatibility Source"],
 }
 
 
@@ -108,6 +108,7 @@ def _entry(**overrides):
         "Tubing Routing Notes": "",
         "Photos Taken?": "Yes",
         "Photo Folder/Link": "photos/demo",
+        "Robot Notes": "",
         "Notes": "",
         "Source Audit ID": "",
         "Compatibility Source": "",
@@ -198,8 +199,11 @@ def test_excluded_fields_are_ignored():
     summary = calculate_audit_completion(_entry(), SECTIONS)
 
     assert _status(summary, "Notes").state == STATE_EXCLUDED
+    assert _status(summary, "Robot Notes").state == STATE_EXCLUDED
     assert _status(summary, "Tubing Routing Notes").state == STATE_EXCLUDED
     assert "Notes" in summary.excluded_fields
+    assert "Robot Notes" in summary.excluded_fields
+    assert "Robot Notes" not in summary.missing_fields
     assert "Tubing Routing Notes" not in summary.missing_fields
 
 
@@ -219,6 +223,16 @@ def test_cylinder_type_alone_does_not_trigger_optional_group():
     assert CYLINDER_TYPE_FIELD not in summary.missing_fields
 
 
+def test_default_cylinder_type_alone_does_not_count_against_completion():
+    summary = calculate_audit_completion(
+        _entry(**{CYLINDER_TYPE_FIELD: CYLINDER_TYPE_DEFAULT, CYLINDER_COUNT_FIELD: ""}), SECTIONS
+    )
+
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_IGNORED_BY_OPTIONAL_GROUP
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_IGNORED_BY_OPTIONAL_GROUP
+    assert CYLINDER_TYPE_FIELD not in summary.missing_fields
+
+
 def test_triggered_optional_cylinder_group_is_counted_and_defaults_type():
     summary = calculate_audit_completion(_entry(**{CYLINDER_TYPE_FIELD: "", CYLINDER_COUNT_FIELD: "2"}), SECTIONS)
 
@@ -228,9 +242,23 @@ def test_triggered_optional_cylinder_group_is_counted_and_defaults_type():
     assert CYLINDER_COUNT_FIELD not in summary.missing_fields
 
 
+def test_triggered_optional_cylinder_group_preserves_manual_type():
+    summary = calculate_audit_completion(_entry(**{CYLINDER_TYPE_FIELD: "Rotary", CYLINDER_COUNT_FIELD: "2"}), SECTIONS)
+
+    assert _status(summary, CYLINDER_COUNT_FIELD).state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, CYLINDER_TYPE_FIELD).state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, CYLINDER_TYPE_FIELD).value == "Rotary"
+
+
 def test_manual_override_sets_audit_percent_without_verifying_fields():
     summary = calculate_audit_completion(
-        _entry(**{"Press/Machine #": "", MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes", "Ignored Empty Fields At Override": "Press/Machine #"}),
+        _entry(
+            **{
+                "Press/Machine #": "",
+                MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes",
+                "Ignored Empty Fields At Override": "Press/Machine #",
+            }
+        ),
         SECTIONS,
     )
     status = _status(summary, "Press/Machine #")

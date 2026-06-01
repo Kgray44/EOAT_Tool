@@ -36,7 +36,11 @@ class QrLabelsPage(QWidget):
         self.audit_check.setChecked(True)
         controls.addWidget(self.machine_check)
         controls.addWidget(self.audit_check)
-        for label, callback in [("Preview Values", self.refresh), ("Export Label Sheet", self.export), ("Open QR Folder", self.open_folder)]:
+        for label, callback in [
+            ("Preview Values", self.refresh),
+            ("Export Label Sheet", self.export),
+            ("Open QR Folder", self.open_folder),
+        ]:
             button = QPushButton(label)
             button.clicked.connect(callback)
             controls.addWidget(button)
@@ -49,7 +53,11 @@ class QrLabelsPage(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
-        labels = build_qr_labels(self.config.project_root, include_machines=self.machine_check.isChecked(), include_audits=self.audit_check.isChecked())
+        labels = build_qr_labels(
+            self.config.project_root,
+            include_machines=self.machine_check.isChecked(),
+            include_audits=self.audit_check.isChecked(),
+        )
         columns = ["label_type", "target_id", "display_label", "qr_value"]
         self.table.setColumnCount(len(columns))
         self.table.setHorizontalHeaderLabels(["Type", "Target", "Label", "QR Value"])
@@ -62,7 +70,11 @@ class QrLabelsPage(QWidget):
         self.result_panel.show_text(f"Previewed {len(labels)} minimal QR value(s).")
 
     def export(self) -> None:
-        result = export_qr_label_sheet(self.config.project_root, include_machines=self.machine_check.isChecked(), include_audits=self.audit_check.isChecked())
+        result = export_qr_label_sheet(
+            self.config.project_root,
+            include_machines=self.machine_check.isChecked(),
+            include_audits=self.audit_check.isChecked(),
+        )
         self.result_panel.show_result(result)
 
     def open_folder(self) -> None:

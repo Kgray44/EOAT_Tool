@@ -32,4 +32,3 @@ def open_path(path: str | Path) -> ToolResult:
             errors=[str(exc)],
         )
     return ToolResult.ok("open_path", "Open File or Folder", f"Opened: {target}")
-

@@ -25,4 +25,3 @@ def run_project_setup_safe(project_root: str | Path, dry_run: bool = False) -> T
     if warning:
         result.warnings.append(warning)
     return result
-
