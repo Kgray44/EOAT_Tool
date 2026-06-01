@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.audit.uninstalled import is_uninstalled_eoat_audit
 from core.audit_entries import AuditSaveOptions, save_audit_entry
 from core.logging import log_activity_event
 from core.performance import log_performance_event
@@ -29,6 +30,8 @@ def save_audit_with_side_effects(
     started = time.perf_counter()
     compatibility_preview_seconds = 0.0
     if sync_linked_compatibility is None:
+        sync_linked_compatibility = False
+    if is_uninstalled_eoat_audit(entry):
         sync_linked_compatibility = False
 
     save_started = time.perf_counter()

@@ -16,12 +16,24 @@ from core.audit_entries import (
     load_audit_entry,
     repair_workbook_schema,
     save_audit_entry,
+    save_audit_entry_with_compatibility_autorun,
     validate_audit_entry,
 )
 from core.paths import resolve_project_paths
 from core.tool_fields import LEGACY_TOOL_FIELD
 from core.workbook_schema import get_expected_headers, get_expected_sheets
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
+
+
+def _inventory_rows(project_root):
+    workbook = load_workbook(resolve_project_paths(project_root).master_workbook, read_only=True)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    rows = [
+        {headers[index]: value for index, value in enumerate(row)} for row in ws.iter_rows(min_row=2, values_only=True)
+    ]
+    workbook.close()
+    return rows
 
 
 def test_generate_audit_id_and_add_row(fake_project):
@@ -85,6 +97,78 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values["Gripper Type"] == "N/A"
     assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
     wb.close()
+
+
+def test_uninstalled_eoat_save_allows_blank_machine_fields_and_appends_note(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-UNINSTALLED-001",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "",
+            "Press/Machine #": "",
+            "Tool #": "TOOL-A",
+            "Robot Type": "",
+            "Robot Model/Controller": "",
+            "Part Family": "Part family A",
+            "Part Name/Description": "Vacuum EOAT family A sample",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+            "Notes": "Needs new vacuum tubing.",
+        },
+    )
+
+    assert result.success, result.errors
+    assert result.metrics["uninstalled_eoat_audit"] is True
+    assert result.metrics["linked_compatibility_sync_requested"] is False
+    loaded = load_audit_entry(fake_project, "AUD-UNINSTALLED-001")
+    assert loaded["Press/Machine #"] == "N/A"
+    assert loaded["Robot Type"] == "N/A"
+    assert loaded["Robot Model/Controller"] == "N/A"
+    assert loaded["Notes"] == "Needs new vacuum tubing.\nEOAT Not Installed."
+
+
+def test_uninstalled_eoat_note_is_not_duplicated(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-UNINSTALLED-NOTE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Press/Machine #": "",
+            "Tool #": "UNKNOWN-TOOL",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+            "Notes": "EOAT Not Installed.",
+        },
+    )
+
+    assert result.success, result.errors
+    loaded = load_audit_entry(fake_project, "AUD-UNINSTALLED-NOTE")
+    assert loaded["Notes"].count("EOAT Not Installed.") == 1
+
+
+def test_uninstalled_eoat_compatibility_autorun_is_skipped(fake_project):
+    result = save_audit_entry_with_compatibility_autorun(
+        fake_project,
+        {
+            "Audit ID": "AUD-UNINSTALLED-AUTORUN",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Press/Machine #": "",
+            "Tool #": "TOOL-A",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    assert result.metrics["uninstalled_eoat_audit"] is True
+    assert result.metrics["compatibility_autorun_skipped"] is True
+    assert result.metrics["compatibility_created"] == 0
+    rows = _inventory_rows(fake_project)
+    assert not any(row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE for row in rows)
 
 
 def test_number_of_parts_picked_save_load_and_header_order_are_unchanged(fake_project):

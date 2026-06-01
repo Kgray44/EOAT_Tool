@@ -134,11 +134,25 @@ def test_full_audit_calculates_100_percent():
 
 
 def test_missing_required_field_reduces_completion():
-    summary = calculate_audit_completion(_entry(**{"Press/Machine #": ""}), SECTIONS)
+    summary = calculate_audit_completion(_entry(**{"Press/Machine #": "", "Tool #": ""}), SECTIONS)
 
     assert summary.percent_complete < 100
     assert "Press/Machine #" in summary.missing_required_fields
     assert _status(summary, "Press/Machine #").state == STATE_MISSING
+
+
+def test_uninstalled_tool_audit_ignores_machine_context_fields():
+    summary = calculate_audit_completion(
+        _entry(**{"Plant/Area": "", "Press/Machine #": "", "Robot Type": "", "Tool #": "T-001"}),
+        SECTIONS,
+    )
+
+    assert summary.percent_complete == 100
+    assert "Plant/Area" not in summary.missing_required_fields
+    assert "Press/Machine #" not in summary.missing_required_fields
+    assert "Robot Type" not in summary.missing_required_fields
+    assert _status(summary, "Plant/Area").state == STATE_EXCLUDED
+    assert _status(summary, "Press/Machine #").state == STATE_EXCLUDED
 
 
 def test_unknown_not_checked_is_explicit_but_not_verified_complete():
@@ -255,6 +269,7 @@ def test_manual_override_sets_audit_percent_without_verifying_fields():
         _entry(
             **{
                 "Press/Machine #": "",
+                "Tool #": "",
                 MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes",
                 "Ignored Empty Fields At Override": "Press/Machine #",
             }

@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass, replace
 from typing import Any
 
 from core.audit.schema import AuditFieldSpec, all_audit_fields, audit_sections, field_by_header
+from core.audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from core.audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_FIELDS,
@@ -230,13 +231,18 @@ def calculate_audit_completion(
     current_entry = normalize_cylinder_fields({str(key): normalize_text(value) for key, value in entry.items()})
     section_map = sections or audit_sections()
     excluded = set(DEFAULT_EXCLUDED_FIELDS if excluded_fields is None else excluded_fields)
+    uninstalled = is_uninstalled_eoat_audit(current_entry)
+    if uninstalled:
+        excluded.update(UNINSTALLED_MACHINE_CONTEXT_FIELDS)
     requirements = entry_type_requirements(current_entry)
     entry_type = str(requirements.get("entry_type", ""))
     required_fields = set(requirements.get("required", ()))
     important_fields = set(requirements.get("important", ()))
     if entry_type.casefold() != ENTRY_TYPE_COMPATIBLE.casefold():
         required_fields.update(
-            field for field in IDENTITY_FIELDS if field in current_entry or field in _section_fields(section_map)
+            field
+            for field in IDENTITY_FIELDS
+            if field not in excluded and (field in current_entry or field in _section_fields(section_map))
         )
 
     raw_section_statuses: list[SectionCompletionStatus] = []
