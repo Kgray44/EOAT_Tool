@@ -99,6 +99,18 @@ powershell -ExecutionPolicy Bypass -File scripts/run_daily_summary.ps1
 powershell -ExecutionPolicy Bypass -File scripts/run_weekly_summary.ps1
 ```
 
+The weekly summary is intended for a quick supervisor review, not as a raw log export. It uses the current week daily reports, recent activity log entries, task progress JSON, workbook audit metrics, open follow-ups, and the latest workbook validation JSON when one exists. The report separates reports created by the weekly run from source reports it referenced and data files that activity logs show as updated.
+
+Open follow-ups are grouped by severity and category, so repeated missing-evidence warnings appear as counts such as `Missing evidence: Cable Management: 5 open entries` instead of repeated raw rows. Assigned action items, engineering issues, data-quality follow-ups, critical data conflicts, photos indexed, pilot candidates, and audit completion percentage are reported as separate metrics to avoid contradictory "open item" counts.
+
+Run workbook validation before using a weekly summary for readiness or release claims:
+
+```powershell
+python tools/validate_project_foundation.py --project-root "examples/demo_project"
+```
+
+If validation JSON is missing, the weekly summary will include an actionable warning instead of claiming readiness. Known limitations: audit metrics alone do not prove production impact, generated follow-ups remain open until the source data is fixed or explicitly overridden, and estimated or subjective source values remain estimates in the summary.
+
 Check task status from a terminal:
 
 ```powershell
