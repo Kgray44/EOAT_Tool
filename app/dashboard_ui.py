@@ -258,6 +258,38 @@ class DashboardWindow(QMainWindow):
     def navigate_to_page(self, page_key: str) -> None:
         self._navigate_to_page(page_key)
 
+    def navigate_to_photos_with_audit_link(self, link_text: str) -> bool:
+        if not self._show_page("photos"):
+            return False
+        self._select_nav_item("photos")
+        page = self.pages.get("photos")
+        if hasattr(page, "apply_pending_audit_field_link"):
+            page.apply_pending_audit_field_link(link_text)
+        return True
+
+    def navigate_to_audit_field_link(self, link_text: str) -> bool:
+        from core.audit_field_links import friendly_audit_field_label, parse_audit_field_link
+
+        link = parse_audit_field_link(link_text)
+        if link is None:
+            self.statusBar().showMessage("Go to Link unavailable for this older/manual link.", 9000)
+            return False
+        if not self._show_page("audit"):
+            return False
+        self._select_nav_item("audit")
+        page = self.pages.get("audit")
+        if page is None:
+            return False
+        if link.audit_id and hasattr(page, "load_existing_audit"):
+            page.load_existing_audit(
+                link.audit_id,
+                loaded_message=f"Opened linked photo target: {friendly_audit_field_label(link)}.",
+                confirm_unsaved=False,
+            )
+        if hasattr(page, "focus_annotation_target"):
+            page.focus_annotation_target(link.target_dict())
+        return True
+
     def page(self, page_key: str):
         return self.pages.get(page_key)
 

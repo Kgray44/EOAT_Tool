@@ -28,8 +28,60 @@ except ImportError:  # pragma: no cover
         QListWidgetItem
     ) = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
 
+if QComboBox is not None:
+
+    class LookupComboBox(QComboBox):
+        """Editable combo that keeps the QLineEdit-style API used by this page."""
+
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setEditable(True)
+            self.setMinimumContentsLength(18)
+            self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+            completer = self.completer()
+            if Qt is not None and completer is not None:
+                completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+        @property
+        def editingFinished(self):
+            return self.lineEdit().editingFinished
+
+        def text(self) -> str:
+            raw = self.currentText().strip()
+            index = self.currentIndex()
+            if index >= 0 and raw == self.itemText(index).strip():
+                value = self.currentData()
+                if value is not None and str(value).strip():
+                    return str(value).strip()
+            if " | " in raw:
+                return raw.split(" | ", 1)[0].strip()
+            return raw
+
+        def setText(self, value: object) -> None:
+            self.set_lookup_text(value)
+
+        def set_lookup_text(self, value: object, *, block_signals: bool = False) -> None:
+            previous_blocked = self.blockSignals(True) if block_signals else None
+            try:
+                text = str(value or "").strip()
+                index = self.findData(text)
+                if index < 0:
+                    index = self.findText(text)
+                if index >= 0:
+                    self.setCurrentIndex(index)
+                else:
+                    self.setCurrentIndex(-1)
+                    self.setEditText(text)
+            finally:
+                if previous_blocked is not None:
+                    self.blockSignals(previous_blocked)
+
+else:  # pragma: no cover
+    LookupComboBox = None
+
 from app.page_tasks import run_tool_background
 from app.widgets.tool_run_panel import ToolRunPanel
+from core.audit_field_links import friendly_audit_field_label, parse_audit_field_link
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.photo_evidence import (
@@ -61,6 +113,8 @@ class PhotosPage(QWidget):
         super().__init__(parent)
         self.config = config
         self.audit_lookup_rows: list[dict[str, object]] = []
+        self.issue_lookup_rows: list[dict[str, object]] = []
+        self._last_autofilled_tool_number = ""
         self.next_shot_type = "Overall EOAT"
         layout = QVBoxLayout(self)
         heading = QLabel("EOAT Photo Intake")
@@ -95,6 +149,7 @@ class PhotosPage(QWidget):
         form = QFormLayout(form_container)
         self.plant_edit = QLineEdit()
         self.press_edit = QLineEdit()
+        self.tool_edit = QLineEdit()
         self.date_edit = QLineEdit(date.today().isoformat())
         self.view_combo = QComboBox()
         self.view_combo.addItems(list(PHOTO_VIEW_FOLDERS.keys()))
@@ -103,9 +158,17 @@ class PhotosPage(QWidget):
         self.audit_context_label = QLabel("")
         self.audit_context_label.setWordWrap(True)
         self.audit_context_label.setStyleSheet("color: #475569;")
-        self.audit_id_edit = QLineEdit()
-        self.issue_id_edit = QLineEdit()
+        self.audit_id_edit = LookupComboBox()
+        self.issue_id_edit = LookupComboBox()
         self.audit_field_link_edit = QLineEdit()
+        self.audit_field_link_edit.setPlaceholderText("audit_id=...;field_key=...;field_label=...")
+        self.audit_field_link_edit.textChanged.connect(lambda _text: self._update_go_to_link_button())
+        self.go_to_link_button = QPushButton("Go to Link")
+        self.go_to_link_button.setToolTip("Return to the audit field linked to this photo.")
+        self.go_to_link_button.clicked.connect(self.go_to_audit_field_link)
+        self.link_display_label = QLabel("")
+        self.link_display_label.setWordWrap(True)
+        self.link_display_label.setStyleSheet("color: #475569;")
         self.description_edit = QTextEdit()
         self.description_edit.setFixedHeight(70)
         self.notes_edit = QTextEdit()
@@ -115,13 +178,21 @@ class PhotosPage(QWidget):
         for label, widget in [
             ("Plant/Area", self.plant_edit),
             ("Press/Machine #", self.press_edit),
+            ("Tool #", self.tool_edit),
             ("Date Taken", self.date_edit),
             ("EOAT Area Shown", self.view_combo),
             ("Audit Lookup", self.audit_lookup_combo),
             ("Related Audit ID", self.audit_id_edit),
             ("Audit Context", self.audit_context_label),
             ("Related Issue ID", self.issue_id_edit),
-            ("Link to Audit Field", self.audit_field_link_edit),
+        ]:
+            form.addRow(label, widget)
+        link_row = QHBoxLayout()
+        link_row.addWidget(self.audit_field_link_edit, stretch=1)
+        link_row.addWidget(self.go_to_link_button)
+        form.addRow("Link to Audit Field", link_row)
+        form.addRow("Linked Target", self.link_display_label)
+        for label, widget in [
             ("Description", self.description_edit),
             ("Notes", self.notes_edit),
             ("", self.copy_check),
@@ -203,13 +274,20 @@ class PhotosPage(QWidget):
         layout.addLayout(indexed_actions)
         self.indexed_photos_table = QTableWidget(0, 5)
         self.indexed_photos_table.setHorizontalHeaderLabels(["Photo ID", "Area", "Filename", "Path", "Linked Field"])
+        self.indexed_photos_table.itemSelectionChanged.connect(self._update_go_to_link_button)
         layout.addWidget(self.indexed_photos_table, stretch=1)
 
         self.result_panel = ToolRunPanel()
         layout.addWidget(self.result_panel, stretch=1)
         self.audit_lookup_combo.currentIndexChanged.connect(self.apply_selected_audit)
+        self.audit_id_edit.activated.connect(lambda _index: self.refresh_audit_context())
         self.audit_id_edit.editingFinished.connect(self.refresh_audit_context)
         self.view_combo.currentTextChanged.connect(lambda _text: self.refresh_batch_preview(show_result=False))
+        self.refresh_audit_lookup()
+        self.refresh_incoming()
+        self._update_go_to_link_button()
+
+    def refresh(self) -> None:
         self.refresh_audit_lookup()
         self.refresh_incoming()
 
@@ -236,12 +314,15 @@ class PhotosPage(QWidget):
 
     def refresh_audit_lookup(self) -> None:
         self.audit_lookup_rows = self._load_audit_rows()
+        self.issue_lookup_rows = self._load_issue_rows()
         self.audit_lookup_combo.blockSignals(True)
         self.audit_lookup_combo.clear()
         self.audit_lookup_combo.addItem("Select audit row", None)
         for row in self.audit_lookup_rows:
             self.audit_lookup_combo.addItem(self._audit_lookup_label(row), row)
         self.audit_lookup_combo.blockSignals(False)
+        self._populate_related_audit_options()
+        self._populate_related_issue_options()
 
     def _load_audit_rows(self) -> list[dict[str, object]]:
         paths = resolve_project_paths(self.config.project_root)
@@ -256,6 +337,19 @@ class PhotosPage(QWidget):
         except Exception:
             return []
 
+    def _load_issue_rows(self) -> list[dict[str, object]]:
+        paths = resolve_project_paths(self.config.project_root)
+        if not paths.master_workbook.exists():
+            return []
+        try:
+            return [
+                dict(row)
+                for row in row_dicts_cached(paths.master_workbook, "Issue Log")
+                if str(row.get("Issue ID") or "").strip()
+            ]
+        except Exception:
+            return []
+
     def _audit_lookup_label(self, row: dict[str, object]) -> str:
         parts = [
             str(row.get("Audit ID") or "").strip(),
@@ -265,6 +359,69 @@ class PhotosPage(QWidget):
             str(row.get("Part Name/Description") or "").strip(),
         ]
         return " | ".join(part for part in parts if part)
+
+    def _issue_lookup_label(self, row: dict[str, object]) -> str:
+        parts = [
+            str(row.get("Issue ID") or "").strip(),
+            str(row.get("Press/Machine #") or "").strip(),
+            str(row.get("Issue Category") or "").strip(),
+            str(row.get("Status") or "").strip(),
+        ]
+        return " | ".join(part for part in parts if part)
+
+    def _populate_related_audit_options(self) -> None:
+        current = self.audit_id_edit.text()
+        options = [
+            (self._audit_lookup_label(row), str(row.get("Audit ID") or "").strip())
+            for row in self.audit_lookup_rows
+            if str(row.get("Audit ID") or "").strip()
+        ]
+        self._populate_lookup_options(self.audit_id_edit, options, current)
+
+    def _populate_related_issue_options(self) -> None:
+        current = self.issue_id_edit.text()
+        options = [
+            (self._issue_lookup_label(row), str(row.get("Issue ID") or "").strip())
+            for row in self.issue_lookup_rows
+            if str(row.get("Issue ID") or "").strip()
+        ]
+        self._populate_lookup_options(self.issue_id_edit, options, current)
+
+    def _populate_lookup_options(
+        self, combo: LookupComboBox, options: list[tuple[str, str]], current: str = ""
+    ) -> None:
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("", "")
+        for label, value in options:
+            if not value:
+                continue
+            combo.addItem(label or value, value)
+            if Qt is not None:
+                combo.setItemData(combo.count() - 1, label or value, Qt.ItemDataRole.ToolTipRole)
+        combo.set_lookup_text(current, block_signals=True)
+        combo.blockSignals(False)
+
+    def _make_lookup_combo(self, options: list[tuple[str, str]], current: str = "") -> LookupComboBox:
+        combo = LookupComboBox()
+        self._populate_lookup_options(combo, options, current)
+        return combo
+
+    def _make_audit_id_combo(self, current: str = "") -> LookupComboBox:
+        options = [
+            (self._audit_lookup_label(row), str(row.get("Audit ID") or "").strip())
+            for row in self.audit_lookup_rows
+            if str(row.get("Audit ID") or "").strip()
+        ]
+        return self._make_lookup_combo(options, current)
+
+    def _make_issue_id_combo(self, current: str = "") -> LookupComboBox:
+        options = [
+            (self._issue_lookup_label(row), str(row.get("Issue ID") or "").strip())
+            for row in self.issue_lookup_rows
+            if str(row.get("Issue ID") or "").strip()
+        ]
+        return self._make_lookup_combo(options, current)
 
     def apply_selected_audit(self) -> None:
         row = self.audit_lookup_combo.currentData()
@@ -307,11 +464,12 @@ class PhotosPage(QWidget):
         plant = str(row.get("Plant/Area") or "").strip()
         press = str(row.get("Press/Machine #") or "").strip()
         if audit_id:
-            self.audit_id_edit.setText(audit_id)
+            self.audit_id_edit.set_lookup_text(audit_id, block_signals=True)
         if plant:
             self.plant_edit.setText(plant)
         if press:
             self.press_edit.setText(press)
+        self._apply_audit_tool_number(str(row.get(TOOL_FIELD) or "").strip())
         if not preserve_description or not self.description_edit.toPlainText().strip():
             self.description_edit.setPlainText(self._default_description(row))
         self.audit_context_label.setText(
@@ -331,10 +489,18 @@ class PhotosPage(QWidget):
         self.refresh_batch_defaults()
         self.refresh_evidence_coverage()
 
+    def _apply_audit_tool_number(self, tool_number: str) -> None:
+        if not tool_number:
+            return
+        current = self.tool_edit.text().strip()
+        if not current or current == self._last_autofilled_tool_number:
+            self.tool_edit.setText(tool_number)
+            self._last_autofilled_tool_number = tool_number
+
     def _default_description(self, row: dict[str, object]) -> str:
         audit_id = str(row.get("Audit ID") or "").strip()
         machine = str(row.get("Press/Machine #") or "").strip()
-        tool = str(row.get(TOOL_FIELD) or "").strip()
+        tool = self.tool_edit.text().strip() or str(row.get(TOOL_FIELD) or "").strip()
         pieces = [f"Photo evidence for {audit_id}" if audit_id else "Photo evidence"]
         if machine:
             pieces.append(f"Machine {machine}")
@@ -346,6 +512,7 @@ class PhotosPage(QWidget):
         return {
             "plant_area": self.plant_edit.text().strip(),
             "press_machine": self.press_edit.text().strip(),
+            "tool_number": self.tool_edit.text().strip(),
             "date_taken": self.date_edit.text().strip(),
             "view_type": self.view_combo.currentText(),
             "related_audit_id": self.audit_id_edit.text().strip(),
@@ -354,6 +521,24 @@ class PhotosPage(QWidget):
             "description": self.description_edit.toPlainText().strip(),
             "notes": self.notes_edit.toPlainText().strip(),
         }
+
+    def apply_pending_audit_field_link(self, link_text: str) -> None:
+        self.audit_field_link_edit.setText(str(link_text or "").strip())
+        label = friendly_audit_field_label(link_text)
+        if label:
+            self.link_display_label.setText(label)
+            parsed = parse_audit_field_link(link_text)
+            if parsed is not None:
+                self.audit_id_edit.setText(parsed.audit_id)
+                if parsed.machine_number and not self.press_edit.text().strip():
+                    self.press_edit.setText(parsed.machine_number)
+                if parsed.tool_number and not self.tool_edit.text().strip():
+                    self.tool_edit.setText(parsed.tool_number)
+                self.refresh_audit_context()
+            self.result_panel.show_text(f"Ready to attach photo to: {label}")
+        else:
+            self.link_display_label.setText("")
+        self._update_go_to_link_button()
 
     def build_batch_review(self) -> None:
         photos = self.selected_photos()
@@ -379,26 +564,39 @@ class PhotosPage(QWidget):
             view.currentTextChanged.connect(lambda _text: self.refresh_batch_preview(show_result=False))
             self.batch_table.setCellWidget(row_index, self.BATCH_VIEW_COL, view)
 
-            for column, value in [
-                (self.BATCH_DESCRIPTION_COL, self.description_edit.toPlainText().strip()),
-                (self.BATCH_AUDIT_COL, self.audit_id_edit.text().strip()),
-                (self.BATCH_ISSUE_COL, self.issue_id_edit.text().strip()),
-                (self.BATCH_FIELD_COL, self.audit_field_link_edit.text().strip()),
-            ]:
-                self.batch_table.setItem(row_index, column, QTableWidgetItem(value))
+            self.batch_table.setItem(
+                row_index, self.BATCH_DESCRIPTION_COL, QTableWidgetItem(self.description_edit.toPlainText().strip())
+            )
+            self.batch_table.setCellWidget(
+                row_index, self.BATCH_AUDIT_COL, self._make_audit_id_combo(self.audit_id_edit.text().strip())
+            )
+            self.batch_table.setCellWidget(
+                row_index, self.BATCH_ISSUE_COL, self._make_issue_id_combo(self.issue_id_edit.text().strip())
+            )
+            self.batch_table.setItem(
+                row_index, self.BATCH_FIELD_COL, QTableWidgetItem(self.audit_field_link_edit.text().strip())
+            )
         self.refresh_batch_preview(show_result=False)
 
     def refresh_batch_defaults(self) -> None:
         if self.batch_table.rowCount() == 0:
             return
         for row_index in range(self.batch_table.rowCount()):
-            audit_item = self.batch_table.item(row_index, self.BATCH_AUDIT_COL)
-            if audit_item is not None and not audit_item.text().strip():
-                audit_item.setText(self.audit_id_edit.text().strip())
+            self._set_batch_lookup_text(row_index, self.BATCH_AUDIT_COL, self.audit_id_edit.text().strip())
+            self._set_batch_lookup_text(row_index, self.BATCH_ISSUE_COL, self.issue_id_edit.text().strip())
             description_item = self.batch_table.item(row_index, self.BATCH_DESCRIPTION_COL)
             if description_item is not None and not description_item.text().strip():
                 description_item.setText(self.description_edit.toPlainText().strip())
         self.refresh_batch_preview(show_result=False)
+
+    def _set_batch_lookup_text(self, row_index: int, column: int, value: str) -> None:
+        widget = self.batch_table.cellWidget(row_index, column)
+        if isinstance(widget, LookupComboBox) and not widget.text().strip():
+            widget.set_lookup_text(value, block_signals=True)
+            return
+        item = self.batch_table.item(row_index, column)
+        if item is not None and not item.text().strip():
+            item.setText(value)
 
     def refresh_batch_preview(self, show_result: bool = True) -> None:
         if self.batch_table.rowCount() == 0:
@@ -416,6 +614,7 @@ class PhotosPage(QWidget):
             data["press_machine"],
             data["date_taken"],
             data["view_type"],
+            tool_number=data["tool_number"],
             per_photo_metadata=metadata,
         )
         included_rows = self._included_batch_rows()
@@ -470,8 +669,49 @@ class PhotosPage(QWidget):
         return self.view_combo.currentText()
 
     def _batch_item_text(self, row_index: int, column: int) -> str:
+        widget = self.batch_table.cellWidget(row_index, column)
+        if isinstance(widget, LookupComboBox):
+            return widget.text().strip()
+        if isinstance(widget, QComboBox):
+            return widget.currentText().strip()
         item = self.batch_table.item(row_index, column)
         return item.text().strip() if item is not None else ""
+
+    def _current_audit_field_link_text(self) -> str:
+        text = self.audit_field_link_edit.text().strip()
+        if text:
+            return text
+        row_index = self.indexed_photos_table.currentRow()
+        if row_index < 0:
+            return ""
+        item = self.indexed_photos_table.item(row_index, 4)
+        return item.text().strip() if item is not None else ""
+
+    def _update_go_to_link_button(self) -> None:
+        if not hasattr(self, "go_to_link_button"):
+            return
+        text = self._current_audit_field_link_text()
+        label = friendly_audit_field_label(text)
+        self.go_to_link_button.setEnabled(bool(label))
+        if label:
+            self.link_display_label.setText(label)
+        elif text:
+            self.link_display_label.setText("Go to Link unavailable for this older/manual link.")
+        else:
+            self.link_display_label.setText("")
+
+    def go_to_audit_field_link(self) -> None:
+        link_text = self._current_audit_field_link_text()
+        if not link_text:
+            self.result_panel.show_text("Enter or select a linked audit field first.")
+            return
+        if parse_audit_field_link(link_text) is None:
+            self.result_panel.show_text("Go to Link unavailable for this older/manual link.")
+            return
+        window = self.window()
+        if hasattr(window, "navigate_to_audit_field_link") and window.navigate_to_audit_field_link(link_text):
+            return
+        self.result_panel.show_text("Could not open the linked audit field from this window.")
 
     def preview_plan(self) -> None:
         data = self.metadata()
@@ -485,6 +725,7 @@ class PhotosPage(QWidget):
             data["press_machine"],
             data["date_taken"],
             data["view_type"],
+            tool_number=data["tool_number"],
         )
         if not plan:
             self.result_panel.show_text("No selected supported photos to preview.")
@@ -509,6 +750,7 @@ class PhotosPage(QWidget):
                 data["press_machine"],
                 data["date_taken"],
                 data["view_type"],
+                tool_number=data["tool_number"],
                 related_audit_id=data["related_audit_id"],
                 related_issue_id=data["related_issue_id"],
                 description=data["description"],

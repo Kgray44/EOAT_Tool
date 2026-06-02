@@ -82,6 +82,10 @@ def _finish_machine_lookup(page: AuditPage) -> None:
 
 def _finish_tool_lookup(page: AuditPage) -> None:
     page.audit_fields["Tool #"].editingFinished.emit()
+    _wait_for_tool_lookup(page)
+
+
+def _wait_for_tool_lookup(page: AuditPage) -> None:
     wait_until(
         lambda: page._tool_lookup_timer is None or not page._tool_lookup_timer.isActive(),
         timeout_ms=5000,
@@ -438,11 +442,41 @@ def test_uninstalled_tool_lookup_fills_tool_details_without_machine_fields(qapp,
     assert "Uninstalled EOAT audit mode" in page.lookup_note_label.text()
 
 
+def test_tool_text_change_starts_live_uninstalled_lookup(qapp, fake_config, fake_project):
+    page = AuditPage(fake_config)
+
+    page.audit_fields["Tool #"].setText("TOOL-A")
+    _wait_for_tool_lookup(page)
+
+    assert "Uninstalled EOAT audit mode" in page.lookup_note_label.text()
+    assert page.audit_fields["Part Family"].text() == "Part family A"
+    assert page.audit_fields["Part Name/Description"].toPlainText() == "Vacuum EOAT family A sample"
+    assert page.audit_fields["Press/Machine #"].text() == ""
+    summary = page.audit_coach_panel.summary
+    assert summary is not None
+    assert "Plant/Area" not in summary.missing_required_fields
+    assert "Press/Machine #" not in summary.missing_required_fields
+    assert "Robot Type" not in summary.missing_required_fields
+    assert "Robot Model/Controller" not in summary.missing_required_fields
+
+
+def test_uninstalled_tool_lookup_uses_reference_part_number_alias(qapp, fake_config, fake_project):
+    create_press_reference_workbooks(fake_project / "reference-data")
+    page = AuditPage(fake_config)
+
+    page.audit_fields["Tool #"].setText("DEMO PN 1200")
+    _wait_for_tool_lookup(page)
+
+    assert "Uninstalled EOAT audit mode" in page.lookup_note_label.text()
+    assert page.audit_fields["Part Family"].text() == "DEMO-PN-1200 - Demo housing cap"
+    assert page.audit_fields["Part Name/Description"].toPlainText() == "Demo housing cap"
+
+
 def test_unknown_uninstalled_tool_warns_and_allows_manual_entry(qapp, fake_config, fake_project):
     page = AuditPage(fake_config)
 
     page.audit_fields["Tool #"].setText("TOOL-DOES-NOT-EXIST")
-    _finish_tool_lookup(page)
+    _wait_for_tool_lookup(page)
     page.audit_fields["Part Family"].setText("Manual family")
     page.audit_fields["Part Name/Description"].setPlainText("Manual description")
 
@@ -450,6 +484,32 @@ def test_unknown_uninstalled_tool_warns_and_allows_manual_entry(qapp, fake_confi
     assert page.audit_fields["Part Family"].text() == "Manual family"
     assert page.audit_fields["Part Name/Description"].toPlainText() == "Manual description"
     assert "Uninstalled EOAT audit mode" in page.lookup_note_label.text()
+
+
+def test_uninstalled_tool_ui_save_appends_note_once_and_skips_compatibility(
+    qapp, fake_config, fake_project, frozen_project_date
+):
+    page = AuditPage(fake_config)
+
+    page.audit_fields["Tool #"].setText("TOOL-A")
+    _wait_for_tool_lookup(page)
+    page.audit_fields["Notes"].setPlainText("EOAT Not Installed.")
+    audit_id = page.audit_fields["Audit ID"].text()
+
+    click_button(page, "Save Audit Entry")
+    wait_for_background_tasks()
+
+    rows = row_dicts(
+        fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
+    )
+    saved_row = next(row for row in rows if row["Audit ID"] == audit_id)
+    assert saved_row["Notes"].count("EOAT Not Installed.") == 1
+    assert saved_row["Press/Machine #"] == "N/A"
+    assert not [
+        row
+        for row in rows
+        if row.get(ENTRY_TYPE_FIELD) == ENTRY_TYPE_COMPATIBLE and row.get(SOURCE_AUDIT_ID_FIELD) == audit_id
+    ]
 
 
 def test_manual_lookup_button_uses_same_lookup_path(qapp, fake_config, fake_project):

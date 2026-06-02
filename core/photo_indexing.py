@@ -95,6 +95,37 @@ def sanitize_filename_part(value: str) -> str:
     return cleaned or "Unknown"
 
 
+def sanitize_date_filename_part(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9-]+", "", _text(value))
+    return cleaned or "Unknown"
+
+
+def normalize_machine_filename_part(value: str) -> str:
+    text = re.sub(r"^(?:press|machine)\s*[-#:]*\s*", "", _text(value), flags=re.IGNORECASE)
+    cleaned = sanitize_filename_part(text)
+    return f"Machine{cleaned}"
+
+
+def build_photo_filename_stem(
+    plant_area: str, press_machine: str, tool_number: str, date_taken: str, view_type: str
+) -> str:
+    parts = [
+        sanitize_filename_part(plant_area),
+        normalize_machine_filename_part(press_machine),
+    ]
+    clean_tool = sanitize_filename_part(tool_number) if _text(tool_number) else ""
+    if clean_tool:
+        parts.append(f"Tool{clean_tool}")
+    parts.extend(
+        [
+            "EOAT",
+            sanitize_date_filename_part(date_taken),
+            PHOTO_VIEW_FILENAME.get(view_type, sanitize_filename_part(view_type)),
+        ]
+    )
+    return "_".join(part for part in parts if part)
+
+
 def incoming_photo_dir(project_root: str | Path) -> Path:
     return resolve_project_paths(project_root).incoming_photos
 
@@ -131,14 +162,10 @@ def generate_photo_id(project_root: str | Path, taken_date: str | None = None) -
 
 
 def _next_existing_photo_sequence(
-    project_root: str | Path, taken_date: str, plant_area: str, press_machine: str, view_type: str
+    project_root: str | Path, taken_date: str, plant_area: str, press_machine: str, view_type: str, tool_number: str = ""
 ) -> int:
     folder = destination_folder(project_root, view_type)
-    stem_prefix = (
-        f"{sanitize_filename_part(plant_area)}_"
-        f"{sanitize_filename_part(press_machine)}_EOAT_"
-        f"{taken_date}_{PHOTO_VIEW_FILENAME.get(view_type, sanitize_filename_part(view_type))}_"
-    )
+    stem_prefix = f"{build_photo_filename_stem(plant_area, press_machine, tool_number, taken_date, view_type)}_"
     max_number = 0
     if folder.exists():
         for item in folder.iterdir():
@@ -158,37 +185,40 @@ def preview_photo_intake(
     press_machine: str,
     date_taken: str,
     view_type: str,
+    tool_number: str = "",
     per_photo_metadata: list[Mapping[str, Any]] | None = None,
 ) -> list[PhotoPlanItem]:
+    if per_photo_metadata is None and not isinstance(tool_number, str):
+        per_photo_metadata = tool_number
+        tool_number = ""
     plan: list[PhotoPlanItem] = []
-    next_sequences: dict[str, int] = {}
+    next_sequences: dict[tuple[str, str], int] = {}
     photo_sequence = 1
     for item_data in _photo_items(
         photo_paths,
         view_type=view_type,
+        tool_number=tool_number,
         per_photo_metadata=per_photo_metadata,
     ):
         source = Path(item_data["source"])
         item_view_type = item_data["view_type"] or view_type
+        item_tool_number = item_data["tool_number"]
         if not item_view_type:
             continue
         folder = destination_folder(project_root, item_view_type)
-        if item_view_type not in next_sequences:
-            next_sequences[item_view_type] = _next_existing_photo_sequence(
-                project_root, date_taken, plant_area, press_machine, item_view_type
+        sequence_key = (item_view_type, item_tool_number)
+        if sequence_key not in next_sequences:
+            next_sequences[sequence_key] = _next_existing_photo_sequence(
+                project_root, date_taken, plant_area, press_machine, item_view_type, item_tool_number
             )
-        sequence = next_sequences[item_view_type]
+        sequence = next_sequences[sequence_key]
         ext = ".jpg" if source.suffix.lower() == ".jpeg" else source.suffix.lower()
         if ext not in SUPPORTED_IMAGE_EXTENSIONS:
             continue
         collision_avoided = False
+        stem = build_photo_filename_stem(plant_area, press_machine, item_tool_number, date_taken, item_view_type)
         while True:
-            filename = (
-                f"{sanitize_filename_part(plant_area)}_"
-                f"{sanitize_filename_part(press_machine)}_EOAT_"
-                f"{date_taken}_{PHOTO_VIEW_FILENAME.get(item_view_type, sanitize_filename_part(item_view_type))}_"
-                f"{sequence:03d}{ext}"
-            )
+            filename = f"{stem}_{sequence:03d}{ext}"
             target = folder / filename
             if not target.exists() and target not in [item.target for item in plan]:
                 break
@@ -205,11 +235,11 @@ def preview_photo_intake(
                 related_audit_id=item_data["related_audit_id"],
                 related_issue_id=item_data["related_issue_id"],
                 linked_audit_field=item_data["linked_audit_field"],
-                tool_number=item_data["tool_number"],
+                tool_number=item_tool_number,
             )
         )
         sequence += 1
-        next_sequences[item_view_type] = sequence
+        next_sequences[sequence_key] = sequence
         photo_sequence += 1
     return plan
 
@@ -275,6 +305,7 @@ def intake_photos(
         press_machine,
         date_taken,
         view_type,
+        tool_number=tool_number,
         per_photo_metadata=metadata,
     )
     if not plan:
@@ -491,7 +522,10 @@ def _update_related_audit_rows(workbook, plan: list[PhotoPlanItem]) -> tuple[lis
                 target_row = row_number
                 break
         if target_row is None:
-            warnings.append(f"Related Audit ID was not found in EOAT Inventory: {audit_id}")
+            warnings.append(
+                "Photo Index was updated, but no matching EOAT Inventory row was found "
+                f"for Related Audit ID: {audit_id}"
+            )
             continue
         ws.cell(row=target_row, column=photos_taken_col).value = "Yes"
         link_cell = ws.cell(row=target_row, column=photo_link_col)

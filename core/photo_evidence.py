@@ -285,33 +285,109 @@ def photo_index_path_findings(
     project_root: str | Path, photo_rows: list[dict[str, Any]] | None = None
 ) -> list[ValidationFinding]:
     photo_rows = photo_rows if photo_rows is not None else _photo_rows(project_root)
+    inventory_by_audit_id = _inventory_rows_by_audit_id(project_root)
     findings: list[ValidationFinding] = []
-    for row in photo_rows:
+    for row_number, row in enumerate(photo_rows, start=2):
+        if not _has_photo_index_content(row):
+            continue
         folder = _text(row.get("Folder Path"))
         filename = _text(row.get("Photo Filename"))
-        if not folder and not filename:
-            continue
-        path = resolve_indexed_photo_path(project_root, row)
-        if path.exists():
-            continue
         audit_id = _text(row.get("Related Audit ID"))
         photo_id = _text(row.get("Photo ID")) or "unidentified photo"
         machine = _text(row.get("Press/Machine #"))
-        findings.append(
-            make_finding(
-                ValidationSeverity.WARNING,
-                "photo_evidence_path",
-                f"{audit_id or photo_id}: broken photo path for {photo_id}: {path}",
-                sheet_name="Photo Index",
-                audit_id=audit_id,
-                machine_number=machine,
-                column_name="Folder Path",
-                current_value=str(path),
-                expected_behavior="Indexed photos should point to a local file that still exists in the project photo folders.",
-                recommended_action="Use the Photos page to re-link the evidence, confirm the local folder, or intake the photo again.",
-                source_validator="photo_evidence",
+        tool = _text(row.get(TOOL_FIELD))
+        context = _photo_index_context(audit_id, photo_id, machine, tool)
+        if not filename:
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "photo_evidence_index",
+                    f"{context}: Photo Index row is missing Photo Filename.",
+                    sheet_name="Photo Index",
+                    row_number=row_number,
+                    audit_id=audit_id,
+                    machine_number=machine,
+                    column_name="Photo Filename",
+                    current_value=f"Photo ID={photo_id}; Tool #={tool or 'N/A'}",
+                    expected_behavior="Indexed photo rows should record the local photo filename.",
+                    recommended_action="Use the Photos page to re-link the photo or intake the evidence again.",
+                    source_validator="photo_evidence",
+                )
             )
-        )
+        if not folder:
+            findings.append(
+                make_finding(
+                    ValidationSeverity.WARNING,
+                    "photo_evidence_index",
+                    f"{context}: Photo Index row is missing Folder Path.",
+                    sheet_name="Photo Index",
+                    row_number=row_number,
+                    audit_id=audit_id,
+                    machine_number=machine,
+                    column_name="Folder Path",
+                    current_value=f"Photo ID={photo_id}; Tool #={tool or 'N/A'}",
+                    expected_behavior="Indexed photo rows should record the local folder containing the photo.",
+                    recommended_action="Use the Photos page to re-link the photo folder or intake the evidence again.",
+                    source_validator="photo_evidence",
+                )
+            )
+        if folder and filename:
+            path = resolve_indexed_photo_path(project_root, row)
+            if not path.exists():
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "photo_evidence_path",
+                        f"{context}: broken photo path for {photo_id}: {path}",
+                        sheet_name="Photo Index",
+                        row_number=row_number,
+                        audit_id=audit_id,
+                        machine_number=machine,
+                        column_name="Folder Path",
+                        current_value=f"{path}; Tool #={tool or 'N/A'}",
+                        expected_behavior="Indexed photos should point to a local file that still exists in the project photo folders.",
+                        recommended_action="Use the Photos page to re-link the evidence, confirm the local folder, or intake the photo again.",
+                        source_validator="photo_evidence",
+                    )
+                )
+        if audit_id:
+            audit_row = inventory_by_audit_id.get(audit_id.casefold())
+            if audit_row is None:
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "photo_evidence_relationship",
+                        f"{context}: Related Audit ID does not match any EOAT Inventory row.",
+                        sheet_name="Photo Index",
+                        row_number=row_number,
+                        audit_id=audit_id,
+                        machine_number=machine,
+                        column_name="Related Audit ID",
+                        current_value=f"Related Audit ID={audit_id}; Tool #={tool or 'N/A'}",
+                        expected_behavior="Related Audit ID values in Photo Index should reference an existing EOAT Inventory audit.",
+                        recommended_action="Choose the correct audit from the Photos page dropdown or leave the relationship blank until the audit exists.",
+                        source_validator="photo_evidence",
+                    )
+                )
+                continue
+            audit_tool = _text(audit_row.get(TOOL_FIELD))
+            if tool and audit_tool and tool.casefold() != audit_tool.casefold():
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "photo_evidence_relationship",
+                        f"{context}: Tool # does not match EOAT Inventory Tool # {audit_tool}.",
+                        sheet_name="Photo Index",
+                        row_number=row_number,
+                        audit_id=audit_id,
+                        machine_number=machine,
+                        column_name=TOOL_FIELD,
+                        current_value=f"Photo Index Tool #={tool}; EOAT Inventory Tool #={audit_tool}",
+                        expected_behavior="When both rows have Tool # values, indexed photos should match the related audit row.",
+                        recommended_action="Confirm the correct audit relationship or update the Photo Index Tool #.",
+                        source_validator="photo_evidence",
+                    )
+                )
     return findings
 
 
@@ -409,7 +485,10 @@ def validate_photo_evidence(project_root: str | Path) -> tuple[list[str], dict[s
     metrics = {
         "photo_evidence_audit_count": len(coverages),
         "photo_evidence_missing_required_count": sum(coverage.missing_required_count for coverage in coverages),
-        "photo_evidence_broken_path_count": len(path_findings),
+        "photo_evidence_broken_path_count": sum(
+            1 for finding in path_findings if finding.category == "photo_evidence_path"
+        ),
+        "photo_evidence_index_finding_count": len(path_findings),
         "photo_evidence_finding_count": len(findings),
     }
     return warnings, metrics, findings
@@ -705,6 +784,18 @@ def _photo_rows(project_root: str | Path) -> list[dict[str, Any]]:
     return row_dicts(paths.master_workbook, "Photo Index")
 
 
+def _inventory_rows_by_audit_id(project_root: str | Path) -> dict[str, dict[str, Any]]:
+    paths = resolve_project_paths(project_root)
+    if not paths.master_workbook.exists():
+        return {}
+    rows: dict[str, dict[str, Any]] = {}
+    for row in row_dicts(paths.master_workbook, "EOAT Inventory"):
+        audit_id = _text(row.get("Audit ID")).casefold()
+        if audit_id:
+            rows[audit_id] = row
+    return rows
+
+
 def _find_audit_row(project_root: str | Path, audit_id: str) -> dict[str, Any] | None:
     paths = resolve_project_paths(project_root)
     if not paths.master_workbook.exists():
@@ -714,6 +805,34 @@ def _find_audit_row(project_root: str | Path, audit_id: str) -> dict[str, Any] |
         if _text(row.get("Audit ID")).casefold() == target:
             return row
     return None
+
+
+def _has_photo_index_content(row: dict[str, Any]) -> bool:
+    fields = (
+        "Photo ID",
+        "Date Taken",
+        "Plant/Area",
+        "Press/Machine #",
+        TOOL_FIELD,
+        "EOAT Area Shown",
+        "Photo Filename",
+        "Folder Path",
+        "Related Audit ID",
+        "Related Issue ID",
+        LINKED_AUDIT_FIELD_HEADER,
+        "Description",
+        "Notes",
+    )
+    return any(_text(row.get(field)) for field in fields)
+
+
+def _photo_index_context(audit_id: str, photo_id: str, machine: str, tool: str) -> str:
+    parts = [audit_id or photo_id, f"Photo ID {photo_id}"]
+    if machine:
+        parts.append(f"Machine {machine}")
+    if tool:
+        parts.append(f"Tool # {tool}")
+    return " | ".join(parts)
 
 
 def _is_compatible_row(row: dict[str, Any]) -> bool:

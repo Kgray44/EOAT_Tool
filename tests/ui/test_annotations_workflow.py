@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 from openpyxl import load_workbook
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QMessageBox, QWidget
 
 from app.dashboard_ui import DashboardWindow
 from app.pages.audit import AuditPage, audit_section_for_field
@@ -14,10 +14,21 @@ from app.widgets.field_tag_button import FieldNoteDialog, FieldTagButton, FieldT
 from app.widgets.note_editor import NoteEditor
 from core.annotations.service import AnnotationService
 from core.audit_entries import save_audit_entry
+from core.audit_field_links import parse_audit_field_link
 from core.paths import resolve_project_paths
 from tests.ui.helpers import click_button, wait_for_background_tasks
 
 pytestmark = pytest.mark.usability
+
+
+class _PhotoLinkHost(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.link_text = ""
+
+    def navigate_to_photos_with_audit_link(self, link_text: str) -> bool:
+        self.link_text = link_text
+        return True
 
 
 def test_notes_page_opens_and_creates_note(qapp, fake_config):
@@ -112,6 +123,78 @@ def test_field_tag_dialog_persists_assignment_and_tags_page_returns_target(qapp,
     assert "AUD-FIELD-TAG-001" in row_values
     assert "EOAT Vacuum Circuits" in row_values
     assert _field_fill(fake_project, "AUD-FIELD-TAG-001", "EOAT Vacuum Circuits") == "00FACC15"
+
+
+def test_field_tag_dialog_attach_photo_button_invokes_callback(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+    target = page._create_or_get_field_tag_target("Sensor Type")
+    captured = {}
+
+    def attach_photo(target):
+        captured["field_key"] = target.field_key
+        return True
+
+    dialog = FieldTagDialog(
+        page.annotation_service,
+        target,
+        field_label="Sensor Type",
+        current_value="",
+        tag_photo_callback=attach_photo,
+    )
+    dialog.show()
+
+    click_button(dialog, "Attach Photo")
+
+    assert captured == {"field_key": "Sensor Type"}
+
+
+def test_audit_page_attach_photo_to_field_builds_structured_link(qapp, fake_config):
+    host = _PhotoLinkHost()
+    page = AuditPage(fake_config, parent=host)
+    page.show()
+    page.audit_fields["Audit ID"].setText("AUD-FIELD-PHOTO-001")
+    page.audit_fields["Press/Machine #"].setText("Press 42")
+    page.audit_fields["Tool #"].setText("TOOL-42")
+
+    assert page.attach_photo_to_field("Sensor Type") is True
+
+    parsed = parse_audit_field_link(host.link_text)
+    assert parsed is not None
+    assert parsed.audit_id == "AUD-FIELD-PHOTO-001"
+    assert parsed.machine_number == "Press 42"
+    assert parsed.tool_number == "TOOL-42"
+    assert parsed.field_key == "Sensor Type"
+
+
+def test_audit_page_attach_photo_supports_tool_only_context(qapp, fake_config):
+    host = _PhotoLinkHost()
+    page = AuditPage(fake_config, parent=host)
+    page.show()
+    page.audit_fields["Audit ID"].setText("AUD-TOOL-ONLY-PHOTO-001")
+    page.audit_fields["Press/Machine #"].setText("")
+    page.audit_fields["Tool #"].setText("TOOL-ONLY")
+
+    assert page.attach_photo_to_field("Tool #") is True
+
+    parsed = parse_audit_field_link(host.link_text)
+    assert parsed is not None
+    assert parsed.audit_id == "AUD-TOOL-ONLY-PHOTO-001"
+    assert parsed.machine_number == ""
+    assert parsed.tool_number == "TOOL-ONLY"
+    assert parsed.field_key == "Tool #"
+
+
+def test_audit_page_attach_photo_requires_audit_id(qapp, fake_config, monkeypatch):
+    page = AuditPage(fake_config)
+    page.show()
+    page.audit_fields["Audit ID"].setText("")
+    messages = []
+    monkeypatch.setattr(QMessageBox, "information", lambda _parent, _title, message: messages.append(message))
+
+    assert page.attach_photo_to_field("Sensor Type") is False
+
+    assert any("Audit ID" in message for message in messages)
 
 
 def test_field_note_dialog_stages_linked_note_and_notes_page_returns_after_commit(

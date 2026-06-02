@@ -97,7 +97,13 @@ def main() -> int:
         args = collect_interactive(args)
     if args.preview:
         plan = preview_photo_intake(
-            args.project_root, args.photos, args.plant_area, args.press, args.date_taken, args.view_type
+            args.project_root,
+            args.photos,
+            args.plant_area,
+            args.press,
+            args.date_taken,
+            args.view_type,
+            tool_number=args.tool_number,
         )
         for item in plan:
             print(f"{item.source} -> {item.target}")

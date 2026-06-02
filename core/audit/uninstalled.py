@@ -19,14 +19,29 @@ UNINSTALLED_MACHINE_CONTEXT_FIELDS = frozenset(
 
 _BLANKISH_VALUES = {
     "",
+    "-",
+    "--",
     "n/a",
     "na",
+    "none",
     "not applicable",
+    "select",
+    "select machine",
+    "select machine number",
+    "enter machine",
+    "enter machine number",
     "unknown",
     "unknown / not checked",
     "not checked",
 }
-_MACHINE_FIELD_ALIASES = ("Press/Machine #", "Press/Machine", "Machine Number", "Machine #", "Machine")
+_MACHINE_FIELD_ALIASES = (
+    "Press/Machine #",
+    "Press/Machine",
+    "Press-Machine",
+    "Machine Number",
+    "Machine #",
+    "Machine",
+)
 
 
 def normalize_identifier(value: Any) -> str:

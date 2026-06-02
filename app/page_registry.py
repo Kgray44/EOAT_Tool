@@ -128,6 +128,8 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         "Photos",
         "Capture",
         "app.pages.photos:PhotosPage",
+        refresh_on_show=True,
+        listens_to=(EVENT_AUDIT_SAVED,),
         description="Photo intake and photo index updates.",
     ),
     PageSpec(
