@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 try:
     from PySide6.QtCore import QSize, Qt
     from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
@@ -150,11 +153,21 @@ class FieldTagDialog(QDialog):
     ASSIGNMENT_ID_ROLE = 257
     STAGED_INDEX_ROLE = 258
 
-    def __init__(self, service: AnnotationService, target, *, field_label: str, current_value: str, parent=None):
+    def __init__(
+        self,
+        service: AnnotationService,
+        target,
+        *,
+        field_label: str,
+        current_value: str,
+        tag_photo_callback: Callable[[Any], bool] | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.service = service
         self.target = target
         self.field_label = field_label
+        self._tag_photo_callback = tag_photo_callback
         self.created_note_ids: list[str] = []
         self._available_tags = []
         self._staged_assignments: list[dict[str, object]] = []
@@ -225,10 +238,14 @@ class FieldTagDialog(QDialog):
 
         note_button = QPushButton("Create Note About This Field")
         note_button.clicked.connect(self.create_note)
+        self.tag_photo_button = QPushButton("Attach Photo to This Field")
+        self.tag_photo_button.setToolTip("Attach a photo to this exact audit field.")
+        self.tag_photo_button.clicked.connect(self.tag_photo)
         self.link_note_combo = QComboBox()
         link_note_button = QPushButton("Link Existing Note")
         link_note_button.clicked.connect(self.link_existing_note)
         layout.addWidget(note_button)
+        layout.addWidget(self.tag_photo_button)
         link_row = QHBoxLayout()
         link_row.addWidget(self.link_note_combo, stretch=1)
         link_row.addWidget(link_note_button)
@@ -453,6 +470,15 @@ class FieldTagDialog(QDialog):
         self.status_label.setText("Staged existing note link. Press Done to keep it, or Cancel to discard it.")
         self._update_primary_button()
 
+    def tag_photo(self) -> None:
+        if self._tag_photo_callback is None:
+            QMessageBox.information(self, "Attach Photo", "Photo linking is not available from this window.")
+            return
+        if self._has_pending_changes() and not self._confirm_tag_photo_navigation_with_pending_changes():
+            return
+        if self._tag_photo_callback(self.target):
+            super().accept()
+
     def accept(self) -> None:
         if self.commit_changes():
             super().accept()
@@ -535,6 +561,25 @@ class FieldTagDialog(QDialog):
         box.setWindowTitle("Open Tag")
         box.setText("You have unsaved field annotation changes.")
         box.setInformativeText("Save these changes before opening the Tags page, discard them, or stay here.")
+        save_button = box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
+        discard_button = box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_button = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(save_button)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked == cancel_button:
+            return False
+        if clicked == save_button and not self.commit_changes():
+            return False
+        if clicked == discard_button:
+            self.reject()
+        return True
+
+    def _confirm_tag_photo_navigation_with_pending_changes(self) -> bool:
+        box = QMessageBox(self)
+        box.setWindowTitle("Attach Photo")
+        box.setText("You have unsaved field annotation changes.")
+        box.setInformativeText("Save these changes before attaching a photo, discard them, or stay here.")
         save_button = box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
         discard_button = box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
         cancel_button = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
