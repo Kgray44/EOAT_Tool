@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .resources import default_project_root, is_frozen, resource_path, writable_config_path
+
 APP_NAME = "EOAT Command Center"
-TOOLKIT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PROJECT_ROOT = TOOLKIT_ROOT / "examples" / "demo_project"
-DEFAULT_CONFIG_PATH = TOOLKIT_ROOT / "config" / "local_config.json"
-LEGACY_CONFIG_PATH = TOOLKIT_ROOT / "config" / "user_config.json"
-CONFIG_EXAMPLE_PATH = TOOLKIT_ROOT / "config" / "config.example.json"
+TOOLKIT_ROOT = resource_path("")
+DEFAULT_PROJECT_ROOT = default_project_root()
+DEFAULT_CONFIG_PATH = writable_config_path("local_config.json") if is_frozen() else TOOLKIT_ROOT / "config" / "local_config.json"
+LEGACY_CONFIG_PATH = writable_config_path("user_config.json") if is_frozen() else TOOLKIT_ROOT / "config" / "user_config.json"
+CONFIG_EXAMPLE_PATH = resource_path("config/config.example.json")
 DEFAULT_GIT_EXECUTABLE = Path("git")
 
 EXPECTED_NUMBERED_FOLDERS = [

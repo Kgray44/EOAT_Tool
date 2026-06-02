@@ -19,17 +19,9 @@ def main() -> int:
         sys.executable,
         "-m",
         "PyInstaller",
-        str(ROOT / "run_dashboard.py"),
-        "--name",
-        "EOAT_Command_Center",
-        "--windowed",
         "--noconfirm",
-        "--distpath",
-        str(ROOT / "dist"),
-        "--workpath",
-        str(ROOT / "build"),
-        "--specpath",
-        str(ROOT / "build"),
+        "--clean",
+        str(ROOT / "EOAT_Command_Center.spec"),
     ]
     print("Running:", " ".join(cmd))
     return subprocess.run(cmd, cwd=ROOT, shell=False).returncode
