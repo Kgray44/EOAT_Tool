@@ -43,14 +43,14 @@ hiddenimports = sorted(set(hiddenimports))
 
 
 a = Analysis(
-    ["app/main.py"],
+    ["packaging/eoat_command_center_entry.py"],
     pathex=[str(ROOT)],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=["build_tools/pyi_smoke_runtime.py"],
+    runtime_hooks=[],
     excludes=[],
     noarchive=False,
     optimize=0,
