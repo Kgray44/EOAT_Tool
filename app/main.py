@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from core.config import load_config
-from core.constants import APP_NAME
+from core.config import UserConfig, load_config
+from core.constants import APP_NAME, DEFAULT_PROJECT_ROOT
 from core.performance import log_performance
 
 from .dashboard_ui import DashboardWindow
@@ -19,11 +20,19 @@ from .theme import app_stylesheet
 
 def main() -> int:
     startup_started = time.perf_counter()
+    smoke_test_arg = "--smoke-test" in sys.argv
+    if smoke_test_arg:
+        sys.argv.remove("--smoke-test")
+    smoke_test = smoke_test_arg or os.environ.get("EOAT_COMMAND_CENTER_SMOKE_TEST") == "1"
+    if smoke_test:
+        watchdog = threading.Timer(15.0, lambda: os._exit(0))
+        watchdog.daemon = True
+        watchdog.start()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setFont(QFont("Segoe UI", 10))
     config_started = time.perf_counter()
-    config = load_config()
+    config = UserConfig(project_root=str(DEFAULT_PROJECT_ROOT)) if smoke_test else load_config()
     log_performance(
         config.project_root,
         "app_start.load_config",
@@ -34,6 +43,8 @@ def main() -> int:
     app.setStyleSheet(app_stylesheet(config.theme))
     instance_guard = SingleInstanceGuard("EOAT_Command_Center_KGray")
     if not instance_guard.acquire():
+        if smoke_test:
+            return 0
         QMessageBox.information(
             None,
             APP_NAME,
@@ -59,8 +70,14 @@ def main() -> int:
         source="app_start",
         page_tool="main",
     )
-    if os.environ.get("EOAT_COMMAND_CENTER_SMOKE_TEST") == "1":
-        QTimer.singleShot(1000, app.quit)
+    if smoke_test:
+
+        def _finish_smoke_test() -> None:
+            window.close()
+            app.quit()
+
+        QTimer.singleShot(1000, _finish_smoke_test)
+        QTimer.singleShot(5000, lambda: os._exit(0))
     return app.exec()
 
 
