@@ -90,7 +90,7 @@ After building:
 python scripts/smoke_test_package.py
 ```
 
-The smoke helper launches the windowed executable with a smoke flag, waits long enough to confirm it stays alive, then terminates that smoke process. It does not replace manual double-click testing.
+The smoke helper launches the windowed executable with a smoke flag and requires it to exit with code 0 within the timeout. A hung process, PyInstaller error dialog, or nonzero exit fails the smoke check. It does not replace manual double-click testing.
 
 Then manually verify:
 

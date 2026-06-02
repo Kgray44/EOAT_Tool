@@ -22,11 +22,11 @@ function Remove-RepoChildFolder {
     if (-not (Test-Path $target)) {
         return
     }
-    $resolved = Resolve-Path $target
-    if (-not $resolved.Path.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to remove path outside repository root: $($resolved.Path)"
+    $resolved = (Resolve-Path $target).ProviderPath
+    if (-not $resolved.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove path outside repository root: $resolved"
     }
-    Remove-Item -LiteralPath $resolved.Path -Recurse -Force
+    Remove-Item -LiteralPath $resolved -Recurse -Force
 }
 
 Write-Step "Cleaning old build folders..."
