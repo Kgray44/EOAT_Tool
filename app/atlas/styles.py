@@ -20,6 +20,8 @@ DESIGN_TOKENS = {
     "hero_start": "#102033",
     "hero_mid": "#173d66",
     "hero_end": "#2f80ed",
+    "scroll_handle": "#b8c7dc",
+    "scroll_hover": "#7ea7d8",
 }
 SPACING = {"xs": 4, "sm": 8, "md": 12, "lg": 18, "xl": 24}
 RADIUS = {"sm": 5, "md": 7, "lg": 9}
@@ -46,33 +48,54 @@ def atlas_stylesheet() -> str:
     QLabel {
         background: transparent;
     }
-    QListWidget#AtlasSidebar {
-        background: $navy;
-        border: 0;
-        padding: 10px;
-        color: #dbeafe;
-        font-weight: 600;
-    }
     QWidget#AtlasSidebarPanel {
-        background: $navy;
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0c1c2e, stop:.55 #102033, stop:1 #132a44);
+    }
+    QFrame#AtlasSidebarHeader {
+        background: #17324f;
+        border: 1px solid #244564;
+        border-radius: 10px;
+    }
+    QLabel#AtlasSidebarLogo {
+        background: transparent;
     }
     QLabel#AtlasSidebarTitle {
         color: white;
-        font-size: 13pt;
+        font-size: 12pt;
         font-weight: 900;
-        padding-bottom: 8px;
+        padding-bottom: 2px;
     }
-    QListWidget#AtlasSidebar::item {
-        padding: 10px 11px;
-        border-radius: 6px;
-        margin: 2px 0;
+    QScrollArea#AtlasSidebarScroll {
+        background: transparent;
+        border: 0;
     }
-    QListWidget#AtlasSidebar::item:selected {
-        background: $accent;
+    QLabel#AtlasNavSectionLabel {
+        color: #8fb3d9;
+        font-size: 8pt;
+        font-weight: 800;
+        letter-spacing: .08em;
+        padding: 12px 8px 4px 8px;
+    }
+    QPushButton#AtlasNavItem {
+        background: transparent;
+        color: #d7e7f7;
+        border: 0;
+        border-left: 3px solid transparent;
+        border-radius: 9px;
+        padding: 8px 10px 8px 12px;
+        text-align: left;
+        font-size: 9pt;
+        font-weight: 600;
+    }
+    QPushButton#AtlasNavItem:hover {
+        background: #1c3755;
         color: white;
+        border-left-color: #7ea7d8;
     }
-    QListWidget#AtlasSidebar::item:hover {
-        background: #1f3654;
+    QPushButton#AtlasNavItem:checked {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2f80ed, stop:1 #1f4e7e);
+        color: white;
+        border-left-color: #7ec8ff;
     }
     QFrame#AtlasCard {
         background: $surface;
@@ -207,6 +230,11 @@ def atlas_stylesheet() -> str:
     QPushButton#PrimaryButton:hover {
         background: $accent_hover;
     }
+    QPushButton:disabled, QLineEdit:disabled, QComboBox:disabled {
+        background: #edf2f7;
+        color: #94a3b8;
+        border-color: #d8e2ee;
+    }
     QTableWidget, QListWidget, QTextEdit {
         background: $surface;
         border: 1px solid $border;
@@ -217,6 +245,18 @@ def atlas_stylesheet() -> str:
     }
     QTableWidget {
         alternate-background-color: #f7faff;
+    }
+    QTableWidget::item {
+        padding: 5px;
+        border: 0;
+    }
+    QTableWidget::item:selected {
+        background: #dbeafe;
+        color: #172033;
+    }
+    QTableCornerButton::section {
+        background: #eef3f9;
+        border: 0;
     }
     QListWidget#CardList {
         background: transparent;
@@ -239,6 +279,12 @@ def atlas_stylesheet() -> str:
         background: transparent;
         border: 0;
     }
+    QScrollArea > QWidget > QWidget {
+        background: transparent;
+    }
+    QAbstractScrollArea::viewport {
+        background: transparent;
+    }
     QHeaderView::section {
         background: #eef3f9;
         color: #243b53;
@@ -252,6 +298,98 @@ def atlas_stylesheet() -> str:
         border: 1px solid #cbd5e1;
         border-radius: ${radius_md}px;
         padding: 7px;
+    }
+    QComboBox::drop-down {
+        border: 0;
+        width: 24px;
+    }
+    QComboBox QAbstractItemView, QMenu {
+        background: $surface;
+        color: #172033;
+        border: 1px solid $border;
+        border-radius: ${radius_md}px;
+        padding: 6px;
+        selection-background-color: #dbeafe;
+        selection-color: #172033;
+    }
+    QMenu::item {
+        padding: 7px 18px;
+        border-radius: 5px;
+    }
+    QMenu::item:selected {
+        background: $hover;
+    }
+    QSplitter::handle {
+        background: transparent;
+        margin: 4px;
+    }
+    QSplitter::handle:hover {
+        background: #dbeafe;
+        border-radius: 3px;
+    }
+    QStatusBar {
+        background: #e6eef7;
+        border-top: 1px solid $border;
+        color: $muted_text;
+        padding: 3px 8px;
+    }
+    QStatusBar QLabel {
+        color: $muted_text;
+    }
+    QToolTip {
+        background: $surface;
+        color: #172033;
+        border: 1px solid $border_strong;
+        border-radius: ${radius_md}px;
+        padding: 7px;
+    }
+    QScrollBar:vertical {
+        background: transparent;
+        width: 10px;
+        margin: 4px 2px 4px 2px;
+    }
+    QScrollBar::handle:vertical {
+        background: $scroll_handle;
+        border-radius: 4px;
+        min-height: 32px;
+    }
+    QScrollBar::handle:vertical:hover {
+        background: $scroll_hover;
+    }
+    QScrollBar::handle:vertical:pressed {
+        background: $accent;
+    }
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+        height: 0px;
+        border: 0;
+        background: transparent;
+    }
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+        background: transparent;
+    }
+    QScrollBar:horizontal {
+        background: transparent;
+        height: 10px;
+        margin: 2px 4px 2px 4px;
+    }
+    QScrollBar::handle:horizontal {
+        background: $scroll_handle;
+        border-radius: 4px;
+        min-width: 32px;
+    }
+    QScrollBar::handle:horizontal:hover {
+        background: $scroll_hover;
+    }
+    QScrollBar::handle:horizontal:pressed {
+        background: $accent;
+    }
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+        width: 0px;
+        border: 0;
+        background: transparent;
+    }
+    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+        background: transparent;
     }
     QLabel#LoadingTitle {
         color: #111827;

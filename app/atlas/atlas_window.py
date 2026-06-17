@@ -3,10 +3,11 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
+    QFrame,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
+    QPushButton,
+    QScrollArea,
     QSplitter,
     QStackedWidget,
     QVBoxLayout,
@@ -75,41 +76,66 @@ class AtlasWindow(QMainWindow):
         self.sidebar.setObjectName("AtlasSidebarPanel")
         self.sidebar.setFixedWidth(230)
         sidebar_layout = QVBoxLayout(self.sidebar)
-        sidebar_layout.setContentsMargins(10, 12, 10, 10)
-        sidebar_layout.setSpacing(8)
+        sidebar_layout.setContentsMargins(12, 12, 12, 12)
+        sidebar_layout.setSpacing(12)
+        header = QFrame()
+        header.setObjectName("AtlasSidebarHeader")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(10, 10, 10, 10)
+        header_layout.setSpacing(5)
         logo = QLabel()
+        logo.setObjectName("AtlasSidebarLogo")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = QPixmap(str(ATLAS_LOGO_PATH))
         if not pixmap.isNull():
             logo.setPixmap(
-                pixmap.scaled(86, 86, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                pixmap.scaled(72, 72, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             )
         else:
             logo.setText("EOAT")
         name = QLabel("EOAT Atlas")
         name.setObjectName("AtlasSidebarTitle")
         name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sidebar_layout.addWidget(logo)
-        sidebar_layout.addWidget(name)
-        self.nav = QListWidget()
-        self.nav.setObjectName("AtlasSidebar")
-        sidebar_layout.addWidget(self.nav, 1)
+        header_layout.addWidget(logo)
+        header_layout.addWidget(name)
+        sidebar_layout.addWidget(header)
+
+        nav_scroll = QScrollArea()
+        nav_scroll.setObjectName("AtlasSidebarScroll")
+        nav_scroll.setWidgetResizable(True)
+        nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        nav_content = QWidget()
+        nav_layout = QVBoxLayout(nav_content)
+        nav_layout.setContentsMargins(0, 0, 0, 0)
+        nav_layout.setSpacing(4)
+        self.nav_items: dict[str, QPushButton] = {}
+        for section, items in NAV_SECTIONS:
+            section_label = QLabel(section)
+            section_label.setObjectName("AtlasNavSectionLabel")
+            nav_layout.addWidget(section_label)
+            for key, label in items:
+                button = QPushButton(label)
+                button.setObjectName("AtlasNavItem")
+                button.setCheckable(True)
+                button.clicked.connect(lambda _checked=False, key=key: self.show_page(key))
+                self.nav_items[key] = button
+                nav_layout.addWidget(button)
+        nav_layout.addStretch(1)
+        nav_scroll.setWidget(nav_content)
+        sidebar_layout.addWidget(nav_scroll, 1)
         self.stack = QStackedWidget()
         self.pages = self._create_pages()
         for key, label in PAGE_LABELS:
-            item = QListWidgetItem(label)
-            item.setData(256, key)
-            self.nav.addItem(item)
             self.stack.addWidget(self.pages[key])
-        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         splitter = QSplitter()
+        splitter.setObjectName("AtlasMainSplitter")
         splitter.addWidget(self.sidebar)
         splitter.addWidget(self.stack)
         splitter.setSizes([230, 1150])
         self.setCentralWidget(splitter)
         self.status_label = QLabel("Starting EOAT Atlas...")
         self.statusBar().addPermanentWidget(self.status_label)
-        self.nav.setCurrentRow(0)
+        self.show_page("home")
         if auto_refresh:
             self.refresh_data(force=False)
 
@@ -133,7 +159,9 @@ class AtlasWindow(QMainWindow):
     def show_page(self, key: str) -> None:
         keys = [item_key for item_key, _label in PAGE_LABELS]
         if key in keys:
-            self.nav.setCurrentRow(keys.index(key))
+            self.stack.setCurrentIndex(keys.index(key))
+            for item_key, button in self.nav_items.items():
+                button.setChecked(item_key == key)
 
     def open_recommendation(self, query: str) -> None:
         self.show_page("what")
@@ -234,6 +262,47 @@ PAGE_LABELS = [
     ("gaps", "Documentation Gaps"),
     ("reports", "Reports / Export"),
     ("diagnostics", "Settings / Diagnostics"),
+]
+
+NAV_SECTIONS = [
+    (
+        "Command",
+        [
+            ("home", "Home / Command Deck"),
+            ("what", "What Do I Need?"),
+        ],
+    ),
+    (
+        "Lookup",
+        [
+            ("eoats", "EOAT Profiles"),
+            ("machines", "Machine Profiles"),
+            ("tools", "Tool / Mold / Part"),
+        ],
+    ),
+    (
+        "Visuals",
+        [
+            ("matrix", "Compatibility Matrix"),
+            ("overview", "Overall Maps"),
+            ("photos", "Photos"),
+        ],
+    ),
+    (
+        "Standards",
+        [
+            ("standards", "Standards Library"),
+            ("pm", "PM / Inspection"),
+            ("gaps", "Documentation Gaps"),
+        ],
+    ),
+    (
+        "System",
+        [
+            ("reports", "Reports / Export"),
+            ("diagnostics", "Settings / Diagnostics"),
+        ],
+    ),
 ]
 
 
