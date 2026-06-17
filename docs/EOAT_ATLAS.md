@@ -16,7 +16,7 @@ EOAT Atlas is read-only by default. It may create timestamped exports under:
 06_Final_Handoff/Atlas_Exports/
 ```
 
-It does not modify the EOAT Master Tracker, Press Capacity workbook, Robot Info workbook, standards files, or photo folders.
+It does not modify the EOAT Master Tracker, Press Capacity workbook, Robot Info workbook, or photo folders. The one exception is standards registration: if a likely EOAT standardization document is placed in the project root, Atlas can safely copy it into `03_Standards/` without overwriting an existing file so it appears in the Standards Library and Information Library.
 
 ## Data Sources
 
@@ -29,6 +29,8 @@ Atlas uses the active project root from the normal Command Center config and rea
 - `03_Standards/`, `03_Standards/Work_Instructions/`, and generated standard documents when present
 
 If an optional source is missing, Atlas shows a source-status warning and continues with partial data.
+
+Likely root-level standardization documents are detected by names such as `EOAT Standardization`, `EOAT Standard`, `Standard Design`, `Design Guidelines`, or `EOAT Standards` with `.docx`, `.pdf`, `.md`, or `.txt` extensions. Atlas copies them into `03_Standards/` using collision-safe filenames.
 
 ## What Do I Need?
 
@@ -83,12 +85,34 @@ Atlas is designed to feel fast after data is loaded:
 - The window opens immediately.
 - Data refresh runs in a background thread.
 - Workbooks are loaded once into cached in-memory records.
-- Photo indexing records file paths only; thumbnails are loaded lazily when the Photos page is used.
+- Photo indexing records file paths only; the Photos page shows summary cards and loads images only when the in-app carousel is opened.
 - Search and recommendation use normalized lookup keys.
 - Manual **Refresh Data** is available on Settings / Diagnostics.
 - The last refreshed timestamp is shown in the status bar and dashboard.
 
 Diagnostics on Settings / Diagnostics include workbook load time, photo index time, cache build time, and bundle counts.
+
+## Settings And Dark Mode
+
+Settings / Diagnostics includes editable Atlas preferences that persist per user in the app config folder, not in source workbooks. Current settings include:
+
+- Light, Dark, or System/default theme
+- Default startup page
+- Default search mode
+- Photo viewer behavior: in-app carousel, open folder, or external viewer
+- Lazy photo preview and carousel prefetch options
+- Advanced diagnostics visibility
+- Compact or comfortable list/card density
+- Export and external-open behavior
+- Auto-refresh data on startup
+
+Theme changes apply immediately. Atlas defaults to light mode unless the user changes it.
+
+## Photo Viewer
+
+The Photos page uses summary cards with EOAT ID, photo count, folder status, missing categories, and actions. **View Photos** opens an in-app carousel that displays one image at a time with previous/next controls, filename/category, count, close, open folder, and open externally actions. Left/right arrow keys navigate and Escape closes the viewer.
+
+Large photo folders are not eagerly rendered on every card, which keeps page filtering and navigation fast.
 
 ## Page Screenshots
 
@@ -120,21 +144,36 @@ Atlas flags human-readable warnings such as:
 
 Each warning includes what is missing, why it matters when available, the source, and a suggested fix. Fixes should be made in EOAT Command Center or the source-of-truth workbook process, not directly in Atlas.
 
+## Information Library
+
+**Information Library** is a searchable, sortable reference center for:
+
+- App help and settings help
+- EOAT standardization documents and design guidelines
+- Compatibility logic explanation
+- Photo and documentation rules
+- PM / inspection guidance
+- Standards references
+- Troubleshooting and support notes
+- Reports / export behavior
+
+The library builds an in-memory index at refresh time. It searches title, category, tags, source filename/path, and snippet content without reparsing documents on every keystroke. DOCX/PDF files are listed with metadata and an open-source button even when lightweight text extraction is unavailable.
+
 ## Main Pages
 
 - **Home / Command Deck**: search, quick actions, source status, project health metrics.
 - **What Do I Need?**: guided recommendation and install checklist.
-- **EOAT Search / Profiles**: EOAT table plus profile details.
-- **Machine Search / Profiles**: machine compatibility and robot context.
+- **EOAT Search / Profiles**: compact EOAT selector tiles plus structured profile dashboard details.
+- **Machine Search / Profiles**: compact machine selector tiles plus compatibility and robot context.
 - **Tool / Mold / Part Search**: tool-to-EOAT and tool-to-machine lookup.
 - **Compatibility Matrix**: EOAT/machine, tool/EOAT, and tool/machine table views.
 - **Overall Maps**: machine grid and documentation heatmap.
-- **Photos**: EOAT photo folder and indexed-photo browser.
+- **Photos**: EOAT photo summaries with in-app carousel viewing.
 - **Standards**: standard document list and search.
 - **PM / Inspection**: generated inspection guidance and missing PM data.
-- **Documentation Gaps**: action-oriented warning table.
+- **Information Library**: searchable standards, help, compatibility, photo, PM, settings, and troubleshooting references.
 - **Reports / Export**: timestamped CSV/Markdown exports.
-- **Settings / Diagnostics**: source paths, refresh button, and performance timings.
+- **Settings / Diagnostics**: editable preferences, dark mode, source paths, refresh button, and performance timings.
 
 ## Known Limitations
 

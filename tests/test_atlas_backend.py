@@ -87,6 +87,20 @@ def test_atlas_handles_missing_optional_sources(tmp_path: Path) -> None:
     assert bundle.warnings
 
 
+def test_atlas_registers_root_standardization_document(tmp_path: Path) -> None:
+    root = create_fake_eoat_project(tmp_path, with_photos=False)
+    root_standard = root / "EOAT Standardization Guide.md"
+    root_standard.write_text("# EOAT Standardization Guide\n\nSynthetic design guidelines.\n", encoding="utf-8")
+    invalidate_atlas_data_cache(root)
+
+    bundle = load_atlas_data(root, force_refresh=True)
+    paths = resolve_project_paths(root)
+
+    assert (paths.standards / root_standard.name).exists()
+    assert any(standard.title == "Eoat Standardization Guide" for standard in bundle.standards)
+    assert any(standard.category == "eoat standards" for standard in bundle.standards)
+
+
 def test_documentation_score_flags_missing_critical_fields() -> None:
     status = calculate_documentation_status({"Tool #": "123", "EOAT Type": "Vacuum"}, photo_count=0)
 

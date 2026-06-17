@@ -21,6 +21,7 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
 
     from app.atlas.atlas_window import PAGE_LABELS, AtlasWindow
+    from app.atlas.settings import AtlasSettings
     from app.atlas.styles import atlas_stylesheet
     from core.atlas_data_loader import load_atlas_data
     from core.config import UserConfig
@@ -38,9 +39,10 @@ def main() -> int:
 
     app = QApplication.instance() or QApplication(sys.argv)
     _register_capture_font(app, QFont, QFontDatabase)
-    app.setStyleSheet(atlas_stylesheet())
+    capture_settings = AtlasSettings()
+    app.setStyleSheet(atlas_stylesheet(capture_settings.effective_theme))
     bundle = _sanitize_demo_bundle(load_atlas_data(project_root, force_refresh=True), project_root)
-    window = AtlasWindow(UserConfig(project_root=str(project_root)), auto_refresh=False)
+    window = AtlasWindow(UserConfig(project_root=str(project_root)), auto_refresh=False, settings=capture_settings)
     window.resize(args.width, args.height)
     window.bundle = bundle
     for page in window.pages.values():
@@ -107,6 +109,8 @@ def _prepare_page(window, key: str) -> None:
         page.filter.setText(bundle.eoats[0].eoat_id)
     elif key == "standards" and hasattr(page, "filter"):
         page.filter.setText("")
+    elif key == "library" and hasattr(page, "search"):
+        page.search.setText("standard")
     elif hasattr(page, "refresh"):
         page.refresh()
 

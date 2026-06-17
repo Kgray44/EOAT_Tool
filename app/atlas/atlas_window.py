@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QLabel,
     QMainWindow,
@@ -22,8 +23,8 @@ from .assets import ATLAS_LOGO_PATH
 from .pages import (
     DiagnosticsPage,
     EOATBrowserPage,
-    GapsPage,
     HomePage,
+    InformationLibraryPage,
     MachineBrowserPage,
     MatrixPage,
     OverviewPage,
@@ -34,6 +35,8 @@ from .pages import (
     ToolSearchPage,
     WhatNeedPage,
 )
+from .settings import AtlasSettings, load_atlas_settings, save_atlas_settings
+from .styles import atlas_stylesheet
 
 
 class AtlasLoadWorker(QObject):
@@ -61,9 +64,10 @@ class AtlasWindow(QMainWindow):
     data_failed = Signal(str)
     loading_progress = Signal(str)
 
-    def __init__(self, config: UserConfig, *, auto_refresh: bool = True):
+    def __init__(self, config: UserConfig, *, auto_refresh: bool = True, settings: AtlasSettings | None = None):
         super().__init__()
         self.config = config
+        self.settings = (settings or load_atlas_settings()).normalized()
         self.bundle: AtlasDataBundle | None = None
         self._load_thread: QThread | None = None
         self._load_worker: AtlasLoadWorker | None = None
@@ -135,7 +139,8 @@ class AtlasWindow(QMainWindow):
         self.setCentralWidget(splitter)
         self.status_label = QLabel("Starting EOAT Atlas...")
         self.statusBar().addPermanentWidget(self.status_label)
-        self.show_page("home")
+        self.apply_settings(save=False, notify_pages=False)
+        self.show_page(self.settings.startup_page)
         if auto_refresh:
             self.refresh_data(force=False)
 
@@ -151,7 +156,7 @@ class AtlasWindow(QMainWindow):
             "photos": PhotosPage(self),
             "standards": StandardsPage(self),
             "pm": PMInspectionPage(self),
-            "gaps": GapsPage(self),
+            "library": InformationLibraryPage(self),
             "reports": ReportsPage(self),
             "diagnostics": DiagnosticsPage(self),
         }
@@ -190,6 +195,22 @@ class AtlasWindow(QMainWindow):
 
     def show_status(self, message: str) -> None:
         self.statusBar().showMessage(message, 9000)
+
+    def update_settings(self, settings: AtlasSettings) -> None:
+        self.settings = settings.normalized()
+        self.apply_settings(save=True)
+
+    def apply_settings(self, *, save: bool = False, notify_pages: bool = True) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(atlas_stylesheet(self.settings.effective_theme))
+        if save:
+            save_atlas_settings(self.settings)
+            self.show_status("Atlas settings saved.")
+        if notify_pages:
+            for page in self.pages.values():
+                if hasattr(page, "settings_changed"):
+                    page.settings_changed()
 
     def refresh_data(self, *, force: bool) -> None:
         if self._load_thread is not None and self._load_thread.isRunning():
@@ -259,7 +280,7 @@ PAGE_LABELS = [
     ("photos", "Photos"),
     ("standards", "Standards"),
     ("pm", "PM / Inspection"),
-    ("gaps", "Documentation Gaps"),
+    ("library", "Information Library"),
     ("reports", "Reports / Export"),
     ("diagnostics", "Settings / Diagnostics"),
 ]
@@ -293,7 +314,7 @@ NAV_SECTIONS = [
         [
             ("standards", "Standards Library"),
             ("pm", "PM / Inspection"),
-            ("gaps", "Documentation Gaps"),
+            ("library", "Information Library"),
         ],
     ),
     (

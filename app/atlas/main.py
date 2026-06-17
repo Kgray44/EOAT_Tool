@@ -14,6 +14,7 @@ from core.constants import DEFAULT_PROJECT_ROOT
 from .assets import ATLAS_LOGO_PATH
 from .atlas_window import AtlasWindow
 from .loading_screen import AtlasLoadingScreen
+from .settings import AtlasSettings, load_atlas_settings
 from .styles import atlas_stylesheet
 
 
@@ -31,13 +32,14 @@ def main() -> int:
     app.setFont(QFont("Segoe UI", 10))
     if ATLAS_LOGO_PATH.exists():
         app.setWindowIcon(QIcon(str(ATLAS_LOGO_PATH)))
-    app.setStyleSheet(atlas_stylesheet())
+    settings = AtlasSettings() if smoke_test else load_atlas_settings()
+    app.setStyleSheet(atlas_stylesheet(settings.effective_theme))
     config = UserConfig(project_root=str(DEFAULT_PROJECT_ROOT)) if smoke_test else load_config()
     loading = AtlasLoadingScreen(ATLAS_LOGO_PATH)
     loading.center_on_screen()
     loading.show()
     app.processEvents()
-    window = AtlasWindow(config, auto_refresh=False)
+    window = AtlasWindow(config, auto_refresh=False, settings=settings)
     startup_state = {"done": False}
 
     def _reveal_window() -> None:
@@ -66,8 +68,11 @@ def main() -> int:
 
         QTimer.singleShot(700, _finish_smoke_test)
         QTimer.singleShot(6000, lambda: os._exit(0))
-    else:
+    elif settings.auto_refresh_on_startup:
         window.refresh_data(force=False)
+    else:
+        loading.set_status("Auto-refresh is off. Opening Atlas without rebuilding cached data.")
+        QTimer.singleShot(350, _reveal_window)
     return app.exec()
 
 
