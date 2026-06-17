@@ -33,7 +33,7 @@ class AuditProgressPage(QWidget):
         self.config = config
         self.cards: dict[str, StatusCard] = {}
         layout = QVBoxLayout(self)
-        heading = QLabel("EOAT Documentation Progress")
+        heading = QLabel("Audit Progress")
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
 
