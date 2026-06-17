@@ -15,6 +15,7 @@ DEFAULT_SIZE = (1400, 900)
 
 
 def main() -> int:
+    from PySide6.QtGui import QFont, QFontDatabase
     from PySide6.QtWidgets import QApplication
 
     from app.atlas.atlas_window import PAGE_LABELS, AtlasWindow
@@ -34,6 +35,7 @@ def main() -> int:
     output_dir = Path(args.output_dir).resolve()
 
     app = QApplication.instance() or QApplication(sys.argv)
+    _register_capture_font(app, QFont, QFontDatabase)
     app.setStyleSheet(atlas_stylesheet())
     bundle = load_atlas_data(project_root, force_refresh=True)
     window = AtlasWindow(UserConfig(project_root=str(project_root)), auto_refresh=False)
@@ -59,6 +61,17 @@ def main() -> int:
 
     window.close()
     return 0
+
+
+def _register_capture_font(app, qfont, qfont_database) -> None:
+    for font_path in [Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "segoeui.ttf"]:
+        if not font_path.exists():
+            continue
+        font_id = qfont_database.addApplicationFont(str(font_path))
+        families = qfont_database.applicationFontFamilies(font_id) if font_id >= 0 else []
+        if families:
+            app.setFont(qfont(families[0], 10))
+            return
 
 
 def _prepare_page(window, key: str) -> None:

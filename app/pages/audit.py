@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 import time
 import uuid
@@ -673,7 +674,7 @@ class AuditPage(QWidget):
             annotation_database_deferred=True,
             guided_ui_deferred=True,
         )
-        if QTimer is not None:
+        if QTimer is not None and os.environ.get("EOAT_COMMAND_CENTER_DASHBOARD_SMOKE") != "1":
             QTimer.singleShot(250, self._load_lazy_audit_indexes)
             QTimer.singleShot(450, self._start_background_draft_check)
             QTimer.singleShot(750, self._start_annotation_service_initialization)
