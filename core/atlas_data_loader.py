@@ -40,7 +40,7 @@ from .documentation_score import calculate_documentation_status
 from .eoat_ids import normalize_eoat_assembly_id
 from .paths import get_press_capacity_file, resolve_project_paths
 from .photo_index import build_photo_index
-from .standards_index import build_standards_index, standards_for_record
+from .standards_index import STANDARDIZATION_KEYWORDS, build_standards_index, standards_for_record
 from .tool_fields import TOOL_FIELD
 from .workbook_cache import row_dicts_cached, workbook_file_signature
 
@@ -426,11 +426,25 @@ def _cache_signature(project_root: Path) -> tuple[tuple[str, bool, int, int], ..
         paths.cell_photos,
         paths.standards,
     ]
+    candidates.extend(_root_standardization_candidates(project_root))
     signature = []
     for path in candidates:
         file_signature = workbook_file_signature(path)
         signature.append((file_signature.path, file_signature.exists, file_signature.mtime_ns, file_signature.size))
     return tuple(signature)
+
+
+def _root_standardization_candidates(project_root: Path) -> list[Path]:
+    try:
+        return [
+            path
+            for path in sorted(project_root.iterdir())
+            if path.is_file()
+            and path.suffix.lower() in {".docx", ".pdf", ".md", ".txt"}
+            and any(keyword in path.name.casefold().replace("_", " ").replace("-", " ") for keyword in STANDARDIZATION_KEYWORDS)
+        ]
+    except OSError:
+        return []
 
 
 def _eoat_group_id(row: dict[str, Any], row_index: int) -> str:

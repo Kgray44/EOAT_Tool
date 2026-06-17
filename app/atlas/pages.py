@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
+    QDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -31,7 +35,7 @@ from core.atlas_exports import (
     export_photo_coverage_report,
     export_recommendation_summary,
 )
-from core.atlas_models import AtlasDataBundle, EOATRecord, MachineRecord, RecommendationResult
+from core.atlas_models import AtlasDataBundle, EOATRecord, MachineRecord, RecommendationResult, StandardReference
 from core.atlas_recommendations import recommend_for_query
 from core.atlas_utils import normalized_eoat_key, normalized_machine_key
 from core.compatibility_engine import compatibility_matrix_rows
@@ -55,6 +59,7 @@ from .widgets import (
     ModernSearchBar,
     PhotoGalleryCard,
     PhotoStripWidget,
+    PrimaryCard,
     ProfileHeaderCard,
     ReadinessScoreWidget,
     SecondaryCard,
@@ -80,6 +85,9 @@ class BaseAtlasPage(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
+        return None
+
+    def settings_changed(self) -> None:
         return None
 
     def require_bundle(self) -> AtlasDataBundle | None:
@@ -319,10 +327,13 @@ class EOATBrowserPage(BaseAtlasPage):
         splitter = QSplitter()
         self.list = QListWidget()
         self.list.setObjectName("CardList")
+        self.list.setMinimumWidth(330)
+        self.list.setMaximumWidth(430)
         self.list.currentItemChanged.connect(self._selection_changed)
         self.detail_scroll = QScrollArea()
         self.detail_scroll.setWidgetResizable(True)
         self.detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.detail_scroll.setMinimumWidth(720)
         self.detail_panel = QWidget()
         self.detail_layout = QVBoxLayout(self.detail_panel)
         self.detail_layout.setContentsMargins(0, 0, 0, 0)
@@ -363,17 +374,33 @@ class EOATBrowserPage(BaseAtlasPage):
             if query and query not in haystack:
                 continue
             rows.append(eoat)
+        self.list.blockSignals(True)
         self.list.clear()
         for eoat in rows[:200]:
-            item = QListWidgetItem(_eoat_list_label(eoat))
+            tile = EOATListTile(eoat, compact=self.controller.settings.compact_list_mode)
+            item = QListWidgetItem()
+            item.setSizeHint(tile.sizeHint())
             item.setData(Qt.ItemDataRole.UserRole, eoat)
             self.list.addItem(item)
+            self.list.setItemWidget(item, tile)
         if len(rows) > 200:
             item = QListWidgetItem(f"Showing first 200 of {len(rows)} matches. Refine the search to narrow results.")
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.list.addItem(item)
-        if rows and self.current is None:
-            self.list.setCurrentRow(0)
+        self.list.blockSignals(False)
+        if rows:
+            target = normalized_eoat_key(self.current.eoat_id) if self.current else normalized_eoat_key(rows[0].eoat_id)
+            selected_row = 0
+            for index, eoat in enumerate(rows[:200]):
+                if normalized_eoat_key(eoat.eoat_id) == target:
+                    selected_row = index
+                    break
+            self.list.setCurrentRow(selected_row)
+        else:
+            self._show_detail(None)
+
+    def settings_changed(self) -> None:
+        self.refresh()
 
     def open_record(self, eoat_id: str) -> None:
         self.filter.setText(eoat_id)
@@ -414,31 +441,43 @@ class EOATBrowserPage(BaseAtlasPage):
             self.controller.open_recommendation(self.current.eoat_id)
 
     def _render_eoat_profile(self, eoat: EOATRecord | None) -> None:
+        self.detail_panel.setUpdatesEnabled(False)
         _clear_layout(self.detail_layout)
         if eoat is None:
             empty = EmptyStateWidget("EOAT Profile", "Select an EOAT from the list to see compatibility, readiness, photos, warnings, and technical details.")
             self.detail_layout.addWidget(empty)
             self.detail_layout.addStretch(1)
+            _finalize_scroll_panel(self.detail_scroll, self.detail_panel, self.detail_layout)
+            self.detail_panel.setUpdatesEnabled(True)
             return
+        profile_columns = 2 if self.detail_scroll.viewport().width() >= 980 else 1
         self.detail_layout.addWidget(_eoat_hero_section(eoat))
-        primary_grid = QGridLayout()
+        primary_container = QWidget()
+        primary_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        primary_grid = QGridLayout(primary_container)
         primary_grid.setContentsMargins(0, 0, 0, 0)
         primary_grid.setSpacing(10)
         primary_grid.addWidget(_eoat_compatibility_section(eoat), 0, 0)
-        primary_grid.addWidget(_eoat_readiness_section(eoat), 0, 1)
+        primary_grid.addWidget(_eoat_readiness_section(eoat), 0 if profile_columns == 2 else 1, 1 if profile_columns == 2 else 0)
         primary_grid.setColumnStretch(0, 1)
-        primary_grid.setColumnStretch(1, 1)
-        self.detail_layout.addLayout(primary_grid)
-        evidence_grid = QGridLayout()
+        if profile_columns == 2:
+            primary_grid.setColumnStretch(1, 1)
+        self.detail_layout.addWidget(primary_container)
+        evidence_container = QWidget()
+        evidence_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        evidence_grid = QGridLayout(evidence_container)
         evidence_grid.setContentsMargins(0, 0, 0, 0)
         evidence_grid.setSpacing(10)
         evidence_grid.addWidget(_eoat_photo_section(eoat), 0, 0)
-        evidence_grid.addWidget(_eoat_warnings_section(eoat), 0, 1)
+        evidence_grid.addWidget(_eoat_warnings_section(eoat), 0 if profile_columns == 2 else 1, 1 if profile_columns == 2 else 0)
         evidence_grid.setColumnStretch(0, 1)
-        evidence_grid.setColumnStretch(1, 1)
-        self.detail_layout.addLayout(evidence_grid)
-        self.detail_layout.addWidget(_eoat_technical_details(eoat))
+        if profile_columns == 2:
+            evidence_grid.setColumnStretch(1, 1)
+        self.detail_layout.addWidget(evidence_container)
+        self.detail_layout.addWidget(_eoat_technical_details(eoat, columns=2 if self.detail_scroll.viewport().width() >= 1100 else 1))
         self.detail_layout.addStretch(1)
+        _finalize_scroll_panel(self.detail_scroll, self.detail_panel, self.detail_layout)
+        self.detail_panel.setUpdatesEnabled(True)
 
 
 class MachineBrowserPage(BaseAtlasPage):
@@ -455,10 +494,13 @@ class MachineBrowserPage(BaseAtlasPage):
         splitter = QSplitter()
         self.list = QListWidget()
         self.list.setObjectName("CardList")
+        self.list.setMinimumWidth(320)
+        self.list.setMaximumWidth(420)
         self.list.currentItemChanged.connect(self._selection_changed)
         self.detail_scroll = QScrollArea()
         self.detail_scroll.setWidgetResizable(True)
         self.detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.detail_scroll.setMinimumWidth(720)
         self.detail_panel = QWidget()
         self.detail_layout = QVBoxLayout(self.detail_panel)
         self.detail_layout.setContentsMargins(0, 0, 0, 0)
@@ -493,17 +535,33 @@ class MachineBrowserPage(BaseAtlasPage):
             if query and query not in haystack:
                 continue
             rows.append(machine)
+        self.list.blockSignals(True)
         self.list.clear()
         for machine in rows[:200]:
-            item = QListWidgetItem(_machine_list_label(machine))
+            tile = MachineListTile(machine, compact=self.controller.settings.compact_list_mode)
+            item = QListWidgetItem()
+            item.setSizeHint(tile.sizeHint())
             item.setData(Qt.ItemDataRole.UserRole, machine)
             self.list.addItem(item)
+            self.list.setItemWidget(item, tile)
         if len(rows) > 200:
             item = QListWidgetItem(f"Showing first 200 of {len(rows)} matches. Refine the search to narrow results.")
             item.setFlags(Qt.ItemFlag.NoItemFlags)
             self.list.addItem(item)
-        if rows and self.current is None:
-            self.list.setCurrentRow(0)
+        self.list.blockSignals(False)
+        if rows:
+            target = normalized_machine_key(self.current.machine) if self.current else normalized_machine_key(rows[0].machine)
+            selected_row = 0
+            for index, machine in enumerate(rows[:200]):
+                if normalized_machine_key(machine.machine) == target:
+                    selected_row = index
+                    break
+            self.list.setCurrentRow(selected_row)
+        else:
+            self._show_detail(None)
+
+    def settings_changed(self) -> None:
+        self.refresh()
 
     def open_record(self, machine_id: str) -> None:
         self.filter.setText(machine_id)
@@ -534,22 +592,29 @@ class MachineBrowserPage(BaseAtlasPage):
                 self.controller.open_eoat(eoat_id)
 
     def _render_machine_profile(self, machine: MachineRecord | None) -> None:
+        self.detail_panel.setUpdatesEnabled(False)
         _clear_layout(self.detail_layout)
         if machine is None:
             self.detail_layout.addWidget(EmptyStateWidget("Machine Profile", "Select a machine to see robot context, compatible EOATs, tools, and warnings."))
             self.detail_layout.addStretch(1)
+            _finalize_scroll_panel(self.detail_scroll, self.detail_panel, self.detail_layout)
+            self.detail_panel.setUpdatesEnabled(True)
             return
         self.detail_layout.addWidget(_machine_hero_section(machine))
-        primary_grid = QGridLayout()
+        primary_container = QWidget()
+        primary_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        primary_grid = QGridLayout(primary_container)
         primary_grid.setContentsMargins(0, 0, 0, 0)
         primary_grid.setSpacing(10)
         primary_grid.addWidget(_machine_compatibility_section(machine), 0, 0)
         primary_grid.addWidget(_machine_technical_section(machine), 0, 1)
         primary_grid.setColumnStretch(0, 1)
         primary_grid.setColumnStretch(1, 1)
-        self.detail_layout.addLayout(primary_grid)
+        self.detail_layout.addWidget(primary_container)
         self.detail_layout.addWidget(_machine_warnings_section(machine))
         self.detail_layout.addStretch(1)
+        _finalize_scroll_panel(self.detail_scroll, self.detail_panel, self.detail_layout)
+        self.detail_panel.setUpdatesEnabled(True)
 
 
 class ToolSearchPage(BaseAtlasPage):
@@ -748,7 +813,7 @@ class PhotosPage(BaseAtlasPage):
                 continue
             matches.append(eoat)
         for eoat in matches[:80]:
-            self.card_layout.addWidget(_photo_folder_card(eoat))
+            self.card_layout.addWidget(_photo_folder_card(eoat, self))
         if not matches:
             self.card_layout.addWidget(EmptyStateWidget("No photo folders matched", "Try an EOAT ID, tool number, machine number, or folder keyword."))
         elif len(matches) > 80:
@@ -758,6 +823,21 @@ class PhotosPage(BaseAtlasPage):
     def open_folder(self) -> None:
         if self.current and self.current.photos.folder_path:
             open_path(self.current.photos.folder_path)
+
+    def view_photos(self, eoat: EOATRecord) -> None:
+        photos = _combined_photos(eoat)
+        if not photos:
+            QMessageBox.information(self, "EOAT Photos", f"No linked photos were found for {eoat.eoat_id}.")
+            return
+        if self.controller.settings.photo_viewer_behavior == "open_folder":
+            if eoat.photos.folder_path:
+                open_path(eoat.photos.folder_path)
+            return
+        if self.controller.settings.photo_viewer_behavior == "external":
+            open_path(photos[0].path)
+            return
+        viewer = PhotoCarouselDialog(eoat, parent=self, prefetch=self.controller.settings.carousel_prefetch)
+        viewer.exec()
 
 
 class StandardsPage(BaseAtlasPage):
@@ -873,12 +953,37 @@ class PMInspectionPage(BaseAtlasPage):
         self.content_layout.addStretch(1)
 
 
-class GapsPage(BaseAtlasPage):
+@dataclass(frozen=True)
+class InformationLibraryEntry:
+    title: str
+    category: str
+    snippet: str
+    source: str = "Atlas"
+    path: str = ""
+    tags: tuple[str, ...] = ()
+    modified: float = 0.0
+
+
+class InformationLibraryPage(BaseAtlasPage):
     def __init__(self, controller, parent=None):
         super().__init__(controller, parent)
+        self.entries: list[InformationLibraryEntry] = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
-        layout.addWidget(page_title("Documentation Gaps", "Action-oriented warnings from Atlas data checks."))
+        layout.addWidget(page_title("Information Library", "Search Atlas help, EOAT standards, compatibility rules, photos, PM guidance, and troubleshooting references."))
+        controls = QHBoxLayout()
+        controls.setContentsMargins(0, 0, 0, 0)
+        self.search = ModernSearchBar("Search standards, compatibility, photos, PM, settings, warnings, or exports")
+        self.search.textChanged.connect(self.refresh)
+        self.category = QComboBox()
+        self.category.currentTextChanged.connect(self.refresh)
+        self.sort = QComboBox()
+        self.sort.addItems(["Relevance", "Category", "Source document", "Title", "Last modified"])
+        self.sort.currentTextChanged.connect(self.refresh)
+        controls.addWidget(self.search, 1)
+        controls.addWidget(self.category)
+        controls.addWidget(self.sort)
+        layout.addLayout(controls)
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -889,52 +994,59 @@ class GapsPage(BaseAtlasPage):
         self.card_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self.card_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.scroll.setWidget(self.card_widget)
-        layout.addWidget(self.scroll, 2)
-        self.table = QTableWidget()
-        detail_panel = DenseDataPanel("Detail View", "Raw warning rows for filtering and export/report verification.")
-        detail_panel.layout.addWidget(self.table, 1)
-        layout.addWidget(detail_panel, 1)
+        layout.addWidget(self.scroll, 1)
+
+    def set_bundle(self, bundle: AtlasDataBundle | None) -> None:
+        self.bundle = bundle
+        self.entries = _build_information_entries(bundle) if bundle is not None else []
+        self._sync_categories()
+        self.refresh()
+
+    def _sync_categories(self) -> None:
+        selected = self.category.currentText() if self.category.count() else "All Categories"
+        categories = ["All Categories", *sorted({entry.category for entry in self.entries})]
+        self.category.blockSignals(True)
+        self.category.clear()
+        self.category.addItems(categories)
+        if selected in categories:
+            self.category.setCurrentText(selected)
+        self.category.blockSignals(False)
 
     def refresh(self) -> None:
         if self.bundle is None:
             return
         _clear_layout(self.card_layout)
-        rows = []
-        for warning in self.bundle.warnings:
-            rows.append(_warning_row(warning))
-        for eoat in self.bundle.eoats:
-            for warning in eoat.warnings:
-                rows.append(_warning_row(warning, fallback_eoat=eoat.eoat_id))
-        grouped: dict[str, list[dict[str, str]]] = {"bad": [], "warn": [], "info": []}
-        for row in rows:
-            grouped[_warning_kind(row.get("Severity", ""))].append(row)
-        for title, kind in [("Critical / High Priority", "bad"), ("Warnings", "warn"), ("Informational Gaps", "info")]:
-            if not grouped[kind]:
+        query = self.search.text().strip()
+        category = self.category.currentText()
+        scored = []
+        for entry in self.entries:
+            if category and category != "All Categories" and entry.category != category:
                 continue
-            if kind == "bad":
-                subtitle = "Highest priority source issues."
-            elif kind == "warn":
-                subtitle = "Review before confident install or reuse."
-            else:
-                subtitle = "Informational data gaps and optional cleanup."
-            section, section_layout = _group_container(title, subtitle)
-            for row in grouped[kind][:20]:
-                section_layout.addWidget(
-                    _warning_block(
-                        row["What"].split(":", 1)[0],
-                        row["What"],
-                        row["Why it matters"],
-                        row["Suggested fix"],
-                        kind,
-                    )
-                )
-            if len(grouped[kind]) > 20:
-                section_layout.addWidget(badge(f"+{len(grouped[kind]) - 20} more in detail view", kind))
-            self.card_layout.addWidget(section)
-        if not rows:
-            self.card_layout.addWidget(EmptyStateWidget("No documentation gaps", "Atlas did not find warning records in the loaded demo data."))
+            score = _information_score(entry, query)
+            if query and score <= 0:
+                continue
+            scored.append((score, entry))
+        sort_mode = self.sort.currentText()
+        if sort_mode == "Category":
+            scored.sort(key=lambda item: (item[1].category.casefold(), item[1].title.casefold()))
+        elif sort_mode == "Source document":
+            scored.sort(key=lambda item: (item[1].source.casefold(), item[1].title.casefold()))
+        elif sort_mode == "Title":
+            scored.sort(key=lambda item: item[1].title.casefold())
+        elif sort_mode == "Last modified":
+            scored.sort(key=lambda item: (-item[1].modified, item[1].title.casefold()))
+        else:
+            scored.sort(key=lambda item: (-item[0], item[1].category.casefold(), item[1].title.casefold()))
+        if scored:
+            summary = InfoPanel("Library Results", f"{len(scored)} matching reference item(s). Search uses an in-memory index built at refresh time.")
+            self.card_layout.addWidget(summary)
+        for _score, entry in scored[:80]:
+            self.card_layout.addWidget(_information_card(entry))
+        if not scored:
+            self.card_layout.addWidget(EmptyStateWidget("No library entries matched", "Try standards, photos, PM, compatibility, troubleshooting, settings, or an EOAT keyword."))
+        elif len(scored) > 80:
+            self.card_layout.addWidget(EmptyStateWidget("More results available", f"Showing first 80 of {len(scored)}. Refine the search to narrow results."))
         self.card_layout.addStretch(1)
-        fill_table(self.table, rows, ["Severity", "What", "Why it matters", "Suggested fix", "EOAT", "Machine", "Tool", "Source"])
 
 
 class ReportsPage(BaseAtlasPage):
@@ -979,9 +1091,81 @@ class ReportsPage(BaseAtlasPage):
 class DiagnosticsPage(BaseAtlasPage):
     def __init__(self, controller, parent=None):
         super().__init__(controller, parent)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.addWidget(page_title("Settings / Diagnostics", "Path status, refresh controls, and Atlas performance timings."))
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(18, 18, 18, 18)
+        outer_layout.addWidget(page_title("Settings / Diagnostics", "Path status, refresh controls, and Atlas performance timings."))
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
+        content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.scroll.setWidget(content)
+        outer_layout.addWidget(self.scroll, 1)
+
+        settings_card = PrimaryCard("Atlas Settings", "Editable preferences are stored per user and do not touch source workbooks or photo folders.")
+        settings_card.setMinimumHeight(280)
+        settings_grid = QGridLayout()
+        settings_grid.setContentsMargins(0, 0, 0, 0)
+        settings_grid.setHorizontalSpacing(12)
+        settings_grid.setVerticalSpacing(8)
+        self.theme_combo = _settings_combo(["Light", "Dark", "System/default"])
+        self.startup_combo = _settings_combo(
+            [
+                "Home / Command Deck",
+                "What Do I Need?",
+                "EOAT Search / Profiles",
+                "Machine Search / Profiles",
+                "Tool / Mold / Part Search",
+                "Compatibility Matrix",
+                "Overall Maps",
+                "Photos",
+                "Standards",
+                "PM / Inspection",
+                "Information Library",
+                "Reports / Export",
+                "Settings / Diagnostics",
+            ]
+        )
+        self.search_mode_combo = _settings_combo(["Smart", "EOAT", "Machine", "Tool"])
+        self.photo_behavior_combo = _settings_combo(["Open in app", "Open folder", "Open external viewer"])
+        self.card_density_combo = _settings_combo(["Comfortable", "Compact"])
+        self.lazy_previews_check = _settings_check("Enable optional cheap/cached photo previews on summary cards.")
+        self.prefetch_check = _settings_check("Load the previous and next carousel images in memory for smoother navigation.")
+        self.advanced_check = _settings_check("Show dense source and raw performance diagnostics tables.")
+        self.compact_list_check = _settings_check("Use shorter EOAT and machine selector tiles.")
+        self.open_after_export_check = _settings_check("Open the export folder after report generation when practical.")
+        self.confirm_external_check = _settings_check("Ask before opening folders or files outside Atlas.")
+        self.auto_refresh_check = _settings_check("Refresh Atlas data automatically when the app starts.")
+        settings_widgets = [
+            ("Theme", self.theme_combo),
+            ("Startup page", self.startup_combo),
+            ("Default search mode", self.search_mode_combo),
+            ("Photo viewer behavior", self.photo_behavior_combo),
+            ("Card density", self.card_density_combo),
+            ("Photo loading", self.lazy_previews_check),
+            ("Carousel", self.prefetch_check),
+            ("Diagnostics", self.advanced_check),
+            ("List density", self.compact_list_check),
+            ("Exports", self.open_after_export_check),
+            ("External files", self.confirm_external_check),
+            ("Startup refresh", self.auto_refresh_check),
+        ]
+        for index, (label, widget) in enumerate(settings_widgets):
+            label_widget = QLabel(label)
+            label_widget.setObjectName("MetricLabel")
+            settings_grid.addWidget(label_widget, index // 2, (index % 2) * 2)
+            settings_grid.addWidget(widget, index // 2, (index % 2) * 2 + 1)
+        settings_body = QWidget()
+        settings_body.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        settings_body.setMinimumHeight(205)
+        settings_body.setLayout(settings_grid)
+        settings_card.layout.addWidget(settings_body)
+        layout.addWidget(settings_card)
+
         control_card = InfoPanel("Data Refresh", "Manual refresh rebuilds cached Atlas data without modifying source files.")
         refresh_button = QPushButton("Refresh Data")
         refresh_button.setObjectName("PrimaryButton")
@@ -1006,12 +1190,14 @@ class DiagnosticsPage(BaseAtlasPage):
         layout.addWidget(self.perf_card)
         self.sources = QTableWidget()
         self.metrics = QTableWidget()
-        source_panel = DenseDataPanel("Source Path Details", "Compact reference table for configured Atlas source paths.")
-        source_panel.layout.addWidget(self.sources, 1)
-        layout.addWidget(source_panel, 1)
-        metrics_panel = DenseDataPanel("Raw Performance Diagnostics", "Developer timings and cache counters.")
-        metrics_panel.layout.addWidget(self.metrics, 1)
-        layout.addWidget(metrics_panel, 1)
+        self.source_panel = DenseDataPanel("Source Path Details", "Compact reference table for configured Atlas source paths.")
+        self.source_panel.layout.addWidget(self.sources, 1)
+        layout.addWidget(self.source_panel, 1)
+        self.metrics_panel = DenseDataPanel("Raw Performance Diagnostics", "Developer timings and cache counters.")
+        self.metrics_panel.layout.addWidget(self.metrics, 1)
+        layout.addWidget(self.metrics_panel, 1)
+        self._wire_settings_controls()
+        self._sync_settings_controls()
 
     def refresh(self) -> None:
         if self.bundle is None:
@@ -1042,6 +1228,70 @@ class DiagnosticsPage(BaseAtlasPage):
         )
         metric_rows = [{"Metric": key, "Value": value} for key, value in sorted(self.bundle.metrics.items())]
         fill_table(self.metrics, metric_rows, ["Metric", "Value"])
+        self._apply_diagnostics_visibility()
+
+    def settings_changed(self) -> None:
+        self._sync_settings_controls()
+        self._apply_diagnostics_visibility()
+
+    def _wire_settings_controls(self) -> None:
+        self.theme_combo.currentTextChanged.connect(lambda: self._save_setting(theme=_theme_value(self.theme_combo.currentText())))
+        self.startup_combo.currentTextChanged.connect(lambda: self._save_setting(startup_page=_page_key_for_label(self.startup_combo.currentText())))
+        self.search_mode_combo.currentTextChanged.connect(lambda: self._save_setting(default_search_mode=self.search_mode_combo.currentText().casefold()))
+        self.photo_behavior_combo.currentTextChanged.connect(lambda: self._save_setting(photo_viewer_behavior=_photo_behavior_value(self.photo_behavior_combo.currentText())))
+        self.card_density_combo.currentTextChanged.connect(lambda: self._save_setting(card_density=self.card_density_combo.currentText().casefold()))
+        self.lazy_previews_check.toggled.connect(lambda value: self._save_setting(lazy_photo_previews=value))
+        self.prefetch_check.toggled.connect(lambda value: self._save_setting(carousel_prefetch=value))
+        self.advanced_check.toggled.connect(lambda value: self._save_setting(show_advanced_diagnostics=value))
+        self.compact_list_check.toggled.connect(lambda value: self._save_setting(compact_list_mode=value))
+        self.open_after_export_check.toggled.connect(lambda value: self._save_setting(open_after_export=value))
+        self.confirm_external_check.toggled.connect(lambda value: self._save_setting(confirm_external_open=value))
+        self.auto_refresh_check.toggled.connect(lambda value: self._save_setting(auto_refresh_on_startup=value))
+
+    def _sync_settings_controls(self) -> None:
+        settings = self.controller.settings
+        controls = [
+            self.theme_combo,
+            self.startup_combo,
+            self.search_mode_combo,
+            self.photo_behavior_combo,
+            self.card_density_combo,
+            self.lazy_previews_check,
+            self.prefetch_check,
+            self.advanced_check,
+            self.compact_list_check,
+            self.open_after_export_check,
+            self.confirm_external_check,
+            self.auto_refresh_check,
+        ]
+        for control in controls:
+            control.blockSignals(True)
+        self.theme_combo.setCurrentText({"light": "Light", "dark": "Dark", "system": "System/default"}.get(settings.theme, "Light"))
+        self.startup_combo.setCurrentText(_label_for_page_key(settings.startup_page))
+        self.search_mode_combo.setCurrentText(settings.default_search_mode.upper() if settings.default_search_mode == "eoat" else settings.default_search_mode.title())
+        self.photo_behavior_combo.setCurrentText(
+            {"in_app": "Open in app", "open_folder": "Open folder", "external": "Open external viewer"}.get(
+                settings.photo_viewer_behavior, "Open in app"
+            )
+        )
+        self.card_density_combo.setCurrentText(settings.card_density.title())
+        self.lazy_previews_check.setChecked(settings.lazy_photo_previews)
+        self.prefetch_check.setChecked(settings.carousel_prefetch)
+        self.advanced_check.setChecked(settings.show_advanced_diagnostics)
+        self.compact_list_check.setChecked(settings.compact_list_mode)
+        self.open_after_export_check.setChecked(settings.open_after_export)
+        self.confirm_external_check.setChecked(settings.confirm_external_open)
+        self.auto_refresh_check.setChecked(settings.auto_refresh_on_startup)
+        for control in controls:
+            control.blockSignals(False)
+
+    def _save_setting(self, **changes) -> None:
+        self.controller.update_settings(replace(self.controller.settings, **changes))
+
+    def _apply_diagnostics_visibility(self) -> None:
+        show = bool(self.controller.settings.show_advanced_diagnostics)
+        self.source_panel.setVisible(show)
+        self.metrics_panel.setVisible(show)
 
 
 def _recommendation_text(result: RecommendationResult) -> str:
@@ -1067,14 +1317,256 @@ def _recommendation_text(result: RecommendationResult) -> str:
     return "\n".join(lines)
 
 
+class EOATListTile(QWidget):
+    def __init__(self, eoat: EOATRecord, *, compact: bool = False, parent=None):
+        super().__init__(parent)
+        self.setObjectName("ListTile")
+        self._height = 114 if compact else 148
+        self.setMinimumHeight(self._height)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 12)
+        layout.setSpacing(5 if compact else 7)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        title = QLabel(eoat.eoat_id)
+        title.setObjectName("TileTitle")
+        title.setWordWrap(False)
+        title.setToolTip(eoat.eoat_id)
+        header.addWidget(title, 1)
+        header.addWidget(badge(f"{eoat.documentation.score}% docs", _score_kind(eoat.documentation.score)))
+        if eoat.warning_count:
+            header.addWidget(badge(str(eoat.warning_count), "warn"))
+        layout.addLayout(header)
+
+        subtitle = QLabel(_eoat_tile_subtitle(eoat))
+        subtitle.setObjectName("TileSubtitle")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        meta = QHBoxLayout()
+        meta.setContentsMargins(0, 0, 0, 0)
+        meta.setSpacing(5)
+        meta.addWidget(badge(eoat.eoat_type or "Type missing", "outline"))
+        meta.addWidget(badge(eoat.status or "Status missing", "good" if "active" in eoat.status.casefold() else "neutral"))
+        meta.addStretch(1)
+        layout.addLayout(meta)
+
+        if not compact:
+            machines = [f"M{machine}" for machine in eoat.machines[:4]]
+            if len(eoat.machines) > 4:
+                machines.append(f"+{len(eoat.machines) - 4}")
+            machine_row = QHBoxLayout()
+            machine_row.setContentsMargins(0, 0, 0, 0)
+            machine_label = QLabel("Machines")
+            machine_label.setObjectName("TileMeta")
+            machine_row.addWidget(machine_label)
+            machine_row.addWidget(_chip_group(machines, kind="primary", empty="No machines", per_row=6, limit=5), 1)
+            layout.addLayout(machine_row)
+
+    def sizeHint(self) -> QSize:
+        return QSize(330, self._height)
+
+
+class MachineListTile(QWidget):
+    def __init__(self, machine: MachineRecord, *, compact: bool = False, parent=None):
+        super().__init__(parent)
+        self.setObjectName("ListTile")
+        self._height = 112 if compact else 148
+        self.setMinimumHeight(self._height)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 12)
+        layout.setSpacing(5 if compact else 7)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        title = QLabel(f"Machine {machine.machine}")
+        title.setObjectName("TileTitle")
+        title.setToolTip(machine.machine)
+        header.addWidget(title, 1)
+        if machine.warning_count:
+            header.addWidget(badge(str(machine.warning_count), "warn"))
+        layout.addLayout(header)
+
+        subtitle = QLabel(machine.robot_type or machine.robot_model or "Robot info missing")
+        subtitle.setObjectName("TileSubtitle")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        meta = QHBoxLayout()
+        meta.setContentsMargins(0, 0, 0, 0)
+        meta.setSpacing(5)
+        meta.addWidget(badge(f"{len(machine.compatible_eoats)} EOATs", "primary"))
+        meta.addWidget(badge(f"{len(machine.compatible_tools)} tools", "outline"))
+        meta.addWidget(badge(f"{machine.documentation_score}% docs", _score_kind(machine.documentation_score)))
+        meta.addStretch(1)
+        layout.addLayout(meta)
+
+        if not compact and machine.compatible_eoats:
+            layout.addWidget(_chip_group(machine.compatible_eoats[:4], kind="success", per_row=4, limit=4))
+
+    def sizeHint(self) -> QSize:
+        return QSize(320, self._height)
+
+
+class PhotoCarouselDialog(QDialog):
+    SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+
+    def __init__(self, eoat: EOATRecord, *, prefetch: bool = True, parent=None):
+        super().__init__(parent)
+        self.eoat = eoat
+        self.prefetch = prefetch
+        self.photos = [photo for photo in _combined_photos(eoat) if Path(photo.path).suffix.casefold() in self.SUPPORTED_SUFFIXES]
+        self.index = 0
+        self._prefetched: dict[int, QPixmap] = {}
+        self.setObjectName("PhotoViewerDialog")
+        self.setWindowTitle(f"Photos - {eoat.eoat_id}")
+        self.setModal(True)
+        self.resize(980, 720)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        title = QLabel(eoat.eoat_id)
+        title.setObjectName("PhotoViewerTitle")
+        self.count_label = QLabel()
+        self.count_label.setObjectName("PhotoViewerMeta")
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.close)
+        header.addWidget(title, 1)
+        header.addWidget(self.count_label)
+        header.addWidget(close_button)
+        layout.addLayout(header)
+
+        self.image_label = QLabel()
+        self.image_label.setObjectName("PhotoViewerImage")
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setMinimumSize(640, 420)
+        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        layout.addWidget(self.image_label, 1)
+
+        self.filename_label = QLabel()
+        self.filename_label.setObjectName("PhotoViewerMeta")
+        self.filename_label.setWordWrap(True)
+        layout.addWidget(self.filename_label)
+
+        controls = QHBoxLayout()
+        controls.setContentsMargins(0, 0, 0, 0)
+        self.previous_button = QPushButton("Previous")
+        self.previous_button.clicked.connect(self.previous_photo)
+        self.next_button = QPushButton("Next")
+        self.next_button.clicked.connect(self.next_photo)
+        folder_button = QPushButton("Open Folder")
+        folder_button.clicked.connect(self.open_folder)
+        external_button = QPushButton("Open Externally")
+        external_button.clicked.connect(self.open_current_external)
+        controls.addWidget(self.previous_button)
+        controls.addWidget(self.next_button)
+        controls.addStretch(1)
+        controls.addWidget(folder_button)
+        controls.addWidget(external_button)
+        layout.addLayout(controls)
+        self._show_photo()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Left:
+            self.previous_photo()
+            return
+        if event.key() == Qt.Key.Key_Right:
+            self.next_photo()
+            return
+        if event.key() == Qt.Key.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(event)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._show_photo()
+
+    def previous_photo(self) -> None:
+        if not self.photos:
+            return
+        self.index = (self.index - 1) % len(self.photos)
+        self._show_photo()
+
+    def next_photo(self) -> None:
+        if not self.photos:
+            return
+        self.index = (self.index + 1) % len(self.photos)
+        self._show_photo()
+
+    def open_folder(self) -> None:
+        if self.eoat.photos.folder_path:
+            open_path(self.eoat.photos.folder_path)
+
+    def open_current_external(self) -> None:
+        if self.photos:
+            open_path(self.photos[self.index].path)
+
+    def _show_photo(self) -> None:
+        if not self.photos:
+            self.count_label.setText("0 / 0")
+            self.filename_label.setText("No previewable photos found.")
+            self.image_label.setText("No previewable photos found.")
+            return
+        photo = self.photos[self.index]
+        self.count_label.setText(f"{self.index + 1} / {len(self.photos)}")
+        category = f" - {photo.category}" if photo.category else ""
+        self.filename_label.setText(f"{photo.filename or Path(photo.path).name}{category}")
+        self.filename_label.setToolTip(photo.path)
+        pixmap = self._pixmap_for_index(self.index)
+        if pixmap.isNull():
+            self.image_label.setText(f"Could not preview {Path(photo.path).name}")
+            self.image_label.setPixmap(QPixmap())
+        else:
+            size = self.image_label.size()
+            self.image_label.setPixmap(
+                pixmap.scaled(
+                    max(120, size.width() - 18),
+                    max(120, size.height() - 18),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+        self.previous_button.setEnabled(len(self.photos) > 1)
+        self.next_button.setEnabled(len(self.photos) > 1)
+        if self.prefetch and len(self.photos) > 1:
+            self._pixmap_for_index((self.index - 1) % len(self.photos))
+            self._pixmap_for_index((self.index + 1) % len(self.photos))
+
+    def _pixmap_for_index(self, index: int) -> QPixmap:
+        if index not in self._prefetched:
+            self._prefetched[index] = QPixmap(self.photos[index].path)
+        return self._prefetched[index]
+
+
 def _clear_layout(layout) -> None:
     while layout.count():
         item = layout.takeAt(0)
+        child_layout = item.layout()
+        if child_layout is not None:
+            _clear_layout(child_layout)
+            child_layout.setParent(None)
+            child_layout.deleteLater()
         widget = item.widget()
         if widget is not None:
             widget.hide()
+            widget.setGraphicsEffect(None)
             widget.setParent(None)
             widget.deleteLater()
+
+
+def _finalize_scroll_panel(scroll_area: QScrollArea, panel: QWidget, layout: QLayout) -> None:
+    layout.invalidate()
+    panel.adjustSize()
+    panel.updateGeometry()
+    panel.update()
+    scroll_area.verticalScrollBar().setValue(0)
+    scroll_area.horizontalScrollBar().setValue(0)
+    scroll_area.viewport().update()
 
 
 def _group_container(title: str, subtitle: str = "") -> tuple[QWidget, QVBoxLayout]:
@@ -1093,15 +1585,83 @@ def _group_container(title: str, subtitle: str = "") -> tuple[QWidget, QVBoxLayo
     return container, layout
 
 
+PAGE_KEY_LABELS = {
+    "home": "Home / Command Deck",
+    "what": "What Do I Need?",
+    "eoats": "EOAT Search / Profiles",
+    "machines": "Machine Search / Profiles",
+    "tools": "Tool / Mold / Part Search",
+    "matrix": "Compatibility Matrix",
+    "overview": "Overall Maps",
+    "photos": "Photos",
+    "standards": "Standards",
+    "pm": "PM / Inspection",
+    "library": "Information Library",
+    "reports": "Reports / Export",
+    "diagnostics": "Settings / Diagnostics",
+}
+
+
+def _settings_combo(labels: list[str]) -> QComboBox:
+    combo = QComboBox()
+    combo.addItems(labels)
+    combo.setMinimumWidth(150)
+    combo.setMaximumWidth(320)
+    combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    return combo
+
+
+def _settings_check(tooltip: str) -> QCheckBox:
+    checkbox = QCheckBox("Enabled")
+    checkbox.setToolTip(tooltip)
+    checkbox.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+    return checkbox
+
+
+def _theme_value(label: str) -> str:
+    folded = label.casefold()
+    if "dark" in folded:
+        return "dark"
+    if "system" in folded:
+        return "system"
+    return "light"
+
+
+def _photo_behavior_value(label: str) -> str:
+    folded = label.casefold()
+    if "folder" in folded:
+        return "open_folder"
+    if "external" in folded:
+        return "external"
+    return "in_app"
+
+
+def _page_key_for_label(label: str) -> str:
+    for key, value in PAGE_KEY_LABELS.items():
+        if value == label:
+            return key
+    return "home"
+
+
+def _label_for_page_key(key: str) -> str:
+    return PAGE_KEY_LABELS.get(key, PAGE_KEY_LABELS["home"])
+
+
 def _eoat_list_label(eoat: EOATRecord) -> str:
     tools = ", ".join(eoat.tools[:2]) or "No tool"
     machines = ", ".join(eoat.machines[:3]) or "No machine"
     return f"{eoat.eoat_id}\n{tools} -> {machines}\n{eoat.eoat_type or 'Type missing'} | {eoat.documentation.score}% docs | {eoat.warning_count} warnings"
 
 
+def _eoat_tile_subtitle(eoat: EOATRecord) -> str:
+    tools = ", ".join(f"Tool {tool}" for tool in eoat.tools[:2]) if eoat.tools else "Tool missing"
+    descriptor = _first_present(eoat.part_description, eoat.part_family, eoat.eoat_type, "No part description")
+    return f"{tools} - {_short_label(descriptor, 58)}"
+
+
 def _machine_list_label(machine: MachineRecord) -> str:
     robot = machine.robot_type or machine.robot_model or "Robot info missing"
-    eoats = ", ".join(machine.compatible_eoats[:3]) or machine.current_eoat or "No EOAT linked"
+    eoats = ", ".join(machine.compatible_eoats[:3]) or "No compatible EOATs"
     return f"Machine {machine.machine}\n{robot}\n{len(machine.compatible_eoats)} EOATs | {len(machine.compatible_tools)} tools | {eoats}"
 
 
@@ -1123,30 +1683,41 @@ def _tool_card(tool, controller) -> QWidget:
         eoat_button = QPushButton("Open EOAT")
         eoat_button.clicked.connect(lambda _checked=False, eoat_id=tool.compatible_eoats[0]: controller.open_eoat(eoat_id))
         buttons.append(eoat_button)
-    recommend_button = QPushButton("What Do I Need?")
-    recommend_button.clicked.connect(lambda _checked=False, query=tool.tool: controller.open_recommendation(query))
-    buttons.append(recommend_button)
-    card.layout.addWidget(action_row(*buttons))
+    if buttons:
+        card.layout.addWidget(action_row(*buttons))
     return card
 
 
-def _photo_folder_card(eoat: EOATRecord) -> QWidget:
-    card = PhotoGalleryCard(eoat.eoat_id, "Folder and thumbnail coverage for this EOAT.")
+def _photo_folder_card(eoat: EOATRecord, page: PhotosPage) -> QWidget:
+    card = PhotoGalleryCard(eoat.eoat_id, "Photo summary. Images load only when the carousel is opened.")
     top = QHBoxLayout()
     top.setContentsMargins(0, 0, 0, 0)
     top.addWidget(badge(f"{eoat.photo_count} photo(s)", "good" if eoat.photo_count else "warn"))
     top.addWidget(badge("Folder found" if eoat.photos.folder_exists else "Folder missing", "good" if eoat.photos.folder_exists else "bad"))
+    top.addWidget(badge(f"{len(eoat.photos.missing_categories)} missing category(s)", "warn" if eoat.photos.missing_categories else "good"))
     top.addStretch(1)
     card.layout.addLayout(top)
+    card.layout.addWidget(_labeled_chips("Tools", eoat.tools, empty="No linked tools", per_row=6))
+    card.layout.addWidget(_labeled_chips("Machines", eoat.machines, empty="No linked machines", per_row=6))
     if eoat.photos.missing_categories:
         card.layout.addWidget(_labeled_chips("Missing categories", eoat.photos.missing_categories, kind="warn", per_row=5))
     else:
         card.layout.addWidget(badge("No required photo category gaps detected", "good"))
-    card.layout.addWidget(PhotoStripWidget([photo.path for photo in _combined_photos(eoat)], max_items=8, thumb_size=(118, 88)))
+    folder_label = QLabel(_short_path(eoat.photos.folder_path) if eoat.photos.folder_path else "No photo folder linked.")
+    folder_label.setObjectName("MicroText")
+    folder_label.setToolTip(eoat.photos.folder_path)
+    folder_label.setWordWrap(True)
+    card.layout.addWidget(folder_label)
+    buttons = []
+    view_button = QPushButton("View Photos")
+    view_button.setObjectName("PrimaryButton")
+    view_button.clicked.connect(lambda _checked=False, record=eoat: page.view_photos(record))
+    buttons.append(view_button)
     if eoat.photos.folder_path:
         button = QPushButton("Open Photo Folder")
         button.clicked.connect(lambda _checked=False, path=eoat.photos.folder_path: open_path(path))
-        card.layout.addWidget(action_row(button))
+        buttons.append(button)
+    card.layout.addWidget(action_row(*buttons))
     return card
 
 
@@ -1164,16 +1735,184 @@ def _standard_card(standard) -> QWidget:
     return card
 
 
+def _build_information_entries(bundle: AtlasDataBundle | None) -> list[InformationLibraryEntry]:
+    if bundle is None:
+        return []
+    entries = list(_static_information_entries())
+    for standard in bundle.standards:
+        entries.append(_standard_information_entry(standard))
+    for warning in bundle.warnings:
+        entries.append(_warning_information_entry(warning))
+    for eoat in bundle.eoats:
+        for warning in eoat.warnings[:3]:
+            entries.append(_warning_information_entry(warning, title_prefix=eoat.eoat_id))
+    return entries
+
+
+def _static_information_entries() -> list[InformationLibraryEntry]:
+    return [
+        InformationLibraryEntry(
+            "What Do I Need? inputs",
+            "App Help",
+            "Enter a Tool #, Machine #, EOAT ID, part description, robot type, mold, or keyword to get a ranked EOAT recommendation with an install checklist.",
+            tags=("recommendations", "search", "install"),
+        ),
+        InformationLibraryEntry(
+            "Compatibility logic",
+            "Compatibility",
+            "Atlas combines EOAT Inventory rows, Press Capacity tool-to-machine relationships, Robot Info, and cached normalized indexes. Search does not rescan workbooks.",
+            tags=("tool", "machine", "eoat", "indexes"),
+        ),
+        InformationLibraryEntry(
+            "Photo documentation rules",
+            "Photos",
+            "Photo cards summarize folder status and missing categories. Open View Photos to load images in the carousel one at a time.",
+            tags=("photos", "carousel", "lazy loading"),
+        ),
+        InformationLibraryEntry(
+            "Documentation readiness",
+            "Documentation Requirements",
+            "Readiness is driven by photos present, documentation score, machine compatibility, robot info, standards references, and warning count.",
+            tags=("readiness", "documentation", "warnings"),
+        ),
+        InformationLibraryEntry(
+            "PM / Inspection guidance",
+            "PM / Inspection",
+            "Review cups/grippers, tubing and cable routing, quick disconnects, sensor confirmation, warning cards, and PM frequency before staging EOATs.",
+            tags=("pm", "inspection", "maintenance"),
+        ),
+        InformationLibraryEntry(
+            "Settings and diagnostics",
+            "Settings",
+            "Settings control theme, startup page, photo viewer behavior, lazy previews, diagnostics visibility, list density, export behavior, and auto-refresh on startup.",
+            tags=("settings", "dark mode", "diagnostics"),
+        ),
+        InformationLibraryEntry(
+            "Reports and exports",
+            "Reports / Exports",
+            "Atlas exports timestamped summaries under the project export folder and does not modify source workbooks or photo folders.",
+            tags=("exports", "reports", "read-only"),
+        ),
+        InformationLibraryEntry(
+            "Troubleshooting missing compatibility",
+            "Troubleshooting",
+            "If an EOAT has partial compatibility, check Tool # normalization, Press Capacity rows, machine fields, Robot Info, and source EOAT Inventory data.",
+            tags=("troubleshooting", "compatibility", "missing data"),
+        ),
+    ]
+
+
+def _standard_information_entry(standard: StandardReference) -> InformationLibraryEntry:
+    path = Path(standard.path)
+    category = _standard_information_category(standard)
+    suffix = path.suffix.upper().lstrip(".") or "DOC"
+    tags = tuple(tag for tag in (standard.category, suffix, "standard", "read-only") if tag)
+    return InformationLibraryEntry(
+        title=standard.title or path.stem or "Untitled standard",
+        category=category,
+        snippet=standard.snippet or "Open the source document for full guidance.",
+        source=path.name or standard.path,
+        path=standard.path,
+        tags=tags,
+        modified=_file_mtime(path),
+    )
+
+
+def _standard_information_category(standard: StandardReference) -> str:
+    category = (standard.category or "").casefold()
+    title = (standard.title or "").casefold()
+    if "eoat standard" in category or "standardization" in title or "eoat standard" in title:
+        return "EOAT Standards"
+    if "pm" in category or "maintenance" in category:
+        return "PM / Inspection"
+    if "sensor" in category:
+        return "Sensors"
+    if "vacuum" in category:
+        return "Pneumatics / Vacuum / Grippers"
+    if "quick" in category or "disconnect" in category:
+        return "Quick Disconnects"
+    if "documentation" in category:
+        return "Documentation Requirements"
+    return "EOAT Standards"
+
+
+def _warning_information_entry(warning, *, title_prefix: str = "") -> InformationLibraryEntry:
+    title = f"{title_prefix}: {warning.title}" if title_prefix else warning.title
+    pieces = [warning.message, warning.why_it_matters, warning.suggested_fix]
+    snippet = " ".join(piece for piece in pieces if piece) or "Review source data for this warning."
+    tags = tuple(
+        value
+        for value in (
+            warning.severity,
+            warning.source,
+            warning.related_eoat_id,
+            warning.machine,
+            warning.tool,
+        )
+        if value
+    )
+    return InformationLibraryEntry(
+        title=title or "Atlas warning",
+        category="Troubleshooting",
+        snippet=snippet,
+        source=warning.source or "Atlas data checks",
+        tags=tags,
+    )
+
+
+def _information_score(entry: InformationLibraryEntry, query: str) -> int:
+    terms = [term.casefold() for term in query.split() if term.strip()]
+    if not terms:
+        return 1
+    haystack = " ".join([entry.title, entry.category, entry.snippet, entry.source, entry.path, " ".join(entry.tags)]).casefold()
+    score = 0
+    for term in terms:
+        if term in haystack:
+            score += 2 if term in entry.title.casefold() else 1
+    return score
+
+
+def _information_card(entry: InformationLibraryEntry) -> QWidget:
+    card = DetailCard(entry.title, entry.snippet, eyebrow=entry.category)
+    card.layout.addWidget(_chip_group([entry.category, *entry.tags[:5]], kind="outline", per_row=5, limit=6))
+    source = entry.path or entry.source
+    source_label = QLabel(_short_path(source) if source else "Atlas generated guidance")
+    source_label.setObjectName("MicroText")
+    source_label.setWordWrap(True)
+    source_label.setToolTip(source)
+    card.layout.addWidget(source_label)
+    buttons = []
+    if entry.path:
+        open_button = QPushButton("Open Source Document")
+        open_button.clicked.connect(lambda _checked=False, path=entry.path: open_path(path))
+        buttons.append(open_button)
+    copy_button = QPushButton("Copy Summary")
+    copy_button.clicked.connect(lambda _checked=False, text=f"{entry.title}\n\n{entry.snippet}": QApplication.clipboard().setText(text))
+    buttons.append(copy_button)
+    card.layout.addWidget(action_row(*buttons))
+    return card
+
+
+def _file_mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def _machine_hero_section(machine: MachineRecord) -> QWidget:
     section = ProfileHeaderCard(f"Machine {machine.machine}", machine.robot_type or machine.robot_model or "Robot info missing", eyebrow="Machine Profile")
+    chips = [
+        f"{len(machine.compatible_eoats)} compatible EOAT(s)",
+        f"{len(machine.compatible_tools)} compatible tool(s)",
+        f"{machine.documentation_score}% documentation",
+        f"{machine.warning_count} warning(s)",
+    ]
+    if machine.current_eoat:
+        chips.insert(0, f"Current EOAT {machine.current_eoat}")
     section.layout.addWidget(
         _chip_group(
-            [
-                machine.current_eoat or "No current EOAT recorded",
-                f"{len(machine.compatible_eoats)} compatible EOAT(s)",
-                f"{machine.documentation_score}% documentation",
-                f"{machine.warning_count} warning(s)",
-            ],
+            chips,
             kind="info",
             per_row=4,
         )
@@ -1198,7 +1937,6 @@ def _machine_technical_section(machine: MachineRecord) -> QWidget:
                 ("Robot Type", machine.robot_type),
                 ("Robot Model", machine.robot_model),
                 ("Controller", machine.controller),
-                ("Current EOAT", machine.current_eoat),
                 ("Documentation", f"{machine.documentation_score}%"),
             ]
         )
@@ -1324,7 +2062,7 @@ def _eoat_photo_section(eoat: EOATRecord) -> QWidget:
     return section
 
 
-def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
+def _eoat_technical_details(eoat: EOATRecord, *, columns: int = 1) -> QWidget:
     container = QWidget()
     layout = QGridLayout(container)
     layout.setContentsMargins(0, 0, 0, 0)
@@ -1332,6 +2070,7 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
     groups = [
         (
             "Tool / Part Info",
+            "Tooling",
             [
                 ("Tools", ", ".join(eoat.tools)),
                 ("Molds", ", ".join(eoat.molds)),
@@ -1342,6 +2081,7 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
         ),
         (
             "Machine / Robot Info",
+            "Robot",
             [
                 ("Machines", ", ".join(eoat.machines)),
                 ("Robot Types", ", ".join(eoat.robot_types)),
@@ -1351,6 +2091,7 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
         ),
         (
             "EOAT Construction / Type",
+            "Build",
             [
                 ("EOAT Type", eoat.eoat_type),
                 ("Status", eoat.status),
@@ -1360,6 +2101,7 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
         ),
         (
             "Pneumatic / Vacuum / Gripper Info",
+            "Pneumatics",
             [
                 ("Vacuum", eoat.vacuum_info),
                 ("Pressure", eoat.pressure_info),
@@ -1369,12 +2111,14 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
         ),
         (
             "Sensors",
+            "Signals",
             [
                 ("Sensor Info", eoat.sensor_info),
             ],
         ),
         (
             "Documentation / Photos",
+            "Evidence",
             [
                 ("Documentation", f"{eoat.documentation.score}% - {eoat.documentation.status_label}"),
                 ("Present Fields", ", ".join(eoat.documentation.present_fields[:12])),
@@ -1385,6 +2129,7 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
         ),
         (
             "Warnings / Data Gaps",
+            "Review",
             [
                 ("Open Warnings", str(eoat.warning_count)),
                 ("Critical Missing Fields", ", ".join(eoat.documentation.critical_missing_fields)),
@@ -1392,8 +2137,11 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
             ],
         ),
     ]
-    for index, (title, values) in enumerate(groups):
-        layout.addWidget(_detail_card(title, values), index // 2, index % 2)
+    column_count = max(1, min(2, columns))
+    for index, (title, marker, values) in enumerate(groups):
+        layout.addWidget(_detail_card(title, values, marker), index // column_count, index % column_count)
+    for column in range(column_count):
+        layout.setColumnStretch(column, 1)
     return container
 
 
@@ -1426,10 +2174,59 @@ def _eoat_warnings_section(eoat: EOATRecord) -> QWidget:
     return section
 
 
-def _detail_card(title: str, values: list[tuple[str, str]]) -> QWidget:
-    section = DetailCard(title)
-    section.layout.addWidget(key_value_grid([(key, value or "-") for key, value in values]))
+def _detail_card(title: str, values: list[tuple[str, str]], marker: str = "") -> QWidget:
+    section = DetailCard(title, eyebrow=marker)
+    section.layout.addWidget(_detail_value_grid(values))
     return section
+
+
+def _detail_value_grid(values: list[tuple[str, str]]) -> QWidget:
+    widget = QWidget()
+    layout = QGridLayout(widget)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setHorizontalSpacing(14)
+    layout.setVerticalSpacing(8)
+    for row, (key, value) in enumerate(values):
+        key_label = QLabel(key)
+        key_label.setObjectName("MetricLabel")
+        key_label.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(key_label, row, 0)
+        layout.addWidget(_detail_value_widget(key, value), row, 1)
+    layout.setColumnStretch(1, 1)
+    return widget
+
+
+def _detail_value_widget(key: str, value: str) -> QWidget:
+    text = str(value or "").strip()
+    folded_key = key.casefold()
+    if not text:
+        return badge("Not recorded", "warn" if "missing" in folded_key or "warning" in folded_key else "ghost")
+    if folded_key in {
+        "tools",
+        "molds",
+        "parts",
+        "machines",
+        "robot types",
+        "robot models",
+        "present fields",
+        "missing fields",
+        "critical missing fields",
+        "missing photo categories",
+        "standards",
+    }:
+        kind = "warn" if "missing" in folded_key or "critical" in folded_key else ("primary" if "machine" in folded_key else "outline")
+        return _chip_group(_split_values(text), kind=kind, empty="Not recorded", per_row=2, limit=8)
+    if folded_key == "documentation":
+        score_text = text.split("%", 1)[0]
+        kind = _score_kind(int(score_text)) if score_text.isdigit() else "outline"
+        return badge(text, kind)
+    if folded_key == "status" or folded_key == "eoat type":
+        return badge(text, "outline")
+    label = QLabel(_short_path(text) if "folder" in folded_key or "path" in folded_key else text)
+    label.setObjectName("BodyText")
+    label.setWordWrap(True)
+    label.setToolTip(text)
+    return label
 
 
 def _warning_block(title: str, what: str, why: str, fix: str, kind: str) -> QWidget:
@@ -1601,6 +2398,20 @@ def _short_label(value: str, limit: int = 34) -> str:
     return value if len(value) <= limit else f"{value[: limit - 3]}..."
 
 
+def _split_values(value: str) -> list[str]:
+    return [piece.strip() for piece in value.replace(";", ",").split(",") if piece.strip()]
+
+
+def _short_path(value: str, *, keep_parts: int = 3) -> str:
+    if not value:
+        return ""
+    path = Path(value)
+    parts = path.parts
+    if len(parts) <= keep_parts:
+        return value
+    return str(Path("...").joinpath(*parts[-keep_parts:]))
+
+
 def _machine_profile_text(machine: MachineRecord | None) -> str:
     if machine is None:
         return ""
@@ -1657,8 +2468,8 @@ def _find_machine(bundle: AtlasDataBundle | None, machine: str) -> MachineRecord
 __all__ = [
     "DiagnosticsPage",
     "EOATBrowserPage",
-    "GapsPage",
     "HomePage",
+    "InformationLibraryPage",
     "MachineBrowserPage",
     "MatrixPage",
     "OverviewPage",

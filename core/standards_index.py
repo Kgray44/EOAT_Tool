@@ -5,9 +5,11 @@ from typing import Any
 
 from .atlas_models import StandardReference
 from .paths import resolve_project_paths
+from .safe_files import safe_copy_file
 
 STANDARD_EXTENSIONS = {".docx", ".pdf", ".md", ".txt"}
 STANDARD_CATEGORIES = {
+    "eoat standards": ("eoat standardization", "eoat standards", "eoat standard", "standard design", "design guidelines"),
     "vacuum": ("vacuum", "cup", "venturi"),
     "tubing/routing": ("tubing", "routing", "cable"),
     "sensors": ("sensor", "part-present", "confirmation"),
@@ -18,10 +20,18 @@ STANDARD_CATEGORIES = {
     "documentation": ("documentation", "binder", "bom", "cad", "drawing"),
     "pm / maintenance": ("pm", "maintenance", "inspection", "wear"),
 }
+STANDARDIZATION_KEYWORDS = (
+    "eoat standardization",
+    "eoat standard",
+    "standard design",
+    "design guidelines",
+    "eoat standards",
+)
 
 
 def build_standards_index(project_root: str | Path) -> tuple[list[StandardReference], list[str]]:
     paths = resolve_project_paths(project_root)
+    import_warnings = _import_root_standardization_documents(Path(project_root), paths.standards)
     folders = [
         paths.standards,
         paths.work_instructions,
@@ -30,7 +40,7 @@ def build_standards_index(project_root: str | Path) -> tuple[list[StandardRefere
         Path(project_root) / "output" / "pdf",
     ]
     references: list[StandardReference] = []
-    warnings: list[str] = []
+    warnings: list[str] = list(import_warnings)
     for folder in folders:
         if not folder.exists():
             continue
@@ -107,6 +117,8 @@ def _category_for_text(text: str) -> str:
 
 
 def _snippet_for_path(path: Path) -> str:
+    if _is_standardization_document(path):
+        return "Primary EOAT standardization guidance. Open the source document for full design and documentation rules."
     if path.suffix.lower() not in {".md", ".txt"}:
         return "Open the source document for full guidance."
     try:
@@ -116,6 +128,54 @@ def _snippet_for_path(path: Path) -> str:
     return text[:320]
 
 
+def _import_root_standardization_documents(project_root: Path, standards_folder: Path) -> list[str]:
+    warnings: list[str] = []
+    if not project_root.exists():
+        return warnings
+    try:
+        candidates = [
+            path
+            for path in sorted(project_root.iterdir())
+            if path.is_file() and path.suffix.lower() in STANDARD_EXTENSIONS and _is_standardization_document(path)
+        ]
+    except OSError as exc:
+        return [f"Could not scan project root for EOAT standardization documents: {exc}"]
+    if not candidates:
+        return warnings
+    standards_folder.mkdir(parents=True, exist_ok=True)
+    for source in candidates:
+        try:
+            existing = [
+                path
+                for path in standards_folder.glob(f"{source.stem}*{source.suffix}")
+                if path.is_file() and path.stat().st_size == source.stat().st_size
+            ]
+            if existing:
+                warnings.append(f"Root standardization document already registered in {standards_folder}: {source.name}")
+                continue
+            target = _unique_standard_target(standards_folder / source.name)
+            safe_copy_file(source, target, overwrite=False)
+            warnings.append(f"Copied root EOAT standardization document into standards library: {target}")
+        except OSError as exc:
+            warnings.append(f"Could not register root standardization document {source.name}: {exc}")
+    return warnings
+
+
+def _unique_standard_target(target: Path) -> Path:
+    if not target.exists():
+        return target
+    for index in range(2, 1000):
+        candidate = target.with_name(f"{target.stem}_{index}{target.suffix}")
+        if not candidate.exists():
+            return candidate
+    return target.with_name(f"{target.stem}_copy{target.suffix}")
+
+
+def _is_standardization_document(path: Path) -> bool:
+    folded = path.name.casefold().replace("_", " ").replace("-", " ")
+    return any(keyword in folded for keyword in STANDARDIZATION_KEYWORDS)
+
+
 def _dedupe_references(references: list[StandardReference]) -> list[StandardReference]:
     deduped: dict[str, StandardReference] = {}
     for reference in references:
@@ -123,4 +183,10 @@ def _dedupe_references(references: list[StandardReference]) -> list[StandardRefe
     return sorted(deduped.values(), key=lambda item: (item.category.casefold(), item.title.casefold()))
 
 
-__all__ = ["STANDARD_CATEGORIES", "build_standards_index", "search_standards", "standards_for_record"]
+__all__ = [
+    "STANDARD_CATEGORIES",
+    "STANDARDIZATION_KEYWORDS",
+    "build_standards_index",
+    "search_standards",
+    "standards_for_record",
+]

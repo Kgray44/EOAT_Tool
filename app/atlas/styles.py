@@ -23,14 +23,37 @@ DESIGN_TOKENS = {
     "scroll_handle": "#b8c7dc",
     "scroll_hover": "#7ea7d8",
 }
+DARK_DESIGN_TOKENS = {
+    "background": "#0d1624",
+    "surface": "#121f30",
+    "surface_elevated": "#18283c",
+    "navy": "#e5edf7",
+    "accent": "#64a7ff",
+    "accent_hover": "#86bbff",
+    "accent_secondary": "#4fd1e8",
+    "warning": "#f5b342",
+    "danger": "#ff8179",
+    "success": "#4fd39a",
+    "muted_text": "#9fb2c8",
+    "border": "#2a3c52",
+    "border_strong": "#405872",
+    "hover": "#1c3148",
+    "hero_start": "#0a1320",
+    "hero_mid": "#123a5c",
+    "hero_end": "#236fb8",
+    "scroll_handle": "#405872",
+    "scroll_hover": "#5d7b9b",
+}
 SPACING = {"xs": 4, "sm": 8, "md": 12, "lg": 18, "xl": 24}
 RADIUS = {"sm": 5, "md": 7, "lg": 9}
 FONT_SIZES = {"body": 10, "small": 8, "section": 12, "page": 18, "hero": 22}
 
 
-def atlas_stylesheet() -> str:
+def atlas_stylesheet(theme: str = "light") -> str:
+    theme_name = str(theme or "light").casefold()
+    base_tokens = DARK_DESIGN_TOKENS if theme_name == "dark" else DESIGN_TOKENS
     tokens = {
-        **DESIGN_TOKENS,
+        **base_tokens,
         "body_font": FONT_SIZES["body"],
         "hero_font": FONT_SIZES["hero"],
         "page_font": FONT_SIZES["page"],
@@ -38,7 +61,7 @@ def atlas_stylesheet() -> str:
         "radius_md": RADIUS["md"],
         "radius_lg": RADIUS["lg"],
     }
-    return Template("""
+    base = Template("""
     QMainWindow, QWidget {
         background: $background;
         color: #172033;
@@ -443,7 +466,7 @@ def atlas_stylesheet() -> str:
         background: $surface;
         border: 1px solid $border;
         border-radius: ${radius_md}px;
-        padding: 10px;
+        padding: 6px;
         margin: 0 0 8px 0;
     }
     QListWidget#CardList::item:selected {
@@ -474,6 +497,22 @@ def atlas_stylesheet() -> str:
         border: 1px solid #cbd5e1;
         border-radius: ${radius_md}px;
         padding: 7px;
+    }
+    QCheckBox {
+        color: #172033;
+        spacing: 7px;
+        font-weight: 600;
+    }
+    QCheckBox::indicator {
+        width: 15px;
+        height: 15px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        background: $surface;
+    }
+    QCheckBox::indicator:checked {
+        background: $accent;
+        border-color: $accent;
     }
     QComboBox::drop-down {
         border: 0;
@@ -590,7 +629,247 @@ def atlas_stylesheet() -> str:
         font-size: 9pt;
         font-weight: 600;
     }
+    QWidget#ListTile {
+        background: transparent;
+    }
+    QLabel#TileTitle {
+        color: #172033;
+        font-size: 13pt;
+        font-weight: 900;
+    }
+    QLabel#TileSubtitle {
+        color: #324a63;
+        font-size: 9pt;
+        font-weight: 700;
+    }
+    QLabel#TileMeta {
+        color: $muted_text;
+        font-size: 8pt;
+        font-weight: 700;
+    }
+    QDialog#PhotoViewerDialog {
+        background: #0b1220;
+        color: #f8fbff;
+    }
+    QLabel#PhotoViewerTitle {
+        color: #f8fbff;
+        font-size: 13pt;
+        font-weight: 900;
+    }
+    QLabel#PhotoViewerMeta {
+        color: #b8c7dc;
+        font-size: 9pt;
+        font-weight: 700;
+    }
+    QLabel#PhotoViewerImage {
+        background: #050a12;
+        border: 1px solid #263548;
+        border-radius: 9px;
+        color: #d7e7f7;
+        font-weight: 700;
+    }
+    """).substitute(tokens)
+    if theme_name != "dark":
+        return base
+    return base + _dark_overrides(tokens)
+
+
+def _dark_overrides(tokens: dict[str, object]) -> str:
+    return Template("""
+    QMainWindow, QWidget {
+        background: $background;
+        color: #e5edf7;
+    }
+    QLabel#PageTitle, QLabel#CardTitle, QLabel#SectionTitle, QLabel#DetailTitle,
+    QLabel#BodyText, QLabel#MetricValue, QLabel#TileTitle {
+        color: #e5edf7;
+    }
+    QLabel#TileSubtitle {
+        color: #c6d6e8;
+    }
+    QLabel#MutedText, QLabel#MicroText, QLabel#MetricLabel, QLabel#TileMeta {
+        color: $muted_text;
+    }
+    QFrame#AtlasCard,
+    QFrame#PrimaryCard,
+    QFrame#SecondaryCard,
+    QFrame#DetailCard,
+    QFrame#InfoPanel,
+    QFrame#CompactStatCard,
+    QFrame#FeatureActionCard,
+    QFrame#ExportActionCard,
+    QFrame#DenseDataPanel {
+        background: $surface;
+        border-color: $border;
+    }
+    QFrame#PrimaryCard {
+        border-top-color: $accent;
+    }
+    QFrame#SecondaryCard,
+    QFrame#CompactStatCard {
+        background: $surface_elevated;
+    }
+    QFrame#DetailCard {
+        background: #101b2a;
+    }
+    QFrame#CompatibilityCard {
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #142237, stop:1 #102f3c);
+        border-color: #296a7d;
+        border-top-color: $accent_secondary;
+    }
+    QFrame#PhotoGalleryCard {
+        background: #131f32;
+        border-color: #354861;
+        border-top-color: #7aa2e3;
+    }
+    QFrame#ChecklistCard {
+        background: #122438;
+        border-color: #31506d;
+        border-top-color: $success;
+    }
+    QFrame#WarningCard {
+        background: #332514;
+        border-color: #7a5525;
+        border-left-color: $warning;
+    }
+    QFrame#DangerCard {
+        background: #361d22;
+        border-color: #7e3d45;
+        border-left-color: $danger;
+    }
+    QFrame#SuccessCard {
+        background: #123124;
+        border-color: #2e704f;
+        border-left-color: $success;
+    }
+    QFrame#ProfileHeaderCard {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #07111e, stop:.55 #143f63, stop:1 #1f75bd);
+    }
+    QFrame#EmptyState {
+        background: #101b2a;
+        border-color: $border_strong;
+    }
+    QLabel#SuccessChip, QLabel#BadgeGood {
+        background: #123a2a;
+        color: $success;
+    }
+    QLabel#WarningChip, QLabel#BadgeWarn {
+        background: #3a2d12;
+        color: $warning;
+    }
+    QLabel#DangerChip, QLabel#BadgeBad {
+        background: #412028;
+        color: $danger;
+    }
+    QLabel#PrimaryChip, QLabel#BadgeInfo {
+        background: #17314f;
+        color: #a8d3ff;
+    }
+    QLabel#NeutralChip {
+        background: #1a293d;
+        color: #c7d6e8;
+    }
+    QLabel#OutlineChip {
+        background: transparent;
+        color: #a8d3ff;
+        border-color: #49739f;
+    }
+    QLabel#CountChip {
+        background: #dbeafe;
+        color: #102033;
+    }
+    QFrame#MiniProgressTrack {
+        background: #26364a;
+    }
+    QLabel#PhotoThumb {
+        background: #101b2a;
+        border-color: $border;
+        color: $muted_text;
+    }
+    QLineEdit, QLineEdit#ModernSearchBar, QComboBox {
+        background: $surface;
+        color: #e5edf7;
+        border-color: $border_strong;
+        selection-background-color: #264d78;
+    }
+    QCheckBox {
+        color: #e5edf7;
+    }
+    QCheckBox::indicator {
+        background: #0f1a29;
+        border-color: $border_strong;
+    }
+    QCheckBox::indicator:checked {
+        background: $accent;
+        border-color: $accent;
+    }
+    QPushButton {
+        background: $surface;
+        color: #e5edf7;
+        border-color: $border_strong;
+    }
+    QPushButton:hover {
+        background: $hover;
+        border-color: $accent;
+    }
+    QPushButton#PrimaryButton {
+        background: $accent;
+        color: #07111e;
+        border-color: $accent;
+    }
+    QTableWidget, QListWidget, QTextEdit {
+        background: #0f1a29;
+        color: #e5edf7;
+        border-color: $border;
+        selection-background-color: #214a73;
+        selection-color: #f8fbff;
+    }
+    QTableWidget {
+        alternate-background-color: #142135;
+    }
+    QTableWidget::item:selected, QListWidget#CardList::item:selected {
+        background: #214a73;
+        color: #f8fbff;
+    }
+    QListWidget#CardList::item {
+        background: $surface;
+        border-color: $border;
+    }
+    QListWidget#CardList::item:selected {
+        background: #173a5f;
+        border-color: $accent;
+        color: #f8fbff;
+    }
+    QHeaderView::section, QTableCornerButton::section {
+        background: #18283c;
+        color: #d9e5f2;
+        border-bottom-color: $border;
+    }
+    QComboBox QAbstractItemView, QMenu {
+        background: $surface;
+        color: #e5edf7;
+        border-color: $border;
+        selection-background-color: #214a73;
+        selection-color: #f8fbff;
+    }
+    QStatusBar {
+        background: #0a1320;
+        border-top-color: $border;
+        color: $muted_text;
+    }
+    QToolTip {
+        background: $surface;
+        color: #e5edf7;
+        border-color: $border_strong;
+    }
+    QLabel#LoadingTitle, QLabel#LoadingSubtitle, QLabel#LoadingTip {
+        color: #e5edf7;
+    }
+    QLabel#LoadingTip {
+        background: $surface;
+        border-color: $border;
+    }
     """).substitute(tokens)
 
 
-__all__ = ["DESIGN_TOKENS", "FONT_SIZES", "RADIUS", "SPACING", "atlas_stylesheet"]
+__all__ = ["DARK_DESIGN_TOKENS", "DESIGN_TOKENS", "FONT_SIZES", "RADIUS", "SPACING", "atlas_stylesheet"]
