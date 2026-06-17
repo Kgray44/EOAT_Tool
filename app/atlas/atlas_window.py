@@ -153,6 +153,13 @@ class AtlasWindow(QMainWindow):
         if hasattr(page, "open_record"):
             page.open_record(machine)
 
+    def open_tool(self, tool: str) -> None:
+        self.show_page("tools")
+        page = self.pages["tools"]
+        search = getattr(page, "search", None)
+        if search is not None:
+            search.setText(tool)
+
     def show_status(self, message: str) -> None:
         self.statusBar().showMessage(message, 9000)
 

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import gc
 import os
 import shutil
+import stat
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -89,35 +92,82 @@ def run_demo_project_checks() -> list[str]:
 
 def run_dashboard_smoke(project_root: str | Path = DEFAULT_PROJECT_ROOT) -> list[str]:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    smoke_env_value = os.environ.get("EOAT_COMMAND_CENTER_DASHBOARD_SMOKE")
+    os.environ["EOAT_COMMAND_CENTER_DASHBOARD_SMOKE"] = "1"
+    temp_root: Path | None = None
     try:
-        from PySide6.QtCore import QThreadPool
-        from PySide6.QtWidgets import QApplication
-
-        from app.dashboard_ui import DashboardWindow
-    except Exception as exc:
-        return [f"Dashboard smoke could not import PySide/dashboard modules: {exc}"]
-
-    app = QApplication.instance() or QApplication([])
-    with tempfile.TemporaryDirectory(prefix="eoat_dashboard_smoke_") as temp_root:
-        temp_project = Path(temp_root) / "demo_project"
-        shutil.copytree(project_root, temp_project, ignore=_demo_runtime_ignore)
-        window = None
         try:
-            config = UserConfig(project_root=str(temp_project), theme="light")
-            window = DashboardWindow(config)
-            if "home" not in window.pages:
-                return ["Dashboard smoke did not create the Home page."]
-            if not window._show_page("audit"):
-                return ["Dashboard smoke could not show the Audit page."]
-            return []
+            from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool
+            from PySide6.QtWidgets import QApplication
+
+            from app.dashboard_ui import DashboardWindow
         except Exception as exc:
-            return [f"Dashboard smoke failed: {exc}"]
+            return [f"Dashboard smoke could not import PySide/dashboard modules: {exc}"]
+
+        app = QApplication.instance() or QApplication([])
+        temp_root = Path(tempfile.mkdtemp(prefix="eoat_dashboard_smoke_"))
+        try:
+            temp_project = temp_root / "demo_project"
+            shutil.copytree(project_root, temp_project, ignore=_demo_runtime_ignore)
+            window = None
+            try:
+                config = UserConfig(project_root=str(temp_project), theme="light")
+                window = DashboardWindow(config)
+                if "home" not in window.pages:
+                    return ["Dashboard smoke did not create the Home page."]
+                if not window._show_page("audit"):
+                    return ["Dashboard smoke could not show the Audit page."]
+                return []
+            except Exception as exc:
+                return [f"Dashboard smoke failed: {exc}"]
+            finally:
+                if window is not None:
+                    window.close()
+                    window.deleteLater()
+                    window = None
+                _drain_qt_work(app, QThreadPool, QCoreApplication, QEvent)
         finally:
-            if window is not None:
-                window.close()
-            app.processEvents()
-            QThreadPool.globalInstance().waitForDone(10000)
-            app.processEvents()
+            gc.collect()
+            if temp_root is not None:
+                _remove_dashboard_smoke_temp(temp_root)
+    finally:
+        if smoke_env_value is None:
+            os.environ.pop("EOAT_COMMAND_CENTER_DASHBOARD_SMOKE", None)
+        else:
+            os.environ["EOAT_COMMAND_CENTER_DASHBOARD_SMOKE"] = smoke_env_value
+
+
+def _drain_qt_work(app, qthread_pool, qcore_application, qevent) -> None:
+    for _ in range(3):
+        app.processEvents()
+        qthread_pool.globalInstance().waitForDone(10000)
+        app.processEvents()
+        qcore_application.sendPostedEvents(None, qevent.Type.DeferredDelete)
+        app.processEvents()
+
+
+def _remove_dashboard_smoke_temp(temp_root: Path) -> None:
+    if not temp_root.exists():
+        return
+    last_error: OSError | None = None
+    for attempt in range(6):
+        try:
+            shutil.rmtree(temp_root, onerror=_rmtree_retry_readonly)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            last_error = exc
+            time.sleep(min(0.2 * (attempt + 1), 1.0))
+    print(
+        f"WARNING: Dashboard smoke could not remove temp folder after retries: {temp_root}: {last_error}",
+        file=sys.stderr,
+    )
+
+
+def _rmtree_retry_readonly(function, path: str, _exc_info) -> None:
+    os.chmod(path, stat.S_IWRITE)
+    function(path)
 
 
 def _demo_runtime_ignore(_directory: str, names: list[str]) -> set[str]:
