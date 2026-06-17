@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -51,7 +52,7 @@ def main() -> int:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for old_png in output_dir.glob("*.png"):
-        old_png.unlink()
+        _unlink_with_retry(old_png)
 
     for index, (key, label) in enumerate(PAGE_LABELS, start=1):
         _prepare_page(window, key)
@@ -73,6 +74,19 @@ def _register_capture_font(app, qfont, qfont_database) -> None:
         if families:
             app.setFont(qfont(families[0], 10))
             return
+
+
+def _unlink_with_retry(path: Path, attempts: int = 8) -> None:
+    for attempt in range(attempts):
+        try:
+            path.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.25)
 
 
 def _prepare_page(window, key: str) -> None:
