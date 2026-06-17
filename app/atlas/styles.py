@@ -102,24 +102,106 @@ def atlas_stylesheet() -> str:
         border: 1px solid $border;
         border-radius: ${radius_md}px;
     }
-    QFrame#MetricCard, QFrame#ActionCard {
-        background: $surface;
-        border: 1px solid $border;
-        border-radius: ${radius_lg}px;
+    QFrame QWidget {
+        background: transparent;
     }
-    QFrame#MetricCard:hover, QFrame#ActionCard:hover {
-        background: $surface_elevated;
-        border-color: $border_strong;
-    }
-    QFrame#EmptyState {
-        background: $surface_elevated;
-        border: 1px dashed $border_strong;
-        border-radius: ${radius_md}px;
-    }
-    QFrame#AtlasHero, QWidget#AtlasHero {
+    QFrame#HeroPanel, QFrame#AtlasHero, QWidget#AtlasHero {
         background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 $hero_start, stop:.55 $hero_mid, stop:1 $hero_end);
         border-radius: ${radius_lg}px;
         border: 0;
+    }
+    QFrame#ProfileHeaderCard {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #102033, stop:.55 #214f7c, stop:1 #e7f1ff);
+        border: 0;
+        border-radius: 10px;
+    }
+    QFrame#PrimaryCard {
+        background: #ffffff;
+        border: 1px solid #b8c7dc;
+        border-top: 4px solid $accent;
+        border-radius: 9px;
+    }
+    QFrame#SecondaryCard {
+        background: #f8fbff;
+        border: 1px solid #d7e2ef;
+        border-radius: 8px;
+    }
+    QFrame#DetailCard {
+        background: #f3f7fb;
+        border: 1px solid #dfe8f3;
+        border-radius: 7px;
+    }
+    QFrame#WarningCard {
+        background: #fff7e8;
+        border: 1px solid #f4c982;
+        border-left: 5px solid $warning;
+        border-radius: 8px;
+    }
+    QFrame#DangerCard {
+        background: #fff1f1;
+        border: 1px solid #f2b8b5;
+        border-left: 5px solid $danger;
+        border-radius: 8px;
+    }
+    QFrame#SuccessCard {
+        background: #ebfbf4;
+        border: 1px solid #a8e6ca;
+        border-left: 5px solid $success;
+        border-radius: 8px;
+    }
+    QFrame#InfoPanel {
+        background: #edf5ff;
+        border: 1px solid #cfe1f7;
+        border-radius: 8px;
+    }
+    QFrame#CompactStatCard {
+        background: #f8fbff;
+        border: 1px solid #d7e2ef;
+        border-radius: 8px;
+    }
+    QFrame#CompactStatCard:hover {
+        background: #ffffff;
+        border-color: #b8c7dc;
+    }
+    QFrame#FeatureActionCard {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ffffff, stop:1 #edf6ff);
+        border: 1px solid #c5d8ed;
+        border-left: 4px solid $accent;
+        border-radius: 9px;
+    }
+    QFrame#ExportActionCard {
+        background: #f9fbfe;
+        border: 1px solid #cfdbe8;
+        border-left: 4px solid $accent_secondary;
+        border-radius: 9px;
+    }
+    QFrame#CompatibilityCard {
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffffff, stop:1 #eef8fb);
+        border: 1px solid #bfe4ee;
+        border-top: 4px solid $accent_secondary;
+        border-radius: 9px;
+    }
+    QFrame#PhotoGalleryCard {
+        background: #fbfcff;
+        border: 1px solid #ccd8e7;
+        border-top: 4px solid #6b8fca;
+        border-radius: 9px;
+    }
+    QFrame#ChecklistCard {
+        background: #ffffff;
+        border: 1px solid #cbd8e8;
+        border-top: 4px solid $success;
+        border-radius: 9px;
+    }
+    QFrame#DenseDataPanel {
+        background: #f5f8fc;
+        border: 1px solid #cdd8e5;
+        border-radius: 7px;
+    }
+    QFrame#EmptyState {
+        background: #f6f9fc;
+        border: 1px dashed $border_strong;
+        border-radius: ${radius_md}px;
     }
     QLabel#HeroTitle {
         color: white;
@@ -135,65 +217,158 @@ def atlas_stylesheet() -> str:
         font-size: ${page_font}pt;
         font-weight: 800;
     }
-    QLabel#SectionTitle {
+    QLabel#EyebrowLabel {
+        color: #4f78a3;
+        font-size: 7pt;
+        font-weight: 900;
+        letter-spacing: .09em;
+    }
+    QFrame#HeroPanel QLabel#EyebrowLabel, QFrame#ProfileHeaderCard QLabel#EyebrowLabel {
+        color: #b8d7ff;
+    }
+    QLabel#CardTitle, QLabel#SectionTitle {
         color: #172033;
         font-size: 12pt;
         font-weight: 800;
     }
+    QLabel#DetailTitle {
+        color: #243b53;
+        font-size: 10pt;
+        font-weight: 800;
+    }
     QLabel#ProfileTitle {
-        color: #172033;
+        color: white;
         font-size: 22pt;
         font-weight: 900;
     }
     QLabel#ProfileSubtitle {
-        color: $muted_text;
+        color: #dbeafe;
         font-size: 10pt;
         font-weight: 600;
     }
     QLabel#ProfileMetricValue {
-        color: #172033;
+        color: white;
         font-size: 16pt;
         font-weight: 900;
     }
     QLabel#ProfileMetricLabel {
-        color: $muted_text;
+        color: #dbeafe;
         font-size: 8pt;
         font-weight: 700;
     }
+    QFrame#ProfileHeaderCard QLabel#MutedText {
+        color: #c8dcf3;
+    }
+    QLabel#BodyText {
+        color: #172033;
+    }
     QLabel#MutedText {
         color: $muted_text;
+    }
+    QLabel#MicroText {
+        color: #7891aa;
+        font-size: 8pt;
+        font-weight: 600;
     }
     QLabel#MetricValue {
         color: #172033;
         font-size: 20pt;
         font-weight: 800;
     }
-    QLabel#BadgeGood {
+    QLabel#MetricLabel {
+        color: $muted_text;
+        font-size: 8pt;
+        font-weight: 800;
+    }
+    QLabel#WarningTitle {
+        color: #78350f;
+        font-size: 11pt;
+        font-weight: 900;
+    }
+    QLabel#ActionText {
+        color: #173d66;
+        font-weight: 700;
+    }
+    QLabel#SuccessChip, QLabel#BadgeGood {
         background: #e6f6ef;
         color: $success;
         border-radius: ${radius_sm}px;
         padding: 3px 7px;
         font-weight: 700;
     }
-    QLabel#BadgeWarn {
+    QLabel#WarningChip, QLabel#BadgeWarn {
         background: #fff4dd;
         color: $warning;
         border-radius: ${radius_sm}px;
         padding: 3px 7px;
         font-weight: 700;
     }
-    QLabel#BadgeBad {
+    QLabel#DangerChip, QLabel#BadgeBad {
         background: #fee2e2;
         color: $danger;
         border-radius: ${radius_sm}px;
         padding: 3px 7px;
         font-weight: 700;
     }
-    QLabel#BadgeInfo {
+    QLabel#PrimaryChip, QLabel#BadgeInfo {
         background: #e7f1ff;
         color: #1f5fa8;
         border-radius: ${radius_sm}px;
         padding: 3px 7px;
+        font-weight: 700;
+    }
+    QLabel#NeutralChip {
+        background: #eef3f9;
+        color: #34495e;
+        border-radius: ${radius_sm}px;
+        padding: 3px 7px;
+        font-weight: 700;
+    }
+    QLabel#OutlineChip {
+        background: transparent;
+        color: #1f5fa8;
+        border: 1px solid #9fc5f3;
+        border-radius: ${radius_sm}px;
+        padding: 3px 7px;
+        font-weight: 700;
+    }
+    QLabel#GhostChip {
+        background: transparent;
+        color: $muted_text;
+        border-radius: ${radius_sm}px;
+        padding: 3px 7px;
+        font-weight: 700;
+    }
+    QLabel#CountChip {
+        background: #172033;
+        color: white;
+        border-radius: 9px;
+        padding: 2px 7px;
+        font-size: 8pt;
+        font-weight: 800;
+    }
+    QFrame#MiniProgressTrack {
+        background: #dfe8f3;
+        border: 0;
+        border-radius: 4px;
+    }
+    QFrame#MiniProgressGood {
+        background: $success;
+        border-radius: 4px;
+    }
+    QFrame#MiniProgressWarn {
+        background: #f59e0b;
+        border-radius: 4px;
+    }
+    QFrame#MiniProgressBad {
+        background: $danger;
+        border-radius: 4px;
+    }
+    QLabel#PhotoThumb {
+        background: #eaf1f8;
+        border: 1px solid #cbd8e8;
+        border-radius: 7px;
+        color: $muted_text;
         font-weight: 700;
     }
     QLineEdit, QLineEdit#ModernSearchBar {
@@ -215,8 +390,9 @@ def atlas_stylesheet() -> str:
         background: $surface;
         border: 1px solid #cbd5e1;
         border-radius: ${radius_md}px;
-        padding: 8px 12px;
+        padding: 6px 12px;
         font-weight: 600;
+        min-height: 18px;
     }
     QPushButton:hover {
         background: $hover;

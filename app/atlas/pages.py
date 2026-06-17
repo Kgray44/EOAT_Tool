@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
@@ -37,17 +39,28 @@ from core.openers import open_path
 
 from .widgets import (
     AtlasHero,
+    ChecklistCard,
+    CompactStatCard,
+    CompatibilityCard,
     CompatibilityPathWidget,
+    DenseDataPanel,
+    DetailCard,
     EmptyStateWidget,
     EOATProfileCard,
     ExportActionCard,
+    FeatureActionCard,
+    InfoPanel,
     MachineProfileCard,
-    MetricCard,
+    MiniProgressBar,
     ModernSearchBar,
+    PhotoGalleryCard,
     PhotoStripWidget,
+    ProfileHeaderCard,
     ReadinessScoreWidget,
-    Section,
+    SecondaryCard,
+    SuccessCard,
     ToolCompatibilityCard,
+    WarningCard,
     action_row,
     badge,
     fill_table,
@@ -82,7 +95,7 @@ class HomePage(BaseAtlasPage):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
-        hero = AtlasHero("EOAT Atlas", "Fast read-only lookup for EOAT compatibility, photos, warnings, and install readiness.")
+        hero = AtlasHero("EOAT Atlas", "Fast read-only lookup for EOAT compatibility, photos, warnings, and install readiness.", eyebrow="Command Deck")
         self.search = ModernSearchBar("Enter Tool #, Machine #, EOAT ID, part name, robot type, or keyword")
         self.search.returnPressed.connect(self._run_search)
         what_button = QPushButton("What Do I Need?")
@@ -97,33 +110,33 @@ class HomePage(BaseAtlasPage):
         quick_grid = QGridLayout()
         quick_grid.setSpacing(10)
         quick_actions = [
-            ("Search EOAT", "Open a structured EOAT profile with readiness, warnings, and photo context.", "eoats"),
-            ("Search Machine", "Review robot context and compatible EOAT/tool relationships.", "machines"),
-            ("Search Tool #", "Find the EOAT and machines tied to a tool, mold, or part.", "tools"),
-            ("Browse Photos", "Open linked photo folders and inspect missing photo categories.", "photos"),
-            ("Compatibility Matrix", "Compare EOAT, machine, and tool links in dense matrix form.", "matrix"),
-            ("View Standards", "Browse available setup, PM, and standardization documents.", "standards"),
+            ("Search EOAT", "Profile, readiness, warnings, photos.", "eoats", "Profile"),
+            ("Search Machine", "Robot context and compatible EOATs.", "machines", "Machine"),
+            ("Search Tool #", "Find linked EOATs and machines.", "tools", "Tool"),
+            ("Browse Photos", "Photo folders and missing categories.", "photos", "Visual"),
+            ("Compatibility Matrix", "Dense EOAT, machine, and tool links.", "matrix", "Matrix"),
+            ("View Standards", "Setup, PM, and documentation library.", "standards", "Library"),
         ]
-        for index, (title, description, page) in enumerate(quick_actions):
-            card = ExportActionCard(title, description, "Open")
+        for index, (title, description, page, accent) in enumerate(quick_actions):
+            card = FeatureActionCard(title, description, "Open", accent=accent)
             card.button.clicked.connect(lambda _checked=False, page=page: self.controller.show_page(page))
             quick_grid.addWidget(card, index // 3, index % 3)
         layout.addLayout(quick_grid)
 
         self.metrics = {
-            "eoats": MetricCard("EOATs documented"),
-            "machines": MetricCard("Machines covered"),
-            "tools": MetricCard("Tools covered"),
-            "photos": MetricCard("Photos linked"),
-            "docs": MetricCard("Avg. documentation"),
-            "warnings": MetricCard("Open warnings"),
+            "eoats": CompactStatCard("EOATs documented"),
+            "machines": CompactStatCard("Machines covered"),
+            "tools": CompactStatCard("Tools covered"),
+            "photos": CompactStatCard("Photos linked"),
+            "docs": CompactStatCard("Avg. documentation"),
+            "warnings": CompactStatCard("Open warnings"),
         }
         metric_grid = QGridLayout()
         for index, card in enumerate(self.metrics.values()):
             metric_grid.addWidget(card, index // 3, index % 3)
         layout.addLayout(metric_grid)
 
-        self.source_card = Section("Source Status")
+        self.source_card = InfoPanel("Source Status", "Background sources are cached and refreshed manually when needed.")
         self.source_grid = QGridLayout()
         self.source_grid.setContentsMargins(0, 0, 0, 0)
         self.source_grid.setSpacing(8)
@@ -237,49 +250,56 @@ class WhatNeedPage(BaseAtlasPage):
             self._render_empty()
             return
         _clear_layout(self.result_layout)
-        summary = Section("Recommendation")
-        summary.layout.addWidget(QLabel(self.result.summary))
-        summary.layout.addWidget(badge(f"Interpreted as: {self.result.interpreted_as}", "info"))
+        best_title = self.result.best.eoat_id if self.result.best else "No direct EOAT match"
+        summary = ProfileHeaderCard(best_title, self.result.summary, eyebrow="Best Recommendation")
+        summary.layout.addWidget(badge(f"Interpreted as: {self.result.interpreted_as}", "outline"))
         if self.result.best:
             best = self.result.best
-            summary.layout.addWidget(badge(f"Best match: {best.eoat_id}", "good"))
+            score_row = QHBoxLayout()
+            score_row.setContentsMargins(0, 0, 0, 0)
+            score_row.addWidget(badge(f"Score {best.score}", "success" if best.score >= 80 else "warning"))
+            score_row.addWidget(badge(f"Documentation {best.documentation_score}%", _score_kind(best.documentation_score)))
+            score_row.addWidget(badge(f"{best.photo_count} photo(s)", "success" if best.photo_count else "warning"))
+            score_row.addStretch(1)
+            summary.layout.addLayout(score_row)
+            summary.layout.addWidget(MiniProgressBar(best.score, kind="good" if best.score >= 80 else "warn"))
             summary.layout.addWidget(_labeled_chips("Compatible machines", best.machines, empty="No compatible machines"))
             summary.layout.addWidget(_labeled_chips("Tools", best.tools, empty="No linked tools"))
-            summary.layout.addWidget(
-                _chip_group([f"Documentation {best.documentation_score}%", f"{best.photo_count} linked photo(s)"], kind="info")
-            )
         self.result_layout.addWidget(summary)
 
-        checklist = Section("Before Install")
-        for item in self.result.install_checklist:
-            checklist.layout.addWidget(badge(item, "info"))
+        checklist = ChecklistCard("Before Install", "Use this as a quick readiness sequence before staging.")
+        for index, item in enumerate(self.result.install_checklist, start=1):
+            checklist.layout.addWidget(_checklist_row(str(index), item, kind="primary"))
         self.result_layout.addWidget(checklist)
 
-        candidate_section = Section("Ranked EOAT Candidates")
+        candidate_section, candidate_layout = _group_container(
+            "Ranked EOAT Candidates",
+            "Secondary options stay available without competing with the best answer.",
+        )
         for candidate in self.result.candidates[:12]:
-            card = EOATProfileCard()
+            card = EOATProfileCard(candidate.eoat_id, candidate.summary)
             top = QHBoxLayout()
             top.setContentsMargins(0, 0, 0, 0)
-            top.addWidget(badge(f"#{candidate.rank}", "info"))
-            top.addWidget(badge(candidate.eoat_id, "good" if candidate.rank == 1 else "info"))
-            top.addWidget(badge(f"Score {candidate.score}", "good" if candidate.score >= 80 else "warn"))
+            top.addWidget(badge(f"#{candidate.rank}", "count"))
+            top.addWidget(badge(f"Score {candidate.score}", "success" if candidate.score >= 80 else "warning"))
+            top.addWidget(badge(f"{candidate.documentation_score}% docs", _score_kind(candidate.documentation_score)))
             top.addStretch(1)
             card.layout.addLayout(top)
-            label = QLabel(candidate.summary)
-            label.setWordWrap(True)
-            card.layout.addWidget(label)
+            card.layout.addWidget(MiniProgressBar(candidate.score, kind="good" if candidate.score >= 80 else "warn"))
             card.layout.addWidget(_labeled_chips("Machines", candidate.machines, empty="No linked machines", per_row=5))
             card.layout.addWidget(_labeled_chips("Tools", candidate.tools, empty="No linked tools", per_row=5))
             if candidate.reasons:
                 card.layout.addWidget(_labeled_chips("Why", candidate.reasons[:4], kind="info", per_row=2))
-            candidate_section.layout.addWidget(card)
+            candidate_layout.addWidget(card)
         if not self.result.candidates:
-            candidate_section.layout.addWidget(EmptyStateWidget("No candidates found", "Try a different tool, machine, or EOAT identifier."))
+            candidate_layout.addWidget(EmptyStateWidget("No candidates found", "Try a different tool, machine, or EOAT identifier."))
         self.result_layout.addWidget(candidate_section)
         if self.result.warnings:
-            warnings = Section("Warnings")
+            warnings, warnings_layout = _group_container("Warnings", "Recommendation caveats that should be reviewed before install.")
             for warning in self.result.warnings[:8]:
-                warnings.layout.addWidget(_warning_block(warning.title, warning.message, warning.why_it_matters, warning.suggested_fix, _warning_kind(warning.severity)))
+                warnings_layout.addWidget(
+                    _warning_block(warning.title, warning.message, warning.why_it_matters, warning.suggested_fix, _warning_kind(warning.severity))
+                )
             self.result_layout.addWidget(warnings)
         self.result_layout.addStretch(1)
 
@@ -312,7 +332,7 @@ class EOATBrowserPage(BaseAtlasPage):
         self.detail_scroll.setWidget(self.detail_panel)
         splitter.addWidget(self.list)
         splitter.addWidget(self.detail_scroll)
-        splitter.setSizes([560, 720])
+        splitter.setSizes([390, 860])
         layout.addWidget(splitter, 1)
         copy_button = QPushButton("Copy EOAT ID")
         copy_button.clicked.connect(lambda: QApplication.clipboard().setText(self.current.eoat_id if self.current else ""))
@@ -396,17 +416,28 @@ class EOATBrowserPage(BaseAtlasPage):
     def _render_eoat_profile(self, eoat: EOATRecord | None) -> None:
         _clear_layout(self.detail_layout)
         if eoat is None:
-            empty = Section("EOAT Profile")
-            empty.layout.addWidget(QLabel("Select an EOAT from the list to see compatibility, readiness, photos, warnings, and technical details."))
+            empty = EmptyStateWidget("EOAT Profile", "Select an EOAT from the list to see compatibility, readiness, photos, warnings, and technical details.")
             self.detail_layout.addWidget(empty)
             self.detail_layout.addStretch(1)
             return
         self.detail_layout.addWidget(_eoat_hero_section(eoat))
-        self.detail_layout.addWidget(_eoat_compatibility_section(eoat))
-        self.detail_layout.addWidget(_eoat_readiness_section(eoat))
-        self.detail_layout.addWidget(_eoat_photo_section(eoat))
+        primary_grid = QGridLayout()
+        primary_grid.setContentsMargins(0, 0, 0, 0)
+        primary_grid.setSpacing(10)
+        primary_grid.addWidget(_eoat_compatibility_section(eoat), 0, 0)
+        primary_grid.addWidget(_eoat_readiness_section(eoat), 0, 1)
+        primary_grid.setColumnStretch(0, 1)
+        primary_grid.setColumnStretch(1, 1)
+        self.detail_layout.addLayout(primary_grid)
+        evidence_grid = QGridLayout()
+        evidence_grid.setContentsMargins(0, 0, 0, 0)
+        evidence_grid.setSpacing(10)
+        evidence_grid.addWidget(_eoat_photo_section(eoat), 0, 0)
+        evidence_grid.addWidget(_eoat_warnings_section(eoat), 0, 1)
+        evidence_grid.setColumnStretch(0, 1)
+        evidence_grid.setColumnStretch(1, 1)
+        self.detail_layout.addLayout(evidence_grid)
         self.detail_layout.addWidget(_eoat_technical_details(eoat))
-        self.detail_layout.addWidget(_eoat_warnings_section(eoat))
         self.detail_layout.addStretch(1)
 
 
@@ -437,7 +468,7 @@ class MachineBrowserPage(BaseAtlasPage):
         self.detail_scroll.setWidget(self.detail_panel)
         splitter.addWidget(self.list)
         splitter.addWidget(self.detail_scroll)
-        splitter.setSizes([500, 760])
+        splitter.setSizes([360, 900])
         layout.addWidget(splitter, 1)
         eoat_button = QPushButton("Open Related EOAT")
         eoat_button.clicked.connect(self.open_related_eoat)
@@ -509,8 +540,14 @@ class MachineBrowserPage(BaseAtlasPage):
             self.detail_layout.addStretch(1)
             return
         self.detail_layout.addWidget(_machine_hero_section(machine))
-        self.detail_layout.addWidget(_machine_compatibility_section(machine))
-        self.detail_layout.addWidget(_machine_technical_section(machine))
+        primary_grid = QGridLayout()
+        primary_grid.setContentsMargins(0, 0, 0, 0)
+        primary_grid.setSpacing(10)
+        primary_grid.addWidget(_machine_compatibility_section(machine), 0, 0)
+        primary_grid.addWidget(_machine_technical_section(machine), 0, 1)
+        primary_grid.setColumnStretch(0, 1)
+        primary_grid.setColumnStretch(1, 1)
+        self.detail_layout.addLayout(primary_grid)
         self.detail_layout.addWidget(_machine_warnings_section(machine))
         self.detail_layout.addStretch(1)
 
@@ -587,9 +624,11 @@ class MatrixPage(BaseAtlasPage):
         controls.addWidget(self.mode)
         controls.addWidget(self.filter, 1)
         controls.addWidget(export_button)
-        layout.addLayout(controls)
+        panel = DenseDataPanel("Compatibility Rows", "Dense matrix view for sorting, filtering, and export.")
+        panel.layout.addLayout(controls)
         self.table = QTableWidget()
-        layout.addWidget(self.table, 1)
+        panel.layout.addWidget(self.table, 1)
+        layout.addWidget(panel, 1)
 
     def refresh(self) -> None:
         if self.bundle is None:
@@ -633,41 +672,44 @@ class OverviewPage(BaseAtlasPage):
         metrics = self.bundle.metrics
         metric_grid = QGridLayout()
         metric_cards = [
-            MetricCard("EOAT coverage", str(metrics.get("eoats_documented", len(self.bundle.eoats))), "Documented EOAT records"),
-            MetricCard("Machine coverage", str(metrics.get("machines_covered", len(self.bundle.machines))), "Machines with Atlas context"),
-            MetricCard("Tool coverage", str(metrics.get("tools_covered", len(self.bundle.tools))), "Tools linked or inferred"),
-            MetricCard("Documentation avg.", f"{metrics.get('documentation_average', 0)}%", "EOAT profile completeness"),
+            CompactStatCard("EOAT coverage", str(metrics.get("eoats_documented", len(self.bundle.eoats))), "Documented EOAT records"),
+            CompactStatCard("Machine coverage", str(metrics.get("machines_covered", len(self.bundle.machines))), "Machines with Atlas context"),
+            CompactStatCard("Tool coverage", str(metrics.get("tools_covered", len(self.bundle.tools))), "Tools linked or inferred"),
+            CompactStatCard("Documentation avg.", f"{metrics.get('documentation_average', 0)}%", "EOAT profile completeness"),
         ]
         for index, card in enumerate(metric_cards):
             metric_grid.addWidget(card, index // 4, index % 4)
         self.content_layout.addLayout(metric_grid)
 
-        machines = Section("Machine Coverage Map")
+        machines, machines_layout = _group_container(
+            "Machine Coverage Map",
+            "Tiles signal compatibility coverage and warning state at a glance.",
+        )
         machine_grid = QGridLayout()
         machine_grid.setContentsMargins(0, 0, 0, 0)
         machine_grid.setSpacing(8)
         for index, machine in enumerate(self.bundle.machines[:36]):
-            card = MachineProfileCard()
-            card.layout.addWidget(badge(f"Machine {machine.machine}", "good" if machine.compatible_eoats else "warn"))
+            card = MachineProfileCard(f"Machine {machine.machine}", machine.robot_type or machine.robot_model or "Robot info missing")
+            card.layout.addWidget(badge("OK" if machine.compatible_eoats else "Review", "success" if machine.compatible_eoats else "warning"))
             card.layout.addWidget(badge(f"{len(machine.compatible_eoats)} EOAT(s)", "info"))
             card.layout.addWidget(badge(f"{len(machine.compatible_tools)} tool(s)", "info"))
             if machine.warning_count:
                 card.layout.addWidget(badge(f"{machine.warning_count} warning(s)", "warn"))
             machine_grid.addWidget(card, index // 4, index % 4)
-        machines.layout.addLayout(machine_grid)
+        machines_layout.addLayout(machine_grid)
         self.content_layout.addWidget(machines)
 
-        docs = Section("Documentation Heatmap")
+        docs, docs_layout = _group_container("Documentation Heatmap", "Lowest-scoring EOAT documentation records appear first.")
         doc_grid = QGridLayout()
         doc_grid.setContentsMargins(0, 0, 0, 0)
         doc_grid.setSpacing(8)
         for index, eoat in enumerate(sorted(self.bundle.eoats, key=lambda item: item.documentation.score)[:48]):
-            card = EOATProfileCard()
-            card.layout.addWidget(badge(eoat.eoat_id, _score_kind(eoat.documentation.score)))
+            card = EOATProfileCard(eoat.eoat_id)
             card.layout.addWidget(badge(f"{eoat.documentation.score}% docs", _score_kind(eoat.documentation.score)))
+            card.layout.addWidget(MiniProgressBar(eoat.documentation.score, kind=_score_kind(eoat.documentation.score)))
             card.layout.addWidget(badge(f"{eoat.photo_count} photo(s)", "good" if eoat.photo_count else "warn"))
             doc_grid.addWidget(card, index // 4, index % 4)
-        docs.layout.addLayout(doc_grid)
+        docs_layout.addLayout(doc_grid)
         self.content_layout.addWidget(docs)
         self.content_layout.addStretch(1)
 
@@ -750,8 +792,13 @@ class StandardsPage(BaseAtlasPage):
             if query and query not in haystack:
                 continue
             matches.append(standard)
+        grouped: dict[str, list] = {}
         for standard in matches:
-            self.card_layout.addWidget(_standard_card(standard))
+            grouped.setdefault(standard.category or "Uncategorized", []).append(standard)
+        for category, standards in sorted(grouped.items(), key=lambda item: item[0].casefold()):
+            self.card_layout.addWidget(InfoPanel(category, f"{len(standards)} document(s)"))
+            for standard in standards:
+                self.card_layout.addWidget(_standard_card(standard))
         if not matches:
             self.card_layout.addWidget(EmptyStateWidget("No standards matched", "Try a category, document title, or keyword."))
         self.card_layout.addStretch(1)
@@ -813,16 +860,15 @@ class PMInspectionPage(BaseAtlasPage):
         grid = QGridLayout()
         grid.setSpacing(10)
         for index, (title, items) in enumerate(groups):
-            card = Section(title)
-            for item in items:
-                card.layout.addWidget(badge(item, "info"))
+            card = ChecklistCard(title, "Inspection guidance generated from Atlas context.")
+            card.layout.addWidget(badge("Weekly" if "Weekly" in title else ("Monthly" if "Monthly" in title else "Pre-install"), "outline"))
+            for item_index, item in enumerate(items, start=1):
+                card.layout.addWidget(_checklist_row(str(item_index), item, kind="outline"))
             grid.addWidget(card, index // 2, index % 2)
         self.content_layout.addLayout(grid)
-        missing = Section("EOATs Missing PM Frequency")
+        missing = WarningCard("EOATs Missing PM Frequency", "These records need source data cleanup.", severity="warn") if missing_pm else SuccessCard("PM Frequency Coverage", "No missing PM frequency fields found.")
         if missing_pm:
             missing.layout.addWidget(_chip_group(missing_pm[:80], kind="warn", per_row=6))
-        else:
-            missing.layout.addWidget(badge("No missing PM frequency fields found", "good"))
         self.content_layout.addWidget(missing)
         self.content_layout.addStretch(1)
 
@@ -845,8 +891,9 @@ class GapsPage(BaseAtlasPage):
         self.scroll.setWidget(self.card_widget)
         layout.addWidget(self.scroll, 2)
         self.table = QTableWidget()
-        layout.addWidget(QLabel("Detail View"))
-        layout.addWidget(self.table, 1)
+        detail_panel = DenseDataPanel("Detail View", "Raw warning rows for filtering and export/report verification.")
+        detail_panel.layout.addWidget(self.table, 1)
+        layout.addWidget(detail_panel, 1)
 
     def refresh(self) -> None:
         if self.bundle is None:
@@ -864,9 +911,15 @@ class GapsPage(BaseAtlasPage):
         for title, kind in [("Critical / High Priority", "bad"), ("Warnings", "warn"), ("Informational Gaps", "info")]:
             if not grouped[kind]:
                 continue
-            section = Section(title)
+            if kind == "bad":
+                subtitle = "Highest priority source issues."
+            elif kind == "warn":
+                subtitle = "Review before confident install or reuse."
+            else:
+                subtitle = "Informational data gaps and optional cleanup."
+            section, section_layout = _group_container(title, subtitle)
             for row in grouped[kind][:20]:
-                section.layout.addWidget(
+                section_layout.addWidget(
                     _warning_block(
                         row["What"].split(":", 1)[0],
                         row["What"],
@@ -876,7 +929,7 @@ class GapsPage(BaseAtlasPage):
                     )
                 )
             if len(grouped[kind]) > 20:
-                section.layout.addWidget(badge(f"+{len(grouped[kind]) - 20} more in detail view", kind))
+                section_layout.addWidget(badge(f"+{len(grouped[kind]) - 20} more in detail view", kind))
             self.card_layout.addWidget(section)
         if not rows:
             self.card_layout.addWidget(EmptyStateWidget("No documentation gaps", "Atlas did not find warning records in the loaded demo data."))
@@ -929,20 +982,23 @@ class DiagnosticsPage(BaseAtlasPage):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.addWidget(page_title("Settings / Diagnostics", "Path status, refresh controls, and Atlas performance timings."))
-        control_card = Section("Data Refresh")
+        control_card = InfoPanel("Data Refresh", "Manual refresh rebuilds cached Atlas data without modifying source files.")
         refresh_button = QPushButton("Refresh Data")
         refresh_button.setObjectName("PrimaryButton")
         refresh_button.clicked.connect(lambda: self.controller.refresh_data(force=True))
-        control_card.layout.addWidget(QLabel("Atlas is read-only. Refresh rebuilds the in-memory cache/indexes from the configured sources."))
+        note = QLabel("Atlas is read-only. Refresh rebuilds the in-memory cache/indexes from the configured sources.")
+        note.setObjectName("BodyText")
+        note.setWordWrap(True)
+        control_card.layout.addWidget(note)
         control_card.layout.addWidget(refresh_button)
         layout.addWidget(control_card)
-        self.source_card = Section("Source Status")
+        self.source_card = InfoPanel("Source Status", "Required and optional source availability.")
         self.source_grid = QGridLayout()
         self.source_grid.setContentsMargins(0, 0, 0, 0)
         self.source_grid.setSpacing(8)
         self.source_card.layout.addLayout(self.source_grid)
         layout.addWidget(self.source_card)
-        self.perf_card = Section("Performance Timings")
+        self.perf_card = SecondaryCard("Performance Timings", "Compact developer diagnostics for slow-operation triage.")
         self.perf_grid = QGridLayout()
         self.perf_grid.setContentsMargins(0, 0, 0, 0)
         self.perf_grid.setSpacing(8)
@@ -950,10 +1006,12 @@ class DiagnosticsPage(BaseAtlasPage):
         layout.addWidget(self.perf_card)
         self.sources = QTableWidget()
         self.metrics = QTableWidget()
-        layout.addWidget(QLabel("Source path details"))
-        layout.addWidget(self.sources, 1)
-        layout.addWidget(QLabel("Raw performance diagnostics"))
-        layout.addWidget(self.metrics, 1)
+        source_panel = DenseDataPanel("Source Path Details", "Compact reference table for configured Atlas source paths.")
+        source_panel.layout.addWidget(self.sources, 1)
+        layout.addWidget(source_panel, 1)
+        metrics_panel = DenseDataPanel("Raw Performance Diagnostics", "Developer timings and cache counters.")
+        metrics_panel.layout.addWidget(self.metrics, 1)
+        layout.addWidget(metrics_panel, 1)
 
     def refresh(self) -> None:
         if self.bundle is None:
@@ -973,7 +1031,7 @@ class DiagnosticsPage(BaseAtlasPage):
             ("Tools", len(self.bundle.tools)),
         ]
         for index, (title, value) in enumerate(perf_items):
-            self.perf_grid.addWidget(MetricCard(title, str(value)), index // 3, index % 3)
+            self.perf_grid.addWidget(CompactStatCard(title, str(value)), 0, index)
         fill_table(
             self.sources,
             [
@@ -1019,6 +1077,22 @@ def _clear_layout(layout) -> None:
             widget.deleteLater()
 
 
+def _group_container(title: str, subtitle: str = "") -> tuple[QWidget, QVBoxLayout]:
+    container = QWidget()
+    layout = QVBoxLayout(container)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(8)
+    title_label = QLabel(title)
+    title_label.setObjectName("CardTitle")
+    layout.addWidget(title_label)
+    if subtitle:
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("MutedText")
+        subtitle_label.setWordWrap(True)
+        layout.addWidget(subtitle_label)
+    return container, layout
+
+
 def _eoat_list_label(eoat: EOATRecord) -> str:
     tools = ", ".join(eoat.tools[:2]) or "No tool"
     machines = ", ".join(eoat.machines[:3]) or "No machine"
@@ -1032,18 +1106,16 @@ def _machine_list_label(machine: MachineRecord) -> str:
 
 
 def _tool_card(tool, controller) -> QWidget:
-    card = ToolCompatibilityCard()
+    card = ToolCompatibilityCard(f"Tool {tool.tool}", tool.part_description or tool.part_family or ", ".join(tool.parts[:3]) or "No part description")
     header = QHBoxLayout()
     header.setContentsMargins(0, 0, 0, 0)
-    header.addWidget(badge(f"Tool {tool.tool}", "good" if tool.compatible_eoats else "warn"))
-    header.addWidget(badge(tool.source or "Atlas source", "info"))
+    header.addWidget(badge("Compatible" if tool.compatible_eoats else "Review", "success" if tool.compatible_eoats else "warning"))
+    header.addWidget(badge(tool.source or "Atlas source", "outline"))
     if tool.warning_count:
         header.addWidget(badge(f"{tool.warning_count} warning(s)", "warn"))
     header.addStretch(1)
     card.layout.addLayout(header)
-    part = QLabel(tool.part_description or tool.part_family or ", ".join(tool.parts[:3]) or "No part description")
-    part.setWordWrap(True)
-    card.layout.addWidget(part)
+    card.layout.addWidget(CompatibilityPathWidget(tool.tool, ", ".join(tool.compatible_eoats[:3]), tool.compatible_machines[:8]))
     card.layout.addWidget(_labeled_chips("Compatible EOATs", tool.compatible_eoats, empty="No linked EOATs", per_row=6))
     card.layout.addWidget(_labeled_chips("Compatible Machines", tool.compatible_machines, empty="No linked machines", per_row=6))
     buttons = []
@@ -1059,10 +1131,9 @@ def _tool_card(tool, controller) -> QWidget:
 
 
 def _photo_folder_card(eoat: EOATRecord) -> QWidget:
-    card = EOATProfileCard()
+    card = PhotoGalleryCard(eoat.eoat_id, "Folder and thumbnail coverage for this EOAT.")
     top = QHBoxLayout()
     top.setContentsMargins(0, 0, 0, 0)
-    top.addWidget(badge(eoat.eoat_id, "good" if eoat.photo_count else "warn"))
     top.addWidget(badge(f"{eoat.photo_count} photo(s)", "good" if eoat.photo_count else "warn"))
     top.addWidget(badge("Folder found" if eoat.photos.folder_exists else "Folder missing", "good" if eoat.photos.folder_exists else "bad"))
     top.addStretch(1)
@@ -1080,19 +1151,11 @@ def _photo_folder_card(eoat: EOATRecord) -> QWidget:
 
 
 def _standard_card(standard) -> QWidget:
-    card = ToolCompatibilityCard()
-    card.layout.addWidget(badge(standard.category or "Document", "info"))
-    title = QLabel(standard.title or "Untitled standard")
-    title.setObjectName("SectionTitle")
-    title.setWordWrap(True)
-    card.layout.addWidget(title)
-    if standard.snippet:
-        snippet = QLabel(standard.snippet)
-        snippet.setObjectName("MutedText")
-        snippet.setWordWrap(True)
-        card.layout.addWidget(snippet)
+    suffix = Path(str(standard.path)).suffix.upper().lstrip(".") or "DOC"
+    card = DetailCard(standard.title or "Untitled standard", standard.snippet, eyebrow=standard.category or "Document")
+    card.layout.addWidget(_chip_group([standard.category or "Document", suffix, "Read-only"], kind="outline", per_row=4))
     path_label = QLabel(standard.path)
-    path_label.setObjectName("MutedText")
+    path_label.setObjectName("MicroText")
     path_label.setWordWrap(True)
     card.layout.addWidget(path_label)
     button = QPushButton("Open Document")
@@ -1102,13 +1165,7 @@ def _standard_card(standard) -> QWidget:
 
 
 def _machine_hero_section(machine: MachineRecord) -> QWidget:
-    section = Section("Machine Profile Header")
-    title = QLabel(f"Machine {machine.machine}")
-    title.setObjectName("ProfileTitle")
-    subtitle = QLabel(machine.robot_type or machine.robot_model or "Robot info missing")
-    subtitle.setObjectName("ProfileSubtitle")
-    section.layout.addWidget(title)
-    section.layout.addWidget(subtitle)
+    section = ProfileHeaderCard(f"Machine {machine.machine}", machine.robot_type or machine.robot_model or "Robot info missing", eyebrow="Machine Profile")
     section.layout.addWidget(
         _chip_group(
             [
@@ -1125,7 +1182,7 @@ def _machine_hero_section(machine: MachineRecord) -> QWidget:
 
 
 def _machine_compatibility_section(machine: MachineRecord) -> QWidget:
-    section = Section("Compatibility")
+    section = CompatibilityCard("Compatibility", "Machine relationships from Atlas cached indexes.")
     section.layout.addWidget(_labeled_chips("Compatible EOATs", machine.compatible_eoats, empty="No linked EOATs", per_row=6))
     section.layout.addWidget(_labeled_chips("Compatible Tools", machine.compatible_tools, empty="No linked tools", per_row=6))
     section.layout.addWidget(_labeled_chips("Compatible Parts", machine.compatible_parts[:24], empty="No linked parts", per_row=4))
@@ -1133,7 +1190,7 @@ def _machine_compatibility_section(machine: MachineRecord) -> QWidget:
 
 
 def _machine_technical_section(machine: MachineRecord) -> QWidget:
-    section = Section("Machine / Robot Info")
+    section = DetailCard("Machine / Robot Info", "Reference metadata kept quieter than compatibility and warnings.")
     section.layout.addWidget(
         key_value_grid(
             [
@@ -1150,12 +1207,11 @@ def _machine_technical_section(machine: MachineRecord) -> QWidget:
 
 
 def _machine_warnings_section(machine: MachineRecord) -> QWidget:
-    section = Section("Warnings / Data Gaps")
     if not machine.warnings:
-        section.layout.addWidget(badge("No machine warnings", "good"))
-        return section
+        return SuccessCard("No machine warnings", "Atlas did not find open machine data gaps for this record.")
+    section, section_layout = _group_container("Warnings / Data Gaps", "Action items that can affect machine compatibility confidence.")
     for warning in machine.warnings[:10]:
-        section.layout.addWidget(
+        section_layout.addWidget(
             _warning_block(
                 warning.title,
                 warning.message,
@@ -1168,14 +1224,7 @@ def _machine_warnings_section(machine: MachineRecord) -> QWidget:
 
 
 def _eoat_hero_section(eoat: EOATRecord) -> QWidget:
-    section = Section("EOAT Profile Header")
-    title = QLabel(eoat.eoat_id)
-    title.setObjectName("ProfileTitle")
-    subtitle = QLabel(_first_present(eoat.part_description, eoat.part_family, "Engineering profile"))
-    subtitle.setObjectName("ProfileSubtitle")
-    subtitle.setWordWrap(True)
-    section.layout.addWidget(title)
-    section.layout.addWidget(subtitle)
+    section = ProfileHeaderCard(eoat.eoat_id, _first_present(eoat.part_description, eoat.part_family, "Engineering profile"), eyebrow="EOAT Profile")
     section.layout.addWidget(
         _chip_group(
             [
@@ -1224,7 +1273,7 @@ def _profile_metric(label: str, value: str, note: str) -> QWidget:
 
 
 def _eoat_compatibility_section(eoat: EOATRecord) -> QWidget:
-    section = Section("Compatibility")
+    section = CompatibilityCard("Compatibility", "Tool -> EOAT -> Machine relationships.")
     status_text, status_kind = _compatibility_status(eoat)
     section.layout.addWidget(_chip_group([status_text], kind=status_kind, per_row=3))
     if not eoat.tools:
@@ -1250,7 +1299,7 @@ def _eoat_readiness_section(eoat: EOATRecord) -> QWidget:
 
 
 def _eoat_photo_section(eoat: EOATRecord) -> QWidget:
-    section = Section("Photo Strip")
+    section = PhotoGalleryCard("Photo Evidence", "Lazy thumbnail strip and missing-category signal.")
     photos = _combined_photos(eoat)
     section.layout.addWidget(
         _chip_group(
@@ -1349,12 +1398,11 @@ def _eoat_technical_details(eoat: EOATRecord) -> QWidget:
 
 
 def _eoat_warnings_section(eoat: EOATRecord) -> QWidget:
-    section = Section("Warnings / Data Gaps")
     if not eoat.warnings and not eoat.documentation.critical_missing_fields:
-        section.layout.addWidget(badge("No open EOAT warnings", "good"))
-        return section
+        return SuccessCard("No open EOAT warnings", "Documentation and compatibility checks did not find urgent gaps.")
+    section, section_layout = _group_container("Warnings / Data Gaps", "Action items are separated from reference details.")
     for field in eoat.documentation.critical_missing_fields:
-        section.layout.addWidget(
+        section_layout.addWidget(
             _warning_block(
                 "Critical documentation missing",
                 f"{field} is not filled in.",
@@ -1364,7 +1412,7 @@ def _eoat_warnings_section(eoat: EOATRecord) -> QWidget:
             )
         )
     for warning in eoat.warnings[:10]:
-        section.layout.addWidget(
+        section_layout.addWidget(
             _warning_block(
                 warning.title,
                 warning.message,
@@ -1374,37 +1422,31 @@ def _eoat_warnings_section(eoat: EOATRecord) -> QWidget:
             )
         )
     if len(eoat.warnings) > 10:
-        section.layout.addWidget(badge(f"+{len(eoat.warnings) - 10} more warnings", "warn"))
+        section_layout.addWidget(badge(f"+{len(eoat.warnings) - 10} more warnings", "warn"))
     return section
 
 
 def _detail_card(title: str, values: list[tuple[str, str]]) -> QWidget:
-    section = Section(title)
+    section = DetailCard(title)
     section.layout.addWidget(key_value_grid([(key, value or "-") for key, value in values]))
     return section
 
 
 def _warning_block(title: str, what: str, why: str, fix: str, kind: str) -> QWidget:
-    block = QWidget()
-    layout = QVBoxLayout(block)
-    layout.setContentsMargins(0, 0, 0, 8)
-    layout.setSpacing(5)
-    top = QWidget()
-    top_layout = QHBoxLayout(top)
-    top_layout.setContentsMargins(0, 0, 0, 0)
-    top_layout.setSpacing(8)
-    top_layout.addWidget(badge(title or "Warning", kind))
-    top_layout.addStretch(1)
-    layout.addWidget(top)
-    layout.addWidget(
+    block = WarningCard(title or "Warning", severity="bad" if kind == "bad" else "warn")
+    block.layout.addWidget(badge(kind.upper(), kind))
+    block.layout.addWidget(
         key_value_grid(
             [
                 ("What is missing", what),
                 ("Why it matters", why),
-                ("Suggested fix/source", fix),
             ]
         )
     )
+    action = QLabel(fix)
+    action.setObjectName("ActionText")
+    action.setWordWrap(True)
+    block.layout.addWidget(action)
     return block
 
 
@@ -1414,10 +1456,24 @@ def _labeled_chips(title: str, values, *, kind: str = "info", empty: str = "-", 
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setSpacing(4)
     label = QLabel(title)
-    label.setObjectName("MutedText")
+    label.setObjectName("MetricLabel")
     layout.addWidget(label)
     layout.addWidget(_chip_group(values, kind=kind, empty=empty, per_row=per_row))
     return widget
+
+
+def _checklist_row(marker: str, text: str, *, kind: str = "primary") -> QWidget:
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(8)
+    layout.addWidget(badge(marker, "count"))
+    body = QLabel(text)
+    body.setObjectName("BodyText")
+    body.setWordWrap(True)
+    layout.addWidget(body, 1)
+    layout.addWidget(badge("check", kind))
+    return row
 
 
 def _chip_group(values, *, kind: str = "info", empty: str = "-", per_row: int = 4, limit: int = 18) -> QWidget:
