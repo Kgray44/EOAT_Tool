@@ -1,0 +1,1 @@
+"""EOAT Atlas companion app."""

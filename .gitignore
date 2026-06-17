@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
+.cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -86,14 +87,17 @@ local_data/
 *.jpeg
 *.png
 *.heic
+*.heif
 *.tif
 *.tiff
 *.webp
 !examples/demo_project/**
 !docs/**
+!EOAT_Atlas_pages/**
 !tests/**
 
 # Logs, snapshots, backups, exports
+output/
 *.log
 *.tmp
 *.bak

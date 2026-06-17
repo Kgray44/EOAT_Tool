@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "2026.06.16.1",
   "sheets": {
     "EOAT Inventory": {
       "required_headers": [
@@ -9,6 +9,7 @@
         "Plant/Area",
         "Press/Machine #",
         "Tool #",
+        "EOAT Assembly ID",
         "Robot Type",
         "Robot Model/Controller",
         "Part Family",
@@ -62,6 +63,7 @@
         "Priority",
         "Pilot Candidate?",
         "Follow-Up Needed",
+        "Audit Context",
         "Notes",
         "Manual Completion Override",
         "Manual Completion Override Timestamp",
@@ -69,7 +71,9 @@
         "Ignored Empty Fields At Override",
         "Entry Type",
         "Source Audit ID",
-        "Compatibility Source"
+        "Compatibility Source",
+        "Physical Audit Verified",
+        "Compatibility Confidence"
       ]
     },
     "Issue Log": {
@@ -196,13 +200,20 @@
       "required_headers": [
         "Photo ID",
         "Date Taken",
-        "Plant/Area",
-        "Press/Machine #",
-        "Tool #",
-        "EOAT Area Shown",
-        "Photo Filename",
-        "Folder Path",
-        "Description",
+          "Plant/Area",
+          "Press/Machine #",
+          "Tool #",
+          "EOAT Assembly ID",
+          "Part Name",
+          "Photo Type",
+          "EOAT Area Shown",
+          "Original Filename",
+          "Stored Filename",
+          "Stored Relative Path",
+          "Imported At",
+          "Photo Filename",
+          "Folder Path",
+          "Description",
         "Related Audit ID",
         "Related Issue ID",
         "Linked Audit Field",

@@ -24,7 +24,11 @@ class CompletionPolicy:
 class CompletionResult:
     audit_id: str
     policy_name: str
+    audit_context: str
     percent_complete: int
+    eoat_documentation_score: int
+    installation_readiness_score: int
+    installed_cell_validation_score: int | str
     can_finish: bool
     manual_completion_override: bool
     applicable_field_count: int
@@ -62,7 +66,11 @@ def evaluate_completion(
     return CompletionResult(
         audit_id=summary.audit_id,
         policy_name=policy.name,
+        audit_context=summary.audit_context,
         percent_complete=summary.percent_complete,
+        eoat_documentation_score=summary.eoat_documentation_score,
+        installation_readiness_score=summary.installation_readiness_score,
+        installed_cell_validation_score=summary.installed_cell_validation_score,
         raw_percent_complete=summary.raw_percent_complete,
         can_finish=can_finish,
         manual_completion_override=summary.manual_completion_override_applied,

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit.relationships import is_compatibility_row, is_physical_audit_row
-from .audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
+from .audit.uninstalled import UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from .audit_compatibility import (
     load_required_relationships,
     parse_machine_tokens,
@@ -16,9 +16,20 @@ from .audit_compatibility import (
     sort_machine_tokens,
     summarize_master_relationships,
     text_value,
+    tool_identifier_key,
 )
-from .audit_constants import ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from .audit_constants import (
+    AUDIT_CONTEXT_BENCH,
+    AUDIT_CONTEXT_HISTORICAL,
+    AUDIT_CONTEXT_INSTALLED,
+    AUDIT_CONTEXT_NEEDS_REVIEW,
+    ENTRY_TYPE_AUDITED,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+)
+from .audit_context import infer_audit_context
 from .audit_field_rules import field_applies, is_na_value, manual_completion_override_enabled
+from .eoat_ids import build_eoat_assembly_contexts
 from .gripper_fields import CUP_COUNT_FIELD
 from .logging import log_tool_run
 from .paths import get_press_capacity_file, resolve_project_paths
@@ -49,20 +60,24 @@ class AuditProgressSummary:
     compatibility_opportunities: list[dict[str, Any]] = field(default_factory=list)
     machine_coverage: list[dict[str, Any]] = field(default_factory=list)
     entry_type_counts: dict[str, int] = field(default_factory=dict)
+    audit_context_counts: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     eoat_type_counts: dict[str, int] = field(default_factory=dict)
     robot_type_counts: dict[str, int] = field(default_factory=dict)
     issue_category_counts: dict[str, int] = field(default_factory=dict)
     missing_field_counts: dict[str, int] = field(default_factory=dict)
+    multi_tool_eoats: list[dict[str, Any]] = field(default_factory=list)
+    eoat_machine_compatibility: list[dict[str, Any]] = field(default_factory=list)
 
     def to_markdown(self) -> str:
         lines = [
             "# EOAT Audit Progress Report",
             "",
             "## Summary",
-            "Physical audit rows are direct audit observations. Compatible relationship rows extend coverage from a source physical audit without implying the EOAT was physically audited on that press.",
+            "EOAT documentation rows are direct records of the physical EOAT assembly. Bench audit rows can be complete EOAT documentation even when installed-cell validation is pending. Compatible relationship rows extend coverage without implying the EOAT was physically audited on that press.",
             f"- Required Machine/Part Relationships: {self.metrics.get('required_relationships', 0)}",
-            f"- Physical Audit Rows: {self.metrics.get('physical_audit_rows', 0)}",
+            f"- EOAT Documentation Rows: {self.metrics.get('physical_audit_rows', 0)}",
+            f"- Bench / Off-Machine Audit Rows: {self.metrics.get('bench_audit_rows', 0)}",
             f"- Physically Audited Relationships: {self.metrics.get('physically_audited_relationships', 0)}",
             f"- Compatible Relationship Rows: {self.metrics.get('compatible_relationships', 0)}",
             f"- Covered Relationships: {self.metrics.get('total_covered_relationships', 0)}",
@@ -114,8 +129,39 @@ class AuditProgressSummary:
                 self.machine_coverage,
             )
         )
+        lines.extend(["", "## Multi-Tool EOATs"])
+        lines.extend(
+            _table_from_rows(
+                [
+                    "EOAT Assembly ID",
+                    "Tool Count",
+                    "Tool #s",
+                    "Machine #s",
+                    "Audit Machine #s",
+                    "Press Capacity Machine #s",
+                    "Audit IDs",
+                ],
+                self.multi_tool_eoats,
+            )
+        )
+        lines.extend(["", "## EOAT Machine Compatibility"])
+        lines.extend(
+            _table_from_rows(
+                [
+                    "EOAT Assembly ID",
+                    "Tool #s",
+                    "Machine #s",
+                    "Audit Machine #s",
+                    "Press Capacity Machine #s",
+                    "Audit IDs",
+                ],
+                self.eoat_machine_compatibility,
+            )
+        )
         lines.extend(["", "## Existing Entries by Type"])
         lines.extend(_table_from_counts(self.entry_type_counts))
+        lines.extend(["", "## Entries by Audit Context"])
+        lines.extend(_table_from_counts(self.audit_context_counts))
         lines.extend(["", "## Audit Coverage By EOAT Type"])
         lines.extend(_table_from_counts(self.eoat_type_counts))
         lines.extend(["", "## Audit Coverage By Robot Type"])
@@ -169,7 +215,10 @@ METRIC_LABELS = {
     "compatible_relationships": "Compatible Relationships",
     "total_covered_relationships": "Total Covered Relationships",
     "remaining_relationships": "Remaining Relationships",
-    "physical_audit_rows": "Physical Audit Rows",
+    "physical_audit_rows": "EOAT Documentation Rows",
+    "bench_audit_rows": "Bench / Off-Machine Audit Rows",
+    "installed_audit_rows": "Installed Audit Rows",
+    "historical_or_review_audit_rows": "Historical / Needs Review Rows",
     "compatibility_rows": "Compatible Relationship Rows",
     "duplicate_relationship_rows": "Duplicate Relationship Rows",
     "conflict_rows": "Conflict Rows",
@@ -181,6 +230,11 @@ METRIC_LABELS = {
     "compatibility_opportunities_available": "Compatibility Opportunities Available",
     "total_eoat_inventory_rows": "Total EOAT Inventory Rows",
     "photos_indexed_count": "Photos Indexed",
+    "multi_tool_eoat_count": "Shared EOAT Assembly IDs",
+    "total_eoat_assembly_ids": "Total EOAT Assembly IDs",
+    "total_eoat_tool_links": "Total EOAT Tool Links",
+    "total_eoat_known_machine_links": "Total EOAT Machine Links",
+    "eoat_linked_photo_count": "EOAT-Linked Photos",
     "interviews_logged_count": "Interviews Logged",
     "issues_logged_count": "Issues Logged",
     "open_action_items_count": "Open Action Items",
@@ -288,6 +342,7 @@ def calculate_audit_progress_from_rows(
     physical_audit_rows = 0
     compatibility_rows = 0
     unknown_treated_as_audited = 0
+    audit_context_counts = Counter(infer_audit_context(row) for row in inventory)
     for row in inventory:
         if is_compatibility_row(row):
             compatibility_rows += 1
@@ -298,7 +353,7 @@ def calculate_audit_progress_from_rows(
             part_number = part_number_from_row(row)
             machines = parse_machine_tokens(row.get("Press/Machine #"))
             if part_number and machines and is_physical_audit_row(row):
-                audited_part_sources[text_value(part_number).upper()].extend(machines)
+                audited_part_sources[tool_identifier_key(part_number)].extend(machines)
 
     duplicate_rows = _duplicate_relationship_rows(master_by_key)
     conflict_rows = _conflict_rows(master_by_key, required_by_key)
@@ -313,12 +368,25 @@ def calculate_audit_progress_from_rows(
             1
             for row in inventory
             if not manual_completion_override_enabled(row)
-            and not (is_uninstalled_eoat_audit(row) and field in UNINSTALLED_MACHINE_CONTEXT_FIELDS)
+            and not (is_uninstalled_eoat_audit(row) and field in UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS)
             and field_applies(row, field)
             and _missing_applicable_value(row.get(field))
         )
         for field in MISSING_DATA_FIELDS
     }
+    eoat_contexts = build_eoat_assembly_contexts(inventory, photos, press_capacity_path)
+    eoat_metrics = {
+        "multi_tool_eoat_count": sum(1 for context in eoat_contexts.values() if context.is_multi_tool),
+        "total_eoat_assembly_ids": len(eoat_contexts),
+        "total_eoat_tool_links": sum(context.tool_count for context in eoat_contexts.values()),
+        "total_eoat_known_machine_links": sum(len(context.known_machines) for context in eoat_contexts.values()),
+        "eoat_linked_photo_count": sum(context.photo_count for context in eoat_contexts.values()),
+    }
+    eoat_rows = [
+        context.to_dict()
+        for context in sorted(eoat_contexts.values(), key=lambda item: item.eoat_assembly_id.casefold())
+    ]
+    multi_tool_rows = [row for row in eoat_rows if int(row.get("Tool Count") or 0) > 1]
     open_statuses = {"open", "not started", "needs follow-up", "in progress", "blocked"}
     metrics = {
         "required_relationships": len(required_keys),
@@ -327,6 +395,10 @@ def calculate_audit_progress_from_rows(
         "total_covered_relationships": len(covered_keys),
         "remaining_relationships": len(missing_keys),
         "physical_audit_rows": physical_audit_rows,
+        "bench_audit_rows": audit_context_counts.get(AUDIT_CONTEXT_BENCH, 0),
+        "installed_audit_rows": audit_context_counts.get(AUDIT_CONTEXT_INSTALLED, 0),
+        "historical_or_review_audit_rows": audit_context_counts.get(AUDIT_CONTEXT_HISTORICAL, 0)
+        + audit_context_counts.get(AUDIT_CONTEXT_NEEDS_REVIEW, 0),
         "compatibility_rows": compatibility_rows,
         "duplicate_relationship_rows": duplicate_rows,
         "conflict_rows": conflict_rows,
@@ -365,6 +437,7 @@ def calculate_audit_progress_from_rows(
         ),
         "pilot_candidates_sheet_rows": len(pilots),
         "missing_important_fields_total": sum(missing_counts.values()),
+        **eoat_metrics,
     }
     coverage_summary = [(METRIC_LABELS[key], metrics[key]) for key in METRIC_LABELS if key in metrics]
     summary = AuditProgressSummary(
@@ -379,11 +452,14 @@ def calculate_audit_progress_from_rows(
             ENTRY_TYPE_COMPATIBLE: compatibility_rows,
             "Unknown treated as Audited": unknown_treated_as_audited,
         },
+        audit_context_counts=dict(audit_context_counts),
         warnings=warnings,
         eoat_type_counts=dict(Counter(str(row.get("EOAT Type") or "Blank") for row in inventory)),
         robot_type_counts=dict(Counter(_robot_type_bucket(row) for row in inventory)),
         issue_category_counts=dict(Counter(str(row.get("Issue Category") or "Blank") for row in issues)),
         missing_field_counts=missing_counts,
+        multi_tool_eoats=multi_tool_rows,
+        eoat_machine_compatibility=eoat_rows,
     )
     return summary
 

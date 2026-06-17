@@ -13,17 +13,20 @@ from core.annotations.exports import unique_export_path
 from core.annotations.migrations import utc_now
 from core.annotations.service import AnnotationService
 from core.annotations.tag_colors import is_neutral_context_tag
+from core.audit.relationships import is_compatibility_row
 from core.paths import resolve_project_paths
 from core.performance import log_performance_event
-from core.photo_evidence import evidence_coverage_for_project
 from core.safe_files import ensure_directory, safe_write_text
 from core.validation import validate_project_foundation
 from core.validation_findings import findings_from_result
 from core.workbook_cache import row_dicts_cached as row_dicts
+from core.workbook_schema import get_key_inventory_headers
 
 STATUS_DISMISSED = "Dismissed / Overridden"
 STATUS_FIXED_AT_SOURCE = "Fixed at Source"
 OPEN_ITEMS_SUMMARY_CACHE_SCHEMA_VERSION = 1
+OPEN_ITEMS_FIELD_FILTER_SCHEMA_VERSION = 1
+LOW_APPLICABILITY_BLANK_NA_THRESHOLD = 0.5
 OPEN_ITEM_STATUSES = ("Open", "In Progress", "Waiting on Info", "Blocked", STATUS_DISMISSED, STATUS_FIXED_AT_SOURCE)
 UNRESOLVED_STATUSES = {"Open", "In Progress", "Waiting on Info", "Blocked"}
 ACTION_OPEN_STATUSES = {
@@ -37,6 +40,27 @@ ACTION_OPEN_STATUSES = {
     "waiting on info",
 }
 RESOLVED_SOURCE_STATUSES = {"resolved", "archived", "closed", "complete", "completed", "done", "dismissed"}
+IMPORTANT_FIELD_AUTO_HIDE_EXCLUSIONS = frozenset(
+    {
+        *get_key_inventory_headers(),
+        "Audit ID",
+        "Audit Date",
+        "Auditor",
+        "Plant/Area",
+        "Press/Machine #",
+        "Machine",
+        "Tool #",
+        "EOAT Assembly ID",
+        "Robot Type",
+        "EOAT Type",
+        "Status",
+        "Priority",
+        "Known Issues",
+        "Photos Taken?",
+        "Photo Folder/Link",
+        "Notes",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -253,6 +277,83 @@ def save_cached_open_items_summary(project_root: str | Path, summary: dict[str, 
     }
     path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
     return path
+
+
+def open_items_field_filter_path(project_root: str | Path) -> Path:
+    return _open_items_dir(project_root) / "open_items_field_filter.json"
+
+
+def load_open_items_field_filter(project_root: str | Path) -> dict[str, object]:
+    path = open_items_field_filter_path(project_root)
+    if not path.exists():
+        return {"excluded_fields": set(), "auto_hide_low_applicability": False}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"excluded_fields": set(), "auto_hide_low_applicability": False}
+    if not isinstance(payload, dict):
+        return {"excluded_fields": set(), "auto_hide_low_applicability": False}
+    fields = {
+        _field_key(value)
+        for value in payload.get("excluded_fields", [])
+        if _field_key(value)
+    }
+    return {
+        "excluded_fields": fields,
+        "auto_hide_low_applicability": bool(payload.get("auto_hide_low_applicability")),
+    }
+
+
+def save_open_items_field_filter(
+    project_root: str | Path,
+    excluded_fields: Iterable[str],
+    *,
+    auto_hide_low_applicability: bool = False,
+) -> Path:
+    path = open_items_field_filter_path(project_root)
+    ensure_directory(path.parent)
+    payload = {
+        "schema": OPEN_ITEMS_FIELD_FILTER_SCHEMA_VERSION,
+        "excluded_fields": sorted({_field_key(field) for field in excluded_fields if _field_key(field)}),
+        "auto_hide_low_applicability": bool(auto_hide_low_applicability),
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def low_applicability_open_item_fields(
+    project_root: str | Path,
+    candidate_fields: Iterable[str],
+    *,
+    threshold: float = LOW_APPLICABILITY_BLANK_NA_THRESHOLD,
+) -> dict[str, dict[str, object]]:
+    candidates = {
+        _field_key(field)
+        for field in candidate_fields
+        if _field_key(field) and _field_key(field) not in IMPORTANT_FIELD_AUTO_HIDE_EXCLUSIONS
+    }
+    if not candidates:
+        return {}
+    rows = _inventory_rows(Path(project_root))
+    if not rows:
+        return {}
+    stats: dict[str, dict[str, object]] = {}
+    for field in sorted(candidates):
+        values = [row.get(field) for row in rows if field in row]
+        total = len(values)
+        if not total:
+            continue
+        blank_na = sum(1 for value in values if _is_blank_or_na(value))
+        ratio = blank_na / total
+        if ratio >= threshold:
+            stats[field] = {
+                "field": field,
+                "blank_na_count": blank_na,
+                "total_count": total,
+                "blank_na_ratio": ratio,
+            }
+    return stats
 
 
 def summarize_open_items(items: Iterable[OpenItem], *, today: date | None = None) -> dict[str, int]:
@@ -488,6 +589,8 @@ def _validation_items(project_root: Path) -> list[OpenItem]:
     findings = findings_from_result(result)
     if findings:
         for finding in findings:
+            if _is_photo_evidence_coverage_finding(finding):
+                continue
             items.append(
                 OpenItem(
                     id=f"validation:{finding.finding_id}",
@@ -522,37 +625,24 @@ def _validation_items(project_root: Path) -> list[OpenItem]:
     return items
 
 
+def _is_photo_evidence_coverage_finding(finding: Any) -> bool:
+    return (
+        str(getattr(finding, "source_validator", "") or "") == "photo_evidence"
+        and str(getattr(finding, "category", "") or "") == "missing_evidence"
+    )
+
+
 def _missing_evidence_items(project_root: Path) -> list[OpenItem]:
     rows = _inventory_rows(project_root)
     items: list[OpenItem] = []
-    for coverage in evidence_coverage_for_project(project_root):
-        for status in coverage.statuses:
-            if not status.required or status.present:
-                continue
-            items.append(
-                OpenItem(
-                    id=f"missing_evidence:{coverage.audit_id}:{status.category}",
-                    source="missing_evidence",
-                    severity="Warning",
-                    category="missing_evidence",
-                    title=f"Missing evidence: {status.label}",
-                    message=status.warning or f"Required photo evidence missing for {status.label}.",
-                    audit_id=coverage.audit_id,
-                    machine=coverage.machine,
-                    field="Photos Taken?",
-                    target_type="photo",
-                    status="Open",
-                    recommended_action="Capture or intake local photos for this evidence category.",
-                )
-            )
     for row in rows:
         audit_id = str(row.get("Audit ID") or "").strip()
         if not audit_id:
             continue
-        priority = str(row.get("Priority") or "").strip().casefold()
+        if is_compatibility_row(row):
+            continue
         photos = str(row.get("Photos Taken?") or "").strip().casefold()
-        link = str(row.get("Photo Folder/Link") or "").strip()
-        if photos == "no" and priority in {"high", "critical"}:
+        if photos == "no":
             items.append(
                 OpenItem(
                     id=f"missing_evidence:{audit_id}:Photos Taken",
@@ -560,30 +650,13 @@ def _missing_evidence_items(project_root: Path) -> list[OpenItem]:
                     severity="Warning",
                     category="missing_evidence",
                     title="Missing photo evidence",
-                    message="High-priority audit is marked Photos Taken? = No.",
+                    message="Audit is marked Photos Taken? = No.",
                     audit_id=audit_id,
                     machine=str(row.get("Press/Machine #") or ""),
                     field="Photos Taken?",
-                    target_type="photo",
+                    target_type="audit_field",
                     status="Open",
                     recommended_action="Capture photos or mark why evidence is unavailable.",
-                )
-            )
-        if photos == "yes" and not link:
-            items.append(
-                OpenItem(
-                    id=f"missing_evidence:{audit_id}:Photo Folder Link",
-                    source="missing_evidence",
-                    severity="Info",
-                    category="missing_evidence",
-                    title="Photo folder/link missing",
-                    message="Photos are marked taken but no local folder or link is recorded.",
-                    audit_id=audit_id,
-                    machine=str(row.get("Press/Machine #") or ""),
-                    field="Photo Folder/Link",
-                    target_type="photo",
-                    status="Open",
-                    recommended_action="Record the local photo folder or evidence reference.",
                 )
             )
     return items
@@ -627,6 +700,15 @@ def _inventory_rows(project_root: Path) -> list[dict[str, object]]:
         return row_dicts(paths.master_workbook, "EOAT Inventory")
     except Exception:
         return []
+
+
+def _field_key(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _is_blank_or_na(value: Any) -> bool:
+    text = str(value or "").strip().casefold()
+    return text in {"", "n/a", "na"}
 
 
 def _open_items_dir(project_root: str | Path) -> Path:
@@ -971,12 +1053,16 @@ __all__ = [
     "OpenItem",
     "dismiss_open_item",
     "export_open_items_report",
+    "load_open_items_field_filter",
     "load_cached_open_items",
     "load_cached_open_items_summary",
     "list_open_items",
+    "low_applicability_open_item_fields",
     "open_items_summary",
+    "open_items_field_filter_path",
     "open_items_summary_cache_path",
     "save_cached_open_items_summary",
+    "save_open_items_field_filter",
     "set_open_item_status",
     "summarize_open_items",
 ]

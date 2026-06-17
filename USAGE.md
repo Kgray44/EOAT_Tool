@@ -8,6 +8,14 @@ python run_dashboard.py
 
 The default project root is `examples/demo_project/` when no ignored local config exists. This demo root contains synthetic workbooks, reports, schedules, reference data, and placeholder photos. The app shows Demo mode on Home and Settings so synthetic data is not mistaken for real project files.
 
+EOAT Atlas launches separately as a fast, mostly read-only search and install-support app:
+
+```powershell
+python -m app.atlas.main
+```
+
+Atlas uses the same active project root and source data as EOAT Command Center. See `docs/EOAT_ATLAS.md` for data source, refresh, warning, export, and performance details.
+
 CLI tools can also run directly against the demo root:
 
 ```powershell

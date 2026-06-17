@@ -20,7 +20,7 @@ def test_audit_progress_metrics_and_report(qapp, fake_config, fake_project):
     page = AuditProgressPage(fake_config)
     page.show()
 
-    assert int(page.cards["Physical Audit Rows"].value_label.text()) > 0
+    assert int(page.cards["EOAT Documentation Rows"].value_label.text()) > 0
     assert int(page.cards["Issues Logged"].value_label.text()) > 0
     click_button(page, "Generate Progress Report")
     wait_for_background_tasks()
@@ -112,7 +112,7 @@ def test_standards_documentation_gap_scan(qapp, fake_config, fake_project):
     wait_for_background_tasks()
     assert int(page.cards["EOATs Scanned"].value_label.text()) > 0
     assert int(page.cards["Total Gaps"].value_label.text()) > 0
-    assert int(page.cards["Avg Compliance"].value_label.text()) >= 0
+    assert int(page.cards["Avg EOAT Doc"].value_label.text()) >= 0
     assert "Press 102" in table_text(page.top_table)
     assert list((fake_project / "03_Standards" / "Documentation_Gap_Reports").glob("Documentation_Gap_Report_*.md"))
 

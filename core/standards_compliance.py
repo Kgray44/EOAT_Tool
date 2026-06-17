@@ -7,8 +7,17 @@ from pathlib import Path
 from typing import Any
 
 from .analysis_common import table_from_rows, write_timestamped_csv, write_timestamped_report
-from .audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from .audit_constants import (
+    AUDIT_CONTEXT_BENCH,
+    AUDIT_CONTEXT_COMPATIBILITY,
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_INSTALLED,
+    COMPATIBILITY_CONFIDENCE_FIELD,
+    ENTRY_TYPE_FIELD,
+)
+from .audit_context import infer_audit_context
 from .audit_field_rules import eoat_type_uses_gripper, eoat_type_uses_vacuum, is_meaningful_value, is_na_value
+from .audit_scores import calculate_split_scores
 from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_MODEL_FIELD, GRIPPER_TYPE_FIELD
 from .logging import log_tool_run
 from .paths import resolve_project_paths
@@ -23,13 +32,24 @@ STATUS_WARNING = "warning"
 STATUS_FAIL = "fail"
 STATUS_NOT_APPLICABLE = "not applicable"
 STATUS_UNKNOWN = "unknown"
+STATUS_NOT_OBSERVABLE = "not observable"
+STATUS_FOLLOW_UP_REQUIRED = "follow-up required"
 
 STATUS_SCORES = {
     STATUS_COMPLIANT: 100,
     STATUS_WARNING: 60,
     STATUS_FAIL: 0,
     STATUS_UNKNOWN: 40,
+    STATUS_NOT_OBSERVABLE: None,
+    STATUS_FOLLOW_UP_REQUIRED: None,
 }
+
+ISSUE_TRUE_FAILURE = "true_standard_failure"
+ISSUE_DOCUMENTATION_GAP = "documentation_gap"
+ISSUE_INSTALLATION_FOLLOW_UP = "installation_follow_up"
+ISSUE_COMPATIBILITY_DATA = "compatibility_data_issue"
+ISSUE_UNKNOWN_REVIEW = "unknown_needs_review"
+ISSUE_NOT_OBSERVABLE = "not_observable_due_to_context"
 
 
 @dataclass(frozen=True)
@@ -41,6 +61,7 @@ class ComplianceCategoryResult:
     reason: str
     recommended_action: str
     related_fields: tuple[str, ...] = field(default_factory=tuple)
+    issue_group: str = ISSUE_TRUE_FAILURE
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -50,14 +71,30 @@ class ComplianceCategoryResult:
 class AuditComplianceResult:
     audit_id: str
     machine: str
+    audit_context: str
+    eoat_assembly_id: str
+    tool_numbers: str
     plant_area: str
     eoat_type: str
     overall_score: int
+    eoat_documentation_score: int
+    installation_readiness_score: int
+    installed_cell_validation_score: int | str
+    true_fail_count: int
+    documentation_gap_count: int
+    follow_up_count: int
+    unknown_count: int
+    not_observable_count: int
+    notes_recommended_action: str
     category_results: tuple[ComplianceCategoryResult, ...]
 
     @property
     def failed_standards(self) -> tuple[ComplianceCategoryResult, ...]:
-        return tuple(result for result in self.category_results if result.status == STATUS_FAIL)
+        return tuple(
+            result
+            for result in self.category_results
+            if result.status == STATUS_FAIL and result.issue_group == ISSUE_TRUE_FAILURE
+        )
 
     @property
     def warnings(self) -> tuple[ComplianceCategoryResult, ...]:
@@ -66,6 +103,14 @@ class AuditComplianceResult:
     @property
     def unknown_items(self) -> tuple[ComplianceCategoryResult, ...]:
         return tuple(result for result in self.category_results if result.status == STATUS_UNKNOWN)
+
+    @property
+    def installation_follow_ups(self) -> tuple[ComplianceCategoryResult, ...]:
+        return tuple(
+            result
+            for result in self.category_results
+            if result.issue_group in {ISSUE_INSTALLATION_FOLLOW_UP, ISSUE_NOT_OBSERVABLE}
+        )
 
     @property
     def recommended_actions(self) -> tuple[str, ...]:
@@ -80,9 +125,21 @@ class AuditComplianceResult:
         return {
             "audit_id": self.audit_id,
             "machine": self.machine,
+            "audit_context": self.audit_context,
+            "eoat_assembly_id": self.eoat_assembly_id,
+            "tool_numbers": self.tool_numbers,
             "plant_area": self.plant_area,
             "eoat_type": self.eoat_type,
             "overall_score": self.overall_score,
+            "eoat_documentation_score": self.eoat_documentation_score,
+            "installation_readiness_score": self.installation_readiness_score,
+            "installed_cell_validation_score": self.installed_cell_validation_score,
+            "true_fail_count": self.true_fail_count,
+            "documentation_gap_count": self.documentation_gap_count,
+            "follow_up_count": self.follow_up_count,
+            "unknown_count": self.unknown_count,
+            "not_observable_count": self.not_observable_count,
+            "notes_recommended_action": self.notes_recommended_action,
             "failed_standards": [result.label for result in self.failed_standards],
             "warnings": [result.label for result in self.warnings],
             "unknown_items": [result.label for result in self.unknown_items],
@@ -114,12 +171,19 @@ class StandardsComplianceSummary:
         rows = [
             {
                 "Audit ID": audit.audit_id,
+                "EOAT Assembly ID": audit.eoat_assembly_id,
+                "Tool #s": audit.tool_numbers,
                 "Press/Machine #": audit.machine,
+                "Audit Context": audit.audit_context,
                 "EOAT Type": audit.eoat_type,
-                "Score": audit.overall_score,
-                "Fails": len(audit.failed_standards),
-                "Warnings": len(audit.warnings),
-                "Unknown": len(audit.unknown_items),
+                "EOAT Documentation Score": f"{audit.eoat_documentation_score}%",
+                "Installation Readiness Score": f"{audit.installation_readiness_score}%",
+                "Installed-Cell Validation Score": audit.installed_cell_validation_score,
+                "True Fails": audit.true_fail_count,
+                "Documentation Gaps": audit.documentation_gap_count,
+                "Follow-Up": audit.follow_up_count,
+                "Unknown": audit.unknown_count,
+                "Notes / Recommended Action": audit.notes_recommended_action,
             }
             for audit in self.audits
         ]
@@ -139,13 +203,32 @@ class StandardsComplianceSummary:
             "",
             "## Executive Summary",
             f"- Audits scored: {self.metrics.get('audits_scored', 0)}",
-            f"- Average compliance score: {self.metrics.get('average_compliance_score', 0)}",
-            f"- Failed standards: {self.metrics.get('failed_standard_count', 0)}",
-            f"- Unknown/follow-up standards: {self.metrics.get('unknown_standard_count', 0)}",
+            f"- Average EOAT documentation score: {self.metrics.get('average_compliance_score', 0)}",
+            f"- True standards failures: {self.metrics.get('true_standard_failure_count', 0)}",
+            f"- EOAT documentation gaps: {self.metrics.get('documentation_gap_count', 0)}",
+            f"- Installation follow-up items: {self.metrics.get('installation_follow_up_count', 0)}",
+            f"- Compatibility/data issues: {self.metrics.get('compatibility_data_issue_count', 0)}",
+            f"- Unknown / needs review: {self.metrics.get('unknown_standard_count', 0)}",
+            f"- Not observable due to audit context: {self.metrics.get('not_observable_count', 0)}",
             "",
-            "## Audit Compliance",
+            "## Audit Compliance By EOAT",
             *table_from_rows(
-                rows, ["Audit ID", "Press/Machine #", "EOAT Type", "Score", "Fails", "Warnings", "Unknown"]
+                rows,
+                [
+                    "Audit ID",
+                    "EOAT Assembly ID",
+                    "Tool #s",
+                    "Press/Machine #",
+                    "Audit Context",
+                    "EOAT Documentation Score",
+                    "Installation Readiness Score",
+                    "Installed-Cell Validation Score",
+                    "True Fails",
+                    "Documentation Gaps",
+                    "Follow-Up",
+                    "Unknown",
+                    "Notes / Recommended Action",
+                ],
             ),
             "",
             "## Press / Cell Rollup",
@@ -162,14 +245,16 @@ class StandardsComplianceSummary:
             ),
             "",
             "## Method Notes",
-            "- Unknown / Not Checked lowers confidence and is not treated as verified complete.",
-            "- Valid N/A is excluded from score math when the category does not physically apply.",
-            "- Scores summarize readiness for review; they are not final engineering approval.",
+            "- EOAT documentation, compatibility, and installed-cell validation are scored separately.",
+            "- Not Observable, Not Applicable, and Follow-up Required are not collapsed into Fail.",
+            "- Off-machine EOAT audits evaluate EOAT-level documentation normally and log machine-specific checks as future installed-cell follow-up.",
         ]
         return "\n".join(lines) + "\n"
 
 
 def score_audit_compliance(project_root: str | Path, row: dict[str, Any]) -> AuditComplianceResult:
+    audit_context = infer_audit_context(row)
+    split_scores = calculate_split_scores(row)
     categories = (
         _classification_complete(row),
         _tooling_details_complete(row),
@@ -177,21 +262,45 @@ def score_audit_compliance(project_root: str | Path, row: dict[str, Any]) -> Aud
         _sensor_standards(row),
         _quick_disconnect_standards(row),
         _cable_management(row),
-        _mechanical_mounting(row),
-        _safety_concerns(row),
+        _mechanical_mounting(row, audit_context=audit_context),
+        _safety_concerns(row, audit_context=audit_context),
         _documentation_completeness(row),
         _pm_readiness(row),
         _bom_spare_parts_readiness(row),
         _photo_evidence_readiness(project_root, row),
+        _installed_cell_validation_context(row, audit_context=audit_context),
+        _compatibility_context(row, audit_context=audit_context),
     )
-    scored = [result.score for result in categories if result.score is not None]
-    overall = round(sum(scored) / len(scored)) if scored else 0
+    overall = int(split_scores.eoat_documentation.score)
+    true_fail_count = sum(
+        1 for result in categories if result.status == STATUS_FAIL and result.issue_group == ISSUE_TRUE_FAILURE
+    )
+    documentation_gap_count = sum(1 for result in categories if result.issue_group == ISSUE_DOCUMENTATION_GAP)
+    follow_up_count = sum(1 for result in categories if result.issue_group == ISSUE_INSTALLATION_FOLLOW_UP)
+    unknown_count = sum(
+        1
+        for result in categories
+        if result.status == STATUS_UNKNOWN or result.issue_group == ISSUE_UNKNOWN_REVIEW
+    )
+    not_observable_count = sum(1 for result in categories if result.issue_group == ISSUE_NOT_OBSERVABLE)
     return AuditComplianceResult(
         audit_id=_text(row.get("Audit ID")),
         machine=_text(row.get("Press/Machine #")),
+        audit_context=audit_context,
+        eoat_assembly_id=_text(row.get("EOAT Assembly ID")),
+        tool_numbers=_text(row.get("Tool #")),
         plant_area=_text(row.get("Plant/Area")),
         eoat_type=_text(row.get("EOAT Type")),
         overall_score=overall,
+        eoat_documentation_score=overall,
+        installation_readiness_score=int(split_scores.installation_readiness.score),
+        installed_cell_validation_score=split_scores.installed_cell_validation.score,
+        true_fail_count=true_fail_count,
+        documentation_gap_count=documentation_gap_count,
+        follow_up_count=follow_up_count,
+        unknown_count=unknown_count,
+        not_observable_count=not_observable_count,
+        notes_recommended_action=_recommended_action_note(audit_context),
         category_results=categories,
     )
 
@@ -213,7 +322,7 @@ def analyze_standards_compliance(
         return None, ToolResult.fail(
             "standards_compliance", "Standards Compliance Analysis", "Could not read EOAT Inventory.", errors=[str(exc)]
         )
-    audits = tuple(score_audit_compliance(project_root, row) for row in rows if _is_physical_audit(row))
+    audits = tuple(score_audit_compliance(project_root, row) for row in rows if _text(row.get("Audit ID")))
     rollups = tuple(rollup_compliance_by_press(audits))
     scores = [audit.overall_score for audit in audits]
     summary = StandardsComplianceSummary(
@@ -223,6 +332,16 @@ def analyze_standards_compliance(
             "audits_scored": len(audits),
             "average_compliance_score": round(sum(scores) / len(scores)) if scores else 0,
             "failed_standard_count": sum(len(audit.failed_standards) for audit in audits),
+            "true_standard_failure_count": sum(audit.true_fail_count for audit in audits),
+            "documentation_gap_count": sum(audit.documentation_gap_count for audit in audits),
+            "installation_follow_up_count": sum(audit.follow_up_count for audit in audits),
+            "compatibility_data_issue_count": sum(
+                1
+                for audit in audits
+                for result in audit.category_results
+                if result.issue_group == ISSUE_COMPATIBILITY_DATA and result.status != STATUS_COMPLIANT
+            ),
+            "not_observable_count": sum(audit.not_observable_count for audit in audits),
             "warning_standard_count": sum(len(audit.warnings) for audit in audits),
             "unknown_standard_count": sum(len(audit.unknown_items) for audit in audits),
             "press_rollup_count": len(rollups),
@@ -271,12 +390,38 @@ def generate_standards_compliance_report(project_root: str | Path, *, log_activi
     rows = [
         {
             "Audit ID": audit.audit_id,
+            "EOAT Assembly ID": audit.eoat_assembly_id,
+            "Tool #s": audit.tool_numbers,
             "Press/Machine #": audit.machine,
+            "Audit Context": audit.audit_context,
             "EOAT Type": audit.eoat_type,
-            "Overall Score": audit.overall_score,
-            "Failed Standards": "; ".join(result.label for result in audit.failed_standards),
-            "Warnings": "; ".join(result.label for result in audit.warnings),
-            "Unknown Items": "; ".join(result.label for result in audit.unknown_items),
+            "EOAT Documentation Score": audit.eoat_documentation_score,
+            "Installation Readiness Score": audit.installation_readiness_score,
+            "Installed-Cell Validation Score": audit.installed_cell_validation_score,
+            "True Fail Count": audit.true_fail_count,
+            "Documentation Gap Count": audit.documentation_gap_count,
+            "Follow-Up Count": audit.follow_up_count,
+            "Unknown Count": audit.unknown_count,
+            "Not Observable Count": audit.not_observable_count,
+            "Notes / Recommended Action": audit.notes_recommended_action,
+            "True Standards Failures": "; ".join(
+                result.label for result in audit.category_results if result.issue_group == ISSUE_TRUE_FAILURE
+            ),
+            "EOAT Documentation Gaps": "; ".join(
+                result.label for result in audit.category_results if result.issue_group == ISSUE_DOCUMENTATION_GAP
+            ),
+            "Installation Follow-Up Items": "; ".join(
+                result.label for result in audit.category_results if result.issue_group == ISSUE_INSTALLATION_FOLLOW_UP
+            ),
+            "Compatibility/Data Issues": "; ".join(
+                result.label for result in audit.category_results if result.issue_group == ISSUE_COMPATIBILITY_DATA
+            ),
+            "Unknown / Needs Review": "; ".join(
+                result.label for result in audit.category_results if result.issue_group == ISSUE_UNKNOWN_REVIEW
+            ),
+            "Not Observable Due to Audit Context": "; ".join(
+                result.label for result in audit.category_results if result.issue_group == ISSUE_NOT_OBSERVABLE
+            ),
         }
         for audit in summary.audits
     ]
@@ -354,6 +499,7 @@ def _tooling_details_complete(row: dict[str, Any]) -> ComplianceCategoryResult:
             f"Missing or unknown tooling fields: {', '.join(missing)}.",
             "Complete applicable tooling details or mark true N/A through the audit workflow.",
             tuple(required),
+            ISSUE_DOCUMENTATION_GAP,
         )
     return _result(
         "tooling_details_complete",
@@ -423,6 +569,7 @@ def _sensor_standards(row: dict[str, Any]) -> ComplianceCategoryResult:
             f"Sensor details need review: {', '.join(missing)}.",
             "Document sensor type, model, and confirmation method.",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     return _result(
         "sensor_standards",
@@ -463,6 +610,7 @@ def _quick_disconnect_standards(row: dict[str, Any]) -> ComplianceCategoryResult
             "Quick disconnects are only partially documented.",
             "Identify pneumatic/electrical quick disconnect standards or document the exception.",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     if not any(is_meaningful_value(row.get(field)) for field in fields[1:]):
         return _result(
@@ -472,6 +620,7 @@ def _quick_disconnect_standards(row: dict[str, Any]) -> ComplianceCategoryResult
             "Quick disconnects are present but type fields are missing.",
             "Document the applicable quick disconnect type(s).",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     return _result(
         "quick_disconnect_standards",
@@ -496,8 +645,12 @@ def _cable_management(row: dict[str, Any]) -> ComplianceCategoryResult:
     )
 
 
-def _mechanical_mounting(row: dict[str, Any]) -> ComplianceCategoryResult:
-    fields = ("Mounting Hardware Condition", "EOAT Alignment Condition", "Fastener/Locking Hardware Present?")
+def _mechanical_mounting(row: dict[str, Any], *, audit_context: str) -> ComplianceCategoryResult:
+    fields = (
+        ("Mounting Hardware Condition", "Fastener/Locking Hardware Present?")
+        if audit_context != AUDIT_CONTEXT_INSTALLED
+        else ("Mounting Hardware Condition", "EOAT Alignment Condition", "Fastener/Locking Hardware Present?")
+    )
     bad = []
     unknown = []
     for field_name in fields:
@@ -523,6 +676,7 @@ def _mechanical_mounting(row: dict[str, Any]) -> ComplianceCategoryResult:
             f"Mechanical mounting fields are unknown: {', '.join(unknown)}.",
             "Verify mechanical mounting and alignment condition.",
             fields,
+            ISSUE_DOCUMENTATION_GAP if audit_context != AUDIT_CONTEXT_INSTALLED else ISSUE_UNKNOWN_REVIEW,
         )
     return _result(
         "mechanical_mounting",
@@ -534,10 +688,15 @@ def _mechanical_mounting(row: dict[str, Any]) -> ComplianceCategoryResult:
     )
 
 
-def _safety_concerns(row: dict[str, Any]) -> ComplianceCategoryResult:
-    fields = ("Known Issues", "Scrap/Quality Concern?", "Cycle Time Concern?", "Follow-Up Needed")
+def _safety_concerns(row: dict[str, Any], *, audit_context: str) -> ComplianceCategoryResult:
+    fields = (
+        ("Known Issues", "Follow-Up Needed")
+        if audit_context != AUDIT_CONTEXT_INSTALLED
+        else ("Known Issues", "Scrap/Quality Concern?", "Cycle Time Concern?", "Follow-Up Needed")
+    )
     issue = _text(row.get("Known Issues"))
-    if _yes(row.get("Follow-Up Needed")) or _yes(row.get("Scrap/Quality Concern?")):
+    machine_specific_concern = audit_context == AUDIT_CONTEXT_INSTALLED and _yes(row.get("Scrap/Quality Concern?"))
+    if _yes(row.get("Follow-Up Needed")) or machine_specific_concern:
         return _result(
             "safety_concerns",
             "Safety concerns",
@@ -545,6 +704,7 @@ def _safety_concerns(row: dict[str, Any]) -> ComplianceCategoryResult:
             "Follow-up, scrap, or quality concern is flagged.",
             "Review safety/quality risk before closing this audit.",
             fields,
+            ISSUE_INSTALLATION_FOLLOW_UP if audit_context != AUDIT_CONTEXT_INSTALLED else ISSUE_TRUE_FAILURE,
         )
     if issue and issue.casefold() not in {
         "none",
@@ -605,6 +765,7 @@ def _documentation_completeness(row: dict[str, Any]) -> ComplianceCategoryResult
             f"Documentation status unknown: {', '.join(unknown)}.",
             "Verify documentation availability rather than treating blanks as complete.",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     return _result(
         "documentation_completeness",
@@ -613,6 +774,7 @@ def _documentation_completeness(row: dict[str, Any]) -> ComplianceCategoryResult
         f"Documentation gaps remain: {', '.join(missing)}.",
         "Find documentation or record the gap as intentional follow-up.",
         fields,
+        ISSUE_DOCUMENTATION_GAP,
     )
 
 
@@ -626,6 +788,7 @@ def _pm_readiness(row: dict[str, Any]) -> ComplianceCategoryResult:
             "Maintenance frequency is unknown.",
             "Confirm PM frequency or document why it is unavailable.",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     if _no(row.get("Process Binder Complete?")):
         return _result(
@@ -635,6 +798,7 @@ def _pm_readiness(row: dict[str, Any]) -> ComplianceCategoryResult:
             "Process binder is not complete.",
             "Complete binder references before calling PM readiness complete.",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     return _result(
         "pm_readiness",
@@ -656,6 +820,7 @@ def _bom_spare_parts_readiness(row: dict[str, Any]) -> ComplianceCategoryResult:
             "BOM or spare parts status is unknown.",
             "Verify BOM and spare-parts status.",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     if not is_bom_available(row) or is_spare_parts_info_missing(row):
         return _result(
@@ -665,6 +830,7 @@ def _bom_spare_parts_readiness(row: dict[str, Any]) -> ComplianceCategoryResult:
             "BOM and spare-parts readiness is not complete.",
             "Confirm BOM and spare-parts availability before standardization handoff.",
             fields,
+            ISSUE_DOCUMENTATION_GAP,
         )
     return _result(
         "bom_spare_parts_readiness",
@@ -687,6 +853,7 @@ def _photo_evidence_readiness(project_root: str | Path, row: dict[str, Any]) -> 
             "Photo evidence coverage could not be evaluated.",
             "Create or load an audit row before judging photo evidence.",
             ("Photos Taken?", "Photo Folder/Link"),
+            ISSUE_DOCUMENTATION_GAP,
         )
     missing = [status.label for status in coverage.statuses if status.required and not status.present]
     follow_up = [status.label for status in coverage.statuses if status.status == "follow-up needed"]
@@ -698,6 +865,7 @@ def _photo_evidence_readiness(project_root: str | Path, row: dict[str, Any]) -> 
             f"Required photo evidence missing: {', '.join(missing)}.",
             "Capture and intake the missing local photo evidence.",
             ("Photos Taken?", "Photo Folder/Link"),
+            ISSUE_DOCUMENTATION_GAP,
         )
     if follow_up:
         return _result(
@@ -707,6 +875,7 @@ def _photo_evidence_readiness(project_root: str | Path, row: dict[str, Any]) -> 
             f"Recommended evidence still needs follow-up: {', '.join(follow_up[:4])}.",
             "Capture recommended evidence where practical.",
             ("Photos Taken?", "Photo Folder/Link"),
+            ISSUE_DOCUMENTATION_GAP,
         )
     return _result(
         "photo_evidence_readiness",
@@ -715,6 +884,93 @@ def _photo_evidence_readiness(project_root: str | Path, row: dict[str, Any]) -> 
         "Required photo evidence categories are covered or not applicable.",
         "",
         ("Photos Taken?", "Photo Folder/Link"),
+    )
+
+
+def _installed_cell_validation_context(row: dict[str, Any], *, audit_context: str) -> ComplianceCategoryResult:
+    fields = ("Press/Machine #", "Robot Type", "Robot Model/Controller", "EOAT Alignment Condition")
+    if audit_context == AUDIT_CONTEXT_INSTALLED:
+        missing = [field for field in fields if _unknown(row.get(field)) or is_na_value(row.get(field))]
+        if missing:
+            return _result(
+                "installed_cell_validation_context",
+                "Installed-cell validation",
+                STATUS_UNKNOWN,
+                f"Installed-cell fields need review: {', '.join(missing)}.",
+                "Complete robot and installed-cell validation details for this machine relationship.",
+                fields,
+                ISSUE_INSTALLATION_FOLLOW_UP,
+            )
+        return _result(
+            "installed_cell_validation_context",
+            "Installed-cell validation",
+            STATUS_COMPLIANT,
+            "Installed machine context is documented.",
+            "",
+            fields,
+        )
+    if audit_context == AUDIT_CONTEXT_COMPATIBILITY:
+        return _result(
+            "installed_cell_validation_context",
+            "Installed-cell validation",
+            STATUS_FOLLOW_UP_REQUIRED,
+            "Compatibility row is not a physical installed-cell validation.",
+            "Physically install and validate the EOAT on this machine before treating it as installed-cell verified.",
+            fields,
+            ISSUE_INSTALLATION_FOLLOW_UP,
+        )
+    if audit_context == AUDIT_CONTEXT_BENCH:
+        return _result(
+            "installed_cell_validation_context",
+            "Installed-cell validation",
+            STATUS_NOT_OBSERVABLE,
+            "EOAT was audited off-machine; installed-cell checks were not observable.",
+            "Follow up when the EOAT is mounted and observed on a press.",
+            fields,
+            ISSUE_NOT_OBSERVABLE,
+        )
+    return _result(
+        "installed_cell_validation_context",
+        "Installed-cell validation",
+        STATUS_UNKNOWN,
+        "Audit context needs review before installed-cell validation can be interpreted.",
+        "Set Audit Context to Installed on Machine, Not Installed / Bench Audit, Compatibility row, or Historical/imported.",
+        fields,
+        ISSUE_UNKNOWN_REVIEW,
+    )
+
+
+def _compatibility_context(row: dict[str, Any], *, audit_context: str) -> ComplianceCategoryResult:
+    fields = (AUDIT_CONTEXT_FIELD, ENTRY_TYPE_FIELD, "Tool #", "Press/Machine #", COMPATIBILITY_CONFIDENCE_FIELD)
+    if audit_context != AUDIT_CONTEXT_COMPATIBILITY:
+        return _result(
+            "compatibility_context",
+            "Compatibility/data context",
+            STATUS_NOT_APPLICABLE,
+            "This row is not a compatibility relationship row.",
+            "",
+            fields,
+            ISSUE_COMPATIBILITY_DATA,
+        )
+    missing = [field for field in ("Tool #", "Press/Machine #") if _unknown(row.get(field)) or is_na_value(row.get(field))]
+    if missing:
+        return _result(
+            "compatibility_context",
+            "Compatibility/data context",
+            STATUS_WARNING,
+            f"Compatibility row is missing relationship data: {', '.join(missing)}.",
+            "Complete the EOAT/tool/machine relationship or mark the row Needs review.",
+            fields,
+            ISSUE_COMPATIBILITY_DATA,
+        )
+    return _result(
+        "compatibility_context",
+        "Compatibility/data context",
+        STATUS_WARNING,
+        "Compatible based on EOAT/tool data; not yet physically verified on this machine.",
+        "Use this row for relationship coverage only until an installed-cell audit is completed.",
+        fields,
+        ISSUE_COMPATIBILITY_DATA,
     )
 
 
@@ -760,7 +1016,10 @@ def _result(
     reason: str,
     recommended_action: str,
     related_fields: tuple[str, ...],
+    issue_group: str = ISSUE_TRUE_FAILURE,
 ) -> ComplianceCategoryResult:
+    if status == STATUS_UNKNOWN and issue_group == ISSUE_TRUE_FAILURE:
+        issue_group = ISSUE_UNKNOWN_REVIEW
     return ComplianceCategoryResult(
         key=key,
         label=label,
@@ -769,11 +1028,12 @@ def _result(
         reason=reason,
         recommended_action=recommended_action,
         related_fields=related_fields,
+        issue_group=issue_group,
     )
 
 
 def _is_physical_audit(row: dict[str, Any]) -> bool:
-    return _text(row.get(ENTRY_TYPE_FIELD)).casefold() != ENTRY_TYPE_COMPATIBLE.casefold()
+    return infer_audit_context(row) != AUDIT_CONTEXT_COMPATIBILITY
 
 
 def _unknown(value: Any) -> bool:
@@ -792,6 +1052,18 @@ def _yes(value: Any) -> bool:
 
 def _no(value: Any) -> bool:
     return _text(value).casefold() == "no"
+
+
+def _recommended_action_note(audit_context: str) -> str:
+    if audit_context == AUDIT_CONTEXT_BENCH:
+        return (
+            "This EOAT was audited off-machine. EOAT-level documentation was evaluated normally. "
+            "Machine-specific installation checks were excluded from failure scoring and logged as follow-up items "
+            "for future installed-cell validation."
+        )
+    if audit_context == AUDIT_CONTEXT_COMPATIBILITY:
+        return "Compatibility row only; use for EOAT-to-machine relationship coverage until physically verified."
+    return "Review grouped findings and complete any documented follow-up."
 
 
 def _text(value: Any) -> str:

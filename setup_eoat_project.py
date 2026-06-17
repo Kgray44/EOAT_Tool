@@ -17,6 +17,9 @@ from datetime import datetime
 from pathlib import Path
 
 from core.audit_constants import (
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_VALUES,
+    COMPATIBILITY_CONFIDENCE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
     CYLINDER_TYPE_VALUES,
@@ -24,8 +27,11 @@ from core.audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
 )
+from core.eoat_ids import EOAT_ASSEMBLY_ID_FIELD
 from core.gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
+from core.photo_indexing import normalize_cell_photo_folders
 
 try:
     from openpyxl import Workbook
@@ -57,15 +63,7 @@ FOLDERS = [
     "00_Project_Admin/Stakeholder_Contacts",
     "00_Project_Admin/reference_data",
     "01_EOAT_Audit/EOAT_Audit_Database",
-    "01_EOAT_Audit/Cell_Photos/Overall",
-    "01_EOAT_Audit/Cell_Photos/Vacuum_Cups_Grippers",
-    "01_EOAT_Audit/Cell_Photos/Tubing_Routing",
-    "01_EOAT_Audit/Cell_Photos/Sensors",
-    "01_EOAT_Audit/Cell_Photos/Quick_Disconnects",
-    "01_EOAT_Audit/Cell_Photos/Mounting_Hardware",
-    "01_EOAT_Audit/Cell_Photos/Cable_Management",
-    "01_EOAT_Audit/Cell_Photos/Wear_Damage",
-    "01_EOAT_Audit/Cell_Photos/Incoming",
+    "01_EOAT_Audit/Cell_Photos/Incoming_Photos",
     "01_EOAT_Audit/Raw_Notes",
     "02_KPI_Data/Downtime_Data",
     "02_KPI_Data/Scrap_Data",
@@ -159,6 +157,7 @@ SHEETS: dict[str, list[str]] = {
         "Plant/Area",
         "Press/Machine #",
         "Tool #",
+        EOAT_ASSEMBLY_ID_FIELD,
         "Robot Type",
         "Robot Model/Controller",
         "Part Family",
@@ -211,6 +210,7 @@ SHEETS: dict[str, list[str]] = {
         "Priority",
         "Pilot Candidate?",
         "Follow-Up Needed",
+        AUDIT_CONTEXT_FIELD,
         "Notes",
         MANUAL_COMPLETION_OVERRIDE_FIELD,
         MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
@@ -219,6 +219,8 @@ SHEETS: dict[str, list[str]] = {
         "Entry Type",
         "Source Audit ID",
         "Compatibility Source",
+        PHYSICAL_AUDIT_VERIFIED_FIELD,
+        COMPATIBILITY_CONFIDENCE_FIELD,
     ],
     "Issue Log": [
         "Issue ID",
@@ -334,7 +336,14 @@ SHEETS: dict[str, list[str]] = {
         "Plant/Area",
         "Press/Machine #",
         "Tool #",
+        EOAT_ASSEMBLY_ID_FIELD,
+        "Part Name",
+        "Photo Type",
         "EOAT Area Shown",
+        "Original Filename",
+        "Stored Filename",
+        "Stored Relative Path",
+        "Imported At",
         "Photo Filename",
         "Folder Path",
         "Description",
@@ -352,7 +361,10 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
         "Cleanroom/Non-Cleanroom": ["Cleanroom", "Non-Cleanroom", "Whiteroom", "Unknown / Not Checked", "N/A"],
         "EOAT Type": ["Vacuum", "Mechanical / Gripper", "Hybrid", "Unknown / Needs Review", "Miscellaneous", "N/A"],
         "EOAT Moves": ["Part", "Sprue", "Both"],
+        AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_VALUES,
         "Entry Type": ["Audited", "Compatible"],
+        PHYSICAL_AUDIT_VERIFIED_FIELD: ["Yes", "No", "N/A"],
+        COMPATIBILITY_CONFIDENCE_FIELD: ["Press Capacity", "Manual Review", "Existing EOAT", "Imported", "Needs review", "N/A"],
         "Connection Type": ["ATI", "DoveTail", "Direct Mount", "Lever Lock", "N/A"],
         CYLINDER_TYPE_FIELD: [*CYLINDER_TYPE_VALUES, "N/A"],
         GRIPPER_TYPE_FIELD: [*GRIPPER_TYPE_VALUES, "N/A"],
@@ -446,15 +458,18 @@ VALIDATIONS: dict[str, dict[str, list[str]]] = {
     },
     "Photo Index": {
         "EOAT Area Shown": [
-            "Overall",
-            "Vacuum cups/grippers",
-            "Tubing routing",
+            "Front View",
+            "Side View",
+            "Back View",
+            "Tool Number",
+            "Vacuum Cups / Grippers",
+            "Gripper",
+            "Tubing Routing",
             "Sensors",
-            "Quick disconnects",
-            "Mounting hardware",
-            "Cable management",
-            "Wear/damage",
-            "Other",
+            "Quick Disconnects",
+            "Cable Management",
+            "Mounting Hardware",
+            "Wear / Damage",
         ],
     },
 }
@@ -791,6 +806,9 @@ def create_folders(dry_run: bool = False) -> list[str]:
             actions.append(f"Create folder: {target}")
             if not dry_run:
                 target.mkdir(parents=True, exist_ok=True)
+    removed, preserved = normalize_cell_photo_folders(PROJECT_ROOT, dry_run=dry_run)
+    actions.extend(f"Remove empty legacy photo folder: {path}" for path in removed)
+    actions.extend(f"Preserve non-empty legacy photo folder: {path}" for path in preserved)
     return actions
 
 

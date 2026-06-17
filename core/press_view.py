@@ -16,6 +16,7 @@ from .audit_compatibility import (
     part_number_from_row,
     text_value,
 )
+from .eoat_ids import EOAT_ASSEMBLY_ID_FIELD, build_eoat_assembly_contexts, normalize_eoat_assembly_id
 from .logging import log_tool_run
 from .open_items import list_open_items
 from .paths import resolve_project_paths
@@ -33,6 +34,8 @@ class PressAuditEntry:
     machine: str
     entry_type: str
     tool: str = ""
+    eoat_assembly_id: str = ""
+    also_used_tools: str = ""
     eoat_type: str = ""
     status: str = ""
     pilot_candidate: str = ""
@@ -180,11 +183,12 @@ def _group_press_view_rows(
     query: str = "",
 ) -> list[PressViewGroup]:
     grouped: dict[str, dict[str, Any]] = {}
+    eoat_contexts = build_eoat_assembly_contexts(rows)
     for row in rows:
         machine = machine_from_audit_row(row)
         if not machine:
             machine = "Unassigned / Missing Press"
-        entry = _entry_from_row(row, machine)
+        entry = _entry_from_row(row, machine, eoat_contexts=eoat_contexts)
         if status_filter and status_filter != "All" and status_filter.casefold() not in entry.status.casefold():
             continue
         group = grouped.setdefault(
@@ -204,7 +208,7 @@ def _group_press_view_rows(
     groups: list[PressViewGroup] = []
     for machine, data in grouped.items():
         tools = sorted(data["tools"], key=str.casefold)
-        linked_compatible = _linked_compatible_entries_for_sources(data["physical"], rows)
+        linked_compatible = _linked_compatible_entries_for_sources(data["physical"], rows, eoat_contexts)
         group = PressViewGroup(
             machine=machine,
             display_name=_display_name(machine),
@@ -315,27 +319,27 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
     lines = [
         f"# {group.display_name} Summary",
         "",
-        f"- Physical audits: {len(group.physical_audits)}",
-        f"- Compatible entries assigned to this machine: {len(group.compatible_entries)}",
+        f"- EOAT documentation rows: {len(group.physical_audits)}",
+        f"- Compatibility rows assigned to this machine: {len(group.compatible_entries)}",
         f"- Compatible machine links from this machine's source audits: {len(group.linked_compatible_entries)}",
-        "- Relationship rule: compatible entries do not count as physical audit verification.",
+        "- Relationship rule: compatibility rows do not count as installed-cell physical verification.",
         f"- Total machines in compatibility family: {group.compatibility_family_machine_count}",
         f"- Tools: {', '.join(group.tools) if group.tools else 'None listed'}",
         f"- Open items: {group.open_item_count}",
         f"- Validation warnings: {group.validation_warning_count}",
         f"- Indexed photos: {group.photo_count}",
         f"- Pilot candidacy: {group.pilot_candidacy or 'Not flagged'}",
-        f"- Average compliance score: {group.average_compliance_score}",
+        f"- Average EOAT documentation score: {group.average_compliance_score}",
         f"- Worst compliance category: {group.worst_compliance_category or 'None'}",
         f"- Open standards issues: {group.open_standards_issues}",
         f"- Last updated: {group.last_updated or 'Unknown'}",
         "",
-        "## Physical Audits",
+        "## EOAT Documentation Rows",
     ]
     lines.extend(_entry_lines(group.physical_audits))
-    lines.extend(["", "## Compatible Entries Assigned To This Machine"])
+    lines.extend(["", "## Compatibility Rows Assigned To This Machine"])
     lines.extend(_entry_lines(group.compatible_entries))
-    lines.extend(["", "## Compatible Entries Created From This Machine's Source Audits"])
+    lines.extend(["", "## Compatibility Rows Created From This Machine's Source Audits"])
     lines.extend(_entry_lines(group.linked_compatible_entries))
     paths = resolve_project_paths(project_root)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -361,12 +365,25 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
     return result
 
 
-def _entry_from_row(row: dict[str, Any], machine: str) -> PressAuditEntry:
+def _entry_from_row(
+    row: dict[str, Any],
+    machine: str,
+    *,
+    eoat_contexts: dict[str, Any] | None = None,
+) -> PressAuditEntry:
+    tool = part_number_from_row(row) or text_value(row.get(TOOL_FIELD))
+    eoat_id = normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD))
+    context = (eoat_contexts or {}).get(eoat_id)
+    also_used = ""
+    if context is not None and context.is_multi_tool:
+        also_used = ", ".join(item for item in context.tools if item.casefold() != tool.casefold())
     return PressAuditEntry(
         audit_id=text_value(row.get("Audit ID")),
         machine=machine,
         entry_type=normalize_entry_type(row.get("Entry Type")),
-        tool=part_number_from_row(row) or text_value(row.get(TOOL_FIELD)),
+        tool=tool,
+        eoat_assembly_id=eoat_id,
+        also_used_tools=also_used,
         eoat_type=text_value(row.get("EOAT Type")),
         status=text_value(row.get("Status")),
         pilot_candidate=text_value(row.get("Pilot Candidate?")),
@@ -379,6 +396,7 @@ def _entry_from_row(row: dict[str, Any], machine: str) -> PressAuditEntry:
 def _linked_compatible_entries_for_sources(
     physical_audits: list[PressAuditEntry],
     rows: list[dict[str, Any]],
+    eoat_contexts: dict[str, Any] | None = None,
 ) -> list[PressAuditEntry]:
     linked_entries: list[PressAuditEntry] = []
     seen: set[tuple[str, str, str]] = set()
@@ -386,7 +404,7 @@ def _linked_compatible_entries_for_sources(
     for source_audit_id in source_audit_ids:
         for row in compatibility_entries_for_source_audit(rows, source_audit_id):
             machine = machine_from_audit_row(row) or "Unassigned / Missing Press"
-            entry = _entry_from_row(row, machine)
+            entry = _entry_from_row(row, machine, eoat_contexts=eoat_contexts)
             key = (entry.audit_id, entry.machine, entry.source_audit_id)
             if key in seen:
                 continue
@@ -401,6 +419,8 @@ def _entry_from_dict(data: dict[str, Any]) -> PressAuditEntry:
         machine=str(data.get("machine") or ""),
         entry_type=str(data.get("entry_type") or ""),
         tool=str(data.get("tool") or ""),
+        eoat_assembly_id=str(data.get("eoat_assembly_id") or ""),
+        also_used_tools=str(data.get("also_used_tools") or ""),
         eoat_type=str(data.get("eoat_type") or ""),
         status=str(data.get("status") or ""),
         pilot_candidate=str(data.get("pilot_candidate") or ""),
@@ -510,7 +530,20 @@ def _entry_lines(entries: list[PressAuditEntry]) -> list[str]:
     if not entries:
         return ["- None"]
     return [
-        f"- {entry.audit_id or '(missing audit id)'} | Machine {entry.machine or 'missing'} | {entry.entry_type} | {entry.tool or 'no tool'} | {entry.eoat_type or 'no EOAT type'} | {entry.status or 'no status'}"
+        " | ".join(
+            part
+            for part in [
+                f"- {entry.audit_id or '(missing audit id)'}",
+                f"Machine {entry.machine or 'missing'}",
+                entry.entry_type,
+                entry.tool or "no tool",
+                entry.eoat_assembly_id or "no EOAT Assembly ID",
+                f"also used by {entry.also_used_tools}" if entry.also_used_tools else "",
+                entry.eoat_type or "no EOAT type",
+                entry.status or "no status",
+            ]
+            if part
+        )
         for entry in entries
     ]
 
@@ -528,7 +561,17 @@ def _search_blob(group: PressViewGroup) -> str:
             " ".join(group.tools),
             group.pilot_candidacy,
             " ".join(
-                entry.audit_id + " " + entry.status + " " + entry.eoat_type + " " + entry.known_issues
+                entry.audit_id
+                + " "
+                + entry.status
+                + " "
+                + entry.eoat_type
+                + " "
+                + entry.known_issues
+                + " "
+                + entry.eoat_assembly_id
+                + " "
+                + entry.also_used_tools
                 for entry in group.physical_audits + group.compatible_entries + group.linked_compatible_entries
             ),
         ]

@@ -37,6 +37,7 @@ RECENT_FILE_EXTENSIONS = {
     ".jpg",
     ".jpeg",
     ".heic",
+    ".heif",
     ".py",
     ".ps1",
     ".bat",

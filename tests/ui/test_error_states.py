@@ -100,7 +100,7 @@ def test_empty_incoming_photos_error_path_is_friendly(qapp, fake_project):
     page = PhotosPage(config)
     page.show()
 
-    click_button(page, "Confirm Intake")
+    click_button(page, "Save Photos to EOAT Folder")
     wait_for_background_tasks()
     text = page.result_panel.viewer.toPlainText()
     assert "No photos selected" in text

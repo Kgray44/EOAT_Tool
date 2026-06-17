@@ -60,6 +60,7 @@ DATA_ALLOW_PREFIXES = (
     ("data_templates",),
 )
 IMAGE_ALLOW_PREFIXES = (
+    ("EOAT_Atlas_pages",),
     ("examples", "demo_project"),
     ("templates",),
     ("tests",),

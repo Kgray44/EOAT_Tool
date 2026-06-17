@@ -126,6 +126,101 @@ def test_photo_evidence_uses_photo_index_without_requiring_photo_files(fake_proj
     assert _status(coverage, "sensors").photo_count == 1
 
 
+def test_compatible_row_inherits_source_photo_evidence(fake_project):
+    _append_sheet_row(
+        fake_project,
+        "EOAT Inventory",
+        _audit_row(
+            "AUD-PHOTO-SOURCE-007",
+            "Mechanical / Gripper",
+            **{
+                "Tool #": "TOOL-INHERIT-PHOTO",
+                "EOAT Assembly ID": "P4-EOAT-9907",
+                "Photos Taken?": "Yes",
+            },
+        ),
+    )
+    _append_sheet_row(
+        fake_project,
+        "EOAT Inventory",
+        _audit_row(
+            "AUD-PHOTO-COMPAT-007",
+            "Mechanical / Gripper",
+            **{
+                "Entry Type": "Compatible",
+                "Source Audit ID": "AUD-PHOTO-SOURCE-007",
+                "Compatibility Source": "Press Capacity",
+                "Press/Machine #": "Press 70",
+                "Tool #": "TOOL-INHERIT-PHOTO",
+                "EOAT Assembly ID": "P4-EOAT-9907",
+                "Photos Taken?": "No",
+                "Sensors Present?": "Yes",
+                "Quick Disconnects Present?": "Yes",
+                "Known Issues": "Review inherited setup.",
+            },
+        ),
+    )
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-INHERIT-001",
+            "Date Taken": "2026-05-18",
+            "EOAT Assembly ID": "P4-EOAT-9907",
+            "Tool #": "TOOL-INHERIT-PHOTO",
+            "EOAT Area Shown": "Overall EOAT",
+            "Related Audit ID": "AUD-PHOTO-SOURCE-007",
+        },
+    )
+
+    warnings, _metrics, findings = validate_photo_evidence(fake_project)
+    coverage = evidence_coverage_for_audit(fake_project, "AUD-PHOTO-COMPAT-007")
+
+    assert coverage.compatible_evidence_accepted is True
+    assert coverage.missing_required_count == 0
+    assert not any(finding.audit_id == "AUD-PHOTO-COMPAT-007" for finding in findings)
+    assert not any("AUD-PHOTO-COMPAT-007" in warning for warning in warnings)
+
+
+def test_photo_evidence_links_bench_audit_by_eoat_without_machine(fake_project):
+    _append_sheet_row(
+        fake_project,
+        "EOAT Inventory",
+        _audit_row(
+            "AUD-BENCH-PHOTO-006",
+            "Vacuum",
+            **{
+                "Press/Machine #": "",
+                "Tool #": "TOOL-BENCH-PHOTO",
+                "EOAT Assembly ID": "P4-EOAT-9901",
+                "Photos Taken?": "Yes",
+            },
+        ),
+    )
+    _append_sheet_row(
+        fake_project,
+        "Photo Index",
+        {
+            "Photo ID": "PHO-BENCH-001",
+            "Date Taken": "2026-05-18",
+            "EOAT Assembly ID": "P4-EOAT-9901",
+            "Tool #": "TOOL-BENCH-PHOTO",
+            "EOAT Area Shown": "Overall EOAT",
+            "Photo Filename": "bench_overall.jpg",
+            "Folder Path": str(fake_project / "synthetic" / "bench"),
+        },
+    )
+
+    coverage = evidence_coverage_for_audit(fake_project, "AUD-BENCH-PHOTO-006")
+    checklist = export_photo_checklist(fake_project, "AUD-BENCH-PHOTO-006", log_activity=False)
+    text = Path(next(iter(checklist.output_reports))).read_text(encoding="utf-8")
+
+    assert coverage.related_photo_count == 1
+    assert coverage.machine == ""
+    assert "- EOAT Assembly ID: P4-EOAT-9901" in text
+    assert "- Tool #: TOOL-BENCH-PHOTO" in text
+
+
 def test_indexed_photos_with_photos_taken_no_create_actionable_status_finding(fake_project):
     _append_sheet_row(
         fake_project,
@@ -163,6 +258,6 @@ def test_audit_photo_intake_folder_and_checklist_export(fake_project):
     assert checklist.success is True
     path = next(iter(checklist.output_reports))
     text = Path(path).read_text(encoding="utf-8")
-    assert "Overall EOAT" in text
+    assert "Front View" in text
     assert "Quick Disconnects" in text
     assert "Do not add real photos to source control" in text

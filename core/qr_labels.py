@@ -9,15 +9,16 @@ from urllib.parse import quote
 
 from .analysis_common import timestamp_for_report
 from .audit_entries import repair_legacy_audit_lookup_shift
+from .eoat_ids import build_eoat_assembly_contexts, normalize_eoat_assembly_id
 from .logging import log_tool_run
-from .paths import resolve_project_paths
+from .paths import get_press_capacity_file, resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory, safe_write_text
 from .workbook_io import row_dicts
 
 TOOL_ID = "qr_label_generator"
 TOOL_NAME = "EOAT QR Label Generator"
-ALLOWED_QR_PREFIXES = ("eoat://machine/", "eoat://audit/")
+ALLOWED_QR_PREFIXES = ("eoat://machine/", "eoat://audit/", "eoat://eoat/")
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class QRLabel:
     target_id: str
     display_label: str
     qr_value: str
+    label_lines: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -41,6 +43,13 @@ def audit_qr_value(audit_id: str) -> str:
     if not clean:
         raise ValueError("Audit ID is required for an audit QR value.")
     return f"eoat://audit/{quote(clean, safe='')}"
+
+
+def eoat_assembly_qr_value(eoat_assembly_id: str) -> str:
+    clean = normalize_eoat_assembly_id(eoat_assembly_id)
+    if not clean:
+        raise ValueError("EOAT Assembly ID is required for an EOAT QR value.")
+    return f"eoat://eoat/{quote(clean, safe='')}"
 
 
 def validate_qr_value(value: str) -> bool:
@@ -59,6 +68,7 @@ def build_qr_labels(
     *,
     include_machines: bool = True,
     include_audits: bool = True,
+    include_eoats: bool = True,
     machines: list[str] | None = None,
     audit_ids: list[str] | None = None,
 ) -> list[QRLabel]:
@@ -83,6 +93,8 @@ def build_qr_labels(
                 continue
             value = audit_qr_value(audit_id)
             labels.append(QRLabel("audit", _clean(audit_id), f"Audit {_clean(audit_id)}", value))
+    if include_eoats and rows:
+        labels.extend(_eoat_labels_from_rows(rows, press_capacity_path=get_press_capacity_file(project_root)))
     return [label for label in labels if validate_qr_value(label.qr_value)]
 
 
@@ -91,6 +103,7 @@ def export_qr_label_sheet(
     *,
     include_machines: bool = True,
     include_audits: bool = True,
+    include_eoats: bool = True,
     machines: list[str] | None = None,
     audit_ids: list[str] | None = None,
     log_activity: bool = True,
@@ -100,6 +113,7 @@ def export_qr_label_sheet(
         project_root,
         include_machines=include_machines,
         include_audits=include_audits,
+        include_eoats=include_eoats,
         machines=machines,
         audit_ids=audit_ids,
     )
@@ -130,6 +144,7 @@ def export_qr_label_sheet(
         f"Generated {len(labels)} QR label value(s).",
         details=[
             "QR values contain only local EOAT route identifiers.",
+            "Compatible tools may be printed on EOAT labels, but are not encoded in the QR value.",
             "No plant, tool, part, customer, workbook path, or operational detail is encoded.",
         ],
         warnings=warnings,
@@ -162,8 +177,11 @@ def _write_png_sheet_if_supported(output_dir: Path, labels: list[QRLabel], stamp
         y = (index // columns) * cell_h
         qr = qrcode.make(label.qr_value).resize((250, 250))
         sheet.paste(qr, (x + 55, y + 28))
-        draw.text((x + 20, y + 300), label.display_label, fill="black")
-        draw.text((x + 20, y + 330), label.qr_value, fill="black")
+        y_text = y + 292
+        for line in _print_lines(label)[:5]:
+            draw.text((x + 20, y_text), line, fill="black")
+            y_text += 20
+        draw.text((x + 20, y + 395), label.qr_value, fill="black")
     path = output_dir / f"EOAT_QR_Label_Sheet_{stamp}.png"
     sheet.save(path)
     return path
@@ -188,9 +206,12 @@ def _svg_sheet(labels: list[QRLabel]) -> str:
                 f'<rect x="{x + 34}" y="{y + 42}" width="92" height="92" fill="none" stroke="#111" stroke-width="3"/>',
                 f'<text x="{x + 144}" y="{y + 58}" font-family="Arial" font-size="18" font-weight="700">{html.escape(label.display_label)}</text>',
                 f'<text x="{x + 144}" y="{y + 88}" font-family="Arial" font-size="12">{html.escape(label.qr_value)}</text>',
-                f'<text x="{x + 34}" y="{y + 160}" font-family="Arial" font-size="10">Install optional qrcode package for scannable image export.</text>',
             ]
         )
+        for line_index, line in enumerate(_print_lines(label)[1:6], start=0):
+            parts.append(
+                f'<text x="{x + 34}" y="{y + 142 + line_index * 13}" font-family="Arial" font-size="11">{html.escape(line)}</text>'
+            )
     parts.append("</svg>")
     return "\n".join(parts) + "\n"
 
@@ -201,12 +222,37 @@ def _markdown_sheet(labels: list[QRLabel]) -> str:
         "",
         "These values intentionally encode only minimal local route identifiers.",
         "",
-        "| Type | Target | QR Value |",
-        "| --- | --- | --- |",
+        "| Type | Target | QR Value | Label Text |",
+        "| --- | --- | --- | --- |",
     ]
     for label in labels:
-        lines.append(f"| {label.label_type} | {label.target_id} | `{label.qr_value}` |")
+        label_text = "<br>".join(html.escape(line) for line in _print_lines(label))
+        lines.append(f"| {label.label_type} | {label.target_id} | `{label.qr_value}` | {label_text} |")
     return "\n".join(lines) + "\n"
+
+
+def _eoat_labels_from_rows(rows: list[dict[str, Any]], press_capacity_path: str | Path | None = None) -> list[QRLabel]:
+    labels: list[QRLabel] = []
+    contexts = build_eoat_assembly_contexts(rows, press_capacity_path=press_capacity_path)
+    for context in sorted(contexts.values(), key=lambda item: item.eoat_assembly_id.casefold()):
+        eoat_id = normalize_eoat_assembly_id(context.eoat_assembly_id)
+        if not eoat_id:
+            continue
+        value = eoat_assembly_qr_value(eoat_id)
+        lines = [eoat_id]
+        if context.tools:
+            lines.append("Compatible Tools:")
+            lines.extend(context.tools)
+        if context.known_machines:
+            lines.append("Known Machines: " + ", ".join(context.known_machines))
+        if context.capacity_machines:
+            lines.append("Press Capacity Machines: " + ", ".join(context.capacity_machines))
+        labels.append(QRLabel("eoat", eoat_id, eoat_id, value, tuple(lines)))
+    return labels
+
+
+def _print_lines(label: QRLabel) -> tuple[str, ...]:
+    return label.label_lines or (label.display_label,)
 
 
 def _inventory_rows(project_root: str | Path) -> list[dict[str, Any]]:
@@ -246,6 +292,7 @@ __all__ = [
     "QRLabel",
     "audit_qr_value",
     "build_qr_labels",
+    "eoat_assembly_qr_value",
     "export_qr_label_sheet",
     "machine_qr_value",
     "validate_qr_value",

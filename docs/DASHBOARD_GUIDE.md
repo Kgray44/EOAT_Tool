@@ -35,7 +35,13 @@ Both tabs can optionally create follow-up action items.
 
 ## Photos
 
-The Photos page lists supported incoming image files, previews the target naming convention, copies or moves photos to the correct category folder, and writes Photo Index rows. It can look up an audit row, autofill machine context, assign per-photo shot types in Batch Review, update `Photos Taken?` and `Photo Folder/Link` after intake, and guide the next missing evidence shot.
+The Photos page lists supported incoming image files, previews the target naming convention, moves or copies photos into tool-specific photo folders, and writes Photo Index rows. It can look up an audit row, autofill machine context, assign per-photo shot types in Batch Review, update `Photos Taken?` and `Photo Folder/Link` after intake, and guide the next missing evidence shot.
+
+Incoming photos stay in a compact filename list. Hover a row briefly to show a floating preview with filename, capture metadata, dimensions, and current intake status. Select an incoming photo and press Spacebar, or double-click a row, to open the larger preview; Left/Right moves through incoming photos and Esc closes it. Use Preview Selected Photos when multiple incoming photos are selected to open a temporary contact sheet. Generated previews are cached under `.cache/photo_thumbnails` in the project root.
+
+Photo intake metadata uses a Plant/Area dropdown for Whiteroom or Cleanroom, a Tool # dropdown populated from current EOAT Inventory rows, and a Date Taken field autofilled from the selected image metadata when available. Tool selections carry machine/audit context behind the scenes when the tool is assigned to a machine; off-machine tools can still be entered with Tool # only.
+
+`Cell_Photos` uses `Incoming_Photos` as the staging area. On import, the app creates only the needed destination folder, such as `Tool_12345__Part_Name/01_Front_View/`, and drops the photo there. Other view folders for that tool are not created until photos of those types are imported.
 
 ## Audit Progress
 

@@ -117,7 +117,7 @@ def collect_home_status_snapshot(
 
     if progress:
         metrics = progress.metrics
-        cards["EOATs Audited"] = str(metrics.get("audited_eoat_count", 0))
+        cards["EOAT Documentation Rows"] = str(metrics.get("physical_audit_rows", 0))
         cards["Photos Indexed"] = str(metrics.get("photos_indexed_count", 0))
         cards["Interviews Logged"] = str(metrics.get("interviews_logged_count", 0))
         cards["Issues Logged"] = str(metrics.get("issues_logged_count", 0))
@@ -125,7 +125,13 @@ def collect_home_status_snapshot(
             f"Yes: {metrics.get('pilot_candidate_yes_count', 0)}, Maybe: {metrics.get('pilot_candidate_maybe_count', 0)}"
         )
     else:
-        for key in ["EOATs Audited", "Photos Indexed", "Interviews Logged", "Issues Logged", "Pilot Candidates"]:
+        for key in [
+            "EOAT Documentation Rows",
+            "Photos Indexed",
+            "Interviews Logged",
+            "Issues Logged",
+            "Pilot Candidates",
+        ]:
             cards[key] = "Not checked" if progress_error else "0"
     cards["Documentation Gaps"] = str(doc_summary.metrics.get("total_gaps", 0)) if doc_summary else "No data yet"
     cards["KPI Rows"] = f"{kpi_summary.metrics.get('kpi_rows', 0)}" if kpi_summary else "No data yet"
@@ -179,7 +185,7 @@ def collect_home_status_snapshot(
     cards["Handoff Package"] = handoffs[-1].name if handoffs else "No handoff package yet"
 
     recommendations: list[str] = []
-    audited_count = progress.metrics.get("audited_eoat_count", 0) if progress else 0
+    audited_count = progress.metrics.get("physical_audit_rows", 0) if progress else 0
     photos_count = progress.metrics.get("photos_indexed_count", 0) if progress else 0
     issues_count = progress.metrics.get("issues_logged_count", 0) if progress else 0
     fmea_rows = fmea_summary.metrics.get("existing_fmea_rows", 0) if fmea_summary else 0
@@ -192,9 +198,9 @@ def collect_home_status_snapshot(
     if not valid:
         recommendations.append("Run foundation validation or select the correct project root.")
     if audited_count == 0:
-        recommendations.append("Start by adding the first EOAT audit entry.")
+        recommendations.append("Start by adding the first EOAT documentation audit entry.")
     if audited_count > 0 and photos_count == 0:
-        recommendations.append("Add photos after the first audit to build visual evidence.")
+        recommendations.append("Add photos after the first EOAT documentation audit to build visual evidence.")
     if validation.warnings:
         recommendations.append("Review workbook/project validation warnings.")
     if issues_count > 0 and fmea_rows == 0:
@@ -457,7 +463,7 @@ class HomePage(QWidget):
             content_layout,
             "Data Progress",
             [
-                "EOATs Audited",
+                "EOAT Documentation Rows",
                 "Photos Indexed",
                 "Interviews Logged",
                 "Issues Logged",

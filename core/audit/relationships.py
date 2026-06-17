@@ -12,12 +12,14 @@ from core.audit_compatibility import (
     text_value,
 )
 from core.audit_constants import (
+    AUDIT_CONTEXT_COMPATIBILITY,
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
+from core.audit_context import infer_audit_context
 
 
 @dataclass(frozen=True)
@@ -44,11 +46,17 @@ class MachineRelationshipSummary:
 
 
 def is_physical_audit_row(row: dict[str, Any]) -> bool:
-    return normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
+    return (
+        normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_AUDITED
+        and infer_audit_context(row) != AUDIT_CONTEXT_COMPATIBILITY
+    )
 
 
 def is_compatibility_row(row: dict[str, Any]) -> bool:
-    return normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_COMPATIBLE
+    return (
+        normalize_entry_type(row.get(ENTRY_TYPE_FIELD)) == ENTRY_TYPE_COMPATIBLE
+        or infer_audit_context(row) == AUDIT_CONTEXT_COMPATIBILITY
+    )
 
 
 def physical_audits_for_machine(rows: Iterable[dict[str, Any]], machine_number: str) -> list[dict[str, Any]]:

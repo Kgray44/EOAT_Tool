@@ -7,6 +7,8 @@ from typing import Any
 
 from ..audit.defaults import DEFAULT_AUDIT_DEFAULTS
 from ..audit_constants import (
+    AUDIT_CONTEXT_FIELD,
+    COMPATIBILITY_CONFIDENCE_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
@@ -15,6 +17,7 @@ from ..audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
 from ..audit_entries import (
@@ -31,6 +34,7 @@ from ..audit_field_rules import (
     IMPORTANT_FIELDS,
     PNEUMATIC_CIRCUIT_FIELDS,
 )
+from ..eoat_ids import EOAT_ASSEMBLY_ID_FIELD
 from ..gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
@@ -63,6 +67,7 @@ AUDIT_SECTION_LAYOUT: dict[str, list[str]] = {
         "Auditor",
         "Plant/Area",
         "Press/Machine #",
+        AUDIT_CONTEXT_FIELD,
         "Status",
         "Priority",
         "Follow-Up Needed",
@@ -71,6 +76,7 @@ AUDIT_SECTION_LAYOUT: dict[str, list[str]] = {
         "Robot Type",
         "Robot Model/Controller",
         TOOL_FIELD,
+        EOAT_ASSEMBLY_ID_FIELD,
         "Part Family",
         "Part Name/Description",
         "Cleanroom/Non-Cleanroom",
@@ -139,12 +145,12 @@ AUDIT_SECTION_LAYOUT: dict[str, list[str]] = {
 AUDIT_GROUP_LAYOUT: dict[str, list[tuple[str, list[str]]]] = {
     "Audit Header": [
         ("Audit Identity", ["Audit ID", "Audit Date", "Auditor"]),
-        ("Location / Machine", ["Plant/Area", "Press/Machine #"]),
+        ("Location / Context", ["Plant/Area", "Press/Machine #", AUDIT_CONTEXT_FIELD]),
         ("Audit Status", ["Status", "Priority", "Follow-Up Needed"]),
     ],
     "Machine / Robot / Tool Context": [
         ("Robot Information", ["Robot Type", "Robot Model/Controller"]),
-        ("Tool / Part Information", [TOOL_FIELD, "Part Family", "Part Name/Description"]),
+        ("Tool / Part Information", [TOOL_FIELD, EOAT_ASSEMBLY_ID_FIELD, "Part Family", "Part Name/Description"]),
         ("Production Environment", ["Cleanroom/Non-Cleanroom"]),
     ],
     "EOAT Type and Tooling": [
@@ -198,7 +204,16 @@ AUDIT_GROUP_LAYOUT: dict[str, list[tuple[str, list[str]]]] = {
                 IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
             ],
         ),
-        ("Compatibility Metadata", [ENTRY_TYPE_FIELD, SOURCE_AUDIT_ID_FIELD, COMPATIBILITY_SOURCE_FIELD]),
+        (
+            "Compatibility Metadata",
+            [
+                ENTRY_TYPE_FIELD,
+                SOURCE_AUDIT_ID_FIELD,
+                COMPATIBILITY_SOURCE_FIELD,
+                PHYSICAL_AUDIT_VERIFIED_FIELD,
+                COMPATIBILITY_CONFIDENCE_FIELD,
+            ],
+        ),
     ],
 }
 
@@ -210,6 +225,8 @@ SYSTEM_METADATA_FIELDS = [
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
+    COMPATIBILITY_CONFIDENCE_FIELD,
 ]
 
 _TEXTAREA_FIELDS = {
@@ -243,7 +260,7 @@ _YES_NO_PARTIAL_UNKNOWN_FIELDS = {
     "Process Binder Complete?",
 }
 _EDITABLE_DROPDOWNS = {"Robot Type", GRIPPER_MODEL_FIELD}
-_NO_BLANK_DROPDOWNS = {"Plant/Area", "Connection Type", ENTRY_TYPE_FIELD}
+_NO_BLANK_DROPDOWNS = {"Plant/Area", "Connection Type", AUDIT_CONTEXT_FIELD, ENTRY_TYPE_FIELD}
 
 
 @dataclass(frozen=True)
@@ -422,6 +439,7 @@ def _field_id(label: str) -> str:
     explicit = {
         "Press/Machine #": "press_machine",
         TOOL_FIELD: "tool",
+        EOAT_ASSEMBLY_ID_FIELD: "eoat_assembly_id",
         NUMBER_OF_PARTS_PICKED_FIELD: "parts_picked_count",
         CYLINDER_COUNT_FIELD: "cylinder_count",
         GRIPPER_COUNT_FIELD: "gripper_count",

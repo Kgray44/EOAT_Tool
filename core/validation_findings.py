@@ -41,6 +41,8 @@ REPAIR_SAFETY_BY_FIX_ID = {
     "reapply_formatting": REPAIR_SAFETY_AUTOMATIC,
     "rebuild_dropdown_validation": REPAIR_SAFETY_AUTOMATIC,
     "repair_legacy_headers": REPAIR_SAFETY_CONFIRMATION,
+    "assign_missing_eoat_ids": REPAIR_SAFETY_CONFIRMATION,
+    "repair_photo_eoat_links": REPAIR_SAFETY_CONFIRMATION,
 }
 
 REPAIR_TITLE_BY_FIX_ID = {
@@ -51,6 +53,8 @@ REPAIR_TITLE_BY_FIX_ID = {
     "reapply_formatting": "Reapply Formatting",
     "rebuild_dropdown_validation": "Rebuild Dropdown Validation",
     "repair_legacy_headers": "Repair Workbook Schema",
+    "assign_missing_eoat_ids": "Assign Missing EOAT IDs",
+    "repair_photo_eoat_links": "Repair Photo EOAT Links",
 }
 
 

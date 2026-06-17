@@ -6,6 +6,7 @@ from core.audit.completion import (
     STATE_IGNORED_BY_OPTIONAL_GROUP,
     STATE_MISSING,
     STATE_NOT_APPLICABLE,
+    STATE_NOT_OBSERVABLE,
     STATE_STALE_CONFLICT,
     STATE_UNKNOWN_NOT_CHECKED,
     STATE_VERIFIED_COMPLETE,
@@ -13,6 +14,9 @@ from core.audit.completion import (
 )
 from core.audit.defaults import UNKNOWN_NOT_CHECKED
 from core.audit_constants import (
+    AUDIT_CONTEXT_BENCH,
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_INSTALLED,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_DEFAULT,
     CYLINDER_TYPE_FIELD,
@@ -32,9 +36,16 @@ SECTIONS = {
         "Follow-Up Needed",
         ENTRY_TYPE_FIELD,
     ],
+    "Machine / Robot / Tool Context": [
+        "Robot Type",
+        "Robot Model/Controller",
+        "Tool #",
+        "Part Family",
+        "Part Name/Description",
+        "Cleanroom/Non-Cleanroom",
+    ],
     "EOAT Type and Tooling": [
         "EOAT Type",
-        "Tool #",
         "EOAT Moves",
         "Connection Type",
         "Number of Parts Picked",
@@ -47,6 +58,15 @@ SECTIONS = {
         "# of Grippers",
         "Gripper Type",
         "Gripper Model",
+    ],
+    "Pneumatic Circuits": [
+        "EOAT Vacuum Circuits",
+        "EOAT Pressure Circuits",
+        "EOAT Interchangeable Circuits",
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+        "Robot Notes",
     ],
     "Sensors and Detection": [
         "Sensors Present?",
@@ -63,6 +83,14 @@ SECTIONS = {
         "Tubing Condition",
         "Tubing Routing Notes",
     ],
+    "Performance / Reliability / Maintenance": [
+        "Known Issues",
+        "Drop/Mis-Pick History",
+        "Maintenance Frequency",
+        "Cycle Time Concern?",
+        "Scrap/Quality Concern?",
+        "Changeover Difficulty",
+    ],
     "Documentation / Photos": ["Photos Taken?", "Photo Folder/Link"],
     "Pilot / Final Notes": ["Robot Notes", "Notes", "Source Audit ID", "Compatibility Source"],
 }
@@ -75,6 +103,11 @@ def _entry(**overrides):
         "Auditor": "Synthetic Auditor",
         "Plant/Area": "Plant 4",
         "Press/Machine #": "12",
+        "Robot Type": "Wittmann R9",
+        "Robot Model/Controller": "W833 / R9",
+        "Part Family": "Demo family",
+        "Part Name/Description": "Demo part",
+        "Cleanroom/Non-Cleanroom": "Whiteroom",
         "Status": "Complete",
         "Priority": "Medium",
         "Follow-Up Needed": "No",
@@ -93,6 +126,12 @@ def _entry(**overrides):
         "# of Grippers": "N/A",
         "Gripper Type": "N/A",
         "Gripper Model": "N/A",
+        "EOAT Vacuum Circuits": "2",
+        "EOAT Pressure Circuits": "1",
+        "EOAT Interchangeable Circuits": "0",
+        "Robot Vacuum Circuits": "4",
+        "Robot Pressure Circuits": "2",
+        "Robot Interchangeable Circuits": "0",
         "Sensors Present?": "Yes",
         "Sensor Type": "Reed Switch",
         "Sensor Brand/Model": "SMC",
@@ -104,6 +143,12 @@ def _entry(**overrides):
         "Electrical Quick Disconnect Type": "N/A",
         "Tubing Condition": "OK",
         "Tubing Routing Notes": "",
+        "Known Issues": "None",
+        "Drop/Mis-Pick History": "None",
+        "Maintenance Frequency": "Standard",
+        "Cycle Time Concern?": "No",
+        "Scrap/Quality Concern?": "No",
+        "Changeover Difficulty": "Normal",
         "Photos Taken?": "Yes",
         "Photo Folder/Link": "photos/demo",
         "Robot Notes": "",
@@ -132,7 +177,9 @@ def test_full_audit_calculates_100_percent():
 
 
 def test_missing_required_field_reduces_completion():
-    summary = calculate_audit_completion(_entry(**{"Press/Machine #": "", "Tool #": ""}), SECTIONS)
+    summary = calculate_audit_completion(
+        _entry(**{AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED, "Press/Machine #": "", "Tool #": ""}), SECTIONS
+    )
 
     assert summary.percent_complete < 100
     assert "Press/Machine #" in summary.missing_required_fields
@@ -141,16 +188,91 @@ def test_missing_required_field_reduces_completion():
 
 def test_uninstalled_tool_audit_ignores_machine_context_fields():
     summary = calculate_audit_completion(
-        _entry(**{"Plant/Area": "", "Press/Machine #": "", "Robot Type": "", "Tool #": "T-001"}),
+        _entry(
+            **{
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_BENCH,
+                "Plant/Area": "",
+                "Press/Machine #": "",
+                "Robot Type": "",
+                "Robot Model/Controller": "",
+                "Robot Vacuum Circuits": "",
+                "Robot Pressure Circuits": "",
+                "Robot Interchangeable Circuits": "",
+                "Robot Notes": "",
+                "Cycle Time Concern?": "",
+                "Scrap/Quality Concern?": "",
+                "Tool #": "T-001",
+            }
+        ),
         SECTIONS,
     )
 
     assert summary.percent_complete == 100
-    assert "Plant/Area" not in summary.missing_required_fields
-    assert "Press/Machine #" not in summary.missing_required_fields
-    assert "Robot Type" not in summary.missing_required_fields
-    assert _status(summary, "Plant/Area").state == STATE_EXCLUDED
-    assert _status(summary, "Press/Machine #").state == STATE_EXCLUDED
+    assert summary.audit_context == AUDIT_CONTEXT_BENCH
+    assert summary.installed_cell_validation_score == "Not Installed / Pending"
+    ignored_fields = {
+        "Plant/Area",
+        "Press/Machine #",
+        "Robot Type",
+        "Robot Model/Controller",
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+        "Robot Notes",
+        "Cycle Time Concern?",
+        "Scrap/Quality Concern?",
+    }
+    assert ignored_fields.isdisjoint(summary.missing_required_fields)
+    assert ignored_fields.isdisjoint(summary.missing_fields)
+    for field in ignored_fields - {"Robot Notes"}:
+        assert _status(summary, field).state == STATE_NOT_OBSERVABLE
+    assert _status(summary, "Robot Notes").state == STATE_EXCLUDED
+
+
+def test_bench_audit_still_scores_eoat_documentation_fields():
+    summary = calculate_audit_completion(
+        _entry(
+            **{
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_BENCH,
+                "Press/Machine #": "",
+                "Robot Type": "",
+                "EOAT Type": "",
+                "Tool #": "T-001",
+            }
+        ),
+        SECTIONS,
+    )
+
+    assert summary.percent_complete < 100
+    assert "EOAT Type" in summary.missing_fields
+    assert "Robot Type" not in summary.missing_fields
+    assert _status(summary, "Robot Type").state == STATE_NOT_OBSERVABLE
+
+
+def test_installed_tool_audit_counts_missing_robot_circuit_fields():
+    summary = calculate_audit_completion(
+        _entry(
+            **{
+                "Press/Machine #": "12",
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
+                "Tool #": "T-001",
+                "Robot Vacuum Circuits": "",
+                "Robot Pressure Circuits": "",
+                "Robot Interchangeable Circuits": "",
+                "Cycle Time Concern?": "",
+                "Scrap/Quality Concern?": "",
+            }
+        ),
+        SECTIONS,
+    )
+
+    assert summary.percent_complete < 100
+    assert "Robot Vacuum Circuits" in summary.missing_fields
+    assert "Robot Pressure Circuits" in summary.missing_fields
+    assert "Robot Interchangeable Circuits" in summary.missing_fields
+    assert "Cycle Time Concern?" in summary.missing_fields
+    assert "Scrap/Quality Concern?" in summary.missing_fields
+    assert _status(summary, "Robot Vacuum Circuits").state == STATE_MISSING
 
 
 def test_unknown_not_checked_is_explicit_but_not_verified_complete():
@@ -265,6 +387,7 @@ def test_manual_override_sets_audit_percent_without_verifying_fields():
         _entry(
             **{
                 "Press/Machine #": "",
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
                 "Tool #": "",
                 MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes",
                 "Ignored Empty Fields At Override": "Press/Machine #",

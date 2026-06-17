@@ -3,6 +3,9 @@ from __future__ import annotations
 from core.audit.defaults import UNKNOWN_NOT_CHECKED
 from core.audit_completion import CompletionPolicy, evaluate_completion, next_completion_actions
 from core.audit_constants import (
+    AUDIT_CONTEXT_BENCH,
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_INSTALLED,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
@@ -41,7 +44,15 @@ def _entry(**overrides):
 
 def test_completion_policy_reports_missing_actionable_fields():
     result = evaluate_completion(
-        _entry(**{"Press/Machine #": "", "Tool #": "", "Sensors Present?": "Yes", "Sensor Type": UNKNOWN_NOT_CHECKED})
+        _entry(
+            **{
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
+                "Press/Machine #": "",
+                "Tool #": "",
+                "Sensors Present?": "Yes",
+                "Sensor Type": UNKNOWN_NOT_CHECKED,
+            }
+        )
     )
 
     assert result.can_finish is False
@@ -50,11 +61,29 @@ def test_completion_policy_reports_missing_actionable_fields():
     assert "Sensor Type" in result.guided_fields
 
 
+def test_completion_policy_treats_bench_machine_fields_as_pending():
+    result = evaluate_completion(
+        _entry(
+            **{
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_BENCH,
+                "Press/Machine #": "",
+                "Robot Type": "",
+                "Tool #": "T-001",
+            }
+        )
+    )
+
+    assert "Robot Type" not in result.guided_fields
+    assert result.audit_context == AUDIT_CONTEXT_BENCH
+    assert result.installed_cell_validation_score == "Not Installed / Pending"
+
+
 def test_completion_policy_accepts_manual_override_truthfully():
     result = evaluate_completion(
         _entry(
             **{
                 "Press/Machine #": "",
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
                 "Tool #": "",
                 MANUAL_COMPLETION_OVERRIDE_FIELD: "Yes",
                 MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD: "2026-05-28T20:00:00+00:00",
@@ -81,7 +110,15 @@ def test_completion_policy_can_disable_manual_override():
 
 def test_next_completion_actions_returns_ranked_fields():
     actions = next_completion_actions(
-        _entry(**{"Press/Machine #": "", "Tool #": "", "Tubing Condition": UNKNOWN_NOT_CHECKED}), limit=2
+        _entry(
+            **{
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
+                "Press/Machine #": "",
+                "Tool #": "",
+                "Tubing Condition": UNKNOWN_NOT_CHECKED,
+            }
+        ),
+        limit=2,
     )
 
     assert actions[0]["field"] == "Press/Machine #"

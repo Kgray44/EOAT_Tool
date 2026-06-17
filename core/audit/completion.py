@@ -5,8 +5,11 @@ from dataclasses import asdict, dataclass, replace
 from typing import Any
 
 from core.audit.schema import AuditFieldSpec, all_audit_fields, audit_sections, field_by_header
-from core.audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from core.audit_constants import (
+    AUDIT_CONTEXT_COMPATIBILITY,
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_INSTALLED,
+    COMPATIBILITY_CONFIDENCE_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_FIELDS,
     ENTRY_TYPE_COMPATIBLE,
@@ -15,8 +18,10 @@ from core.audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
+from core.audit_context import INSTALLATION_ONLY_FIELDS, infer_audit_context
 from core.audit_field_rules import (
     cylinder_optional_reason,
     cylinder_section_in_use,
@@ -33,6 +38,7 @@ from core.audit_field_rules import (
     normalize_text,
     semantic_consistency_warnings,
 )
+from core.audit_scores import calculate_split_scores
 from core.gripper_fields import CUP_COUNT_FIELD
 from core.tool_fields import TOOL_FIELD
 
@@ -41,6 +47,7 @@ STATE_MISSING = "missing"
 STATE_UNKNOWN_NOT_CHECKED = "unknown_not_checked"
 STATE_NOT_APPLICABLE = "not_applicable"
 STATE_FOLLOW_UP_NEEDED = "follow_up_needed"
+STATE_NOT_OBSERVABLE = "not_observable"
 STATE_STALE_CONFLICT = "stale_conflict"
 STATE_EXCLUDED = "excluded"
 STATE_IGNORED_BY_OPTIONAL_GROUP = "ignored_by_optional_group"
@@ -57,6 +64,7 @@ ACTIONABLE_STATES = {
 }
 NON_COUNTING_STATES = {
     STATE_NOT_APPLICABLE,
+    STATE_NOT_OBSERVABLE,
     STATE_EXCLUDED,
     STATE_IGNORED_BY_OPTIONAL_GROUP,
     STATE_IGNORED_BY_MANUAL_OVERRIDE,
@@ -70,6 +78,8 @@ DEFAULT_EXCLUDED_FIELDS = frozenset(
         "Final Notes",
         SOURCE_AUDIT_ID_FIELD,
         COMPATIBILITY_SOURCE_FIELD,
+        PHYSICAL_AUDIT_VERIFIED_FIELD,
+        COMPATIBILITY_CONFIDENCE_FIELD,
         MANUAL_COMPLETION_OVERRIDE_FIELD,
         MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
         MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
@@ -77,7 +87,7 @@ DEFAULT_EXCLUDED_FIELDS = frozenset(
     }
 )
 
-IDENTITY_FIELDS = {"Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", "Status"}
+IDENTITY_FIELDS = {"Audit ID", "Audit Date", "Auditor", "Plant/Area", "Press/Machine #", AUDIT_CONTEXT_FIELD, "Status"}
 COMPATIBILITY_COMPLETION_FIELDS = {"Audit ID", ENTRY_TYPE_FIELD, "Press/Machine #", TOOL_FIELD}
 VISIBILITY_CONTROLLER_FIELDS = {
     "EOAT Type",
@@ -171,6 +181,7 @@ class SectionCompletionStatus:
     unknown_not_checked_count: int
     not_applicable_count: int
     follow_up_needed_count: int
+    not_observable_count: int
     stale_conflict_count: int
     excluded_count: int
     ignored_by_optional_group_count: int
@@ -186,9 +197,13 @@ class SectionCompletionStatus:
 class AuditCompletionSummary:
     audit_id: str
     entry_type: str
+    audit_context: str
     mode: str
     percent_complete: int
     raw_percent_complete: int
+    eoat_documentation_score: int
+    installation_readiness_score: int
+    installed_cell_validation_score: int | str
     can_finish: bool
     manual_completion_override: bool
     manual_completion_override_applied: bool
@@ -203,6 +218,7 @@ class AuditCompletionSummary:
     unknown_not_checked_fields: tuple[str, ...]
     not_applicable_fields: tuple[FieldCompletionStatus, ...]
     follow_up_fields: tuple[str, ...]
+    not_observable_fields: tuple[str, ...]
     stale_conflict_fields: tuple[str, ...]
     excluded_fields: tuple[str, ...]
     ignored_by_optional_group_fields: tuple[str, ...]
@@ -230,11 +246,13 @@ def calculate_audit_completion(
     current_entry = normalize_cylinder_fields({str(key): normalize_text(value) for key, value in entry.items()})
     section_map = sections or audit_sections()
     excluded = set(DEFAULT_EXCLUDED_FIELDS if excluded_fields is None else excluded_fields)
-    uninstalled = is_uninstalled_eoat_audit(current_entry)
-    if uninstalled:
-        excluded.update(UNINSTALLED_MACHINE_CONTEXT_FIELDS)
+    audit_context = infer_audit_context(current_entry)
     requirements = entry_type_requirements(current_entry)
-    entry_type = str(requirements.get("entry_type", ""))
+    entry_type = (
+        ENTRY_TYPE_COMPATIBLE
+        if audit_context == AUDIT_CONTEXT_COMPATIBILITY
+        else str(requirements.get("entry_type", ""))
+    )
     required_fields = set(requirements.get("required", ()))
     important_fields = set(requirements.get("important", ()))
     if entry_type.casefold() != ENTRY_TYPE_COMPATIBLE.casefold():
@@ -283,14 +301,19 @@ def calculate_audit_completion(
     blocking_findings = [finding for finding in findings if finding.startswith(("warning:", "error:"))]
     counted = [status for status in final_statuses if status.counted]
     verified_count = sum(1 for status in counted if status.state == STATE_VERIFIED_COMPLETE)
+    split_scores = calculate_split_scores(current_entry)
 
     percent = 100 if override_applied else _percent(verified_count, len(counted))
     return AuditCompletionSummary(
         audit_id=current_entry.get("Audit ID", ""),
         entry_type=entry_type,
+        audit_context=audit_context,
         mode=mode,
         percent_complete=percent,
         raw_percent_complete=raw_percent,
+        eoat_documentation_score=int(split_scores.eoat_documentation.score),
+        installation_readiness_score=int(split_scores.installation_readiness.score),
+        installed_cell_validation_score=split_scores.installed_cell_validation.score,
         can_finish=True if override_applied else not guided_fields and not blocking_findings,
         manual_completion_override=override_requested,
         manual_completion_override_applied=override_applied,
@@ -309,6 +332,7 @@ def calculate_audit_completion(
         ),
         not_applicable_fields=tuple(status for status in final_statuses if status.state == STATE_NOT_APPLICABLE),
         follow_up_fields=tuple(status.field for status in final_statuses if status.state == STATE_FOLLOW_UP_NEEDED),
+        not_observable_fields=tuple(status.field for status in final_statuses if status.state == STATE_NOT_OBSERVABLE),
         stale_conflict_fields=tuple(status.field for status in final_statuses if status.state == STATE_STALE_CONFLICT),
         excluded_fields=tuple(status.field for status in final_statuses if status.state == STATE_EXCLUDED),
         ignored_by_optional_group_fields=tuple(
@@ -348,6 +372,9 @@ def classify_completion_field(
     excluded_fields = set(DEFAULT_EXCLUDED_FIELDS if excluded_fields is None else excluded_fields)
     current_entry = normalize_cylinder_fields({str(key): normalize_text(value) for key, value in entry.items()})
     value = normalize_text(current_entry.get(field))
+    audit_context = infer_audit_context(current_entry)
+    if audit_context == AUDIT_CONTEXT_COMPATIBILITY:
+        entry_type = ENTRY_TYPE_COMPATIBLE
     spec = _spec_for_field(field)
     required = field in required_fields or spec.workbook_header in required_fields
     important = field in important_fields or spec.workbook_header in important_fields
@@ -383,6 +410,20 @@ def classify_completion_field(
             counted=False,
             verified=False,
             reason="Compatibility rows use compatibility completion rules, not physical audit completion rules.",
+        )
+
+    if (
+        audit_context != AUDIT_CONTEXT_COMPATIBILITY
+        and field in INSTALLATION_ONLY_FIELDS
+        and audit_context != AUDIT_CONTEXT_INSTALLED
+    ):
+        return FieldCompletionStatus(
+            **base,
+            state=STATE_NOT_OBSERVABLE,
+            applies=False,
+            counted=False,
+            verified=False,
+            reason="Machine-specific installation field is not observable in the current audit context.",
         )
 
     if field in CYLINDER_FIELDS and not cylinder_section_in_use(current_entry):
@@ -487,6 +528,7 @@ def _section_summary(section_name: str, statuses: tuple[FieldCompletionStatus, .
         unknown_not_checked_count=sum(1 for status in statuses if status.state == STATE_UNKNOWN_NOT_CHECKED),
         not_applicable_count=sum(1 for status in statuses if status.state == STATE_NOT_APPLICABLE),
         follow_up_needed_count=sum(1 for status in statuses if status.state == STATE_FOLLOW_UP_NEEDED),
+        not_observable_count=sum(1 for status in statuses if status.state == STATE_NOT_OBSERVABLE),
         stale_conflict_count=sum(1 for status in statuses if status.state == STATE_STALE_CONFLICT),
         excluded_count=sum(1 for status in statuses if status.state == STATE_EXCLUDED),
         ignored_by_optional_group_count=sum(
@@ -577,6 +619,7 @@ def _state_sort(state: str) -> int:
         STATE_STALE_CONFLICT: 1,
         STATE_UNKNOWN_NOT_CHECKED: 2,
         STATE_FOLLOW_UP_NEEDED: 3,
+        STATE_NOT_OBSERVABLE: 4,
     }
     return order.get(state, 9)
 
@@ -634,6 +677,7 @@ __all__ = [
     "STATE_IGNORED_BY_OPTIONAL_GROUP",
     "STATE_MISSING",
     "STATE_NOT_APPLICABLE",
+    "STATE_NOT_OBSERVABLE",
     "STATE_STALE_CONFLICT",
     "STATE_UNKNOWN_NOT_CHECKED",
     "STATE_VERIFIED_COMPLETE",

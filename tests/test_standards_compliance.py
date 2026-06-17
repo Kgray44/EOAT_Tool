@@ -2,6 +2,13 @@ from __future__ import annotations
 
 from openpyxl import load_workbook
 
+from core.audit_constants import (
+    AUDIT_CONTEXT_BENCH,
+    AUDIT_CONTEXT_COMPATIBILITY,
+    AUDIT_CONTEXT_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+)
 from core.paths import resolve_project_paths
 from core.standards_compliance import analyze_standards_compliance, score_audit_compliance
 from core.workbook_schema import get_expected_headers
@@ -85,6 +92,55 @@ def test_standards_compliance_treats_unknown_and_na_differently(fake_project):
     assert _category(unknown, "eoat_classification_complete").status == "unknown"
     assert _category(no_sensors, "sensor_standards").status == "not applicable"
     assert _category(no_sensors, "sensor_standards").score is None
+
+
+def test_standards_compliance_splits_bench_followups_from_true_failures(fake_project):
+    result = score_audit_compliance(
+        fake_project,
+        _row(
+            "AUD-BENCH-COMP",
+            "Vacuum",
+            **{
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_BENCH,
+                "Press/Machine #": "",
+                "Robot Type": "",
+                "Robot Model/Controller": "",
+                "EOAT Alignment Condition": "",
+            },
+        ),
+    )
+
+    installed_cell = _category(result, "installed_cell_validation_context")
+    assert result.audit_context == AUDIT_CONTEXT_BENCH
+    assert result.installed_cell_validation_score == "Not Installed / Pending"
+    assert installed_cell.status == "not observable"
+    assert result.true_fail_count == 0
+    assert result.not_observable_count >= 1
+    assert "audited off-machine" in result.notes_recommended_action
+
+
+def test_standards_compliance_marks_compatibility_rows_pending_not_physical(fake_project):
+    result = score_audit_compliance(
+        fake_project,
+        _row(
+            "AUD-COMPAT-ROW",
+            "Vacuum",
+            **{
+                AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_COMPATIBILITY,
+                ENTRY_TYPE_FIELD: ENTRY_TYPE_COMPATIBLE,
+                "Physical Audit Verified": "No",
+                "Compatibility Confidence": "Press Capacity",
+            },
+        ),
+    )
+
+    installed_cell = _category(result, "installed_cell_validation_context")
+    compatibility = _category(result, "compatibility_context")
+    assert result.audit_context == AUDIT_CONTEXT_COMPATIBILITY
+    assert result.installed_cell_validation_score == "Pending / Not physically verified"
+    assert installed_cell.status == "follow-up required"
+    assert compatibility.status == "warning"
+    assert result.follow_up_count >= 1
 
 
 def test_standards_compliance_rolls_up_by_press(fake_project):

@@ -10,7 +10,7 @@ def test_home_quick_refresh_uses_cached_snapshot_without_deep_collectors(fake_pr
     save_dashboard_cache(
         fake_project,
         {
-            "cards": {"EOATs Audited": "9"},
+            "cards": {"EOAT Documentation Rows": "9"},
             "recommendations": ["Cached recommendation"],
             "activity_text": "Cached activity",
         },
@@ -25,6 +25,6 @@ def test_home_quick_refresh_uses_cached_snapshot_without_deep_collectors(fake_pr
 
     snapshot = collect_home_quick_status_snapshot(str(fake_project), git_executable="git")
 
-    assert snapshot["cards"]["EOATs Audited"] == "9"
+    assert snapshot["cards"]["EOAT Documentation Rows"] == "9"
     assert snapshot["cards"]["Dashboard Cache"].startswith("Stale")
     assert "Dashboard cache stale because" in snapshot["activity_text"]

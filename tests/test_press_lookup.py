@@ -21,6 +21,7 @@ def test_lookup_fills_master_press_fields(fake_project):
     assert result.master_fields["Press Brand"] == "Nissei"
     assert result.master_fields["Robot/Picker Model #"] == "W833"
     assert result.robot_type_suggestion == "Wittmann W833"
+    assert result.robot_model_controller_suggestion == "W833"
 
 
 def test_lookup_fills_capacity_fields(fake_project):

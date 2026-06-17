@@ -15,6 +15,15 @@ MASTER_FILE_NAME = DEFAULT_MASTER_PRESS_LIST_FILE
 CAPACITY_FILE_NAME = DEFAULT_PRESS_CAPACITY_FILE
 MASTER_SHEET_NAME = "Machine Specifications"
 CAPACITY_SHEET_NAME = "Capacity"
+MASTER_MACHINE_FIELDS = [
+    "Machine Number",
+    "Machine No.",
+    "Machine No",
+    "Machine #",
+    "Press/Machine #",
+    "Press",
+    "Machine",
+]
 
 MASTER_SOURCE_FIELDS = [
     "U.S. Tons",
@@ -25,6 +34,8 @@ MASTER_SOURCE_FIELDS = [
     "Injection Capacity",
     "Screw Diameter",
     "Controller Type",
+    "Robot Type",
+    "Robot Model/Controller",
     "Robot/Picker Brand",
     "Robot/Picker Model #",
     "Robot/Picker Serial #",
@@ -59,6 +70,8 @@ MASTER_AUDIT_FIELD_MAP = {
     "U.S. Tons": "Press Tonnage",
     "Model #": "Press Model",
     "Year Mfg.": "Press Year",
+    "Robot Type": "Robot Type",
+    "Robot Model/Controller": "Robot Model/Controller",
     "Robot/Picker Brand": "Robot Brand",
     "Robot/Picker Model #": "Robot Model",
     "Robot/Picker Serial #": "Robot Serial Number",
@@ -221,13 +234,20 @@ class PressLookupResult:
 
     @property
     def robot_type_suggestion(self) -> str:
+        direct = _display(self.master_fields.get("Robot Type"))
+        if direct:
+            return direct
         brand = _display(self.master_fields.get("Robot/Picker Brand") or self.master_fields.get("Robot Brand"))
         model = _display(self.master_fields.get("Robot/Picker Model #") or self.master_fields.get("Robot Model"))
         return " ".join(part for part in [brand, model] if part)
 
     @property
     def robot_model_controller_suggestion(self) -> str:
-        return _display(self.master_fields.get("Robot/Picker Model #") or self.master_fields.get("Robot Model"))
+        return _display(
+            self.master_fields.get("Robot Model/Controller")
+            or self.master_fields.get("Robot/Picker Model #")
+            or self.master_fields.get("Robot Model")
+        )
 
     @property
     def part_options(self) -> list[dict[str, Any]]:
@@ -381,7 +401,7 @@ def _load_master_press_list(result: PressLookupResult) -> None:
     matches = []
     for row_number, row in rows:
         try:
-            number = normalize_machine_number(row.get("Machine Number"))
+            number = normalize_machine_number(_master_machine_value(row))
         except ValueError:
             continue
         if number == result.machine_number:
@@ -442,7 +462,7 @@ def _load_master_rows_from_file(
         if sheet_name is None:
             return [f"Master Press List sheet not found: {MASTER_SHEET_NAME}"], []
         ws = workbook[sheet_name]
-        return [], _rows_from_header_sheet(ws, "Machine Number")
+        return [], _rows_from_header_sheet(ws, MASTER_MACHINE_FIELDS)
     except Exception as exc:
         return [f"Master Press List could not be read: {exc}"], []
     finally:
@@ -534,13 +554,14 @@ def _find_sheet_name(sheet_names: list[str], preferred: str, words: list[str]) -
     return None
 
 
-def _rows_from_header_sheet(ws, required_header: str) -> list[tuple[int, dict[str, Any]]]:
+def _rows_from_header_sheet(ws, required_header: str | list[str]) -> list[tuple[int, dict[str, Any]]]:
     header_row: list[Any] | None = None
     header_index = 0
-    required = _norm(required_header)
+    required_values = required_header if isinstance(required_header, list) else [required_header]
+    required = {_norm(value) for value in required_values}
     for index, row in enumerate(ws.iter_rows(min_row=1, max_row=min(ws.max_row, 25), values_only=True), start=1):
         normalized = [_norm(value) for value in row]
-        if required in normalized:
+        if any(value in required for value in normalized):
             header_row = list(row)
             header_index = index
             break
@@ -554,6 +575,14 @@ def _rows_from_header_sheet(ws, required_header: str) -> list[tuple[int, dict[st
             continue
         rows.append((row_number, {headers[index]: value for index, value in enumerate(row) if index < len(headers)}))
     return rows
+
+
+def _master_machine_value(row: dict[str, Any]) -> Any:
+    for field_name in MASTER_MACHINE_FIELDS:
+        value = row.get(field_name)
+        if _display(value):
+            return value
+    return ""
 
 
 def _iter_sheet_rows(ws):

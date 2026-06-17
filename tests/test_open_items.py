@@ -6,9 +6,15 @@ from datetime import date, timedelta
 import pytest
 from openpyxl import load_workbook
 
+from core import open_items as open_items_core
 from core.action_items import add_action_item
 from core.annotations.service import AnnotationService
-from core.open_items import dismiss_open_item, list_open_items, open_items_summary, set_open_item_status
+from core.open_items import (
+    dismiss_open_item,
+    list_open_items,
+    open_items_summary,
+    set_open_item_status,
+)
 from core.paths import resolve_project_paths
 from core.workbook_schema import get_expected_headers
 
@@ -196,30 +202,29 @@ def test_documentation_gap_disappears_when_source_field_is_fixed(fake_project):
     assert after_summary["items_fixed_at_source_this_week"] >= 1
 
 
-def test_missing_evidence_item_disappears_when_photo_index_data_is_added(fake_project):
-    _append_inventory_row(fake_project, _audit_row("AUD-EVID-FIX-001"))
+def test_missing_evidence_only_includes_audit_level_photos_taken_no(fake_project):
+    _append_inventory_row(fake_project, _audit_row("AUD-EVID-CATEGORY-001"))
+    _append_inventory_row(fake_project, _audit_row("AUD-EVID-LINK-001", **{"Photo Folder/Link": ""}))
+    _append_inventory_row(fake_project, _audit_row("AUD-EVID-PHOTOS-NO-001", **{"Photos Taken?": "No"}))
 
-    before = list_open_items(fake_project, include_validation=False)
-    item_id = "missing_evidence:AUD-EVID-FIX-001:overall_eoat"
-    assert item_id in {item.id for item in before}
-    assert next(item for item in before if item.id == item_id).target_payload()["target_type"] == "photo"
+    items = list_open_items(fake_project, include_validation=False)
+    item_ids = {item.id for item in items}
 
-    _append_photo_index_row(
-        fake_project,
-        {
-            "Photo ID": "PHO-OPEN-001",
-            "Date Taken": "2026-05-18",
-            "Plant/Area": "Plant 4",
-            "Press/Machine #": "Press 12",
-            "EOAT Area Shown": "Overall EOAT",
-            "Photo Filename": "synthetic_overall.jpg",
-            "Folder Path": str(fake_project / "synthetic" / "photos"),
-            "Related Audit ID": "AUD-EVID-FIX-001",
-        },
+    assert "missing_evidence:AUD-EVID-CATEGORY-001:overall_eoat" not in item_ids
+    assert "missing_evidence:AUD-EVID-LINK-001:Photo Folder Link" not in item_ids
+    assert "missing_evidence:AUD-EVID-PHOTOS-NO-001:Photos Taken" in item_ids
+
+    photo_item = next(item for item in items if item.id == "missing_evidence:AUD-EVID-PHOTOS-NO-001:Photos Taken")
+    assert photo_item.field == "Photos Taken?"
+    assert photo_item.target_payload()["target_type"] == "audit_field"
+
+    items_with_validation = list_open_items(fake_project, include_validation=True)
+    assert not any(
+        item.source == "validation"
+        and item.category == "missing_evidence"
+        and item.audit_id in {"AUD-EVID-CATEGORY-001", "AUD-EVID-LINK-001", "AUD-EVID-PHOTOS-NO-001"}
+        for item in items_with_validation
     )
-    after = list_open_items(fake_project, include_validation=False)
-
-    assert item_id not in {item.id for item in after}
 
 
 def test_validation_finding_disappears_when_workbook_value_is_corrected(fake_project):
@@ -277,3 +282,24 @@ def test_dismiss_with_reason_hides_open_item_and_records_override(fake_project):
     records = [json.loads(line) for line in override_path.read_text(encoding="utf-8").splitlines()]
     assert records[-1]["item_id"] == item.id
     assert records[-1]["reason"] == "Binder confirmed in controlled document system."
+
+
+def test_low_applicability_field_auto_filter_skips_key_fields(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        open_items_core,
+        "_inventory_rows",
+        lambda _root: [
+            {"Audit ID": "", "Optional Field": "", "Mostly Filled Field": "Ready"},
+            {"Audit ID": "AUD-001", "Optional Field": "N/A", "Mostly Filled Field": "Ready"},
+            {"Audit ID": "AUD-002", "Optional Field": "Measured", "Mostly Filled Field": ""},
+        ],
+    )
+
+    stats = open_items_core.low_applicability_open_item_fields(
+        tmp_path,
+        {"Audit ID", "Optional Field", "Mostly Filled Field"},
+    )
+
+    assert "Optional Field" in stats
+    assert "Audit ID" not in stats
+    assert "Mostly Filled Field" not in stats

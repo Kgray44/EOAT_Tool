@@ -9,6 +9,7 @@ from core.audit_constants import (
     ENTRY_TYPE_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
+from core.eoat_ids import EOAT_ASSEMBLY_ID_FIELD
 from core.paths import get_press_capacity_file, resolve_project_paths
 from core.press_view import PressViewBuildOptions, build_press_view_groups, export_press_summary
 from core.workbook_schema import get_expected_headers
@@ -85,6 +86,31 @@ def test_press_view_keeps_multiple_physical_audits_for_same_machine(usability_fa
 
     assert {entry.audit_id for entry in group.physical_audits} == {"AUD-20260518-001", "AUD-PHYSICAL-101-B"}
     assert group.tools == ["TOOL-A", "TOOL-B"]
+
+
+def test_press_view_shows_eoat_assembly_context_for_shared_tools(fake_project):
+    paths = resolve_project_paths(fake_project)
+    for audit_id, tool in [("AUD-EOAT-PRESS-A", "5116830010"), ("AUD-EOAT-PRESS-B", "5116830020")]:
+        _append_inventory_row(
+            paths.master_workbook,
+            {
+                "Audit ID": audit_id,
+                "Audit Date": "2026-06-08",
+                "Press/Machine #": "26",
+                EOAT_ASSEMBLY_ID_FIELD: "P4-EOAT-0007",
+                "Tool #": tool,
+                "EOAT Type": "Vacuum",
+                "Status": "Complete",
+                ENTRY_TYPE_FIELD: "Audited",
+            },
+        )
+
+    groups = build_press_view_groups(fake_project)
+    group = next(item for item in groups if item.machine == "26")
+    by_tool = {entry.tool: entry for entry in group.physical_audits}
+
+    assert by_tool["5116830010"].eoat_assembly_id == "P4-EOAT-0007"
+    assert by_tool["5116830010"].also_used_tools == "5116830020"
 
 
 def test_press_view_counts_compatible_links_from_machine_source_audits(fake_project):

@@ -22,6 +22,7 @@ from app.widgets.report_viewer import ReportViewer
 from app.widgets.status_card import StatusCard
 from app.widgets.tool_run_panel import ToolRunPanel
 from core.audit_progress import calculate_audit_progress, generate_audit_progress_report
+from core.eoat_ids import assign_missing_eoat_assembly_ids_in_workbook
 from core.openers import open_path
 from core.paths import resolve_project_paths
 
@@ -32,13 +33,14 @@ class AuditProgressPage(QWidget):
         self.config = config
         self.cards: dict[str, StatusCard] = {}
         layout = QVBoxLayout(self)
-        heading = QLabel("Audit Progress")
+        heading = QLabel("EOAT Documentation Progress")
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
 
         buttons = QHBoxLayout()
         for label, callback in [
             ("Refresh Metrics", self.refresh_metrics),
+            ("Assign Missing EOAT IDs", self.assign_missing_eoat_ids),
             ("Generate Progress Report", self.generate_report),
             ("Open Progress Reports Folder", self.open_reports),
         ]:
@@ -50,7 +52,8 @@ class AuditProgressPage(QWidget):
         grid = QGridLayout()
         for index, key in enumerate(
             [
-                "Physical Audit Rows",
+                "EOAT Documentation Rows",
+                "Bench Audit Rows",
                 "Audited Required Relationships",
                 "Compatible Relationships",
                 "Total Covered Relationships",
@@ -58,6 +61,7 @@ class AuditProgressPage(QWidget):
                 "Compatibility Opportunities",
                 "Open Actions",
                 "Issues Logged",
+                "Multi-Tool EOATs",
             ]
         ):
             card = StatusCard(key, "Not checked")
@@ -76,8 +80,14 @@ class AuditProgressPage(QWidget):
         tables.addTab(self.opportunities_table, "Compatibility Opportunities")
         self.machine_table = QTableWidget()
         tables.addTab(self.machine_table, "Machine Coverage")
+        self.multi_tool_table = QTableWidget()
+        tables.addTab(self.multi_tool_table, "Multi-Tool EOATs")
+        self.eoat_machine_table = QTableWidget()
+        tables.addTab(self.eoat_machine_table, "EOAT Machine Compatibility")
         self.entry_type_table = QTableWidget()
         tables.addTab(self.entry_type_table, "Existing Entries by Type")
+        self.audit_context_table = QTableWidget()
+        tables.addTab(self.audit_context_table, "Entries by Audit Context")
         layout.addWidget(tables, stretch=1)
 
         self.preview = ReportViewer()
@@ -93,7 +103,8 @@ class AuditProgressPage(QWidget):
             return
         assert summary is not None
         metrics = summary.metrics
-        self.cards["Physical Audit Rows"].set_value(str(metrics.get("physical_audit_rows", 0)))
+        self.cards["EOAT Documentation Rows"].set_value(str(metrics.get("physical_audit_rows", 0)))
+        self.cards["Bench Audit Rows"].set_value(str(metrics.get("bench_audit_rows", 0)))
         self.cards["Audited Required Relationships"].set_value(str(metrics.get("physically_audited_relationships", 0)))
         self.cards["Compatible Relationships"].set_value(str(metrics.get("compatible_relationships", 0)))
         self.cards["Total Covered Relationships"].set_value(str(metrics.get("total_covered_relationships", 0)))
@@ -103,6 +114,11 @@ class AuditProgressPage(QWidget):
         )
         self.cards["Open Actions"].set_value(str(metrics.get("open_action_items_count", 0)))
         self.cards["Issues Logged"].set_value(str(metrics.get("issues_logged_count", 0)))
+        self.cards["Multi-Tool EOATs"].set_value(
+            f"{metrics.get('multi_tool_eoat_count', 0)} shared / "
+            f"{metrics.get('total_eoat_assembly_ids', 0)} IDs / "
+            f"{metrics.get('total_eoat_tool_links', 0)} links"
+        )
 
         self._fill_table(
             self.counts_table,
@@ -139,9 +155,39 @@ class AuditProgressPage(QWidget):
             summary.machine_coverage,
         )
         self._fill_table(
+            self.multi_tool_table,
+            [
+                "EOAT Assembly ID",
+                "Tool Count",
+                "Tool #s",
+                "Machine #s",
+                "Audit Machine #s",
+                "Press Capacity Machine #s",
+                "Audit IDs",
+            ],
+            summary.multi_tool_eoats,
+        )
+        self._fill_table(
+            self.eoat_machine_table,
+            [
+                "EOAT Assembly ID",
+                "Tool #s",
+                "Machine #s",
+                "Audit Machine #s",
+                "Press Capacity Machine #s",
+                "Audit IDs",
+            ],
+            summary.eoat_machine_compatibility,
+        )
+        self._fill_table(
             self.entry_type_table,
             ["Entry Type", "Count"],
             [{"Entry Type": key, "Count": value} for key, value in summary.entry_type_counts.items()],
+        )
+        self._fill_table(
+            self.audit_context_table,
+            ["Audit Context", "Count"],
+            [{"Audit Context": key, "Count": value} for key, value in summary.audit_context_counts.items()],
         )
         self.preview.show_markdown_text(summary.to_markdown())
 
@@ -167,6 +213,21 @@ class AuditProgressPage(QWidget):
     def _report_finished(self, result) -> None:
         if result.output_reports:
             self.preview.load_report_file(result.output_reports[0])
+        self.refresh_metrics()
+
+    def assign_missing_eoat_ids(self) -> None:
+        run_tool_background(
+            self.result_panel,
+            "assign_missing_eoat_ids",
+            "Assign Missing EOAT IDs",
+            lambda: assign_missing_eoat_assembly_ids_in_workbook(self.config.project_root),
+            self._eoat_assignment_finished,
+            modifies_files=True,
+            workbook_lock=True,
+        )
+
+    def _eoat_assignment_finished(self, result) -> None:
+        self.result_panel.show_result(result)
         self.refresh_metrics()
 
     def open_reports(self) -> None:

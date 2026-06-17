@@ -3,19 +3,29 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from core.audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from core.audit_constants import AUDIT_CONTEXT_BENCH, AUDIT_CONTEXT_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
 from core.tool_fields import TOOL_FIELD
 
 UNINSTALLED_EOAT_NOTE = "EOAT Not Installed."
-UNINSTALLED_EOAT_STATUS_TEXT = "Uninstalled EOAT audit mode: machine and robot fields are not required."
-UNINSTALLED_MACHINE_CONTEXT_FIELDS = frozenset(
+UNINSTALLED_EOAT_STATUS_TEXT = (
+    "Bench / off-machine EOAT documentation mode (Uninstalled EOAT audit mode): "
+    "installed-cell fields are follow-up when installed."
+)
+UNINSTALLED_TEMPORARY_HIDDEN_FIELDS = frozenset(
     {
-        "Plant/Area",
         "Press/Machine #",
         "Robot Type",
         "Robot Model/Controller",
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+        "Robot Notes",
+        "Cycle Time Concern?",
+        "Scrap/Quality Concern?",
     }
 )
+UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS = frozenset({"Plant/Area"}) | UNINSTALLED_TEMPORARY_HIDDEN_FIELDS
+UNINSTALLED_MACHINE_CONTEXT_FIELDS = UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS
 
 _BLANKISH_VALUES = {
     "",
@@ -33,6 +43,13 @@ _BLANKISH_VALUES = {
     "unknown",
     "unknown / not checked",
     "not checked",
+    "not installed",
+    "eoat not installed",
+    "bench",
+    "bench audit",
+    "off machine",
+    "off-machine",
+    "uninstalled",
 }
 _MACHINE_FIELD_ALIASES = (
     "Press/Machine #",
@@ -72,6 +89,9 @@ def is_uninstalled_eoat_audit(entry: Mapping[str, Any]) -> bool:
     entry_type = normalize_identifier(entry.get(ENTRY_TYPE_FIELD)).casefold()
     if entry_type == ENTRY_TYPE_COMPATIBLE.casefold():
         return False
+    audit_context = normalize_identifier(entry.get(AUDIT_CONTEXT_FIELD)).casefold()
+    if audit_context:
+        return audit_context == AUDIT_CONTEXT_BENCH.casefold()
     return has_meaningful_identifier(tool_number_value(entry)) and is_blankish(machine_number_value(entry))
 
 
@@ -85,6 +105,8 @@ def append_uninstalled_note(notes: Any) -> str:
 
 
 __all__ = [
+    "UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS",
+    "UNINSTALLED_TEMPORARY_HIDDEN_FIELDS",
     "UNINSTALLED_EOAT_NOTE",
     "UNINSTALLED_EOAT_STATUS_TEXT",
     "UNINSTALLED_MACHINE_CONTEXT_FIELDS",

@@ -4,4 +4,6 @@ pypdf
 PySide6
 pandas
 matplotlib
+Pillow
+pillow-heif
 pytest
