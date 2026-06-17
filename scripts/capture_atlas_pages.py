@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -37,7 +38,7 @@ def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     _register_capture_font(app, QFont, QFontDatabase)
     app.setStyleSheet(atlas_stylesheet())
-    bundle = load_atlas_data(project_root, force_refresh=True)
+    bundle = _sanitize_demo_bundle(load_atlas_data(project_root, force_refresh=True), project_root)
     window = AtlasWindow(UserConfig(project_root=str(project_root)), auto_refresh=False)
     window.resize(args.width, args.height)
     window.bundle = bundle
@@ -102,6 +103,89 @@ def _first_tool(bundle) -> str:
     if bundle.eoats and bundle.eoats[0].tools:
         return f"Tool {bundle.eoats[0].tools[0]}"
     return "Tool TOOL-A"
+
+
+def _sanitize_demo_bundle(bundle, project_root: Path):
+    display_root = "examples/demo_project"
+    root_variants = {
+        str(project_root),
+        str(project_root.resolve(strict=False)),
+    }
+    root_variants |= {value.replace("\\", "/") for value in root_variants}
+
+    def clean(value):
+        if not isinstance(value, str):
+            return value
+        cleaned = value
+        for root in sorted(root_variants, key=len, reverse=True):
+            cleaned = cleaned.replace(root, display_root)
+        if display_root in cleaned:
+            cleaned = cleaned.replace("\\", "/")
+        return cleaned
+
+    def clean_warning(warning):
+        return replace(
+            warning,
+            message=clean(warning.message),
+            why_it_matters=clean(warning.why_it_matters),
+            suggested_fix=clean(warning.suggested_fix),
+        )
+
+    def clean_standard(standard):
+        return replace(standard, path=clean(standard.path), snippet=clean(standard.snippet))
+
+    def clean_photo(photo):
+        return replace(photo, path=clean(photo.path))
+
+    def clean_photo_set(photo_set):
+        return replace(
+            photo_set,
+            folder_path=clean(photo_set.folder_path),
+            photos=tuple(clean_photo(photo) for photo in photo_set.photos),
+            indexed_photos=tuple(clean_photo(photo) for photo in photo_set.indexed_photos),
+        )
+
+    def clean_eoat(eoat):
+        return replace(
+            eoat,
+            photos=clean_photo_set(eoat.photos),
+            warnings=tuple(clean_warning(warning) for warning in eoat.warnings),
+            standards=tuple(clean_standard(standard) for standard in eoat.standards),
+        )
+
+    def clean_machine(machine):
+        return replace(machine, warnings=tuple(clean_warning(warning) for warning in machine.warnings))
+
+    def clean_tool(tool):
+        return replace(tool, warnings=tuple(clean_warning(warning) for warning in tool.warnings))
+
+    indexes = replace(
+        bundle.indexes,
+        photos_by_eoat={key: tuple(clean(path) for path in paths) for key, paths in bundle.indexes.photos_by_eoat.items()},
+        photos_by_tool={key: tuple(clean(path) for path in paths) for key, paths in bundle.indexes.photos_by_tool.items()},
+        warnings_by_eoat={
+            key: tuple(clean_warning(warning) for warning in warnings)
+            for key, warnings in bundle.indexes.warnings_by_eoat.items()
+        },
+        warnings_by_machine={
+            key: tuple(clean_warning(warning) for warning in warnings)
+            for key, warnings in bundle.indexes.warnings_by_machine.items()
+        },
+    )
+    return replace(
+        bundle,
+        project_root=display_root,
+        source_statuses=tuple(
+            replace(status, path=clean(status.path), message=clean(status.message))
+            for status in bundle.source_statuses
+        ),
+        eoats=tuple(clean_eoat(eoat) for eoat in bundle.eoats),
+        machines=tuple(clean_machine(machine) for machine in bundle.machines),
+        tools=tuple(clean_tool(tool) for tool in bundle.tools),
+        standards=tuple(clean_standard(standard) for standard in bundle.standards),
+        warnings=tuple(clean_warning(warning) for warning in bundle.warnings),
+        indexes=indexes,
+    )
 
 
 def _safe_slug(value: str) -> str:

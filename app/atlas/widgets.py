@@ -255,15 +255,23 @@ def chip_group(values, *, kind: str = "info", empty: str = "-", per_row: int = 4
 
 def fill_table(table: QTableWidget, rows: list[dict[str, Any]], columns: list[str]) -> None:
     table.setSortingEnabled(False)
+    table.setAlternatingRowColors(True)
+    table.setShowGrid(False)
+    table.setCornerButtonEnabled(False)
+    table.verticalHeader().setVisible(False)
+    table.verticalHeader().setDefaultSectionSize(34)
+    table.horizontalHeader().setStretchLastSection(True)
     table.clear()
     table.setColumnCount(len(columns))
     table.setHorizontalHeaderLabels(columns)
     table.setRowCount(len(rows))
+    table.setMinimumHeight(120)
     for row_index, row in enumerate(rows):
         for column_index, column in enumerate(columns):
             item = QTableWidgetItem(str(row.get(column, "")))
             item.setData(Qt.ItemDataRole.UserRole, row)
             table.setItem(row_index, column_index, item)
+        table.setRowHeight(row_index, 34)
     table.resizeColumnsToContents()
     table.setSortingEnabled(True)
 
