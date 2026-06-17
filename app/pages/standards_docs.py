@@ -41,7 +41,7 @@ class StandardsDocsPage(AsyncRefreshMixin, QWidget):
         grid = QGridLayout()
         self.cards = add_cards(
             grid,
-            ["EOATs Scanned", "Total Gaps", "Critical Gaps", "Important Gaps", "Avg Compliance", "Standards Fails"],
+            ["EOATs Scanned", "Total Gaps", "Critical Gaps", "Important Gaps", "Avg EOAT Doc", "True Fails"],
         )
         layout.addLayout(grid)
         tables = QHBoxLayout()
@@ -51,7 +51,7 @@ class StandardsDocsPage(AsyncRefreshMixin, QWidget):
         for label, table in [
             ("Top EOATs by Gap Count", self.top_table),
             ("Top Missing Fields", self.missing_table),
-            ("Standards Compliance", self.compliance_table),
+            ("EOAT Standards Context", self.compliance_table),
         ]:
             box = QVBoxLayout()
             box.addWidget(QLabel(label))
@@ -112,22 +112,39 @@ class StandardsDocsPage(AsyncRefreshMixin, QWidget):
             counts_to_rows(summary.missing_field_counts, "Missing Field"),
             ["Missing Field", "Count"],
         )
-        self.cards["Avg Compliance"].set_value(str(compliance.metrics.get("average_compliance_score", 0)))
-        self.cards["Standards Fails"].set_value(str(compliance.metrics.get("failed_standard_count", 0)))
+        self.cards["Avg EOAT Doc"].set_value(str(compliance.metrics.get("average_compliance_score", 0)))
+        self.cards["True Fails"].set_value(str(compliance.metrics.get("true_standard_failure_count", 0)))
         populate_table(
             self.compliance_table,
             [
                 {
                     "Audit ID": audit.audit_id,
+                    "EOAT Assembly ID": audit.eoat_assembly_id,
                     "Press/Machine #": audit.machine,
-                    "Score": audit.overall_score,
-                    "Fails": len(audit.failed_standards),
-                    "Warnings": len(audit.warnings),
-                    "Unknown": len(audit.unknown_items),
+                    "Audit Context": audit.audit_context,
+                    "EOAT Doc Score": audit.eoat_documentation_score,
+                    "Install Readiness": audit.installation_readiness_score,
+                    "Installed-Cell Validation": audit.installed_cell_validation_score,
+                    "True Fails": audit.true_fail_count,
+                    "Doc Gaps": audit.documentation_gap_count,
+                    "Follow-Up": audit.follow_up_count,
+                    "Unknown": audit.unknown_count,
                 }
                 for audit in compliance.audits
             ],
-            ["Audit ID", "Press/Machine #", "Score", "Fails", "Warnings", "Unknown"],
+            [
+                "Audit ID",
+                "EOAT Assembly ID",
+                "Press/Machine #",
+                "Audit Context",
+                "EOAT Doc Score",
+                "Install Readiness",
+                "Installed-Cell Validation",
+                "True Fails",
+                "Doc Gaps",
+                "Follow-Up",
+                "Unknown",
+            ],
         )
         self.preview.show_markdown_text(summary.to_markdown() + "\n" + compliance.to_markdown())
         render_seconds = time.perf_counter() - render_started

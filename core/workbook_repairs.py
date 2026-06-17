@@ -16,14 +16,18 @@ from .audit_by_press import (
     refresh_audit_by_press_view_action,
 )
 from .audit_entries import (
+    CURRENT_WORKBOOK_SCHEMA_VERSION,
     LEGACY_VACUUM_CUPS_FIELD,
     NA_VALUE,
+    WORKBOOK_METADATA_SHEET,
     apply_part_present_sensor_defaults,
     audit_field_applies,
     repair_workbook_schema,
 )
+from .eoat_ids import assign_missing_eoat_assembly_ids_in_workbook
 from .logging import log_tool_run
 from .paths import resolve_project_paths
+from .photo_indexing import repair_photo_eoat_links
 from .result import ToolResult
 from .safe_files import backup_file
 from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
@@ -41,6 +45,8 @@ FIX_REAPPLY_FORMATTING = "reapply_formatting"
 FIX_REBUILD_DROPDOWN_VALIDATION = "rebuild_dropdown_validation"
 FIX_NORMALIZE_DROPDOWN_CASING = "normalize_dropdown_casing"
 FIX_CREATE_MISSING_REPORT_FOLDERS = "create_missing_report_folders"
+FIX_ASSIGN_MISSING_EOAT_IDS = "assign_missing_eoat_ids"
+FIX_REPAIR_PHOTO_EOAT_LINKS = "repair_photo_eoat_links"
 
 SAFE_FIX_IDS = {
     FIX_CLEAR_STALE_HIDDEN_NA,
@@ -50,6 +56,8 @@ SAFE_FIX_IDS = {
     FIX_REBUILD_DROPDOWN_VALIDATION,
     FIX_NORMALIZE_DROPDOWN_CASING,
     FIX_CREATE_MISSING_REPORT_FOLDERS,
+    FIX_ASSIGN_MISSING_EOAT_IDS,
+    FIX_REPAIR_PHOTO_EOAT_LINKS,
 }
 
 
@@ -112,6 +120,22 @@ def preview_safe_fix(project_root: str | Path, fix_id: str) -> SafeFixPreview:
         return _preview_normalize_dropdown_casing(project_root)
     if fix_id == FIX_CREATE_MISSING_REPORT_FOLDERS:
         return _preview_create_missing_report_folders(project_root)
+    if fix_id == FIX_ASSIGN_MISSING_EOAT_IDS:
+        return _generic_preview(
+            fix_id,
+            "Assign Missing EOAT IDs",
+            "Assign sequential EOAT Assembly IDs to audit rows where that field is blank.",
+            "Blank EOAT Assembly ID cells will be filled without overwriting existing IDs.",
+            project_root,
+        )
+    if fix_id == FIX_REPAIR_PHOTO_EOAT_LINKS:
+        return _generic_preview(
+            fix_id,
+            "Repair Photo EOAT Links",
+            "Infer missing Photo Index EOAT Assembly IDs where audit/tool context is unambiguous.",
+            "Only blank EOAT Assembly ID cells in Photo Index will be updated.",
+            project_root,
+        )
     if fix_id == FIX_REAPPLY_FORMATTING:
         return _generic_preview(
             fix_id,
@@ -236,6 +260,22 @@ def apply_safe_fix(
         result.summary = "Applied safe fix: refresh generated views."
         result.metrics["fix_id"] = preview.fix_id
         result.metrics["applied_change_count"] = len(preview.changes)
+        _append_workbook_repair_history(project_root, preview, result.files_modified)
+    elif preview.fix_id == FIX_ASSIGN_MISSING_EOAT_IDS:
+        result = assign_missing_eoat_assembly_ids_in_workbook(project_root, log_activity=False)
+        result.tool_id = "workbook_repair"
+        result.tool_name = "Workbook Repair"
+        result.summary = "Applied safe fix: assign missing EOAT IDs. " + result.summary
+        result.metrics["fix_id"] = preview.fix_id
+        result.metrics["applied_change_count"] = result.metrics.get("assigned_count", len(preview.changes))
+        _append_workbook_repair_history(project_root, preview, result.files_modified)
+    elif preview.fix_id == FIX_REPAIR_PHOTO_EOAT_LINKS:
+        result = repair_photo_eoat_links(project_root, log_activity=False)
+        result.tool_id = "workbook_repair"
+        result.tool_name = "Workbook Repair"
+        result.summary = "Applied safe fix: repair photo EOAT links. " + result.summary
+        result.metrics["fix_id"] = preview.fix_id
+        result.metrics["applied_change_count"] = result.metrics.get("rows_repaired", len(preview.changes))
         _append_workbook_repair_history(project_root, preview, result.files_modified)
     else:
         result = repair_workbook_schema(project_root, log_activity=False)
@@ -362,6 +402,17 @@ def _preview_repair_legacy_headers(project_root: str | Path) -> SafeFixPreview:
                     changes.append(_header_change(LEGACY_TOOL_FIELD, TOOL_FIELD))
                 if LEGACY_VACUUM_CUPS_FIELD in headers:
                     changes.append(_header_change(LEGACY_VACUUM_CUPS_FIELD, "Number of Parts Picked"))
+                schema_version = _workbook_metadata_values(workbook).get("schema_version", "")
+                if schema_version != CURRENT_WORKBOOK_SCHEMA_VERSION:
+                    changes.append(
+                        RepairChange(
+                            sheet_name=WORKBOOK_METADATA_SHEET,
+                            column_name="schema_version",
+                            current_value=schema_version or "missing",
+                            new_value=CURRENT_WORKBOOK_SCHEMA_VERSION,
+                            reason="Workbook schema metadata should match the current repair version.",
+                        )
+                    )
         except Exception as exc:
             warnings.append(f"Could not preview legacy header repair: {exc}")
         finally:
@@ -375,6 +426,18 @@ def _preview_repair_legacy_headers(project_root: str | Path) -> SafeFixPreview:
         warnings=warnings,
         can_apply=bool(changes) and not warnings,
     )
+
+
+def _workbook_metadata_values(workbook) -> dict[str, str]:
+    if WORKBOOK_METADATA_SHEET not in workbook.sheetnames:
+        return {}
+    ws = workbook[WORKBOOK_METADATA_SHEET]
+    values: dict[str, str] = {}
+    for key, value in ws.iter_rows(min_row=2, max_col=2, values_only=True):
+        key_text = str(key or "").strip()
+        if key_text:
+            values[key_text] = str(value or "").strip()
+    return values
 
 
 def _preview_refresh_generated_views(project_root: str | Path) -> SafeFixPreview:

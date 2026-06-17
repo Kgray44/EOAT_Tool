@@ -30,7 +30,7 @@ def _skip_for_light(path: Path, include_photos: bool) -> bool:
         return True
     if path.name.startswith("~$"):
         return True
-    if not include_photos and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".mov", ".mp4"}:
+    if not include_photos and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".heif", ".mov", ".mp4"}:
         return True
     if "handoff_package" in parts and not include_photos:
         return True

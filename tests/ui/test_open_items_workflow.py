@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from PySide6.QtWidgets import QDialog
+
 from app.dashboard_ui import DashboardWindow
 from app.pages.annotation_suggestions_dialog import AnnotationSuggestionsDialog
 from app.pages.audit import AuditPage
 from app.pages.open_items import OpenItemsPage
 from core.annotations.service import AnnotationService
-from core.open_items import list_open_items
+from core.open_items import OpenItem, list_open_items
 from tests.ui.helpers import wait_for_background_tasks
 
 
@@ -66,6 +68,188 @@ def test_open_items_page_filters_and_status_actions(qapp, fake_config, monkeypat
     assert selected.id not in visible_ids
     page.status_filter.setCurrentText("Dismissed / Overridden")
     assert page.table.rowCount() == 1
+
+
+def test_open_items_page_field_filter_popup_can_include_or_ignore_fields(qapp, fake_config, monkeypatch):
+    page = OpenItemsPage(fake_config)
+    page.items = [
+        OpenItem(
+            id="field-filter:sensor",
+            source="tag",
+            severity="Info",
+            category="tag",
+            title="Sensor review",
+            message="Sensor needs review",
+            field="Sensor Type",
+        ),
+        OpenItem(
+            id="field-filter:cups",
+            source="validation",
+            severity="Warning",
+            category="validation",
+            title="Cup count missing",
+            message="Cup count is blank",
+            field="# of Cups",
+        ),
+        OpenItem(
+            id="field-filter:action",
+            source="action_item",
+            severity="Info",
+            category="action_item",
+            title="General action",
+            message="No linked audit field",
+        ),
+    ]
+    page._refresh_filter_options([])
+    page.apply_filters()
+    assert page.table.rowCount() == 3
+
+    choices = iter([("include", {"Sensor Type"}), ("ignore", {"# of Cups"})])
+    captured_fields: list[set[str]] = []
+
+    class FakeFieldFilterDialog:
+        def __init__(self, fields, *, mode, selected_fields, parent=None):
+            captured_fields.append(set(fields))
+            self.mode, self.fields = next(choices)
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def selected_mode(self):
+            return self.mode
+
+        def selected_fields(self):
+            return self.fields
+
+    monkeypatch.setattr("app.pages.open_items.OpenItemsFieldFilterDialog", FakeFieldFilterDialog)
+
+    page.open_field_filter_dialog()
+    assert page.table.rowCount() == 1
+    assert page.filtered_items[0].field == "Sensor Type"
+    assert page.field_filter_button.text() == "Field Filter: Include 1"
+
+    page.open_field_filter_dialog()
+    assert page.table.rowCount() == 2
+    assert {item.id for item in page.filtered_items} == {"field-filter:sensor", "field-filter:action"}
+    assert page.field_filter_button.text() == "Field Filter: Ignore 1"
+    assert captured_fields[0] == {"Sensor Type", "# of Cups", ""}
+
+
+def test_open_items_page_permanent_filter_persists_and_updates_total(qapp, fake_config, monkeypatch):
+    items = [
+        OpenItem(
+            id="permanent-filter:sensor",
+            source="tag",
+            severity="Info",
+            category="tag",
+            title="Sensor review",
+            message="Sensor needs review",
+            field="Sensor Type",
+        ),
+        OpenItem(
+            id="permanent-filter:cups",
+            source="validation",
+            severity="Warning",
+            category="validation",
+            title="Cup count missing",
+            message="Cup count is blank",
+            field="# of Cups",
+        ),
+    ]
+
+    class FakePermanentFilterDialog:
+        def __init__(self, fields, *, selected_fields, auto_hide_low_applicability, parent=None):
+            self.fields = {"# of Cups"}
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def selected_fields(self):
+            return self.fields
+
+        def auto_hide_low_applicability(self):
+            return False
+
+    monkeypatch.setattr("app.pages.open_items.OpenItemsPermanentFieldFilterDialog", FakePermanentFilterDialog)
+
+    page = OpenItemsPage(fake_config)
+    page.items = list(items)
+    page._refresh_filter_options([])
+    page.apply_filters()
+    assert page.table.rowCount() == 2
+    assert page.summary_labels["Total Open"].text() == "2"
+
+    page.open_permanent_field_filter_dialog()
+    assert page.table.rowCount() == 1
+    assert page.filtered_items[0].field == "Sensor Type"
+    assert page.summary_labels["Total Open"].text() == "1"
+    assert page.permanent_filter_button.text() == "Permanent Filter: Exclude 1"
+
+    restarted_page = OpenItemsPage(fake_config)
+    restarted_page.items = list(items)
+    restarted_page._refresh_filter_options([])
+    restarted_page.apply_filters()
+    assert restarted_page.table.rowCount() == 1
+    assert restarted_page.filtered_items[0].field == "Sensor Type"
+    assert restarted_page.summary_labels["Total Open"].text() == "1"
+
+
+def test_open_items_page_auto_permanent_filter_uses_blank_na_stats(qapp, fake_config, monkeypatch):
+    page = OpenItemsPage(fake_config)
+    page.items = [
+        OpenItem(
+            id="auto-filter:sensor",
+            source="validation",
+            severity="Warning",
+            category="validation",
+            title="Sensor missing",
+            message="Sensor is blank",
+            field="Sensor Type",
+        ),
+        OpenItem(
+            id="auto-filter:known",
+            source="validation",
+            severity="Warning",
+            category="validation",
+            title="Known issues missing",
+            message="Known Issues is blank",
+            field="Known Issues",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "app.pages.open_items.low_applicability_open_item_fields",
+        lambda _root, _fields: {
+            "Sensor Type": {
+                "field": "Sensor Type",
+                "blank_na_count": 2,
+                "total_count": 3,
+                "blank_na_ratio": 2 / 3,
+            }
+        },
+    )
+
+    class FakePermanentFilterDialog:
+        def __init__(self, fields, *, selected_fields, auto_hide_low_applicability, parent=None):
+            self.fields = set()
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def selected_fields(self):
+            return self.fields
+
+        def auto_hide_low_applicability(self):
+            return True
+
+    monkeypatch.setattr("app.pages.open_items.OpenItemsPermanentFieldFilterDialog", FakePermanentFilterDialog)
+
+    page._refresh_filter_options([])
+    page.open_permanent_field_filter_dialog()
+
+    assert page.table.rowCount() == 1
+    assert page.filtered_items[0].field == "Known Issues"
+    assert page.summary_labels["Total Open"].text() == "1"
 
 
 def test_open_items_page_opens_audit_field_target(qapp, fake_config, fake_project):

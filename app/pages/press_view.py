@@ -42,7 +42,7 @@ from core.press_view import (
 class PressViewPage(AsyncRefreshMixin, QWidget):
     GROUP_COLUMNS = [
         "Press/Machine",
-        "Physical",
+        "EOAT Docs",
         "Compatible Assigned Here",
         "Linked Compatible Machines",
         "Family Machines",
@@ -50,12 +50,22 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         "Open Items",
         "Validation",
         "Photos",
-        "Compliance",
+        "EOAT Doc Score",
         "Worst Standard",
         "Pilot",
         "Last Updated",
     ]
-    ENTRY_COLUMNS = ["Audit ID", "Entry Type", "Tool", "EOAT Type", "Status", "Source Audit", "Known Issues"]
+    ENTRY_COLUMNS = [
+        "Audit ID",
+        "Entry Type",
+        "Tool",
+        "EOAT Assembly ID",
+        "Also Used By Tool #s",
+        "EOAT Type",
+        "Status",
+        "Source Audit",
+        "Known Issues",
+    ]
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -79,7 +89,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
 
         controls = QHBoxLayout()
         self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search press, audit ID, tool, EOAT type, issue...")
+        self.search_edit.setPlaceholderText("Search press, audit ID, tool, EOAT Assembly ID, EOAT type, issue...")
         self.search_edit.textChanged.connect(self._schedule_filter)
         self.status_filter = QComboBox()
         self.status_filter.addItems(["All"])
@@ -110,13 +120,13 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         for index, name in enumerate(
             [
                 "Press Groups",
-                "Physical Audits",
+                "EOAT Documentation Rows",
                 "Compatible Assigned Here",
                 "Links From Source",
                 "Open Items",
                 "Validation Warnings",
                 "Indexed Photos",
-                "Avg Compliance",
+                "Avg EOAT Doc",
             ]
         ):
             card = StatusCard(name)
@@ -127,7 +137,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         splitter = QSplitter()
         left = QWidget()
         left_layout = QVBoxLayout(left)
-        left_layout.addWidget(QLabel("Press / machine groups"))
+        left_layout.addWidget(QLabel("EOAT / machine relationship groups"))
         self.group_table = QTableWidget(0, len(self.GROUP_COLUMNS))
         self.group_table.setHorizontalHeaderLabels(self.GROUP_COLUMNS)
         self.group_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -139,7 +149,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
 
         right = QWidget()
         right_layout = QVBoxLayout(right)
-        right_layout.addWidget(QLabel("Physical audits"))
+        right_layout.addWidget(QLabel("EOAT documentation rows"))
         self.physical_table = QTableWidget(0, len(self.ENTRY_COLUMNS))
         self.physical_table.setHorizontalHeaderLabels(self.ENTRY_COLUMNS)
         self.physical_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -147,7 +157,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.physical_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.physical_table))
         self._apply_default_table_widths(self.physical_table)
         right_layout.addWidget(self.physical_table)
-        right_layout.addWidget(QLabel("Compatible entries assigned to this machine"))
+        right_layout.addWidget(QLabel("Compatibility rows assigned to this machine"))
         self.compatible_table = QTableWidget(0, len(self.ENTRY_COLUMNS))
         self.compatible_table.setHorizontalHeaderLabels(self.ENTRY_COLUMNS)
         self.compatible_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -155,7 +165,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self.compatible_table.itemSelectionChanged.connect(lambda: self._entry_selection_changed(self.compatible_table))
         self._apply_default_table_widths(self.compatible_table)
         right_layout.addWidget(self.compatible_table)
-        right_layout.addWidget(QLabel("Compatible entries from this machine's source audits"))
+        right_layout.addWidget(QLabel("Compatibility rows from this machine's source audits"))
         self.linked_compatible_table = QTableWidget(0, len(self.ENTRY_COLUMNS))
         self.linked_compatible_table.setHorizontalHeaderLabels(self.ENTRY_COLUMNS)
         self.linked_compatible_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -238,7 +248,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             self._populate_entry_table(self.physical_table, [])
             self._populate_entry_table(self.compatible_table, [])
             self._populate_entry_table(self.linked_compatible_table, [])
-            self.result_panel.show_text("No press/machine audit rows matched the current filters.")
+            self.result_panel.show_text("No EOAT / machine relationship rows matched the current filters.")
 
     def _schedule_filter(self, *_args) -> None:
         if self._filter_timer is None:
@@ -414,9 +424,9 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         self._populate_entry_table(self.compatible_table, group.compatible_entries)
         self._populate_entry_table(self.linked_compatible_table, group.linked_compatible_entries)
         self.result_panel.show_text(
-            f"{group.display_name}: {len(group.physical_audits)} physical audit(s), "
-            f"{_count_phrase(len(group.compatible_entries), 'compatible entry', 'compatible entries')} assigned to this machine, "
-            f"{_count_phrase(len(group.linked_compatible_entries), 'compatible machine link', 'compatible machine links')} from this machine's source audits, "
+            f"{group.display_name}: {len(group.physical_audits)} EOAT documentation row(s), "
+            f"{_count_phrase(len(group.compatible_entries), 'compatibility row', 'compatibility rows')} assigned to this machine, "
+            f"{_count_phrase(len(group.linked_compatible_entries), 'compatible machine link', 'compatible machine links')} from this machine's EOAT source audits, "
             f"{group.open_item_count} open item(s)."
         )
 
@@ -433,7 +443,7 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
             self.result_panel.show_text("Select a press/machine group first.")
             return
         self.result_panel.show_text(
-            f"Opened {group.display_name}. Use the audit tables to jump into physical, assigned compatible, or linked compatible entries."
+            f"Opened {group.display_name}. Use the tables to jump into EOAT documentation, assigned compatibility, or linked compatibility entries."
         )
 
     def export_selected_press_summary(self) -> None:
@@ -504,6 +514,8 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                     entry.audit_id,
                     entry.entry_type,
                     entry.tool,
+                    entry.eoat_assembly_id,
+                    entry.also_used_tools,
                     entry.eoat_type,
                     entry.status,
                     entry.source_audit_id,
@@ -547,13 +559,13 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
         compliance_scores = [group.average_compliance_score for group in self.groups if group.average_compliance_score]
         values = {
             "Press Groups": len(self.groups),
-            "Physical Audits": physical,
+            "EOAT Documentation Rows": physical,
             "Compatible Assigned Here": compatible,
             "Links From Source": linked_compatible,
             "Open Items": open_items,
             "Validation Warnings": validation,
             "Indexed Photos": photos,
-            "Avg Compliance": round(sum(compliance_scores) / len(compliance_scores)) if compliance_scores else 0,
+            "Avg EOAT Doc": round(sum(compliance_scores) / len(compliance_scores)) if compliance_scores else 0,
         }
         for key, value in values.items():
             self.cards[key].set_value(str(value))
@@ -570,7 +582,17 @@ class PressViewPage(AsyncRefreshMixin, QWidget):
                 " ".join(group.tools),
                 group.pilot_candidacy,
                 " ".join(
-                    entry.audit_id + " " + entry.status + " " + entry.eoat_type + " " + entry.known_issues
+                    entry.audit_id
+                    + " "
+                    + entry.status
+                    + " "
+                    + entry.eoat_type
+                    + " "
+                    + entry.known_issues
+                    + " "
+                    + entry.eoat_assembly_id
+                    + " "
+                    + entry.also_used_tools
                     for entry in PressViewPage._filter_entries(group)
                 ),
             ]

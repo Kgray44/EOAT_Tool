@@ -5,6 +5,7 @@ from openpyxl import load_workbook
 from PySide6.QtWidgets import QComboBox, QGroupBox, QLabel, QLineEdit, QTextEdit
 
 from app.pages.audit import AuditPage, ExistingAuditSelection, ExistingMachineAuditsDialog
+from core.audit.uninstalled import UNINSTALLED_TEMPORARY_HIDDEN_FIELDS
 from core.audit_compatibility import find_existing_audits_for_machine
 from core.audit_constants import (
     COMPATIBILITY_SOURCE_FIELD,
@@ -17,6 +18,7 @@ from core.audit_constants import (
     MANUAL_COMPLETION_OVERRIDE_FIELDS,
     SOURCE_AUDIT_ID_FIELD,
 )
+from core.eoat_ids import EOAT_ASSEMBLY_ID_FIELD
 from core.paths import resolve_project_paths
 from core.robot_info import upsert_robot_info_from_audit
 from core.tool_fields import LEGACY_TOOL_FIELD
@@ -94,6 +96,13 @@ def _wait_for_tool_lookup(page: AuditPage) -> None:
     wait_for_background_tasks()
 
 
+def _assert_uninstalled_context_fields_hidden(page: AuditPage, hidden: bool) -> None:
+    for field in UNINSTALLED_TEMPORARY_HIDDEN_FIELDS:
+        assert page.audit_fields[field].isHidden() is hidden
+        assert page._audit_field_labels[field].isHidden() is hidden
+        assert page._audit_field_rows[field].isHidden() is hidden
+
+
 def _append_inventory_row(project_root, values: dict[str, str]) -> None:
     workbook_path = resolve_project_paths(project_root).master_workbook
     workbook = load_workbook(workbook_path)
@@ -159,7 +168,14 @@ def test_audit_page_does_not_show_reference_spreadsheet_fields(qapp, fake_config
     page = AuditPage(fake_config)
 
     assert REFERENCE_ONLY_FIELDS.isdisjoint(page.audit_fields)
-    workflow_metadata = {"Entry Type", "Source Audit ID", "Compatibility Source", *MANUAL_COMPLETION_OVERRIDE_FIELDS}
+    workflow_metadata = {
+        "Entry Type",
+        "Source Audit ID",
+        "Compatibility Source",
+        "Physical Audit Verified",
+        "Compatibility Confidence",
+        *MANUAL_COMPLETION_OVERRIDE_FIELDS,
+    }
     assert (set(get_expected_headers("EOAT Inventory")) - workflow_metadata).issubset(page.audit_fields)
     assert {
         "Tool #",
@@ -427,12 +443,19 @@ def test_ui_lookup_runs_on_editing_finished_and_fills_clean_fields(qapp, fake_co
     assert "Robot and part info filled" in page.lookup_note_label.text()
 
 
-def test_uninstalled_tool_lookup_fills_tool_details_without_machine_fields(qapp, fake_config, fake_project):
+def test_uninstalled_tool_lookup_fills_tool_details_without_machine_fields(qapp, fake_config, fake_project, monkeypatch):
     page = AuditPage(fake_config)
+    monkeypatch.setattr(
+        page,
+        "_choose_existing_tool_audit_action",
+        lambda _tool, _matches: ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_START_NEW),
+    )
 
     page.audit_fields["Tool #"].setText("TOOL-A")
     _finish_tool_lookup(page)
 
+    _assert_uninstalled_context_fields_hidden(page, True)
+    assert page.audit_fields["Plant/Area"].isHidden() is False
     assert page.audit_fields["Press/Machine #"].text() == ""
     assert page.audit_fields["Robot Type"].currentText() == ""
     assert page.audit_fields["Robot Model/Controller"].text() == ""
@@ -441,9 +464,18 @@ def test_uninstalled_tool_lookup_fills_tool_details_without_machine_fields(qapp,
     assert page.audit_fields["EOAT Type"].currentText() == "Vacuum"
     assert "Uninstalled EOAT audit mode" in page.lookup_note_label.text()
 
+    page.audit_fields["Tool #"].setText("")
 
-def test_tool_text_change_starts_live_uninstalled_lookup(qapp, fake_config, fake_project):
+    _assert_uninstalled_context_fields_hidden(page, False)
+
+
+def test_tool_text_change_starts_live_uninstalled_lookup(qapp, fake_config, fake_project, monkeypatch):
     page = AuditPage(fake_config)
+    monkeypatch.setattr(
+        page,
+        "_choose_existing_tool_audit_action",
+        lambda _tool, _matches: ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_START_NEW),
+    )
 
     page.audit_fields["Tool #"].setText("TOOL-A")
     _wait_for_tool_lookup(page)
@@ -458,6 +490,99 @@ def test_tool_text_change_starts_live_uninstalled_lookup(qapp, fake_config, fake
     assert "Press/Machine #" not in summary.missing_required_fields
     assert "Robot Type" not in summary.missing_required_fields
     assert "Robot Model/Controller" not in summary.missing_required_fields
+    assert "Robot Vacuum Circuits" not in summary.missing_fields
+    assert "Robot Pressure Circuits" not in summary.missing_fields
+    assert "Robot Interchangeable Circuits" not in summary.missing_fields
+
+
+def test_tool_lookup_existing_audit_prompt_continue_loads_eoat_id(qapp, fake_config, fake_project, monkeypatch):
+    _append_inventory_row(
+        fake_project,
+        _machine_audit_row(
+            "AUD-TOOL-CONTINUE",
+            "71",
+            ENTRY_TYPE_AUDITED,
+            **{"Tool #": "TOOL-CONTINUE", EOAT_ASSEMBLY_ID_FIELD: "P4-EOAT-0071"},
+        ),
+    )
+    page = AuditPage(fake_config)
+    dialog_calls = []
+
+    def choose(tool_number: str, matches):
+        dialog_calls.append((tool_number, [match.audit_id for match in matches]))
+        return ExistingAuditSelection(
+            ExistingMachineAuditsDialog.ACTION_CONTINUE,
+            "AUD-TOOL-CONTINUE",
+        )
+
+    monkeypatch.setattr(page, "_choose_existing_tool_audit_action", choose)
+
+    page.audit_fields["Tool #"].setText("TOOL-CONTINUE")
+    _finish_tool_lookup(page)
+
+    assert dialog_calls == [("TOOL-CONTINUE", ["AUD-TOOL-CONTINUE"])]
+    assert page._current_loaded_audit_id == "AUD-TOOL-CONTINUE"
+    assert page.audit_fields["Audit ID"].text() == "AUD-TOOL-CONTINUE"
+    assert page.audit_fields[EOAT_ASSEMBLY_ID_FIELD].currentText() == "P4-EOAT-0071"
+
+
+def test_tool_lookup_start_new_keeps_tool_and_eoat_without_old_observations(
+    qapp, fake_config, fake_project, monkeypatch
+):
+    _append_inventory_row(
+        fake_project,
+        _machine_audit_row(
+            "AUD-TOOL-START-NEW",
+            "72",
+            ENTRY_TYPE_AUDITED,
+            **{
+                "Tool #": "TOOL-START-NEW",
+                EOAT_ASSEMBLY_ID_FIELD: "P4-EOAT-0072",
+                "Part Family": "Tool family 72",
+                "Part Name/Description": "Tool description 72",
+                "Known Issues": "Old issue should not copy.",
+                "Notes": "Old note should not copy.",
+            },
+        ),
+    )
+    page = AuditPage(fake_config)
+    original_audit_id = page.audit_fields["Audit ID"].text()
+
+    monkeypatch.setattr(
+        page,
+        "_choose_existing_tool_audit_action",
+        lambda _tool, _matches: ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_START_NEW),
+    )
+
+    page.audit_fields["Tool #"].setText("TOOL-START-NEW")
+    _finish_tool_lookup(page)
+
+    assert page._current_audit_mode == "new"
+    assert page._current_loaded_audit_id is None
+    assert page.audit_fields["Audit ID"].text() != "AUD-TOOL-START-NEW"
+    assert page.audit_fields["Audit ID"].text() != original_audit_id
+    assert page.audit_fields["Tool #"].text() == "TOOL-START-NEW"
+    assert page.audit_fields[EOAT_ASSEMBLY_ID_FIELD].currentText() == "P4-EOAT-0072"
+    assert page.audit_fields["Part Family"].text() == "Tool family 72"
+    assert page.audit_fields["Part Name/Description"].toPlainText() == "Tool description 72"
+    assert page.audit_fields["Known Issues"].toPlainText() != "Old issue should not copy."
+    assert page.audit_fields["Notes"].toPlainText() == ""
+
+
+def test_tool_text_change_shows_partial_matches_when_machine_is_empty(qapp, fake_config, fake_project):
+    create_press_reference_workbooks(fake_project / "reference-data", multiple_capacity_rows=True)
+    page = AuditPage(fake_config)
+
+    page.audit_fields["Tool #"].setText("120")
+    _wait_for_tool_lookup(page)
+
+    note = page.lookup_note_label.text()
+    assert "2 matching Tool # values" in note
+    assert "DEMO-PN-1200" in note
+    assert "DEMO-PN-1201" in note
+    assert page.audit_fields["Tool #"].text() == "120"
+    assert page.audit_fields["Part Family"].text() == ""
+    assert page._tool_lookup_completer_model.stringList() == ["DEMO-PN-1200", "DEMO-PN-1201"]
 
 
 def test_uninstalled_tool_lookup_uses_reference_part_number_alias(qapp, fake_config, fake_project):
@@ -487,9 +612,14 @@ def test_unknown_uninstalled_tool_warns_and_allows_manual_entry(qapp, fake_confi
 
 
 def test_uninstalled_tool_ui_save_appends_note_once_and_skips_compatibility(
-    qapp, fake_config, fake_project, frozen_project_date
+    qapp, fake_config, fake_project, frozen_project_date, monkeypatch
 ):
     page = AuditPage(fake_config)
+    monkeypatch.setattr(
+        page,
+        "_choose_existing_tool_audit_action",
+        lambda _tool, _matches: ExistingAuditSelection(ExistingMachineAuditsDialog.ACTION_START_NEW),
+    )
 
     page.audit_fields["Tool #"].setText("TOOL-A")
     _wait_for_tool_lookup(page)

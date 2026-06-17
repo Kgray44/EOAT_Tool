@@ -10,10 +10,18 @@ from urllib.parse import unquote, urlparse
 from openpyxl import load_workbook
 
 from .audit.relationships import is_compatibility_row, is_physical_audit_row, source_audit_for_compatibility_row
-from .audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
+from .audit.uninstalled import UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from .audit_by_press import AUDIT_BY_PRESS_SHEET, audit_by_press_last_refreshed
 from .audit_constants import (
+    AUDIT_CONTEXT_BENCH,
+    AUDIT_CONTEXT_COMPATIBILITY,
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_HISTORICAL,
+    AUDIT_CONTEXT_INSTALLED,
+    AUDIT_CONTEXT_NEEDS_REVIEW,
+    AUDIT_CONTEXT_VALUES,
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
+    COMPATIBILITY_CONFIDENCE_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
@@ -21,20 +29,24 @@ from .audit_constants import (
     ENTRY_TYPE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELDS,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
+from .audit_context import infer_audit_context
 from .audit_entries import (
     AUDIT_IMPORTANT_FIELDS,
     AUDIT_REQUIRED_FIELDS,
     CLEANROOM_DROPDOWN_VALUES,
     CONNECTION_TYPE_FIELD,
     CONNECTION_TYPE_VALUES,
+    CURRENT_WORKBOOK_SCHEMA_VERSION,
     EOAT_MOVES_FIELD,
     EOAT_MOVES_VALUES,
     EOAT_TYPE_DROPDOWN_VALUES,
     LEGACY_VACUUM_CUPS_FIELD,
     NA_VALUE,
     NUMBER_OF_PARTS_PICKED_FIELD,
+    WORKBOOK_METADATA_SHEET,
     apply_part_present_sensor_defaults,
     audit_field_applies,
     is_na_value,
@@ -50,6 +62,7 @@ from .audit_field_rules import (
 )
 from .compatibility_health import validate_compatibility_health
 from .constants import TOOLKIT_ROOT
+from .eoat_ids import EOAT_ASSEMBLY_ID_FIELD, is_valid_eoat_assembly_id, normalize_eoat_assembly_id
 from .git_activity import is_git_repo
 from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 from .logging import log_tool_run
@@ -75,6 +88,7 @@ MAJOR_AUDIT_COLUMNS = {
     "Audit Date",
     "Auditor",
     "Plant/Area",
+    AUDIT_CONTEXT_FIELD,
     "Press/Machine #",
     "Tool #",
     "EOAT Type",
@@ -95,14 +109,26 @@ AUDIT_DROPDOWN_ALLOWED_VALUES = {
     GRIPPER_TYPE_FIELD: {*GRIPPER_TYPE_VALUES, NA_VALUE},
     "Cleanroom/Non-Cleanroom": {*CLEANROOM_DROPDOWN_VALUES, NA_VALUE},
     MANUAL_COMPLETION_OVERRIDE_FIELD: {"Yes", "No", NA_VALUE},
+    AUDIT_CONTEXT_FIELD: {*AUDIT_CONTEXT_VALUES, NA_VALUE},
+    PHYSICAL_AUDIT_VERIFIED_FIELD: {"Yes", "No", NA_VALUE},
+    COMPATIBILITY_CONFIDENCE_FIELD: {
+        "Press Capacity",
+        "Manual",
+        "Existing EOAT",
+        "Imported",
+        "Needs review",
+        NA_VALUE,
+    },
 }
 AUDIT_NUMERIC_FIELDS = {NUMBER_OF_PARTS_PICKED_FIELD, CYLINDER_COUNT_FIELD, CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD}
 
-BLANK_CELL_VALIDATION_IGNORED_FIELDS = AUTOFILLED_COMPATIBILITY_METADATA_FIELDS | frozenset(
-    MANUAL_COMPLETION_OVERRIDE_FIELDS
+BLANK_CELL_VALIDATION_IGNORED_FIELDS = (
+    AUTOFILLED_COMPATIBILITY_METADATA_FIELDS
+    | frozenset(MANUAL_COMPLETION_OVERRIDE_FIELDS)
+    | frozenset({PHYSICAL_AUDIT_VERIFIED_FIELD, COMPATIBILITY_CONFIDENCE_FIELD})
 )
 BLANK_CELL_VALIDATION_IGNORED_FIELD_LABEL = (
-    "Source Audit ID, Compatibility Source, and manual completion override metadata"
+    "compatibility/source metadata, physical audit verification metadata, and manual completion override metadata"
 )
 
 FIX_CLEAR_STALE_HIDDEN_NA = "clear_stale_hidden_na"
@@ -244,8 +270,8 @@ def validate_project_foundation(
     missing_sheets = [sheet for sheet in expected_sheets if sheet not in workbook.sheetnames]
     metrics["expected_sheet_count"] = len(expected_sheets)
     metrics["actual_sheet_count"] = len(workbook.sheetnames)
-    expected_schema_version = str(load_workbook_schema().get("version") or SCHEMA_VERSION_UNKNOWN)
-    workbook_schema_version = str(getattr(workbook.properties, "version", "") or "").strip() or SCHEMA_VERSION_UNKNOWN
+    expected_schema_version = str(load_workbook_schema().get("version") or CURRENT_WORKBOOK_SCHEMA_VERSION)
+    workbook_schema_version = _workbook_schema_version(workbook)
     metrics["expected_workbook_schema_version"] = expected_schema_version
     metrics["workbook_schema_version"] = workbook_schema_version
     if workbook_schema_version == SCHEMA_VERSION_UNKNOWN:
@@ -652,7 +678,14 @@ def _validate_inventory_rows(
         "invalid_dropdown_value_count": 0,
         "dropdown_casing_fixable_count": 0,
         "invalid_numeric_value_count": 0,
+        "missing_eoat_assembly_id_count": 0,
+        "invalid_eoat_assembly_id_count": 0,
         "audit_row_count": 0,
+        "installed_audit_context_count": 0,
+        "bench_audit_context_count": 0,
+        "compatibility_audit_context_count": 0,
+        "historical_audit_context_count": 0,
+        "needs_review_audit_context_count": 0,
     }
     if not headers:
         return warnings, metrics, findings
@@ -670,6 +703,8 @@ def _validate_inventory_rows(
     invalid_dropdown_examples: list[str] = []
     dropdown_casing_examples: list[str] = []
     invalid_numeric_examples: list[str] = []
+    missing_eoat_id_examples: list[str] = []
+    invalid_eoat_id_examples: list[str] = []
     missing_eoat_moves_examples: list[str] = []
     duplicate_physical_examples: list[str] = []
     compatibility_warning_examples: list[str] = []
@@ -715,6 +750,17 @@ def _validate_inventory_rows(
         if not _is_audit_data_row(row_data):
             continue
         row_data = apply_part_present_sensor_defaults(row_data)
+        audit_context = infer_audit_context(row_data)
+        if audit_context == AUDIT_CONTEXT_INSTALLED:
+            metrics["installed_audit_context_count"] += 1
+        elif audit_context == AUDIT_CONTEXT_BENCH:
+            metrics["bench_audit_context_count"] += 1
+        elif audit_context == AUDIT_CONTEXT_COMPATIBILITY:
+            metrics["compatibility_audit_context_count"] += 1
+        elif audit_context == AUDIT_CONTEXT_HISTORICAL:
+            metrics["historical_audit_context_count"] += 1
+        elif audit_context == AUDIT_CONTEXT_NEEDS_REVIEW:
+            metrics["needs_review_audit_context_count"] += 1
         truth_row = dict(row_data)
         truth_row["_row_index"] = row_number
         inventory_rows_for_truth.append(truth_row)
@@ -748,6 +794,49 @@ def _validate_inventory_rows(
                 audit_ids[audit_id] = row_number
         elif "Audit ID" in headers:
             add_major_na(row_number, "Audit ID", row_data)
+
+        if EOAT_ASSEMBLY_ID_FIELD in header_positions:
+            eoat_id = normalize_eoat_assembly_id(row_data.get(EOAT_ASSEMBLY_ID_FIELD))
+            if not eoat_id:
+                metrics["missing_eoat_assembly_id_count"] += 1
+                missing_eoat_id_examples.append(f"row {row_number}")
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.AUTO_FIXABLE,
+                        "eoat_identity",
+                        f"Missing EOAT Assembly ID on EOAT Inventory row {row_number}.",
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=EOAT_ASSEMBLY_ID_FIELD,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=row_data.get(EOAT_ASSEMBLY_ID_FIELD),
+                        expected_behavior="EOAT Assembly ID identifies the physical EOAT; old blank rows can be assigned safely.",
+                        recommended_action="Run Assign Missing EOAT IDs.",
+                        fix_available=True,
+                        fix_id="assign_missing_eoat_ids",
+                        source_validator="inventory_rows",
+                    )
+                )
+            elif not is_valid_eoat_assembly_id(eoat_id):
+                metrics["invalid_eoat_assembly_id_count"] += 1
+                invalid_eoat_id_examples.append(f"row {row_number} {eoat_id}")
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "eoat_identity",
+                        f"Invalid EOAT Assembly ID format on EOAT Inventory row {row_number}: {eoat_id}.",
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=EOAT_ASSEMBLY_ID_FIELD,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=eoat_id,
+                        expected_behavior="EOAT Assembly ID should use format P4-EOAT-0001.",
+                        recommended_action="Correct the EOAT Assembly ID after confirming the physical EOAT.",
+                        source_validator="inventory_rows",
+                    )
+                )
 
         if is_physical_audit_row(row_data):
             source_id = _cell_text(row_data.get(SOURCE_AUDIT_ID_FIELD))
@@ -884,7 +973,7 @@ def _validate_inventory_rows(
         for required_field in requirements["required"]:
             if required_field in BLANK_CELL_VALIDATION_IGNORED_FIELDS:
                 continue
-            if uninstalled_audit and required_field in UNINSTALLED_MACHINE_CONTEXT_FIELDS:
+            if uninstalled_audit and required_field in UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS:
                 continue
             if (
                 required_field in header_positions
@@ -910,7 +999,7 @@ def _validate_inventory_rows(
                 applies = False
             if (
                 header in MAJOR_AUDIT_COLUMNS
-                and not (uninstalled_audit and header in UNINSTALLED_MACHINE_CONTEXT_FIELDS)
+                and not (uninstalled_audit and header in UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS)
                 and (header != CUP_COUNT_FIELD or header in requirements["important"])
                 and _is_missing_audit_value(value)
                 and applies
@@ -1108,6 +1197,8 @@ def _validate_inventory_rows(
     metrics["dropdown_casing_fixable_count"] = len(dropdown_casing_examples)
     metrics["invalid_numeric_value_count"] = len(invalid_numeric_examples)
     metrics["missing_eoat_moves_count"] = len(missing_eoat_moves_examples)
+    metrics["missing_eoat_assembly_id_count"] = len(missing_eoat_id_examples)
+    metrics["invalid_eoat_assembly_id_count"] = len(invalid_eoat_id_examples)
 
     if duplicate_ids:
         warnings.append(f"Duplicate Audit ID value(s): {', '.join(sorted(duplicate_ids))}")
@@ -1147,6 +1238,15 @@ def _validate_inventory_rows(
         warnings.append(
             f"{len(invalid_dropdown_examples)} invalid EOAT Inventory dropdown value(s): {', '.join(invalid_dropdown_examples[:5])}"
         )
+    if missing_eoat_id_examples:
+        warnings.append(
+            f"{len(missing_eoat_id_examples)} EOAT Inventory row(s) are missing EOAT Assembly ID. "
+            "Run Assign Missing EOAT IDs when ready."
+        )
+    if invalid_eoat_id_examples:
+        warnings.append(
+            f"{len(invalid_eoat_id_examples)} invalid EOAT Assembly ID value(s): {', '.join(invalid_eoat_id_examples[:5])}"
+        )
     if dropdown_casing_examples:
         warnings.append(
             f"{len(dropdown_casing_examples)} dropdown value(s) can be safely normalized by casing: {', '.join(dropdown_casing_examples[:5])}"
@@ -1183,6 +1283,25 @@ def _inventory_identity_sets(ws, headers: list[str]) -> tuple[set[str], set[str]
         if machine and not is_na_value(machine):
             machines.add(machine.casefold())
     return audit_ids, machines
+
+
+def _workbook_schema_version(workbook) -> str:
+    metadata_version = _workbook_metadata_values(workbook).get("schema_version", "")
+    if metadata_version:
+        return metadata_version
+    return str(getattr(workbook.properties, "version", "") or "").strip() or SCHEMA_VERSION_UNKNOWN
+
+
+def _workbook_metadata_values(workbook) -> dict[str, str]:
+    if WORKBOOK_METADATA_SHEET not in workbook.sheetnames:
+        return {}
+    ws = workbook[WORKBOOK_METADATA_SHEET]
+    values: dict[str, str] = {}
+    for key, value in ws.iter_rows(min_row=2, max_col=2, values_only=True):
+        key_text = _cell_text(key)
+        if key_text:
+            values[key_text] = _cell_text(value)
+    return values
 
 
 def _validate_orphan_local_references(

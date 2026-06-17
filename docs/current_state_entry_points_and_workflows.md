@@ -275,8 +275,8 @@ Final Handoff page:
 Current photo workflow:
 
 1. Photos page lists files in the incoming photo folder.
-2. User selects a category and action.
-3. `core.photo_indexing` copies or moves supported image files to categorized folders.
+2. User selects a tool, photo type, and action.
+3. `core.photo_indexing` copies or moves supported image files into the matching tool/photo-type folder, creating only that destination folder when needed.
 4. Photo Index workbook rows are written.
 
 Current limitation: photo evidence coverage by audit/category is not implemented yet. That belongs to Phase 9.

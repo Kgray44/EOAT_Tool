@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from .audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, is_uninstalled_eoat_audit
 from .audit_constants import (
+    AUDIT_CONTEXT_FIELD,
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
+    COMPATIBILITY_CONFIDENCE_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_DEFAULT,
@@ -14,8 +15,11 @@ from .audit_constants import (
     ENTRY_TYPE_FIELD,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
+from .audit_context import MACHINE_CONTEXT_FIELDS, infer_audit_context, is_bench_audit_context
+from .eoat_ids import EOAT_ASSEMBLY_ID_FIELD
 from .gripper_fields import (
     CUP_COUNT_FIELD,
     GRIPPER_COUNT_FIELD,
@@ -57,6 +61,10 @@ SENSOR_DETAIL_FIELDS = {
 ELECTRICAL_WIRING_PRESENT_FIELD = "Electrical/Wiring Present?"
 ELECTRICAL_DETAIL_FIELDS = {"Electrical Quick Disconnect Type", "Cable Management Condition"}
 QUICK_DISCONNECT_DETAIL_FIELDS = {"Pneumatic Quick Disconnect Type", "Electrical Quick Disconnect Type"}
+SPECIALTY_GRIPPER_MODEL_ALLOWLIST = {
+    "AUD-20260604-PD816AC073A": {"silicone od"},
+    "AUD-20260604-007": {"silicone od"},
+}
 
 FIELD_GROUPS = {
     "Audit ID": "header",
@@ -66,6 +74,7 @@ FIELD_GROUPS = {
     "Plant/Area": "machine_context",
     "Press/Machine #": "machine_context",
     TOOL_FIELD: "machine_context",
+    EOAT_ASSEMBLY_ID_FIELD: "machine_context",
     "Robot Type": "machine_context",
     "Robot Model/Controller": "machine_context",
     "Part Family": "machine_context",
@@ -123,8 +132,11 @@ FIELD_GROUPS = {
     "Priority": "pilot",
     "Pilot Candidate?": "pilot",
     "Follow-Up Needed": "pilot",
+    AUDIT_CONTEXT_FIELD: "audit_context",
     SOURCE_AUDIT_ID_FIELD: "compatibility",
     COMPATIBILITY_SOURCE_FIELD: "compatibility",
+    PHYSICAL_AUDIT_VERIFIED_FIELD: "compatibility",
+    COMPATIBILITY_CONFIDENCE_FIELD: "compatibility",
     "Notes": "notes",
 }
 
@@ -183,7 +195,15 @@ def is_meaningful_value(value: Any) -> bool:
     return (
         bool(text)
         and not is_na_value(text)
-        and text.casefold() not in {"unknown / not checked", "unknown", "not checked"}
+        and text.casefold()
+        not in {
+            "unknown / not checked",
+            "unknown",
+            "not checked",
+            "not observable",
+            "follow-up required",
+            "follow up required",
+        }
     )
 
 
@@ -350,7 +370,11 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
         warnings.append("Mechanical / Gripper EOAT has meaningful vacuum-side field values.")
     if eoat_type == EOAT_TYPE_VACUUM and _any_meaningful(entry, GRIPPER_TOOLING_FIELDS):
         warnings.append("Vacuum EOAT has meaningful gripper/mechanical-side field values.")
-    if gripper_model and any(material in gripper_model for material in MATERIAL_LIKE_VALUES):
+    if (
+        gripper_model
+        and any(material in gripper_model for material in MATERIAL_LIKE_VALUES)
+        and not _allowed_specialty_gripper_model(entry, gripper_model)
+    ):
         warnings.append(
             "Gripper Model appears to contain a material value; check whether it belongs in Cup Type/Material."
         )
@@ -367,6 +391,11 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
     return warnings
 
 
+def _allowed_specialty_gripper_model(entry: dict[str, Any], gripper_model: str) -> bool:
+    audit_id = normalize_text(entry.get("Audit ID"))
+    return gripper_model in SPECIALTY_GRIPPER_MODEL_ALLOWLIST.get(audit_id, set())
+
+
 def entry_type_requirements(entry: dict[str, Any]) -> dict[str, list[str]]:
     if _entry_type(entry) == ENTRY_TYPE_COMPATIBLE.casefold():
         required = [
@@ -376,10 +405,11 @@ def entry_type_requirements(entry: dict[str, Any]) -> dict[str, list[str]]:
         ]
         return {
             "entry_type": ENTRY_TYPE_COMPATIBLE,
+            "audit_context": infer_audit_context(entry),
             "required": required,
             "important": [field for field in IMPORTANT_FIELDS if important_field_applies(entry, field)],
         }
-    ignored_fields = UNINSTALLED_MACHINE_CONTEXT_FIELDS if is_uninstalled_eoat_audit(entry) else frozenset()
+    ignored_fields = MACHINE_CONTEXT_FIELDS if is_bench_audit_context(entry) else frozenset()
     required = [
         field
         for field in AUDITED_REQUIRED_FIELDS
@@ -387,6 +417,7 @@ def entry_type_requirements(entry: dict[str, Any]) -> dict[str, list[str]]:
     ]
     return {
         "entry_type": ENTRY_TYPE_AUDITED,
+        "audit_context": infer_audit_context(entry),
         "required": required,
         "important": [
             field for field in IMPORTANT_FIELDS if field not in ignored_fields and important_field_applies(entry, field)

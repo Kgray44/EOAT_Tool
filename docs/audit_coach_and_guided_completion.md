@@ -66,7 +66,7 @@ Restricted numeric-count fields are not overwritten with `Unknown / Not Checked`
 
 ## Uninstalled EOAT Audits
 
-The audit form infers uninstalled EOAT audit mode when `Tool #` is filled and `Press/Machine #` is blank. In that mode, the shared completion and validation rules ignore `Plant/Area`, `Press/Machine #`, `Robot Type`, and `Robot Model/Controller` so a bench audit is not penalized for missing machine context.
+The audit form infers uninstalled EOAT audit mode when `Tool #` is filled and `Press/Machine #` is blank. In that mode, the form temporarily hides `Press/Machine #`, `Robot Type`, `Robot Model/Controller`, `Robot Vacuum Circuits`, `Robot Pressure Circuits`, `Robot Interchangeable Circuits`, `Robot Notes`, `Cycle Time Concern?`, and `Scrap/Quality Concern?`; the shared completion and validation rules ignore those fields plus `Plant/Area` so a bench audit is not penalized for missing machine, robot-side, or press-run context.
 
 Entering `Tool #` without a machine number looks up the tool in the EOAT Inventory workbook and fills safe tool-owned fields such as `Part Family`, `Part Name/Description`, `EOAT Type`, tooling details, sensor details, and documentation fields when those values are available. Machine, robot, current assignment, status, priority, photo, and compatibility metadata fields are not copied by the tool lookup.
 

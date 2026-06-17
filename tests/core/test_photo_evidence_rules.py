@@ -151,7 +151,13 @@ def test_intake_preview_does_not_modify_files(usability_fake_project):
     photos = list_incoming_photos(usability_fake_project)
 
     plan = preview_photo_intake(
-        usability_fake_project, [photos[0]], "Molding", "Press 101", "2026-05-19", "Sensor Mounting"
+        usability_fake_project,
+        [photos[0]],
+        "Molding",
+        "Press 101",
+        "2026-05-19",
+        "Sensors",
+        tool_number="TOOL-A",
     )
 
     assert plan
@@ -171,6 +177,7 @@ def test_confirmed_intake_updates_index_safely(usability_fake_project):
         "Press 101",
         "2026-05-19",
         "Cylinders",
+        tool_number="TOOL-A",
         related_audit_id="AUD-20260518-001",
         description="Synthetic cylinder evidence.",
         notes="Linked audit field: # of Cylinders",

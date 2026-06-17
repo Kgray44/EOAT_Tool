@@ -59,6 +59,7 @@ def test_fake_user_day2_workflow_end_to_end(
         "Auditor": "End to End Tester",
         "Plant/Area": "Plant 4",
         "Press/Machine #": "Press 106",
+        "Tool #": "TOOL-E2E",
         "Robot Type": "Wittmann R9",
         "Part Family": "Part family E2E",
         "EOAT Type": "Vacuum",
@@ -84,12 +85,12 @@ def test_fake_user_day2_workflow_end_to_end(
     window._show_page("photos")
     photos = window.pages["photos"]
     photos.incoming_list.item(0).setSelected(True)
-    photos.plant_edit.setText("Molding")
-    photos.press_edit.setText("Press 106")
+    photos.plant_combo.setCurrentText("Cleanroom")
     photos.date_edit.setText("2026-05-19")
-    photos.view_combo.setCurrentText("Overall")
+    photos.view_combo.setCurrentText("Front View")
     photos.audit_id_edit.setText(audit_id)
-    click_button(photos, "Confirm Intake")
+    photos.refresh_audit_context()
+    click_button(photos, "Save Photos to EOAT Folder")
     wait_for_background_tasks(timeout_ms=30000)
 
     for page_key, button_label in [

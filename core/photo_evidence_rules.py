@@ -205,13 +205,13 @@ def _text(value: Any) -> str:
 PHOTO_EVIDENCE_RULES: tuple[PhotoEvidenceRule, ...] = (
     PhotoEvidenceRule(
         "overall_eoat",
-        "Overall EOAT",
-        "OverallEOAT",
+        "Front View",
+        "FrontView",
         applies=_any_physical,
         required=_complete_or_pilot,
         recommended=_any_physical,
-        help_text="Overall context photo for the complete EOAT assembly.",
-        aliases=("overall", "overall eoat", "eoat overall"),
+        help_text="Front context photo for the complete EOAT assembly.",
+        aliases=("front view", "frontview", "front", "overall", "overall eoat", "eoat overall"),
         linked_fields=("EOAT Type", "Status"),
     ),
     PhotoEvidenceRule(

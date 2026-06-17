@@ -35,6 +35,7 @@ def get_key_inventory_headers() -> list[str]:
         "Plant/Area",
         "Press/Machine #",
         "Tool #",
+        "EOAT Assembly ID",
         "Robot Type",
         "EOAT Type",
         "# of Cylinders",
@@ -48,6 +49,7 @@ def get_key_inventory_headers() -> list[str]:
         "Status",
         "Priority",
         "Pilot Candidate?",
+        "Audit Context",
         "Manual Completion Override",
         "Notes",
     ]

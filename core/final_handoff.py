@@ -144,7 +144,7 @@ def collect_handoff_sources(
         photos = [
             path
             for path in paths.cell_photos.rglob("*")
-            if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic"}
+            if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png", ".heic", ".heif"}
         ]
         sources["photos_evidence"].extend(sorted(photos, key=lambda path: path.stat().st_mtime, reverse=True)[:100])
     return sources

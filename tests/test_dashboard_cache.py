@@ -12,7 +12,7 @@ from core.dashboard_cache import (
 
 
 def test_dashboard_cache_round_trip(fake_project):
-    snapshot = {"cards": {"EOATs Audited": "2"}, "recommendations": ["Keep going"], "activity_text": "ok"}
+    snapshot = {"cards": {"EOAT Documentation Rows": "2"}, "recommendations": ["Keep going"], "activity_text": "ok"}
 
     path = save_dashboard_cache(fake_project, snapshot)
     payload, warning = load_dashboard_cache(fake_project)

@@ -5,10 +5,14 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from core.audit_constants import (
+    AUDIT_CONTEXT_COMPATIBILITY,
+    AUDIT_CONTEXT_FIELD,
+    COMPATIBILITY_CONFIDENCE_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
     SOURCE_AUDIT_ID_FIELD,
 )
 from core.compatibility_matrix import (
@@ -85,6 +89,9 @@ def test_matrix_details_separate_physical_and_compatibility_rows(fake_project):
             "Part Name/Description": "Part A",
             "EOAT Type": "Vacuum",
             ENTRY_TYPE_FIELD: ENTRY_TYPE_COMPATIBLE,
+            AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_COMPATIBILITY,
+            PHYSICAL_AUDIT_VERIFIED_FIELD: "No",
+            COMPATIBILITY_CONFIDENCE_FIELD: "Press Capacity",
             SOURCE_AUDIT_ID_FIELD: "AUD-SOURCE-001",
             COMPATIBILITY_SOURCE_FIELD: "Press Capacity List",
         },
@@ -106,6 +113,9 @@ def test_matrix_details_separate_physical_and_compatibility_rows(fake_project):
     assert compatible_cell.physical_audit_ids == ()
     assert compatible_cell.compatibility_audit_ids == ("AUD-COMPAT-002",)
     assert compatible_cell.source_audit_id == "AUD-SOURCE-001"
+    assert compatible_cell.audit_context == AUDIT_CONTEXT_COMPATIBILITY
+    assert compatible_cell.physical_audit_verified == "No"
+    assert compatible_cell.compatibility_confidence == "Press Capacity"
     assert "Press Capacity List" in compatible_cell.compatibility_source
     assert "EOAT Type" in compatible_cell.fields_copied
 

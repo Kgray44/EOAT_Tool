@@ -3,7 +3,12 @@ from __future__ import annotations
 from openpyxl import Workbook, load_workbook
 
 from core.audit_by_press import AUDIT_BY_PRESS_SHEET
-from core.audit_constants import COMPATIBILITY_SOURCE_FIELD, SOURCE_AUDIT_ID_FIELD
+from core.audit_constants import (
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_INSTALLED,
+    COMPATIBILITY_SOURCE_FIELD,
+    SOURCE_AUDIT_ID_FIELD,
+)
 from core.audit_entries import load_audit_entry
 from core.audit_field_rules import ELECTRICAL_WIRING_PRESENT_FIELD
 from core.audit_progress import calculate_audit_progress_from_rows
@@ -172,6 +177,7 @@ def _base_inventory_values(audit_id: str, eoat_moves: str) -> dict[str, str]:
         "Audit ID": audit_id,
         "Audit Date": "2026-05-18",
         "Auditor": "KG",
+        AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
         "Plant/Area": "Plant 4",
         "Press/Machine #": "Press 12",
         "Tool #": "DEMO-PN-1200",
@@ -195,6 +201,7 @@ def _complete_inventory_values(audit_id: str, entry_type: str = "Audited") -> di
             "Audit ID": audit_id,
             "Audit Date": "2026-05-18",
             "Auditor": "KG",
+            AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
             "Plant/Area": "Plant 4",
             "Press/Machine #": "Press 12",
             "Tool #": "DEMO-PN-1200",
@@ -324,7 +331,7 @@ def test_workbook_health_ignores_blank_autofilled_metadata_cells(tmp_path):
     assert SOURCE_AUDIT_ID_FIELD not in warning_text
     assert COMPATIBILITY_SOURCE_FIELD not in warning_text
     assert any(
-        "Blank Source Audit ID, Compatibility Source, and manual completion override metadata cells are intentionally ignored during blank-cell validation"
+        "metadata cells are intentionally ignored during blank-cell validation"
         in detail
         for detail in result.details
     )
@@ -623,6 +630,7 @@ def test_workbook_health_allows_na_for_non_applicable_tooling_fields(fake_projec
             "Audit ID": "AUD-NONAPPLICABLE-NA",
             "Audit Date": "2026-05-18",
             "Auditor": "KG",
+            AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
             "Plant/Area": "Plant 4",
             "Press/Machine #": "Press 12",
             "Tool #": "DEMO-PN-1200",
@@ -666,6 +674,7 @@ def test_workbook_health_allows_na_for_no_sensor_wiring_fields(fake_project):
             "Audit ID": "AUD-NO-SENSOR-HEALTH",
             "Audit Date": "2026-05-18",
             "Auditor": "KG",
+            AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
             "Plant/Area": "Plant 4",
             "Press/Machine #": "Press 12",
             "Tool #": "DEMO-PN-1200",
@@ -704,6 +713,7 @@ def test_old_workbook_missing_electrical_wiring_header_gets_schema_warning_not_e
             "Audit ID": "AUD-OLD-SCHEMA-NO-WIRING",
             "Audit Date": "2026-05-18",
             "Auditor": "KG",
+            AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
             "Plant/Area": "Plant 4",
             "Press/Machine #": "Press 12",
             "Tool #": "DEMO-PN-1200",
@@ -746,6 +756,7 @@ def test_migrated_no_wiring_rows_do_not_count_electrical_na_as_major_missing(fak
             "Audit ID": "AUD-MIGRATED-NO-WIRING-HEALTH",
             "Audit Date": "2026-05-18",
             "Auditor": "KG",
+            AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
             "Plant/Area": "Plant 4",
             "Press/Machine #": "Press 12",
             "Tool #": "DEMO-PN-1200",

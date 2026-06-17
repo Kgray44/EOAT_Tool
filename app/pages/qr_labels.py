@@ -34,8 +34,11 @@ class QrLabelsPage(QWidget):
         self.machine_check.setChecked(True)
         self.audit_check = QCheckBox("Audit labels")
         self.audit_check.setChecked(True)
+        self.eoat_check = QCheckBox("EOAT Assembly labels")
+        self.eoat_check.setChecked(True)
         controls.addWidget(self.machine_check)
         controls.addWidget(self.audit_check)
+        controls.addWidget(self.eoat_check)
         for label, callback in [
             ("Preview Values", self.refresh),
             ("Export Label Sheet", self.export),
@@ -57,15 +60,19 @@ class QrLabelsPage(QWidget):
             self.config.project_root,
             include_machines=self.machine_check.isChecked(),
             include_audits=self.audit_check.isChecked(),
+            include_eoats=self.eoat_check.isChecked(),
         )
-        columns = ["label_type", "target_id", "display_label", "qr_value"]
+        columns = ["label_type", "target_id", "display_label", "qr_value", "label_lines"]
         self.table.setColumnCount(len(columns))
-        self.table.setHorizontalHeaderLabels(["Type", "Target", "Label", "QR Value"])
+        self.table.setHorizontalHeaderLabels(["Type", "Target", "Label", "QR Value", "Printed Text"])
         self.table.setRowCount(len(labels))
         for row_index, label in enumerate(labels):
             data = label.to_dict()
             for col_index, column in enumerate(columns):
-                self.table.setItem(row_index, col_index, QTableWidgetItem(str(data.get(column, ""))))
+                value = data.get(column, "")
+                if column == "label_lines":
+                    value = "\n".join(str(item) for item in value)
+                self.table.setItem(row_index, col_index, QTableWidgetItem(str(value)))
         self.table.resizeColumnsToContents()
         self.result_panel.show_text(f"Previewed {len(labels)} minimal QR value(s).")
 
@@ -74,6 +81,7 @@ class QrLabelsPage(QWidget):
             self.config.project_root,
             include_machines=self.machine_check.isChecked(),
             include_audits=self.audit_check.isChecked(),
+            include_eoats=self.eoat_check.isChecked(),
         )
         self.result_panel.show_result(result)
 

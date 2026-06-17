@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 ROOT = Path.cwd()
 
@@ -35,6 +35,9 @@ if config_example.exists():
 hiddenimports += collect_submodules("app.pages")
 hiddenimports += collect_submodules("app.settings_page")
 hiddenimports += collect_submodules("app.widgets")
+hiddenimports += collect_submodules("pillow_heif")
+datas += collect_data_files("pillow_heif")
+binaries += collect_dynamic_libs("pillow_heif")
 hiddenimports += [
     "daily_status_summary",
     "matplotlib.backends.backend_qtagg",

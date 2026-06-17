@@ -113,6 +113,24 @@ def test_hybrid_and_semantic_warnings_are_non_blocking(fake_project):
     )
     assert len(warnings) >= 5
 
+    specialty = semantic_consistency_warnings(
+        {
+            "Audit ID": "AUD-20260604-007",
+            "EOAT Type": "Mechanical / Gripper",
+            "Gripper Model": "Silicone OD",
+        }
+    )
+    assert not any("Gripper Model appears to contain a material value" in warning for warning in specialty)
+
+    ordinary = semantic_consistency_warnings(
+        {
+            "Audit ID": "AUD-ORDINARY-GRIPPER",
+            "EOAT Type": "Mechanical / Gripper",
+            "Gripper Model": "Silicone OD",
+        }
+    )
+    assert any("Gripper Model appears to contain a material value" in warning for warning in ordinary)
+
 
 def test_sensor_electrical_and_quick_disconnect_rules_are_separate():
     no_sensors = {

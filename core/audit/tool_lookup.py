@@ -7,7 +7,12 @@ from typing import Any
 
 from openpyxl import load_workbook
 
-from core.audit.uninstalled import UNINSTALLED_MACHINE_CONTEXT_FIELDS, has_meaningful_identifier, normalize_identifier
+from core.audit.uninstalled import (
+    UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS,
+    has_meaningful_identifier,
+    normalize_identifier,
+)
+from core.eoat_ids import EOAT_ASSEMBLY_ID_FIELD
 from core.paths import get_press_capacity_file, resolve_project_paths
 from core.press_lookup import CAPACITY_FILE_NAME, part_family_from_capacity_fields, reference_data_dir
 from core.tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
@@ -33,6 +38,7 @@ TOOL_IDENTIFIER_ALIASES = (
 
 OUTPUT_FIELD_ALIASES = {
     TOOL_FIELD: TOOL_IDENTIFIER_ALIASES,
+    EOAT_ASSEMBLY_ID_FIELD: (EOAT_ASSEMBLY_ID_FIELD, "EOAT ID", "Assembly ID"),
     "Part Family": ("Part Family", "Family", "Part Category"),
     "Part Name/Description": (
         "Part Name/Description",
@@ -47,6 +53,7 @@ OUTPUT_FIELD_ALIASES = {
 
 SAFE_UNINSTALLED_TOOL_LOOKUP_FIELDS = (
     TOOL_FIELD,
+    EOAT_ASSEMBLY_ID_FIELD,
     "Part Family",
     "Part Name/Description",
     "EOAT Type",
@@ -92,7 +99,7 @@ SAFE_UNINSTALLED_TOOL_LOOKUP_FIELDS = (
     "BOM Available?",
     "Process Binder Complete?",
 )
-_UNSAFE_LOOKUP_FIELDS = UNINSTALLED_MACHINE_CONTEXT_FIELDS | {
+_UNSAFE_LOOKUP_FIELDS = UNINSTALLED_MACHINE_AND_ROBOT_CONTEXT_FIELDS | {
     "Audit ID",
     "Audit Date",
     "Auditor",
@@ -118,6 +125,23 @@ class ToolLookupResult:
     source: str = ""
     match_count: int = 0
     matched_field: str = ""
+
+
+@dataclass(frozen=True)
+class ToolIdentifierMatch:
+    tool_number: str
+    description: str = ""
+    source: str = ""
+    matched_field: str = ""
+
+
+@dataclass(frozen=True)
+class ToolIdentifierSearchResult:
+    query: str
+    matches: tuple[ToolIdentifierMatch, ...]
+    match_count: int = 0
+    warnings: tuple[str, ...] = ()
+    source: str = ""
 
 
 @dataclass(frozen=True)
@@ -184,6 +208,45 @@ def lookup_tool_details_by_identifier(project_root: str | Path, identifier: Any)
 
 def lookup_tool_details(project_root: str | Path, tool_number: Any) -> ToolLookupResult:
     return lookup_tool_details_by_identifier(project_root, tool_number)
+
+
+def search_tool_identifiers(
+    project_root: str | Path,
+    query: Any,
+    *,
+    limit: int = 12,
+) -> ToolIdentifierSearchResult:
+    query_text = normalize_identifier(query)
+    if not has_meaningful_identifier(query_text):
+        return ToolIdentifierSearchResult(query=query_text, matches=(), match_count=0)
+
+    warnings: list[str] = []
+    searched_sources: list[str] = []
+    matches: list[_LookupMatch] = []
+
+    inventory_rows, inventory_warning, inventory_source = _load_inventory_rows(project_root)
+    if inventory_source:
+        searched_sources.append(inventory_source)
+    if inventory_warning:
+        warnings.append(inventory_warning)
+    matches.extend(_partial_matching_rows(inventory_rows, query_text, inventory_source))
+
+    for source, rows, warning in _load_reference_capacity_rows(project_root):
+        if source:
+            searched_sources.append(source)
+        if warning:
+            warnings.append(warning)
+        matches.extend(_partial_matching_rows(rows, query_text, source))
+
+    tool_matches = _tool_identifier_matches_from_rows(matches)
+    limited = tuple(tool_matches[: max(0, limit)])
+    return ToolIdentifierSearchResult(
+        query=query_text,
+        matches=limited,
+        match_count=len(tool_matches),
+        warnings=tuple(warnings),
+        source="; ".join(dict.fromkeys(searched_sources)),
+    )
 
 
 def _load_inventory_rows(project_root: str | Path) -> tuple[list[dict[str, Any]], str, str]:
@@ -288,6 +351,26 @@ def _matched_identifier_field(row: dict[str, Any], requested_keys: set[str]) -> 
     return ""
 
 
+def _partial_matching_rows(rows: list[dict[str, Any]], query_text: str, source: str) -> list[_LookupMatch]:
+    matches: list[_LookupMatch] = []
+    query_terms = _partial_identifier_terms(query_text)
+    if not query_terms:
+        return matches
+    for row in rows:
+        matched_field = _matched_partial_identifier_field(row, query_terms)
+        if matched_field:
+            matches.append(_LookupMatch(row=row, source=source, matched_field=matched_field))
+    return matches
+
+
+def _matched_partial_identifier_field(row: dict[str, Any], query_terms: set[str]) -> str:
+    for field_name in TOOL_IDENTIFIER_ALIASES:
+        value = _value_for_aliases(row, (field_name,))
+        if value and _identifier_contains_terms(value, query_terms):
+            return field_name
+    return ""
+
+
 def _fields_from_matches(tool_text: str, matches: list[_LookupMatch]) -> tuple[dict[str, str], str]:
     fields: dict[str, str] = {}
     matched_field = ""
@@ -302,6 +385,33 @@ def _fields_from_matches(tool_text: str, matches: list[_LookupMatch]) -> tuple[d
                 fields[field_name] = value
     fields[TOOL_FIELD] = tool_text
     return fields, matched_field
+
+
+def _tool_identifier_matches_from_rows(matches: list[_LookupMatch]) -> list[ToolIdentifierMatch]:
+    tool_matches: list[ToolIdentifierMatch] = []
+    seen: set[str] = set()
+    for match in sorted(matches, key=_match_sort_key, reverse=True):
+        tool_number = _lookup_output_value(match.row, TOOL_FIELD) or _value_for_aliases(
+            match.row, (match.matched_field,)
+        )
+        if not has_meaningful_identifier(tool_number):
+            continue
+        key = _dedupe_identifier_key(tool_number)
+        if key in seen:
+            continue
+        seen.add(key)
+        description = _lookup_output_value(match.row, "Part Name/Description") or _lookup_output_value(
+            match.row, "Part Family"
+        )
+        tool_matches.append(
+            ToolIdentifierMatch(
+                tool_number=tool_number,
+                description=description,
+                source=match.source,
+                matched_field=match.matched_field,
+            )
+        )
+    return sorted(tool_matches, key=lambda match: _dedupe_identifier_key(match.tool_number))
 
 
 def _lookup_output_value(row: dict[str, Any], field_name: str) -> str:
@@ -344,6 +454,30 @@ def _identifier_keys(value: Any) -> set[str]:
     return keys
 
 
+def _partial_identifier_terms(value: Any) -> set[str]:
+    text = normalize_identifier(value).casefold()
+    if not text:
+        return set()
+    folded = " ".join(text.split())
+    compact = re.sub(r"[^a-z0-9]+", "", folded)
+    terms = {folded}
+    if compact:
+        terms.add(compact)
+    return {term for term in terms if term}
+
+
+def _identifier_contains_terms(value: Any, query_terms: set[str]) -> bool:
+    value_terms = _partial_identifier_terms(value)
+    if not value_terms:
+        return False
+    return any(query in candidate for query in query_terms for candidate in value_terms)
+
+
+def _dedupe_identifier_key(value: Any) -> str:
+    text = normalize_identifier(value).casefold()
+    return re.sub(r"[^a-z0-9]+", "", text) or text
+
+
 def _header_key(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "", normalize_identifier(value).casefold())
 
@@ -360,7 +494,10 @@ def _match_sort_key(match: _LookupMatch) -> tuple[str, str, str]:
 __all__ = [
     "SAFE_UNINSTALLED_TOOL_LOOKUP_FIELDS",
     "TOOL_IDENTIFIER_ALIASES",
+    "ToolIdentifierMatch",
+    "ToolIdentifierSearchResult",
     "ToolLookupResult",
     "lookup_tool_details",
     "lookup_tool_details_by_identifier",
+    "search_tool_identifiers",
 ]

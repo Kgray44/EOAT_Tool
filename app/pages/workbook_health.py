@@ -28,7 +28,9 @@ from app.widgets.tool_run_panel import ToolRunPanel
 from core.action_items import add_action_item
 from core.annotations.service import AnnotationService
 from core.audit_by_press import REFRESH_ACTION_NAME, refresh_audit_by_press_view_action
+from core.audit_context import backfill_audit_context
 from core.audit_entries import repair_workbook_schema
+from core.eoat_ids import assign_missing_eoat_assembly_ids_in_workbook
 from core.openers import open_path
 from core.paths import resolve_project_paths
 from core.validation import run_foundation_validation
@@ -57,6 +59,8 @@ class WorkbookHealthPage(QWidget):
         for label, callback in [
             ("Run Foundation Validation", self.run_validation),
             ("Repair Workbook Schema", self.repair_workbook_schema),
+            ("Assign Missing EOAT IDs", self.assign_missing_eoat_ids),
+            ("Backfill Audit Context", self.backfill_audit_context),
             (REFRESH_ACTION_NAME, self.refresh_audit_by_press_view),
             ("Open Validation Reports Folder", self.open_validation_reports),
             ("Open Master Workbook", self.open_master_workbook),
@@ -75,6 +79,8 @@ class WorkbookHealthPage(QWidget):
                 "Missing Detail Headers",
                 "Duplicate Audit IDs",
                 "Applicable N/A Warnings",
+                "Bench Context Rows",
+                "Needs Review Context",
                 "Semantic Warnings",
                 "Fixable Findings",
                 "Last Validation",
@@ -176,6 +182,36 @@ class WorkbookHealthPage(QWidget):
             workbook_lock=True,
         )
 
+    def assign_missing_eoat_ids(self) -> None:
+        run_tool_background(
+            self.result_panel,
+            "assign_missing_eoat_ids",
+            "Assign Missing EOAT IDs",
+            lambda: assign_missing_eoat_assembly_ids_in_workbook(self.config.project_root),
+            self._eoat_assignment_finished,
+            modifies_files=True,
+            workbook_lock=True,
+        )
+
+    def backfill_audit_context(self) -> None:
+        run_tool_background(
+            self.result_panel,
+            "audit_context_backfill",
+            "Audit Context Backfill",
+            lambda: backfill_audit_context(self.config.project_root),
+            self._context_backfill_finished,
+            modifies_files=True,
+            workbook_lock=True,
+        )
+
+    def _context_backfill_finished(self, result) -> None:
+        self.result_panel.show_result(result)
+        self.run_validation()
+
+    def _eoat_assignment_finished(self, result) -> None:
+        self.result_panel.show_result(result)
+        self.run_validation()
+
     def _validation_finished(self, result) -> None:
         self.findings = findings_from_result(result)
         self._update_category_filter()
@@ -197,6 +233,8 @@ class WorkbookHealthPage(QWidget):
         self.cards["Applicable N/A Warnings"].set_value(
             str(result.metrics.get("missing_applicable_major_cell_count", 0))
         )
+        self.cards["Bench Context Rows"].set_value(str(result.metrics.get("bench_audit_context_count", 0)))
+        self.cards["Needs Review Context"].set_value(str(result.metrics.get("needs_review_audit_context_count", 0)))
         self.cards["Semantic Warnings"].set_value(str(result.metrics.get("semantic_warning_count", 0)))
         self.cards["Fixable Findings"].set_value(str(result.metrics.get("validation_fix_available_count", 0)))
         self.cards["Last Validation"].set_value("Just now")

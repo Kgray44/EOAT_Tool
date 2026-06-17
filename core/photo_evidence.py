@@ -11,6 +11,8 @@ from typing import Any
 from openpyxl import load_workbook
 
 from .audit_constants import ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from .audit_context import infer_audit_context
+from .eoat_ids import EOAT_ASSEMBLY_ID_FIELD, infer_eoat_assembly_id_for_photo_row, normalize_eoat_assembly_id
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .photo_evidence_rules import all_photo_evidence_rules, photo_evidence_aliases, photo_evidence_rule_by_key
@@ -69,9 +71,14 @@ class AuditEvidenceCoverage:
     statuses: tuple[EvidenceCoverageStatus, ...]
     row_data: dict[str, Any] | None = field(default=None, repr=False, compare=False)
     related_photo_count: int = 0
+    inherited_photo_count: int = 0
+    inherited_photo_sources: tuple[str, ...] = ()
+    compatible_evidence_accepted: bool = False
 
     @property
     def missing_required_count(self) -> int:
+        if self.compatible_evidence_accepted:
+            return 0
         return sum(1 for status in self.statuses if status.required and not status.present)
 
     @property
@@ -90,6 +97,9 @@ class AuditEvidenceCoverage:
             "follow_up_needed_count": self.follow_up_needed_count,
             "complete_count": self.complete_count,
             "related_photo_count": self.related_photo_count,
+            "inherited_photo_count": self.inherited_photo_count,
+            "inherited_photo_sources": list(self.inherited_photo_sources),
+            "compatible_evidence_accepted": self.compatible_evidence_accepted,
             "statuses": [status.to_dict() for status in self.statuses],
         }
 
@@ -185,11 +195,17 @@ def build_photo_checklist_markdown(
     row = row if row is not None else _find_audit_row(project_root, audit_id)
     coverage = evidence_coverage_for_audit(project_root, audit_id, row=row)
     machine = _text((row or {}).get("Press/Machine #")) or "N/A"
+    audit_context = infer_audit_context(row or {}) if row else "N/A"
+    eoat_assembly_id = _text((row or {}).get(EOAT_ASSEMBLY_ID_FIELD)) or "N/A"
+    tool_number = _text((row or {}).get(TOOL_FIELD)) or "N/A"
     eoat_type = _text((row or {}).get("EOAT Type")) or "N/A"
     lines = [
         f"# Photo Evidence Checklist - {audit_id or 'Unassigned Audit'}",
         "",
         f"- Audit ID: {audit_id or 'N/A'}",
+        f"- Audit Context: {audit_context}",
+        f"- EOAT Assembly ID: {eoat_assembly_id}",
+        f"- Tool #: {tool_number}",
         f"- Press/Machine #: {machine}",
         f"- EOAT Type: {eoat_type}",
         f"- Intake folder: {audit_photo_intake_folder(project_root, audit_id)}",
@@ -228,7 +244,13 @@ def evidence_coverage_for_project(project_root: str | Path) -> list[AuditEvidenc
         audit_id = _text(row.get("Audit ID"))
         if not audit_id:
             continue
-        coverage = evidence_coverage_for_audit(project_root, audit_id, row=row, photo_rows=photo_rows)
+        coverage = evidence_coverage_for_audit(
+            project_root,
+            audit_id,
+            row=row,
+            photo_rows=photo_rows,
+            inventory_rows=rows,
+        )
         if coverage is not None:
             coverage_rows.append(coverage)
     return coverage_rows
@@ -240,6 +262,7 @@ def evidence_coverage_for_audit(
     *,
     row: dict[str, Any] | None = None,
     photo_rows: list[dict[str, Any]] | None = None,
+    inventory_rows: list[dict[str, Any]] | None = None,
 ) -> AuditEvidenceCoverage | None:
     audit_id = _text(audit_id)
     if not audit_id:
@@ -248,7 +271,17 @@ def evidence_coverage_for_audit(
     if row is None:
         return None
     photo_rows = photo_rows if photo_rows is not None else _photo_rows(project_root)
-    related_photos = _photo_rows_for_audit(photo_rows, row)
+    inventory_rows = inventory_rows if inventory_rows is not None else _inventory_rows(project_root)
+    direct_photos = _photo_rows_for_audit(photo_rows, row)
+    inherited_photos: list[dict[str, Any]] = []
+    inherited_folder_count = 0
+    inherited_sources: tuple[str, ...] = ()
+    if _is_compatible_row(row):
+        inherited_photos, inherited_folder_count, inherited_sources = _compatible_inherited_evidence(
+            project_root, row, photo_rows, inventory_rows
+        )
+    related_photos = _dedupe_photo_rows([*direct_photos, *inherited_photos])
+    compatible_evidence_accepted = _is_compatible_row(row) and bool(related_photos or inherited_folder_count)
     statuses = tuple(
         _coverage_status_for_category(row, category, related_photos) for category in PHOTO_EVIDENCE_CATEGORIES
     )
@@ -258,6 +291,9 @@ def evidence_coverage_for_audit(
         statuses=statuses,
         row_data=dict(row),
         related_photo_count=len(related_photos),
+        inherited_photo_count=len(inherited_photos) + inherited_folder_count,
+        inherited_photo_sources=inherited_sources,
+        compatible_evidence_accepted=compatible_evidence_accepted,
     )
 
 
@@ -272,9 +308,24 @@ def indexed_photos_for_audit(project_root: str | Path, audit_id: str) -> list[di
     return [dict(row) for row in _photo_rows_for_audit(photos, audit_row)]
 
 
+def indexed_photos_for_eoat(project_root: str | Path, eoat_assembly_id: str) -> list[dict[str, Any]]:
+    target = normalize_eoat_assembly_id(eoat_assembly_id).casefold()
+    if not target:
+        return []
+    return [
+        dict(row)
+        for row in _photo_rows(project_root)
+        if normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD)).casefold() == target
+    ]
+
+
 def resolve_indexed_photo_path(project_root: str | Path, photo_row: dict[str, Any]) -> Path:
+    stored_relative_path = _text(photo_row.get("Stored Relative Path"))
+    if stored_relative_path:
+        path = Path(stored_relative_path)
+        return path if path.is_absolute() else Path(project_root) / path
     folder_text = _text(photo_row.get("Folder Path"))
-    filename = _text(photo_row.get("Photo Filename"))
+    filename = _text(photo_row.get("Stored Filename")) or _text(photo_row.get("Photo Filename"))
     folder = Path(folder_text) if folder_text else Path(project_root)
     if folder_text and not folder.is_absolute():
         folder = Path(project_root) / folder
@@ -290,14 +341,54 @@ def photo_index_path_findings(
     for row_number, row in enumerate(photo_rows, start=2):
         if not _has_photo_index_content(row):
             continue
+        stored_relative_path = _text(row.get("Stored Relative Path"))
         folder = _text(row.get("Folder Path"))
-        filename = _text(row.get("Photo Filename"))
+        filename = _text(row.get("Stored Filename")) or _text(row.get("Photo Filename"))
         audit_id = _text(row.get("Related Audit ID"))
         photo_id = _text(row.get("Photo ID")) or "unidentified photo"
         machine = _text(row.get("Press/Machine #"))
         tool = _text(row.get(TOOL_FIELD))
+        eoat_id = normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD))
         context = _photo_index_context(audit_id, photo_id, machine, tool)
-        if not filename:
+        if not eoat_id:
+            inferred, reason = infer_eoat_assembly_id_for_photo_row(row, list(inventory_by_audit_id.values()))
+            if inferred:
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.AUTO_FIXABLE,
+                        "photo_eoat_link",
+                        f"{context}: Photo Index row is missing EOAT Assembly ID; can infer {inferred}.",
+                        sheet_name="Photo Index",
+                        row_number=row_number,
+                        audit_id=audit_id,
+                        machine_number=machine,
+                        column_name=EOAT_ASSEMBLY_ID_FIELD,
+                        current_value=f"Photo ID={photo_id}; Tool #={tool or 'N/A'}",
+                        expected_behavior="New indexed photos should carry EOAT Assembly ID as the primary EOAT link.",
+                        recommended_action="Run Repair Photo EOAT Links from the Photos page.",
+                        fix_available=True,
+                        fix_id="repair_photo_eoat_links",
+                        source_validator="photo_evidence",
+                    )
+                )
+            elif reason == "ambiguous":
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.WARNING,
+                        "photo_eoat_link",
+                        f"{context}: Photo Index row is missing EOAT Assembly ID and Tool # is ambiguous.",
+                        sheet_name="Photo Index",
+                        row_number=row_number,
+                        audit_id=audit_id,
+                        machine_number=machine,
+                        column_name=EOAT_ASSEMBLY_ID_FIELD,
+                        current_value=f"Photo ID={photo_id}; Tool #={tool or 'N/A'}",
+                        expected_behavior="Ambiguous legacy photo links should be reviewed manually.",
+                        recommended_action="Select the correct EOAT Assembly ID on the Photos page.",
+                        source_validator="photo_evidence",
+                    )
+                )
+        if not filename and not stored_relative_path:
             findings.append(
                 make_finding(
                     ValidationSeverity.WARNING,
@@ -314,7 +405,7 @@ def photo_index_path_findings(
                     source_validator="photo_evidence",
                 )
             )
-        if not folder:
+        if not folder and not stored_relative_path:
             findings.append(
                 make_finding(
                     ValidationSeverity.WARNING,
@@ -331,7 +422,7 @@ def photo_index_path_findings(
                     source_validator="photo_evidence",
                 )
             )
-        if folder and filename:
+        if stored_relative_path or (folder and filename):
             path = resolve_indexed_photo_path(project_root, row)
             if not path.exists():
                 findings.append(
@@ -502,6 +593,8 @@ def photo_evidence_findings_from_coverages(coverages: Iterable[AuditEvidenceCove
     findings: list[ValidationFinding] = []
     for coverage in coverages:
         row = coverage.row_data
+        if coverage.compatible_evidence_accepted:
+            continue
         for status in coverage.statuses:
             if status.required and not status.present:
                 findings.append(
@@ -528,7 +621,11 @@ def pm_bom_evidence_status(project_root: str | Path, audit_id: str) -> dict[str,
     coverage = evidence_coverage_for_audit(project_root, audit_id)
     if coverage is None:
         return {"audit_id": audit_id, "missing_evidence": True, "missing_categories": []}
-    missing_categories = [status.category for status in coverage.statuses if status.required and not status.present]
+    missing_categories = (
+        []
+        if coverage.compatible_evidence_accepted
+        else [status.category for status in coverage.statuses if status.required and not status.present]
+    )
     return {
         "audit_id": coverage.audit_id,
         "machine": coverage.machine,
@@ -711,15 +808,20 @@ def _photo_rows_for_audit(photo_rows: list[dict[str, Any]], row: dict[str, Any])
     audit_id = _text(row.get("Audit ID")).casefold()
     machine = _text(row.get("Press/Machine #")).casefold()
     tool = _text(row.get(TOOL_FIELD)).casefold()
+    eoat_id = normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD)).casefold()
     matches: list[dict[str, Any]] = []
     for photo in photo_rows:
         related_audit = _text(photo.get("Related Audit ID")).casefold()
         photo_machine = _text(photo.get("Press/Machine #")).casefold()
         photo_tool = _text(photo.get(TOOL_FIELD)).casefold()
+        photo_eoat_id = normalize_eoat_assembly_id(photo.get(EOAT_ASSEMBLY_ID_FIELD)).casefold()
         if audit_id and related_audit == audit_id:
             matches.append(photo)
             continue
         if related_audit:
+            continue
+        if eoat_id and photo_eoat_id == eoat_id:
+            matches.append(photo)
             continue
         if machine and photo_machine == machine:
             if tool and photo_tool and photo_tool != tool:
@@ -729,6 +831,109 @@ def _photo_rows_for_audit(photo_rows: list[dict[str, Any]], row: dict[str, Any])
         if tool and not photo_machine and photo_tool == tool:
             matches.append(photo)
     return matches
+
+
+def _compatible_inherited_evidence(
+    project_root: str | Path,
+    row: dict[str, Any],
+    photo_rows: list[dict[str, Any]],
+    inventory_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int, tuple[str, ...]]:
+    matches: list[dict[str, Any]] = []
+    sources: list[str] = []
+    source_id = _text(row.get("Source Audit ID"))
+    source_row = _inventory_row_by_audit_id(inventory_rows, source_id)
+    if source_row is not None:
+        source_photos = _photo_rows_for_audit(photo_rows, source_row)
+        if source_photos:
+            matches.extend(source_photos)
+            sources.append(f"Source Audit ID {source_id}")
+
+    eoat_id = normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD))
+    tool = _text(row.get(TOOL_FIELD)).casefold()
+    for photo in photo_rows:
+        photo_eoat_id = normalize_eoat_assembly_id(photo.get(EOAT_ASSEMBLY_ID_FIELD))
+        photo_tool = _text(photo.get(TOOL_FIELD)).casefold()
+        if eoat_id and photo_eoat_id.casefold() == eoat_id.casefold():
+            matches.append(photo)
+            continue
+        if tool and photo_tool == tool:
+            matches.append(photo)
+    if eoat_id and any(
+        normalize_eoat_assembly_id(photo.get(EOAT_ASSEMBLY_ID_FIELD)).casefold() == eoat_id.casefold()
+        for photo in matches
+    ):
+        sources.append(f"EOAT Assembly ID {eoat_id}")
+    if tool and any(_text(photo.get(TOOL_FIELD)).casefold() == tool for photo in matches):
+        sources.append(f"Tool # {_text(row.get(TOOL_FIELD))}")
+
+    folder_photo_count = 0
+    for folder_eoat_id in _compatible_eoat_folder_ids(row, source_row):
+        count = _photo_folder_image_count(project_root, folder_eoat_id)
+        if count:
+            folder_photo_count += count
+            sources.append(f"Cell_Photos/{folder_eoat_id}")
+    return _dedupe_photo_rows(matches), folder_photo_count, tuple(_dedupe_texts(sources))
+
+
+def _compatible_eoat_folder_ids(row: dict[str, Any], source_row: dict[str, Any] | None) -> tuple[str, ...]:
+    ids = [
+        normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD)),
+        normalize_eoat_assembly_id((source_row or {}).get(EOAT_ASSEMBLY_ID_FIELD)),
+    ]
+    return tuple(_dedupe_texts([eoat_id for eoat_id in ids if eoat_id]))
+
+
+def _photo_folder_image_count(project_root: str | Path, eoat_assembly_id: str) -> int:
+    folder = resolve_project_paths(project_root).cell_photos / eoat_assembly_id
+    if not folder.exists() or not folder.is_dir():
+        return 0
+    supported = {".jpg", ".jpeg", ".png", ".heic", ".heif"}
+    return sum(1 for path in folder.rglob("*") if path.is_file() and path.suffix.lower() in supported)
+
+
+def _inventory_rows(project_root: str | Path) -> list[dict[str, Any]]:
+    paths = resolve_project_paths(project_root)
+    if not paths.master_workbook.exists():
+        return []
+    return row_dicts(paths.master_workbook, "EOAT Inventory")
+
+
+def _inventory_row_by_audit_id(rows: list[dict[str, Any]], audit_id: str) -> dict[str, Any] | None:
+    target = _text(audit_id).casefold()
+    if not target:
+        return None
+    return next((row for row in rows if _text(row.get("Audit ID")).casefold() == target), None)
+
+
+def _dedupe_photo_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[tuple[str, str, str, str]] = set()
+    unique: list[dict[str, Any]] = []
+    for row in rows:
+        key = (
+            _text(row.get("Photo ID")).casefold(),
+            _text(row.get("Stored Relative Path")).casefold(),
+            _text(row.get("Folder Path")).casefold(),
+            _text(row.get("Photo Filename") or row.get("Stored Filename")).casefold(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(row)
+    return unique
+
+
+def _dedupe_texts(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        text = _text(value)
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        unique.append(text)
+    return unique
 
 
 def _photo_rows_for_category(photo_rows: list[dict[str, Any]], category_key: str) -> list[dict[str, Any]]:
@@ -744,10 +949,14 @@ def _photo_rows_for_category(photo_rows: list[dict[str, Any]], category_key: str
 def _photo_search_text(row: dict[str, Any]) -> str:
     fields = [
         "EOAT Area Shown",
+        "Photo Type",
         "Description",
         "Photo Filename",
+        "Stored Filename",
         "Folder Path",
+        "Stored Relative Path",
         TOOL_FIELD,
+        EOAT_ASSEMBLY_ID_FIELD,
         LINKED_AUDIT_FIELD_HEADER,
         "Notes",
     ]
@@ -814,7 +1023,13 @@ def _has_photo_index_content(row: dict[str, Any]) -> bool:
         "Plant/Area",
         "Press/Machine #",
         TOOL_FIELD,
+        EOAT_ASSEMBLY_ID_FIELD,
         "EOAT Area Shown",
+        "Photo Type",
+        "Original Filename",
+        "Stored Filename",
+        "Stored Relative Path",
+        "Imported At",
         "Photo Filename",
         "Folder Path",
         "Related Audit ID",
@@ -927,6 +1142,7 @@ __all__ = [
     "evidence_coverage_for_project",
     "export_photo_checklist",
     "indexed_photos_for_audit",
+    "indexed_photos_for_eoat",
     "link_photo_to_audit_field",
     "linked_audit_field_for_photo",
     "missing_evidence_findings",

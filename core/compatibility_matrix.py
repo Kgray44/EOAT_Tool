@@ -18,6 +18,12 @@ from .audit_compatibility import (
     part_number_from_row,
     text_value,
 )
+from .audit_constants import (
+    AUDIT_CONTEXT_FIELD,
+    COMPATIBILITY_CONFIDENCE_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
+)
+from .audit_context import infer_audit_context
 from .bom_standardization import analyze_bom_standardization
 from .logging import log_tool_run
 from .paths import resolve_project_paths
@@ -69,7 +75,10 @@ class CompatibilityMatrixCell:
     column_type: str
     compatibility_status: str
     source_audit_id: str = ""
+    audit_context: str = ""
     compatibility_source: str = ""
+    physical_audit_verified: str = ""
+    compatibility_confidence: str = ""
     fields_copied: tuple[str, ...] = ()
     conflicts: tuple[str, ...] = ()
     missing_data: tuple[str, ...] = ()
@@ -264,7 +273,10 @@ def compatibility_matrix_csv_rows(summary: CompatibilityMatrixSummary) -> list[d
                     "Column Type": cell.column_type,
                     "Compatibility Status": cell.compatibility_status,
                     "Source Audit ID": cell.source_audit_id,
+                    "Audit Context": cell.audit_context,
                     "Compatibility Source": cell.compatibility_source,
+                    "Physical Audit Verified": cell.physical_audit_verified,
+                    "Compatibility Confidence": cell.compatibility_confidence,
                     "Physical Audit IDs": "; ".join(cell.physical_audit_ids),
                     "Compatibility Audit IDs": "; ".join(cell.compatibility_audit_ids),
                     "Fields Copied": "; ".join(cell.fields_copied),
@@ -315,7 +327,10 @@ def compatibility_matrix_markdown(summary: CompatibilityMatrixSummary) -> str:
                 "Column",
                 "Compatibility Status",
                 "Source Audit ID",
+                "Audit Context",
                 "Compatibility Source",
+                "Physical Audit Verified",
+                "Compatibility Confidence",
                 "Physical Audit IDs",
                 "Compatibility Audit IDs",
                 "Conflicts",
@@ -346,6 +361,15 @@ def _build_cell(
     compatibility_sources = tuple(
         _sorted_texts(text_value(row.get(COMPATIBILITY_SOURCE_FIELD)) for row in compatibility_rows)
     )
+    audit_contexts = tuple(
+        _sorted_texts(text_value(row.get(AUDIT_CONTEXT_FIELD)) or infer_audit_context(row) for row in matching_rows)
+    )
+    physical_verified = tuple(
+        _sorted_texts(text_value(row.get(PHYSICAL_AUDIT_VERIFIED_FIELD)) for row in matching_rows)
+    )
+    confidence_values = tuple(
+        _sorted_texts(text_value(row.get(COMPATIBILITY_CONFIDENCE_FIELD)) for row in compatibility_rows)
+    )
     conflicts = list(_cell_conflicts(physical_rows, compatibility_rows, column, source_by_id))
     missing_data = list(_missing_data(compatibility_rows, all_rows))
     fields_copied = tuple(_sorted_texts(_copied_fields(compatibility_rows, source_by_id)))
@@ -369,7 +393,10 @@ def _build_cell(
         column_type=column.column_type,
         compatibility_status=state,
         source_audit_id="; ".join(source_ids),
+        audit_context="; ".join(audit_contexts),
         compatibility_source="; ".join(compatibility_sources),
+        physical_audit_verified="; ".join(physical_verified),
+        compatibility_confidence="; ".join(confidence_values),
         fields_copied=fields_copied,
         conflicts=tuple(conflicts),
         missing_data=tuple(missing_data),
@@ -522,10 +549,10 @@ def _recommended_action(state: str, has_physical: bool, has_compatibility: bool)
     if state == STATE_NEEDS_REVIEW:
         return "Fill missing compatibility metadata or inspect the source audit before relying on this cell."
     if state == STATE_COMPATIBLE and has_physical:
-        return "Use the physical audit as the verified source of truth."
+        return "Physically audited on this machine; use installed-cell evidence as the verified source."
     if state == STATE_COMPATIBLE and has_compatibility:
-        return "Compatibility is represented by an existing compatibility row; verify source before changing rules."
-    return "No compatibility entry exists. Audit the machine or create a reviewed compatibility row if appropriate."
+        return "Compatible based on EOAT/tool data; not yet physically verified on this machine."
+    return "No compatibility entry exists. Audit the EOAT relationship or create a reviewed compatibility row if appropriate."
 
 
 def _explicit_not_compatible(row: dict[str, Any]) -> bool:

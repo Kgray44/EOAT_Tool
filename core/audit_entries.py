@@ -18,6 +18,11 @@ from .audit.history import append_audit_history
 from .audit.uninstalled import append_uninstalled_note, is_uninstalled_eoat_audit
 from .audit_by_press import refresh_audit_by_press_view
 from .audit_constants import (
+    AUDIT_CONTEXT_BENCH,
+    AUDIT_CONTEXT_COMPATIBILITY,
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_VALUES,
+    COMPATIBILITY_CONFIDENCE_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
@@ -26,7 +31,19 @@ from .audit_constants import (
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
+    PHYSICAL_AUDIT_VERIFIED_FIELD,
     SOURCE_AUDIT_ID_FIELD,
+)
+from .audit_context import (
+    compatibility_confidence_default,
+    infer_audit_context,
+    physical_audit_verified_default,
+)
+from .eoat_ids import (
+    EOAT_ASSEMBLY_ID_FIELD,
+    generate_next_eoat_assembly_id,
+    is_valid_eoat_assembly_id,
+    normalize_eoat_assembly_id,
 )
 from .gripper_fields import (
     CUP_COUNT_FIELD,
@@ -47,7 +64,7 @@ from .workbook_io import find_row_by_value, next_empty_row, worksheet_headers, w
 from .workbook_locks import detect_workbook_lock
 from .workbook_schema import get_expected_headers
 
-CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.05.28.3"
+CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.06.16.1"
 WORKBOOK_METADATA_SHEET = "_EOAT_App_Metadata"
 
 
@@ -173,7 +190,10 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     "Process Binder Complete?": AuditFieldMetadata(frozenset({"documentation"}), "No"),
     "Photos Taken?": AuditFieldMetadata(frozenset({"photo"}), "No"),
     "Photo Folder/Link": AuditFieldMetadata(frozenset({"photo_link"})),
+    AUDIT_CONTEXT_FIELD: AuditFieldMetadata(frozenset({"audit_context"})),
     MANUAL_COMPLETION_OVERRIDE_FIELD: AuditFieldMetadata(frozenset({"system_metadata"}), "No"),
+    PHYSICAL_AUDIT_VERIFIED_FIELD: AuditFieldMetadata(frozenset({"audit_context"})),
+    COMPATIBILITY_CONFIDENCE_FIELD: AuditFieldMetadata(frozenset({"compatibility"})),
 }
 
 SENSOR_ELECTRICAL_TAGS = frozenset({"sensor"})
@@ -217,7 +237,10 @@ AUDIT_DROPDOWNS = {
     "Priority": ["Low", "Medium", "High", "Critical"],
     "Pilot Candidate?": ["Yes", "No", "Maybe"],
     "Follow-Up Needed": ["Yes", "No"],
+    AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_VALUES,
     ENTRY_TYPE_FIELD: [ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE],
+    PHYSICAL_AUDIT_VERIFIED_FIELD: ["Yes", "No"],
+    COMPATIBILITY_CONFIDENCE_FIELD: ["Press Capacity", "Manual Review", "Existing EOAT", "Imported", "Needs review"],
 }
 
 EOAT_TYPE_VALUES = {"Vacuum", "Mechanical gripper", "Hybrid", "Custom/other", "Unknown"}
@@ -432,6 +455,17 @@ def generate_audit_id(project_root: str | Path, audit_date: str | None = None) -
     return f"{prefix}{max_number + 1:03d}"
 
 
+def _existing_eoat_assembly_ids(project_root: str | Path) -> list[str]:
+    workbook_path = resolve_project_paths(project_root).master_workbook
+    if not workbook_path.exists():
+        return []
+    try:
+        rows = row_dicts_cached(workbook_path, "EOAT Inventory")
+    except Exception:
+        return []
+    return [normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD)) for row in rows]
+
+
 def normalize_audit_entry(project_root: str | Path, entry: dict[str, Any]) -> dict[str, Any]:
     normalized, _details = normalize_audit_entry_with_details(project_root, entry)
     return normalized
@@ -450,18 +484,36 @@ def normalize_audit_entry_with_details(
         normalized[GRIPPER_MODEL_FIELD] = gripper_model_to_workbook(normalized.get(GRIPPER_MODEL_FIELD), project_root)
     if ENTRY_TYPE_FIELD in normalized and not _text(normalized.get(ENTRY_TYPE_FIELD)):
         normalized[ENTRY_TYPE_FIELD] = ENTRY_TYPE_AUDITED
+    if AUDIT_CONTEXT_FIELD in normalized:
+        normalized[AUDIT_CONTEXT_FIELD] = infer_audit_context(normalized, preserve_explicit=True)
     uninstalled_audit = is_uninstalled_eoat_audit(normalized)
     if uninstalled_audit:
+        normalized[AUDIT_CONTEXT_FIELD] = AUDIT_CONTEXT_BENCH
         normalized["Notes"] = append_uninstalled_note(normalized.get("Notes"))
     entry_type = _text(normalized.get(ENTRY_TYPE_FIELD)).lower()
+    if entry_type == ENTRY_TYPE_COMPATIBLE.lower():
+        normalized[AUDIT_CONTEXT_FIELD] = AUDIT_CONTEXT_COMPATIBILITY
     if entry_type != ENTRY_TYPE_COMPATIBLE.lower() and not normalized.get("Audit Date"):
         normalized["Audit Date"] = date.today().isoformat()
     if not normalized.get("Audit ID"):
         normalized["Audit ID"] = generate_audit_id(
             project_root, str(normalized.get("Audit Date") or date.today().isoformat())
         )
+    normalized[EOAT_ASSEMBLY_ID_FIELD] = normalize_eoat_assembly_id(normalized.get(EOAT_ASSEMBLY_ID_FIELD))
+    if not normalized.get(EOAT_ASSEMBLY_ID_FIELD):
+        normalized[EOAT_ASSEMBLY_ID_FIELD] = generate_next_eoat_assembly_id(
+            _existing_eoat_assembly_ids(project_root)
+        )
     if not normalized.get("Cleanroom/Non-Cleanroom"):
         normalized["Cleanroom/Non-Cleanroom"] = CLEANROOM_DEFAULT
+    if PHYSICAL_AUDIT_VERIFIED_FIELD in normalized and not _text(normalized.get(PHYSICAL_AUDIT_VERIFIED_FIELD)):
+        normalized[PHYSICAL_AUDIT_VERIFIED_FIELD] = physical_audit_verified_default(
+            _text(normalized.get(AUDIT_CONTEXT_FIELD)) or infer_audit_context(normalized)
+        )
+    if COMPATIBILITY_CONFIDENCE_FIELD in normalized and not _text(normalized.get(COMPATIBILITY_CONFIDENCE_FIELD)):
+        normalized[COMPATIBILITY_CONFIDENCE_FIELD] = compatibility_confidence_default(
+            normalized, _text(normalized.get(AUDIT_CONTEXT_FIELD)) or infer_audit_context(normalized)
+        )
     eoat_type = normalized.get("EOAT Type")
     cleared_as_na: dict[str, str] = {}
     for header in headers:
@@ -552,6 +604,9 @@ def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
             and _parse_non_negative_int(entry.get(field)) is None
         ):
             errors.append(f"{field} must be a non-negative whole number.")
+    eoat_assembly_id = normalize_eoat_assembly_id(entry.get(EOAT_ASSEMBLY_ID_FIELD))
+    if eoat_assembly_id and not is_valid_eoat_assembly_id(eoat_assembly_id):
+        warnings.append(f"{EOAT_ASSEMBLY_ID_FIELD} should use format P4-EOAT-0001.")
     return errors, warnings
 
 
@@ -662,6 +717,14 @@ def _ensure_inventory_headers(ws, required_headers: list[str]) -> list[str]:
         if header == TOOL_FIELD and "Press/Machine #" in existing:
             target_idx = existing.index("Press/Machine #") + 2
             _insert_inventory_header(ws, target_idx, header, style_from_col=target_idx - 1)
+        elif header == EOAT_ASSEMBLY_ID_FIELD:
+            if TOOL_FIELD in existing:
+                target_idx = existing.index(TOOL_FIELD) + 2
+            elif "Press/Machine #" in existing:
+                target_idx = existing.index("Press/Machine #") + 2
+            else:
+                target_idx = ws.max_column + 1
+            _insert_inventory_header(ws, target_idx, header, style_from_col=max(1, target_idx - 1))
         elif header in TOOLING_COLUMN_ORDER and _tooling_insert_index(existing, header):
             target_idx = _tooling_insert_index(existing, header)
             _insert_inventory_header(ws, target_idx, header, style_from_col=max(1, target_idx - 1))
@@ -673,6 +736,7 @@ def _ensure_inventory_headers(ws, required_headers: list[str]) -> list[str]:
             _insert_inventory_header(ws, target_idx, header, style_from_col=max(1, target_idx - 1))
         existing = worksheet_headers(ws)
     _move_tool_after_press(ws)
+    _move_eoat_assembly_after_tool(ws)
     _order_tooling_columns(ws)
     _style_inventory_tooling_columns(ws)
     _migrate_inventory_gripper_values(ws)
@@ -884,6 +948,19 @@ def _workbook_schema_is_current(workbook) -> bool:
     return True
 
 
+def _workbook_schema_needs_only_eoat_assembly_id_column(workbook) -> bool:
+    if "EOAT Inventory" not in workbook.sheetnames:
+        return False
+    headers = worksheet_headers(workbook["EOAT Inventory"])
+    expected = get_expected_headers("EOAT Inventory")
+    missing = [header for header in expected if header not in headers]
+    if missing != [EOAT_ASSEMBLY_ID_FIELD]:
+        return False
+    if LEGACY_TOOL_FIELD in headers or LEGACY_VACUUM_CUPS_FIELD in headers or VACUUM_ZONES_FIELD in headers:
+        return False
+    return True
+
+
 def _set_workbook_schema_current(workbook) -> None:
     ws = _metadata_sheet(workbook)
     values = {
@@ -1008,6 +1085,7 @@ def _migrate_workbook_tool_headers(workbook) -> None:
         _migrate_legacy_vacuum_cups_header(ws)
     if "EOAT Inventory" in workbook.sheetnames:
         _move_tool_after_press(workbook["EOAT Inventory"])
+        _move_eoat_assembly_after_tool(workbook["EOAT Inventory"])
         _order_tooling_columns(workbook["EOAT Inventory"])
 
 
@@ -1051,6 +1129,17 @@ def _move_tool_after_press(ws) -> None:
         return
     source_idx = headers.index(TOOL_FIELD) + 1
     target_idx = headers.index("Press/Machine #") + 2
+    if source_idx == target_idx:
+        return
+    _move_column(ws, source_idx, target_idx)
+
+
+def _move_eoat_assembly_after_tool(ws) -> None:
+    headers = worksheet_headers(ws)
+    if TOOL_FIELD not in headers or EOAT_ASSEMBLY_ID_FIELD not in headers:
+        return
+    source_idx = headers.index(EOAT_ASSEMBLY_ID_FIELD) + 1
+    target_idx = headers.index(TOOL_FIELD) + 2
     if source_idx == target_idx:
         return
     _move_column(ws, source_idx, target_idx)
@@ -1198,7 +1287,10 @@ def _apply_inventory_validations(ws) -> None:
         "Cleanroom/Non-Cleanroom": [*CLEANROOM_DROPDOWN_VALUES, NA_VALUE],
         "Electrical/Wiring Present?": ["Yes", "No", "Unknown / Not Checked", NA_VALUE],
         MANUAL_COMPLETION_OVERRIDE_FIELD: ["Yes", "No", NA_VALUE],
+        AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_VALUES,
         ENTRY_TYPE_FIELD: [ENTRY_TYPE_AUDITED, ENTRY_TYPE_COMPATIBLE],
+        PHYSICAL_AUDIT_VERIFIED_FIELD: ["Yes", "No", NA_VALUE],
+        COMPATIBILITY_CONFIDENCE_FIELD: ["Press Capacity", "Manual Review", "Existing EOAT", "Imported", "Needs review", NA_VALUE],
     }
     numeric_headers = {
         NUMBER_OF_PARTS_PICKED_FIELD,
@@ -1353,7 +1445,11 @@ def save_audit_entry(
             timing_metrics["audit_save.schema_repair_seconds"] = 0.0
             timing_metrics["schema_repair_seconds"] = 0.0
         else:
-            if str(options.schema_policy or "").strip().casefold() in {"fail_if_stale", "fail", "current_only"}:
+            can_apply_eoat_only_upgrade = _workbook_schema_needs_only_eoat_assembly_id_column(workbook)
+            if (
+                str(options.schema_policy or "").strip().casefold() in {"fail_if_stale", "fail", "current_only"}
+                and not can_apply_eoat_only_upgrade
+            ):
                 workbook.close()
                 return ToolResult.fail(
                     "eoat_audit_form",

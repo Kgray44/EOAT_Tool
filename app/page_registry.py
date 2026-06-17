@@ -74,7 +74,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
             EVENT_OPEN_ITEMS_CHANGED,
             EVENT_WORKBOOK_VALIDATED,
         ),
-        description="App-native press/machine grouping of physical audits, compatible entries, and follow-ups.",
+        description="EOAT documentation grouped by press/machine relationship, compatibility, and follow-ups.",
     ),
     PageSpec(
         "machine_360",
@@ -88,7 +88,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
             EVENT_OPEN_ITEMS_CHANGED,
             EVENT_WORKBOOK_VALIDATED,
         ),
-        description="Machine-centered audit, compatibility, evidence, and open-item context.",
+        description="Installed-cell relationship view for EOAT compatibility, evidence, and open-item context.",
     ),
     PageSpec(
         "notes",
@@ -146,7 +146,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         "app.pages.audit_progress:AuditProgressPage",
         refresh_on_show=True,
         listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED),
-        description="Audit progress metrics and reports.",
+        description="EOAT documentation, compatibility, and installed-cell progress metrics.",
     ),
     PageSpec(
         "compatibility_matrix",
@@ -155,7 +155,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         "app.pages.compatibility_matrix:CompatibilityMatrixPage",
         refresh_on_show=True,
         listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED, EVENT_WORKBOOK_VALIDATED),
-        description="Machine/tool compatibility matrix with source audit and review details.",
+        description="EOAT-to-machine compatibility matrix with source audit and review details.",
     ),
     PageSpec(
         "issue_analysis",

@@ -31,12 +31,16 @@ The core model lives in `core/photo_evidence.py`. It defines evidence categories
 
 Supported categories:
 
-- Overall EOAT
+- Front View
+- Side View
+- Back View
+- Tool Number
 - Robot Connection
 - EOAT-Side Pneumatic Circuits
 - Sensors
 - Quick Disconnects
 - Tubing Routing
+- Gripper
 - Grippers
 - Vacuum Cups
 - Mounting Hardware
@@ -63,7 +67,7 @@ The Photos page now includes an Audit Photo Evidence section beside the existing
 Photo intake workflow:
 
 - Put JPG, JPEG, PNG, or HEIC files in `01_EOAT_Audit/Cell_Photos/Incoming_Photos`.
-- Select an audit from Audit Lookup or enter `Related Audit ID`.
+- Select a Tool # and, when available, a related audit.
 - Assign `EOAT Area Shown`; use Batch Review when different photos need different shot types.
 - Preview the rename.
 - Confirm intake to copy or move files, write Photo Index rows, and update the matching EOAT Inventory row.
@@ -71,7 +75,13 @@ Photo intake workflow:
 
 The naming convention is:
 
-`<PlantArea>_<PressMachine>_EOAT_<YYYY-MM-DD>_<ShotType>_<sequence>.<ext>`
+`Tool_<ToolNumber>__<PhotoCategory>__<YYYY-MM-DD>__<sequence>.<ext>`
+
+Photo storage is tool-first and lazy. `Cell_Photos` contains `Incoming_Photos` by default. When a photo is imported, the app creates the tool folder and only the needed photo-type subfolder, for example:
+
+`01_EOAT_Audit/Cell_Photos/Tool_12345__Part_Name/01_Front_View/`
+
+Other view folders for that tool are not created until photos of those types are imported.
 
 When photos are intaken with a matching `Related Audit ID`, the audit row is updated to `Photos Taken? = Yes` and `Photo Folder/Link` is populated or appended without duplicating existing references.
 

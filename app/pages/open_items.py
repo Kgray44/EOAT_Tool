@@ -6,14 +6,18 @@ from collections import Counter
 try:
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import (
+        QCheckBox,
         QComboBox,
-        QFormLayout,
+        QDialog,
+        QDialogButtonBox,
         QGridLayout,
         QGroupBox,
         QHBoxLayout,
         QInputDialog,
         QLabel,
         QLineEdit,
+        QListWidget,
+        QListWidgetItem,
         QMessageBox,
         QPushButton,
         QTableWidget,
@@ -24,9 +28,12 @@ try:
     )
 except ImportError:  # pragma: no cover
     Qt = None
-    QComboBox = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QInputDialog = QLabel = QLineEdit = (
-        QMessageBox
-    ) = QPushButton = QTableWidget = QTableWidgetItem = QTextEdit = QVBoxLayout = QWidget = None
+    QComboBox = QDialog = QDialogButtonBox = QGridLayout = QGroupBox = QHBoxLayout = QInputDialog = QLabel = (
+        QLineEdit
+    ) = QListWidget = QListWidgetItem = QMessageBox = QPushButton = QTableWidget = (
+        QTableWidgetItem
+    ) = QTextEdit = QVBoxLayout = QWidget = None
+    QCheckBox = None
 
 from app.event_bus import EVENT_AUDIT_SAVED, EVENT_OPEN_ITEMS_CHANGED, get_event_bus
 from app.page_async import AsyncRefreshMixin, log_page_performance
@@ -40,8 +47,144 @@ from core.open_items import (
     export_open_items_report,
     list_open_items,
     load_cached_open_items,
+    load_open_items_field_filter,
+    low_applicability_open_item_fields,
+    save_open_items_field_filter,
     summarize_open_items,
 )
+
+
+class OpenItemsFieldFilterDialog(QDialog):
+    def __init__(
+        self,
+        fields: list[str],
+        *,
+        mode: str = "ignore",
+        selected_fields: set[str] | None = None,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.setWindowTitle("Field Filter")
+        self.resize(420, 520)
+        selected = {field_filter_key(field) for field in selected_fields or set()}
+
+        layout = QVBoxLayout(self)
+
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Mode"))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("Ignore selected fields", "ignore")
+        self.mode_combo.addItem("Include only selected fields", "include")
+        mode_index = self.mode_combo.findData(mode if mode in {"ignore", "include"} else "ignore")
+        self.mode_combo.setCurrentIndex(mode_index if mode_index >= 0 else 0)
+        mode_row.addWidget(self.mode_combo, stretch=1)
+        layout.addLayout(mode_row)
+
+        self.field_list = QListWidget()
+        for field in fields:
+            field_key = field_filter_key(field)
+            item = QListWidgetItem(field_filter_label(field_key))
+            item.setData(Qt.ItemDataRole.UserRole, field_key)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if field_key in selected else Qt.CheckState.Unchecked)
+            self.field_list.addItem(item)
+        layout.addWidget(self.field_list, stretch=1)
+
+        selection_row = QHBoxLayout()
+        select_all = QPushButton("Select All")
+        select_all.clicked.connect(lambda: self._set_all_fields(Qt.CheckState.Checked))
+        clear_selection = QPushButton("Clear Selection")
+        clear_selection.clicked.connect(lambda: self._set_all_fields(Qt.CheckState.Unchecked))
+        selection_row.addWidget(select_all)
+        selection_row.addWidget(clear_selection)
+        selection_row.addStretch(1)
+        layout.addLayout(selection_row)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def selected_mode(self) -> str:
+        return str(self.mode_combo.currentData() or "ignore")
+
+    def selected_fields(self) -> set[str]:
+        fields: set[str] = set()
+        for row in range(self.field_list.count()):
+            item = self.field_list.item(row)
+            if item.checkState() == Qt.CheckState.Checked:
+                fields.add(str(item.data(Qt.ItemDataRole.UserRole) or ""))
+        return fields
+
+    def _set_all_fields(self, state) -> None:
+        for row in range(self.field_list.count()):
+            self.field_list.item(row).setCheckState(state)
+
+
+class OpenItemsPermanentFieldFilterDialog(QDialog):
+    def __init__(
+        self,
+        fields: list[str],
+        *,
+        selected_fields: set[str] | None = None,
+        auto_hide_low_applicability: bool = False,
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.setWindowTitle("Permanent Field Filter")
+        self.resize(420, 560)
+        selected = {field_filter_key(field) for field in selected_fields or set()}
+
+        layout = QVBoxLayout(self)
+
+        self.auto_hide_check = QCheckBox("Hide Mostly Blank/N/A Fields")
+        self.auto_hide_check.setChecked(bool(auto_hide_low_applicability))
+        self.auto_hide_check.setToolTip(
+            "Automatically exclude non-key fields when at least half of EOAT Inventory values are blank or N/A."
+        )
+        layout.addWidget(self.auto_hide_check)
+
+        self.field_list = QListWidget()
+        for field in fields:
+            field_key = field_filter_key(field)
+            if not field_key:
+                continue
+            item = QListWidgetItem(field_filter_label(field_key))
+            item.setData(Qt.ItemDataRole.UserRole, field_key)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if field_key in selected else Qt.CheckState.Unchecked)
+            self.field_list.addItem(item)
+        layout.addWidget(self.field_list, stretch=1)
+
+        selection_row = QHBoxLayout()
+        select_all = QPushButton("Select All")
+        select_all.clicked.connect(lambda: self._set_all_fields(Qt.CheckState.Checked))
+        clear_selection = QPushButton("Clear Selection")
+        clear_selection.clicked.connect(lambda: self._set_all_fields(Qt.CheckState.Unchecked))
+        selection_row.addWidget(select_all)
+        selection_row.addWidget(clear_selection)
+        selection_row.addStretch(1)
+        layout.addLayout(selection_row)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def selected_fields(self) -> set[str]:
+        fields: set[str] = set()
+        for row in range(self.field_list.count()):
+            item = self.field_list.item(row)
+            if item.checkState() == Qt.CheckState.Checked:
+                fields.add(str(item.data(Qt.ItemDataRole.UserRole) or ""))
+        return fields
+
+    def auto_hide_low_applicability(self) -> bool:
+        return self.auto_hide_check.isChecked()
+
+    def _set_all_fields(self, state) -> None:
+        for row in range(self.field_list.count()):
+            self.field_list.item(row).setCheckState(state)
 
 
 class OpenItemsPage(AsyncRefreshMixin, QWidget):
@@ -65,6 +208,12 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.items: list[OpenItem] = []
         self.filtered_items: list[OpenItem] = []
         self._latest_generated_at = ""
+        self.field_filter_mode = "ignore"
+        self.field_filter_fields: set[str] = set()
+        permanent_filter = load_open_items_field_filter(self.config.project_root)
+        self.permanent_field_filter_fields: set[str] = set(permanent_filter.get("excluded_fields") or set())
+        self.auto_hide_low_applicability_fields = bool(permanent_filter.get("auto_hide_low_applicability"))
+        self.low_applicability_field_stats: dict[str, dict[str, object]] = {}
 
         layout = QVBoxLayout(self)
         heading = QLabel("Open Items")
@@ -112,6 +261,10 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.machine_filter.setPlaceholderText("Machine")
         self.machine_filter.textChanged.connect(self.apply_filters)
         self.due_filter = self._combo(["All", "Overdue", "Due Soon", "No Due Date"])
+        self.field_filter_button = QPushButton("Field Filter: All")
+        self.field_filter_button.clicked.connect(self.open_field_filter_dialog)
+        self.permanent_filter_button = QPushButton("Permanent Filter: All")
+        self.permanent_filter_button.clicked.connect(self.open_permanent_field_filter_dialog)
         filters = [
             ("Search", self.search_edit),
             ("Source", self.source_filter),
@@ -122,6 +275,8 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
             ("Audit", self.audit_filter),
             ("Machine", self.machine_filter),
             ("Due", self.due_filter),
+            ("Fields", self.field_filter_button),
+            ("Permanent", self.permanent_filter_button),
         ]
         for index, (label, widget) in enumerate(filters):
             filter_layout.addWidget(QLabel(label), index // 3 * 2, index % 3)
@@ -271,6 +426,10 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.config = config
         self.items = []
         self.filtered_items = []
+        permanent_filter = load_open_items_field_filter(self.config.project_root)
+        self.permanent_field_filter_fields = set(permanent_filter.get("excluded_fields") or set())
+        self.auto_hide_low_applicability_fields = bool(permanent_filter.get("auto_hide_low_applicability"))
+        self.low_applicability_field_stats = {}
         self._populate_table([])
         self._show_cached_items()
 
@@ -284,9 +443,14 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         audit = self.audit_filter.text().casefold().strip()
         machine = self.machine_filter.text().casefold().strip()
         due = self.due_filter.currentText()
+        selected_fields = {field_filter_key(field) for field in self.field_filter_fields}
+        permanently_excluded_fields = self._permanently_excluded_fields()
+        base_items = [
+            item for item in self.items if field_filter_key(item.field) not in permanently_excluded_fields
+        ]
 
         rows: list[OpenItem] = []
-        for item in self.items:
+        for item in base_items:
             haystack = " ".join(
                 [
                     item.source,
@@ -319,10 +483,62 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
                 continue
             if due != "All" and not self._matches_due_filter(item, due):
                 continue
+            if selected_fields:
+                field_match = field_filter_key(item.field) in selected_fields
+                if self.field_filter_mode == "include" and not field_match:
+                    continue
+                if self.field_filter_mode == "ignore" and field_match:
+                    continue
             rows.append(item)
         self.filtered_items = rows
+        self._refresh_summary(summarize_open_items(base_items))
         self._populate_table(rows)
-        self.status_label.setText(f"{len(rows)} item(s) shown from {len(self.items)} total item(s).")
+        excluded_count = len(self.items) - len(base_items)
+        if excluded_count:
+            self.status_label.setText(
+                f"{len(rows)} item(s) shown from {len(base_items)} available item(s); "
+                f"{excluded_count} permanently excluded."
+            )
+        else:
+            self.status_label.setText(f"{len(rows)} item(s) shown from {len(self.items)} total item(s).")
+
+    def open_field_filter_dialog(self) -> None:
+        dialog = OpenItemsFieldFilterDialog(
+            self._field_filter_options(),
+            mode=self.field_filter_mode,
+            selected_fields=self.field_filter_fields,
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.field_filter_mode = dialog.selected_mode()
+        self.field_filter_fields = dialog.selected_fields()
+        self._update_field_filter_button()
+        self.apply_filters()
+
+    def open_permanent_field_filter_dialog(self) -> None:
+        dialog = OpenItemsPermanentFieldFilterDialog(
+            self._permanent_field_filter_options(),
+            selected_fields=self.permanent_field_filter_fields,
+            auto_hide_low_applicability=self.auto_hide_low_applicability_fields,
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.permanent_field_filter_fields = dialog.selected_fields()
+        self.auto_hide_low_applicability_fields = dialog.auto_hide_low_applicability()
+        try:
+            save_open_items_field_filter(
+                self.config.project_root,
+                self.permanent_field_filter_fields,
+                auto_hide_low_applicability=self.auto_hide_low_applicability_fields,
+            )
+        except OSError as exc:
+            self.status_label.setText(f"Could not save permanent filter: {exc}")
+            return
+        self._refresh_low_applicability_fields()
+        self._update_permanent_filter_button()
+        self.apply_filters()
 
     def selected_item(self) -> OpenItem | None:
         row = self.table.currentRow()
@@ -445,7 +661,6 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self.items = cached
         self._latest_generated_at = generated_at or ""
         self._refresh_filter_options([])
-        self._refresh_summary(summarize_open_items(cached))
         self.apply_filters()
         self.status_label.setText(f"Showing cached data from {_time_label(generated_at)}.")
 
@@ -458,7 +673,6 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         render_started = time.perf_counter()
         self.items = list(payload.get("items") or [])
         self._refresh_filter_options(list(payload.get("tags") or []))
-        self._refresh_summary(dict(payload.get("summary") or summarize_open_items(self.items)))
         self.apply_filters()
         render_seconds = time.perf_counter() - render_started
         source_counts = dict(payload.get("source_counts") or {})
@@ -501,6 +715,9 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         self._set_combo_values(self.source_filter, ["All", *sorted({item.source for item in self.items})])
         self._set_combo_values(self.category_filter, ["All", *sorted({item.category for item in self.items})])
         self._set_combo_values(self.tag_filter, ["All", *tags])
+        self._refresh_low_applicability_fields()
+        self._update_field_filter_button()
+        self._update_permanent_filter_button()
 
     def _set_combo_values(self, combo: QComboBox, values: list[str]) -> None:
         current = combo.currentText()
@@ -510,6 +727,63 @@ class OpenItemsPage(AsyncRefreshMixin, QWidget):
         index = combo.findText(current)
         combo.setCurrentIndex(index if index >= 0 else 0)
         combo.blockSignals(False)
+
+    def _field_filter_options(self) -> list[str]:
+        fields = {field_filter_key(item.field) for item in self.items}
+        fields.update(self.field_filter_fields)
+        return sorted(fields, key=lambda field: (field == "", field.casefold()))
+
+    def _permanent_field_filter_options(self) -> list[str]:
+        fields = {field_filter_key(item.field) for item in self.items if field_filter_key(item.field)}
+        fields.update(self.permanent_field_filter_fields)
+        fields.update(self.low_applicability_field_stats)
+        return sorted(fields, key=lambda field: field.casefold())
+
+    def _refresh_low_applicability_fields(self) -> None:
+        candidates = {field_filter_key(item.field) for item in self.items if field_filter_key(item.field)}
+        candidates.update(self.permanent_field_filter_fields)
+        self.low_applicability_field_stats = low_applicability_open_item_fields(
+            self.config.project_root,
+            candidates,
+        )
+
+    def _permanently_excluded_fields(self) -> set[str]:
+        fields = set(self.permanent_field_filter_fields)
+        if self.auto_hide_low_applicability_fields:
+            fields.update(self.low_applicability_field_stats)
+        return fields
+
+    def _update_field_filter_button(self) -> None:
+        count = len(self.field_filter_fields)
+        if not count:
+            self.field_filter_button.setText("Field Filter: All")
+            self.field_filter_button.setToolTip("No field filter is active.")
+            return
+        action = "Include" if self.field_filter_mode == "include" else "Ignore"
+        self.field_filter_button.setText(f"Field Filter: {action} {count}")
+        labels = ", ".join(field_filter_label(field) for field in sorted(self.field_filter_fields))
+        self.field_filter_button.setToolTip(f"{action} field filter: {labels}")
+
+    def _update_permanent_filter_button(self) -> None:
+        manual_count = len(self.permanent_field_filter_fields)
+        auto_count = len(self.low_applicability_field_stats) if self.auto_hide_low_applicability_fields else 0
+        total = len(self._permanently_excluded_fields())
+        if not total:
+            self.permanent_filter_button.setText("Permanent Filter: All")
+            self.permanent_filter_button.setToolTip("No permanent field exclusions are active.")
+            return
+        self.permanent_filter_button.setText(f"Permanent Filter: Exclude {total}")
+        parts: list[str] = []
+        if manual_count:
+            labels = ", ".join(field_filter_label(field) for field in sorted(self.permanent_field_filter_fields))
+            parts.append(f"Manual: {labels}")
+        if auto_count:
+            auto_labels = ", ".join(
+                f"{field_filter_label(field)} ({stats.get('blank_na_ratio', 0):.0%})"
+                for field, stats in sorted(self.low_applicability_field_stats.items())
+            )
+            parts.append(f"Mostly blank/N/A: {auto_labels}")
+        self.permanent_filter_button.setToolTip("; ".join(parts))
 
     def _refresh_summary(self, summary: dict[str, int]) -> None:
         values = {
@@ -602,3 +876,11 @@ def _time_label(value: str | None) -> str:
         return datetime.fromisoformat(str(value)).strftime("%I:%M %p").lstrip("0")
     except ValueError:
         return str(value)
+
+
+def field_filter_key(value: str | None) -> str:
+    return str(value or "").strip()
+
+
+def field_filter_label(value: str | None) -> str:
+    return field_filter_key(value) or "(No field)"

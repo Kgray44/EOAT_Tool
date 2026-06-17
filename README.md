@@ -34,6 +34,18 @@ python run_dashboard.py
 
 On a clean checkout, the default project root is `examples/demo_project/`. The app labels this as Demo mode and shows a warning that the data is synthetic. Use **Home > Choose Real Project Folder** or **Settings > Choose Real Project Folder** to select your private EOAT project root. Saved project-root settings are written to ignored local config files such as `config/local_config.json`.
 
+## EOAT Atlas Companion App
+
+EOAT Atlas is a separate read-only companion app for fast EOAT search, compatibility lookup, photo browsing, standards navigation, and install recommendations.
+
+```powershell
+python -m app.atlas.main
+```
+
+The equivalent convenience launcher is `python run_atlas.py`.
+
+Use EOAT Command Center for audit/admin/editing/schema repair/photo intake/report generation. Use EOAT Atlas when you want to answer “What EOAT do I need?” quickly from the existing project data. Details are in `docs/EOAT_ATLAS.md`.
+
 ## Demo Data
 
 The folder `examples/demo_project/` contains fake machines, fake press IDs, fake robot names, fake EOAT types, fake issue categories, fake KPI values, fake placeholder images, fake audit entries, and fake reference workbooks. It is safe for tests, screenshots, and GitHub examples.
