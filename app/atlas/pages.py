@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -23,6 +25,8 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSplitter,
     QTableWidget,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -40,6 +44,7 @@ from core.atlas_recommendations import recommend_for_query
 from core.atlas_utils import normalized_eoat_key, normalized_machine_key
 from core.compatibility_engine import compatibility_matrix_rows
 from core.openers import open_path
+from core.performance import log_performance_event
 
 from .widgets import (
     AtlasHero,
@@ -72,6 +77,8 @@ from .widgets import (
     key_value_grid,
     page_title,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 class BaseAtlasPage(QWidget):
@@ -232,6 +239,18 @@ class WhatNeedPage(BaseAtlasPage):
         if self.result and self.result.best:
             self.controller.open_eoat(self.result.best.eoat_id)
 
+    def open_photos_for(self, eoat_id: str) -> None:
+        if hasattr(self.controller, "open_photos"):
+            self.controller.open_photos(eoat_id)
+
+    def open_tool_value(self, tool: str) -> None:
+        if tool and hasattr(self.controller, "open_tool"):
+            self.controller.open_tool(tool)
+
+    def open_machine_value(self, machine: str) -> None:
+        if machine and hasattr(self.controller, "open_machine"):
+            self.controller.open_machine(machine)
+
     def copy_result(self) -> None:
         if self.result:
             QApplication.clipboard().setText(_recommendation_text(self.result))
@@ -273,6 +292,7 @@ class WhatNeedPage(BaseAtlasPage):
             summary.layout.addWidget(MiniProgressBar(best.score, kind="good" if best.score >= 80 else "warn"))
             summary.layout.addWidget(_labeled_chips("Compatible machines", best.machines, empty="No compatible machines"))
             summary.layout.addWidget(_labeled_chips("Tools", best.tools, empty="No linked tools"))
+            summary.layout.addWidget(_recommendation_action_row(best, self, primary=True))
         self.result_layout.addWidget(summary)
 
         checklist = ChecklistCard("Before Install", "Use this as a quick readiness sequence before staging.")
@@ -298,6 +318,7 @@ class WhatNeedPage(BaseAtlasPage):
             card.layout.addWidget(_labeled_chips("Tools", candidate.tools, empty="No linked tools", per_row=5))
             if candidate.reasons:
                 card.layout.addWidget(_labeled_chips("Why", candidate.reasons[:4], kind="info", per_row=2))
+            card.layout.addWidget(_recommendation_action_row(candidate, self, primary=False))
             candidate_layout.addWidget(card)
         if not self.result.candidates:
             candidate_layout.addWidget(EmptyStateWidget("No candidates found", "Try a different tool, machine, or EOAT identifier."))
@@ -955,25 +976,39 @@ class PMInspectionPage(BaseAtlasPage):
 
 @dataclass(frozen=True)
 class InformationLibraryEntry:
+    entry_id: str
     title: str
     category: str
-    snippet: str
+    summary: str
+    body: str
     source: str = "Atlas"
     path: str = ""
+    source_section: str = ""
     tags: tuple[str, ...] = ()
+    tree_path: tuple[str, ...] = ()
+    related: tuple[str, ...] = ()
     modified: float = 0.0
+    indexed_at: float = 0.0
 
 
 class InformationLibraryPage(BaseAtlasPage):
     def __init__(self, controller, parent=None):
         super().__init__(controller, parent)
         self.entries: list[InformationLibraryEntry] = []
+        self.filtered_entries: list[InformationLibraryEntry] = []
+        self.entry_by_id: dict[str, InformationLibraryEntry] = {}
+        self._selected_entry_id = ""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
-        layout.addWidget(page_title("Information Library", "Search Atlas help, EOAT standards, compatibility rules, photos, PM guidance, and troubleshooting references."))
+        layout.addWidget(
+            page_title(
+                "Information Library",
+                "Browse Atlas help, EOAT standards, compatibility logic, photo rules, PM guidance, and troubleshooting references.",
+            )
+        )
         controls = QHBoxLayout()
         controls.setContentsMargins(0, 0, 0, 0)
-        self.search = ModernSearchBar("Search standards, compatibility, photos, PM, settings, warnings, or exports")
+        self.search = ModernSearchBar("Search title, body, tags, source file, or tree path")
         self.search.textChanged.connect(self.refresh)
         self.category = QComboBox()
         self.category.currentTextChanged.connect(self.refresh)
@@ -984,21 +1019,35 @@ class InformationLibraryPage(BaseAtlasPage):
         controls.addWidget(self.category)
         controls.addWidget(self.sort)
         layout.addLayout(controls)
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.card_widget = QWidget()
-        self.card_layout = QVBoxLayout(self.card_widget)
-        self.card_layout.setContentsMargins(0, 0, 0, 0)
-        self.card_layout.setSpacing(10)
-        self.card_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
-        self.card_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        self.scroll.setWidget(self.card_widget)
-        layout.addWidget(self.scroll, 1)
+
+        splitter = QSplitter()
+        self.tree = QTreeWidget()
+        self.tree.setObjectName("InformationTree")
+        self.tree.setHeaderHidden(True)
+        self.tree.setMinimumWidth(330)
+        self.tree.setMaximumWidth(470)
+        self.tree.itemSelectionChanged.connect(self._tree_selection_changed)
+
+        self.detail_scroll = QScrollArea()
+        self.detail_scroll.setWidgetResizable(True)
+        self.detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.detail_widget = QWidget()
+        self.detail_layout = QVBoxLayout(self.detail_widget)
+        self.detail_layout.setContentsMargins(0, 0, 0, 0)
+        self.detail_layout.setSpacing(10)
+        self.detail_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
+        self.detail_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.detail_scroll.setWidget(self.detail_widget)
+
+        splitter.addWidget(self.tree)
+        splitter.addWidget(self.detail_scroll)
+        splitter.setSizes([390, 880])
+        layout.addWidget(splitter, 1)
 
     def set_bundle(self, bundle: AtlasDataBundle | None) -> None:
         self.bundle = bundle
         self.entries = _build_information_entries(bundle) if bundle is not None else []
+        self.entry_by_id = {entry.entry_id: entry for entry in self.entries}
         self._sync_categories()
         self.refresh()
 
@@ -1015,7 +1064,6 @@ class InformationLibraryPage(BaseAtlasPage):
     def refresh(self) -> None:
         if self.bundle is None:
             return
-        _clear_layout(self.card_layout)
         query = self.search.text().strip()
         category = self.category.currentText()
         scored = []
@@ -1037,16 +1085,149 @@ class InformationLibraryPage(BaseAtlasPage):
             scored.sort(key=lambda item: (-item[1].modified, item[1].title.casefold()))
         else:
             scored.sort(key=lambda item: (-item[0], item[1].category.casefold(), item[1].title.casefold()))
-        if scored:
-            summary = InfoPanel("Library Results", f"{len(scored)} matching reference item(s). Search uses an in-memory index built at refresh time.")
-            self.card_layout.addWidget(summary)
-        for _score, entry in scored[:80]:
-            self.card_layout.addWidget(_information_card(entry))
-        if not scored:
-            self.card_layout.addWidget(EmptyStateWidget("No library entries matched", "Try standards, photos, PM, compatibility, troubleshooting, settings, or an EOAT keyword."))
-        elif len(scored) > 80:
-            self.card_layout.addWidget(EmptyStateWidget("More results available", f"Showing first 80 of {len(scored)}. Refine the search to narrow results."))
-        self.card_layout.addStretch(1)
+        self.filtered_entries = [entry for _score, entry in scored]
+        self._rebuild_tree(query)
+        selected = self.entry_by_id.get(self._selected_entry_id)
+        if selected not in self.filtered_entries:
+            selected = self.filtered_entries[0] if self.filtered_entries else None
+        self._render_detail(selected)
+
+    def _rebuild_tree(self, query: str) -> None:
+        self.tree.blockSignals(True)
+        self.tree.clear()
+        nodes: dict[tuple[str, ...], QTreeWidgetItem] = {}
+        selected_item: QTreeWidgetItem | None = None
+        for entry in self.filtered_entries:
+            path_parts = tuple(part for part in (entry.tree_path or (entry.category,)) if part)
+            if not path_parts:
+                path_parts = (entry.category or "Library",)
+            parent_item: QTreeWidgetItem | None = None
+            current_path: tuple[str, ...] = ()
+            for part in path_parts:
+                current_path = (*current_path, part)
+                item = nodes.get(current_path)
+                if item is None:
+                    item = QTreeWidgetItem([part])
+                    item.setData(0, Qt.ItemDataRole.UserRole, "")
+                    item.setToolTip(0, " / ".join(current_path))
+                    if parent_item is None:
+                        self.tree.addTopLevelItem(item)
+                    else:
+                        parent_item.addChild(item)
+                    nodes[current_path] = item
+                parent_item = item
+            leaf = QTreeWidgetItem([entry.title])
+            leaf.setData(0, Qt.ItemDataRole.UserRole, entry.entry_id)
+            leaf.setToolTip(0, entry.summary)
+            if parent_item is None:
+                self.tree.addTopLevelItem(leaf)
+            else:
+                parent_item.addChild(leaf)
+            if entry.entry_id == self._selected_entry_id:
+                selected_item = leaf
+        if query:
+            self.tree.expandAll()
+        else:
+            for index in range(self.tree.topLevelItemCount()):
+                self.tree.topLevelItem(index).setExpanded(index < 3)
+        if selected_item is None and self.filtered_entries:
+            selected_id = self.filtered_entries[0].entry_id
+            selected_item = self._find_tree_item(selected_id)
+        if selected_item is not None:
+            self.tree.setCurrentItem(selected_item)
+            self.tree.scrollToItem(selected_item)
+        self.tree.blockSignals(False)
+
+    def _find_tree_item(self, entry_id: str) -> QTreeWidgetItem | None:
+        stack = [self.tree.topLevelItem(index) for index in range(self.tree.topLevelItemCount())]
+        while stack:
+            item = stack.pop()
+            if item.data(0, Qt.ItemDataRole.UserRole) == entry_id:
+                return item
+            stack.extend(item.child(index) for index in range(item.childCount()))
+        return None
+
+    def _tree_selection_changed(self) -> None:
+        item = self.tree.currentItem()
+        if item is None:
+            return
+        entry_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if not entry_id:
+            item.setExpanded(not item.isExpanded())
+            return
+        self._selected_entry_id = str(entry_id)
+        self._render_detail(self.entry_by_id.get(self._selected_entry_id))
+
+    def _render_detail(self, entry: InformationLibraryEntry | None) -> None:
+        _clear_layout(self.detail_layout)
+        if entry is None:
+            self.detail_layout.addWidget(
+                EmptyStateWidget(
+                    "No library entry selected",
+                    "Use the tree or search/filter controls to choose a standards, help, compatibility, photo, PM, report, or troubleshooting topic.",
+                )
+            )
+            self.detail_layout.addStretch(1)
+            _finalize_scroll_panel(self.detail_scroll, self.detail_widget, self.detail_layout)
+            return
+        self._selected_entry_id = entry.entry_id
+        header = ProfileHeaderCard(entry.title, entry.summary, eyebrow=entry.category)
+        header.layout.addWidget(
+            _chip_group(
+                [entry.category, *_tree_label_parts(entry.tree_path)[1:4], *entry.tags[:4]],
+                kind="info",
+                per_row=4,
+                limit=8,
+            )
+        )
+        self.detail_layout.addWidget(header)
+
+        body = PrimaryCard("Reference Detail", "Expanded guidance for the selected information item.", eyebrow="Details")
+        body_label = QLabel(entry.body or entry.summary)
+        body_label.setObjectName("BodyText")
+        body_label.setWordWrap(True)
+        body.layout.addWidget(body_label)
+        self.detail_layout.addWidget(body)
+
+        if entry.related:
+            related = SecondaryCard("Related References", "Nearby topics from the same standards/help area.")
+            related.layout.addWidget(_chip_group(entry.related, kind="outline", per_row=4, limit=12))
+            self.detail_layout.addWidget(related)
+
+        metadata = InfoPanel("Source Metadata", "Reference provenance and indexing details.")
+        metadata.layout.addWidget(
+            key_value_grid(
+                [
+                    ("Tree path", " / ".join(entry.tree_path) or entry.category),
+                    ("Source", entry.source or "Atlas generated guidance"),
+                    ("Source section", entry.source_section or "-"),
+                    ("File", _short_path(entry.path) if entry.path else "-"),
+                    ("Last modified", _format_modified(entry.modified)),
+                    ("Indexed", _format_modified(entry.indexed_at)),
+                ]
+            )
+        )
+        self.detail_layout.addWidget(metadata)
+
+        buttons = []
+        if entry.path:
+            open_button = QPushButton("Open Source Document")
+            open_button.setObjectName("PrimaryButton")
+            open_button.clicked.connect(lambda _checked=False, path=entry.path: open_path(path))
+            buttons.append(open_button)
+        copy_summary = QPushButton("Copy Summary")
+        copy_summary.clicked.connect(lambda _checked=False, text=f"{entry.title}\n\n{entry.summary}": self._copy_text(text, "summary"))
+        buttons.append(copy_summary)
+        copy_full = QPushButton("Copy Full Text / Reference")
+        copy_full.clicked.connect(lambda _checked=False, selected_entry=entry: self._copy_text(_information_reference_text(selected_entry), "reference"))
+        buttons.append(copy_full)
+        self.detail_layout.addWidget(action_row(*buttons))
+        self.detail_layout.addStretch(1)
+        _finalize_scroll_panel(self.detail_scroll, self.detail_widget, self.detail_layout)
+
+    def _copy_text(self, text: str, label: str) -> None:
+        QApplication.clipboard().setText(text)
+        self.controller.show_status(f"Copied library {label}.")
 
 
 class ReportsPage(BaseAtlasPage):
@@ -1113,6 +1294,7 @@ class DiagnosticsPage(BaseAtlasPage):
         settings_grid.setHorizontalSpacing(12)
         settings_grid.setVerticalSpacing(8)
         self.theme_combo = _settings_combo(["Light", "Dark", "System/default"])
+        self.color_scheme_combo = _settings_combo(["Atlas Blue", "Nolato Logo"])
         self.startup_combo = _settings_combo(
             [
                 "Home / Command Deck",
@@ -1141,7 +1323,8 @@ class DiagnosticsPage(BaseAtlasPage):
         self.confirm_external_check = _settings_check("Ask before opening folders or files outside Atlas.")
         self.auto_refresh_check = _settings_check("Refresh Atlas data automatically when the app starts.")
         settings_widgets = [
-            ("Theme", self.theme_combo),
+            ("Theme mode", self.theme_combo),
+            ("Color scheme", self.color_scheme_combo),
             ("Startup page", self.startup_combo),
             ("Default search mode", self.search_mode_combo),
             ("Photo viewer behavior", self.photo_behavior_combo),
@@ -1236,6 +1419,9 @@ class DiagnosticsPage(BaseAtlasPage):
 
     def _wire_settings_controls(self) -> None:
         self.theme_combo.currentTextChanged.connect(lambda: self._save_setting(theme=_theme_value(self.theme_combo.currentText())))
+        self.color_scheme_combo.currentTextChanged.connect(
+            lambda: self._save_setting(color_scheme=_color_scheme_value(self.color_scheme_combo.currentText()))
+        )
         self.startup_combo.currentTextChanged.connect(lambda: self._save_setting(startup_page=_page_key_for_label(self.startup_combo.currentText())))
         self.search_mode_combo.currentTextChanged.connect(lambda: self._save_setting(default_search_mode=self.search_mode_combo.currentText().casefold()))
         self.photo_behavior_combo.currentTextChanged.connect(lambda: self._save_setting(photo_viewer_behavior=_photo_behavior_value(self.photo_behavior_combo.currentText())))
@@ -1252,6 +1438,7 @@ class DiagnosticsPage(BaseAtlasPage):
         settings = self.controller.settings
         controls = [
             self.theme_combo,
+            self.color_scheme_combo,
             self.startup_combo,
             self.search_mode_combo,
             self.photo_behavior_combo,
@@ -1267,6 +1454,7 @@ class DiagnosticsPage(BaseAtlasPage):
         for control in controls:
             control.blockSignals(True)
         self.theme_combo.setCurrentText({"light": "Light", "dark": "Dark", "system": "System/default"}.get(settings.theme, "Light"))
+        self.color_scheme_combo.setCurrentText({"atlas_blue": "Atlas Blue", "nolato_logo": "Nolato Logo"}.get(settings.color_scheme, "Atlas Blue"))
         self.startup_combo.setCurrentText(_label_for_page_key(settings.startup_page))
         self.search_mode_combo.setCurrentText(settings.default_search_mode.upper() if settings.default_search_mode == "eoat" else settings.default_search_mode.title())
         self.photo_behavior_combo.setCurrentText(
@@ -1315,6 +1503,43 @@ def _recommendation_text(result: RecommendationResult) -> str:
     if len(result.candidates) > 1:
         lines.extend(["", "Backup EOATs:", *[f"- {candidate.eoat_id}: {candidate.summary}" for candidate in result.candidates[1:]]])
     return "\n".join(lines)
+
+
+def _recommendation_action_row(candidate, page: WhatNeedPage, *, primary: bool) -> QWidget:
+    buttons = []
+    eoat_button = QPushButton("Open EOAT Profile")
+    if primary:
+        eoat_button.setObjectName("PrimaryButton")
+    eoat_button.clicked.connect(lambda _checked=False, eoat_id=candidate.eoat_id: page.controller.open_eoat(eoat_id))
+    buttons.append(eoat_button)
+
+    photos_button = QPushButton("View Photos")
+    if primary:
+        photos_button.setObjectName("HeroSecondaryButton")
+    photos_button.clicked.connect(lambda _checked=False, eoat_id=candidate.eoat_id: page.open_photos_for(eoat_id))
+    buttons.append(photos_button)
+
+    if candidate.tools:
+        tool_button = QPushButton("Open Related Tool" if primary else "Open Tool")
+        if primary:
+            tool_button.setObjectName("HeroSecondaryButton")
+        tool_button.clicked.connect(lambda _checked=False, tool=candidate.tools[0]: page.open_tool_value(tool))
+        buttons.append(tool_button)
+
+    if candidate.machines:
+        machine_button = QPushButton("Open Related Machine" if primary else "Open Machine")
+        if primary:
+            machine_button.setObjectName("HeroSecondaryButton")
+        machine_button.clicked.connect(lambda _checked=False, machine=candidate.machines[0]: page.open_machine_value(machine))
+        buttons.append(machine_button)
+
+    if primary:
+        export_button = QPushButton("Export Recommendation")
+        export_button.setObjectName("HeroSecondaryButton")
+        export_button.clicked.connect(page.export_result)
+        buttons.append(export_button)
+
+    return action_row(*buttons)
 
 
 class EOATListTile(QWidget):
@@ -1409,8 +1634,16 @@ class MachineListTile(QWidget):
         return QSize(320, self._height)
 
 
+@dataclass(frozen=True)
+class PhotoLoadResult:
+    pixmap: QPixmap
+    state: str
+    message: str = ""
+    detail: str = ""
+
+
 class PhotoCarouselDialog(QDialog):
-    SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+    SUPPORTED_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 
     def __init__(self, eoat: EOATRecord, *, prefetch: bool = True, parent=None):
         super().__init__(parent)
@@ -1418,7 +1651,9 @@ class PhotoCarouselDialog(QDialog):
         self.prefetch = prefetch
         self.photos = [photo for photo in _combined_photos(eoat) if Path(photo.path).suffix.casefold() in self.SUPPORTED_SUFFIXES]
         self.index = 0
-        self._prefetched: dict[int, QPixmap] = {}
+        self.fit_mode = "fit"
+        self.zoom = 1.0
+        self._prefetched: dict[int, PhotoLoadResult] = {}
         self.setObjectName("PhotoViewerDialog")
         self.setWindowTitle(f"Photos - {eoat.eoat_id}")
         self.setModal(True)
@@ -1452,21 +1687,44 @@ class PhotoCarouselDialog(QDialog):
         self.filename_label.setWordWrap(True)
         layout.addWidget(self.filename_label)
 
+        view_controls = QHBoxLayout()
+        view_controls.setContentsMargins(0, 0, 0, 0)
+        fit_button = QPushButton("Fit")
+        fit_button.clicked.connect(lambda: self.set_fit_mode("fit"))
+        fill_button = QPushButton("Fill")
+        fill_button.clicked.connect(lambda: self.set_fit_mode("fill"))
+        actual_button = QPushButton("Actual Size")
+        actual_button.clicked.connect(lambda: self.set_fit_mode("actual"))
+        zoom_out = QPushButton("Zoom -")
+        zoom_out.clicked.connect(lambda: self.adjust_zoom(0.85))
+        zoom_in = QPushButton("Zoom +")
+        zoom_in.clicked.connect(lambda: self.adjust_zoom(1.18))
+        reset_zoom = QPushButton("Reset Zoom")
+        reset_zoom.clicked.connect(self.reset_zoom)
+        view_controls.addWidget(fit_button)
+        view_controls.addWidget(fill_button)
+        view_controls.addWidget(actual_button)
+        view_controls.addStretch(1)
+        view_controls.addWidget(zoom_out)
+        view_controls.addWidget(zoom_in)
+        view_controls.addWidget(reset_zoom)
+        layout.addLayout(view_controls)
+
         controls = QHBoxLayout()
         controls.setContentsMargins(0, 0, 0, 0)
         self.previous_button = QPushButton("Previous")
         self.previous_button.clicked.connect(self.previous_photo)
         self.next_button = QPushButton("Next")
         self.next_button.clicked.connect(self.next_photo)
-        folder_button = QPushButton("Open Folder")
-        folder_button.clicked.connect(self.open_folder)
-        external_button = QPushButton("Open Externally")
-        external_button.clicked.connect(self.open_current_external)
+        self.folder_button = QPushButton("Open Folder")
+        self.folder_button.clicked.connect(self.open_folder)
+        self.external_button = QPushButton("Open Externally")
+        self.external_button.clicked.connect(self.open_current_external)
         controls.addWidget(self.previous_button)
         controls.addWidget(self.next_button)
         controls.addStretch(1)
-        controls.addWidget(folder_button)
-        controls.addWidget(external_button)
+        controls.addWidget(self.folder_button)
+        controls.addWidget(self.external_button)
         layout.addLayout(controls)
         self._show_photo()
 
@@ -1484,7 +1742,7 @@ class PhotoCarouselDialog(QDialog):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._show_photo()
+        self._render_current_pixmap()
 
     def previous_photo(self) -> None:
         if not self.photos:
@@ -1498,6 +1756,20 @@ class PhotoCarouselDialog(QDialog):
         self.index = (self.index + 1) % len(self.photos)
         self._show_photo()
 
+    def set_fit_mode(self, mode: str) -> None:
+        self.fit_mode = mode
+        self._render_current_pixmap()
+
+    def adjust_zoom(self, factor: float) -> None:
+        self.zoom = max(0.1, min(6.0, self.zoom * factor))
+        self.fit_mode = "actual"
+        self._render_current_pixmap()
+
+    def reset_zoom(self) -> None:
+        self.zoom = 1.0
+        self.fit_mode = "fit"
+        self._render_current_pixmap()
+
     def open_folder(self) -> None:
         if self.eoat.photos.folder_path:
             open_path(self.eoat.photos.folder_path)
@@ -1509,38 +1781,154 @@ class PhotoCarouselDialog(QDialog):
     def _show_photo(self) -> None:
         if not self.photos:
             self.count_label.setText("0 / 0")
-            self.filename_label.setText("No previewable photos found.")
-            self.image_label.setText("No previewable photos found.")
+            self.filename_label.setText("No photos linked.")
+            self.image_label.setPixmap(QPixmap())
+            self.image_label.setText("No photos linked for this EOAT.")
+            self.previous_button.setEnabled(False)
+            self.next_button.setEnabled(False)
+            self.external_button.setEnabled(False)
+            self.folder_button.setEnabled(bool(self.eoat.photos.folder_path))
             return
         photo = self.photos[self.index]
         self.count_label.setText(f"{self.index + 1} / {len(self.photos)}")
         category = f" - {photo.category}" if photo.category else ""
         self.filename_label.setText(f"{photo.filename or Path(photo.path).name}{category}")
         self.filename_label.setToolTip(photo.path)
-        pixmap = self._pixmap_for_index(self.index)
-        if pixmap.isNull():
-            self.image_label.setText(f"Could not preview {Path(photo.path).name}")
-            self.image_label.setPixmap(QPixmap())
-        else:
-            size = self.image_label.size()
-            self.image_label.setPixmap(
-                pixmap.scaled(
-                    max(120, size.width() - 18),
-                    max(120, size.height() - 18),
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
+        self.image_label.setPixmap(QPixmap())
+        self.image_label.setText("Loading...")
+        QApplication.processEvents()
+        self._render_current_pixmap()
         self.previous_button.setEnabled(len(self.photos) > 1)
         self.next_button.setEnabled(len(self.photos) > 1)
+        self.external_button.setEnabled(Path(photo.path).exists())
+        self.folder_button.setEnabled(bool(self.eoat.photos.folder_path))
         if self.prefetch and len(self.photos) > 1:
             self._pixmap_for_index((self.index - 1) % len(self.photos))
             self._pixmap_for_index((self.index + 1) % len(self.photos))
 
-    def _pixmap_for_index(self, index: int) -> QPixmap:
+    def _render_current_pixmap(self) -> None:
+        if not self.photos:
+            return
+        result = self._pixmap_for_index(self.index)
+        if result.pixmap.isNull():
+            detail = f"\n\n{result.detail}" if result.detail and getattr(self.controller_settings_debug(), "show_advanced_diagnostics", False) else ""
+            self.image_label.setPixmap(QPixmap())
+            self.image_label.setText(f"{result.message or result.state}{detail}")
+            return
+        self.image_label.setText("")
+        size = self.image_label.size()
+        if self.fit_mode == "actual":
+            target_width = max(24, int(result.pixmap.width() * self.zoom))
+            target_height = max(24, int(result.pixmap.height() * self.zoom))
+            aspect_mode = Qt.AspectRatioMode.KeepAspectRatio
+        else:
+            target_width = max(120, size.width() - 18)
+            target_height = max(120, size.height() - 18)
+            aspect_mode = Qt.AspectRatioMode.KeepAspectRatioByExpanding if self.fit_mode == "fill" else Qt.AspectRatioMode.KeepAspectRatio
+        self.image_label.setPixmap(
+            result.pixmap.scaled(
+                target_width,
+                target_height,
+                aspect_mode,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+
+    def controller_settings_debug(self):
+        parent = self.parent()
+        controller = getattr(parent, "controller", None)
+        return getattr(controller, "settings", None)
+
+    def _pixmap_for_index(self, index: int) -> PhotoLoadResult:
         if index not in self._prefetched:
-            self._prefetched[index] = QPixmap(self.photos[index].path)
+            parent = self.parent()
+            bundle = getattr(parent, "bundle", None)
+            project_root = getattr(bundle, "project_root", "")
+            self._prefetched[index] = _load_photo_pixmap(self.photos[index].path, project_root=project_root)
         return self._prefetched[index]
+
+
+def _load_photo_pixmap(path: str, *, project_root: str = "") -> PhotoLoadResult:
+    started = time.perf_counter()
+    target = Path(path)
+    pixmap = QPixmap()
+    suffix = target.suffix.casefold()
+    detail = ""
+    result: PhotoLoadResult | None = None
+    try:
+        if not path or not target.exists():
+            result = PhotoLoadResult(pixmap, "file_missing", "File missing. Use Open Folder to inspect the source location.", str(target))
+            return result
+        if suffix not in PhotoCarouselDialog.SUPPORTED_SUFFIXES:
+            result = PhotoLoadResult(
+                pixmap,
+                "unsupported_format",
+                f"Unsupported image format {suffix or '(none)'}. Use Open Externally or Open Folder.",
+                str(target),
+            )
+            return result
+
+        qt_pixmap = QPixmap(str(target))
+        if not qt_pixmap.isNull():
+            result = PhotoLoadResult(qt_pixmap, "loaded")
+            return result
+
+        if suffix in {".heic", ".heif"}:
+            try:
+                import pillow_heif  # type: ignore[import-not-found]
+
+                pillow_heif.register_heif_opener()
+            except ImportError as exc:
+                detail = str(exc)
+                message = "HEIC preview support is not installed. Use Open Externally or Open Folder."
+                LOGGER.warning("Atlas photo preview missing HEIC support for %s: %s", target, exc)
+                result = PhotoLoadResult(pixmap, "unsupported_format", message, detail)
+                return result
+
+        try:
+            result = PhotoLoadResult(_load_pixmap_with_pillow(target), "loaded")
+            return result
+        except ImportError as exc:
+            detail = str(exc)
+            message = "Image preview decoder is not installed. Use Open Externally or Open Folder."
+            LOGGER.warning("Atlas photo preview missing Pillow decoder for %s: %s", target, exc)
+            result = PhotoLoadResult(pixmap, "unsupported_format", message, detail)
+            return result
+        except Exception as exc:
+            detail = repr(exc)
+            message = f"Decode failed for {target.name}. Use Open Externally or Open Folder."
+            LOGGER.warning("Atlas photo preview decode failed for %s: %s", target, exc)
+            result = PhotoLoadResult(pixmap, "decode_failed", message, detail)
+            return result
+    finally:
+        if project_root:
+            result_state = result.state if result is not None else "checked"
+            log_performance_event(
+                project_root,
+                "atlas.photo_preview_load",
+                time.perf_counter() - started,
+                success=result_state == "loaded",
+                source="atlas",
+                page_tool="photos",
+                details={"path": target.name, "state": result_state, "detail": detail},
+                error_count=0 if result_state == "loaded" else 1,
+            )
+
+
+def _load_pixmap_with_pillow(path: Path) -> QPixmap:
+    from PIL import Image, ImageOps
+
+    with Image.open(path) as image:
+        image = ImageOps.exif_transpose(image)
+        if image.mode not in {"RGB", "RGBA"}:
+            image = image.convert("RGBA")
+        else:
+            image = image.convert("RGBA")
+        image.thumbnail((5000, 5000))
+        width, height = image.size
+        data = image.tobytes("raw", "RGBA")
+    qimage = QImage(data, width, height, width * 4, QImage.Format.Format_RGBA8888).copy()
+    return QPixmap.fromImage(qimage)
 
 
 def _clear_layout(layout) -> None:
@@ -1625,6 +2013,13 @@ def _theme_value(label: str) -> str:
     if "system" in folded:
         return "system"
     return "light"
+
+
+def _color_scheme_value(label: str) -> str:
+    folded = label.casefold()
+    if "nolato" in folded:
+        return "nolato_logo"
+    return "atlas_blue"
 
 
 def _photo_behavior_value(label: str) -> str:
@@ -1740,82 +2135,418 @@ def _build_information_entries(bundle: AtlasDataBundle | None) -> list[Informati
         return []
     entries = list(_static_information_entries())
     for standard in bundle.standards:
-        entries.append(_standard_information_entry(standard))
+        entries.extend(_standard_information_entries(standard))
     for warning in bundle.warnings:
         entries.append(_warning_information_entry(warning))
     for eoat in bundle.eoats:
         for warning in eoat.warnings[:3]:
             entries.append(_warning_information_entry(warning, title_prefix=eoat.eoat_id))
-    return entries
+    return [replace(entry, entry_id=f"{index:04d}-{entry.entry_id}") for index, entry in enumerate(entries, start=1)]
 
 
 def _static_information_entries() -> list[InformationLibraryEntry]:
+    topics = [
+        (
+            ("Atlas App Help", "Home / Command Deck"),
+            "Home / Command Deck",
+            "Use the Command Deck for instant lookup, page navigation, source status, and high-level Atlas metrics.",
+            "The home page is the fast starting point. Its search sends known tool, machine, EOAT, part, robot, or keyword text into the recommendation engine. Quick actions jump to the major read-only pages, while source chips show whether the cached data was built from available workbooks, photo folders, and standards.",
+            ("home", "search", "metrics"),
+        ),
+        (
+            ("Atlas App Help", "What Do I Need?"),
+            "What Do I Need?",
+            "Enter any known identifier to get the best EOAT recommendation, ranked backups, warnings, and install checklist.",
+            "This page uses cached normalized indexes and in-memory recommendation data. Open EOAT Profile, View Photos, Open Related Tool, and Open Related Machine actions jump directly into the full profile pages without rescanning Excel.",
+            ("recommendation", "eoat", "install"),
+        ),
+        (
+            ("Atlas App Help", "EOAT Profiles"),
+            "EOAT Profiles",
+            "EOAT profiles show compatibility, readiness, photo coverage, warnings, and quiet technical detail cards.",
+            "Start with the profile header to answer what the EOAT is, what tools it supports, what machines it can run on, and whether documentation/photos/warnings need attention before staging.",
+            ("profile", "readiness", "warnings"),
+        ),
+        (
+            ("Atlas App Help", "Machine Profiles"),
+            "Machine Profiles",
+            "Machine profiles focus on machine number, robot context, compatible EOATs/tools, and actionable warnings.",
+            "Use the compatibility chips to confirm machine support. Robot type, model, controller, and documentation score stay in supporting detail so the primary compatibility answer remains obvious.",
+            ("machine", "robot", "compatibility"),
+        ),
+        (
+            ("Atlas App Help", "Tool / Mold / Part Search"),
+            "Tool / Mold / Part Search",
+            "Search tools, molds, parts, and descriptions to see compatible EOATs and machines.",
+            "Tool cards show a compact Tool -> EOAT -> Machine flow. Use the single global What Do I Need action when you want a recommendation for the selected/searched tool.",
+            ("tool", "mold", "part"),
+        ),
+        (
+            ("Atlas App Help", "Compatibility Matrix"),
+            "Compatibility Matrix",
+            "The matrix is the dense sortable view for EOAT-machine-tool relationships.",
+            "Use it when you need comparison or export-friendly rows. The matrix is intentionally denser than profile pages and is wrapped in a dedicated data panel so it does not compete visually with dashboard profiles.",
+            ("matrix", "export", "dense data"),
+        ),
+        (
+            ("Atlas App Help", "Overall Maps"),
+            "Overall Maps",
+            "Overall Maps summarize machine coverage and EOAT documentation heatmap status.",
+            "Use the summary cards first, then inspect machine tiles or low-scoring EOAT tiles when planning cleanup or validating coverage before handoff.",
+            ("coverage", "heatmap", "dashboard"),
+        ),
+        (
+            ("Atlas App Help", "Photos"),
+            "Photos",
+            "Photo cards summarize counts, folder status, and missing categories. Images load in the carousel on demand.",
+            "Atlas avoids loading every photo while browsing. Click View Photos to load one image at a time in-app, or use Open Photo Folder/Open Externally for source-folder inspection.",
+            ("photos", "carousel", "lazy loading"),
+        ),
+        (
+            ("Atlas App Help", "Standards Library"),
+            "Standards Library",
+            "The Standards Library lists EOAT standardization documents and opens the source files read-only.",
+            "Likely EOAT standardization documents placed in the project root are safely copied into 03_Standards without overwriting existing files, then indexed as high-priority standards.",
+            ("standards", "documents", "read-only"),
+        ),
+        (
+            ("Atlas App Help", "PM / Inspection"),
+            "PM / Inspection",
+            "PM / Inspection groups weekly, monthly, and pre-install checks into checklist cards.",
+            "Review cups/grippers, tubing, cable routing, quick disconnects, sensors, hardware, photo evidence, and warnings before staging or maintaining EOATs.",
+            ("pm", "inspection", "maintenance"),
+        ),
+        (
+            ("Atlas App Help", "Reports / Export"),
+            "Reports / Export",
+            "Reports create timestamped read-only exports for compatibility, documentation gaps, and photo coverage.",
+            "Exports are generated from the cached Atlas bundle and do not modify source workbooks, photos, or standard documents.",
+            ("reports", "exports", "read-only"),
+        ),
+        (
+            ("Atlas App Help", "Settings / Diagnostics"),
+            "Settings / Diagnostics",
+            "Settings control theme mode, color scheme, startup page, photo viewer behavior, density, diagnostics, and auto-refresh.",
+            "Preferences are stored in the user settings file. They apply immediately where practical and never get written into source workbooks or photo folders.",
+            ("settings", "theme", "diagnostics"),
+        ),
+        (
+            ("EOAT Standards", "Design Guidelines"),
+            "EOAT standardization documents",
+            "EOAT standards define preferred design, documentation, and inspection expectations.",
+            "Treat the main standardization document as a primary reference. It should influence EOAT construction fields, warnings, documentation requirements, photos, PM checks, and troubleshooting guidance.",
+            ("standardization", "design", "requirements"),
+        ),
+        (
+            ("EOAT Standards", "Vacuum Standards"),
+            "Vacuum standards",
+            "Vacuum guidance covers cups, circuits, pressure/vacuum notes, and failure-prone wear items.",
+            "When a profile has vacuum info missing or photos do not show cups/circuits, the readiness score and warning cards should prompt a source-data or photo cleanup check.",
+            ("vacuum", "cups", "readiness"),
+        ),
+        (
+            ("EOAT Standards", "Pneumatic Tubing / Routing"),
+            "Pneumatic tubing / routing",
+            "Tubing guidance focuses on routing, strain relief, kinks, pinch points, and clear connection documentation.",
+            "Missing tubing notes, pneumatic photos, or unclear routing can affect install confidence and maintenance repeatability.",
+            ("pneumatics", "tubing", "routing"),
+        ),
+        (
+            ("EOAT Standards", "Sensors"),
+            "Sensor standards",
+            "Sensor guidance covers confirmation signals, wiring/cable routing, labels, and machine/robot integration context.",
+            "Missing sensor information can cause uncertain compatibility and should be resolved from EOAT Inventory, Robot Info, or standards documentation.",
+            ("sensors", "signals", "robot"),
+        ),
+        (
+            ("EOAT Standards", "Quick Disconnects"),
+            "Quick disconnects",
+            "Quick disconnect guidance helps users verify connections before install and during PM.",
+            "If connection type is missing, use the EOAT profile warnings and photo folder to decide whether the source workbook or photo documentation needs cleanup.",
+            ("quick disconnects", "connections", "install"),
+        ),
+        (
+            ("EOAT Standards", "Grippers"),
+            "Gripper standards",
+            "Gripper guidance covers wear, mounting, adjustability, confirmation, and spare/replacement visibility.",
+            "Profiles with gripper info missing should be treated as review-needed until source rows or photos confirm the configuration.",
+            ("grippers", "mechanical", "inspection"),
+        ),
+        (
+            ("EOAT Standards", "Mounting Hardware"),
+            "Mounting hardware",
+            "Mounting guidance covers stable EOAT connection, fastener visibility, torque/condition checks, and repeatable setup.",
+            "Missing hardware photos or construction notes can affect setup quality, so Atlas surfaces those as readiness and warning context.",
+            ("mounting", "hardware", "setup"),
+        ),
+        (
+            ("EOAT Standards", "Fasteners"),
+            "Fasteners",
+            "Fastener checks support PM and pre-install inspection for loose, missing, damaged, or inconsistent hardware.",
+            "Use PM checklist guidance with photos and known issues to decide whether a standard update or source-data fix is needed.",
+            ("fasteners", "pm", "inspection"),
+        ),
+        (
+            ("EOAT Standards", "Weight Reduction"),
+            "Weight reduction",
+            "Weight and construction guidance helps confirm EOATs are appropriate for robot capacity and repeated handling.",
+            "Atlas does not invent performance data; when weight or construction notes are missing, it should present review guidance rather than false confidence.",
+            ("weight", "construction", "robot"),
+        ),
+        (
+            ("EOAT Standards", "Safety"),
+            "Safety",
+            "Safety references should guide pre-install review, missing documentation warnings, and troubleshooting.",
+            "Warning cards are designed to make safety-relevant data gaps obvious without burying them in a spreadsheet-like detail dump.",
+            ("safety", "warnings", "install"),
+        ),
+        (
+            ("EOAT Standards", "Documentation Requirements"),
+            "Documentation requirements",
+            "Documentation score considers identity, type/status, compatibility, robot/pneumatic/sensor context, photos, and standards references.",
+            "A low score is a cleanup signal. It does not always block use, but it means the user should review warnings before relying on the EOAT for a machine/tool setup.",
+            ("documentation", "score", "gaps"),
+        ),
+        (
+            ("Compatibility Logic", "Tool-to-Machine Compatibility"),
+            "Tool-to-machine compatibility",
+            "Atlas uses Press Capacity/tool-machine rows and normalized tool keys to connect tools to machines.",
+            "Tool lookups should use cached dictionaries, not workbook rescans. Missing tool-machine links usually point to Press Capacity source gaps or normalization mismatches.",
+            ("tool", "machine", "press capacity"),
+        ),
+        (
+            ("Compatibility Logic", "EOAT-to-Tool Compatibility"),
+            "EOAT-to-tool compatibility",
+            "EOAT-to-tool links come from EOAT inventory/audit rows and normalized tool numbers.",
+            "If an EOAT appears compatible with a tool but not a machine, check whether the tool exists in Press Capacity and whether the machine source data is available.",
+            ("eoat", "tool", "indexes"),
+        ),
+        (
+            ("Compatibility Logic", "Off-Machine EOAT Audits"),
+            "Off-machine EOAT audits",
+            "Off-machine audits may provide EOAT identity, condition, photos, and documentation context even before full compatibility is known.",
+            "Use warnings and detail metadata to distinguish documented off-machine evidence from confirmed machine/tool compatibility.",
+            ("audit", "off-machine", "photos"),
+        ),
+        (
+            ("Compatibility Logic", "Compatibility Rows"),
+            "Compatibility rows",
+            "Dense compatibility rows are generated from cached Atlas bundle data for matrix and export workflows.",
+            "The matrix is best for auditing many relationships at once; profile cards are best for answering a specific install question quickly.",
+            ("matrix", "rows", "export"),
+        ),
+        (
+            ("Compatibility Logic", "Confidence / Warnings"),
+            "Compatibility confidence / warnings",
+            "High confidence usually means tool, EOAT, and machine links exist with useful robot/documentation context.",
+            "Partial compatibility is still useful, but warning chips tell the user what is missing and where to look before staging.",
+            ("confidence", "warnings", "compatibility"),
+        ),
+        (
+            ("Photos / Documentation", "Photo Folder Structure"),
+            "Photo folder structure",
+            "Photo folders are indexed once at refresh time and linked to EOAT IDs/tool context through normalized folder/file names.",
+            "Atlas should not re-index photos on every search. Folder paths stay read-only and are opened externally only when the user chooses to inspect them.",
+            ("photos", "folders", "indexes"),
+        ),
+        (
+            ("Photos / Documentation", "Required Photo Categories"),
+            "Required photo categories",
+            "Front, rear/side, connection, pneumatic/vacuum/gripper, sensor, and overall context photos help make EOAT profiles usable.",
+            "Missing category chips identify what a future audit/photo pass should capture so the profile is useful within seconds.",
+            ("photo categories", "documentation", "audit"),
+        ),
+        (
+            ("Photos / Documentation", "Missing Photo Categories"),
+            "Missing photo categories",
+            "Missing categories are shown as warning chips, not silent omissions.",
+            "Use them as a photography checklist during EOAT standardization work; they do not modify or rename existing source files.",
+            ("missing photos", "warnings", "cleanup"),
+        ),
+        (
+            ("Photos / Documentation", "Photo Viewer"),
+            "Photo viewer",
+            "The in-app carousel loads the current image, keeps aspect ratio, and provides Open Folder/Open Externally fallbacks.",
+            "HEIC/HEIF previews require Qt support or Pillow plus pillow-heif. If preview support is unavailable, Atlas shows a clear message instead of a blank panel.",
+            ("photo viewer", "heic", "carousel"),
+        ),
+        (
+            ("Photos / Documentation", "External Folder Handling"),
+            "External folder handling",
+            "Open Folder and Open Externally are user-triggered actions for inspecting original project files.",
+            "Atlas remains read-only for source photo folders. Settings can require confirmation before opening external files or folders.",
+            ("external files", "read-only", "settings"),
+        ),
+        (
+            ("PM / Inspection", "Weekly Checks"),
+            "Weekly checks",
+            "Weekly inspection should catch wear, looseness, damaged cups/grippers, tubing issues, and signal/connection problems.",
+            "Use EOAT warnings and photo coverage as the quick context for what to inspect before running production.",
+            ("weekly", "pm", "inspection"),
+        ),
+        (
+            ("PM / Inspection", "Monthly Checks"),
+            "Monthly checks",
+            "Monthly inspection should review documentation, repeated issues, spare parts/BOM context, and photo currency.",
+            "Low documentation scores and repeated warnings are signals that a monthly cleanup or standards review may be needed.",
+            ("monthly", "documentation", "pm"),
+        ),
+        (
+            ("PM / Inspection", "Vacuum Cups"),
+            "Vacuum cups",
+            "Vacuum cups should be reviewed for wear, cracks, missing parts, or poor placement.",
+            "Photo categories and vacuum notes help confirm whether cups are documented well enough for repeatable setup.",
+            ("vacuum", "cups", "wear"),
+        ),
+        (
+            ("PM / Inspection", "Tubing"),
+            "Tubing",
+            "Tubing checks should look for kinks, rub points, pinch hazards, unsecured routing, and unclear connection paths.",
+            "Missing tubing notes in a profile should prompt review of photos or source workbook fields.",
+            ("tubing", "routing", "pm"),
+        ),
+        (
+            ("PM / Inspection", "Cable Management"),
+            "Cable management",
+            "Cable and sensor routing should be checked for strain, pinch points, labels, and confirmation reliability.",
+            "Atlas surfaces sensor/cable context through technical details and warnings where source fields are missing.",
+            ("cables", "sensors", "routing"),
+        ),
+        (
+            ("Reports / Exports", "EOAT Summary"),
+            "EOAT summary export",
+            "EOAT summary exports package the selected EOAT profile context for offline review.",
+            "Exports are generated from loaded cached data and should reflect the same warnings, compatibility, photos, and documentation status shown in the UI.",
+            ("eoat export", "summary", "reports"),
+        ),
+        (
+            ("Reports / Exports", "Machine Summary"),
+            "Machine summary export",
+            "Machine summary exports focus on robot context, compatible EOATs/tools, and warnings.",
+            "Use this when sharing machine-specific setup or cleanup context without sending users into the full app.",
+            ("machine export", "robot", "reports"),
+        ),
+        (
+            ("Reports / Exports", "Tool Summary"),
+            "Tool summary export",
+            "Tool summary exports help communicate which EOATs and machines are linked to a tool/mold/part search.",
+            "Tool summaries are useful when validating compatibility coverage or planning standards cleanup around a tooling family.",
+            ("tool export", "compatibility", "reports"),
+        ),
+        (
+            ("Reports / Exports", "Project Reports"),
+            "Project reports",
+            "Project-level reports provide compatibility, documentation gap, and photo coverage views.",
+            "They are best used for handoff, cleanup planning, and source-data review rather than day-to-day EOAT selection.",
+            ("project reports", "handoff", "coverage"),
+        ),
+        (
+            ("Troubleshooting", "Photo Not Displaying"),
+            "Photo not displaying",
+            "If a photo is detected but not visible, the decoder likely cannot load the format or the file is corrupt/missing.",
+            "Use the viewer message first. HEIC/HEIF previews need Qt support or Pillow with pillow-heif; Open Externally and Open Folder remain available as fallbacks.",
+            ("photos", "heic", "troubleshooting"),
+        ),
+        (
+            ("Troubleshooting", "Slow Loading"),
+            "Slow loading",
+            "Atlas should load workbooks, photo indexes, and standards at refresh/startup, then use cached lookup indexes for normal searches.",
+            "Use Settings / Diagnostics performance cards to identify workbook load time, photo index time, cache build time, and search/lookup timings.",
+            ("performance", "cache", "diagnostics"),
+        ),
+        (
+            ("Troubleshooting", "No Compatibility Found"),
+            "No compatibility found",
+            "No compatibility usually means an identifier was missing, normalized differently, or absent from the source relationship tables.",
+            "Check Tool #, EOAT ID, machine number, Press Capacity rows, Robot Info, and source EOAT Inventory fields.",
+            ("compatibility", "missing data", "tool"),
+        ),
+        (
+            ("Troubleshooting", "Search Not Finding Expected Item"),
+            "Search not finding expected item",
+            "Search uses normalized in-memory keys and text fields from the loaded Atlas bundle.",
+            "If a source workbook changed, use Refresh Data. If the value is still missing, review the source row and normalization of EOAT ID, Tool #, Machine #, part, and robot fields.",
+            ("search", "refresh", "normalization"),
+        ),
+        (
+            ("Settings", "Theme"),
+            "Theme mode",
+            "Theme mode controls light, dark, or system/default behavior.",
+            "Light remains the default for screenshots and most floor use. Dark mode is available for lower-glare viewing and uses the same Atlas design tokens.",
+            ("theme", "light", "dark"),
+        ),
+        (
+            ("Settings", "Color Scheme"),
+            "Color scheme",
+            "Color scheme controls the accent palette independently from light/dark mode.",
+            "Atlas Blue is the default. Nolato Logo uses red as a controlled accent with charcoal anchors and neutral surfaces, without turning the whole app red.",
+            ("color scheme", "nolato", "settings"),
+        ),
+        (
+            ("Settings", "Photo Viewer Settings"),
+            "Photo viewer settings",
+            "Photo viewer behavior can open photos in-app, open the folder, or use the external viewer.",
+            "Lazy previews and carousel prefetch settings keep browsing fast while still allowing smoother next/previous navigation when enabled.",
+            ("photo viewer", "settings", "prefetch"),
+        ),
+        (
+            ("Settings", "Density / Compact Mode"),
+            "Density / compact mode",
+            "Density settings tune how compact selector tiles and cards feel.",
+            "Compact mode is useful on smaller screens or when scanning long EOAT/machine lists. Comfortable mode prioritizes readability.",
+            ("density", "compact", "lists"),
+        ),
+        (
+            ("Settings", "Diagnostics"),
+            "Diagnostics",
+            "Advanced diagnostics show dense source tables and raw performance counters.",
+            "Hide diagnostics for a cleaner operator-style view; enable them when investigating source paths, refresh behavior, or performance timings.",
+            ("diagnostics", "performance", "settings"),
+        ),
+    ]
+    now = time.time()
     return [
         InformationLibraryEntry(
-            "What Do I Need? inputs",
-            "App Help",
-            "Enter a Tool #, Machine #, EOAT ID, part description, robot type, mold, or keyword to get a ranked EOAT recommendation with an install checklist.",
-            tags=("recommendations", "search", "install"),
-        ),
-        InformationLibraryEntry(
-            "Compatibility logic",
-            "Compatibility",
-            "Atlas combines EOAT Inventory rows, Press Capacity tool-to-machine relationships, Robot Info, and cached normalized indexes. Search does not rescan workbooks.",
-            tags=("tool", "machine", "eoat", "indexes"),
-        ),
-        InformationLibraryEntry(
-            "Photo documentation rules",
-            "Photos",
-            "Photo cards summarize folder status and missing categories. Open View Photos to load images in the carousel one at a time.",
-            tags=("photos", "carousel", "lazy loading"),
-        ),
-        InformationLibraryEntry(
-            "Documentation readiness",
-            "Documentation Requirements",
-            "Readiness is driven by photos present, documentation score, machine compatibility, robot info, standards references, and warning count.",
-            tags=("readiness", "documentation", "warnings"),
-        ),
-        InformationLibraryEntry(
-            "PM / Inspection guidance",
-            "PM / Inspection",
-            "Review cups/grippers, tubing and cable routing, quick disconnects, sensor confirmation, warning cards, and PM frequency before staging EOATs.",
-            tags=("pm", "inspection", "maintenance"),
-        ),
-        InformationLibraryEntry(
-            "Settings and diagnostics",
-            "Settings",
-            "Settings control theme, startup page, photo viewer behavior, lazy previews, diagnostics visibility, list density, export behavior, and auto-refresh on startup.",
-            tags=("settings", "dark mode", "diagnostics"),
-        ),
-        InformationLibraryEntry(
-            "Reports and exports",
-            "Reports / Exports",
-            "Atlas exports timestamped summaries under the project export folder and does not modify source workbooks or photo folders.",
-            tags=("exports", "reports", "read-only"),
-        ),
-        InformationLibraryEntry(
-            "Troubleshooting missing compatibility",
-            "Troubleshooting",
-            "If an EOAT has partial compatibility, check Tool # normalization, Press Capacity rows, machine fields, Robot Info, and source EOAT Inventory data.",
-            tags=("troubleshooting", "compatibility", "missing data"),
-        ),
+            entry_id=_entry_id_from_parts(*path, title),
+            title=title,
+            category=path[0],
+            summary=summary,
+            body=body,
+            source="Atlas App Help",
+            source_section=path[-1],
+            tags=tags,
+            tree_path=path,
+            related=tuple(part for part in path if part != path[0]),
+            indexed_at=now,
+        )
+        for path, title, summary, body, tags in topics
     ]
 
 
-def _standard_information_entry(standard: StandardReference) -> InformationLibraryEntry:
+def _standard_information_entries(standard: StandardReference) -> list[InformationLibraryEntry]:
     path = Path(standard.path)
     category = _standard_information_category(standard)
     suffix = path.suffix.upper().lstrip(".") or "DOC"
     tags = tuple(tag for tag in (standard.category, suffix, "standard", "read-only") if tag)
-    return InformationLibraryEntry(
+    title = standard.title or path.stem or "Untitled standard"
+    summary = standard.snippet or "Open the source document for full guidance."
+    tree_path = _standard_tree_path(standard, category)
+    primary = InformationLibraryEntry(
+        entry_id=_entry_id_from_parts(*tree_path, title, str(path)),
         title=standard.title or path.stem or "Untitled standard",
         category=category,
-        snippet=standard.snippet or "Open the source document for full guidance.",
+        summary=summary,
+        body=_standard_information_body(title, summary, standard),
         source=path.name or standard.path,
         path=standard.path,
+        source_section=standard.category or category,
         tags=tags,
+        tree_path=tree_path,
+        related=("Documentation requirements", "Compatibility confidence", "Photo documentation rules"),
         modified=_file_mtime(path),
+        indexed_at=time.time(),
     )
+    return [primary, *_text_document_section_entries(primary)]
 
 
 def _standard_information_category(standard: StandardReference) -> str:
@@ -1836,10 +2567,107 @@ def _standard_information_category(standard: StandardReference) -> str:
     return "EOAT Standards"
 
 
+def _standard_tree_path(standard: StandardReference, category: str) -> tuple[str, ...]:
+    folded = " ".join([standard.category, standard.title]).casefold()
+    if "vacuum" in folded:
+        return ("EOAT Standards", "Vacuum Standards")
+    if "pneumatic" in folded or "tubing" in folded:
+        return ("EOAT Standards", "Pneumatic Tubing / Routing")
+    if "sensor" in folded:
+        return ("EOAT Standards", "Sensors")
+    if "quick" in folded or "disconnect" in folded:
+        return ("EOAT Standards", "Quick Disconnects")
+    if "gripper" in folded:
+        return ("EOAT Standards", "Grippers")
+    if "pm" in folded or "inspection" in folded or "maintenance" in folded:
+        return ("PM / Inspection", "Monthly Checks")
+    if "document" in folded or "standardization" in folded or "standard" in folded:
+        return ("EOAT Standards", "Design Guidelines")
+    if category == "Documentation Requirements":
+        return ("EOAT Standards", "Documentation Requirements")
+    return ("EOAT Standards", "Design Guidelines")
+
+
+def _standard_information_body(title: str, summary: str, standard: StandardReference) -> str:
+    return "\n\n".join(
+        [
+            f"Rule / standard: {summary}",
+            "Purpose: Give EOAT users a reliable reference for design, documentation, inspection, and setup decisions without digging through project folders.",
+            "When it applies: Review this standard when an EOAT profile shows missing construction, pneumatic/vacuum/gripper, sensor, photo, compatibility, or documentation fields.",
+            "Related Atlas areas: EOAT profile readiness, Standards Library, Information Library, PM / Inspection, photo category warnings, and compatibility confidence warnings.",
+            f"Source: {standard.path or standard.title}",
+        ]
+    )
+
+
+def _text_document_section_entries(primary: InformationLibraryEntry) -> list[InformationLibraryEntry]:
+    path = Path(primary.path)
+    if path.suffix.casefold() not in {".md", ".txt"}:
+        return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return []
+    sections = _split_text_sections(text)
+    entries = []
+    for index, (section_title, content) in enumerate(sections[:80], start=1):
+        if len(content.strip()) < 24:
+            continue
+        title = section_title or f"{primary.title} section {index}"
+        summary = _short_label(" ".join(content.split()), 240)
+        body = "\n\n".join(
+            [
+                content.strip(),
+                "What this means: Use this source section as standards context when reviewing EOAT readiness, warnings, photos, and compatibility details.",
+                f"Related source document: {primary.source}",
+            ]
+        )
+        entries.append(
+            replace(
+                primary,
+                entry_id=_entry_id_from_parts(primary.entry_id, str(index), title),
+                title=title,
+                summary=summary,
+                body=body,
+                source_section=section_title or primary.source_section,
+                tags=(*primary.tags, "source section"),
+            )
+        )
+    return entries
+
+
+def _split_text_sections(text: str) -> list[tuple[str, str]]:
+    sections: list[tuple[str, list[str]]] = []
+    current_title = ""
+    current_lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        is_heading = line.startswith("#") or (line and len(line) < 90 and line.endswith(":"))
+        if is_heading and current_lines:
+            sections.append((current_title, current_lines))
+            current_lines = []
+        if is_heading:
+            current_title = line.lstrip("#").strip().rstrip(":") or current_title
+        else:
+            current_lines.append(raw_line)
+    if current_lines:
+        sections.append((current_title, current_lines))
+    return [(title, "\n".join(lines).strip()) for title, lines in sections if "\n".join(lines).strip()]
+
+
 def _warning_information_entry(warning, *, title_prefix: str = "") -> InformationLibraryEntry:
     title = f"{title_prefix}: {warning.title}" if title_prefix else warning.title
     pieces = [warning.message, warning.why_it_matters, warning.suggested_fix]
-    snippet = " ".join(piece for piece in pieces if piece) or "Review source data for this warning."
+    summary = " ".join(piece for piece in pieces if piece) or "Review source data for this warning."
+    body = "\n\n".join(
+        [
+            f"Issue: {warning.message or warning.title}",
+            f"Why it matters: {warning.why_it_matters or 'This can affect search, compatibility confidence, install readiness, or standards cleanup.'}",
+            f"Suggested fix: {warning.suggested_fix or 'Review the source workbook, Robot Info, photo index, or standards reference connected to this warning.'}",
+            f"Related EOAT: {warning.related_eoat_id or title_prefix or '-'}",
+            f"Related machine/tool: {warning.machine or '-'} / {warning.tool or '-'}",
+        ]
+    )
     tags = tuple(
         value
         for value in (
@@ -1852,11 +2680,16 @@ def _warning_information_entry(warning, *, title_prefix: str = "") -> Informatio
         if value
     )
     return InformationLibraryEntry(
+        entry_id=_entry_id_from_parts("warning", title, warning.source, warning.related_eoat_id, warning.machine, warning.tool),
         title=title or "Atlas warning",
         category="Troubleshooting",
-        snippet=snippet,
+        summary=summary,
+        body=body,
         source=warning.source or "Atlas data checks",
         tags=tags,
+        tree_path=("Troubleshooting", "Missing Source Files" if "missing" in summary.casefold() else "No Compatibility Found"),
+        related=("Documentation requirements", "Compatibility confidence", "Source status"),
+        indexed_at=time.time(),
     )
 
 
@@ -1864,16 +2697,28 @@ def _information_score(entry: InformationLibraryEntry, query: str) -> int:
     terms = [term.casefold() for term in query.split() if term.strip()]
     if not terms:
         return 1
-    haystack = " ".join([entry.title, entry.category, entry.snippet, entry.source, entry.path, " ".join(entry.tags)]).casefold()
+    haystack = " ".join(
+        [
+            entry.title,
+            entry.category,
+            entry.summary,
+            entry.body,
+            entry.source,
+            entry.path,
+            entry.source_section,
+            " ".join(entry.tags),
+            " ".join(entry.tree_path),
+        ]
+    ).casefold()
     score = 0
     for term in terms:
         if term in haystack:
-            score += 2 if term in entry.title.casefold() else 1
+            score += 4 if term in entry.title.casefold() else (2 if term in entry.summary.casefold() else 1)
     return score
 
 
 def _information_card(entry: InformationLibraryEntry) -> QWidget:
-    card = DetailCard(entry.title, entry.snippet, eyebrow=entry.category)
+    card = DetailCard(entry.title, entry.summary, eyebrow=entry.category)
     card.layout.addWidget(_chip_group([entry.category, *entry.tags[:5]], kind="outline", per_row=5, limit=6))
     source = entry.path or entry.source
     source_label = QLabel(_short_path(source) if source else "Atlas generated guidance")
@@ -1887,10 +2732,49 @@ def _information_card(entry: InformationLibraryEntry) -> QWidget:
         open_button.clicked.connect(lambda _checked=False, path=entry.path: open_path(path))
         buttons.append(open_button)
     copy_button = QPushButton("Copy Summary")
-    copy_button.clicked.connect(lambda _checked=False, text=f"{entry.title}\n\n{entry.snippet}": QApplication.clipboard().setText(text))
+    copy_button.clicked.connect(lambda _checked=False, text=f"{entry.title}\n\n{entry.summary}": QApplication.clipboard().setText(text))
     buttons.append(copy_button)
     card.layout.addWidget(action_row(*buttons))
     return card
+
+
+def _entry_id_from_parts(*parts: str) -> str:
+    raw = "|".join(str(part) for part in parts if str(part).strip())
+    cleaned = "".join(char.lower() if char.isalnum() else "-" for char in raw)
+    while "--" in cleaned:
+        cleaned = cleaned.replace("--", "-")
+    return cleaned.strip("-")[:140] or "library-entry"
+
+
+def _tree_label_parts(path: tuple[str, ...]) -> list[str]:
+    return [part for part in path if part]
+
+
+def _format_modified(value: float) -> str:
+    if not value:
+        return "-"
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(value))
+
+
+def _information_reference_text(entry: InformationLibraryEntry) -> str:
+    pieces = [
+        entry.title,
+        "",
+        entry.summary,
+        "",
+        entry.body,
+        "",
+        f"Category: {entry.category}",
+        f"Tree path: {' / '.join(entry.tree_path) or entry.category}",
+        f"Source: {entry.source}",
+    ]
+    if entry.path:
+        pieces.append(f"Path: {entry.path}")
+    if entry.source_section:
+        pieces.append(f"Section: {entry.source_section}")
+    if entry.tags:
+        pieces.append(f"Tags: {', '.join(entry.tags)}")
+    return "\n".join(piece for piece in pieces if piece is not None)
 
 
 def _file_mtime(path: Path) -> float:

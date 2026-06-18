@@ -48,6 +48,8 @@ Atlas interprets the input, searches the cached indexes, ranks EOAT candidates, 
 - Install checklist
 - Standards references
 
+Recommendation results include direct profile actions. The best recommendation has a prominent **Open EOAT Profile** action plus compact actions for **View Photos**, **Open Related Tool**, **Open Related Machine**, and **Export Recommendation**. Ranked candidates also include compact profile actions so users can jump to the full EOAT, machine, tool, or photo context without rerunning the search.
+
 Ranking favors exact compatibility matches, active/audited status, stronger documentation, linked photos, useful connection data, and fewer warnings.
 
 ## Compatibility Calculation
@@ -97,6 +99,7 @@ Diagnostics on Settings / Diagnostics include workbook load time, photo index ti
 Settings / Diagnostics includes editable Atlas preferences that persist per user in the app config folder, not in source workbooks. Current settings include:
 
 - Light, Dark, or System/default theme
+- Color scheme: Atlas Blue or Nolato Logo
 - Default startup page
 - Default search mode
 - Photo viewer behavior: in-app carousel, open folder, or external viewer
@@ -106,11 +109,15 @@ Settings / Diagnostics includes editable Atlas preferences that persist per user
 - Export and external-open behavior
 - Auto-refresh data on startup
 
-Theme changes apply immediately. Atlas defaults to light mode unless the user changes it.
+Theme and color scheme changes apply immediately. Atlas defaults to light mode with Atlas Blue unless the user changes it. The Nolato Logo color scheme uses controlled red accents, charcoal anchors, and neutral surfaces; it does not replace dark mode or make the whole UI red.
 
 ## Photo Viewer
 
 The Photos page uses summary cards with EOAT ID, photo count, folder status, missing categories, and actions. **View Photos** opens an in-app carousel that displays one image at a time with previous/next controls, filename/category, count, close, open folder, and open externally actions. Left/right arrow keys navigate and Escape closes the viewer.
+
+The viewer supports `.jpg`, `.jpeg`, `.png`, `.webp`, `.heic`, and `.heif` when the local Qt/Pillow decoders can read them. HEIC/HEIF preview uses Qt support first and falls back to Pillow plus `pillow-heif` when available. If the format cannot be decoded, Atlas shows a clear in-view message such as HEIC support unavailable, file missing, unsupported format, or decode failed, while keeping **Open Folder** and **Open Externally** available.
+
+Fit, Fill, Actual Size, Zoom In, Zoom Out, and Reset Zoom controls keep large images readable while preserving aspect ratio.
 
 Large photo folders are not eagerly rendered on every card, which keeps page filtering and navigation fast.
 
@@ -146,7 +153,7 @@ Each warning includes what is missing, why it matters when available, the source
 
 ## Information Library
 
-**Information Library** is a searchable, sortable reference center for:
+**Information Library** is a searchable, sortable reference browser with a left-side topic tree and a right-side detail page. It collects:
 
 - App help and settings help
 - EOAT standardization documents and design guidelines
@@ -157,12 +164,14 @@ Each warning includes what is missing, why it matters when available, the source
 - Troubleshooting and support notes
 - Reports / export behavior
 
-The library builds an in-memory index at refresh time. It searches title, category, tags, source filename/path, and snippet content without reparsing documents on every keystroke. DOCX/PDF files are listed with metadata and an open-source button even when lightweight text extraction is unavailable.
+The library builds an in-memory index at refresh time. It searches title, summary, expanded body text, tags, source filename/path, and tree path without reparsing documents on every keystroke. Each item in the tree opens a detail page with title, category, tree path, summary, expanded explanation, source document/file, source section, tags, related references, indexed/modified dates, **Open Source Document**, **Copy Summary**, and **Copy Full Text / Reference** actions.
+
+DOCX/PDF files are listed with metadata and an open-source button even when lightweight text extraction is unavailable. Markdown and text standards may be split into source-section entries when headings or short sections can be parsed cheaply.
 
 ## Main Pages
 
 - **Home / Command Deck**: search, quick actions, source status, project health metrics.
-- **What Do I Need?**: guided recommendation and install checklist.
+- **What Do I Need?**: guided recommendation, install checklist, and direct full-profile actions.
 - **EOAT Search / Profiles**: compact EOAT selector tiles plus structured profile dashboard details.
 - **Machine Search / Profiles**: compact machine selector tiles plus compatibility and robot context.
 - **Tool / Mold / Part Search**: tool-to-EOAT and tool-to-machine lookup.
@@ -171,9 +180,9 @@ The library builds an in-memory index at refresh time. It searches title, catego
 - **Photos**: EOAT photo summaries with in-app carousel viewing.
 - **Standards**: standard document list and search.
 - **PM / Inspection**: generated inspection guidance and missing PM data.
-- **Information Library**: searchable standards, help, compatibility, photo, PM, settings, and troubleshooting references.
+- **Information Library**: tree/detail standards, help, compatibility, photo, PM, settings, and troubleshooting references.
 - **Reports / Export**: timestamped CSV/Markdown exports.
-- **Settings / Diagnostics**: editable preferences, dark mode, source paths, refresh button, and performance timings.
+- **Settings / Diagnostics**: editable preferences, dark mode, color scheme, source paths, refresh button, and performance timings.
 
 ## Known Limitations
 

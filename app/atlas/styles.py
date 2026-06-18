@@ -44,14 +44,61 @@ DARK_DESIGN_TOKENS = {
     "scroll_handle": "#405872",
     "scroll_hover": "#5d7b9b",
 }
+NOLATO_DESIGN_TOKENS = {
+    "background": "#f2f4f7",
+    "surface": "#ffffff",
+    "surface_elevated": "#f7f8fa",
+    "navy": "#17191d",
+    "accent": "#d80621",
+    "accent_hover": "#b8051c",
+    "accent_secondary": "#2b2f36",
+    "warning": "#b76a00",
+    "danger": "#b42318",
+    "success": "#087f5b",
+    "muted_text": "#6c737f",
+    "border": "#d8dde5",
+    "border_strong": "#b8c0cc",
+    "hover": "#fff1f3",
+    "hero_start": "#111317",
+    "hero_mid": "#2b2f36",
+    "hero_end": "#d80621",
+    "scroll_handle": "#b8c0cc",
+    "scroll_hover": "#d80621",
+}
+NOLATO_DARK_DESIGN_TOKENS = {
+    "background": "#101114",
+    "surface": "#17191d",
+    "surface_elevated": "#202328",
+    "navy": "#f4f6f8",
+    "accent": "#ff4b5f",
+    "accent_hover": "#ff6b7b",
+    "accent_secondary": "#c9cdd3",
+    "warning": "#f5b342",
+    "danger": "#ff8179",
+    "success": "#4fd39a",
+    "muted_text": "#aeb5bf",
+    "border": "#333842",
+    "border_strong": "#4a515e",
+    "hover": "#2a1b20",
+    "hero_start": "#050607",
+    "hero_mid": "#202328",
+    "hero_end": "#d80621",
+    "scroll_handle": "#4a515e",
+    "scroll_hover": "#ff4b5f",
+}
 SPACING = {"xs": 4, "sm": 8, "md": 12, "lg": 18, "xl": 24}
 RADIUS = {"sm": 5, "md": 7, "lg": 9}
 FONT_SIZES = {"body": 10, "small": 8, "section": 12, "page": 18, "hero": 22}
 
 
-def atlas_stylesheet(theme: str = "light") -> str:
+def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> str:
     theme_name = str(theme or "light").casefold()
-    base_tokens = DARK_DESIGN_TOKENS if theme_name == "dark" else DESIGN_TOKENS
+    scheme_name = str(color_scheme or "atlas_blue").casefold()
+    if scheme_name == "nolato_logo":
+        base_tokens = NOLATO_DARK_DESIGN_TOKENS if theme_name == "dark" else NOLATO_DESIGN_TOKENS
+    else:
+        scheme_name = "atlas_blue"
+        base_tokens = DARK_DESIGN_TOKENS if theme_name == "dark" else DESIGN_TOKENS
     tokens = {
         **base_tokens,
         "body_font": FONT_SIZES["body"],
@@ -429,18 +476,49 @@ def atlas_stylesheet(theme: str = "light") -> str:
     QPushButton#PrimaryButton:hover {
         background: $accent_hover;
     }
+    QPushButton#HeroSecondaryButton {
+        background: rgba(255, 255, 255, 24);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 120);
+    }
+    QPushButton#HeroSecondaryButton:hover {
+        background: rgba(255, 255, 255, 42);
+        border-color: white;
+    }
     QPushButton:disabled, QLineEdit:disabled, QComboBox:disabled {
         background: #edf2f7;
         color: #94a3b8;
         border-color: #d8e2ee;
     }
-    QTableWidget, QListWidget, QTextEdit {
+    QTableWidget, QListWidget, QTextEdit, QTreeWidget {
         background: $surface;
         border: 1px solid $border;
         border-radius: ${radius_md}px;
         gridline-color: transparent;
         selection-background-color: #dbeafe;
         selection-color: #172033;
+    }
+    QTreeWidget#InformationTree {
+        background: $surface;
+        border: 1px solid $border;
+        border-radius: ${radius_md}px;
+        padding: 6px;
+        outline: 0;
+    }
+    QTreeWidget#InformationTree::item {
+        min-height: 27px;
+        padding: 4px 6px;
+        border-radius: 5px;
+    }
+    QTreeWidget#InformationTree::item:hover {
+        background: $hover;
+    }
+    QTreeWidget#InformationTree::item:selected {
+        background: $accent;
+        color: white;
+    }
+    QTreeWidget#InformationTree::branch {
+        background: transparent;
     }
     QTableWidget {
         alternate-background-color: #f7faff;
@@ -669,9 +747,12 @@ def atlas_stylesheet(theme: str = "light") -> str:
         font-weight: 700;
     }
     """).substitute(tokens)
-    if theme_name != "dark":
-        return base
-    return base + _dark_overrides(tokens)
+    stylesheet = base
+    if theme_name == "dark":
+        stylesheet += _dark_overrides(tokens)
+    if scheme_name == "nolato_logo":
+        stylesheet += _nolato_overrides(tokens, dark=theme_name == "dark")
+    return stylesheet
 
 
 def _dark_overrides(tokens: dict[str, object]) -> str:
@@ -817,12 +898,24 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
         color: #07111e;
         border-color: $accent;
     }
-    QTableWidget, QListWidget, QTextEdit {
+    QTableWidget, QListWidget, QTextEdit, QTreeWidget {
         background: #0f1a29;
         color: #e5edf7;
         border-color: $border;
         selection-background-color: #214a73;
         selection-color: #f8fbff;
+    }
+    QTreeWidget#InformationTree {
+        background: #0f1a29;
+        color: #e5edf7;
+        border-color: $border;
+    }
+    QTreeWidget#InformationTree::item:hover {
+        background: $hover;
+    }
+    QTreeWidget#InformationTree::item:selected {
+        background: $accent;
+        color: #07111e;
     }
     QTableWidget {
         alternate-background-color: #142135;
@@ -872,4 +965,83 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
     """).substitute(tokens)
 
 
-__all__ = ["DARK_DESIGN_TOKENS", "DESIGN_TOKENS", "FONT_SIZES", "RADIUS", "SPACING", "atlas_stylesheet"]
+def _nolato_overrides(tokens: dict[str, object], *, dark: bool = False) -> str:
+    tree_selected_text = "#07111e" if dark else "#ffffff"
+    card_surface = "#201014" if dark else "#fff7f8"
+    info_surface = "#1f2228" if dark else "#f7f8fa"
+    profile_end = "#ff4b5f" if dark else "#d80621"
+    return Template("""
+    QWidget#AtlasSidebarPanel {
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #050607, stop:.62 #17191d, stop:1 #2b1116);
+    }
+    QFrame#AtlasSidebarHeader {
+        background: #202328;
+        border-color: #3a3f48;
+    }
+    QLabel#AtlasNavSectionLabel {
+        color: #f0a0aa;
+    }
+    QPushButton#AtlasNavItem:hover {
+        background: #2b2024;
+        border-left-color: $accent;
+    }
+    QPushButton#AtlasNavItem:checked {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 $accent, stop:1 #2b2f36);
+        border-left-color: #ffffff;
+    }
+    QFrame#ProfileHeaderCard {
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #111317, stop:.58 #2b2f36, stop:1 $profile_end);
+    }
+    QFrame#PrimaryCard {
+        border-top-color: $accent;
+    }
+    QFrame#FeatureActionCard {
+        background: $card_surface;
+        border-left-color: $accent;
+    }
+    QFrame#InfoPanel, QFrame#SecondaryCard, QFrame#CompactStatCard {
+        background: $info_surface;
+    }
+    QLabel#PrimaryChip, QLabel#BadgeInfo {
+        background: $card_surface;
+        color: $accent;
+    }
+    QLabel#OutlineChip {
+        color: $accent;
+        border-color: $accent;
+    }
+    QLabel#CountChip {
+        background: #17191d;
+        color: #ffffff;
+    }
+    QPushButton#PrimaryButton, QCheckBox::indicator:checked {
+        background: $accent;
+        border-color: $accent;
+        color: #ffffff;
+    }
+    QPushButton#PrimaryButton:hover {
+        background: $accent_hover;
+    }
+    QLineEdit:focus, QLineEdit#ModernSearchBar:focus {
+        border-color: $accent;
+    }
+    QTreeWidget#InformationTree::item:selected {
+        background: $accent;
+        color: $tree_selected_text;
+    }
+    QStatusBar {
+        border-top-color: $border;
+    }
+    """).substitute({**tokens, "tree_selected_text": tree_selected_text, "card_surface": card_surface, "info_surface": info_surface, "profile_end": profile_end})
+
+
+__all__ = [
+    "DARK_DESIGN_TOKENS",
+    "DESIGN_TOKENS",
+    "FONT_SIZES",
+    "NOLATO_DARK_DESIGN_TOKENS",
+    "NOLATO_DESIGN_TOKENS",
+    "RADIUS",
+    "SPACING",
+    "atlas_stylesheet",
+]

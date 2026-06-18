@@ -8,6 +8,7 @@ from typing import Any
 from core.resources import writable_config_path
 
 THEME_CHOICES = ("light", "dark", "system")
+COLOR_SCHEME_CHOICES = ("atlas_blue", "nolato_logo")
 STARTUP_PAGE_CHOICES = (
     "home",
     "what",
@@ -31,6 +32,7 @@ CARD_DENSITY_CHOICES = ("comfortable", "compact")
 @dataclass(frozen=True)
 class AtlasSettings:
     theme: str = "light"
+    color_scheme: str = "atlas_blue"
     startup_page: str = "home"
     default_search_mode: str = "smart"
     photo_viewer_behavior: str = "in_app"
@@ -46,6 +48,7 @@ class AtlasSettings:
     def normalized(self) -> AtlasSettings:
         return AtlasSettings(
             theme=_choice(self.theme, THEME_CHOICES, "light"),
+            color_scheme=_choice(self.color_scheme, COLOR_SCHEME_CHOICES, "atlas_blue"),
             startup_page=_choice(self.startup_page, STARTUP_PAGE_CHOICES, "home"),
             default_search_mode=_choice(self.default_search_mode, SEARCH_MODE_CHOICES, "smart"),
             photo_viewer_behavior=_choice(self.photo_viewer_behavior, PHOTO_BEHAVIOR_CHOICES, "in_app"),
@@ -97,6 +100,7 @@ def _choice(value: str, choices: tuple[str, ...], default: str) -> str:
 __all__ = [
     "AtlasSettings",
     "CARD_DENSITY_CHOICES",
+    "COLOR_SCHEME_CHOICES",
     "PHOTO_BEHAVIOR_CHOICES",
     "SEARCH_MODE_CHOICES",
     "STARTUP_PAGE_CHOICES",

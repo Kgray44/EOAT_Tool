@@ -193,6 +193,13 @@ class AtlasWindow(QMainWindow):
         if search is not None:
             search.setText(tool)
 
+    def open_photos(self, eoat_id: str) -> None:
+        self.show_page("photos")
+        page = self.pages["photos"]
+        search = getattr(page, "filter", None)
+        if search is not None:
+            search.setText(eoat_id)
+
     def show_status(self, message: str) -> None:
         self.statusBar().showMessage(message, 9000)
 
@@ -203,7 +210,7 @@ class AtlasWindow(QMainWindow):
     def apply_settings(self, *, save: bool = False, notify_pages: bool = True) -> None:
         app = QApplication.instance()
         if app is not None:
-            app.setStyleSheet(atlas_stylesheet(self.settings.effective_theme))
+            app.setStyleSheet(atlas_stylesheet(self.settings.effective_theme, self.settings.color_scheme))
         if save:
             save_atlas_settings(self.settings)
             self.show_status("Atlas settings saved.")

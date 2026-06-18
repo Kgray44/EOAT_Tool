@@ -33,7 +33,7 @@ def main() -> int:
     if ATLAS_LOGO_PATH.exists():
         app.setWindowIcon(QIcon(str(ATLAS_LOGO_PATH)))
     settings = AtlasSettings() if smoke_test else load_atlas_settings()
-    app.setStyleSheet(atlas_stylesheet(settings.effective_theme))
+    app.setStyleSheet(atlas_stylesheet(settings.effective_theme, settings.color_scheme))
     config = UserConfig(project_root=str(DEFAULT_PROJECT_ROOT)) if smoke_test else load_config()
     loading = AtlasLoadingScreen(ATLAS_LOGO_PATH)
     loading.center_on_screen()
