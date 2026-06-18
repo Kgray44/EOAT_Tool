@@ -40,7 +40,7 @@ def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     _register_capture_font(app, QFont, QFontDatabase)
     capture_settings = AtlasSettings()
-    app.setStyleSheet(atlas_stylesheet(capture_settings.effective_theme))
+    app.setStyleSheet(atlas_stylesheet(capture_settings.effective_theme, capture_settings.color_scheme))
     bundle = _sanitize_demo_bundle(load_atlas_data(project_root, force_refresh=True), project_root)
     window = AtlasWindow(UserConfig(project_root=str(project_root)), auto_refresh=False, settings=capture_settings)
     window.resize(args.width, args.height)
