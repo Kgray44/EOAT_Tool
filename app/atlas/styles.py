@@ -22,6 +22,14 @@ DESIGN_TOKENS = {
     "hero_end": "#2f80ed",
     "scroll_handle": "#b8c7dc",
     "scroll_hover": "#7ea7d8",
+    "sidebar_logo_card_bg": "#17324f",
+    "sidebar_logo_card_bg_gradient_start": "#17324f",
+    "sidebar_logo_card_bg_gradient_end": "#102033",
+    "sidebar_logo_card_border": "#244564",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#285f95",
+    "sidebar_logo_card_accent": "#7ec8ff",
+    "sidebar_logo_image_bg": "#ffffff",
 }
 DARK_DESIGN_TOKENS = {
     "background": "#0d1624",
@@ -43,6 +51,14 @@ DARK_DESIGN_TOKENS = {
     "hero_end": "#236fb8",
     "scroll_handle": "#405872",
     "scroll_hover": "#5d7b9b",
+    "sidebar_logo_card_bg": "#102033",
+    "sidebar_logo_card_bg_gradient_start": "#102033",
+    "sidebar_logo_card_bg_gradient_end": "#0a1320",
+    "sidebar_logo_card_border": "#405872",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#64a7ff",
+    "sidebar_logo_card_accent": "#64a7ff",
+    "sidebar_logo_image_bg": "#ffffff",
 }
 NOLATO_DESIGN_TOKENS = {
     "background": "#f2f4f7",
@@ -64,6 +80,14 @@ NOLATO_DESIGN_TOKENS = {
     "hero_end": "#d80621",
     "scroll_handle": "#b8c0cc",
     "scroll_hover": "#d80621",
+    "sidebar_logo_card_bg": "#111317",
+    "sidebar_logo_card_bg_gradient_start": "#050607",
+    "sidebar_logo_card_bg_gradient_end": "#2b2f36",
+    "sidebar_logo_card_border": "#d80621",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#8d0718",
+    "sidebar_logo_card_accent": "#d80621",
+    "sidebar_logo_image_bg": "#ffffff",
 }
 NOLATO_DARK_DESIGN_TOKENS = {
     "background": "#101114",
@@ -85,6 +109,130 @@ NOLATO_DARK_DESIGN_TOKENS = {
     "hero_end": "#d80621",
     "scroll_handle": "#4a515e",
     "scroll_hover": "#ff4b5f",
+    "sidebar_logo_card_bg": "#111317",
+    "sidebar_logo_card_bg_gradient_start": "#050607",
+    "sidebar_logo_card_bg_gradient_end": "#202328",
+    "sidebar_logo_card_border": "#ff4b5f",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#d80621",
+    "sidebar_logo_card_accent": "#ff4b5f",
+    "sidebar_logo_image_bg": "#ffffff",
+}
+INDUSTRIAL_GRAPHITE_TOKENS = {
+    "background": "#eef3f6",
+    "surface": "#ffffff",
+    "surface_elevated": "#f5f8fa",
+    "navy": "#1f252b",
+    "accent": "#3d6f8f",
+    "accent_hover": "#315d79",
+    "accent_secondary": "#1b9aaa",
+    "warning": "#b7791f",
+    "danger": "#b42318",
+    "success": "#2f855a",
+    "muted_text": "#64717d",
+    "border": "#d3dbe2",
+    "border_strong": "#aebbc6",
+    "hover": "#e6f1f5",
+    "hero_start": "#1f252b",
+    "hero_mid": "#34414d",
+    "hero_end": "#3d6f8f",
+    "scroll_handle": "#aebbc6",
+    "scroll_hover": "#3d6f8f",
+    "sidebar_logo_card_bg": "#1f252b",
+    "sidebar_logo_card_bg_gradient_start": "#1f252b",
+    "sidebar_logo_card_bg_gradient_end": "#24394a",
+    "sidebar_logo_card_border": "#4f839e",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#1b9aaa",
+    "sidebar_logo_card_accent": "#1b9aaa",
+    "sidebar_logo_image_bg": "#f8fbff",
+}
+INDUSTRIAL_GRAPHITE_DARK_TOKENS = {
+    "background": "#11161b",
+    "surface": "#1b2229",
+    "surface_elevated": "#232c34",
+    "navy": "#e8edf2",
+    "accent": "#6fa6c8",
+    "accent_hover": "#8bb9d5",
+    "accent_secondary": "#4fd1df",
+    "warning": "#e5aa3f",
+    "danger": "#ff8179",
+    "success": "#69c690",
+    "muted_text": "#a8b5c1",
+    "border": "#34424f",
+    "border_strong": "#506171",
+    "hover": "#26333d",
+    "hero_start": "#080b0f",
+    "hero_mid": "#28333d",
+    "hero_end": "#3d6f8f",
+    "scroll_handle": "#506171",
+    "scroll_hover": "#6fa6c8",
+    "sidebar_logo_card_bg": "#11161b",
+    "sidebar_logo_card_bg_gradient_start": "#11161b",
+    "sidebar_logo_card_bg_gradient_end": "#26333d",
+    "sidebar_logo_card_border": "#506171",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#4fd1df",
+    "sidebar_logo_card_accent": "#4fd1df",
+    "sidebar_logo_image_bg": "#f8fbff",
+}
+AURORA_TECH_TOKENS = {
+    "background": "#edf6fb",
+    "surface": "#ffffff",
+    "surface_elevated": "#f4f9fd",
+    "navy": "#102033",
+    "accent": "#147dff",
+    "accent_hover": "#0f67d6",
+    "accent_secondary": "#00a99d",
+    "warning": "#b76a00",
+    "danger": "#c03434",
+    "success": "#0f8f73",
+    "muted_text": "#5f7891",
+    "border": "#cfddeb",
+    "border_strong": "#a9bfd6",
+    "hover": "#e2f3ff",
+    "hero_start": "#0c1730",
+    "hero_mid": "#1646a0",
+    "hero_end": "#00a99d",
+    "scroll_handle": "#a9bfd6",
+    "scroll_hover": "#147dff",
+    "sidebar_logo_card_bg": "#0c1730",
+    "sidebar_logo_card_bg_gradient_start": "#0c1730",
+    "sidebar_logo_card_bg_gradient_end": "#12356f",
+    "sidebar_logo_card_border": "#147dff",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#00a99d",
+    "sidebar_logo_card_accent": "#00a99d",
+    "sidebar_logo_image_bg": "#f8fbff",
+}
+AURORA_TECH_DARK_TOKENS = {
+    "background": "#081225",
+    "surface": "#101c33",
+    "surface_elevated": "#162641",
+    "navy": "#e8f3ff",
+    "accent": "#4ca3ff",
+    "accent_hover": "#73b9ff",
+    "accent_secondary": "#37d6cb",
+    "warning": "#f3b44b",
+    "danger": "#ff7676",
+    "success": "#4fd3a9",
+    "muted_text": "#a7bad3",
+    "border": "#2a3a58",
+    "border_strong": "#445b7c",
+    "hover": "#142849",
+    "hero_start": "#050a18",
+    "hero_mid": "#12356f",
+    "hero_end": "#008fbb",
+    "scroll_handle": "#445b7c",
+    "scroll_hover": "#4ca3ff",
+    "sidebar_logo_card_bg": "#050a18",
+    "sidebar_logo_card_bg_gradient_start": "#050a18",
+    "sidebar_logo_card_bg_gradient_end": "#12356f",
+    "sidebar_logo_card_border": "#4ca3ff",
+    "sidebar_logo_card_text": "#ffffff",
+    "sidebar_logo_card_shadow": "#37d6cb",
+    "sidebar_logo_card_accent": "#37d6cb",
+    "sidebar_logo_image_bg": "#f8fbff",
 }
 SPACING = {"xs": 4, "sm": 8, "md": 12, "lg": 18, "xl": 24}
 RADIUS = {"sm": 5, "md": 7, "lg": 9}
@@ -94,8 +242,14 @@ FONT_SIZES = {"body": 10, "small": 8, "section": 12, "page": 18, "hero": 22}
 def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> str:
     theme_name = str(theme or "light").casefold()
     scheme_name = str(color_scheme or "atlas_blue").casefold()
-    if scheme_name == "nolato_logo":
-        base_tokens = NOLATO_DARK_DESIGN_TOKENS if theme_name == "dark" else NOLATO_DESIGN_TOKENS
+    scheme_tokens = {
+        "nolato_logo": (NOLATO_DESIGN_TOKENS, NOLATO_DARK_DESIGN_TOKENS),
+        "industrial_graphite": (INDUSTRIAL_GRAPHITE_TOKENS, INDUSTRIAL_GRAPHITE_DARK_TOKENS),
+        "aurora_tech": (AURORA_TECH_TOKENS, AURORA_TECH_DARK_TOKENS),
+    }
+    if scheme_name in scheme_tokens:
+        light_tokens, dark_tokens = scheme_tokens[scheme_name]
+        base_tokens = dark_tokens if theme_name == "dark" else light_tokens
     else:
         scheme_name = "atlas_blue"
         base_tokens = DARK_DESIGN_TOKENS if theme_name == "dark" else DESIGN_TOKENS
@@ -122,18 +276,27 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0c1c2e, stop:.55 #102033, stop:1 #132a44);
     }
     QFrame#AtlasSidebarHeader {
-        background: #17324f;
-        border: 1px solid #244564;
+        background: $sidebar_logo_card_bg;
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 $sidebar_logo_card_bg_gradient_start, stop:1 $sidebar_logo_card_bg_gradient_end);
+        border: 1px solid $sidebar_logo_card_border;
+        border-bottom: 3px solid $sidebar_logo_card_accent;
         border-radius: 10px;
     }
+    QFrame#AtlasSidebarHeader:hover {
+        border-color: $sidebar_logo_card_shadow;
+    }
     QLabel#AtlasSidebarLogo {
-        background: transparent;
+        background: $sidebar_logo_image_bg;
+        border: 1px solid rgba(255, 255, 255, 110);
+        border-radius: 14px;
+        padding: 4px;
     }
     QLabel#AtlasSidebarTitle {
-        color: white;
+        color: $sidebar_logo_card_text;
         font-size: 12pt;
         font-weight: 900;
-        padding-bottom: 2px;
+        padding-top: 2px;
+        padding-bottom: 3px;
     }
     QScrollArea#AtlasSidebarScroll {
         background: transparent;
@@ -287,6 +450,11 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         font-size: ${page_font}pt;
         font-weight: 800;
     }
+    QLabel#PageSubtitle {
+        color: $muted_text;
+        font-size: 10pt;
+        font-weight: 600;
+    }
     QLabel#EyebrowLabel {
         color: #4f78a3;
         font-size: 7pt;
@@ -350,6 +518,41 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         font-size: 8pt;
         font-weight: 800;
     }
+    QLabel#MetricIcon {
+        color: #6c86a4;
+        font-size: 13pt;
+        font-weight: 900;
+    }
+    QLabel#DocumentCategory {
+        color: #4f78a3;
+        font-size: 7pt;
+        font-weight: 900;
+        letter-spacing: .08em;
+    }
+    QLabel#DocumentTitle {
+        color: #172033;
+        font-size: 12.5pt;
+        font-weight: 900;
+    }
+    QLabel#DocumentDescription {
+        color: #30465f;
+        font-size: 9.5pt;
+        font-weight: 700;
+    }
+    QLabel#DocumentMetadata, QLabel#DocumentPath {
+        color: #7891aa;
+        font-size: 8pt;
+        font-weight: 700;
+    }
+    QLabel#DocumentPreview {
+        color: #465f78;
+        font-size: 9pt;
+    }
+    QLabel#AccordionSummary {
+        color: $muted_text;
+        font-size: 8.5pt;
+        font-weight: 650;
+    }
     QLabel#WarningTitle {
         color: #78350f;
         font-size: 11pt;
@@ -387,6 +590,38 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         padding: 3px 7px;
         font-weight: 700;
     }
+    QLabel#BadgeVerified {
+        background: #ecfdf3;
+        color: #087f5b;
+        border: 1px solid #b7e4c7;
+        border-radius: ${radius_sm}px;
+        padding: 3px 7px;
+        font-weight: 700;
+    }
+    QLabel#BadgeReview {
+        background: #fff7e6;
+        color: #9a5a00;
+        border: 1px solid #f2d18a;
+        border-radius: ${radius_sm}px;
+        padding: 3px 7px;
+        font-weight: 700;
+    }
+    QLabel#BadgeMissing, QLabel#BadgeInvalid {
+        background: #fff1f1;
+        color: #a61b1b;
+        border: 1px solid #f2b8b5;
+        border-radius: ${radius_sm}px;
+        padding: 3px 7px;
+        font-weight: 700;
+    }
+    QLabel#BadgeUnknown {
+        background: #eef4fb;
+        color: #3d5a78;
+        border: 1px solid #cbd8e8;
+        border-radius: ${radius_sm}px;
+        padding: 3px 7px;
+        font-weight: 700;
+    }
     QLabel#NeutralChip {
         background: #eef3f9;
         color: #34495e;
@@ -416,6 +651,31 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         padding: 2px 7px;
         font-size: 8pt;
         font-weight: 800;
+    }
+    QFrame#MetricAccentGood {
+        background: #2f9e68;
+        border: 0;
+        border-radius: 2px;
+    }
+    QFrame#MetricAccentWarn {
+        background: #f59e0b;
+        border: 0;
+        border-radius: 2px;
+    }
+    QFrame#MetricAccentBad {
+        background: #dc2626;
+        border: 0;
+        border-radius: 2px;
+    }
+    QFrame#MetricAccentPrimary {
+        background: $accent;
+        border: 0;
+        border-radius: 2px;
+    }
+    QFrame#MetricAccentNeutral {
+        background: #94a3b8;
+        border: 0;
+        border-radius: 2px;
     }
     QFrame#MiniProgressTrack {
         background: #dfe8f3;
@@ -476,22 +736,74 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
     QPushButton#PrimaryButton:hover {
         background: $accent_hover;
     }
+    QPushButton#HeroPrimaryButton {
+        background: white;
+        color: #102033;
+        border: 1px solid white;
+        font-weight: 800;
+    }
+    QPushButton#HeroPrimaryButton:hover {
+        background: #eaf3ff;
+        border-color: #eaf3ff;
+    }
     QPushButton#HeroSecondaryButton {
-        background: rgba(255, 255, 255, 24);
+        background: rgba(255, 255, 255, 44);
         color: white;
-        border: 1px solid rgba(255, 255, 255, 120);
+        border: 1px solid rgba(255, 255, 255, 170);
     }
     QPushButton#HeroSecondaryButton:hover {
-        background: rgba(255, 255, 255, 42);
+        background: rgba(255, 255, 255, 70);
         border-color: white;
+    }
+    QPushButton#HeroDisabledButton {
+        background: rgba(255, 255, 255, 18);
+        color: #d8e5f5;
+        border: 1px solid rgba(255, 255, 255, 75);
     }
     QPushButton:disabled, QLineEdit:disabled, QComboBox:disabled {
         background: #edf2f7;
         color: #94a3b8;
         border-color: #d8e2ee;
     }
+    QFrame#SectionCard, QFrame#ChartCard, QFrame#DocumentCard, QFrame#AccordionSection {
+        background: $surface;
+        border: 1px solid $border;
+        border-radius: ${radius_lg}px;
+    }
+    QFrame#ChartCard, QFrame#DocumentCard {
+        background: $surface_elevated;
+    }
+    QFrame#MetricCard {
+        background: $surface_elevated;
+        border: 1px solid $border;
+        border-radius: ${radius_lg}px;
+    }
+    QWidget#ToolbarFilterRow {
+        background: transparent;
+    }
+    QToolButton#AccordionHeader {
+        background: transparent;
+        border: 0;
+        border-radius: ${radius_lg}px;
+        padding: 12px 14px;
+        color: #172033;
+        font-size: 11pt;
+        font-weight: 850;
+        text-align: left;
+    }
+    QToolButton#AccordionHeader:hover {
+        background: $hover;
+    }
+    QFrame#AccordionSection[expanded="true"] {
+        border-color: #9fc5f3;
+        border-top-color: $accent;
+    }
+    QWidget#AccordionBody {
+        background: transparent;
+    }
     QTableWidget, QListWidget, QTextEdit, QTreeWidget {
         background: $surface;
+        color: $navy;
         border: 1px solid $border;
         border-radius: ${radius_md}px;
         gridline-color: transparent;
@@ -547,6 +859,13 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         padding: 6px;
         margin: 0 0 8px 0;
     }
+    QListWidget#CardList::item:hover {
+        background: $surface_elevated;
+        border-color: $border_strong;
+    }
+    QListWidget#CardList::item:focus {
+        border: 1px dashed $accent;
+    }
     QListWidget#CardList::item:selected {
         background: #dbeafe;
         border-color: $accent;
@@ -574,7 +893,8 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         background: $surface;
         border: 1px solid #cbd5e1;
         border-radius: ${radius_md}px;
-        padding: 7px;
+        padding: 6px 30px 6px 9px;
+        min-height: 28px;
     }
     QCheckBox {
         color: #172033;
@@ -594,7 +914,7 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
     }
     QComboBox::drop-down {
         border: 0;
-        width: 24px;
+        width: 28px;
     }
     QComboBox QAbstractItemView, QMenu {
         background: $surface;
@@ -631,10 +951,28 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
     }
     QToolTip {
         background: $surface;
-        color: #172033;
+        color: $navy;
         border: 1px solid $border_strong;
         border-radius: ${radius_md}px;
         padding: 7px;
+    }
+    QDialog, QMessageBox {
+        background: $background;
+        color: $navy;
+    }
+    QDialog QLabel, QMessageBox QLabel {
+        color: $navy;
+    }
+    QMessageBox {
+        border: 1px solid $border;
+    }
+    QMessageBox QPushButton {
+        min-width: 86px;
+        padding: 7px 14px;
+    }
+    QDialogButtonBox QPushButton {
+        min-width: 86px;
+        padding: 7px 14px;
     }
     QScrollBar:vertical {
         background: transparent;
@@ -729,29 +1067,143 @@ def atlas_stylesheet(theme: str = "light", color_scheme: str = "atlas_blue") -> 
         background: #0b1220;
         color: #f8fbff;
     }
+    QFrame#PhotoViewerStage {
+        background: #050a12;
+        border: 1px solid #263548;
+        border-radius: 10px;
+    }
+    QScrollArea#PhotoViewerFilmstrip {
+        background: #101927;
+        border: 1px solid #31445d;
+        border-radius: 9px;
+        min-height: 116px;
+    }
+    QScrollArea#PhotoViewerFilmstrip QWidget {
+        background: transparent;
+    }
+    QDialog#AtlasCommandPalette, QDialog#InstallPacketDialog, QDialog#SetupPacketDialog, QDialog#SetupPacketPdfViewerDialog, QDialog#CompareDialog, QDialog#QRLabelPreviewDialog {
+        background: $background;
+        color: $navy;
+    }
+    QListWidget#CommandPaletteResults {
+        background: $surface;
+        border: 1px solid $border;
+        border-radius: ${radius_md}px;
+        padding: 6px;
+        outline: 0;
+    }
+    QListWidget#CommandPaletteResults::item {
+        min-height: 32px;
+        padding: 6px 8px;
+        border-radius: 5px;
+    }
+    QListWidget#CommandPaletteResults::item:selected {
+        background: $hover;
+        color: #172033;
+    }
     QLabel#PhotoViewerTitle {
         color: #f8fbff;
         font-size: 13pt;
         font-weight: 900;
     }
     QLabel#PhotoViewerMeta {
-        color: #b8c7dc;
+        color: #d7e7f7;
         font-size: 9pt;
         font-weight: 700;
     }
+    QLabel#PhotoViewerCount {
+        background: #f8fbff;
+        color: #0b1220;
+        border-radius: 12px;
+        padding: 5px 10px;
+        font-size: 10pt;
+        font-weight: 900;
+    }
     QLabel#PhotoViewerImage {
-        background: #050a12;
-        border: 1px solid #263548;
-        border-radius: 9px;
+        background: transparent;
+        border: 0;
         color: #d7e7f7;
         font-weight: 700;
+    }
+    QLabel#PhotoViewerThumb {
+        background: #172033;
+        border: 2px solid #405872;
+        border-radius: 8px;
+        color: #d7e7f7;
+        font-weight: 800;
+        padding: 4px;
+    }
+    QLabel#PhotoViewerThumb[selected="true"] {
+        background: #f8fbff;
+        border: 3px solid $accent;
+        color: #0b1220;
+    }
+    QPushButton#PhotoViewerButton, QPushButton#PhotoViewerSecondaryButton, QToolButton#PhotoViewerToolButton {
+        background: #f8fbff;
+        color: #0b1220;
+        border: 1px solid #b8c7dc;
+        border-radius: ${radius_md}px;
+        padding: 6px 12px;
+        font-weight: 800;
+    }
+    QPushButton#PhotoViewerButton:hover, QPushButton#PhotoViewerSecondaryButton:hover, QToolButton#PhotoViewerToolButton:hover {
+        background: #e7f1ff;
+        border-color: $accent;
+    }
+    QPushButton#PhotoViewerCloseButton {
+        background: #fee2e2;
+        color: #7f1d1d;
+        border: 1px solid #fecaca;
+        border-radius: ${radius_md}px;
+        padding: 6px 12px;
+        font-weight: 900;
+    }
+    QPushButton#PhotoViewerCloseButton:hover {
+        background: #fecaca;
+        border-color: #f87171;
+    }
+    QPushButton#PhotoViewerButton:disabled, QPushButton#PhotoViewerSecondaryButton:disabled, QToolButton#PhotoViewerToolButton:disabled {
+        background: #263548;
+        color: #b8c7dc;
+        border-color: #405872;
+    }
+    QLabel#ScoreTotal {
+        color: #102033;
+        font-size: 18pt;
+        font-weight: 900;
+    }
+    QLabel#ScorePoints {
+        background: #102033;
+        color: white;
+        border-radius: 12px;
+        min-width: 46px;
+        padding: 5px 8px;
+        font-weight: 900;
+    }
+    QFrame#ScoreFactorPositive {
+        background: #e6f6ef;
+        border: 1px solid #a7e1c8;
+        border-left: 5px solid $success;
+        border-radius: 7px;
+    }
+    QFrame#ScoreFactorNeutral {
+        background: #e7f1ff;
+        border: 1px solid #b9d7fb;
+        border-left: 5px solid $accent;
+        border-radius: 7px;
+    }
+    QFrame#ScoreFactorNegative {
+        background: #fff4dd;
+        border: 1px solid #f8d99a;
+        border-left: 5px solid $warning;
+        border-radius: 7px;
     }
     """).substitute(tokens)
     stylesheet = base
     if theme_name == "dark":
         stylesheet += _dark_overrides(tokens)
-    if scheme_name == "nolato_logo":
-        stylesheet += _nolato_overrides(tokens, dark=theme_name == "dark")
+    if scheme_name != "atlas_blue":
+        stylesheet += _scheme_overrides(tokens, scheme_name=scheme_name, dark=theme_name == "dark")
     return stylesheet
 
 
@@ -764,6 +1216,15 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
     QLabel#PageTitle, QLabel#CardTitle, QLabel#SectionTitle, QLabel#DetailTitle,
     QLabel#BodyText, QLabel#MetricValue, QLabel#TileTitle {
         color: #e5edf7;
+    }
+    QLabel#PageSubtitle, QLabel#DocumentMetadata, QLabel#DocumentPath, QLabel#AccordionSummary {
+        color: $muted_text;
+    }
+    QLabel#DocumentTitle, QLabel#DocumentDescription, QLabel#DocumentPreview {
+        color: #e5edf7;
+    }
+    QLabel#DocumentCategory, QLabel#MetricIcon {
+        color: $accent;
     }
     QLabel#TileSubtitle {
         color: #c6d6e8;
@@ -779,7 +1240,12 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
     QFrame#CompactStatCard,
     QFrame#FeatureActionCard,
     QFrame#ExportActionCard,
-    QFrame#DenseDataPanel {
+    QFrame#DenseDataPanel,
+    QFrame#SectionCard,
+    QFrame#ChartCard,
+    QFrame#DocumentCard,
+    QFrame#MetricCard,
+    QFrame#AccordionSection {
         background: $surface;
         border-color: $border;
     }
@@ -817,6 +1283,14 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
         background: #361d22;
         border-color: #7e3d45;
         border-left-color: $danger;
+    }
+    QToolButton#AccordionHeader {
+        background: transparent;
+        color: #e5edf7;
+        border: 0;
+    }
+    QToolButton#AccordionHeader:hover {
+        background: $hover;
     }
     QFrame#SuccessCard {
         background: #123124;
@@ -898,6 +1372,11 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
         color: #07111e;
         border-color: $accent;
     }
+    QPushButton:disabled, QLineEdit:disabled, QComboBox:disabled {
+        background: #182536;
+        color: #8798ad;
+        border-color: $border;
+    }
     QTableWidget, QListWidget, QTextEdit, QTreeWidget {
         background: #0f1a29;
         color: #e5edf7;
@@ -955,6 +1434,17 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
         color: #e5edf7;
         border-color: $border_strong;
     }
+    QDialog, QMessageBox,
+    QDialog#AtlasCommandPalette, QDialog#InstallPacketDialog, QDialog#SetupPacketDialog, QDialog#SetupPacketPdfViewerDialog, QDialog#CompareDialog, QDialog#QRLabelPreviewDialog {
+        background: $background;
+        color: #e5edf7;
+    }
+    QDialog QLabel, QMessageBox QLabel {
+        color: #e5edf7;
+    }
+    QMessageBox {
+        border: 1px solid $border;
+    }
     QLabel#LoadingTitle, QLabel#LoadingSubtitle, QLabel#LoadingTip {
         color: #e5edf7;
     }
@@ -962,35 +1452,74 @@ def _dark_overrides(tokens: dict[str, object]) -> str:
         background: $surface;
         border-color: $border;
     }
+    QLabel#ScoreTotal {
+        color: #e5edf7;
+    }
+    QLabel#ScorePoints {
+        background: #dbeafe;
+        color: #07111e;
+    }
+    QFrame#ScoreFactorPositive {
+        background: #123a2a;
+        border-color: #246849;
+        border-left-color: $success;
+    }
+    QFrame#ScoreFactorNeutral {
+        background: #17314f;
+        border-color: #31577f;
+        border-left-color: $accent;
+    }
+    QFrame#ScoreFactorNegative {
+        background: #3a2d12;
+        border-color: #735a25;
+        border-left-color: $warning;
+    }
     """).substitute(tokens)
 
 
-def _nolato_overrides(tokens: dict[str, object], *, dark: bool = False) -> str:
+def _scheme_overrides(tokens: dict[str, object], *, scheme_name: str, dark: bool = False) -> str:
     tree_selected_text = "#07111e" if dark else "#ffffff"
-    card_surface = "#201014" if dark else "#fff7f8"
-    info_surface = "#1f2228" if dark else "#f7f8fa"
-    profile_end = "#ff4b5f" if dark else "#d80621"
+    soft_surfaces = {
+        "nolato_logo": ("#201014", "#fff7f8"),
+        "industrial_graphite": ("#1e262d", "#f3f7f9"),
+        "aurora_tech": ("#111f3a", "#f2f8ff"),
+    }
+    dark_surface, light_surface = soft_surfaces.get(scheme_name, ("#1f2228", "#f7f8fa"))
+    card_surface = dark_surface if dark else light_surface
+    info_surface = str(tokens["surface_elevated"])
+    profile_end = str(tokens["accent"])
     return Template("""
     QWidget#AtlasSidebarPanel {
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #050607, stop:.62 #17191d, stop:1 #2b1116);
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #050607, stop:.62 #17191d, stop:1 $hero_start);
     }
     QFrame#AtlasSidebarHeader {
-        background: #202328;
-        border-color: #3a3f48;
+        background: $sidebar_logo_card_bg;
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 $sidebar_logo_card_bg_gradient_start, stop:1 $sidebar_logo_card_bg_gradient_end);
+        border-color: $sidebar_logo_card_border;
+        border-bottom-color: $sidebar_logo_card_accent;
+    }
+    QFrame#AtlasSidebarHeader:hover {
+        border-color: $sidebar_logo_card_shadow;
+    }
+    QLabel#AtlasSidebarTitle {
+        color: $sidebar_logo_card_text;
+    }
+    QLabel#AtlasSidebarLogo {
+        background: $sidebar_logo_image_bg;
     }
     QLabel#AtlasNavSectionLabel {
-        color: #f0a0aa;
+        color: $accent_secondary;
     }
     QPushButton#AtlasNavItem:hover {
-        background: #2b2024;
+        background: $hover;
         border-left-color: $accent;
     }
     QPushButton#AtlasNavItem:checked {
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 $accent, stop:1 #2b2f36);
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 $accent, stop:1 $hero_mid);
         border-left-color: #ffffff;
     }
     QFrame#ProfileHeaderCard {
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #111317, stop:.58 #2b2f36, stop:1 $profile_end);
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 $hero_start, stop:.58 $hero_mid, stop:1 $profile_end);
     }
     QFrame#PrimaryCard {
         border-top-color: $accent;
@@ -1039,6 +1568,10 @@ __all__ = [
     "DARK_DESIGN_TOKENS",
     "DESIGN_TOKENS",
     "FONT_SIZES",
+    "AURORA_TECH_DARK_TOKENS",
+    "AURORA_TECH_TOKENS",
+    "INDUSTRIAL_GRAPHITE_DARK_TOKENS",
+    "INDUSTRIAL_GRAPHITE_TOKENS",
     "NOLATO_DARK_DESIGN_TOKENS",
     "NOLATO_DESIGN_TOKENS",
     "RADIUS",

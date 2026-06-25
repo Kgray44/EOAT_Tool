@@ -4,6 +4,9 @@ pypdf
 PySide6
 pandas
 matplotlib
+reportlab
 Pillow
 pillow-heif
+qrcode
+opencv-python-headless
 pytest

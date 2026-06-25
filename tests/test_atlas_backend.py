@@ -5,6 +5,16 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from core.atlas_data_loader import invalidate_atlas_data_cache, load_atlas_data
+from core.atlas_exports import (
+    build_eoat_qr_payload,
+    build_install_packet,
+    decode_qr_payload_from_image,
+    export_eoat_qr_label,
+    export_install_packet,
+    qr_payload_warning,
+    validate_eoat_qr_payload,
+)
+from core.atlas_models import DocumentationStatus, EOATRecord
 from core.atlas_recommendations import recommend_for_query
 from core.atlas_search import search_atlas
 from core.atlas_utils import row_value
@@ -99,6 +109,118 @@ def test_atlas_registers_root_standardization_document(tmp_path: Path) -> None:
     assert (paths.standards / root_standard.name).exists()
     assert any(standard.title == "Eoat Standardization Guide" for standard in bundle.standards)
     assert any(standard.category == "eoat standards" for standard in bundle.standards)
+
+
+def test_atlas_cache_detects_replaced_standard_documents(tmp_path: Path) -> None:
+    root = create_fake_eoat_project(tmp_path, with_photos=False)
+    paths = resolve_project_paths(root)
+    paths.standards.mkdir(parents=True, exist_ok=True)
+    old_standard = paths.standards / "EOAT_Standardization_Work_Instruction_Spaced_Annotated.pdf"
+    revised_standard = paths.standards / "EOAT_Standardization_Work_Instruction_Revised.pdf"
+    old_standard.write_bytes(b"old standard document")
+    invalidate_atlas_data_cache(root)
+
+    bundle = load_atlas_data(root, force_refresh=True)
+    assert any(standard.title == "Eoat Standardization Work Instruction Spaced Annotated" for standard in bundle.standards)
+
+    old_standard.unlink()
+    revised_standard.write_bytes(b"revised standard document with updated content")
+    bundle = load_atlas_data(root)
+    titles = {standard.title for standard in bundle.standards}
+
+    assert "Eoat Standardization Work Instruction Revised" in titles
+    assert "Eoat Standardization Work Instruction Spaced Annotated" not in titles
+
+
+def test_eoat_qr_payload_modes_store_offline_record(tmp_path: Path) -> None:
+    root = create_fake_eoat_project(tmp_path)
+    create_press_reference_workbooks(resolve_project_paths(root).reference_data)
+    bundle = load_atlas_data(root, force_refresh=True)
+    eoat = bundle.eoats[0]
+
+    compact = build_eoat_qr_payload(eoat, mode="compact")
+    deep_link = build_eoat_qr_payload(eoat, mode="deep_link")
+    json_payload = build_eoat_qr_payload(eoat, mode="json")
+    full = build_eoat_qr_payload(eoat, mode="full")
+
+    assert compact.startswith("EOAT_ATLAS_RECORD")
+    assert f"EOAT={eoat.eoat_id}" in compact
+    assert "TOOL=T-" in compact
+    assert "MACHINES=M-" in compact
+    assert not compact.strip().isdigit()
+    assert not compact.casefold().startswith(("tel:", "call:"))
+    assert validate_eoat_qr_payload(compact, mode="compact", eoat_id=eoat.eoat_id) == []
+    assert deep_link.startswith(f"eoat-atlas://record/eoat/{eoat.eoat_id}")
+    assert "tool=T-" in deep_link
+    assert '"app":"EOAT Atlas"' in json_payload
+    assert '"record_type":"eoat"' in json_payload
+    assert f'"eoat_id":"{eoat.eoat_id}"' in json_payload
+    assert '"tools":' in json_payload
+    assert '"machines":' in json_payload
+    assert "KNOWN_ISSUES:" in full
+    assert len(full) > len(compact)
+    assert qr_payload_warning(full, mode="full")
+    try:
+        import qrcode  # noqa: F401
+    except ImportError:
+        return
+    label_path = export_eoat_qr_label(bundle, eoat, payload_mode="compact")
+    assert label_path.exists()
+    assert "Atlas_Exports" in str(label_path)
+    assert "QR_Labels" in str(label_path)
+    assert decode_qr_payload_from_image(label_path).payload == compact
+
+
+def test_eoat_qr_payload_validation_rejects_phone_like_values() -> None:
+    assert validate_eoat_qr_payload("5620040010", mode="compact", eoat_id="P4-EOAT-0001")
+    assert validate_eoat_qr_payload("tel:5620040010", mode="compact", eoat_id="P4-EOAT-0001")
+    assert validate_eoat_qr_payload("call: 5620040010", mode="compact", eoat_id="P4-EOAT-0001")
+    assert validate_eoat_qr_payload(
+        "EOAT_ATLAS_RECORD; EOAT=P4-EOAT-0001; TOOL=5620040010",
+        mode="compact",
+        eoat_id="P4-EOAT-0001",
+    )
+
+
+def test_compact_eoat_qr_payload_decodes_not_phone_like_for_reported_tools(tmp_path: Path) -> None:
+    for eoat_id, tool in [("P4-EOAT-0001", "5620040010"), ("P4-EOAT-0002", "5116950010")]:
+        eoat = EOATRecord(
+            eoat_id=eoat_id,
+            display_id=eoat_id,
+            tools=(tool,),
+            machines=("1", "2", "8", "9", "19", "32", "33"),
+            eoat_type="Mechanical/Gripper",
+            documentation=DocumentationStatus(score=83, status_label="Good"),
+        )
+        bundle = load_atlas_data(create_fake_eoat_project(tmp_path / eoat_id), force_refresh=True)
+        payload = build_eoat_qr_payload(eoat, mode="compact")
+        label_path = export_eoat_qr_label(bundle, eoat, payload_mode="compact")
+        decoded = decode_qr_payload_from_image(label_path).payload
+
+        assert decoded == payload
+        assert decoded.startswith("EOAT_ATLAS_RECORD")
+        assert eoat_id in decoded
+        assert f"T-{tool}" in decoded
+        assert decoded != tool
+        assert not decoded[:1].isdigit()
+        assert not decoded.casefold().startswith(("call:", "tel:"))
+
+
+def test_install_packet_exports_timestamped_markdown(tmp_path: Path) -> None:
+    root = create_fake_eoat_project(tmp_path)
+    create_press_reference_workbooks(resolve_project_paths(root).reference_data)
+    bundle = load_atlas_data(root, force_refresh=True)
+    eoat = bundle.eoats[0]
+
+    packet = build_install_packet(bundle, eoat=eoat, context="Unit Test")
+    path = export_install_packet(bundle, packet)
+
+    text = path.read_text(encoding="utf-8")
+    assert path.exists()
+    assert "Install_Packets" in str(path)
+    assert path.name.startswith("Atlas_Install_Packet_")
+    assert eoat.eoat_id in text
+    assert "## Compatibility" in text
 
 
 def test_documentation_score_flags_missing_critical_fields() -> None:

@@ -6,6 +6,7 @@ from .atlas_models import (
     AtlasDataBundle,
     PhotoItem,
     RecommendationCandidate,
+    RecommendationFactor,
     RecommendationResult,
     SearchMatch,
     WarningItem,
@@ -83,41 +84,139 @@ def _rank_candidates(bundle: AtlasDataBundle, candidate_ids: list[str], interpre
         record = _eoat(bundle, eoat_id)
         if record is None:
             continue
-        score = 0
-        reasons: list[str] = []
+        factors: list[RecommendationFactor] = []
         if normalized_eoat_key(record.eoat_id) == normalized_eoat_key(value):
-            score += 100
-            reasons.append("Exact EOAT ID match.")
+            factors.append(
+                RecommendationFactor(
+                    "exact_eoat",
+                    "Exact EOAT ID match",
+                    100,
+                    "positive",
+                    evidence=record.eoat_id,
+                    details="The query directly matched this EOAT assembly ID.",
+                )
+            )
         if interpreted_as in {"tool", "number"} and any(normalized_tool_key(tool) == normalized_tool_key(value) for tool in record.tools):
-            score += 90
-            reasons.append("Exact tool/mold/part compatibility match.")
+            factors.append(
+                RecommendationFactor(
+                    "exact_tool",
+                    "Exact tool/mold/part compatibility match",
+                    90,
+                    "positive",
+                    evidence=", ".join(record.tools),
+                    details="The requested tool is linked to this EOAT.",
+                )
+            )
         if interpreted_as in {"machine", "number"} and any(
             normalized_machine_key(machine) == normalized_machine_key(value) for machine in record.machines
         ):
-            score += 70
-            reasons.append("Compatible with the requested machine.")
+            factors.append(
+                RecommendationFactor(
+                    "machine_compatible",
+                    "Compatible with requested machine",
+                    70,
+                    "positive",
+                    evidence=", ".join(record.machines),
+                    details="This EOAT is indexed as compatible with the requested machine.",
+                )
+            )
         if record.status:
-            score += _status_score(record.status)
-            reasons.append(f"Status: {record.status}.")
+            points = _status_score(record.status)
+            factors.append(
+                RecommendationFactor(
+                    "status",
+                    f"Status: {record.status}",
+                    points,
+                    _polarity(points),
+                    evidence=record.status,
+                    details=_status_details(record.status, points),
+                )
+            )
         if record.documentation.score:
             doc_points = min(30, record.documentation.score // 4)
-            score += doc_points
-            reasons.append(f"Documentation score: {record.documentation.score}%.")
+            factors.append(
+                RecommendationFactor(
+                    "documentation",
+                    f"Documentation score {record.documentation.score}%",
+                    doc_points,
+                    "positive" if doc_points >= 15 else "neutral",
+                    evidence=record.documentation.status_label,
+                    details="Documentation completeness contributes up to 30 points.",
+                )
+            )
         if record.photo_count:
             photo_points = min(15, record.photo_count * 3)
-            score += photo_points
-            reasons.append(f"{record.photo_count} linked photo(s).")
+            factors.append(
+                RecommendationFactor(
+                    "photos",
+                    f"Photos linked: {record.photo_count}",
+                    photo_points,
+                    "positive",
+                    evidence=f"{record.photo_count} linked photo(s)",
+                    details="Linked photos contribute up to 15 points.",
+                )
+            )
+        else:
+            factors.append(
+                RecommendationFactor(
+                    "photos_missing",
+                    "Photos linked: 0",
+                    0,
+                    "neutral",
+                    evidence="No indexed photos",
+                    details="No photo bonus was added.",
+                )
+            )
         if record.connection_type:
-            score += 5
-            reasons.append(f"Connection: {record.connection_type}.")
+            factors.append(
+                RecommendationFactor(
+                    "connection",
+                    "Connection details recorded",
+                    5,
+                    "positive",
+                    evidence=record.connection_type,
+                    details="Connection information improves install readiness.",
+                )
+            )
+        else:
+            factors.append(
+                RecommendationFactor(
+                    "connection_missing",
+                    "Connection details not recorded",
+                    0,
+                    "neutral",
+                    evidence="Connection type blank",
+                    details="No connection bonus was added.",
+                )
+            )
         warning_penalty = min(35, len(record.warnings) * 5)
         if warning_penalty:
-            score -= warning_penalty
-            reasons.append(f"{len(record.warnings)} warning(s) need review.")
-        records.append((score, record, tuple(reasons)))
+            factors.append(
+                RecommendationFactor(
+                    "warnings",
+                    f"{len(record.warnings)} warning(s) need review",
+                    -warning_penalty,
+                    "negative",
+                    evidence="; ".join(warning.title for warning in record.warnings[:4]),
+                    details="Warnings subtract up to 35 points.",
+                )
+            )
+        else:
+            factors.append(
+                RecommendationFactor(
+                    "warnings_clear",
+                    "No candidate-specific warnings",
+                    0,
+                    "neutral",
+                    evidence="No warnings indexed for this candidate",
+                    details="No warning penalty was applied.",
+                )
+            )
+        score = sum(factor.points for factor in factors)
+        records.append((score, record, tuple(factors)))
     records.sort(key=lambda item: (-item[0], item[1].eoat_id.casefold()))
     candidates: list[RecommendationCandidate] = []
-    for rank, (score, record, reasons) in enumerate(records, start=1):
+    for rank, (score, record, factors) in enumerate(records, start=1):
         candidates.append(
             RecommendationCandidate(
                 eoat_id=record.eoat_id,
@@ -126,10 +225,11 @@ def _rank_candidates(bundle: AtlasDataBundle, candidate_ids: list[str], interpre
                 summary=_candidate_summary(record),
                 machines=record.machines,
                 tools=record.tools,
-                reasons=reasons,
+                reasons=tuple(_factor_reason(factor) for factor in factors if factor.points or factor.factor_id in {"photos_missing", "warnings_clear"}),
                 warnings=record.warnings,
                 documentation_score=record.documentation.score,
                 photo_count=record.photo_count,
+                factors=factors,
             )
         )
     return candidates
@@ -255,6 +355,28 @@ def _status_score(status: str) -> int:
     if "off" in folded:
         return 5
     return 10
+
+
+def _status_details(status: str, points: int) -> str:
+    if points < 0:
+        return "Inactive, retired, deleted, or missing status reduces the score."
+    if points >= 20:
+        return "Active, audited, installed, or candidate status improves confidence."
+    return "Recorded status adds a small confidence bonus."
+
+
+def _polarity(points: int) -> str:
+    if points > 0:
+        return "positive"
+    if points < 0:
+        return "negative"
+    return "neutral"
+
+
+def _factor_reason(factor: RecommendationFactor) -> str:
+    prefix = f"{factor.points:+d}" if factor.points else "0"
+    evidence = f" ({factor.evidence})" if factor.evidence else ""
+    return f"{prefix} {factor.label}{evidence}."
 
 
 __all__ = ["recommend_for_query"]

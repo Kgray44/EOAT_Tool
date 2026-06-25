@@ -6,6 +6,8 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractButton,
+    QComboBox,
     QFrame,
     QGraphicsDropShadowEffect,
     QGridLayout,
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -134,6 +137,51 @@ class DetailCard(TitledCard):
         )
 
 
+class PageHeader(QWidget):
+    def __init__(self, title: str, subtitle: str = "", actions: list[QWidget] | None = None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("PageHeader")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 10)
+        layout.setSpacing(12)
+        text = QWidget()
+        text_layout = QVBoxLayout(text)
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(3)
+        title_label = QLabel(title)
+        title_label.setObjectName("PageTitle")
+        title_label.setWordWrap(True)
+        text_layout.addWidget(title_label)
+        if subtitle:
+            subtitle_label = QLabel(subtitle)
+            subtitle_label.setObjectName("PageSubtitle")
+            subtitle_label.setWordWrap(True)
+            text_layout.addWidget(subtitle_label)
+        layout.addWidget(text, 1)
+        if actions:
+            action_row_widget = QWidget()
+            action_layout = QHBoxLayout(action_row_widget)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(8)
+            for action in actions:
+                action_layout.addWidget(action)
+            layout.addWidget(action_row_widget, 0, Qt.AlignmentFlag.AlignTop)
+
+
+class SectionCard(TitledCard):
+    def __init__(self, title: str = "", subtitle: str = "", actions: list[QWidget] | None = None, *, parent=None):
+        super().__init__(title, subtitle, object_name="SectionCard", margins=(16, 16, 16, 16), spacing=10, parent=parent)
+        if actions:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(8)
+            row_layout.addStretch(1)
+            for action in actions:
+                row_layout.addWidget(action)
+            self.layout.insertWidget(0, row)
+
+
 class WarningCard(TitledCard):
     title_object_name = "WarningTitle"
 
@@ -176,8 +224,28 @@ class CompactStatCard(AtlasCard):
 
 
 class MetricCard(CompactStatCard):
-    def __init__(self, title: str, value: str = "-", subtitle: str = "", parent=None):
-        super().__init__(title, value, subtitle, parent=parent)
+    def __init__(self, title: str, value: str = "-", subtitle: str = "", *, kind: str = "neutral", icon: str = "", parent=None):
+        super().__init__(title, value, subtitle, kind=kind, parent=parent)
+        self.setObjectName("MetricCard")
+        self.setMinimumHeight(110)
+        self.setProperty("metricKind", kind)
+        accent = QFrame()
+        accent.setObjectName({
+            "good": "MetricAccentGood",
+            "success": "MetricAccentGood",
+            "warn": "MetricAccentWarn",
+            "warning": "MetricAccentWarn",
+            "bad": "MetricAccentBad",
+            "danger": "MetricAccentBad",
+            "primary": "MetricAccentPrimary",
+            "info": "MetricAccentPrimary",
+        }.get(kind, "MetricAccentNeutral"))
+        accent.setFixedHeight(4)
+        self.layout.insertWidget(0, accent)
+        if icon:
+            icon_label = QLabel(icon)
+            icon_label.setObjectName("MetricIcon")
+            self.layout.insertWidget(1, icon_label, 0, Qt.AlignmentFlag.AlignRight)
 
 
 class FeatureActionCard(TitledCard):
@@ -271,6 +339,37 @@ class ModernSearchBar(QLineEdit):
         self.setClearButtonEnabled(True)
 
 
+class ToolbarFilterRow(QWidget):
+    def __init__(self, *, search_placeholder: str = "Search", parent=None):
+        super().__init__(parent)
+        self.setObjectName("ToolbarFilterRow")
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(8)
+        self.search = ModernSearchBar(search_placeholder)
+        self.layout.addWidget(self.search, 1)
+
+    def add_filter(self, widget: QWidget) -> QWidget:
+        self.layout.addWidget(widget)
+        return widget
+
+    def add_combo(self, labels: list[str]) -> QComboBox:
+        combo = QComboBox()
+        combo.addItems(labels)
+        combo.setMinimumWidth(150)
+        self.add_filter(combo)
+        return combo
+
+    def add_toggle(self, toggle: QAbstractButton) -> QAbstractButton:
+        self.add_filter(toggle)
+        return toggle
+
+    def add_reset_button(self, text: str = "Reset") -> QPushButton:
+        button = QPushButton(text)
+        self.add_filter(button)
+        return button
+
+
 class Section(SecondaryCard):
     def __init__(self, title: str, parent=None):
         super().__init__(title, parent=parent)
@@ -296,6 +395,11 @@ class StatusChip(QLabel):
         "warn": "WarningChip",
         "bad": "DangerChip",
         "info": "PrimaryChip",
+        "verified": "BadgeVerified",
+        "review": "BadgeReview",
+        "missing": "BadgeMissing",
+        "invalid": "BadgeInvalid",
+        "unknown": "BadgeUnknown",
     }
 
     def __init__(self, text: str, kind: str = "info", parent=None):
@@ -303,6 +407,10 @@ class StatusChip(QLabel):
         self.setObjectName(self.KIND_NAMES.get(kind, "NeutralChip"))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+
+
+class Pill(StatusChip):
+    pass
 
 
 class WarningChip(StatusChip):
@@ -397,19 +505,155 @@ class ReadinessScoreWidget(ChecklistCard):
         self.layout.addLayout(grid)
 
 
+class DocumentCard(AtlasCard):
+    def __init__(
+        self,
+        *,
+        category: str,
+        title: str,
+        description: str = "",
+        badges: list[tuple[str, str]] | None = None,
+        metadata: list[str] | None = None,
+        preview: str = "",
+        path_label: str = "",
+        full_path: str = "",
+        tags: list[str] | tuple[str, ...] = (),
+        actions: list[QPushButton] | None = None,
+        parent=None,
+    ):
+        super().__init__(parent, elevated=True, object_name="DocumentCard", margins=(16, 14, 16, 14), spacing=8)
+        self.setMinimumHeight(190)
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+        category_label = QLabel(category.upper())
+        category_label.setObjectName("DocumentCategory")
+        top.addWidget(category_label)
+        top.addStretch(1)
+        for text, kind in badges or []:
+            top.addWidget(StatusChip(text, kind))
+        self.layout.addLayout(top)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("DocumentTitle")
+        title_label.setWordWrap(True)
+        self.layout.addWidget(title_label)
+
+        if description:
+            description_label = QLabel(description)
+            description_label.setObjectName("DocumentDescription")
+            description_label.setWordWrap(True)
+            self.layout.addWidget(description_label)
+
+        if metadata:
+            meta = QLabel("  |  ".join(item for item in metadata if item))
+            meta.setObjectName("DocumentMetadata")
+            meta.setWordWrap(True)
+            self.layout.addWidget(meta)
+
+        if preview:
+            preview_label = QLabel(preview)
+            preview_label.setObjectName("DocumentPreview")
+            preview_label.setWordWrap(True)
+            preview_label.setMaximumHeight(52)
+            self.layout.addWidget(preview_label)
+
+        if path_label:
+            path = QLabel(path_label)
+            path.setObjectName("DocumentPath")
+            path.setWordWrap(False)
+            path.setToolTip(full_path or path_label)
+            self.layout.addWidget(path)
+
+        if tags:
+            self.layout.addWidget(chip_group(tags, kind="outline", per_row=5, limit=8))
+
+        if actions:
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(8)
+            row.addStretch(1)
+            for action in actions:
+                row.addWidget(action)
+            self.layout.addLayout(row)
+
+
+class ChartCard(SectionCard):
+    def __init__(self, title: str, subtitle: str = "", chart_widget: QWidget | None = None, *, parent=None):
+        super().__init__(title, subtitle, parent=parent)
+        self.setObjectName("ChartCard")
+        self.setMinimumHeight(300)
+        if chart_widget is None:
+            chart_widget = EmptyStateWidget("No chart data", "Atlas does not have enough cached data for this chart yet.")
+        chart_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.layout.addWidget(chart_widget, 1)
+
+
+class AccordionSection(QFrame):
+    def __init__(self, title: str, summary: str = "", *, status_text: str = "", status_kind: str = "info", expanded: bool = False, parent=None):
+        super().__init__(parent)
+        self.setObjectName("AccordionSection")
+        self.setProperty("expanded", expanded)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        self.root_layout = QVBoxLayout(self)
+        self.root_layout.setContentsMargins(0, 0, 0, 0)
+        self.root_layout.setSpacing(0)
+
+        self.header = QToolButton()
+        self.header.setObjectName("AccordionHeader")
+        self.header.setCheckable(True)
+        self.header.setChecked(expanded)
+        self.header.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.header.setArrowType(Qt.ArrowType.UpArrow if expanded else Qt.ArrowType.DownArrow)
+        self.header.setText(title)
+        self.header.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.header.setMinimumHeight(58)
+        self.root_layout.addWidget(self.header)
+
+        self.summary_row = QWidget()
+        summary_layout = QHBoxLayout(self.summary_row)
+        summary_layout.setContentsMargins(14, 0, 14, 10)
+        summary_layout.setSpacing(8)
+        self.summary_label = QLabel(summary)
+        self.summary_label.setObjectName("AccordionSummary")
+        self.summary_label.setWordWrap(True)
+        summary_layout.addWidget(self.summary_label, 1)
+        self.status_chip = StatusChip(status_text, status_kind)
+        self.status_chip.setVisible(bool(status_text))
+        summary_layout.addWidget(self.status_chip)
+        self.root_layout.addWidget(self.summary_row)
+
+        self.body = QWidget()
+        self.body.setObjectName("AccordionBody")
+        self.body_layout = QVBoxLayout(self.body)
+        self.body_layout.setContentsMargins(14, 4, 14, 14)
+        self.body_layout.setSpacing(10)
+        self.body.setVisible(expanded)
+        self.root_layout.addWidget(self.body)
+        self.header.toggled.connect(self._set_expanded)
+
+    def _set_expanded(self, expanded: bool) -> None:
+        self.header.setArrowType(Qt.ArrowType.UpArrow if expanded else Qt.ArrowType.DownArrow)
+        self.body.setVisible(expanded)
+        self.setProperty("expanded", expanded)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def add_widget(self, widget: QWidget, stretch: int = 0) -> None:
+        self.body_layout.addWidget(widget, stretch)
+
+    def set_status(self, text: str, kind: str = "info") -> None:
+        self.status_chip.setText(text)
+        self.status_chip.setObjectName(StatusChip.KIND_NAMES.get(kind, "NeutralChip"))
+        self.status_chip.setVisible(bool(text))
+        self.status_chip.style().unpolish(self.status_chip)
+        self.status_chip.style().polish(self.status_chip)
+
+    def set_summary(self, text: str) -> None:
+        self.summary_label.setText(text)
+
+
 def page_title(title: str, subtitle: str = "") -> QWidget:
-    container = QWidget()
-    layout = QVBoxLayout(container)
-    layout.setContentsMargins(0, 0, 0, 6)
-    title_label = QLabel(title)
-    title_label.setObjectName("PageTitle")
-    layout.addWidget(title_label)
-    if subtitle:
-        subtitle_label = QLabel(subtitle)
-        subtitle_label.setObjectName("MutedText")
-        subtitle_label.setWordWrap(True)
-        layout.addWidget(subtitle_label)
-    return container
+    return PageHeader(title, subtitle)
 
 
 def badge(text: str, kind: str = "info") -> QLabel:
@@ -538,15 +782,18 @@ def _short_label(value: str, limit: int = 34) -> str:
 
 
 __all__ = [
+    "AccordionSection",
     "AtlasCard",
     "AtlasHero",
     "Card",
+    "ChartCard",
     "ChecklistCard",
     "CompactStatCard",
     "CompatibilityCard",
     "CompatibilityPathWidget",
     "DenseDataPanel",
     "DetailCard",
+    "DocumentCard",
     "EOATProfileCard",
     "EmptyStateWidget",
     "ExportActionCard",
@@ -557,6 +804,8 @@ __all__ = [
     "MetricCard",
     "MiniProgressBar",
     "ModernSearchBar",
+    "PageHeader",
+    "Pill",
     "PhotoGalleryCard",
     "PhotoStripWidget",
     "PrimaryCard",
@@ -564,9 +813,11 @@ __all__ = [
     "ReadinessScoreWidget",
     "SecondaryCard",
     "Section",
+    "SectionCard",
     "SectionHeader",
     "StatusChip",
     "SuccessCard",
+    "ToolbarFilterRow",
     "ToolCompatibilityCard",
     "WarningCard",
     "WarningChip",

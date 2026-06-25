@@ -12,6 +12,9 @@ def interpret_query(query: str) -> tuple[str, str]:
     folded = text.casefold()
     if re.search(r"\bP4[-\s]?EOAT[-\s]?\d{1,4}\b", text, flags=re.IGNORECASE):
         return "eoat", _normalize_possible_eoat(text)
+    if folded.startswith("eoat"):
+        value = re.sub(r"^eoat\s*[-#:]*\s*", "", text, flags=re.IGNORECASE).strip()
+        return "eoat", _normalize_possible_eoat(value)
     if folded.startswith(("tool", "mold")):
         return "tool", re.sub(r"^(tool|mold)\s*[-#:]*\s*", "", text, flags=re.IGNORECASE).strip()
     if folded.startswith(("machine", "press")) or re.fullmatch(r"[mp]\s*[-#]?\s*\d+", text, flags=re.IGNORECASE):
@@ -25,6 +28,11 @@ def search_atlas(bundle: AtlasDataBundle, query: str = "", *, limit: int = 50) -
     started = time.perf_counter()
     query = query.strip()
     query_type, value = interpret_query(query)
+    exact_machine_query = _exact_machine_query_value(query_type, value, query)
+    if exact_machine_query and _machine_exists(bundle, exact_machine_query):
+        matches = _exact_machine_matches(bundle, exact_machine_query)
+        elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+        return [_with_timing(match, elapsed_ms) for match in matches[:limit]]
     matches: list[SearchMatch] = []
     matches.extend(_direct_matches(bundle, query_type, value))
     matches.extend(_eoat_matches(bundle, query))
@@ -34,18 +42,7 @@ def search_atlas(bundle: AtlasDataBundle, query: str = "", *, limit: int = 50) -
     deduped = _dedupe(matches)
     deduped.sort(key=lambda item: (-item.score, item.result_type, item.title.casefold()))
     elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
-    return [
-        SearchMatch(
-            result_type=item.result_type,
-            key=item.key,
-            title=item.title,
-            subtitle=item.subtitle,
-            score=item.score,
-            matched_fields=item.matched_fields,
-            metadata={**item.metadata, "search_time_ms": elapsed_ms},
-        )
-        for item in deduped[:limit]
-    ]
+    return [_with_timing(item, elapsed_ms) for item in deduped[:limit]]
 
 
 def _direct_matches(bundle: AtlasDataBundle, query_type: str, value: str) -> list[SearchMatch]:
@@ -87,7 +84,38 @@ def _direct_matches(bundle: AtlasDataBundle, query_type: str, value: str) -> lis
 
 def _eoat_matches(bundle: AtlasDataBundle, query: str) -> list[SearchMatch]:
     matches: list[SearchMatch] = []
+    query_text = query.strip()
+    query_norm = normalized_lookup_key(query_text)
+    suffix_query = _numeric_suffix(query_text)
     for record in bundle.eoats:
+        suffix = _eoat_suffix(record.eoat_id)
+        if query_norm and query_norm == normalized_eoat_key(record.eoat_id):
+            matches.append(
+                _match(
+                    "eoat",
+                    record.eoat_id,
+                    record.eoat_id,
+                    f"{record.eoat_type or 'EOAT'} | Exact EOAT ID",
+                    500,
+                    ("EOAT ID",),
+                    {"documentation_score": record.documentation.score, "photo_count": record.photo_count},
+                )
+            )
+            continue
+        if suffix_query and suffix and int(suffix_query) == int(suffix):
+            score = 470 if len(suffix_query) == len(suffix) else 455
+            matches.append(
+                _match(
+                    "eoat",
+                    record.eoat_id,
+                    record.eoat_id,
+                    f"{record.eoat_type or 'EOAT'} | EOAT suffix {suffix}",
+                    score,
+                    ("EOAT suffix",),
+                    {"documentation_score": record.documentation.score, "photo_count": record.photo_count},
+                )
+            )
+            continue
         score, fields = _score_query(
             query,
             {
@@ -118,6 +146,10 @@ def _eoat_matches(bundle: AtlasDataBundle, query: str) -> list[SearchMatch]:
 
 def _machine_matches(bundle: AtlasDataBundle, query: str) -> list[SearchMatch]:
     matches: list[SearchMatch] = []
+    query_type, value = interpret_query(query)
+    exact_value = _exact_machine_query_value(query_type, value, query)
+    if exact_value:
+        return _exact_machine_matches(bundle, exact_value)
     for machine in bundle.machines:
         score, fields = _score_query(
             query,
@@ -145,29 +177,68 @@ def _machine_matches(bundle: AtlasDataBundle, query: str) -> list[SearchMatch]:
 
 def _tool_matches(bundle: AtlasDataBundle, query: str) -> list[SearchMatch]:
     matches: list[SearchMatch] = []
+    query_text = _strip_tool_prefix(query)
+    query_norm = normalized_tool_key(query_text)
+    if not query_norm:
+        return []
+    exact_or_prefix: list[SearchMatch] = []
+    fallback: list[SearchMatch] = []
+    numeric_short = query_text.isdigit() and len(query_text) <= 3
     for tool in bundle.tools:
-        score, fields = _score_query(
-            query,
-            {
-                "Tool #": tool.tool,
-                "Molds": " ".join(tool.molds),
-                "Parts": " ".join(tool.parts),
-                "Part Description": tool.part_description,
-                "EOATs": " ".join(tool.compatible_eoats),
-                "Machines": " ".join(tool.compatible_machines),
-            },
-        )
-        if score:
-            matches.append(
-                _match(
-                    "tool",
-                    tool.tool,
-                    f"Tool {tool.tool}",
-                    f"{len(tool.compatible_eoats)} EOAT(s) | Machines: {', '.join(tool.compatible_machines[:4])}",
-                    score + 70,
-                    tuple(fields),
-                )
+        identifiers = [tool.tool, *tool.molds, *tool.parts]
+        normalized_identifiers = [normalized_tool_key(value) for value in identifiers if normalized_tool_key(value)]
+        score = 0.0
+        fields: tuple[str, ...] = ()
+        if any(query_norm == value for value in normalized_identifiers):
+            score = 480
+            fields = ("Tool / Mold / Part #",)
+        elif any(value.startswith(query_norm) for value in normalized_identifiers):
+            score = 430
+            fields = ("Tool / Mold / Part prefix",)
+        else:
+            text_score, text_fields = _score_query(
+                query,
+                {
+                    "Tool #": tool.tool,
+                    "Molds": " ".join(tool.molds),
+                    "Parts": " ".join(tool.parts),
+                    "Part Description": tool.part_description,
+                    "EOATs": " ".join(tool.compatible_eoats),
+                    "Machines": " ".join(tool.compatible_machines),
+                },
             )
+            if text_score and not numeric_short:
+                score = text_score + 70
+                fields = tuple(text_fields)
+            elif text_score:
+                fallback.append(
+                    _match(
+                        "tool",
+                        tool.tool,
+                        f"Tool {tool.tool}",
+                        f"{len(tool.compatible_eoats)} EOAT(s) | Machines: {', '.join(tool.compatible_machines[:4])}",
+                        text_score + 30,
+                        tuple(text_fields),
+                    )
+                )
+                continue
+        if score:
+            match = _match(
+                "tool",
+                tool.tool,
+                f"Tool {tool.tool}",
+                f"{len(tool.compatible_eoats)} EOAT(s) | Machines: {', '.join(tool.compatible_machines[:4])}",
+                score,
+                fields,
+            )
+            if score >= 430:
+                exact_or_prefix.append(match)
+            else:
+                matches.append(match)
+    if exact_or_prefix:
+        return [*exact_or_prefix, *matches]
+    if fallback:
+        return fallback
     return matches
 
 
@@ -244,9 +315,69 @@ def _dedupe(matches: list[SearchMatch]) -> list[SearchMatch]:
 
 def _normalize_possible_eoat(text: str) -> str:
     match = re.search(r"P4[-\s]?EOAT[-\s]?(\d{1,4})", text, flags=re.IGNORECASE)
+    if not match and re.fullmatch(r"\d{1,4}", text.strip()):
+        return f"P4-EOAT-{int(text):04d}"
     if not match:
         return text
     return f"P4-EOAT-{int(match.group(1)):04d}"
+
+
+def _exact_machine_query_value(query_type: str, value: str, query: str) -> str:
+    text = query.strip()
+    if query_type == "machine" and re.fullmatch(r"\d+", value.strip()):
+        return value.strip()
+    if query_type == "number" and re.fullmatch(r"[1-9]\d*", text):
+        return text
+    return ""
+
+
+def _machine_exists(bundle: AtlasDataBundle, value: str) -> bool:
+    key = normalized_machine_key(value)
+    return any(normalized_machine_key(machine.machine) == key for machine in bundle.machines)
+
+
+def _exact_machine_matches(bundle: AtlasDataBundle, value: str) -> list[SearchMatch]:
+    key = normalized_machine_key(value)
+    matches: list[SearchMatch] = []
+    for machine in bundle.machines:
+        if normalized_machine_key(machine.machine) == key:
+            matches.append(
+                _match(
+                    "machine",
+                    machine.machine,
+                    f"Machine {machine.machine}",
+                    f"{len(machine.compatible_eoats)} compatible EOAT(s)",
+                    500,
+                    ("Machine #",),
+                )
+            )
+    return matches
+
+
+def _strip_tool_prefix(query: str) -> str:
+    return re.sub(r"^(tool|mold|part)\s*[-#:]*\s*", "", query.strip(), flags=re.IGNORECASE).strip()
+
+
+def _eoat_suffix(value: str) -> str:
+    match = re.search(r"(\d{1,4})$", normalized_eoat_key(value))
+    return f"{int(match.group(1)):04d}" if match else ""
+
+
+def _numeric_suffix(value: str) -> str:
+    text = re.sub(r"^eoat\s*[-#:]*\s*", "", value.strip(), flags=re.IGNORECASE).strip()
+    return f"{int(text):04d}" if re.fullmatch(r"\d{1,4}", text) else ""
+
+
+def _with_timing(match: SearchMatch, elapsed_ms: float) -> SearchMatch:
+    return SearchMatch(
+        result_type=match.result_type,
+        key=match.key,
+        title=match.title,
+        subtitle=match.subtitle,
+        score=match.score,
+        matched_fields=match.matched_fields,
+        metadata={**match.metadata, "search_time_ms": elapsed_ms},
+    )
 
 
 __all__ = ["interpret_query", "search_atlas"]

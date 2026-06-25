@@ -40,7 +40,7 @@ from .documentation_score import calculate_documentation_status
 from .eoat_ids import normalize_eoat_assembly_id
 from .paths import get_press_capacity_file, resolve_project_paths
 from .photo_index import build_photo_index
-from .standards_index import STANDARDIZATION_KEYWORDS, build_standards_index, standards_for_record
+from .standards_index import STANDARD_EXTENSIONS, STANDARDIZATION_KEYWORDS, build_standards_index, standards_for_record
 from .tool_fields import TOOL_FIELD
 from .workbook_cache import row_dicts_cached, workbook_file_signature
 
@@ -427,11 +427,40 @@ def _cache_signature(project_root: Path) -> tuple[tuple[str, bool, int, int], ..
         paths.standards,
     ]
     candidates.extend(_root_standardization_candidates(project_root))
+    candidates.extend(_standards_document_candidates(project_root, paths))
     signature = []
+    seen: set[str] = set()
     for path in candidates:
         file_signature = workbook_file_signature(path)
+        cache_path = file_signature.path.casefold()
+        if cache_path in seen:
+            continue
+        seen.add(cache_path)
         signature.append((file_signature.path, file_signature.exists, file_signature.mtime_ns, file_signature.size))
     return tuple(signature)
+
+
+def _standards_document_candidates(project_root: Path, paths) -> list[Path]:
+    folders = [
+        paths.standards,
+        paths.work_instructions,
+        project_root / "Project_Help_Documents",
+        project_root / "output" / "documents",
+        project_root / "output" / "pdf",
+    ]
+    documents: list[Path] = []
+    for folder in folders:
+        if not folder.exists():
+            continue
+        try:
+            documents.extend(
+                path
+                for path in folder.rglob("*")
+                if path.is_file() and path.suffix.lower() in STANDARD_EXTENSIONS and not path.name.startswith("~$")
+            )
+        except OSError:
+            continue
+    return sorted(documents, key=lambda path: str(path).casefold())
 
 
 def _root_standardization_candidates(project_root: Path) -> list[Path]:
