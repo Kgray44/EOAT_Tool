@@ -218,6 +218,19 @@ class SearchMatch:
 
 
 @dataclass(frozen=True)
+class RecommendationFactor:
+    factor_id: str
+    label: str
+    points: int
+    polarity: str
+    evidence: str = ""
+    details: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class RecommendationCandidate:
     eoat_id: str
     rank: int
@@ -229,6 +242,7 @@ class RecommendationCandidate:
     warnings: tuple[WarningItem, ...] = ()
     documentation_score: int = 0
     photo_count: int = 0
+    factors: tuple[RecommendationFactor, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

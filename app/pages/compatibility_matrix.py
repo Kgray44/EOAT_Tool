@@ -46,7 +46,7 @@ class CompatibilityMatrixPage(QWidget):
         self.navigator = AnnotationTargetNavigator(self)
 
         layout = QVBoxLayout(self)
-        heading = QLabel("Compatibility Matrix")
+        heading = QLabel("Compatibility Data Table")
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
 
@@ -110,7 +110,7 @@ class CompatibilityMatrixPage(QWidget):
         run_tool_background(
             self.result_panel,
             "compatibility_matrix_export",
-            "Compatibility Matrix Export",
+            "Compatibility Data Table Export",
             lambda: export_compatibility_matrix(self.config.project_root, column_mode=mode),
             lambda _result: None,
             modifies_files=True,

@@ -150,7 +150,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
     ),
     PageSpec(
         "compatibility_matrix",
-        "Compatibility Matrix",
+        "Compatibility Data Table",
         "Analysis",
         "app.pages.compatibility_matrix:CompatibilityMatrixPage",
         refresh_on_show=True,
