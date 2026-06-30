@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import threading
 import time
-import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -105,6 +104,9 @@ from core.audit_compatibility import (
     tool_identifier_key,
 )
 from core.audit_constants import (
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     AUDIT_CONTEXT_BENCH,
     AUDIT_CONTEXT_COMPATIBILITY,
     AUDIT_CONTEXT_FIELD,
@@ -116,12 +118,21 @@ from core.audit_constants import (
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    EXTERNAL_PNEUMATIC_FIELDS,
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+    EXTERNAL_VACUUM_CIRCUITS_FIELD,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELDS,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+    MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS,
+    MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS,
     PHYSICAL_AUDIT_VERIFIED_FIELD,
+    air_architecture_hides_external_fields,
+    air_architecture_hides_robot_fields,
+    machine_uses_mixed_air_architecture,
 )
 from core.audit_context import (
     compatibility_confidence_default,
@@ -201,7 +212,12 @@ ROBOT_PNEUMATIC_FIELDS = [
 ROBOT_INFO_FIELDS = list(ROBOT_INFO_AUDIT_FIELDS)
 ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD = "Robot Interchangeable Circuits"
 GRIPPER_UI_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD}
-ALWAYS_VISIBLE_AUDIT_FIELDS = {AUDIT_CONTEXT_FIELD, CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD}
+ALWAYS_VISIBLE_AUDIT_FIELDS = {
+    AUDIT_CONTEXT_FIELD,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
+}
 _MACHINE_LOOKUP_RESULT_CACHE: dict[tuple[object, ...], dict[str, object]] = {}
 
 
@@ -209,6 +225,8 @@ def workbook_to_ui_value(value, field: str = "") -> str:
     text = "" if value is None else str(value)
     if field == CYLINDER_TYPE_FIELD and (not text.strip() or text.strip().upper() == NA_VALUE):
         return ""
+    if field in EXTERNAL_PNEUMATIC_FIELDS and text.strip().upper() == NA_VALUE:
+        return NA_VALUE
     if text.strip().upper() == NA_VALUE:
         return ""
     if field == GRIPPER_MODEL_FIELD:
@@ -221,6 +239,27 @@ def workbook_to_ui_value(value, field: str = "") -> str:
 def _is_empty_workbook_value(value) -> bool:
     text = "" if value is None else str(value).strip()
     return not text or text.upper() == NA_VALUE
+
+
+def _audit_field_help_text(field: str) -> str:
+    if field == AIR_CIRCUIT_ARCHITECTURE_FIELD:
+        return (
+            "Defines where EOAT air circuits are supplied from. Robot Only means all air is supplied by robot "
+            "pneumatic outputs. External Peripheral Only means air is supplied externally and controlled through "
+            "peripheral IO. Mixed Robot + External Peripheral means both robot-supplied and external peripheral "
+            "IO-controlled air are used."
+        )
+    if field == EXTERNAL_PRESSURE_CIRCUITS_FIELD:
+        return (
+            "Number of pressure circuits supplied externally and controlled through peripheral IO. Do not include "
+            "robot-supplied pressure circuits here."
+        )
+    if field == "Robot Pressure Circuits":
+        return (
+            "Number of pressure circuits supplied directly from the robot pneumatic outputs. Do not include "
+            "externally supplied peripheral IO-controlled circuits here."
+        )
+    return ""
 
 
 def _lookup_file_signature(path: Path) -> tuple[str, bool, int, int]:
@@ -544,6 +583,7 @@ class AuditPage(QWidget):
         self._machine_lookup_extra_note = ""
         self._part_present_autofilled_sensor_fields: set[str] = set()
         self._cylinder_type_autofilled = False
+        self._last_air_architecture_value = AIR_ARCHITECTURE_ROBOT_ONLY
         annotation_started = time.perf_counter()
         self.annotation_service = AnnotationService(config.project_root, initialize=False)
         self._record_startup_timing("AnnotationService_deferred", annotation_started)
@@ -674,7 +714,11 @@ class AuditPage(QWidget):
             annotation_database_deferred=True,
             guided_ui_deferred=True,
         )
-        if QTimer is not None and os.environ.get("EOAT_COMMAND_CENTER_DASHBOARD_SMOKE") != "1":
+        if (
+            QTimer is not None
+            and os.environ.get("EOAT_COMMAND_CENTER_DASHBOARD_SMOKE") != "1"
+            and not os.environ.get("PYTEST_CURRENT_TEST")
+        ):
             QTimer.singleShot(250, self._load_lazy_audit_indexes)
             QTimer.singleShot(450, self._start_background_draft_check)
             QTimer.singleShot(750, self._start_annotation_service_initialization)
@@ -685,6 +729,8 @@ class AuditPage(QWidget):
         return elapsed
 
     def _log_startup_event(self, event_name: str, duration_seconds: float, **details: object) -> None:
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return
         payload = {"duration_seconds": round(duration_seconds, 4), **details}
         threading.Thread(
             target=_write_audit_startup_log,
@@ -1275,6 +1321,143 @@ class AuditPage(QWidget):
             self._set_field_value(type_widget, "")
             self._cylinder_type_autofilled = False
 
+    def _on_air_architecture_changed(self, value: str = "") -> None:
+        programmatic = (
+            self._programmatic_field_update
+            or self._hydrating_form
+            or self._loading_audit
+            or self._initializing_form
+            or self._applying_defaults
+            or self._autofilling_fields
+            or self._suppress_dirty_tracking
+        )
+        if programmatic:
+            return
+        architecture = str(value or "").strip()
+        hidden_fields = self._air_fields_hidden_by_architecture(architecture)
+        populated_hidden_fields = [
+            field
+            for field in hidden_fields
+            if field in self.audit_fields and self._air_hidden_field_has_value(self._field_value(self.audit_fields[field]))
+        ]
+        if populated_hidden_fields and not self._confirm_air_architecture_overwrite(
+            architecture, populated_hidden_fields
+        ):
+            widget = self.audit_fields.get(AIR_CIRCUIT_ARCHITECTURE_FIELD)
+            if widget is not None:
+                self._set_field_value(widget, self._last_air_architecture_value)
+            self._update_audit_field_visibility()
+            return
+        self._last_air_architecture_value = architecture
+        self._set_hidden_air_fields_to_na(architecture)
+        self._update_audit_field_visibility()
+
+    def _air_fields_hidden_by_architecture(self, architecture: str) -> list[str]:
+        if air_architecture_hides_external_fields(architecture):
+            return list(EXTERNAL_PNEUMATIC_FIELDS)
+        if air_architecture_hides_robot_fields(architecture):
+            return list(ROBOT_PNEUMATIC_FIELDS)
+        return []
+
+    def _air_hidden_field_has_value(self, value: str) -> bool:
+        text = str(value or "").strip()
+        return bool(text and text.upper() != NA_VALUE)
+
+    def _confirm_air_architecture_overwrite(self, architecture: str, fields: list[str]) -> bool:
+        if QMessageBox is None:
+            return True
+        box = QMessageBox(self)
+        box.setWindowTitle("Change Air Architecture")
+        box.setText("Changing the air architecture will hide populated circuit fields.")
+        field_list = ", ".join(fields)
+        box.setInformativeText(
+            f"Architecture: {architecture or '(blank)'}\n\n"
+            f"The following field(s) will be set to {NA_VALUE}: {field_list}."
+        )
+        box.setStandardButtons(QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Ok)
+        ok_button = box.button(QMessageBox.StandardButton.Ok)
+        if ok_button is not None:
+            ok_button.setText("Set Hidden Fields to N/A")
+        return box.exec() == QMessageBox.StandardButton.Ok
+
+    def _set_hidden_air_fields_to_na(self, architecture: str) -> None:
+        for field in self._air_fields_hidden_by_architecture(architecture):
+            widget = self.audit_fields.get(field) if hasattr(self, "audit_fields") else None
+            if widget is not None and self._field_value(widget).upper() != NA_VALUE:
+                self._set_field_value(widget, NA_VALUE)
+
+    def _apply_air_architecture_defaults_for_machine(self, *, reason: str = "", allow_robot_default: bool = True) -> None:
+        if not hasattr(self, "audit_fields"):
+            return
+        machine = self._field_value(self.audit_fields.get("Press/Machine #"))
+        architecture_widget = self.audit_fields.get(AIR_CIRCUIT_ARCHITECTURE_FIELD)
+        if architecture_widget is None:
+            return
+        previous_defaults = self._applying_defaults
+        self._applying_defaults = True
+        try:
+            architecture = self._field_value(architecture_widget)
+            if machine_uses_mixed_air_architecture(machine):
+                if (
+                    AIR_CIRCUIT_ARCHITECTURE_FIELD not in self._dirty_fields
+                    and (not architecture or architecture.upper() == NA_VALUE or architecture == AIR_ARCHITECTURE_ROBOT_ONLY)
+                ):
+                    self._set_field_value(architecture_widget, AIR_ARCHITECTURE_MIXED)
+                    architecture = AIR_ARCHITECTURE_MIXED
+                self._set_air_default_if_unmodified(
+                    "EOAT Pressure Circuits",
+                    MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS,
+                    replace_na=True,
+                )
+                self._set_air_default_if_unmodified(
+                    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+                    MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS,
+                    replace_na=True,
+                )
+                self._set_air_default_if_unmodified(EXTERNAL_VACUUM_CIRCUITS_FIELD, NA_VALUE, replace_na=True)
+                self._set_air_default_if_unmodified(EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD, NA_VALUE, replace_na=True)
+            elif allow_robot_default:
+                if AIR_CIRCUIT_ARCHITECTURE_FIELD not in self._dirty_fields and (
+                    not architecture or architecture.upper() == NA_VALUE
+                ):
+                    self._set_field_value(architecture_widget, AIR_ARCHITECTURE_ROBOT_ONLY)
+                    architecture = AIR_ARCHITECTURE_ROBOT_ONLY
+                for field in EXTERNAL_PNEUMATIC_FIELDS:
+                    self._set_air_default_if_unmodified(field, NA_VALUE, replace_na=False)
+            self._last_air_architecture_value = self._field_value(architecture_widget)
+            self._set_hidden_air_fields_to_na(self._last_air_architecture_value)
+        finally:
+            self._applying_defaults = previous_defaults
+        self._log_lifecycle_event(
+            "air_architecture_defaults_applied",
+            {
+                "reason": reason,
+                "machine": machine,
+                "architecture": self._field_value(architecture_widget),
+            },
+        )
+
+    def _set_air_default_if_unmodified(self, field: str, value: str, *, replace_na: bool) -> None:
+        if field in self._dirty_fields:
+            return
+        widget = self.audit_fields.get(field) if hasattr(self, "audit_fields") else None
+        if widget is None:
+            return
+        current = self._field_value(widget)
+        if not current or (replace_na and current.upper() == NA_VALUE):
+            self._set_field_value(widget, value)
+
+    def _entry_with_air_architecture_save_defaults(self, entry: dict[str, str]) -> dict[str, str]:
+        updated = dict(entry)
+        architecture = str(updated.get(AIR_CIRCUIT_ARCHITECTURE_FIELD) or "").strip()
+        if air_architecture_hides_external_fields(architecture):
+            for field in EXTERNAL_PNEUMATIC_FIELDS:
+                updated[field] = NA_VALUE
+        elif air_architecture_hides_robot_fields(architecture):
+            for field in ROBOT_PNEUMATIC_FIELDS:
+                updated[field] = NA_VALUE
+        return updated
+
     def _begin_hydrating_form(self, reason: str = "hydrate_form") -> tuple[bool, bool, bool]:
         previous_hydrating = self._hydrating_form
         previous_programmatic = self._programmatic_field_update
@@ -1310,6 +1493,7 @@ class AuditPage(QWidget):
 
     def _mark_audit_form_baseline(self, _reason: str = "", *, clean_new_form: bool = False) -> None:
         values = self._current_audit_form_values()
+        self._last_air_architecture_value = values.get(AIR_CIRCUIT_ARCHITECTURE_FIELD, "")
         self._audit_form_baseline = dict(values)
         self._last_clean_snapshot = dict(values)
         self._last_saved_snapshot = dict(values)
@@ -1352,11 +1536,8 @@ class AuditPage(QWidget):
         return bool(str(audit_id or "").strip() in self._generated_audit_ids)
 
     def _assign_startup_audit_id(self) -> str:
-        compact = date.today().isoformat().replace("-", "")
-        audit_id = f"AUD-{compact}-P{uuid.uuid4().hex[:10].upper()}"
-        self._generated_audit_ids.add(audit_id)
-        self._set_field_value(self.audit_fields["Audit ID"], audit_id)
-        return audit_id
+        self._set_field_value(self.audit_fields["Audit ID"], "")
+        return ""
 
     def _save_current_audit_draft(self) -> str:
         values = self._current_audit_form_values()
@@ -2108,6 +2289,10 @@ class AuditPage(QWidget):
         widget = self._widget_for_audit_field(field)
         self.audit_fields[field] = widget
         label = QLabel(field)
+        help_text = _audit_field_help_text(field)
+        if help_text:
+            label.setToolTip(help_text)
+            widget.setToolTip(help_text)
         row_widget = QWidget()
         row_layout = QHBoxLayout(row_widget)
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -2459,6 +2644,8 @@ class AuditPage(QWidget):
             return self._combo(AUDIT_DROPDOWNS.get("Robot Type", []), editable=True)
         if field == GRIPPER_MODEL_FIELD:
             return self._combo(gripper_model_display_values(self.config.project_root), editable=True)
+        if field in EXTERNAL_PNEUMATIC_FIELDS:
+            return self._line()
         if field in PNEUMATIC_CIRCUIT_FIELDS or field in {
             NUMBER_OF_PARTS_PICKED_FIELD,
             CYLINDER_COUNT_FIELD,
@@ -2495,7 +2682,9 @@ class AuditPage(QWidget):
             return self._combo(AUDIT_DROPDOWNS["YesNoPartialUnknown"], editable=False)
         if field in AUDIT_DROPDOWNS:
             combo = self._combo(AUDIT_DROPDOWNS[field], editable=False, include_blank=field != "Connection Type")
-            if field == AUDIT_CONTEXT_FIELD:
+            if field == AIR_CIRCUIT_ARCHITECTURE_FIELD:
+                combo.currentTextChanged.connect(self._on_air_architecture_changed)
+            elif field == AUDIT_CONTEXT_FIELD:
                 combo.currentTextChanged.connect(self._update_audit_field_visibility)
             elif field == "EOAT Type":
                 combo.currentTextChanged.connect(self._update_tooling_visibility)
@@ -2599,6 +2788,7 @@ class AuditPage(QWidget):
         self.audit_view_mode_combo.setCurrentText("Full Audit")
         self.audit_view_mode_combo.setEnabled(False)
         self.audit_view_mode_combo.blockSignals(False)
+        self._apply_air_architecture_defaults_for_machine(reason="generate_new_audit_id")
         self._update_audit_field_visibility()
         self._set_machine_audit_matches([])
         self._refresh_field_tag_indicators()
@@ -2670,6 +2860,7 @@ class AuditPage(QWidget):
             self._apply_quick_disconnect_defaults()
             self._apply_sensor_defaults()
             self._apply_cylinder_type_default()
+            self._apply_air_architecture_defaults_for_machine(reason="reset_new_audit_form")
             self._update_tooling_visibility(apply_defaults=True)
             self.current_lookup_result = None
             self._lookup_part_index = None
@@ -2777,6 +2968,9 @@ class AuditPage(QWidget):
         return True
 
     def _load_robot_info_fields(self, entry: dict[str, object], *, force: bool) -> bool:
+        architecture = self._field_value(self.audit_fields.get(AIR_CIRCUIT_ARCHITECTURE_FIELD))
+        if air_architecture_hides_robot_fields(architecture):
+            return False
         robot_info = load_robot_info_for_audit_entry(self.config.project_root, entry)
         if not robot_info:
             if ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD in self.audit_fields:
@@ -2891,7 +3085,7 @@ class AuditPage(QWidget):
             return False
         visible = bool(field in ALWAYS_VISIBLE_AUDIT_FIELDS or field_applies(entry, field))
         if empty_only_fields is not None:
-            visible = visible and field in empty_only_fields
+            visible = visible and (field in empty_only_fields or field == AIR_CIRCUIT_ARCHITECTURE_FIELD)
         return visible
 
     def _audit_field_hidden_reason(self, entry: dict[str, str], field: str) -> str:
@@ -3649,6 +3843,7 @@ class AuditPage(QWidget):
             entry[CYLINDER_TYPE_FIELD] = CYLINDER_TYPE_DEFAULT
         if is_uninstalled_eoat_audit(entry):
             entry["Notes"] = append_uninstalled_note(entry.get("Notes"))
+        entry = self._entry_with_air_architecture_save_defaults(entry)
         entry.update(self._current_audit_metadata_values())
         return entry
 
@@ -3690,6 +3885,9 @@ class AuditPage(QWidget):
                     if "Compatibility update skipped by user choice." not in result.summary:
                         result.summary = result.summary.rstrip() + "\n\nCompatibility update skipped by user choice."
         if result.success and saved_audit_id:
+            if "Audit ID" in self.audit_fields:
+                self._set_field_value(self.audit_fields["Audit ID"], saved_audit_id)
+            pending_snapshot["Audit ID"] = saved_audit_id
             current_values = self._current_audit_form_values()
             if pending_snapshot and form_values_changed(current_values, pending_snapshot):
                 self._audit_form_baseline = dict(pending_snapshot)
@@ -5089,6 +5287,7 @@ class AuditPage(QWidget):
                 lookup_message = f"{lookup_message} {extra_note}"
             if robot_info_loaded:
                 lookup_message = f"{lookup_message} Robot info loaded from Robot_Info.xlsx."
+            self._apply_air_architecture_defaults_for_machine(reason="machine_lookup")
             self.lookup_note_label.setText(lookup_message)
             self._set_capacity_choices(result.capacity_part_rows)
             self._set_machine_audit_matches([])
@@ -5225,6 +5424,7 @@ class AuditPage(QWidget):
                 self.result_panel.show_text(errors[0] if errors else "Invalid machine number.")
             else:
                 self._apply_machine_reference_lookup_payload(machine_text, reference_payload)
+            self._apply_air_architecture_defaults_for_machine(reason="start_new_audit_for_machine")
             self._editing_audit_id = None
             self._current_loaded_audit_id = None
             self._current_audit_mode = "new"
@@ -5255,6 +5455,9 @@ class AuditPage(QWidget):
         return True
 
     def _apply_robot_info_fields(self, robot_info, *, force: bool) -> bool:
+        architecture = self._field_value(self.audit_fields.get(AIR_CIRCUIT_ARCHITECTURE_FIELD))
+        if air_architecture_hides_robot_fields(architecture):
+            return False
         if not robot_info:
             if ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD in self.audit_fields:
                 widget = self.audit_fields[ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD]

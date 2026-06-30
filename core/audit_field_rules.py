@@ -3,6 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from .audit_constants import (
+    AIR_ARCHITECTURE_EXTERNAL_ONLY,
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     AUDIT_CONTEXT_FIELD,
     AUTOFILLED_COMPATIBILITY_METADATA_FIELDS,
     COMPATIBILITY_CONFIDENCE_FIELD,
@@ -13,10 +17,25 @@ from .audit_constants import (
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
+    EOAT_PNEUMATIC_FIELDS,
+    EOAT_PRESSURE_CIRCUITS_FIELD,
+    EOAT_VACUUM_CIRCUITS_FIELD,
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    EXTERNAL_PNEUMATIC_FIELDS,
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+    EXTERNAL_VACUUM_CIRCUITS_FIELD,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     PHYSICAL_AUDIT_VERIFIED_FIELD,
+    ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD,
+    ROBOT_PNEUMATIC_FIELDS,
+    ROBOT_PRESSURE_CIRCUITS_FIELD,
+    ROBOT_VACUUM_CIRCUITS_FIELD,
     SOURCE_AUDIT_ID_FIELD,
+    air_architecture_hides_external_fields,
+    air_architecture_hides_robot_fields,
+    machine_uses_mixed_air_architecture,
 )
 from .audit_context import MACHINE_CONTEXT_FIELDS, infer_audit_context, is_bench_audit_context
 from .eoat_ids import EOAT_ASSEMBLY_ID_FIELD
@@ -44,12 +63,9 @@ VACUUM_TOOLING_FIELDS = {
     "Vacuum Generator Type",
 }
 PNEUMATIC_CIRCUIT_FIELDS = {
-    "EOAT Vacuum Circuits",
-    "EOAT Pressure Circuits",
-    "EOAT Interchangeable Circuits",
-    "Robot Vacuum Circuits",
-    "Robot Pressure Circuits",
-    "Robot Interchangeable Circuits",
+    *EOAT_PNEUMATIC_FIELDS,
+    *ROBOT_PNEUMATIC_FIELDS,
+    *EXTERNAL_PNEUMATIC_FIELDS,
 }
 GRIPPER_TOOLING_FIELDS = {GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_MODEL_FIELD}
 SENSOR_DETAIL_FIELDS = {
@@ -62,7 +78,7 @@ ELECTRICAL_WIRING_PRESENT_FIELD = "Electrical/Wiring Present?"
 ELECTRICAL_DETAIL_FIELDS = {"Electrical Quick Disconnect Type", "Cable Management Condition"}
 QUICK_DISCONNECT_DETAIL_FIELDS = {"Pneumatic Quick Disconnect Type", "Electrical Quick Disconnect Type"}
 SPECIALTY_GRIPPER_MODEL_ALLOWLIST = {
-    "AUD-20260604-PD816AC073A": {"silicone od"},
+    "AUD-20260604-009": {"silicone od"},
     "AUD-20260604-007": {"silicone od"},
 }
 
@@ -101,12 +117,16 @@ FIELD_GROUPS = {
     ELECTRICAL_WIRING_PRESENT_FIELD: "electrical",
     "Quick Disconnects Present?": "quick_disconnect",
     "Pneumatic Quick Disconnect Type": "pneumatic",
-    "EOAT Vacuum Circuits": "pneumatic_circuit",
-    "EOAT Pressure Circuits": "pneumatic_circuit",
-    "EOAT Interchangeable Circuits": "pneumatic_circuit",
-    "Robot Vacuum Circuits": "pneumatic_circuit",
-    "Robot Pressure Circuits": "pneumatic_circuit",
-    "Robot Interchangeable Circuits": "pneumatic_circuit",
+    AIR_CIRCUIT_ARCHITECTURE_FIELD: "pneumatic_circuit",
+    EOAT_VACUUM_CIRCUITS_FIELD: "pneumatic_circuit",
+    EOAT_PRESSURE_CIRCUITS_FIELD: "pneumatic_circuit",
+    EOAT_INTERCHANGEABLE_CIRCUITS_FIELD: "pneumatic_circuit",
+    ROBOT_VACUUM_CIRCUITS_FIELD: "pneumatic_circuit",
+    ROBOT_PRESSURE_CIRCUITS_FIELD: "pneumatic_circuit",
+    ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD: "pneumatic_circuit",
+    EXTERNAL_VACUUM_CIRCUITS_FIELD: "pneumatic_circuit",
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD: "pneumatic_circuit",
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD: "pneumatic_circuit",
     "Robot Notes": "pneumatic_circuit",
     "Electrical Quick Disconnect Type": "electrical",
     "Tubing Condition": "pneumatic",
@@ -251,6 +271,11 @@ def _entry_type(entry: dict[str, Any]) -> str:
 def field_applies(entry: dict[str, Any], field_name: str) -> bool:
     if _entry_type(entry) == ENTRY_TYPE_COMPATIBLE.casefold() and field_name in {"Audit Date", "Auditor"}:
         return False
+    architecture = entry.get(AIR_CIRCUIT_ARCHITECTURE_FIELD)
+    if field_name in ROBOT_PNEUMATIC_FIELDS and air_architecture_hides_robot_fields(architecture):
+        return False
+    if field_name in EXTERNAL_PNEUMATIC_FIELDS and air_architecture_hides_external_fields(architecture):
+        return False
     if field_name in VACUUM_TOOLING_FIELDS and not (_broad_tooling_type(entry) or eoat_type_uses_vacuum(entry)):
         return False
     if field_name in GRIPPER_TOOLING_FIELDS and not eoat_type_uses_gripper(entry):
@@ -327,6 +352,10 @@ def non_applicable_reason(entry: dict[str, Any], field_name: str) -> str:
         return "Electrical detail fields do not apply when electrical/wiring is marked No."
     if field_name in QUICK_DISCONNECT_DETAIL_FIELDS:
         return "Quick disconnect detail fields do not apply when quick disconnects are marked No."
+    if field_name in ROBOT_PNEUMATIC_FIELDS:
+        return "Robot-supplied circuit fields do not apply when air architecture is External Peripheral Only."
+    if field_name in EXTERNAL_PNEUMATIC_FIELDS:
+        return "External peripheral IO circuit fields do not apply when air architecture is Robot Only."
     return "Field does not apply to this row."
 
 
@@ -388,12 +417,99 @@ def semantic_consistency_warnings(entry: dict[str, Any]) -> list[str]:
         warnings.append(
             "Quick Disconnects Present? is No but quick disconnect detail fields contain meaningful values."
         )
+    warnings.extend(air_architecture_warnings(entry))
     return warnings
 
 
 def _allowed_specialty_gripper_model(entry: dict[str, Any], gripper_model: str) -> bool:
     audit_id = normalize_text(entry.get("Audit ID"))
     return gripper_model in SPECIALTY_GRIPPER_MODEL_ALLOWLIST.get(audit_id, set())
+
+
+def air_architecture_warnings(entry: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    architecture = normalize_text(entry.get(AIR_CIRCUIT_ARCHITECTURE_FIELD))
+    if not architecture or is_na_value(architecture):
+        warnings.append(f"{AIR_CIRCUIT_ARCHITECTURE_FIELD} is blank.")
+    if architecture == AIR_ARCHITECTURE_ROBOT_ONLY and any(
+        _is_real_circuit_value(entry.get(field)) for field in EXTERNAL_PNEUMATIC_FIELDS
+    ):
+        warnings.append("Robot Only architecture selected, but external circuit fields contain values.")
+    if architecture == AIR_ARCHITECTURE_EXTERNAL_ONLY and any(
+        _is_real_circuit_value(entry.get(field)) for field in ROBOT_PNEUMATIC_FIELDS
+    ):
+        warnings.append("External Peripheral Only architecture selected, but robot-supplied circuit fields contain values.")
+    if architecture == AIR_ARCHITECTURE_MIXED and not any(
+        _is_real_circuit_value(entry.get(field)) for field in EXTERNAL_PNEUMATIC_FIELDS
+    ):
+        warnings.append("Mixed air architecture selected, but no external circuit count appears to be documented.")
+    if machine_uses_mixed_air_architecture(entry.get("Press/Machine #")) and architecture != AIR_ARCHITECTURE_MIXED:
+        warnings.append(
+            "This Cleanroom machine is expected to use Mixed Robot + External Peripheral air architecture unless verified otherwise."
+        )
+    warnings.extend(_air_circuit_count_consistency_warnings(entry))
+    return warnings
+
+
+def _is_real_circuit_value(value: Any) -> bool:
+    text = normalize_text(value)
+    if not text or is_na_value(text):
+        return False
+    folded = text.casefold()
+    if folded in {
+        "unknown / not checked",
+        "unknown / needs verification",
+        "unknown",
+        "not checked",
+        "needs verification",
+        "not applicable",
+    }:
+        return False
+    parsed = _numeric_circuit_value(text)
+    if parsed is not None:
+        return parsed > 0
+    return True
+
+
+def _numeric_circuit_value(value: Any) -> int | None:
+    text = normalize_text(value)
+    if not text or is_na_value(text):
+        return None
+    if text.endswith(".0"):
+        text = text[:-2]
+    try:
+        parsed = int(text)
+    except ValueError:
+        return None
+    if parsed < 0:
+        return None
+    return parsed
+
+
+def _air_circuit_count_consistency_warnings(entry: dict[str, Any]) -> list[str]:
+    checks = (
+        ("Pressure", EOAT_PRESSURE_CIRCUITS_FIELD, ROBOT_PRESSURE_CIRCUITS_FIELD, EXTERNAL_PRESSURE_CIRCUITS_FIELD),
+        ("Vacuum", EOAT_VACUUM_CIRCUITS_FIELD, ROBOT_VACUUM_CIRCUITS_FIELD, EXTERNAL_VACUUM_CIRCUITS_FIELD),
+        (
+            "Interchangeable",
+            EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
+            ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD,
+            EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+        ),
+    )
+    warnings: list[str] = []
+    for label, eoat_field, robot_field, external_field in checks:
+        eoat_count = _numeric_circuit_value(entry.get(eoat_field))
+        robot_count = _numeric_circuit_value(entry.get(robot_field))
+        external_count = _numeric_circuit_value(entry.get(external_field))
+        if eoat_count is None or robot_count is None or external_count is None:
+            continue
+        source_count = robot_count + external_count
+        if eoat_count != source_count:
+            warnings.append(
+                f"{label} circuit mismatch: EOAT total is {eoat_count}, but robot + external source count is {source_count}."
+            )
+    return warnings
 
 
 def entry_type_requirements(entry: dict[str, Any]) -> dict[str, list[str]]:

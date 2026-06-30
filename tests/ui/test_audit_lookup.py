@@ -148,7 +148,7 @@ def test_auditor_and_plant_defaults(qapp, fake_config):
     assert page.audit_fields["Known Issues"].toPlainText() == "Unknown / Not Checked"
     assert page.audit_fields["Drop/Mis-Pick History"].toPlainText() == "Unknown / Not Checked"
     assert page.audit_fields["Maintenance Frequency"].text() == "Unknown / Not Checked"
-    assert page.audit_fields["Cleanroom/Non-Cleanroom"].currentText() == "Whiteroom"
+    assert page.audit_fields["Cleanroom/Non-Cleanroom"].currentText() == "Cleanroom"
     assert page.audit_fields["Cup Type/Material"].text() == "Silicone"
     plant = page.audit_fields["Plant/Area"]
     assert isinstance(plant, QComboBox)

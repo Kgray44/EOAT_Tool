@@ -16,7 +16,13 @@ from core.audit.schema import (
     fields_for_section,
     fields_grouped_by_section,
 )
-from core.audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD
+from core.audit_constants import (
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
+)
 from core.audit_entries import LEGACY_VACUUM_CUPS_FIELD, NUMBER_OF_PARTS_PICKED_FIELD
 from core.gripper_fields import (
     CUP_COUNT_FIELD,
@@ -80,6 +86,12 @@ def test_legacy_headers_resolve_to_current_specs():
 def test_dropdown_values_exist_where_expected():
     assert "Complete" in dropdown_values_for("Status")
     assert "Vacuum" in dropdown_values_for("EOAT Type")
+    assert dropdown_values_for(AIR_CIRCUIT_ARCHITECTURE_FIELD) == (
+        AIR_ARCHITECTURE_ROBOT_ONLY,
+        "External Peripheral Only",
+        AIR_ARCHITECTURE_MIXED,
+        "Unknown / Needs Verification",
+    )
     assert "Linear" in dropdown_values_for(CYLINDER_TYPE_FIELD)
     assert "Yes" in dropdown_values_for("Fastener/Locking Hardware Present?")
     assert "No" in dropdown_values_for("Manual Completion Override")
@@ -93,25 +105,37 @@ def test_numeric_fields_are_marked():
     assert GRIPPER_COUNT_FIELD in numeric_headers
     assert CUP_COUNT_FIELD in numeric_headers
     assert "EOAT Vacuum Circuits" in numeric_headers
+    assert "External Pressure Circuits" in numeric_headers
+    assert AIR_CIRCUIT_ARCHITECTURE_FIELD not in numeric_headers
     assert "Robot Notes" not in numeric_headers
 
 
-def test_robot_notes_is_robot_side_textarea_outside_eoat_inventory_schema():
+def test_pneumatic_schema_has_architecture_external_and_robot_note_groups():
     spec = field_by_id("robot_notes")
+    architecture_spec = field_by_header(AIR_CIRCUIT_ARCHITECTURE_FIELD)
     sections = audit_sections()
     groups = dict(audit_section_groups()[PNEUMATIC_CIRCUITS_SECTION])
 
+    assert architecture_spec.widget_type == "dropdown"
+    assert architecture_spec.storage_target != STORAGE_NONE
     assert spec.storage_target == STORAGE_NONE
     assert spec.workbook_header == ""
     assert spec.widget_type == "textarea"
     assert sections[PNEUMATIC_CIRCUITS_SECTION][-1] == "Robot Notes"
-    assert groups["Robot Side"] == [
+    assert groups["Air Circuit Architecture"] == [AIR_CIRCUIT_ARCHITECTURE_FIELD]
+    assert groups["Robot-Supplied Circuits"] == [
         "Robot Vacuum Circuits",
         "Robot Pressure Circuits",
         "Robot Interchangeable Circuits",
-        "Robot Notes",
     ]
+    assert groups["External Peripheral IO Circuits"] == [
+        "External Vacuum Circuits",
+        "External Pressure Circuits",
+        "External Interchangeable Circuits",
+    ]
+    assert groups["Air Circuit Notes"] == ["Robot Notes"]
     assert "Robot Notes" not in get_expected_headers("EOAT Inventory")
+    assert AIR_CIRCUIT_ARCHITECTURE_FIELD in get_expected_headers("EOAT Inventory")
 
 
 def test_required_and_important_fields_are_marked():

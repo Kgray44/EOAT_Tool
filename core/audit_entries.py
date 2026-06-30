@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import time
 from copy import copy
@@ -18,6 +19,10 @@ from .audit.history import append_audit_history
 from .audit.uninstalled import append_uninstalled_note, is_uninstalled_eoat_audit
 from .audit_by_press import refresh_audit_by_press_view
 from .audit_constants import (
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_ARCHITECTURE_VALUES,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     AUDIT_CONTEXT_BENCH,
     AUDIT_CONTEXT_COMPATIBILITY,
     AUDIT_CONTEXT_FIELD,
@@ -30,9 +35,17 @@ from .audit_constants import (
     ENTRY_TYPE_AUDITED,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    EXTERNAL_PNEUMATIC_FIELDS,
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+    EXTERNAL_VACUUM_CIRCUITS_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
+    MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS,
+    MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS,
     PHYSICAL_AUDIT_VERIFIED_FIELD,
+    ROBOT_PNEUMATIC_FIELDS,
     SOURCE_AUDIT_ID_FIELD,
+    machine_uses_mixed_air_architecture,
 )
 from .audit_context import (
     compatibility_confidence_default,
@@ -64,8 +77,9 @@ from .workbook_io import find_row_by_value, next_empty_row, worksheet_headers, w
 from .workbook_locks import detect_workbook_lock
 from .workbook_schema import get_expected_headers
 
-CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.06.16.1"
+CURRENT_WORKBOOK_SCHEMA_VERSION = "2026.06.26.1"
 WORKBOOK_METADATA_SHEET = "_EOAT_App_Metadata"
+MALFORMED_STARTUP_AUDIT_ID_RE = re.compile(r"^AUD-\d{8}-P[0-9A-Fa-f]{10}$")
 
 
 @dataclass(frozen=True)
@@ -118,6 +132,12 @@ EOAT_PNEUMATIC_CIRCUIT_FIELDS = {
     EOAT_PRESSURE_CIRCUITS_FIELD,
     EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
 }
+EXTERNAL_PNEUMATIC_CIRCUIT_FIELDS = set(EXTERNAL_PNEUMATIC_FIELDS)
+PNEUMATIC_CIRCUIT_COUNT_FIELDS = {
+    *EOAT_PNEUMATIC_CIRCUIT_FIELDS,
+    *ROBOT_PNEUMATIC_FIELDS,
+    *EXTERNAL_PNEUMATIC_CIRCUIT_FIELDS,
+}
 NA_VALUE = "N/A"
 UNKNOWN_NOT_CHECKED = "Unknown / Not Checked"
 ELECTRICAL_WIRING_PRESENT_FIELD = field_rules.ELECTRICAL_WIRING_PRESENT_FIELD
@@ -133,7 +153,7 @@ CONNECTION_TYPE_VALUES = ["ATI", "DoveTail", "Direct Mount", "Lever Lock"]
 EOAT_MOVES_VALUES = ["Part", "Sprue", "Both"]
 EOAT_TYPE_DROPDOWN_VALUES = ["Vacuum", "Mechanical / Gripper", "Hybrid", "Unknown / Needs Review", "Miscellaneous"]
 CLEANROOM_DROPDOWN_VALUES = ["Cleanroom", "Non-Cleanroom", "Whiteroom", "Unknown / Not Checked"]
-CLEANROOM_DEFAULT = "Whiteroom"
+CLEANROOM_DEFAULT = "Cleanroom"
 CUP_TYPE_DEFAULT = "Silicone"
 TOOLING_COLUMN_ORDER = [
     "EOAT Type",
@@ -149,9 +169,13 @@ TOOLING_COLUMN_ORDER = [
     "Cup Type/Material",
     "Cup Diameter/Size",
     "Vacuum Generator Type",
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     EOAT_VACUUM_CIRCUITS_FIELD,
     EOAT_PRESSURE_CIRCUITS_FIELD,
     EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
+    EXTERNAL_VACUUM_CIRCUITS_FIELD,
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
 ]
 VACUUM_TOOLING_FIELDS = {
     CUP_COUNT_FIELD,
@@ -180,7 +204,11 @@ AUDIT_FIELD_METADATA: dict[str, AuditFieldMetadata] = {
     CYLINDER_TYPE_FIELD: AuditFieldMetadata(frozenset({"cylinder"})),
     CUP_COUNT_FIELD: AuditFieldMetadata(frozenset({"vacuum"})),
     "Vacuum Generator Type": AuditFieldMetadata(frozenset({"vacuum"}), "Venturi"),
+    AIR_CIRCUIT_ARCHITECTURE_FIELD: AuditFieldMetadata(frozenset({"pneumatic_circuit"}), AIR_ARCHITECTURE_ROBOT_ONLY),
     EOAT_INTERCHANGEABLE_CIRCUITS_FIELD: AuditFieldMetadata(frozenset({"pneumatic_circuit"}), "0"),
+    EXTERNAL_VACUUM_CIRCUITS_FIELD: AuditFieldMetadata(frozenset({"pneumatic_circuit"}), NA_VALUE),
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD: AuditFieldMetadata(frozenset({"pneumatic_circuit"}), NA_VALUE),
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD: AuditFieldMetadata(frozenset({"pneumatic_circuit"}), NA_VALUE),
     "Quick Disconnects Present?": AuditFieldMetadata(frozenset({"quick_disconnect"}), "Yes"),
     "Electrical Quick Disconnect Type": AuditFieldMetadata(frozenset({"electrical"})),
     "Cable Management Condition": AuditFieldMetadata(frozenset({"wiring", "cable_management"})),
@@ -210,6 +238,7 @@ AUDIT_DROPDOWNS = {
     "Plant/Area": ["Plant 4", "Cleanroom"],
     "Cleanroom/Non-Cleanroom": CLEANROOM_DROPDOWN_VALUES,
     "EOAT Type": EOAT_TYPE_DROPDOWN_VALUES,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_VALUES,
     EOAT_MOVES_FIELD: EOAT_MOVES_VALUES,
     CONNECTION_TYPE_FIELD: CONNECTION_TYPE_VALUES,
     CYLINDER_TYPE_FIELD: CYLINDER_TYPE_VALUES,
@@ -427,6 +456,10 @@ def _text(value: Any) -> str:
     return str(value or "").strip()
 
 
+def is_malformed_startup_audit_id(value: Any) -> bool:
+    return bool(MALFORMED_STARTUP_AUDIT_ID_RE.fullmatch(_text(value)))
+
+
 def generate_audit_id(project_root: str | Path, audit_date: str | None = None) -> str:
     audit_date = audit_date or date.today().isoformat()
     compact = audit_date.replace("-", "")
@@ -495,6 +528,8 @@ def normalize_audit_entry_with_details(
         normalized[AUDIT_CONTEXT_FIELD] = AUDIT_CONTEXT_COMPATIBILITY
     if entry_type != ENTRY_TYPE_COMPATIBLE.lower() and not normalized.get("Audit Date"):
         normalized["Audit Date"] = date.today().isoformat()
+    if is_malformed_startup_audit_id(normalized.get("Audit ID")):
+        normalized["Audit ID"] = ""
     if not normalized.get("Audit ID"):
         normalized["Audit ID"] = generate_audit_id(
             project_root, str(normalized.get("Audit Date") or date.today().isoformat())
@@ -590,12 +625,15 @@ def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
         and _text(entry.get(CYLINDER_TYPE_FIELD)) not in CYLINDER_TYPE_VALUES
     ):
         errors.append(f"{CYLINDER_TYPE_FIELD} must be one of: {', '.join(CYLINDER_TYPE_VALUES)}.")
+    air_architecture = _text(entry.get(AIR_CIRCUIT_ARCHITECTURE_FIELD))
+    if air_architecture and not is_na_value(air_architecture) and air_architecture not in AIR_ARCHITECTURE_VALUES:
+        errors.append(f"{AIR_CIRCUIT_ARCHITECTURE_FIELD} must be one of: {', '.join(AIR_ARCHITECTURE_VALUES)}.")
     for field in {
         NUMBER_OF_PARTS_PICKED_FIELD,
         CYLINDER_COUNT_FIELD,
         CUP_COUNT_FIELD,
         GRIPPER_COUNT_FIELD,
-        *EOAT_PNEUMATIC_CIRCUIT_FIELDS,
+        *PNEUMATIC_CIRCUIT_COUNT_FIELDS,
     }:
         if (
             field in entry
@@ -752,6 +790,108 @@ def _insert_inventory_header(ws, target_idx: int, header: str, *, style_from_col
         if source_col != target_idx:
             _copy_column_style(ws, source_col, target_idx, max_row=max(ws.max_row, 2))
     ws.cell(row=1, column=target_idx).value = header
+
+
+def _migrate_air_circuit_architecture_rows(ws) -> dict[str, Any]:
+    headers = worksheet_headers(ws)
+    required = [
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
+        EXTERNAL_VACUUM_CIRCUITS_FIELD,
+        EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+        EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    ]
+    if any(header not in headers for header in required):
+        return {
+            "rows_reviewed": 0,
+            "robot_only_rows_updated": 0,
+            "mixed_rows_updated": 0,
+            "formula_cells_skipped": 0,
+            "warnings": ["Air circuit migration skipped because required headers are missing."],
+        }
+
+    positions = {header: headers.index(header) + 1 for header in headers}
+    stats = {
+        "rows_reviewed": 0,
+        "robot_only_rows_updated": 0,
+        "mixed_rows_updated": 0,
+        "formula_cells_skipped": 0,
+        "warnings": [],
+    }
+    machine_fields = ("Press/Machine #", "Machine #", "Machine No.", "Machine Number", "Press")
+    for row_number in range(2, ws.max_row + 1):
+        if not any(_text(ws.cell(row=row_number, column=column).value) for column in range(1, len(headers) + 1)):
+            continue
+        stats["rows_reviewed"] += 1
+        machine_value = next(
+            (
+                ws.cell(row=row_number, column=positions[field]).value
+                for field in machine_fields
+                if field in positions and _text(ws.cell(row=row_number, column=positions[field]).value)
+            ),
+            "",
+        )
+        row_changed = False
+        if machine_uses_mixed_air_architecture(machine_value):
+            row_changed |= _set_air_migration_cell(
+                ws,
+                row_number,
+                positions,
+                AIR_CIRCUIT_ARCHITECTURE_FIELD,
+                AIR_ARCHITECTURE_MIXED,
+                stats,
+            )
+            if EOAT_PRESSURE_CIRCUITS_FIELD in positions:
+                row_changed |= _set_air_migration_cell(
+                    ws,
+                    row_number,
+                    positions,
+                    EOAT_PRESSURE_CIRCUITS_FIELD,
+                    MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS,
+                    stats,
+                )
+            row_changed |= _set_air_migration_cell(
+                ws,
+                row_number,
+                positions,
+                EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+                MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS,
+                stats,
+            )
+            for field in (EXTERNAL_VACUUM_CIRCUITS_FIELD, EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD):
+                if not _text(ws.cell(row=row_number, column=positions[field]).value):
+                    row_changed |= _set_air_migration_cell(ws, row_number, positions, field, NA_VALUE, stats)
+            if row_changed:
+                stats["mixed_rows_updated"] += 1
+            continue
+
+        architecture_cell = ws.cell(row=row_number, column=positions[AIR_CIRCUIT_ARCHITECTURE_FIELD])
+        if not _text(architecture_cell.value) or is_na_value(architecture_cell.value):
+            row_changed |= _set_air_migration_cell(
+                ws,
+                row_number,
+                positions,
+                AIR_CIRCUIT_ARCHITECTURE_FIELD,
+                AIR_ARCHITECTURE_ROBOT_ONLY,
+                stats,
+            )
+        for field in EXTERNAL_PNEUMATIC_FIELDS:
+            if not _text(ws.cell(row=row_number, column=positions[field]).value):
+                row_changed |= _set_air_migration_cell(ws, row_number, positions, field, NA_VALUE, stats)
+        if row_changed:
+            stats["robot_only_rows_updated"] += 1
+    return stats
+
+
+def _set_air_migration_cell(ws, row_number: int, positions: dict[str, int], field: str, value: object, stats) -> bool:
+    cell = ws.cell(row=row_number, column=positions[field])
+    if getattr(cell, "data_type", "") == "f":
+        stats["formula_cells_skipped"] += 1
+        stats["warnings"].append(f"Skipped formula in row {row_number} column {field}.")
+        return False
+    if _text(cell.value) == _text(value):
+        return False
+    cell.value = value
+    return True
 
 
 def _migrate_electrical_wiring_presence_rows(ws) -> dict[str, int]:
@@ -948,13 +1088,20 @@ def _workbook_schema_is_current(workbook) -> bool:
     return True
 
 
-def _workbook_schema_needs_only_eoat_assembly_id_column(workbook) -> bool:
+def _workbook_schema_can_apply_fast_upgrade(workbook) -> bool:
     if "EOAT Inventory" not in workbook.sheetnames:
         return False
     headers = worksheet_headers(workbook["EOAT Inventory"])
     expected = get_expected_headers("EOAT Inventory")
     missing = [header for header in expected if header not in headers]
-    if missing != [EOAT_ASSEMBLY_ID_FIELD]:
+    fast_upgrade_headers = {
+        EOAT_ASSEMBLY_ID_FIELD,
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
+        EXTERNAL_VACUUM_CIRCUITS_FIELD,
+        EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+        EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    }
+    if not set(missing).issubset(fast_upgrade_headers):
         return False
     if LEGACY_TOOL_FIELD in headers or LEGACY_VACUUM_CUPS_FIELD in headers or VACUUM_ZONES_FIELD in headers:
         return False
@@ -1020,6 +1167,7 @@ def repair_workbook_schema(project_root: str | Path, log_activity: bool = True) 
             vacuum_zones_backup = _create_vacuum_zones_removal_backup(workbook_path)
             vacuum_zones_removed_count = _remove_legacy_vacuum_zones_columns(ws)
         added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        air_migration_stats = _migrate_air_circuit_architecture_rows(ws)
         electrical_stats = _migrate_electrical_wiring_presence_rows(ws)
         refresh_audit_by_press_view(workbook)
         _set_workbook_schema_current(workbook)
@@ -1051,6 +1199,13 @@ def repair_workbook_schema(project_root: str | Path, log_activity: bool = True) 
     else:
         details.append("EOAT Inventory already had all expected headers.")
     details.append(
+        "Air Circuit Architecture migration: "
+        f"{air_migration_stats['robot_only_rows_updated']} row(s) updated to {AIR_ARCHITECTURE_ROBOT_ONLY}, "
+        f"{air_migration_stats['mixed_rows_updated']} row(s) updated to {AIR_ARCHITECTURE_MIXED}."
+    )
+    if air_migration_stats["warnings"]:
+        details.extend(f"Air migration warning: {warning}" for warning in air_migration_stats["warnings"])
+    details.append(
         "Electrical/Wiring Present? migration: "
         f"{electrical_stats['set_no']} row(s) set to No, "
         f"{electrical_stats['set_yes']} row(s) set to Yes, "
@@ -1068,7 +1223,94 @@ def repair_workbook_schema(project_root: str | Path, log_activity: bool = True) 
             "electrical_wiring_set_no_count": electrical_stats["set_no"],
             "electrical_wiring_set_yes_count": electrical_stats["set_yes"],
             "electrical_wiring_set_unknown_count": electrical_stats["set_unknown"],
+            "air_robot_only_rows_updated": air_migration_stats["robot_only_rows_updated"],
+            "air_mixed_rows_updated": air_migration_stats["mixed_rows_updated"],
             "vacuum_zones_columns_removed": vacuum_zones_removed_count,
+        },
+        duration_seconds=time.perf_counter() - started,
+    )
+    if log_activity:
+        warning = log_tool_run(result, project_root)
+        if warning:
+            result.warnings.append(warning)
+    return result
+
+
+def migrate_air_circuit_architecture(project_root: str | Path, log_activity: bool = True) -> ToolResult:
+    started = time.perf_counter()
+    paths = resolve_project_paths(project_root)
+    workbook_path = paths.master_workbook
+    if not workbook_path.exists():
+        return ToolResult.fail(
+            "air_circuit_architecture_migration",
+            "Air Circuit Architecture Migration",
+            "Master workbook is missing.",
+            errors=[str(workbook_path)],
+            duration_seconds=time.perf_counter() - started,
+        )
+    lock_status = detect_workbook_lock(workbook_path)
+    if not lock_status.can_write:
+        return ToolResult.fail(
+            "air_circuit_architecture_migration",
+            "Air Circuit Architecture Migration",
+            "Workbook migration was blocked by the workbook lock detector.",
+            errors=[lock_status.message],
+            warnings=[lock_status.error] if lock_status.error else [],
+            metrics={"workbook_locked": lock_status.locked},
+            structured_data={"workbook_lock": lock_status.__dict__},
+            duration_seconds=time.perf_counter() - started,
+        )
+
+    workbook = None
+    try:
+        backup = backup_file(workbook_path, workbook_path.parent / "_backups")
+        workbook = load_workbook(workbook_path)
+        if "EOAT Inventory" not in workbook.sheetnames:
+            raise ValueError("EOAT Inventory sheet is missing.")
+        _migrate_workbook_tool_headers(workbook)
+        ws = workbook["EOAT Inventory"]
+        added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+        air_stats = _migrate_air_circuit_architecture_rows(ws)
+        refresh_audit_by_press_view(workbook)
+        _set_workbook_schema_current(workbook)
+        workbook.save(workbook_path)
+        workbook.close()
+        invalidate_workbook_cache(workbook_path)
+    except Exception as exc:
+        if workbook is not None:
+            try:
+                workbook.close()
+            except Exception:
+                pass
+        return ToolResult.fail(
+            "air_circuit_architecture_migration",
+            "Air Circuit Architecture Migration",
+            "Could not migrate air circuit architecture fields.",
+            errors=[str(exc)],
+            duration_seconds=time.perf_counter() - started,
+        )
+
+    details = [
+        f"Workbook backup: {backup}",
+        "Columns added: " + (", ".join(added_headers) if added_headers else "none"),
+        f"Rows updated to {AIR_ARCHITECTURE_ROBOT_ONLY}: {air_stats['robot_only_rows_updated']}",
+        f"Rows updated to {AIR_ARCHITECTURE_MIXED}: {air_stats['mixed_rows_updated']}",
+    ]
+    warnings = list(air_stats["warnings"])
+    result = ToolResult.ok(
+        "air_circuit_architecture_migration",
+        "Air Circuit Architecture Migration",
+        "Air circuit architecture migration completed.",
+        details=details,
+        warnings=warnings,
+        files_created=[str(backup)],
+        files_modified=[str(workbook_path)],
+        metrics={
+            "added_header_count": len(added_headers),
+            "robot_only_rows_updated": air_stats["robot_only_rows_updated"],
+            "mixed_rows_updated": air_stats["mixed_rows_updated"],
+            "rows_reviewed": air_stats["rows_reviewed"],
+            "formula_cells_skipped": air_stats["formula_cells_skipped"],
         },
         duration_seconds=time.perf_counter() - started,
     )
@@ -1180,9 +1422,13 @@ def _style_inventory_tooling_columns(ws) -> None:
         CUP_COUNT_FIELD: NUMBER_OF_PARTS_PICKED_FIELD,
         GRIPPER_TYPE_FIELD: CONNECTION_TYPE_FIELD,
         GRIPPER_MODEL_FIELD: GRIPPER_TYPE_FIELD,
-        EOAT_VACUUM_CIRCUITS_FIELD: "Vacuum Generator Type",
+        AIR_CIRCUIT_ARCHITECTURE_FIELD: "Vacuum Generator Type",
+        EOAT_VACUUM_CIRCUITS_FIELD: AIR_CIRCUIT_ARCHITECTURE_FIELD,
         EOAT_PRESSURE_CIRCUITS_FIELD: EOAT_VACUUM_CIRCUITS_FIELD,
         EOAT_INTERCHANGEABLE_CIRCUITS_FIELD: EOAT_PRESSURE_CIRCUITS_FIELD,
+        EXTERNAL_VACUUM_CIRCUITS_FIELD: EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
+        EXTERNAL_PRESSURE_CIRCUITS_FIELD: EXTERNAL_VACUUM_CIRCUITS_FIELD,
+        EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD: EXTERNAL_PRESSURE_CIRCUITS_FIELD,
     }
     for target_header, source_header in style_pairs.items():
         if target_header not in headers or source_header not in headers:
@@ -1213,6 +1459,11 @@ def _refresh_inventory_ranges(ws) -> None:
     if not headers:
         return
     last_column = get_column_letter(len(headers))
+    ws.freeze_panes = "A2"
+    try:
+        ws.sheet_view.topLeftCell = "A1"
+    except AttributeError:
+        pass
     ws.auto_filter.ref = f"A1:{last_column}1"
     for table in ws.tables.values():
         try:
@@ -1284,6 +1535,7 @@ def _apply_inventory_validations(ws) -> None:
         CONNECTION_TYPE_FIELD: [*CONNECTION_TYPE_VALUES, NA_VALUE],
         CYLINDER_TYPE_FIELD: [*CYLINDER_TYPE_VALUES, NA_VALUE],
         GRIPPER_TYPE_FIELD: [*GRIPPER_TYPE_VALUES, NA_VALUE],
+        AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_VALUES,
         "Cleanroom/Non-Cleanroom": [*CLEANROOM_DROPDOWN_VALUES, NA_VALUE],
         "Electrical/Wiring Present?": ["Yes", "No", "Unknown / Not Checked", NA_VALUE],
         MANUAL_COMPLETION_OVERRIDE_FIELD: ["Yes", "No", NA_VALUE],
@@ -1375,6 +1627,13 @@ def save_audit_entry(
         )
 
     validation_entry, validation_details = normalize_audit_entry_with_details(project_root, entry)
+    validation_entry.update(
+        {
+            field: entry.get(field, "")
+            for field in ROBOT_PNEUMATIC_FIELDS
+            if field in entry and field not in validation_entry
+        }
+    )
     requirements = field_rules.entry_type_requirements(validation_entry)
     for field in requirements["required"]:
         if field != "Audit Date" and not _text(entry.get(field)):
@@ -1445,10 +1704,10 @@ def save_audit_entry(
             timing_metrics["audit_save.schema_repair_seconds"] = 0.0
             timing_metrics["schema_repair_seconds"] = 0.0
         else:
-            can_apply_eoat_only_upgrade = _workbook_schema_needs_only_eoat_assembly_id_column(workbook)
+            can_apply_fast_upgrade = _workbook_schema_can_apply_fast_upgrade(workbook)
             if (
                 str(options.schema_policy or "").strip().casefold() in {"fail_if_stale", "fail", "current_only"}
-                and not can_apply_eoat_only_upgrade
+                and not can_apply_fast_upgrade
             ):
                 workbook.close()
                 return ToolResult.fail(
@@ -1475,6 +1734,7 @@ def save_audit_entry(
                 vacuum_zones_backup = _create_vacuum_zones_removal_backup(workbook_path)
                 vacuum_zones_removed_count = _remove_legacy_vacuum_zones_columns(ws)
             added_headers = _ensure_inventory_headers(ws, get_expected_headers("EOAT Inventory"))
+            _migrate_air_circuit_architecture_rows(ws)
             electrical_migration_stats = (
                 _migrate_electrical_wiring_presence_rows(ws)
                 if ELECTRICAL_WIRING_PRESENT_FIELD in added_headers

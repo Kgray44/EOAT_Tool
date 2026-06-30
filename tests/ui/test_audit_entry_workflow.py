@@ -17,12 +17,19 @@ from app.pages.audit import (
     ExistingMachineAuditsDialog,
 )
 from core.audit_constants import (
+    AIR_ARCHITECTURE_EXTERNAL_ONLY,
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_ARCHITECTURE_UNKNOWN,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
+    MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS,
+    MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS,
 )
 from core.audit_entries import save_audit_entry
 from core.robot_info import load_robot_info_for_audit_entry, robot_info_workbook_path, upsert_robot_info_from_audit
@@ -142,9 +149,10 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     }
     for field, value in complete_values.items():
         _set_field(page, field, value)
-    complete_id = page.audit_fields["Audit ID"].text()
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
+    complete_id = page.audit_fields["Audit ID"].text()
+    assert re.fullmatch(r"AUD-\d{8}-\d{3}", complete_id)
 
     rows = row_dicts(
         fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
@@ -154,7 +162,7 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
     assert saved_row["Connection Type"] == "ATI"
     assert saved_row["EOAT Moves"] == "Part"
     assert saved_row["Cup Type/Material"] == "Silicone"
-    assert saved_row["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    assert saved_row["Cleanroom/Non-Cleanroom"] == "Cleanroom"
     assert saved_row["# of Grippers"] == "N/A"
     assert saved_row["Gripper Type"] == "N/A"
     assert saved_row["Gripper Model"] == "N/A"
@@ -170,15 +178,16 @@ def test_save_complete_and_optional_missing_audit_entries(qapp, fake_config, fak
         "EOAT Type": "Mechanical / Gripper",
     }.items():
         _set_field(page, field, value)
-    optional_missing_id = page.audit_fields["Audit ID"].text()
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
+    optional_missing_id = page.audit_fields["Audit ID"].text()
+    assert re.fullmatch(r"AUD-\d{8}-\d{3}", optional_missing_id)
     rows = row_dicts(
         fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
     )
     assert any(row["Audit ID"] == optional_missing_id and row["Press/Machine #"] == "Press 105" for row in rows)
     optional_row = next(row for row in rows if row["Audit ID"] == optional_missing_id)
-    assert optional_row["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    assert optional_row["Cleanroom/Non-Cleanroom"] == "Cleanroom"
     assert optional_row["Cup Type/Material"] == "N/A"
     assert optional_row["Cup Diameter/Size"] == "N/A"
     assert optional_row["Number of Parts Picked"] == "N/A"
@@ -203,7 +212,6 @@ def test_invalid_audit_entry_shows_friendly_error_without_workbook_row(
     page = AuditPage(fake_config)
     page.show()
     page.clear_audit_form()
-    bad_id = page.audit_fields["Audit ID"].text()
     _set_field(page, "Auditor", "")
     _set_field(page, "Plant/Area", "Plant 4")
     _set_field(page, "Press/Machine #", "Press BAD")
@@ -218,7 +226,7 @@ def test_invalid_audit_entry_shows_friendly_error_without_workbook_row(
     rows = row_dicts(
         fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
     )
-    assert all(row["Audit ID"] != bad_id for row in rows)
+    assert all(row["Press/Machine #"] != "Press BAD" for row in rows)
 
 
 def test_loading_existing_audit_preserves_saved_reliability_values(
@@ -284,9 +292,9 @@ def test_audit_id_dropdown_refreshes_after_save(qapp, fake_config, fake_project,
     _set_field(page, "Press/Machine #", "Press 8")
     _set_field(page, "Robot Type", "Wittmann R9")
     _set_field(page, "EOAT Type", "Vacuum")
-    audit_id = page.audit_fields["Audit ID"].text()
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
+    audit_id = page.audit_fields["Audit ID"].text()
 
     assert page.load_audit_id_combo.findData(audit_id) >= 0
 
@@ -905,9 +913,10 @@ def test_hidden_tooling_values_are_saved_when_switching_eoat_type(qapp, fake_con
     _set_field(page, "Gripper Model", "Zimmer GPP")
     _set_field(page, "EOAT Type", "Mechanical / Gripper")
 
-    audit_id = page.audit_fields["Audit ID"].text()
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
+    audit_id = page.audit_fields["Audit ID"].text()
+    assert re.fullmatch(r"AUD-\d{8}-\d{3}", audit_id)
 
     rows = row_dicts(
         fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
@@ -934,9 +943,10 @@ def test_miscellaneous_audit_saves_and_loads_gripper_fields(qapp, fake_config, f
     _set_field(page, "Gripper Type", "Single Pressure")
     _set_field(page, "Gripper Model", "Zimmer GPP")
 
-    audit_id = page.audit_fields["Audit ID"].text()
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
+    audit_id = page.audit_fields["Audit ID"].text()
+    assert re.fullmatch(r"AUD-\d{8}-\d{3}", audit_id)
 
     loaded = AuditPage(fake_config)
     loaded.show()
@@ -1032,29 +1042,86 @@ def test_pneumatic_circuits_tab_groups_fields_defaults_and_tag_buttons(qapp, fak
     tab_titles = [page.audit_section_tabs.tabText(index) for index in range(page.audit_section_tabs.count())]
     assert "Pneumatic Circuits" in tab_titles
     group_titles = {group.title() for group in page.findChildren(QGroupBox)}
-    assert {"EOAT Side", "Robot Side"}.issubset(group_titles)
+    assert {
+        "Air Circuit Architecture",
+        "EOAT Total / Tool-Side Circuits",
+        "Robot-Supplied Circuits",
+        "External Peripheral IO Circuits",
+        "Air Circuit Notes",
+    }.issubset(group_titles)
     for field in [
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
         "EOAT Vacuum Circuits",
         "EOAT Pressure Circuits",
         "EOAT Interchangeable Circuits",
         "Robot Vacuum Circuits",
         "Robot Pressure Circuits",
         "Robot Interchangeable Circuits",
+        "External Vacuum Circuits",
+        "External Pressure Circuits",
+        "External Interchangeable Circuits",
         "Robot Notes",
     ]:
         assert field in page.audit_fields
         assert field in page._field_tag_buttons
+    assert page.audit_fields[AIR_CIRCUIT_ARCHITECTURE_FIELD].currentText() == AIR_ARCHITECTURE_ROBOT_ONLY
     assert page.audit_fields["EOAT Interchangeable Circuits"].text() == "0"
     assert page.audit_fields["Robot Interchangeable Circuits"].text() == "0"
+    assert page.audit_fields["External Vacuum Circuits"].text() == "N/A"
+    assert page.audit_fields["External Pressure Circuits"].text() == "N/A"
+    assert page.audit_fields["External Interchangeable Circuits"].text() == "N/A"
     assert isinstance(page.audit_fields["Robot Notes"], QTextEdit)
     assert page.audit_fields["Robot Notes"].height() == page.audit_fields["Tubing Routing Notes"].height()
     pneumatic_groups = dict(AUDIT_SECTION_GROUPS["Pneumatic Circuits"])
-    assert pneumatic_groups["Robot Side"] == [
+    assert pneumatic_groups["Robot-Supplied Circuits"] == [
         "Robot Vacuum Circuits",
         "Robot Pressure Circuits",
         "Robot Interchangeable Circuits",
-        "Robot Notes",
     ]
+    assert pneumatic_groups["External Peripheral IO Circuits"] == [
+        "External Vacuum Circuits",
+        "External Pressure Circuits",
+        "External Interchangeable Circuits",
+    ]
+    assert pneumatic_groups["Air Circuit Notes"] == ["Robot Notes"]
+
+
+def test_air_architecture_controls_pneumatic_section_visibility(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    assert page.audit_fields[AIR_CIRCUIT_ARCHITECTURE_FIELD].currentText() == AIR_ARCHITECTURE_ROBOT_ONLY
+    assert page.audit_fields["EOAT Pressure Circuits"].isHidden() is False
+    assert page.audit_fields["Robot Pressure Circuits"].isHidden() is False
+    assert page.audit_fields["External Pressure Circuits"].isHidden() is True
+
+    _set_field(page, AIR_CIRCUIT_ARCHITECTURE_FIELD, AIR_ARCHITECTURE_MIXED)
+    assert page.audit_fields["Robot Pressure Circuits"].isHidden() is False
+    assert page.audit_fields["External Pressure Circuits"].isHidden() is False
+
+    _set_field(page, AIR_CIRCUIT_ARCHITECTURE_FIELD, AIR_ARCHITECTURE_UNKNOWN)
+    assert page.audit_fields["Robot Pressure Circuits"].isHidden() is False
+    assert page.audit_fields["External Pressure Circuits"].isHidden() is False
+
+    for field in ["Robot Vacuum Circuits", "Robot Pressure Circuits", "Robot Interchangeable Circuits"]:
+        _set_field(page, field, "")
+    _set_field(page, AIR_CIRCUIT_ARCHITECTURE_FIELD, AIR_ARCHITECTURE_EXTERNAL_ONLY)
+    assert page.audit_fields["Robot Pressure Circuits"].isHidden() is True
+    assert page.audit_fields["External Pressure Circuits"].isHidden() is False
+
+
+def test_mixed_cleanroom_machine_defaults_pressure_circuits(qapp, fake_config):
+    page = AuditPage(fake_config)
+    page.show()
+
+    _set_field(page, "Press/Machine #", "66")
+    page._apply_air_architecture_defaults_for_machine(reason="test")
+
+    assert page.audit_fields[AIR_CIRCUIT_ARCHITECTURE_FIELD].currentText() == AIR_ARCHITECTURE_MIXED
+    assert page.audit_fields["EOAT Pressure Circuits"].text() == MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS
+    assert page.audit_fields["External Pressure Circuits"].text() == MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS
+    assert page.audit_fields["External Vacuum Circuits"].text() == "N/A"
+    assert page.audit_fields["External Interchangeable Circuits"].text() == "N/A"
 
 
 def test_audit_form_uses_grouped_panels_without_losing_fields(qapp, fake_config):
@@ -1100,7 +1167,6 @@ def test_audit_output_panel_has_readable_splitter_and_controls(qapp, fake_config
 def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, fake_project, frozen_project_date):
     page = AuditPage(fake_config)
     page.show()
-    audit_id = page.audit_fields["Audit ID"].text()
     values = {
         "Press/Machine #": "Press 212",
         "Robot Type": "Wittmann R9",
@@ -1127,6 +1193,7 @@ def test_save_audit_workflow_creates_robot_info_and_summary(qapp, fake_config, f
     assert "Robot_Info.xlsx update queued after the audit save." in result.summary
     assert result.metrics["deferred_robot_info_queued"] is True
     assert not robot_info_workbook_path(fake_project).exists()
+    audit_id = result.metrics["audit_id"]
     rows = row_dicts(
         fake_project / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx", "EOAT Inventory"
     )
@@ -1162,7 +1229,6 @@ def test_save_audit_entry_writes_robot_notes_to_robot_info_workbook(
 ):
     page = AuditPage(fake_config)
     page.show()
-    audit_id = page.audit_fields["Audit ID"].text()
     values = {
         "Press/Machine #": "Press 215",
         "Robot Type": "Wittmann R9",
@@ -1174,6 +1240,8 @@ def test_save_audit_entry_writes_robot_notes_to_robot_info_workbook(
 
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
+    audit_id = page.audit_fields["Audit ID"].text()
+    assert re.fullmatch(r"AUD-\d{8}-\d{3}", audit_id)
 
     loaded = load_robot_info_for_audit_entry(
         fake_project,

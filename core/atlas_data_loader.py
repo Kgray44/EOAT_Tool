@@ -668,12 +668,28 @@ def _connection_summary(row: dict[str, Any]) -> str:
 
 
 def _vacuum_summary(row: dict[str, Any]) -> str:
-    fields = ("# of Cups", "Cup Type/Material", "Cup Diameter/Size", "Vacuum Generator Type", "EOAT Vacuum Circuits")
+    fields = (
+        "Air Circuit Architecture",
+        "# of Cups",
+        "Cup Type/Material",
+        "Cup Diameter/Size",
+        "Vacuum Generator Type",
+        "EOAT Vacuum Circuits",
+        "External Vacuum Circuits",
+    )
     return "; ".join(f"{field}: {display_value(row.get(field))}" for field in fields if display_value(row.get(field)))
 
 
 def _pressure_summary(row: dict[str, Any]) -> str:
-    fields = ("# of Cylinders", "Cylinder Type", "EOAT Pressure Circuits", "EOAT Interchangeable Circuits")
+    fields = (
+        "Air Circuit Architecture",
+        "# of Cylinders",
+        "Cylinder Type",
+        "EOAT Pressure Circuits",
+        "External Pressure Circuits",
+        "EOAT Interchangeable Circuits",
+        "External Interchangeable Circuits",
+    )
     return "; ".join(f"{field}: {display_value(row.get(field))}" for field in fields if display_value(row.get(field)))
 
 

@@ -72,9 +72,9 @@ def test_fake_user_day2_workflow_end_to_end(
         "Notes": "Synthetic controller. Pilot candidate: maybe.",
     }.items():
         _set_audit_field(audit, field, value)
-    audit_id = audit.audit_fields["Audit ID"].text()
     click_button(audit, "Save Audit Entry")
     wait_for_background_tasks(timeout_ms=30000)
+    audit_id = audit.audit_fields["Audit ID"].text()
     assert any(
         row["Audit ID"] == audit_id
         for row in row_dicts(

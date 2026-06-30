@@ -1,5 +1,5 @@
 {
-  "version": "2026.06.16.1",
+  "version": "2026.06.26.1",
   "sheets": {
     "EOAT Inventory": {
       "required_headers": [
@@ -28,9 +28,13 @@
         "Cup Type/Material",
         "Cup Diameter/Size",
         "Vacuum Generator Type",
+        "Air Circuit Architecture",
         "EOAT Vacuum Circuits",
         "EOAT Pressure Circuits",
         "EOAT Interchangeable Circuits",
+        "External Vacuum Circuits",
+        "External Pressure Circuits",
+        "External Interchangeable Circuits",
         "Sensors Present?",
         "Sensor Type",
         "Sensor Brand/Model",

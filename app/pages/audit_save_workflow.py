@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from core.audit.uninstalled import is_uninstalled_eoat_audit
+from core.audit_constants import AIR_CIRCUIT_ARCHITECTURE_FIELD, air_architecture_hides_robot_fields
 from core.audit_entries import AuditSaveOptions, save_audit_entry
 from core.logging import log_activity_event
 from core.performance import log_performance_event
@@ -237,6 +238,8 @@ def save_audit_with_side_effects(
 
 
 def should_update_robot_info(project_root: str | Path, entry: dict[str, Any]) -> tuple[bool, str]:
+    if air_architecture_hides_robot_fields(entry.get(AIR_CIRCUIT_ARCHITECTURE_FIELD)):
+        return False, "air architecture is External Peripheral Only"
     machine_number = str(entry.get("Press/Machine #") or "").strip()
     if not machine_number:
         return False, "machine number is blank"
@@ -315,7 +318,7 @@ def insert_robot_info_summary(summary: str, robot_result) -> str:
 
 def _robot_circuit_value_is_meaningful(field: str, value: Any) -> bool:
     text = str(value or "").strip()
-    if not text:
+    if not text or text.upper() in {"N/A", "NA", "NOT APPLICABLE"}:
         return False
     if field == "Robot Interchangeable Circuits":
         return _robot_circuit_compare_value(field, value) not in {"", 0}
@@ -324,6 +327,8 @@ def _robot_circuit_value_is_meaningful(field: str, value: Any) -> bool:
 
 def _robot_circuit_compare_value(field: str, value: Any) -> int | str:
     text = str(value or "").strip()
+    if text.upper() in {"N/A", "NA", "NOT APPLICABLE"}:
+        return ""
     if not text and field != "Robot Interchangeable Circuits":
         return ""
     if not text:

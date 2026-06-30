@@ -14,6 +14,11 @@ from core.audit.completion import (
 )
 from core.audit.defaults import UNKNOWN_NOT_CHECKED
 from core.audit_constants import (
+    AIR_ARCHITECTURE_EXTERNAL_ONLY,
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_ARCHITECTURE_UNKNOWN,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     AUDIT_CONTEXT_BENCH,
     AUDIT_CONTEXT_FIELD,
     AUDIT_CONTEXT_INSTALLED,
@@ -60,12 +65,16 @@ SECTIONS = {
         "Gripper Model",
     ],
     "Pneumatic Circuits": [
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
         "EOAT Vacuum Circuits",
         "EOAT Pressure Circuits",
         "EOAT Interchangeable Circuits",
         "Robot Vacuum Circuits",
         "Robot Pressure Circuits",
         "Robot Interchangeable Circuits",
+        "External Vacuum Circuits",
+        "External Pressure Circuits",
+        "External Interchangeable Circuits",
         "Robot Notes",
     ],
     "Sensors and Detection": [
@@ -129,9 +138,13 @@ def _entry(**overrides):
         "EOAT Vacuum Circuits": "2",
         "EOAT Pressure Circuits": "1",
         "EOAT Interchangeable Circuits": "0",
+        AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_ROBOT_ONLY,
         "Robot Vacuum Circuits": "4",
         "Robot Pressure Circuits": "2",
         "Robot Interchangeable Circuits": "0",
+        "External Vacuum Circuits": "N/A",
+        "External Pressure Circuits": "N/A",
+        "External Interchangeable Circuits": "N/A",
         "Sensors Present?": "Yes",
         "Sensor Type": "Reed Switch",
         "Sensor Brand/Model": "SMC",
@@ -268,11 +281,97 @@ def test_installed_tool_audit_counts_missing_robot_circuit_fields():
 
     assert summary.percent_complete < 100
     assert "Robot Vacuum Circuits" in summary.missing_fields
-    assert "Robot Pressure Circuits" in summary.missing_fields
-    assert "Robot Interchangeable Circuits" in summary.missing_fields
+    assert "Robot Pressure Circuits" not in summary.missing_fields
+    assert "Robot Interchangeable Circuits" not in summary.missing_fields
     assert "Cycle Time Concern?" in summary.missing_fields
     assert "Scrap/Quality Concern?" in summary.missing_fields
     assert _status(summary, "Robot Vacuum Circuits").state == STATE_MISSING
+    assert _status(summary, "Robot Pressure Circuits").state == STATE_IGNORED_BY_OPTIONAL_GROUP
+    assert _status(summary, "Robot Interchangeable Circuits").state == STATE_IGNORED_BY_OPTIONAL_GROUP
+
+
+def test_pneumatic_circuit_completion_scores_source_sections_once():
+    summary = calculate_audit_completion(
+        _entry(
+            **{
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_ROBOT_ONLY,
+                "EOAT Vacuum Circuits": "",
+                "EOAT Pressure Circuits": "2",
+                "EOAT Interchangeable Circuits": "",
+                "Robot Vacuum Circuits": "",
+                "Robot Pressure Circuits": "1",
+                "Robot Interchangeable Circuits": "",
+                "External Vacuum Circuits": "",
+                "External Pressure Circuits": "",
+                "External Interchangeable Circuits": "",
+            }
+        ),
+        SECTIONS,
+    )
+    pneumatic = next(section for section in summary.sections if section.name == "Pneumatic Circuits")
+
+    assert pneumatic.counted_field_count == 3
+    assert pneumatic.verified_complete_count == 3
+    assert pneumatic.percent_complete == 100
+    assert _status(summary, AIR_CIRCUIT_ARCHITECTURE_FIELD).state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, "EOAT Pressure Circuits").state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, "Robot Pressure Circuits").state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, "EOAT Vacuum Circuits").state == STATE_IGNORED_BY_OPTIONAL_GROUP
+    assert _status(summary, "Robot Vacuum Circuits").state == STATE_IGNORED_BY_OPTIONAL_GROUP
+    assert _status(summary, "External Pressure Circuits").state == STATE_NOT_APPLICABLE
+    assert "EOAT Vacuum Circuits" not in summary.missing_fields
+    assert "Robot Vacuum Circuits" not in summary.missing_fields
+    assert "External Pressure Circuits" not in summary.missing_fields
+
+
+def test_pneumatic_completion_follows_air_architecture_visibility():
+    external_only = calculate_audit_completion(
+        _entry(
+            **{
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_EXTERNAL_ONLY,
+                "Robot Vacuum Circuits": "",
+                "Robot Pressure Circuits": "",
+                "Robot Interchangeable Circuits": "",
+                "External Vacuum Circuits": "",
+                "External Pressure Circuits": "1",
+                "External Interchangeable Circuits": "",
+            }
+        ),
+        SECTIONS,
+    )
+    mixed_missing_external = calculate_audit_completion(
+        _entry(
+            **{
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_MIXED,
+                "External Vacuum Circuits": "",
+                "External Pressure Circuits": "",
+                "External Interchangeable Circuits": "",
+            }
+        ),
+        SECTIONS,
+    )
+    unknown_missing_external = calculate_audit_completion(
+        _entry(
+            **{
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_UNKNOWN,
+                "External Vacuum Circuits": "",
+                "External Pressure Circuits": "",
+                "External Interchangeable Circuits": "",
+            }
+        ),
+        SECTIONS,
+    )
+
+    assert _status(external_only, "Robot Vacuum Circuits").state == STATE_NOT_APPLICABLE
+    assert _status(external_only, "External Pressure Circuits").state == STATE_VERIFIED_COMPLETE
+    assert "Robot Vacuum Circuits" not in external_only.missing_fields
+
+    assert "External Vacuum Circuits" in mixed_missing_external.missing_fields
+    assert "External Pressure Circuits" not in mixed_missing_external.missing_fields
+    assert _status(mixed_missing_external, "External Pressure Circuits").state == STATE_IGNORED_BY_OPTIONAL_GROUP
+
+    assert "External Vacuum Circuits" in unknown_missing_external.missing_fields
+    assert _status(unknown_missing_external, "External Vacuum Circuits").state == STATE_MISSING
 
 
 def test_unknown_not_checked_is_explicit_but_not_verified_complete():

@@ -60,7 +60,7 @@ def test_audit_page_shell_does_not_read_workbook_indexes_synchronously(qapp, fak
 
     page = AuditPage(fake_config)
 
-    assert page.audit_fields["Audit ID"].text().startswith("AUD-")
+    assert page.audit_fields["Audit ID"].text() == ""
     assert page.load_audit_id_combo.itemText(0) == "Loading audit list..."
 
 
@@ -166,5 +166,5 @@ def test_audit_page_shell_creation_under_two_seconds_on_demo_project(qapp):
 
     page = AuditPage(UserConfig(project_root=str(root), debug_mode=True))
 
-    assert page.audit_fields["Audit ID"].text().startswith("AUD-")
+    assert page.audit_fields["Audit ID"].text() == ""
     assert time.perf_counter() - page_started < 2.0
