@@ -3,19 +3,31 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from core.audit_constants import (
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+    EXTERNAL_VACUUM_CIRCUITS_FIELD,
+)
+
 DEFAULT_AUDITOR = "Kato Gray"
 UNKNOWN_NOT_CHECKED = "Unknown / Not Checked"
 
 DEFAULT_AUDIT_DEFAULTS: dict[str, str] = {
     "Auditor": DEFAULT_AUDITOR,
     "Plant/Area": "Plant 4",
-    "Cleanroom/Non-Cleanroom": "Whiteroom",
+    "Cleanroom/Non-Cleanroom": "Cleanroom",
     "Status": "In Progress",
     "Priority": "Medium",
     "Follow-Up Needed": "No",
     "Quick Disconnects Present?": "Yes",
     "Pneumatic Quick Disconnect Type": "PTC",
     "Vacuum Generator Type": "Venturi",
+    AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_ROBOT_ONLY,
+    EXTERNAL_VACUUM_CIRCUITS_FIELD: "N/A",
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD: "N/A",
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD: "N/A",
     "EOAT Interchangeable Circuits": "0",
     "Robot Interchangeable Circuits": "0",
     "Electrical/Wiring Present?": UNKNOWN_NOT_CHECKED,

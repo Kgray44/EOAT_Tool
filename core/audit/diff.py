@@ -5,6 +5,11 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from core.audit.completion import UNKNOWN_NOT_CHECKED_VALUE
+from core.audit_constants import (
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
+    EXTERNAL_PNEUMATIC_FIELDS,
+    ROBOT_PNEUMATIC_FIELDS,
+)
 from core.audit_field_rules import is_na_value, normalize_text
 
 CHANGE_ADDED = "added"
@@ -15,11 +20,6 @@ CHANGE_SMART_DEFAULTED = "smart_defaulted"
 CHANGE_UNKNOWN_NOT_CHECKED = "unknown_not_checked"
 CHANGE_UNCHANGED = "unchanged"
 
-ROBOT_PNEUMATIC_FIELDS = (
-    "Robot Vacuum Circuits",
-    "Robot Pressure Circuits",
-    "Robot Interchangeable Circuits",
-)
 ROBOT_INFO_FIELDS = (
     *ROBOT_PNEUMATIC_FIELDS,
     "Robot Notes",
@@ -32,9 +32,11 @@ COMPATIBILITY_IMPACT_FIELDS = (
     "EOAT Type",
     "EOAT Moves",
     "Connection Type",
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     "Number of Parts Picked",
     "# of Cups",
     "# of Grippers",
+    *EXTERNAL_PNEUMATIC_FIELDS,
     "Sensor Type",
     "Sensor Brand/Model",
     "Tubing Condition",

@@ -9,6 +9,7 @@ from typing import Any
 
 from .audit.relationships import relationship_summary_for_machine
 from .audit_compatibility import machine_from_audit_row, normalize_machine_token
+from .audit_constants import AIR_ARCHITECTURE_MIXED, MIXED_AIR_CONTROL_BADGE
 from .guided_audit import build_guided_audit_plan
 from .open_items import load_cached_open_items
 from .paths import resolve_project_paths
@@ -782,12 +783,25 @@ def _tooling_summary(physical_rows: list[dict[str, Any]], compatible_rows: list[
 
 
 def _pneumatic_summary(rows: list[dict[str, Any]], robot_info: list[dict[str, Any]]) -> dict[str, Any]:
+    architectures = _unique_values(rows, "Air Circuit Architecture")
+    mixed_air = any(value == AIR_ARCHITECTURE_MIXED for value in architectures)
     return {
+        "air_architectures": architectures,
+        "air_control_badge": MIXED_AIR_CONTROL_BADGE if mixed_air else "",
+        "mixed_air_control": mixed_air,
         "vacuum_circuits": _unique_values(rows, "EOAT Vacuum Circuits"),
+        "pressure_circuits": _unique_values(rows, "EOAT Pressure Circuits"),
+        "interchangeable_circuits": _unique_values(rows, "EOAT Interchangeable Circuits"),
+        "external_vacuum_circuits": _unique_values(rows, "External Vacuum Circuits"),
+        "external_pressure_circuits": _unique_values(rows, "External Pressure Circuits"),
+        "external_interchangeable_circuits": _unique_values(rows, "External Interchangeable Circuits"),
         "vacuum_generator_types": _unique_values(rows, "Vacuum Generator Type"),
         "pneumatic_quick_disconnects": _unique_values(rows, "Pneumatic Quick Disconnect Type"),
         "quick_disconnects_present": _value_counts(rows, "Quick Disconnects Present?"),
         "robot_side_rows": len(robot_info),
+        "robot_vacuum_circuits": _unique_values(robot_info, "Robot Vacuum Circuits"),
+        "robot_pressure_circuits": _unique_values(robot_info, "Robot Pressure Circuits"),
+        "robot_interchangeable_circuits": _unique_values(robot_info, "Robot Interchangeable Circuits"),
         "robot_notes": _unique_values(robot_info, "Robot Notes"),
         "robot_side_air_sources": _unique_values(robot_info, "Robot Pneumatic Notes")
         or _unique_values(robot_info, "Pneumatic Notes"),

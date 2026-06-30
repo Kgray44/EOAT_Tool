@@ -7,18 +7,24 @@ from typing import Any
 
 from ..audit.defaults import DEFAULT_AUDIT_DEFAULTS
 from ..audit_constants import (
+    AIR_ARCHITECTURE_VALUES,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     AUDIT_CONTEXT_FIELD,
     COMPATIBILITY_CONFIDENCE_FIELD,
     COMPATIBILITY_SOURCE_FIELD,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_FIELD,
     ENTRY_TYPE_FIELD,
+    EXTERNAL_PNEUMATIC_FIELDS,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
     PHYSICAL_AUDIT_VERIFIED_FIELD,
     SOURCE_AUDIT_ID_FIELD,
+)
+from ..audit_constants import (
+    ROBOT_PNEUMATIC_FIELDS as ROBOT_PNEUMATIC_FIELD_NAMES,
 )
 from ..audit_entries import (
     AUDIT_DROPDOWNS,
@@ -50,11 +56,7 @@ STORAGE_NONE = "none"
 PNEUMATIC_CIRCUITS_SECTION = "Pneumatic Circuits"
 ROBOT_NOTES_FIELD = "Robot Notes"
 
-ROBOT_PNEUMATIC_FIELDS = (
-    "Robot Vacuum Circuits",
-    "Robot Pressure Circuits",
-    "Robot Interchangeable Circuits",
-)
+ROBOT_PNEUMATIC_FIELDS = ROBOT_PNEUMATIC_FIELD_NAMES
 ROBOT_INFO_FIELDS = (
     *ROBOT_PNEUMATIC_FIELDS,
     ROBOT_NOTES_FIELD,
@@ -98,10 +100,12 @@ AUDIT_SECTION_LAYOUT: dict[str, list[str]] = {
         "Estimated EOAT Weight",
     ],
     PNEUMATIC_CIRCUITS_SECTION: [
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
         "EOAT Vacuum Circuits",
         "EOAT Pressure Circuits",
         "EOAT Interchangeable Circuits",
         *ROBOT_PNEUMATIC_FIELDS,
+        *EXTERNAL_PNEUMATIC_FIELDS,
         ROBOT_NOTES_FIELD,
     ],
     "Sensors and Detection": [
@@ -162,8 +166,11 @@ AUDIT_GROUP_LAYOUT: dict[str, list[tuple[str, list[str]]]] = {
         ("Physical Details", ["Estimated EOAT Weight"]),
     ],
     PNEUMATIC_CIRCUITS_SECTION: [
-        ("EOAT Side", ["EOAT Vacuum Circuits", "EOAT Pressure Circuits", "EOAT Interchangeable Circuits"]),
-        ("Robot Side", list(ROBOT_INFO_FIELDS)),
+        ("Air Circuit Architecture", [AIR_CIRCUIT_ARCHITECTURE_FIELD]),
+        ("EOAT Total / Tool-Side Circuits", ["EOAT Vacuum Circuits", "EOAT Pressure Circuits", "EOAT Interchangeable Circuits"]),
+        ("Robot-Supplied Circuits", list(ROBOT_PNEUMATIC_FIELDS)),
+        ("External Peripheral IO Circuits", list(EXTERNAL_PNEUMATIC_FIELDS)),
+        ("Air Circuit Notes", [ROBOT_NOTES_FIELD]),
     ],
     "Sensors and Detection": [
         ("Detection Presence", ["Sensors Present?", "Vacuum Confirmation Present?", PART_PRESENT_DETECTION_FIELD]),
@@ -455,6 +462,8 @@ def _field_id(label: str) -> str:
 
 
 def _dropdown_values(label: str) -> tuple[str, ...]:
+    if label == AIR_CIRCUIT_ARCHITECTURE_FIELD:
+        return tuple(AIR_ARCHITECTURE_VALUES)
     if label == GRIPPER_MODEL_FIELD:
         return tuple(GRIPPER_MODEL_PRESET_LABELS)
     if label in AUDIT_DROPDOWNS:
@@ -546,6 +555,23 @@ def _tags_for(
 
 
 def _help_text(label: str, storage_target: str) -> str:
+    if label == AIR_CIRCUIT_ARCHITECTURE_FIELD:
+        return (
+            "Defines where EOAT air circuits are supplied from. Robot Only means all air is supplied by robot "
+            "pneumatic outputs. External Peripheral Only means air is supplied externally and controlled through "
+            "peripheral IO. Mixed Robot + External Peripheral means both robot-supplied and external peripheral "
+            "IO-controlled air are used."
+        )
+    if label == "External Pressure Circuits":
+        return (
+            "Number of pressure circuits supplied externally and controlled through peripheral IO. Do not include "
+            "robot-supplied pressure circuits here."
+        )
+    if label == "Robot Pressure Circuits":
+        return (
+            "Number of pressure circuits supplied directly from the robot pneumatic outputs. Do not include "
+            "externally supplied peripheral IO-controlled circuits here."
+        )
     if storage_target == STORAGE_NONE:
         return f"{label} is shown in the audit UI for context and is not currently written to EOAT Inventory."
     if label in AUDITED_REQUIRED_FIELDS:
@@ -565,6 +591,7 @@ __all__ = [
     "ROBOT_INFO_FIELDS",
     "ROBOT_NOTES_FIELD",
     "ROBOT_PNEUMATIC_FIELDS",
+    "EXTERNAL_PNEUMATIC_FIELDS",
     "STORAGE_EOAT_INVENTORY",
     "STORAGE_NONE",
     "SYSTEM_METADATA_FIELDS",

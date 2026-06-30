@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 ENTRY_TYPE_FIELD = "Entry Type"
 SOURCE_AUDIT_ID_FIELD = "Source Audit ID"
 COMPATIBILITY_SOURCE_FIELD = "Compatibility Source"
@@ -47,6 +49,53 @@ CYLINDER_TYPE_DEFAULT = "Linear"
 CYLINDER_TYPE_VALUES = ["Linear", "Rotary"]
 CYLINDER_FIELDS = frozenset({CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD})
 
+AIR_CIRCUIT_ARCHITECTURE_FIELD = "Air Circuit Architecture"
+AIR_ARCHITECTURE_ROBOT_ONLY = "Robot Only"
+AIR_ARCHITECTURE_EXTERNAL_ONLY = "External Peripheral Only"
+AIR_ARCHITECTURE_MIXED = "Mixed Robot + External Peripheral"
+AIR_ARCHITECTURE_UNKNOWN = "Unknown / Needs Verification"
+AIR_ARCHITECTURE_VALUES = [
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_ARCHITECTURE_EXTERNAL_ONLY,
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_UNKNOWN,
+]
+
+EOAT_VACUUM_CIRCUITS_FIELD = "EOAT Vacuum Circuits"
+EOAT_PRESSURE_CIRCUITS_FIELD = "EOAT Pressure Circuits"
+EOAT_INTERCHANGEABLE_CIRCUITS_FIELD = "EOAT Interchangeable Circuits"
+EOAT_PNEUMATIC_FIELDS = (
+    EOAT_VACUUM_CIRCUITS_FIELD,
+    EOAT_PRESSURE_CIRCUITS_FIELD,
+    EOAT_INTERCHANGEABLE_CIRCUITS_FIELD,
+)
+
+ROBOT_VACUUM_CIRCUITS_FIELD = "Robot Vacuum Circuits"
+ROBOT_PRESSURE_CIRCUITS_FIELD = "Robot Pressure Circuits"
+ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD = "Robot Interchangeable Circuits"
+ROBOT_PNEUMATIC_FIELDS = (
+    ROBOT_VACUUM_CIRCUITS_FIELD,
+    ROBOT_PRESSURE_CIRCUITS_FIELD,
+    ROBOT_INTERCHANGEABLE_CIRCUITS_FIELD,
+)
+
+EXTERNAL_VACUUM_CIRCUITS_FIELD = "External Vacuum Circuits"
+EXTERNAL_PRESSURE_CIRCUITS_FIELD = "External Pressure Circuits"
+EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD = "External Interchangeable Circuits"
+EXTERNAL_PNEUMATIC_FIELDS = (
+    EXTERNAL_VACUUM_CIRCUITS_FIELD,
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+)
+PNEUMATIC_SOURCE_FIELDS = (*ROBOT_PNEUMATIC_FIELDS, *EXTERNAL_PNEUMATIC_FIELDS)
+PNEUMATIC_CIRCUIT_COUNT_FIELDS = (*EOAT_PNEUMATIC_FIELDS, *PNEUMATIC_SOURCE_FIELDS)
+
+MIXED_AIR_CLEANROOM_MACHINES = frozenset({"63", "65", "66", "69"})
+MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS = "2"
+MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS = "1"
+MIXED_AIR_CONTROL_BADGE = "MIXED AIR CONTROL"
+EXTERNAL_AIR_CONTROL_NOTE = "External air is controlled through peripheral IO."
+
 MANUAL_COMPLETION_OVERRIDE_FIELD = "Manual Completion Override"
 MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD = "Manual Completion Override Timestamp"
 MANUAL_COMPLETION_OVERRIDE_USER_FIELD = "Manual Completion Override User"
@@ -73,3 +122,29 @@ AUTOFILLED_COMPATIBILITY_METADATA_FIELDS = frozenset(
         COMPATIBILITY_SOURCE_FIELD,
     }
 )
+
+
+def normalize_machine_number(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if text.endswith(".0"):
+        text = text[:-2]
+    match = re.search(r"\d+", text)
+    return match.group(0) if match else text.casefold()
+
+
+def machine_uses_mixed_air_architecture(value: object) -> bool:
+    return normalize_machine_number(value) in MIXED_AIR_CLEANROOM_MACHINES
+
+
+def default_air_architecture_for_machine(value: object) -> str:
+    return AIR_ARCHITECTURE_MIXED if machine_uses_mixed_air_architecture(value) else AIR_ARCHITECTURE_ROBOT_ONLY
+
+
+def air_architecture_hides_external_fields(value: object) -> bool:
+    return str(value or "").strip() == AIR_ARCHITECTURE_ROBOT_ONLY
+
+
+def air_architecture_hides_robot_fields(value: object) -> bool:
+    return str(value or "").strip() == AIR_ARCHITECTURE_EXTERNAL_ONLY

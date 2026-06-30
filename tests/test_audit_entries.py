@@ -10,10 +10,24 @@ from core.audit_by_press import (
     refresh_audit_by_press_view_action,
 )
 from core.audit_compatibility import create_compatibility_entries
-from core.audit_constants import CYLINDER_COUNT_FIELD, CYLINDER_TYPE_FIELD, ENTRY_TYPE_COMPATIBLE, ENTRY_TYPE_FIELD
+from core.audit_constants import (
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
+    CYLINDER_COUNT_FIELD,
+    CYLINDER_TYPE_FIELD,
+    ENTRY_TYPE_COMPATIBLE,
+    ENTRY_TYPE_FIELD,
+    EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+    EXTERNAL_VACUUM_CIRCUITS_FIELD,
+    MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS,
+    MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS,
+)
 from core.audit_entries import (
     generate_audit_id,
     load_audit_entry,
+    migrate_air_circuit_architecture,
     repair_workbook_schema,
     save_audit_entry,
     save_audit_entry_with_compatibility_autorun,
@@ -92,8 +106,32 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values["Gripper Model"] == "N/A"
     assert row_values["# of Grippers"] == "N/A"
     assert row_values["Gripper Type"] == "N/A"
-    assert row_values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    assert row_values["Cleanroom/Non-Cleanroom"] == "Cleanroom"
     wb.close()
+
+
+def test_save_replaces_malformed_startup_audit_id(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-20260518-PABCDEF1234",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "Press 13",
+            "Tool #": "DEMO-PN-1300",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "EOAT Moves": "Both",
+            "Connection Type": "ATI",
+            "Status": "Audited",
+        },
+    )
+
+    assert result.success is True
+    assert result.metrics["audit_id"] == "AUD-20260518-001"
+    rows = _inventory_rows(fake_project)
+    assert rows[0]["Audit ID"] == "AUD-20260518-001"
 
 
 def test_uninstalled_eoat_save_allows_blank_machine_fields_and_appends_note(fake_project):
@@ -498,7 +536,7 @@ def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_
     values = {
         headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
     }
-    assert values["Cleanroom/Non-Cleanroom"] == "Whiteroom"
+    assert values["Cleanroom/Non-Cleanroom"] == "Cleanroom"
     assert values["Tool #"] == "N/A"
     assert values["Connection Type"] == "N/A"
     assert values["EOAT Moves"] in (None, "")
@@ -518,6 +556,149 @@ def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_
         if header not in {"EOAT Moves", "Source Audit ID", "Compatibility Source"}
     )
     workbook.close()
+
+
+def test_air_architecture_fields_save_and_load(fake_project):
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-AIR-FIELDS-001",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": "65",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_MIXED,
+            "EOAT Pressure Circuits": "2",
+            EXTERNAL_VACUUM_CIRCUITS_FIELD: "N/A",
+            EXTERNAL_PRESSURE_CIRCUITS_FIELD: "1",
+            EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD: "N/A",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    loaded = load_audit_entry(fake_project, "AUD-AIR-FIELDS-001")
+    assert loaded[AIR_CIRCUIT_ARCHITECTURE_FIELD] == AIR_ARCHITECTURE_MIXED
+    assert loaded[EXTERNAL_VACUUM_CIRCUITS_FIELD] == "N/A"
+    assert loaded[EXTERNAL_PRESSURE_CIRCUITS_FIELD] == "1"
+    assert loaded[EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD] == "N/A"
+
+
+def test_air_architecture_migration_is_idempotent_and_sets_known_mixed_machines(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    for header in [
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
+        EXTERNAL_VACUUM_CIRCUITS_FIELD,
+        EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+        EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    ]:
+        if header in headers:
+            ws.delete_cols(headers.index(header) + 1)
+            headers = [cell.value for cell in ws[1]]
+    mixed_machine_rows = [
+        ("AUD-AIR-MIGRATE-63", 63),
+        ("AUD-AIR-MIGRATE-65", "65"),
+        ("AUD-AIR-MIGRATE-66", "66"),
+        ("AUD-AIR-MIGRATE-69", "69"),
+    ]
+    for audit_id, machine in [*mixed_machine_rows, ("AUD-AIR-MIGRATE-12", "12")]:
+        ws.append([""] * len(headers))
+        row = ws.max_row
+        for header, value in {
+            "Audit ID": audit_id,
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Plant 4",
+            "Press/Machine #": machine,
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "EOAT Pressure Circuits": "1",
+            "Status": "In Progress",
+        }.items():
+            ws.cell(row=row, column=headers.index(header) + 1).value = value
+    workbook.save(workbook_path)
+    workbook.close()
+
+    first = migrate_air_circuit_architecture(fake_project, log_activity=False)
+    second = migrate_air_circuit_architecture(fake_project, log_activity=False)
+
+    assert first.success, first.errors
+    assert second.success, second.errors
+    assert first.metrics["added_header_count"] == 4
+    assert second.metrics["added_header_count"] == 0
+    rows = _inventory_rows(fake_project)
+    mixed_rows = [next(row for row in rows if row["Audit ID"] == audit_id) for audit_id, _machine in mixed_machine_rows]
+    robot_only = next(row for row in rows if row["Audit ID"] == "AUD-AIR-MIGRATE-12")
+    for mixed in mixed_rows:
+        assert mixed[AIR_CIRCUIT_ARCHITECTURE_FIELD] == AIR_ARCHITECTURE_MIXED
+        assert str(mixed["EOAT Pressure Circuits"]) == MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS
+        assert str(mixed[EXTERNAL_PRESSURE_CIRCUITS_FIELD]) == MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS
+        assert mixed[EXTERNAL_VACUUM_CIRCUITS_FIELD] == "N/A"
+        assert mixed[EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD] == "N/A"
+    assert robot_only[AIR_CIRCUIT_ARCHITECTURE_FIELD] == AIR_ARCHITECTURE_ROBOT_ONLY
+    assert robot_only[EXTERNAL_VACUUM_CIRCUITS_FIELD] == "N/A"
+    assert robot_only[EXTERNAL_PRESSURE_CIRCUITS_FIELD] == "N/A"
+    assert robot_only[EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD] == "N/A"
+
+
+def test_save_applies_fast_air_schema_upgrade_without_manual_repair(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    workbook = load_workbook(workbook_path)
+    ws = workbook["EOAT Inventory"]
+    headers = [cell.value for cell in ws[1]]
+    for audit_id, machine in [("AUD-AIR-FAST-UPGRADE-63", "63")]:
+        ws.append([""] * len(headers))
+        row = ws.max_row
+        for header, value in {
+            "Audit ID": audit_id,
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Cleanroom",
+            "Press/Machine #": machine,
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        }.items():
+            ws.cell(row=row, column=headers.index(header) + 1).value = value
+    for header in [
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
+        EXTERNAL_VACUUM_CIRCUITS_FIELD,
+        EXTERNAL_PRESSURE_CIRCUITS_FIELD,
+        EXTERNAL_INTERCHANGEABLE_CIRCUITS_FIELD,
+    ]:
+        ws.delete_cols(headers.index(header) + 1)
+        headers = [cell.value for cell in ws[1]]
+    workbook.save(workbook_path)
+    workbook.close()
+
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": "AUD-AIR-FAST-UPGRADE-SAVE",
+            "Audit Date": "2026-05-18",
+            "Auditor": "KG",
+            "Plant/Area": "Cleanroom",
+            "Press/Machine #": "70",
+            "Robot Type": "Wittmann R9",
+            "EOAT Type": "Vacuum",
+            "Status": "In Progress",
+        },
+    )
+
+    assert result.success, result.errors
+    rows = _inventory_rows(fake_project)
+    mixed = next(row for row in rows if row["Audit ID"] == "AUD-AIR-FAST-UPGRADE-63")
+    saved = next(row for row in rows if row["Audit ID"] == "AUD-AIR-FAST-UPGRADE-SAVE")
+    assert mixed[AIR_CIRCUIT_ARCHITECTURE_FIELD] == AIR_ARCHITECTURE_MIXED
+    assert str(mixed["EOAT Pressure Circuits"]) == MIXED_AIR_CLEANROOM_EOAT_PRESSURE_CIRCUITS
+    assert str(mixed[EXTERNAL_PRESSURE_CIRCUITS_FIELD]) == MIXED_AIR_CLEANROOM_EXTERNAL_PRESSURE_CIRCUITS
+    assert saved[AIR_CIRCUIT_ARCHITECTURE_FIELD] == AIR_ARCHITECTURE_ROBOT_ONLY
+    assert saved[EXTERNAL_PRESSURE_CIRCUITS_FIELD] == "N/A"
 
 
 def test_gripper_model_presets_save_actual_model_numbers(fake_project):
@@ -1675,6 +1856,49 @@ def test_audit_by_press_view_refreshes_after_new_update_and_duplicate_saves(fake
         cell.value for cell in view["A"] if isinstance(cell.value, str) and cell.value.startswith("AUD-REFRESH")
     ]
     assert detail_audit_ids == ["AUD-REFRESH-001", "AUD-REFRESH-002"]
+    workbook.close()
+
+
+def test_cleanroom_audit_save_writes_inventory_source_before_press_view(fake_project):
+    workbook_path = resolve_project_paths(fake_project).master_workbook
+    audit_id = "AUD-CLEANROOM-SOURCE-001"
+
+    result = save_audit_entry(
+        fake_project,
+        {
+            "Audit ID": audit_id,
+            "Audit Date": "2026-06-29",
+            "Auditor": "KG",
+            "Plant/Area": "Cleanroom",
+            "Press/Machine #": "57",
+            "Tool #": "CLEAN-TOOL-57",
+            "Robot Type": "Engel Viper",
+            "EOAT Type": "Vacuum",
+            "Connection Type": "ATI",
+            "Cleanroom/Non-Cleanroom": "Cleanroom",
+            "Status": "Complete",
+            "Priority": "Medium",
+            "Known Issues": "None.",
+        },
+        refresh_press_view=True,
+    )
+
+    assert result.success, result.errors
+    workbook = load_workbook(workbook_path)
+    inventory = workbook["EOAT Inventory"]
+    inventory_headers = [cell.value for cell in inventory[1]]
+    inventory_ids = [cell.value for cell in inventory["A"]]
+    assert audit_id in inventory_ids
+    inventory_row = inventory_ids.index(audit_id) + 1
+    assert inventory.cell(row=inventory_row, column=inventory_headers.index("Plant/Area") + 1).value == "Cleanroom"
+    assert inventory.cell(row=inventory_row, column=inventory_headers.index("Press/Machine #") + 1).value == "57"
+
+    press_view = workbook[AUDIT_BY_PRESS_SHEET]
+    press_view_ids = [
+        cell.value for cell in press_view["A"] if isinstance(cell.value, str) and cell.value.startswith("AUD-")
+    ]
+    assert audit_id in press_view_ids
+    assert set(press_view_ids).issubset(set(str(value) for value in inventory_ids if value))
     workbook.close()
 
 

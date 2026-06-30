@@ -115,7 +115,7 @@ def test_hybrid_and_semantic_warnings_are_non_blocking(fake_project):
 
     specialty = semantic_consistency_warnings(
         {
-            "Audit ID": "AUD-20260604-007",
+            "Audit ID": "AUD-20260604-009",
             "EOAT Type": "Mechanical / Gripper",
             "Gripper Model": "Silicone OD",
         }

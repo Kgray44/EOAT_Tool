@@ -304,6 +304,41 @@ def test_settings_accordions_are_collapsed_by_default(qapp, tmp_path: Path) -> N
     assert "Data Refresh" in _widget_text(page)
 
 
+def test_qr_settings_badge_reflects_enabled_setting(qapp) -> None:
+    page = atlas_pages.DiagnosticsPage(_SettingsController(settings=AtlasSettings(enable_qr_codes=True)))
+
+    assert page.qr_codes_check.isChecked() is True
+    assert page.qr_section.status_chip.text() == "Enabled"
+    assert page.qr_section.status_chip.objectName() == "SuccessChip"
+
+
+def test_qr_settings_badge_reflects_disabled_setting(qapp) -> None:
+    page = atlas_pages.DiagnosticsPage(_SettingsController(settings=AtlasSettings(enable_qr_codes=False)))
+
+    assert page.qr_codes_check.isChecked() is False
+    assert page.qr_section.status_chip.text() == "Disabled"
+    assert page.qr_section.status_chip.objectName() == "NeutralChip"
+
+
+def test_qr_settings_badge_updates_when_checkbox_toggles(qapp) -> None:
+    controller = _SettingsController(settings=AtlasSettings(enable_qr_codes=False))
+    page = atlas_pages.DiagnosticsPage(controller)
+
+    page.qr_codes_check.setChecked(True)
+    qapp.processEvents()
+
+    assert controller.settings.enable_qr_codes is True
+    assert page.qr_section.status_chip.text() == "Enabled"
+    assert page.qr_section.status_chip.objectName() == "SuccessChip"
+
+    page.qr_codes_check.setChecked(False)
+    qapp.processEvents()
+
+    assert controller.settings.enable_qr_codes is False
+    assert page.qr_section.status_chip.text() == "Disabled"
+    assert page.qr_section.status_chip.objectName() == "NeutralChip"
+
+
 def test_accordion_component_uses_clickable_header_without_clipped_body(qapp) -> None:
     section = AccordionSection("Photo Loading / Cache", "127 decoded images, 1347.7 / 1928 MB cache", status_text="Paused")
 
@@ -441,8 +476,9 @@ class _PaletteWindow:
 
 
 class _SettingsController(_PaletteWindow):
-    def __init__(self, bundle: AtlasDataBundle | None = None):
+    def __init__(self, bundle: AtlasDataBundle | None = None, settings: AtlasSettings | None = None):
         super().__init__(bundle or AtlasDataBundle(project_root="", loaded_at=""))
+        self.settings = settings or self.settings
         self.photo_loader = SimpleNamespace(
             stats=lambda: {
                 "cache_status": "Ready",

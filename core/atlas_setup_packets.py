@@ -534,6 +534,7 @@ def build_standard_changeover_checklist() -> tuple[str, ...]:
         "Check tubing routing and strain relief.",
         "Check quick disconnects.",
         "Confirm robot-side pneumatic circuit connections.",
+        "Confirm external peripheral IO-controlled air circuit connections if applicable.",
         "Confirm EOAT-side pneumatic circuit connections.",
         "Confirm sensor / part-present / vacuum detection if applicable.",
         "Mount EOAT using approved method.",

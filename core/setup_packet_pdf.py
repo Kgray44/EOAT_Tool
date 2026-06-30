@@ -28,6 +28,12 @@ from .atlas_setup_packets import (
     row_first,
 )
 from .atlas_utils import normalized_eoat_key, normalized_machine_key, normalized_tool_key
+from .audit_constants import (
+    AIR_ARCHITECTURE_EXTERNAL_ONLY,
+    AIR_ARCHITECTURE_MIXED,
+    EXTERNAL_AIR_CONTROL_NOTE,
+    MIXED_AIR_CONTROL_BADGE,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -266,10 +272,12 @@ def _machine_information(story: list, styles: dict[str, ParagraphStyle], context
 def _robot_information(story: list, styles: dict[str, ParagraphStyle], context: SetupPacketContext) -> None:
     _section_title(story, styles, "Robot Information")
     robot = context.robot_info
+    architecture = row_first(context.eoat, "Air Circuit Architecture")
     rows = [
         ("Robot type", _first(robot.get("Robot Type"), getattr(context.machine, "robot_type", ""))),
         ("Robot model / controller", _first(robot.get("Robot Identifier"), robot.get("Robot Model/Controller"), getattr(context.machine, "robot_model", ""))),
         ("Controller", _first(robot.get("Controller Type"), getattr(context.machine, "controller", ""))),
+        ("Air Architecture", architecture),
         ("Robot-side vacuum circuits", robot.get("Robot Vacuum Circuits", "")),
         ("Robot-side pressure circuits", robot.get("Robot Pressure Circuits", "")),
         ("Robot-side interchangeable circuits", robot.get("Robot Interchangeable Circuits", "")),
@@ -335,13 +343,18 @@ def _pneumatics_section(story: list, styles: dict[str, ParagraphStyle], context:
     _section_title(story, styles, "Pneumatics / Vacuum / Gripper / Sensor Information")
     eoat = context.eoat
     robot = context.robot_info
+    architecture = row_first(eoat, "Air Circuit Architecture")
     rows = [
+        ("Air Architecture", architecture),
         ("EOAT-side vacuum circuits", _first(row_first(eoat, "EOAT Vacuum Circuits"), getattr(eoat, "vacuum_info", ""))),
         ("EOAT-side pressure circuits", _first(row_first(eoat, "EOAT Pressure Circuits"), getattr(eoat, "pressure_info", ""))),
         ("EOAT-side interchangeable circuits", row_first(eoat, "EOAT Interchangeable Circuits")),
         ("Robot-side vacuum circuits", robot.get("Robot Vacuum Circuits", "")),
         ("Robot-side pressure circuits", robot.get("Robot Pressure Circuits", "")),
         ("Robot-side interchangeable circuits", robot.get("Robot Interchangeable Circuits", "")),
+        ("External vacuum circuits", row_first(eoat, "External Vacuum Circuits")),
+        ("External pressure circuits", row_first(eoat, "External Pressure Circuits")),
+        ("External interchangeable circuits", row_first(eoat, "External Interchangeable Circuits")),
         ("Number of grippers", row_first(eoat, "# of Grippers")),
         ("Gripper type", row_first(eoat, "Gripper Type")),
         ("Gripper model", row_first(eoat, "Gripper Model")),
@@ -351,6 +364,11 @@ def _pneumatics_section(story: list, styles: dict[str, ParagraphStyle], context:
         ("Sensor brand / model", row_first(eoat, "Sensor Brand/Model")),
         ("Tubing / routing notes", getattr(eoat, "tubing_notes", "")),
     ]
+    if architecture == AIR_ARCHITECTURE_MIXED:
+        rows.insert(1, ("Air control badge", MIXED_AIR_CONTROL_BADGE))
+    if architecture in {AIR_ARCHITECTURE_MIXED, AIR_ARCHITECTURE_EXTERNAL_ONLY}:
+        insert_at = next((index for index, row in enumerate(rows) if row[0] == "Number of grippers"), len(rows))
+        rows.insert(insert_at, ("External air control", EXTERNAL_AIR_CONTROL_NOTE))
     story.append(_kv_table(rows, styles))
     story.append(Spacer(1, 0.18 * inch))
 

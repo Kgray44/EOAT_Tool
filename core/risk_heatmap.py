@@ -427,17 +427,36 @@ def _documentation_gap_evidence(row: dict[str, Any], machine: str, audit_id: str
 
 def _pneumatic_mismatch_text(row: dict[str, Any]) -> str:
     pairs = [
-        ("Robot Vacuum Circuits", "EOAT Vacuum Circuits"),
-        ("Robot Pressure Circuits", "EOAT Pressure Circuits"),
-        ("Robot Interchangeable Circuits", "EOAT Interchangeable Circuits"),
+        ("Vacuum", "EOAT Vacuum Circuits", "Robot Vacuum Circuits", "External Vacuum Circuits"),
+        ("Pressure", "EOAT Pressure Circuits", "Robot Pressure Circuits", "External Pressure Circuits"),
+        (
+            "Interchangeable",
+            "EOAT Interchangeable Circuits",
+            "Robot Interchangeable Circuits",
+            "External Interchangeable Circuits",
+        ),
     ]
     mismatches: list[str] = []
-    for robot_field, eoat_field in pairs:
-        robot = _numeric(row.get(robot_field))
-        eoat = _numeric(row.get(eoat_field))
-        if robot and eoat and robot != eoat:
-            mismatches.append(f"{robot_field}={robot:g} vs {eoat_field}={eoat:g}")
+    for label, eoat_field, robot_field, external_field in pairs:
+        eoat = _strict_circuit_numeric(row.get(eoat_field))
+        robot = _strict_circuit_numeric(row.get(robot_field))
+        external = _strict_circuit_numeric(row.get(external_field))
+        if eoat is None or robot is None or external is None:
+            continue
+        source = robot + external
+        if eoat != source:
+            mismatches.append(f"{label} circuits: {eoat_field}={eoat:g} vs robot + external={source:g}")
     return "; ".join(mismatches)
+
+
+def _strict_circuit_numeric(value: Any) -> float | None:
+    text = text_value(value)
+    if not text or text.casefold() in {"n/a", "na", "unknown", "unknown / not checked", "needs verification"}:
+        return None
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
 
 
 def _risk_level(score: int, evidence_count: int) -> str:

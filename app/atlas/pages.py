@@ -3272,7 +3272,8 @@ class DiagnosticsPage(BaseAtlasPage):
         control_card.layout.addWidget(refresh_button)
         layout.addWidget(control_card)
 
-        qr_section = AccordionSection("QR Code Settings", "Payload, labels, preview, and phone-safe QR options", status_text="Enabled" if self.controller.settings.enable_qr_codes else "Disabled", status_kind="good" if self.controller.settings.enable_qr_codes else "unknown")
+        qr_section = AccordionSection("QR Code Settings", "Payload, labels, preview, and phone-safe QR options")
+        self.qr_section = qr_section
         qr_grid_widget = QWidget()
         qr_grid = QGridLayout(qr_grid_widget)
         qr_grid.setContentsMargins(0, 0, 0, 0)
@@ -3427,6 +3428,7 @@ class DiagnosticsPage(BaseAtlasPage):
 
     def settings_changed(self) -> None:
         self._sync_settings_controls()
+        self.update_settings_status_badges()
         self._refresh_photo_cache_stats()
         self._apply_diagnostics_visibility()
 
@@ -3521,10 +3523,17 @@ class DiagnosticsPage(BaseAtlasPage):
         self.auto_refresh_check.setChecked(settings.auto_refresh_on_startup)
         for control in controls:
             control.blockSignals(False)
+        self.update_settings_status_badges()
 
     def _save_setting(self, **changes) -> None:
         self.controller.update_settings(replace(self.controller.settings, **changes))
+        self.update_settings_status_badges()
         self._refresh_photo_cache_stats()
+
+    def update_settings_status_badges(self) -> None:
+        if hasattr(self, "qr_section"):
+            qr_enabled = bool(self.controller.settings.enable_qr_codes)
+            self.qr_section.set_status("Enabled" if qr_enabled else "Disabled", "success" if qr_enabled else "neutral")
 
     def clear_photo_cache(self) -> None:
         self.controller.photo_loader.clear_cache()

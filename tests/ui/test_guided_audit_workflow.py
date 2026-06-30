@@ -55,7 +55,6 @@ def test_guided_mode_save_audit_uses_existing_save_workflow(qapp, fake_config, f
     page = AuditPage(fake_config)
     page.show()
     page.audit_entry_mode_combo.setCurrentText("Guided Audit")
-    audit_id = page.audit_fields["Audit ID"].text()
     page.audit_fields["Press/Machine #"].setText("Press 91")
     page.audit_fields["Robot Type"].setCurrentText("Wittmann R9")
     page.audit_fields["EOAT Type"].setCurrentText("Vacuum")
@@ -64,5 +63,6 @@ def test_guided_mode_save_audit_uses_existing_save_workflow(qapp, fake_config, f
     click_button(page, "Save Audit Entry")
     wait_for_background_tasks()
 
+    audit_id = page.audit_fields["Audit ID"].text()
     assert audit_id
     assert "Audit Save Summary" in page.result_panel.viewer.toPlainText()

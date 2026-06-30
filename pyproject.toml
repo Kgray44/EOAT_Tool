@@ -28,3 +28,4 @@ ignore = [
 "tests/**" = ["E501"]
 "tools/*.py" = ["E402"]
 "scripts/ci_smoke_check.py" = ["E402"]
+"scripts/migrate_air_circuit_architecture.py" = ["E402"]

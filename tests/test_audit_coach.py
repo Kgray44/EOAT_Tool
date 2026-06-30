@@ -10,6 +10,12 @@ from core.audit.coach import (
     calculate_audit_coach_summary,
 )
 from core.audit_constants import (
+    AIR_ARCHITECTURE_EXTERNAL_ONLY,
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
+    AUDIT_CONTEXT_FIELD,
+    AUDIT_CONTEXT_INSTALLED,
     CYLINDER_COUNT_FIELD,
     CYLINDER_TYPE_DEFAULT,
     CYLINDER_TYPE_FIELD,
@@ -56,6 +62,22 @@ SECTIONS = {
     "Pilot / Final Notes": ["Robot Notes", "Notes"],
 }
 
+AIR_SECTIONS = {
+    **SECTIONS,
+    "Pneumatic Circuits": [
+        AIR_CIRCUIT_ARCHITECTURE_FIELD,
+        "EOAT Vacuum Circuits",
+        "EOAT Pressure Circuits",
+        "EOAT Interchangeable Circuits",
+        "Robot Vacuum Circuits",
+        "Robot Pressure Circuits",
+        "Robot Interchangeable Circuits",
+        "External Vacuum Circuits",
+        "External Pressure Circuits",
+        "External Interchangeable Circuits",
+    ],
+}
+
 
 def _base_entry(**overrides):
     entry = {
@@ -64,6 +86,7 @@ def _base_entry(**overrides):
         "Auditor": "Demo Auditor",
         "Plant/Area": "Demo Area",
         "Press/Machine #": "Demo Press",
+        AUDIT_CONTEXT_FIELD: AUDIT_CONTEXT_INSTALLED,
         "Status": "In Progress",
         "Priority": "Medium",
         "Follow-Up Needed": "No",
@@ -88,6 +111,16 @@ def _base_entry(**overrides):
         "Photo Folder/Link": "",
         "Tubing Condition": "OK",
         "Tubing Routing Notes": "",
+        AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_ROBOT_ONLY,
+        "EOAT Vacuum Circuits": "N/A",
+        "EOAT Pressure Circuits": "N/A",
+        "EOAT Interchangeable Circuits": "0",
+        "Robot Vacuum Circuits": "",
+        "Robot Pressure Circuits": "",
+        "Robot Interchangeable Circuits": "0",
+        "External Vacuum Circuits": "N/A",
+        "External Pressure Circuits": "N/A",
+        "External Interchangeable Circuits": "N/A",
         "Robot Notes": "",
         "Notes": "",
     }
@@ -313,6 +346,61 @@ def test_robot_notes_does_not_inflate_audit_coach_section_percentage():
     assert _status(summary, "Robot Notes").applies is False
 
 
+def test_pneumatic_circuit_boxes_score_by_applicable_source_section():
+    summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_ROBOT_ONLY,
+                "EOAT Vacuum Circuits": "",
+                "EOAT Pressure Circuits": "2",
+                "EOAT Interchangeable Circuits": "",
+                "Robot Vacuum Circuits": "",
+                "Robot Pressure Circuits": "1",
+                "Robot Interchangeable Circuits": "",
+                "External Vacuum Circuits": "",
+                "External Pressure Circuits": "",
+                "External Interchangeable Circuits": "",
+            }
+        ),
+        AIR_SECTIONS,
+    )
+    section = next(section for section in summary.sections if section.name == "Pneumatic Circuits")
+
+    assert section.applicable_count == 3
+    assert section.verified_complete_count == 3
+    assert section.percent_complete == 100
+    assert _status(summary, "EOAT Pressure Circuits").state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, "Robot Pressure Circuits").state == STATE_VERIFIED_COMPLETE
+    assert _status(summary, "EOAT Vacuum Circuits").state == STATE_NOT_APPLICABLE
+    assert _status(summary, "Robot Vacuum Circuits").state == STATE_NOT_APPLICABLE
+    assert _status(summary, "External Pressure Circuits").state == STATE_NOT_APPLICABLE
+    assert "Robot Vacuum Circuits" not in summary.missing_fields
+
+
+def test_mixed_pneumatic_architecture_requires_one_external_numeric_count():
+    summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_MIXED,
+                "EOAT Pressure Circuits": "2",
+                "Robot Pressure Circuits": "1",
+                "External Vacuum Circuits": "",
+                "External Pressure Circuits": "",
+                "External Interchangeable Circuits": "",
+            }
+        ),
+        AIR_SECTIONS,
+    )
+    section = next(section for section in summary.sections if section.name == "Pneumatic Circuits")
+
+    assert section.applicable_count == 4
+    assert section.verified_complete_count == 3
+    assert "External Vacuum Circuits" in summary.missing_fields
+    assert "External Pressure Circuits" not in summary.missing_fields
+    assert _status(summary, "External Vacuum Circuits").state == STATE_MISSING
+    assert _status(summary, "External Pressure Circuits").state == STATE_NOT_APPLICABLE
+
+
 def test_miscellaneous_eoat_counts_gripper_fields_as_applicable():
     summary = calculate_audit_coach_summary(
         _base_entry(
@@ -377,3 +465,56 @@ def test_manual_completion_override_forces_completion_for_current_audit():
     assert summary.guided_fields == ()
     assert summary.missing_fields == ()
     assert summary.ignored_empty_fields_at_override == ("Press/Machine #", "Sensor Brand/Model")
+
+
+def test_air_architecture_warnings_for_robot_only_external_values():
+    summary = calculate_audit_coach_summary(
+        _base_entry(**{"External Pressure Circuits": "1"}),
+        AIR_SECTIONS,
+    )
+
+    assert any(
+        finding.message == "Robot Only architecture selected, but external circuit fields contain values."
+        for finding in summary.findings
+    )
+
+
+def test_air_architecture_warnings_for_mixed_without_external_counts():
+    summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_MIXED,
+                "External Vacuum Circuits": "N/A",
+                "External Pressure Circuits": "0",
+                "External Interchangeable Circuits": "N/A",
+            }
+        ),
+        AIR_SECTIONS,
+    )
+
+    assert any(
+        finding.message == "Mixed air architecture selected, but no external circuit count appears to be documented."
+        for finding in summary.findings
+    )
+
+
+def test_cleanroom_mixed_machine_warning_and_numeric_consistency_check():
+    summary = calculate_audit_coach_summary(
+        _base_entry(
+            **{
+                "Press/Machine #": "65",
+                AIR_CIRCUIT_ARCHITECTURE_FIELD: AIR_ARCHITECTURE_EXTERNAL_ONLY,
+                "EOAT Pressure Circuits": "4",
+                "Robot Pressure Circuits": "2",
+                "External Pressure Circuits": "1",
+            }
+        ),
+        AIR_SECTIONS,
+    )
+
+    messages = {finding.message for finding in summary.findings}
+    assert (
+        "This Cleanroom machine is expected to use Mixed Robot + External Peripheral air architecture unless verified otherwise."
+        in messages
+    )
+    assert "Pressure circuit mismatch: EOAT total is 4, but robot + external source count is 3." in messages

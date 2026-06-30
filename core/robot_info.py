@@ -10,6 +10,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from .audit_constants import AIR_CIRCUIT_ARCHITECTURE_FIELD, air_architecture_hides_robot_fields
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import backup_file, ensure_directory
@@ -122,6 +123,14 @@ def load_robot_info(
 
 def upsert_robot_info_from_audit(project_root: str | Path, entry: dict[str, Any]) -> ToolResult:
     started = time.perf_counter()
+    if air_architecture_hides_robot_fields(entry.get(AIR_CIRCUIT_ARCHITECTURE_FIELD)):
+        return ToolResult.ok(
+            "robot_info_save",
+            "Robot Info",
+            "Robot Info was not updated because air architecture is External Peripheral Only.",
+            details=["Robot-supplied pneumatic fields are not applicable for this audit."],
+            duration_seconds=time.perf_counter() - started,
+        )
     audit_id = str(entry.get("Audit ID") or "").strip()
     plant_area = str(entry.get("Plant/Area") or "").strip()
     machine_number = str(entry.get("Press/Machine #") or "").strip()
@@ -335,6 +344,8 @@ def _validate_robot_circuit_values(entry: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     for field in ROBOT_CIRCUIT_FIELDS:
         text = str(entry.get(field) or "").strip()
+        if text.upper() in {"N/A", "NA", "NOT APPLICABLE"}:
+            continue
         if not text and field != "Robot Interchangeable Circuits":
             continue
         if _parse_non_negative_int(text or "0") is None:
@@ -344,6 +355,8 @@ def _validate_robot_circuit_values(entry: dict[str, Any]) -> list[str]:
 
 def _normalized_robot_circuit(value: Any, *, allow_blank: bool) -> int | str:
     text = str(value or "").strip()
+    if text.upper() in {"N/A", "NA", "NOT APPLICABLE"}:
+        return "" if allow_blank else 0
     if not text and allow_blank:
         return ""
     parsed = _parse_non_negative_int(text or "0")

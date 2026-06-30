@@ -6,6 +6,11 @@ from typing import Any
 
 from core.audit.schema import AuditFieldSpec, all_audit_fields, audit_sections, field_by_header
 from core.audit_constants import (
+    AIR_ARCHITECTURE_EXTERNAL_ONLY,
+    AIR_ARCHITECTURE_MIXED,
+    AIR_ARCHITECTURE_ROBOT_ONLY,
+    AIR_ARCHITECTURE_UNKNOWN,
+    AIR_CIRCUIT_ARCHITECTURE_FIELD,
     AUDIT_CONTEXT_COMPATIBILITY,
     AUDIT_CONTEXT_FIELD,
     AUDIT_CONTEXT_INSTALLED,
@@ -14,11 +19,14 @@ from core.audit_constants import (
     CYLINDER_FIELDS,
     ENTRY_TYPE_COMPATIBLE,
     ENTRY_TYPE_FIELD,
+    EOAT_PNEUMATIC_FIELDS,
+    EXTERNAL_PNEUMATIC_FIELDS,
     IGNORED_EMPTY_FIELDS_AT_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_FIELD,
     MANUAL_COMPLETION_OVERRIDE_TIMESTAMP_FIELD,
     MANUAL_COMPLETION_OVERRIDE_USER_FIELD,
     PHYSICAL_AUDIT_VERIFIED_FIELD,
+    ROBOT_PNEUMATIC_FIELDS,
     SOURCE_AUDIT_ID_FIELD,
 )
 from core.audit_context import INSTALLATION_ONLY_FIELDS, infer_audit_context
@@ -140,6 +148,14 @@ SENSOR_PNEUMATIC_ELECTRICAL_GROUPS = {
     "quick_disconnect",
 }
 DOCUMENTATION_GROUPS = {"documentation", "photo"}
+PNEUMATIC_CIRCUIT_GROUPS = (
+    ("EOAT Total / Tool-Side Circuits", tuple(EOAT_PNEUMATIC_FIELDS)),
+    ("Robot-Supplied Circuits", tuple(ROBOT_PNEUMATIC_FIELDS)),
+    ("External Peripheral IO Circuits", tuple(EXTERNAL_PNEUMATIC_FIELDS)),
+)
+PNEUMATIC_CIRCUIT_FIELD_SET = frozenset(
+    field for _group_name, group_fields in PNEUMATIC_CIRCUIT_GROUPS for field in group_fields
+)
 
 
 @dataclass(frozen=True)
@@ -276,6 +292,11 @@ def calculate_audit_completion(
                 entry_type=entry_type,
             )
             for field in fields
+        )
+        field_statuses = _apply_pneumatic_circuit_completion_policy(
+            current_entry,
+            section_map,
+            field_statuses,
         )
         raw_statuses.extend(field_statuses)
         raw_section_statuses.append(_section_summary(str(section_name), field_statuses))
@@ -551,6 +572,165 @@ def _sections_from_final_statuses(
         _section_summary(str(section_name), tuple(by_field[field] for field in fields if field in by_field))
         for section_name, fields in sections.items()
     )
+
+
+def _apply_pneumatic_circuit_completion_policy(
+    entry: Mapping[str, str],
+    sections: Mapping[str, list[str] | tuple[str, ...]],
+    statuses: tuple[FieldCompletionStatus, ...],
+) -> tuple[FieldCompletionStatus, ...]:
+    # Pneumatic count boxes are source-section evidence, not separate checklist items.
+    # One numeric count completes the applicable source section; sibling boxes stay visible
+    # but do not each add or subtract from the audit completion percentage.
+    status_by_field = {status.field: status for status in statuses}
+    if not any(field in status_by_field for field in PNEUMATIC_CIRCUIT_FIELD_SET):
+        return statuses
+
+    architecture = normalize_text(entry.get(AIR_CIRCUIT_ARCHITECTURE_FIELD))
+    architecture_declared = AIR_CIRCUIT_ARCHITECTURE_FIELD in entry or AIR_CIRCUIT_ARCHITECTURE_FIELD in _section_fields(
+        sections
+    )
+    if not architecture and not architecture_declared:
+        architecture = AIR_ARCHITECTURE_ROBOT_ONLY
+
+    transformed = dict(status_by_field)
+    applicable_groups = _applicable_pneumatic_completion_groups(architecture)
+    for group_name, group_fields in PNEUMATIC_CIRCUIT_GROUPS:
+        present_fields = tuple(field for field in group_fields if field in status_by_field)
+        if not present_fields:
+            continue
+        group_applies = group_name in applicable_groups
+        group_statuses = tuple(status_by_field[field] for field in present_fields)
+        replacement_statuses = _pneumatic_group_statuses(group_name, group_statuses, group_applies)
+        transformed.update({status.field: status for status in replacement_statuses})
+
+    return tuple(transformed.get(status.field, status) for status in statuses)
+
+
+def _applicable_pneumatic_completion_groups(architecture: str) -> set[str]:
+    if architecture == AIR_ARCHITECTURE_ROBOT_ONLY:
+        return {"EOAT Total / Tool-Side Circuits", "Robot-Supplied Circuits"}
+    if architecture == AIR_ARCHITECTURE_EXTERNAL_ONLY:
+        return {"EOAT Total / Tool-Side Circuits", "External Peripheral IO Circuits"}
+    if architecture in {AIR_ARCHITECTURE_MIXED, AIR_ARCHITECTURE_UNKNOWN}:
+        return {
+            "EOAT Total / Tool-Side Circuits",
+            "Robot-Supplied Circuits",
+            "External Peripheral IO Circuits",
+        }
+    if not architecture or is_na_value(architecture):
+        return set()
+    return {
+        "EOAT Total / Tool-Side Circuits",
+        "Robot-Supplied Circuits",
+        "External Peripheral IO Circuits",
+    }
+
+
+def _pneumatic_group_statuses(
+    group_name: str,
+    statuses: tuple[FieldCompletionStatus, ...],
+    group_applies: bool,
+) -> tuple[FieldCompletionStatus, ...]:
+    if not statuses:
+        return ()
+    if group_applies and not any(status.applies or status.counted for status in statuses):
+        return statuses
+    if not group_applies:
+        return tuple(_non_counting_pneumatic_status(status, group_name, group_applies=False) for status in statuses)
+
+    numeric_status = next((status for status in statuses if _is_numeric_circuit_count(status.value)), None)
+    representative = numeric_status or statuses[0]
+    ignored_statuses = [
+        _non_counting_pneumatic_status(status, group_name, group_applies=True)
+        for status in statuses
+        if status.field != representative.field
+    ]
+    if numeric_status is not None:
+        counted_status = replace(
+            representative,
+            state=STATE_VERIFIED_COMPLETE,
+            applies=True,
+            counted=True,
+            verified=True,
+            reason=(
+                f"{group_name} counts as one completion item because "
+                f"{representative.field} has numeric count {representative.value}."
+            ),
+        )
+    else:
+        state = (
+            STATE_UNKNOWN_NOT_CHECKED
+            if any(_is_unknown_or_needs_verification(status.value) for status in statuses)
+            else STATE_MISSING
+        )
+        counted_status = replace(
+            representative,
+            state=state,
+            applies=True,
+            counted=True,
+            verified=False,
+            reason=f"{group_name} needs at least one numeric circuit count.",
+        )
+
+    replacements = {counted_status.field: counted_status}
+    replacements.update({status.field: status for status in ignored_statuses})
+    return tuple(replacements[status.field] for status in statuses)
+
+
+def _non_counting_pneumatic_status(
+    status: FieldCompletionStatus,
+    group_name: str,
+    *,
+    group_applies: bool,
+) -> FieldCompletionStatus:
+    if not group_applies and status.state == STATE_STALE_CONFLICT:
+        return replace(
+            status,
+            counted=False,
+            verified=False,
+            reason=f"{group_name} does not apply for the selected air architecture. {status.reason}",
+        )
+    if not group_applies:
+        return replace(
+            status,
+            state=STATE_NOT_APPLICABLE,
+            applies=False,
+            counted=False,
+            verified=False,
+            reason=f"{group_name} does not apply for the selected air architecture.",
+        )
+    return replace(
+        status,
+        state=STATE_IGNORED_BY_OPTIONAL_GROUP,
+        applies=False,
+        counted=False,
+        verified=False,
+        reason=f"{group_name} is scored once; this individual box is not counted separately.",
+    )
+
+
+def _is_numeric_circuit_count(value: str) -> bool:
+    text = normalize_text(value)
+    if not text or is_na_value(text) or _is_unknown_or_needs_verification(text):
+        return False
+    if text.endswith(".0"):
+        text = text[:-2]
+    try:
+        return float(text) >= 0
+    except ValueError:
+        return False
+
+
+def _is_unknown_or_needs_verification(value: str) -> bool:
+    folded = normalize_text(value).casefold()
+    return folded in {
+        "unknown / not checked",
+        "unknown / needs verification",
+        "unknown",
+        "not checked",
+        "needs verification",
+    }
 
 
 def _completion_findings(entry: dict[str, str], statuses: tuple[FieldCompletionStatus, ...]) -> tuple[str, ...]:
