@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from threading import RLock
@@ -39,7 +40,21 @@ from .audit_compatibility import (
 from .documentation_score import calculate_documentation_status
 from .eoat_ids import normalize_eoat_assembly_id
 from .paths import get_press_capacity_file, resolve_project_paths
+from .performance import log_perf_marker, perf_timer
 from .photo_index import build_photo_index
+
+
+@dataclass(frozen=True)
+class CurrentEoatResolution:
+    eoat_id: str = ""
+    status: str = "unknown"
+    source: str = ""
+    confidence: str = "unknown"
+    reason: str = "not indexed"
+    source_row_index: int = -1
+    matching_rows_count: int = 0
+    eoat_ids_found: tuple[str, ...] = ()
+    ambiguous: bool = False
 from .standards_index import STANDARD_EXTENSIONS, STANDARDIZATION_KEYWORDS, build_standards_index, standards_for_record
 from .tool_fields import TOOL_FIELD
 from .workbook_cache import row_dicts_cached, workbook_file_signature
@@ -48,17 +63,62 @@ _CACHE_LOCK = RLock()
 _CACHE: dict[str, tuple[tuple[tuple[str, bool, int, int], ...], AtlasDataBundle]] = {}
 
 
-def load_atlas_data(project_root: str | Path, *, force_refresh: bool = False) -> AtlasDataBundle:
+def load_atlas_data(
+    project_root: str | Path,
+    *,
+    force_refresh: bool = False,
+    exclude_unaudited_tools: bool = True,
+) -> AtlasDataBundle:
     root = Path(project_root)
-    signature = _cache_signature(root)
-    cache_key = str(root.resolve(strict=False)).casefold()
+    with perf_timer(
+        root,
+        "atlas.load.cache_signature",
+        details={"ui_sensitive": "cached_data_load", "force_refresh": bool(force_refresh)},
+        source="atlas_data_loader",
+        page_tool="atlas_backend",
+    ):
+        signature = _cache_signature(root)
+    cache_key = _cache_key(root, exclude_unaudited_tools=exclude_unaudited_tools)
     if not force_refresh:
-        with _CACHE_LOCK:
-            cached = _CACHE.get(cache_key)
-            if cached and cached[0] == signature:
-                return cached[1]
+        with perf_timer(
+            root,
+            "atlas.load.memory_cache_lookup",
+            details={"ui_sensitive": "cached_data_load", "cache_key": cache_key},
+            source="atlas_data_loader",
+            page_tool="atlas_backend",
+        ):
+            with _CACHE_LOCK:
+                cached = _CACHE.get(cache_key)
+                if cached and cached[0] == signature:
+                    log_perf_marker(
+                        root,
+                        "atlas.load.memory_cache_hit",
+                        details={
+                            "ui_sensitive": "cached_data_load",
+                            "eoats": len(cached[1].eoats),
+                            "tools": len(cached[1].tools),
+                            "machines": len(cached[1].machines),
+                        },
+                        source="atlas_data_loader",
+                        page_tool="atlas_backend",
+                    )
+                    return cached[1]
+        log_perf_marker(
+            root,
+            "atlas.load.memory_cache_miss",
+            details={"ui_sensitive": "cached_data_load", "force_refresh": bool(force_refresh)},
+            source="atlas_data_loader",
+            page_tool="atlas_backend",
+        )
 
-    bundle = _load_atlas_data_uncached(root)
+    with perf_timer(
+        root,
+        "atlas.load.uncached",
+        details={"ui_sensitive": "cached_data_load", "force_refresh": bool(force_refresh)},
+        source="atlas_data_loader",
+        page_tool="atlas_backend",
+    ):
+        bundle = _load_atlas_data_uncached(root, exclude_unaudited_tools=exclude_unaudited_tools)
     with _CACHE_LOCK:
         _CACHE[cache_key] = (signature, bundle)
     return bundle
@@ -69,44 +129,91 @@ def invalidate_atlas_data_cache(project_root: str | Path | None = None) -> None:
         if project_root is None:
             _CACHE.clear()
             return
-        key = str(Path(project_root).resolve(strict=False)).casefold()
-        _CACHE.pop(key, None)
+        key = _cache_key_root(Path(project_root))
+        for cache_key in tuple(_CACHE):
+            if cache_key.startswith(key):
+                _CACHE.pop(cache_key, None)
 
 
-def _load_atlas_data_uncached(project_root: Path) -> AtlasDataBundle:
+def _load_atlas_data_uncached(project_root: Path, *, exclude_unaudited_tools: bool) -> AtlasDataBundle:
     diagnostics = AtlasDiagnostics()
     paths = resolve_project_paths(project_root)
     source_statuses = _source_statuses(project_root)
     warnings: list[WarningItem] = []
+    excluded_unaudited_tool_count = 0
 
     with timed_step(diagnostics, "workbook_load"):
-        inventory_rows, inventory_warnings = _safe_rows(paths.master_workbook, "EOAT Inventory", "EOAT Master Tracker")
-        photo_rows, photo_warnings = _safe_rows(paths.master_workbook, "Photo Index", "EOAT Photo Index")
-        robot_rows, robot_warnings = _safe_rows(paths.robot_info_workbook, "Robot Info", "Robot Info", optional=True)
+        with perf_timer(
+            project_root,
+            "atlas.workbook_load",
+            details={"ui_sensitive": "excel_read", "workbooks": "master tracker, photo index, robot info"},
+            source="atlas_data_loader",
+            page_tool="atlas_backend",
+        ):
+            inventory_rows, inventory_warnings = _safe_rows(paths.master_workbook, "EOAT Inventory", "EOAT Master Tracker")
+            photo_rows, photo_warnings = _safe_rows(paths.master_workbook, "Photo Index", "EOAT Photo Index")
+            robot_rows, robot_warnings = _safe_rows(paths.robot_info_workbook, "Robot Info", "Robot Info", optional=True)
     warnings.extend(inventory_warnings)
     warnings.extend(photo_warnings)
     warnings.extend(robot_warnings)
 
     with timed_step(diagnostics, "press_capacity_load"):
-        press_relationships, press_warnings = load_required_relationships(get_press_capacity_file(project_root))
+        with perf_timer(
+            project_root,
+            "atlas.press_capacity_load",
+            details={"ui_sensitive": "excel_read", "exclude_unaudited_tools": bool(exclude_unaudited_tools)},
+            source="atlas_data_loader",
+            page_tool="atlas_backend",
+        ):
+            press_relationships, press_warnings = load_required_relationships(get_press_capacity_file(project_root))
+            if exclude_unaudited_tools:
+                audited_tool_keys = _audited_tool_keys(inventory_rows)
+                before_count = len(press_relationships)
+                press_relationships = [
+                    relationship
+                    for relationship in press_relationships
+                    if normalized_tool_key(relationship.part_number) in audited_tool_keys
+                ]
+                excluded_unaudited_tool_count = before_count - len(press_relationships)
     warnings.extend(_warning("warning", "Press Capacity", warning, source="Press Capacity") for warning in press_warnings)
 
     with timed_step(diagnostics, "standards_index"):
-        standards, standards_warnings = build_standards_index(project_root)
+        with perf_timer(
+            project_root,
+            "atlas.standards_index",
+            details={"ui_sensitive": "folder_scan"},
+            source="atlas_data_loader",
+            page_tool="atlas_backend",
+        ):
+            standards, standards_warnings = build_standards_index(project_root)
     warnings.extend(_warning("info", "Standards", warning, source="Standards") for warning in standards_warnings)
 
     with timed_step(diagnostics, "photo_index"):
-        photo_sets, photos_by_tool, photo_warnings = build_photo_index(project_root, inventory_rows, photo_rows)
+        with perf_timer(
+            project_root,
+            "atlas.photo_index",
+            details={"ui_sensitive": "photo_index_scan"},
+            source="atlas_data_loader",
+            page_tool="atlas_backend",
+        ):
+            photo_sets, photos_by_tool, photo_warnings = build_photo_index(project_root, inventory_rows, photo_rows)
     warnings.extend(_warning("warning", "Photos", warning, source="Photos") for warning in photo_warnings)
 
     robot_by_machine = _robot_rows_by_machine(robot_rows)
     with timed_step(diagnostics, "cache_build"):
-        eoats = _build_eoat_records(inventory_rows, press_relationships, photo_sets, standards, warnings)
-        machines = _build_machine_records(inventory_rows, press_relationships, eoats, robot_by_machine)
-        tools = _build_tool_records(inventory_rows, press_relationships, eoats)
-        indexes = _build_indexes(eoats, machines, tools, photos_by_tool, robot_by_machine)
-        bundle_warnings = _bundle_warnings(eoats, machines, tools, indexes)
-        warnings.extend(bundle_warnings)
+        with perf_timer(
+            project_root,
+            "atlas.cache_build",
+            details={"ui_sensitive": "cached_data_load"},
+            source="atlas_data_loader",
+            page_tool="atlas_backend",
+        ):
+            eoats = _build_eoat_records(inventory_rows, press_relationships, photo_sets, standards, warnings)
+            machines = _build_machine_records(inventory_rows, press_relationships, eoats, robot_by_machine)
+            tools = _build_tool_records(inventory_rows, press_relationships, eoats)
+            indexes = _build_indexes(eoats, machines, tools, photos_by_tool, robot_by_machine)
+            bundle_warnings = _bundle_warnings(eoats, machines, tools, indexes)
+            warnings.extend(bundle_warnings)
 
     diagnostics.counters.update(
         {
@@ -125,6 +232,8 @@ def _load_atlas_data_uncached(project_root: Path) -> AtlasDataBundle:
         "photos_linked": sum(record.photo_count for record in eoats),
         "documentation_average": _average(record.documentation.score for record in eoats),
         "open_warnings": len(warnings) + sum(record.warning_count for record in eoats),
+        "exclude_unaudited_tools": exclude_unaudited_tools,
+        "unaudited_press_capacity_relationships_excluded": excluded_unaudited_tool_count,
         "last_refreshed": datetime.now().isoformat(timespec="seconds"),
     }
     return AtlasDataBundle(
@@ -134,11 +243,46 @@ def _load_atlas_data_uncached(project_root: Path) -> AtlasDataBundle:
         eoats=tuple(eoats),
         machines=tuple(machines),
         tools=tuple(tools),
+        press_capacity_rows=tuple(_press_capacity_rows(press_relationships)),
         standards=tuple(standards),
         warnings=tuple(warnings),
         indexes=indexes,
         metrics=metrics,
     )
+
+
+def _cache_key_root(root: Path) -> str:
+    return str(root.resolve(strict=False)).casefold()
+
+
+def _cache_key(root: Path, *, exclude_unaudited_tools: bool) -> str:
+    return f"{_cache_key_root(root)}::exclude_unaudited_tools={int(bool(exclude_unaudited_tools))}"
+
+
+def _audited_tool_keys(inventory_rows: list[dict[str, Any]]) -> set[str]:
+    keys: set[str] = set()
+    for row in inventory_rows:
+        for tool in _tools_for_rows([row]):
+            key = normalized_tool_key(tool)
+            if key:
+                keys.add(key)
+    return keys
+
+
+def _press_capacity_rows(press_relationships) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for relationship in press_relationships:
+        row = dict(getattr(relationship, "machine_data", {}) or {})
+        row.setdefault("Machine No.", display_value(getattr(relationship, "machine_no", "")))
+        row.setdefault(TOOL_FIELD, display_value(getattr(relationship, "part_number", "")))
+        row.setdefault("NGW Part Number", display_value(getattr(relationship, "part_number", "")))
+        if display_value(getattr(relationship, "part_description", "")):
+            row.setdefault("NGW Part Description", display_value(getattr(relationship, "part_description", "")))
+        row["Source"] = "Press Capacity"
+        if getattr(relationship, "source_row", 0):
+            row["Source Row"] = getattr(relationship, "source_row", 0)
+        rows.append(row)
+    return rows
 
 
 def _build_eoat_records(
@@ -258,6 +402,17 @@ def _build_machine_records(inventory_rows: list[dict[str, Any]], press_relations
             if any(display_value(value) for value in row.values())
         ]
         warnings = _warnings_for_machine(machine, rows, robot, eoats_by_machine.get(machine, set()))
+        current_resolution = _current_eoat_resolution_for_rows(rows)
+        if current_resolution.ambiguous:
+            warnings.append(
+                _warning(
+                    "info",
+                    "Ambiguous current EOAT",
+                    f"Multiple EOAT IDs were found for Machine {machine}: {', '.join(current_resolution.eoat_ids_found)}. Atlas selected {current_resolution.eoat_id or 'none'} from {current_resolution.reason}.",
+                    source="EOAT Inventory",
+                    machine=machine,
+                )
+            )
         records.append(
             MachineRecord(
                 machine=machine,
@@ -270,7 +425,11 @@ def _build_machine_records(inventory_rows: list[dict[str, Any]], press_relations
                 compatible_eoats=tuple(sorted(eoats_by_machine.get(machine, set()), key=str.casefold)),
                 compatible_tools=tuple(sorted(tools, key=str.casefold)),
                 compatible_parts=tuple(sorted(parts, key=str.casefold)),
-                current_eoat=_current_eoat_for_rows(rows),
+                current_eoat=current_resolution.eoat_id,
+                current_eoat_status=current_resolution.status,
+                current_eoat_source=current_resolution.source,
+                current_eoat_confidence=current_resolution.confidence,
+                current_eoat_resolution_reason=current_resolution.reason,
                 documentation_score=_average(doc_scores),
                 warnings=tuple(warnings),
                 source_rows=tuple(rows),
@@ -713,13 +872,140 @@ def _install_notes(row: dict[str, Any]) -> str:
 
 
 def _current_eoat_for_rows(rows: list[dict[str, Any]]) -> str:
-    for row in rows:
-        status = display_value(row.get("Status")).casefold()
-        if "installed" in status or "audited" in status or "candidate" in status:
-            eoat_id = normalize_eoat_assembly_id(row.get("EOAT Assembly ID")) or display_value(row.get("Audit ID"))
-            if eoat_id:
-                return eoat_id
-    return ""
+    return _current_eoat_resolution_for_rows(rows).eoat_id
+
+
+def _current_eoat_resolution_for_rows(rows: list[dict[str, Any]]) -> CurrentEoatResolution:
+    candidates: list[tuple[tuple[int, float, int, int], int, dict[str, Any], str, str, str]] = []
+    explicit_no_current = False
+    ids_found: list[str] = []
+    for index, row in enumerate(rows):
+        eoat_id = _eoat_id_for_current_row(row)
+        context = _current_context_text(row)
+        if eoat_id:
+            ids_found.append(eoat_id)
+        if _row_is_compatibility_only(context):
+            continue
+        if not eoat_id:
+            explicit_no_current = explicit_no_current or _row_explicitly_has_no_current_eoat(context)
+            continue
+        date_value = _current_row_date_value(row)
+        has_date = 1 if date_value else 0
+        explicit_score = _current_row_explicit_score(context)
+        source = _current_row_source(row, index)
+        confidence = "high" if explicit_score >= 300 else "medium" if explicit_score >= 200 else "low"
+        reason = "latest audit" if has_date else "explicit installed audit" if explicit_score >= 300 else "fallback audit row"
+        candidates.append(((has_date, date_value, explicit_score, index), index, row, eoat_id, source, f"{confidence}|{reason}"))
+    unique_ids = tuple(sorted(set(ids_found), key=str.casefold))
+    if not candidates:
+        if explicit_no_current:
+            return CurrentEoatResolution(
+                status="explicit_none",
+                source="EOAT Inventory",
+                confidence="high",
+                reason="explicit no current EOAT",
+                matching_rows_count=len(rows),
+                eoat_ids_found=unique_ids,
+            )
+        return CurrentEoatResolution(matching_rows_count=len(rows), eoat_ids_found=unique_ids)
+    _sort_key, source_index, _row, eoat_id, source, confidence_reason = max(candidates, key=lambda candidate: candidate[0])
+    confidence, reason = confidence_reason.split("|", 1)
+    return CurrentEoatResolution(
+        eoat_id=eoat_id,
+        status="indexed",
+        source=source,
+        confidence=confidence,
+        reason=reason,
+        source_row_index=source_index,
+        matching_rows_count=len(rows),
+        eoat_ids_found=unique_ids,
+        ambiguous=len(unique_ids) > 1,
+    )
+
+
+def _eoat_id_for_current_row(row: dict[str, Any]) -> str:
+    for field_name in ("EOAT Assembly ID", "EOAT ID"):
+        eoat_id = normalize_eoat_assembly_id(row.get(field_name))
+        if eoat_id:
+            return eoat_id
+    audit_id = normalize_eoat_assembly_id(row.get("Audit ID"))
+    return audit_id if audit_id.startswith("P4-EOAT-") else ""
+
+
+def _current_context_text(row: dict[str, Any]) -> str:
+    fields = (
+        "Audit Context",
+        "Entry Type",
+        "Status",
+        "Physical Audit Verified",
+        "Compatibility Source",
+        "Compatibility Confidence",
+        "Notes",
+        "Known Issues",
+    )
+    return " ".join(display_value(row.get(field)) for field in fields if display_value(row.get(field))).casefold()
+
+
+def _row_is_compatibility_only(context: str) -> bool:
+    if "compatibility row" in context or "entry type compatible" in context or "press capacity" in context:
+        return True
+    return "compatible" in context and not any(phrase in context for phrase in ("installed", "current", "audited", "physical audit"))
+
+
+def _row_explicitly_has_no_current_eoat(context: str) -> bool:
+    return any(
+        phrase in context
+        for phrase in (
+            "no current eoat",
+            "no eoat installed",
+            "eoat not installed",
+            "not installed / bench audit",
+            "not installed",
+        )
+    )
+
+
+def _current_row_explicit_score(context: str) -> int:
+    if _row_explicitly_has_no_current_eoat(context):
+        return 80
+    if "installed on machine" in context or "current" in context or "installed" in context:
+        return 360
+    if "physical audit verified" in context or "audited" in context or "complete" in context:
+        return 300
+    if "in progress" in context or "needs review" in context:
+        return 220
+    return 100
+
+
+def _current_row_date_value(row: dict[str, Any]) -> float:
+    for field_name in ("Audit Date", "Completed Date", "Completion Date", "Date", "Updated", "Created"):
+        value = row.get(field_name)
+        if isinstance(value, datetime):
+            return value.timestamp()
+        text = display_value(value)
+        if not text:
+            continue
+        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y", "%m/%d/%y"):
+            try:
+                return datetime.strptime(text, fmt).timestamp()
+            except ValueError:
+                continue
+        try:
+            return datetime.fromisoformat(text).timestamp()
+        except ValueError:
+            continue
+    return 0.0
+
+
+def _current_row_source(row: dict[str, Any], index: int) -> str:
+    audit_id = display_value(row.get("Audit ID"))
+    audit_date = display_value(row.get("Audit Date"))
+    pieces = [f"source row {index + 1}"]
+    if audit_id:
+        pieces.append(f"Audit {audit_id}")
+    if audit_date:
+        pieces.append(audit_date)
+    return " | ".join(pieces)
 
 
 def _warning(

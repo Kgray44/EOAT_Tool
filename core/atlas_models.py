@@ -53,11 +53,27 @@ class DocumentationStatus:
 class PhotoItem:
     path: str
     filename: str
+    photo_id: str = ""
     category: str = ""
     eoat_id: str = ""
     tool: str = ""
     machine: str = ""
     related_audit_id: str = ""
+    related_issue_id: str = ""
+    date_taken: str = ""
+    plant_area: str = ""
+    area_shown: str = ""
+    description: str = ""
+    part_name: str = ""
+    photo_type: str = ""
+    folder_path: str = ""
+    stored_relative_path: str = ""
+    photo_filename: str = ""
+    photo_folder_link: str = ""
+    photo_link: str = ""
+    original_filename: str = ""
+    stored_filename: str = ""
+    imported_at: str = ""
     source: str = "folder"
 
     def to_dict(self) -> dict[str, Any]:
@@ -150,6 +166,10 @@ class MachineRecord:
     compatible_tools: tuple[str, ...] = ()
     compatible_parts: tuple[str, ...] = ()
     current_eoat: str = ""
+    current_eoat_status: str = ""
+    current_eoat_source: str = ""
+    current_eoat_confidence: str = ""
+    current_eoat_resolution_reason: str = ""
     documentation_score: int = 0
     warnings: tuple[WarningItem, ...] = ()
     source_rows: tuple[dict[str, Any], ...] = field(default_factory=tuple, repr=False, compare=False)
@@ -274,6 +294,7 @@ class AtlasDataBundle:
     eoats: tuple[EOATRecord, ...] = ()
     machines: tuple[MachineRecord, ...] = ()
     tools: tuple[ToolRecord, ...] = ()
+    press_capacity_rows: tuple[dict[str, Any], ...] = ()
     standards: tuple[StandardReference, ...] = ()
     warnings: tuple[WarningItem, ...] = ()
     indexes: AtlasIndexes = field(default_factory=lambda: AtlasIndexes())

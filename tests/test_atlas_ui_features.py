@@ -46,6 +46,7 @@ def test_atlas_settings_persist_color_scheme(tmp_path: Path) -> None:
             qr_warn_phone_like_payloads=False,
             command_palette_enabled=False,
             hide_tools_missing_eoat_links=True,
+            exclude_unaudited_tools=True,
             recent_eoats=("EOAT-1",),
             pinned_machines=("101",),
         ),
@@ -65,6 +66,7 @@ def test_atlas_settings_persist_color_scheme(tmp_path: Path) -> None:
     assert loaded.qr_warn_phone_like_payloads is True
     assert loaded.command_palette_enabled is False
     assert loaded.hide_tools_missing_eoat_links is True
+    assert loaded.exclude_unaudited_tools is True
     assert loaded.recent_eoats == ("EOAT-1",)
     assert loaded.pinned_machines == ("101",)
     assert AtlasSettings(color_scheme="mystery").normalized().color_scheme == "atlas_blue"

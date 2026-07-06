@@ -132,6 +132,7 @@ from core.atlas_utils import normalized_eoat_key, normalized_machine_key, normal
 from core.compatibility_engine import compatibility_matrix_rows
 from core.openers import open_path
 from core.paths import resolve_project_paths
+from core.performance import log_perf_marker, perf_timer
 from core.setup_packet_pdf import export_setup_packet_pdf
 from core.standards_index import STANDARD_EXTENSIONS
 
@@ -4797,7 +4798,20 @@ class PhotoCarouselDialog(QDialog):
         if thumb_index is not None:
             self._thumb_results[thumb_index] = result
             if 0 <= thumb_index < len(self.thumbnails):
-                self.thumbnails[thumb_index].set_result(result)
+                with perf_timer(
+                    getattr(self.manager, "project_root", ""),
+                    "photo.thumbnail.display",
+                    details={
+                        "ui_sensitive": "image_display",
+                        "path": result.path,
+                        "request_id": request_id,
+                        "thumb_index": thumb_index,
+                        "state": result.state,
+                    },
+                    source="atlas_pages",
+                    page_tool="photos",
+                ):
+                    self.thumbnails[thumb_index].set_result(result)
             return
         index = self._request_indexes.pop(request_id, None)
         if index is None:
@@ -4872,24 +4886,43 @@ class PhotoCarouselDialog(QDialog):
             self.image_label.setPixmap(QPixmap())
             self.image_label.setText(f"{result.message or result.state}{detail}")
             return
-        self.image_label.setText("")
-        pixmap = QPixmap.fromImage(result.image)
-        size = self.image_label.size()
-        if self.fit_mode == "actual":
-            target_width = max(24, int(pixmap.width() * self.zoom))
-            target_height = max(24, int(pixmap.height() * self.zoom))
-            aspect_mode = Qt.AspectRatioMode.KeepAspectRatio
-        else:
-            target_width = max(120, size.width() - 18)
-            target_height = max(120, size.height() - 18)
-            aspect_mode = Qt.AspectRatioMode.KeepAspectRatioByExpanding if self.fit_mode == "fill" else Qt.AspectRatioMode.KeepAspectRatio
-        self.image_label.setPixmap(
-            pixmap.scaled(
-                target_width,
-                target_height,
-                aspect_mode,
-                Qt.TransformationMode.SmoothTransformation,
+        with perf_timer(
+            getattr(self.manager, "project_root", ""),
+            "photo.full_image.display",
+            details={
+                "ui_sensitive": "image_display",
+                "path": result.path,
+                "photo_index": self.index,
+                "fit_mode": self.fit_mode,
+            },
+            source="atlas_pages",
+            page_tool="photos",
+        ):
+            self.image_label.setText("")
+            pixmap = QPixmap.fromImage(result.image)
+            size = self.image_label.size()
+            if self.fit_mode == "actual":
+                target_width = max(24, int(pixmap.width() * self.zoom))
+                target_height = max(24, int(pixmap.height() * self.zoom))
+                aspect_mode = Qt.AspectRatioMode.KeepAspectRatio
+            else:
+                target_width = max(120, size.width() - 18)
+                target_height = max(120, size.height() - 18)
+                aspect_mode = Qt.AspectRatioMode.KeepAspectRatioByExpanding if self.fit_mode == "fill" else Qt.AspectRatioMode.KeepAspectRatio
+            self.image_label.setPixmap(
+                pixmap.scaled(
+                    target_width,
+                    target_height,
+                    aspect_mode,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
             )
+        log_perf_marker(
+            getattr(self.manager, "project_root", ""),
+            "photo.full_image.display_ready",
+            details={"path": result.path, "photo_index": self.index, "fit_mode": self.fit_mode},
+            source="atlas_pages",
+            page_tool="photos",
         )
         if self._animate_next_render:
             self._animate_next_render = False

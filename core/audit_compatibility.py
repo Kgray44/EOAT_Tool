@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -33,6 +34,7 @@ from .audit_entries import (
 from .eoat_ids import EOAT_ASSEMBLY_ID_FIELD
 from .logging import log_activity_event
 from .paths import get_press_capacity_file, resolve_project_paths
+from .performance import perf_timer
 from .press_lookup import lookup_machine
 from .result import ToolResult
 from .safe_files import backup_file
@@ -1243,38 +1245,40 @@ def load_required_relationships(press_capacity_path: str | Path) -> tuple[list[R
         return [], [f"Press Capacity reference file not found: {path}"]
     workbook = None
     try:
-        workbook = load_workbook(path, read_only=True, data_only=True)
+        with _press_capacity_perf_context(path, "workbook.press_capacity.load"):
+            workbook = load_workbook(path, read_only=True, data_only=True)
         sheet_name = _find_sheet_name(workbook.sheetnames, CAPACITY_SHEET_NAME, ["capacity"])
         if sheet_name is None:
             return [], [f"Press Capacity sheet not found: {CAPACITY_SHEET_NAME}"]
         ws = workbook[sheet_name]
         header_map: dict[str, int] | None = None
         relationships: dict[tuple[str, str], RequiredRelationship] = {}
-        for row_number, values in enumerate(ws.iter_rows(values_only=True), start=1):
-            values = list(values)
-            maybe_header = _capacity_header_map(values)
-            if maybe_header:
-                header_map = maybe_header
-                continue
-            if header_map is None:
-                continue
-            part_number = display_text_value(_value_for(values, header_map, "NGW Part Number"))
-            if not normalize_tool_identifier(part_number):
-                continue
-            description = text_value(_value_for(values, header_map, "NGW Part Description"))
-            for machine_no in parse_machine_tokens(_value_for(values, header_map, "Machine No.")):
-                key = relationship_key(machine_no, part_number)
-                machine_data = _capacity_machine_data(values, header_map, key[0], part_number, description)
-                relationships.setdefault(
-                    key,
-                    RequiredRelationship(
-                        machine_no=key[0],
-                        part_number=part_number,
-                        part_description=description,
-                        source_row=row_number,
-                        machine_data=machine_data,
-                    ),
-                )
+        with _press_capacity_perf_context(path, "workbook.press_capacity.parse_rows", sheet_name=sheet_name):
+            for row_number, values in enumerate(ws.iter_rows(values_only=True), start=1):
+                values = list(values)
+                maybe_header = _capacity_header_map(values)
+                if maybe_header:
+                    header_map = maybe_header
+                    continue
+                if header_map is None:
+                    continue
+                part_number = display_text_value(_value_for(values, header_map, "NGW Part Number"))
+                if not normalize_tool_identifier(part_number):
+                    continue
+                description = text_value(_value_for(values, header_map, "NGW Part Description"))
+                for machine_no in parse_machine_tokens(_value_for(values, header_map, "Machine No.")):
+                    key = relationship_key(machine_no, part_number)
+                    machine_data = _capacity_machine_data(values, header_map, key[0], part_number, description)
+                    relationships.setdefault(
+                        key,
+                        RequiredRelationship(
+                            machine_no=key[0],
+                            part_number=part_number,
+                            part_description=description,
+                            source_row=row_number,
+                            machine_data=machine_data,
+                        ),
+                    )
         return sorted(
             relationships.values(), key=lambda item: (_machine_sort_key(item.machine_no), item.part_number.upper())
         ), []
@@ -1283,6 +1287,36 @@ def load_required_relationships(press_capacity_path: str | Path) -> tuple[list[R
     finally:
         if workbook is not None:
             workbook.close()
+
+
+def _press_capacity_perf_context(path: Path, operation: str, *, sheet_name: str = ""):
+    project_root = _project_root_for_path(path)
+    if project_root is None:
+        return nullcontext()
+    return perf_timer(
+        project_root,
+        operation,
+        details={
+            "ui_sensitive": "excel_read",
+            "workbook": path.name,
+            "workbook_path": str(path),
+            "sheet": sheet_name,
+            "source_workbook": "Press Capacity",
+        },
+        source="audit_compatibility",
+        page_tool="excel",
+    )
+
+
+def _project_root_for_path(path: Path) -> Path | None:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path
+    for parent in [resolved.parent, *resolved.parents]:
+        if (parent / "00_Project_Admin").exists():
+            return parent
+    return None
 
 
 def summarize_master_relationships(rows: list[dict[str, Any]]) -> dict[tuple[str, str], list[dict[str, Any]]]:
@@ -1421,6 +1455,10 @@ def _capacity_header_map(values: list[Any]) -> dict[str, int] | None:
         expected_header = expected_headers.get(normalized)
         if expected_header and expected_header not in mapping:
             mapping[expected_header] = index
+    for index, value in enumerate(values):
+        header = display_text_value(value)
+        if header and header not in mapping:
+            mapping[header] = index
     required = {"Machine No.", "NGW Part Number"}
     return mapping if required.issubset(mapping) else None
 
@@ -1452,12 +1490,20 @@ def _capacity_machine_data(
     if description:
         data["NGW Part Description"] = description
         data["Part Name/Description"] = description
+    for field_name in header_map:
+        value = text_value(_value_for(values, header_map, field_name))
+        if value:
+            data[field_name] = value
     for field_name in MACHINE_DERIVED_AUDIT_FIELDS:
         if field_name == "Press/Machine #":
             continue
         value = text_value(_value_for(values, header_map, field_name))
         if value:
             data[field_name] = value
+    data["Press/Machine #"] = machine_no
+    data["Machine No."] = machine_no
+    data[TOOL_FIELD] = part_number
+    data["NGW Part Number"] = part_number
     return data
 
 

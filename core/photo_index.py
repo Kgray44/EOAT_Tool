@@ -90,18 +90,35 @@ def _scan_photo_folder(root: Path, warnings: list[str]) -> list[PhotoItem]:
 
 def _photo_item_from_index_row(project_root: str | Path, row: dict[str, Any]) -> PhotoItem | None:
     filename = row_value(row, ("Stored Filename", "Photo Filename", "Original Filename"))
-    folder_reference = row_value(row, ("Folder Path", "Stored Relative Path", "Photo Folder/Link"))
+    stored_relative_path = row_value(row, ("Stored Relative Path",))
+    folder_reference = row_value(row, ("Folder Path", "Stored Relative Path", "Photo Folder/Link", "Photo Link"))
     if not filename and not folder_reference:
         return None
     path = _resolve_photo_path(project_root, folder_reference, filename)
     return PhotoItem(
         path=str(path),
         filename=path.name if path.name else filename,
+        photo_id=row_value(row, ("Photo ID",)),
         category=row_value(row, ("EOAT Area Shown", "Photo Type")) or photo_category_folder(path.parent.name),
         eoat_id=normalize_eoat_assembly_id(row.get("EOAT Assembly ID")),
         tool=row_value(row, (TOOL_FIELD, "Tool Number", "Tool #")),
         machine=row_value(row, ("Press/Machine #", "Machine #", "Machine Number")),
         related_audit_id=row_value(row, ("Related Audit ID", "Audit ID")),
+        related_issue_id=row_value(row, ("Related Issue ID", "Issue ID")),
+        date_taken=row_value(row, ("Date Taken", "Photo Date", "Audit Date")),
+        plant_area=row_value(row, ("Plant/Area", "Area", "Plant")),
+        area_shown=row_value(row, ("EOAT Area Shown", "Area Shown")),
+        description=row_value(row, ("Description", "Notes", "Photo Description")),
+        part_name=row_value(row, ("Part Name", "Part Name/Description", "Part #")),
+        photo_type=row_value(row, ("Photo Type", "EOAT Area Shown")),
+        folder_path=folder_reference,
+        stored_relative_path=stored_relative_path,
+        photo_filename=row_value(row, ("Photo Filename",)),
+        photo_folder_link=row_value(row, ("Photo Folder/Link",)),
+        photo_link=row_value(row, ("Photo Link",)),
+        original_filename=row_value(row, ("Original Filename",)),
+        stored_filename=row_value(row, ("Stored Filename",)),
+        imported_at=row_value(row, ("Imported At", "Import Date")),
         source="photo index",
     )
 

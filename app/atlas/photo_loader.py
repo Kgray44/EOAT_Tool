@@ -4,12 +4,15 @@ import logging
 import os
 import time
 from collections import OrderedDict
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QRunnable, QSize, Qt, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtGui import QImage, QImageReader
+
+from core.performance import log_perf_marker, perf_timer
 
 LOGGER = logging.getLogger(__name__)
 
@@ -64,6 +67,7 @@ class PhotoLoadManager(QObject):
 
     def __init__(self, parent=None, *, max_entries: int = 384, max_memory_mb: int = 1024):
         super().__init__(parent)
+        self.project_root = _project_root_for_controller(parent)
         self.max_entries = max_entries
         self.max_memory_bytes = max(32, int(max_memory_mb)) * 1024 * 1024
         self.max_active_workers = 2
@@ -163,6 +167,9 @@ class PhotoLoadManager(QObject):
         self._last_preload_reason = reason or "Paused: app loading"
 
     def set_photo_catalog(self, bundle_or_records: Any) -> None:
+        root = str(getattr(bundle_or_records, "project_root", "") or "")
+        if root:
+            self.project_root = root
         records = getattr(bundle_or_records, "eoats", bundle_or_records) or ()
         self._catalog_paths = tuple(_unique_photo_paths(records))
         self._catalog_cursor = 0
@@ -222,42 +229,61 @@ class PhotoLoadManager(QObject):
         reason: str = "",
         force_preload: bool = False,
     ) -> None:
-        requested_size = requested_size or QSize()
-        target = Path(path)
-        cache_key = _cache_key(target, requested_size)
-        self._request_keys[request_id] = cache_key
-        cached = self._cache.get(cache_key)
-        if cached is not None:
-            self._cache.move_to_end(cache_key)
-            QTimer.singleShot(0, lambda: self.image_ready.emit(request_id, _copy_result(cached, from_cache=True)))
-            return
-        if priority > 0 and not self._ui_ready_for_preload and not force_preload:
-            self._last_preload_reason = "Paused: app loading"
-            self._request_keys.pop(request_id, None)
-            return
-        if priority > 0 and self.preload_mode == "off" and not force_preload:
-            self._last_preload_reason = "Off: preload disabled"
-            self._request_keys.pop(request_id, None)
-            return
-        if self._cache_is_full():
-            if priority > 0 or force_preload:
-                self._request_keys.pop(request_id, None)
-                self._pause_for_full_cache()
+        with _maybe_perf_timer(
+            self.project_root,
+            "photo.request_thumbnail_queue",
+            details={
+                "ui_sensitive": "image_queue",
+                "path": path,
+                "request_id": request_id,
+                "priority": priority,
+                "reason": reason,
+                "force_preload": force_preload,
+            },
+        ):
+            requested_size = requested_size or QSize()
+            target = Path(path)
+            cache_key = _cache_key(target, requested_size)
+            self._request_keys[request_id] = cache_key
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                self._cache.move_to_end(cache_key)
+                log_perf_marker(
+                    self.project_root,
+                    "photo.request_thumbnail_cache_hit",
+                    details={"path": path, "request_id": request_id, "priority": priority},
+                    source="photo_loader",
+                    page_tool="photos",
+                )
+                QTimer.singleShot(0, lambda: self.image_ready.emit(request_id, _copy_result(cached, from_cache=True)))
                 return
-            self._make_cache_room()
+            if priority > 0 and not self._ui_ready_for_preload and not force_preload:
+                self._last_preload_reason = "Paused: app loading"
+                self._request_keys.pop(request_id, None)
+                return
+            if priority > 0 and self.preload_mode == "off" and not force_preload:
+                self._last_preload_reason = "Off: preload disabled"
+                self._request_keys.pop(request_id, None)
+                return
             if self._cache_is_full():
-                self._request_keys.pop(request_id, None)
-                self._last_preload_reason = self.CACHE_FULL_MESSAGE
+                if priority > 0 or force_preload:
+                    self._request_keys.pop(request_id, None)
+                    self._pause_for_full_cache()
+                    return
+                self._make_cache_room()
+                if self._cache_is_full():
+                    self._request_keys.pop(request_id, None)
+                    self._last_preload_reason = self.CACHE_FULL_MESSAGE
+                    return
+            if cache_key in self._pending:
+                self._pending[cache_key].append(request_id)
+                if priority == 0:
+                    self._promote_queued_job(cache_key, requested_size, reason or "Photo load")
+                    self._dispatch_jobs(force=True)
                 return
-        if cache_key in self._pending:
-            self._pending[cache_key].append(request_id)
-            if priority == 0:
-                self._promote_queued_job(cache_key, requested_size, reason or "Photo load")
-                self._dispatch_jobs(force=True)
-            return
-        self._pending[cache_key] = [request_id]
-        self._enqueue_job(cache_key, str(target), requested_size, priority, reason or _priority_reason(priority))
-        self._dispatch_jobs(force=priority == 0)
+            self._pending[cache_key] = [request_id]
+            self._enqueue_job(cache_key, str(target), requested_size, priority, reason or _priority_reason(priority))
+            self._dispatch_jobs(force=priority == 0)
 
     def cancel_request(self, request_id: str) -> None:
         cache_key = self._request_keys.pop(request_id, None)
@@ -466,6 +492,13 @@ class PhotoLoadManager(QObject):
             self._workers[job.cache_key] = worker
             self._worker_priorities[job.cache_key] = job.priority
             self._last_preload_reason = job.reason
+            log_perf_marker(
+                self.project_root,
+                "photo.thumbnail.worker_start",
+                details={"path": job.path, "priority": job.priority, "reason": job.reason},
+                source="photo_loader",
+                page_tool="photos",
+            )
             self.pool.start(worker)
 
     def _next_dispatchable_job(self, *, force: bool) -> _PhotoJob | None:
@@ -529,6 +562,18 @@ class PhotoLoadManager(QObject):
         self._worker_priorities.pop(cache_key, None)
         self._last_decode_ms = result.decode_ms
         self._last_completed_file = Path(result.path).name if result.path else ""
+        log_perf_marker(
+            self.project_root,
+            "photo.thumbnail.worker_finished",
+            details={
+                "path": result.path,
+                "state": result.state,
+                "decode_ms": round(result.decode_ms, 1),
+                "from_cache": result.from_cache,
+            },
+            source="photo_loader",
+            page_tool="photos",
+        )
         if result.state != "loaded":
             self._failed_loads += 1
         if result.state == "loaded":
@@ -592,38 +637,50 @@ def decode_photo_image(path: str, requested_size: QSize | None = None) -> PhotoL
     started = time.perf_counter()
     target = Path(path)
     requested_size = requested_size or QSize()
-    if not path or not target.exists():
-        return _result(path, "file_missing", "File missing. Use Open Folder to inspect the source location.", str(target), started)
-    suffix = target.suffix.casefold()
-    if suffix not in SUPPORTED_IMAGE_SUFFIXES:
-        return _result(path, "unsupported_format", f"Unsupported image format {suffix or '(none)'}. Use Open Externally or Open Folder.", str(target), started)
+    project_root = _project_root_for_path(target)
+    with _maybe_perf_timer(
+        project_root,
+        "photo.thumbnail.load_decode",
+        details={
+            "ui_sensitive": "image_decode",
+            "path": path,
+            "requested_width": requested_size.width(),
+            "requested_height": requested_size.height(),
+            "loader": "QImageReader/Pillow",
+        },
+    ):
+        if not path or not target.exists():
+            return _result(path, "file_missing", "File missing. Use Open Folder to inspect the source location.", str(target), started)
+        suffix = target.suffix.casefold()
+        if suffix not in SUPPORTED_IMAGE_SUFFIXES:
+            return _result(path, "unsupported_format", f"Unsupported image format {suffix or '(none)'}. Use Open Externally or Open Folder.", str(target), started)
 
-    reader = QImageReader(str(target))
-    reader.setAutoTransform(True)
-    if requested_size.isValid() and suffix not in {".heic", ".heif"}:
-        reader.setScaledSize(_bounded_decode_size(reader.size(), requested_size))
-    image = reader.read()
-    if not image.isNull():
-        return _image_result(path, image, started)
+        reader = QImageReader(str(target))
+        reader.setAutoTransform(True)
+        if requested_size.isValid() and suffix not in {".heic", ".heif"}:
+            reader.setScaledSize(_bounded_decode_size(reader.size(), requested_size))
+        image = reader.read()
+        if not image.isNull():
+            return _image_result(path, image, started)
 
-    if suffix in {".heic", ".heif"}:
+        if suffix in {".heic", ".heif"}:
+            try:
+                import pillow_heif  # type: ignore[import-not-found]
+
+                pillow_heif.register_heif_opener()
+            except ImportError as exc:
+                LOGGER.warning("Atlas photo preview missing HEIC support for %s: %s", target, exc)
+                return _result(path, "unsupported_format", "HEIC preview support is not installed. Use Open Externally or Open Folder.", str(exc), started)
+
         try:
-            import pillow_heif  # type: ignore[import-not-found]
-
-            pillow_heif.register_heif_opener()
+            image = _load_qimage_with_pillow(target, requested_size)
+            return _image_result(path, image, started)
         except ImportError as exc:
-            LOGGER.warning("Atlas photo preview missing HEIC support for %s: %s", target, exc)
-            return _result(path, "unsupported_format", "HEIC preview support is not installed. Use Open Externally or Open Folder.", str(exc), started)
-
-    try:
-        image = _load_qimage_with_pillow(target, requested_size)
-        return _image_result(path, image, started)
-    except ImportError as exc:
-        LOGGER.warning("Atlas photo preview missing Pillow decoder for %s: %s", target, exc)
-        return _result(path, "unsupported_format", "Image preview decoder is not installed. Use Open Externally or Open Folder.", str(exc), started)
-    except Exception as exc:
-        LOGGER.warning("Atlas photo preview decode failed for %s: %s", target, exc)
-        return _result(path, "decode_failed", f"Decode failed for {target.name}. Use Open Externally or Open Folder.", repr(exc), started)
+            LOGGER.warning("Atlas photo preview missing Pillow decoder for %s: %s", target, exc)
+            return _result(path, "unsupported_format", "Image preview decoder is not installed. Use Open Externally or Open Folder.", str(exc), started)
+        except Exception as exc:
+            LOGGER.warning("Atlas photo preview decode failed for %s: %s", target, exc)
+            return _result(path, "decode_failed", f"Decode failed for {target.name}. Use Open Externally or Open Folder.", repr(exc), started)
 
 
 def _load_qimage_with_pillow(path: Path, requested_size: QSize) -> QImage:
@@ -700,6 +757,34 @@ def _priority_reason(priority: int) -> str:
         4: "Idle preload: nearby EOATs",
         5: "Idle preload: other EOAT photo sets",
     }.get(priority, "Photo load")
+
+
+def _maybe_perf_timer(project_root: str, operation: str, *, details: dict[str, Any]):
+    if not project_root:
+        return nullcontext()
+    return perf_timer(
+        project_root,
+        operation,
+        details=details,
+        source="photo_loader",
+        page_tool="photos",
+    )
+
+
+def _project_root_for_controller(controller: Any) -> str:
+    config = getattr(controller, "config", None)
+    return str(getattr(config, "project_root", "") or "")
+
+
+def _project_root_for_path(path: Path) -> str:
+    try:
+        resolved = path.expanduser().resolve(strict=False)
+    except OSError:
+        resolved = path
+    for parent in [resolved.parent, *resolved.parents]:
+        if (parent / "00_Project_Admin").exists():
+            return str(parent)
+    return ""
 
 
 def _unique_photo_paths(records: Any) -> list[str]:
