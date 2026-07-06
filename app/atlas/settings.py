@@ -57,6 +57,7 @@ class AtlasSettings:
     show_advanced_diagnostics: bool = True
     compact_list_mode: bool = False
     hide_tools_missing_eoat_links: bool = False
+    exclude_unaudited_tools: bool = True
     card_density: str = "comfortable"
     open_after_export: bool = False
     confirm_external_open: bool = False
@@ -95,6 +96,7 @@ class AtlasSettings:
             show_advanced_diagnostics=bool(self.show_advanced_diagnostics),
             compact_list_mode=bool(self.compact_list_mode),
             hide_tools_missing_eoat_links=bool(self.hide_tools_missing_eoat_links),
+            exclude_unaudited_tools=bool(self.exclude_unaudited_tools),
             card_density=_choice(self.card_density, CARD_DENSITY_CHOICES, "comfortable"),
             open_after_export=bool(self.open_after_export),
             confirm_external_open=bool(self.confirm_external_open),

@@ -12,13 +12,12 @@ from core.config import UserConfig, load_config
 from core.constants import DEFAULT_PROJECT_ROOT
 
 from .assets import ATLAS_LOGO_PATH
-from .atlas_window import AtlasWindow
-from .loading_screen import AtlasLoadingScreen
 from .settings import AtlasSettings, load_atlas_settings
 from .styles import atlas_stylesheet
 
 
 def main() -> int:
+    ui_mode = _extract_ui_mode(sys.argv)
     smoke_test_arg = "--smoke-test" in sys.argv
     if smoke_test_arg:
         sys.argv.remove("--smoke-test")
@@ -35,6 +34,25 @@ def main() -> int:
     settings = AtlasSettings() if smoke_test else load_atlas_settings()
     app.setStyleSheet(atlas_stylesheet(settings.effective_theme, settings.color_scheme))
     config = UserConfig(project_root=str(DEFAULT_PROJECT_ROOT)) if smoke_test else load_config()
+    if ui_mode == "minimalist":
+        from .minimalist import MinimalistAtlasWindow
+
+        window = MinimalistAtlasWindow(
+            config,
+            auto_refresh=(not smoke_test and settings.auto_refresh_on_startup),
+            settings=settings,
+        )
+        window.show()
+        if not settings.auto_refresh_on_startup and not smoke_test:
+            window.show_status("Auto-refresh is off. Minimalist Atlas opened without rebuilding cached data.")
+        if smoke_test:
+            QTimer.singleShot(700, window.close)
+            QTimer.singleShot(900, app.quit)
+            QTimer.singleShot(6000, lambda: os._exit(0))
+        return app.exec()
+    from .atlas_window import AtlasWindow
+    from .loading_screen import AtlasLoadingScreen
+
     loading = AtlasLoadingScreen(ATLAS_LOGO_PATH)
     loading.center_on_screen()
     loading.show()
@@ -74,6 +92,26 @@ def main() -> int:
         loading.set_status("Auto-refresh is off. Opening Atlas without rebuilding cached data.")
         QTimer.singleShot(350, _reveal_window)
     return app.exec()
+
+
+def _extract_ui_mode(argv: list[str]) -> str:
+    mode = "classic"
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        lowered = arg.casefold()
+        if lowered in {"--ui", "-ui"} and index + 1 < len(argv):
+            mode = str(argv[index + 1]).strip().casefold()
+            del argv[index : index + 2]
+            continue
+        if lowered.startswith("--ui=") or lowered.startswith("-ui="):
+            mode = arg.split("=", 1)[1].strip().casefold()
+            del argv[index]
+            continue
+        index += 1
+    if mode not in {"classic", "minimalist"}:
+        return "classic"
+    return mode
 
 
 if __name__ == "__main__":

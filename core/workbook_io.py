@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from copy import copy
 from pathlib import Path
 
 from openpyxl import load_workbook
 
+from .performance import perf_timer
 from .tool_fields import LEGACY_TOOL_FIELD, TOOL_FIELD
 
 LEGACY_VACUUM_CUPS_FIELD = "Number of Vacuum Cups"
@@ -12,7 +14,8 @@ NUMBER_OF_PARTS_PICKED_FIELD = "Number of Parts Picked"
 
 
 def workbook_sheet_names(workbook_path: str | Path) -> list[str]:
-    workbook = load_workbook(Path(workbook_path), read_only=True, data_only=False)
+    with _perf_context(workbook_path, "workbook.sheet_names.load", data_only=False):
+        workbook = load_workbook(Path(workbook_path), read_only=True, data_only=False)
     try:
         return list(workbook.sheetnames)
     finally:
@@ -25,25 +28,27 @@ def worksheet_headers(ws) -> list[str]:
 
 
 def row_dicts(workbook_path: str | Path, sheet_name: str) -> list[dict[str, object]]:
-    workbook = load_workbook(Path(workbook_path), read_only=True, data_only=True)
+    with _perf_context(workbook_path, "workbook.load", sheet_name=sheet_name, data_only=True):
+        workbook = load_workbook(Path(workbook_path), read_only=True, data_only=True)
     try:
         if sheet_name not in workbook.sheetnames:
             return []
         ws = workbook[sheet_name]
-        headers = worksheet_headers(ws)
-        rows: list[dict[str, object]] = []
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            non_empty = [value for value in row if value not in (None, "")]
-            if not non_empty:
-                continue
-            if len(non_empty) == 1 and str(non_empty[0]).startswith("Last Updated:"):
-                continue
-            row_data = {headers[index]: value for index, value in enumerate(row) if index < len(headers)}
-            if TOOL_FIELD not in row_data and LEGACY_TOOL_FIELD in row_data:
-                row_data[TOOL_FIELD] = row_data.get(LEGACY_TOOL_FIELD)
-            if NUMBER_OF_PARTS_PICKED_FIELD not in row_data and LEGACY_VACUUM_CUPS_FIELD in row_data:
-                row_data[NUMBER_OF_PARTS_PICKED_FIELD] = row_data.get(LEGACY_VACUUM_CUPS_FIELD)
-            rows.append(row_data)
+        with _perf_context(workbook_path, "workbook.parse_rows", sheet_name=sheet_name, data_only=True):
+            headers = worksheet_headers(ws)
+            rows: list[dict[str, object]] = []
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                non_empty = [value for value in row if value not in (None, "")]
+                if not non_empty:
+                    continue
+                if len(non_empty) == 1 and str(non_empty[0]).startswith("Last Updated:"):
+                    continue
+                row_data = {headers[index]: value for index, value in enumerate(row) if index < len(headers)}
+                if TOOL_FIELD not in row_data and LEGACY_TOOL_FIELD in row_data:
+                    row_data[TOOL_FIELD] = row_data.get(LEGACY_TOOL_FIELD)
+                if NUMBER_OF_PARTS_PICKED_FIELD not in row_data and LEGACY_VACUUM_CUPS_FIELD in row_data:
+                    row_data[NUMBER_OF_PARTS_PICKED_FIELD] = row_data.get(LEGACY_VACUUM_CUPS_FIELD)
+                rows.append(row_data)
         return rows
     finally:
         workbook.close()
@@ -91,3 +96,39 @@ def write_row_by_headers(ws, row_number: int, data: dict[str, object]) -> list[s
         cell.value = data.get(header)
         written.append(header)
     return written
+
+
+def _perf_context(
+    workbook_path: str | Path,
+    operation: str,
+    *,
+    sheet_name: str = "",
+    data_only: bool = True,
+):
+    project_root = _project_root_for_path(Path(workbook_path))
+    if project_root is None:
+        return nullcontext()
+    return perf_timer(
+        project_root,
+        operation,
+        details={
+            "ui_sensitive": "excel_read",
+            "workbook": Path(workbook_path).name,
+            "workbook_path": str(Path(workbook_path)),
+            "sheet": sheet_name,
+            "data_only": bool(data_only),
+        },
+        source="workbook_io",
+        page_tool="excel",
+    )
+
+
+def _project_root_for_path(path: Path) -> Path | None:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path
+    for parent in [resolved.parent, *resolved.parents]:
+        if (parent / "00_Project_Admin").exists():
+            return parent
+    return None

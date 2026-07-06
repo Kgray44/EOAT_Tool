@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
-from .performance import log_performance
+from .performance import log_performance, perf_thread_context
 from .workbook_io import row_dicts, workbook_sheet_names
 
 
@@ -104,13 +104,22 @@ def _log_cache_event(path: str | Path, operation: str, started: float, **details
     project_root = _project_root_for_path(Path(path))
     if project_root is None:
         return
+    payload = {
+        "ui_sensitive": "cached_data_load",
+        "workbook": str(Path(path).name),
+        "cache_status": operation.rsplit(".", 1)[-1],
+        **details,
+        **perf_thread_context(),
+    }
+    if payload.get("qt_ui_thread"):
+        payload["ui_thread_warning"] = "cached_data_load_on_ui_thread"
     log_performance(
         project_root,
         operation,
         time.perf_counter() - started,
         source="workbook_cache",
         page_tool="cache",
-        details={"workbook": str(Path(path).name), "cache_status": operation.rsplit(".", 1)[-1], **details},
+        details=payload,
     )
 
 

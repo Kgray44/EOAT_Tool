@@ -15,12 +15,14 @@ from core.atlas_exports import (
     validate_eoat_qr_payload,
 )
 from core.atlas_models import DocumentationStatus, EOATRecord
+from core.atlas_record_details import build_record_detail_data
 from core.atlas_recommendations import recommend_for_query
 from core.atlas_search import search_atlas
 from core.atlas_utils import row_value
 from core.compatibility_engine import compatibility_matrix_rows, machine_to_eoats, tool_to_eoats
 from core.documentation_score import calculate_documentation_status
 from core.paths import resolve_project_paths
+from core.reporting.pdf_record_report import export_record_pdf
 from tests.fixtures.fake_project import create_fake_eoat_project
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 
@@ -71,6 +73,50 @@ def test_atlas_compatibility_engine_answers_tool_and_machine(tmp_path: Path) -> 
     assert machine_to_eoats(bundle, "101")[0].eoat_id == "AUD-20260518-001"
     rows = compatibility_matrix_rows(bundle)
     assert any(row["EOAT"] == "AUD-20260518-001" and row["Machine"] == "101" for row in rows)
+
+
+def test_atlas_excludes_unaudited_capacity_only_tools_by_default(tmp_path: Path) -> None:
+    root = create_fake_eoat_project(tmp_path)
+    create_press_reference_workbooks(resolve_project_paths(root).reference_data)
+
+    bundle = load_atlas_data(root, force_refresh=True)
+
+    assert bundle.metrics["exclude_unaudited_tools"] is True
+    assert bundle.metrics["unaudited_press_capacity_relationships_excluded"] == 3
+    assert "DEMO-PN-1200" not in {tool.tool for tool in bundle.tools}
+    assert "12" not in {machine.machine for machine in bundle.machines}
+    assert not bundle.press_capacity_rows
+
+
+def test_atlas_can_include_unaudited_capacity_tools_when_setting_is_off(tmp_path: Path) -> None:
+    root = create_fake_eoat_project(tmp_path)
+    create_press_reference_workbooks(resolve_project_paths(root).reference_data)
+
+    bundle = load_atlas_data(root, force_refresh=True, exclude_unaudited_tools=False)
+
+    assert bundle.metrics["exclude_unaudited_tools"] is False
+    assert "DEMO-PN-1200" in {tool.tool for tool in bundle.tools}
+    assert "12" in {machine.machine for machine in bundle.machines}
+    capacity_row = next(row for row in bundle.press_capacity_rows if row.get("NGW Part Number") == "DEMO-PN-1200")
+    assert capacity_row["Bill-to / Customer"] == "Demo Customer A"
+    assert str(capacity_row["Cycle Time (S)"]) == "18.5"
+
+
+def test_record_pdf_includes_press_capacity_appendix_fields(tmp_path: Path) -> None:
+    from pypdf import PdfReader
+
+    root = create_fake_eoat_project(tmp_path)
+    create_press_reference_workbooks(resolve_project_paths(root).reference_data)
+    bundle = load_atlas_data(root, force_refresh=True, exclude_unaudited_tools=False)
+    detail_data = build_record_detail_data(bundle, "tool", "DEMO-PN-1200")
+
+    pdf_path = export_record_pdf(detail_data, tmp_path / "Tool_Report_DEMO-PN-1200.pdf", project_root=root)
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(pdf_path)).pages)
+
+    assert "Workbook Data Appendix" in text
+    assert "Press Capacity Rows" in text
+    assert "Demo Customer A" in text
+    assert "Cycle Time (S)" in text
 
 
 def test_atlas_indexes_photo_folder_by_eoat_id(tmp_path: Path) -> None:

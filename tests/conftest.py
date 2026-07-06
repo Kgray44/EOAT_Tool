@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import gc
 from datetime import date
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from tests.fixtures.fake_config import create_fake_config
 from tests.fixtures.fake_project import create_fake_eoat_project, create_minimal_fake_project
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("EOAT_DISABLE_GLOBAL_TYPE_SEARCH", "1")
 
 
 @pytest.fixture(scope="session")
@@ -33,6 +35,7 @@ def qapp():
 def cleanup_qt_widgets():
     yield
     try:
+        from PySide6.QtCore import QCoreApplication, QEvent
         from PySide6.QtWidgets import QApplication
     except ImportError:
         return
@@ -43,6 +46,34 @@ def cleanup_qt_widgets():
         widget.close()
         widget.deleteLater()
     app.processEvents()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def pytest_sessionfinish(session, exitstatus):
+    try:
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from PySide6.QtWidgets import QApplication
+    except ImportError:
+        return
+    app = QApplication.instance()
+    if app is not None:
+        for widget in app.topLevelWidgets():
+            widget.close()
+            widget.deleteLater()
+        app.processEvents()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        app.processEvents()
+    try:
+        from core.performance import flush_performance_log_queue
+
+        flush_performance_log_queue(timeout=2.0)
+    except Exception:
+        return
+    try:
+        gc.freeze()
+    except Exception:
+        return
 
 
 @pytest.fixture(autouse=True)

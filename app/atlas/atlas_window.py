@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from core.atlas_data_loader import load_atlas_data
 from core.atlas_models import AtlasDataBundle
 from core.config import UserConfig
+from core.performance import perf_timer
 
 from .assets import ATLAS_LOGO_PATH
 from .command_palette import AtlasCommandPalette
@@ -49,16 +50,21 @@ class AtlasLoadWorker(QObject):
     failed = Signal(str)
     progress = Signal(str)
 
-    def __init__(self, project_root: str, *, force_refresh: bool = False):
+    def __init__(self, project_root: str, *, force_refresh: bool = False, exclude_unaudited_tools: bool = True):
         super().__init__()
         self.project_root = project_root
         self.force_refresh = force_refresh
+        self.exclude_unaudited_tools = exclude_unaudited_tools
 
     @Slot()
     def run(self) -> None:
         try:
             self.progress.emit("Loading workbooks and indexes...")
-            bundle = load_atlas_data(self.project_root, force_refresh=self.force_refresh)
+            bundle = load_atlas_data(
+                self.project_root,
+                force_refresh=self.force_refresh,
+                exclude_unaudited_tools=self.exclude_unaudited_tools,
+            )
             self.finished.emit(bundle)
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
@@ -179,16 +185,23 @@ class AtlasWindow(QMainWindow):
         }
 
     def show_page(self, key: str) -> None:
-        keys = [item_key for item_key, _label in PAGE_LABELS]
-        if key in keys:
-            self.photo_loader.mark_user_activity()
-            self.current_page_key = key
-            self.stack.setCurrentIndex(keys.index(key))
-            for item_key, button in self.nav_items.items():
-                button.setChecked(item_key == key)
-            page = self.pages.get(key)
-            if hasattr(page, "page_shown"):
-                page.page_shown()
+        with perf_timer(
+            self.config.project_root,
+            f"navigation.show_page.{key}",
+            details={"target_page": key, "current_page": self.current_page_key, "bundle_loaded": self.bundle is not None},
+            source="atlas_window",
+            page_tool="navigation",
+        ):
+            keys = [item_key for item_key, _label in PAGE_LABELS]
+            if key in keys:
+                self.photo_loader.mark_user_activity()
+                self.current_page_key = key
+                self.stack.setCurrentIndex(keys.index(key))
+                for item_key, button in self.nav_items.items():
+                    button.setChecked(item_key == key)
+                page = self.pages.get(key)
+                if hasattr(page, "page_shown"):
+                    page.page_shown()
 
     def open_recommendation(self, query: str) -> None:
         self.show_page("what")
@@ -197,29 +210,50 @@ class AtlasWindow(QMainWindow):
             page.run_query(query)
 
     def open_eoat(self, eoat_id: str) -> None:
-        self.record_recent("eoat", eoat_id)
-        self.show_page("eoats")
-        page = self.pages["eoats"]
-        if hasattr(page, "open_record"):
-            page.open_record(eoat_id)
+        with perf_timer(
+            self.config.project_root,
+            "record.open_request.eoat",
+            details={"record_type": "eoat", "record_id": eoat_id},
+            source="atlas_window",
+            page_tool="navigation",
+        ):
+            self.record_recent("eoat", eoat_id)
+            self.show_page("eoats")
+            page = self.pages["eoats"]
+            if hasattr(page, "open_record"):
+                page.open_record(eoat_id)
 
     def open_machine(self, machine: str) -> None:
-        self.record_recent("machine", machine)
-        self.show_page("machines")
-        page = self.pages["machines"]
-        if hasattr(page, "open_record"):
-            page.open_record(machine)
+        with perf_timer(
+            self.config.project_root,
+            "record.open_request.machine",
+            details={"record_type": "machine", "record_id": machine},
+            source="atlas_window",
+            page_tool="navigation",
+        ):
+            self.record_recent("machine", machine)
+            self.show_page("machines")
+            page = self.pages["machines"]
+            if hasattr(page, "open_record"):
+                page.open_record(machine)
 
     def open_tool(self, tool: str) -> None:
-        self.record_recent("tool", tool)
-        self.show_page("tools")
-        page = self.pages["tools"]
-        if hasattr(page, "open_record"):
-            page.open_record(tool)
-            return
-        search = getattr(page, "search", None)
-        if search is not None:
-            search.setText(tool)
+        with perf_timer(
+            self.config.project_root,
+            "record.open_request.tool",
+            details={"record_type": "tool", "record_id": tool},
+            source="atlas_window",
+            page_tool="navigation",
+        ):
+            self.record_recent("tool", tool)
+            self.show_page("tools")
+            page = self.pages["tools"]
+            if hasattr(page, "open_record"):
+                page.open_record(tool)
+                return
+            search = getattr(page, "search", None)
+            if search is not None:
+                search.setText(tool)
 
     def open_setup_packet(
         self,
@@ -377,7 +411,11 @@ class AtlasWindow(QMainWindow):
         self.loading_progress.emit("Loading data...")
         self.statusBar().showMessage("Refreshing Atlas data in the background...")
         self._load_thread = QThread(self)
-        self._load_worker = AtlasLoadWorker(self.config.project_root, force_refresh=force)
+        self._load_worker = AtlasLoadWorker(
+            self.config.project_root,
+            force_refresh=force,
+            exclude_unaudited_tools=self.settings.exclude_unaudited_tools,
+        )
         self._load_worker.moveToThread(self._load_thread)
         self._load_thread.started.connect(self._load_worker.run)
         self._load_worker.progress.connect(self._on_load_progress)
