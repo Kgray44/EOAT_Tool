@@ -7,6 +7,7 @@ import httpx
 
 from .exceptions import (
     ApiUnavailableError,
+    AuthenticationRequiredError,
     ConcurrencyConflictError,
     DataGatewayError,
     PermissionDeniedError,
@@ -35,6 +36,7 @@ class AtlasApiClient:
         if client_version:
             headers["X-EOAT-Client-Version"] = client_version
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout, transport=transport, headers=headers)
+        self._settings_access_token = ""
         self.last_request_id = ""
 
     def close(self) -> None:
@@ -68,6 +70,8 @@ class AtlasApiClient:
             if response.status_code in {401, 403}:
                 if code in {"WRITES_DISABLED", "DEVELOPMENT_AUTH_FORBIDDEN"}:
                     raise WriteBlockedError(message)
+                if response.status_code == 401:
+                    raise AuthenticationRequiredError(message)
                 raise PermissionDeniedError(message)
             raise DataGatewayError(message)
         return response.json()
@@ -162,3 +166,48 @@ class AtlasApiClient:
 
     def snapshot(self) -> dict[str, Any]:
         return self._request("GET", "/api/v1/sync/snapshot", timeout=60.0)
+
+    def authentication_config(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/auth/config")
+
+    def authentication_health(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/auth/health")
+
+    def begin_settings_login(self, identity: str = "") -> dict[str, Any]:
+        config = self.authentication_config()
+        if config.get("provider") == "development":
+            result = self._request("POST", "/api/v1/auth/development/login", json={"identity": identity})
+            self._settings_access_token = str(result.pop("access_token", ""))
+            return result
+        return self._request("GET", "/api/v1/auth/login")
+
+    def settings_session(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/auth/session", headers=self._settings_auth_headers())
+
+    def authorize_settings(self, permission: str = "settings.edit", operation: str = "settings.save") -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/api/v1/settings/authorization/check",
+            json={"permission": permission, "operation": operation},
+            headers=self._settings_auth_headers(),
+        )
+
+    def logout_settings(self) -> dict[str, Any]:
+        try:
+            return self._request("POST", "/api/v1/auth/logout", headers=self._settings_auth_headers())
+        finally:
+            self._settings_access_token = ""
+
+    def audit_settings_action(self, event_type: str, operation: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/api/v1/settings/audit",
+            json={"event_type": event_type, "operation": operation},
+            headers=self._settings_auth_headers(),
+        )
+
+    def clear_settings_session(self) -> None:
+        self._settings_access_token = ""
+
+    def _settings_auth_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self._settings_access_token}"} if self._settings_access_token else {}

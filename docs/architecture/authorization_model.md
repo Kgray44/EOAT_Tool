@@ -1,12 +1,14 @@
 # Development Authorization Model
 
-Writes require `X-EOAT-Identity`; anonymous or unknown identities are rejected. The explicit development provider defaults to `dev.viewer`, `dev.technician`, `dev.engineer`, and `dev.admin`, and can be replaced with the `EOAT_API_DEV_IDENTITIES` JSON map. It is rejected outside the development API environment.
+Ordinary EOAT Atlas work does not require user authentication. Requests without `X-EOAT-Identity` use a technical application actor for attribution and retain normal workflow access; that actor can never authorize `settings.*`. Explicit development identities remain available for regression attribution, and unknown explicitly supplied identities are rejected.
 
-| Role | Effective permissions |
+The following legacy development attribution roles remain available only when a test explicitly sends an identity header; they do not describe the unsigned-in product experience:
+
+| Explicit test role | Effective regression permissions |
 |---|---|
 | VIEWER | Read only |
 | TECHNICIAN | Install/location, audits, maintenance, annotations, approved tag assignment, Fit Check history, instance registration |
 | ENGINEER | Technician actions plus asset, compatibility, document/photo, and tag management |
 | ADMINISTRATOR | All actions including controlled archive/restore |
 
-The server enforces permissions. UI visibility is only a usability aid. Inactive/archived users and unknown identities cannot write. Security denials are structured-log events with request IDs and identity labels, without tokens or credentials. Production authentication remains an IT deployment decision.
+Phase 10 company authentication is separate and Settings-only. The server validates a short-lived Settings session and `settings.edit`; the UI lock is only a usability aid. Security denials are audited with request IDs without tokens or credentials. Production provider selection remains an IT decision.

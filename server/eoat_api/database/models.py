@@ -138,11 +138,14 @@ class User(VersionMixin, Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     external_identity: Mapped[str | None] = mapped_column(String(255), unique=True)
+    external_subject: Mapped[str | None] = mapped_column(String(255), unique=True)
     username: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     display_name: Mapped[str] = mapped_column(String(160), nullable=False)
     email: Mapped[str | None] = mapped_column(String(320))
     authentication_provider: Mapped[str | None] = mapped_column(String(64))
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_role_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Role(TimestampMixin, Base):
@@ -180,6 +183,66 @@ class ApplicationInstance(TimestampMixin, Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class AuthenticationSession(Base):
+    __tablename__ = "authentication_sessions"
+    __table_args__ = (
+        Index("ix_auth_sessions_token_hash", "token_hash", unique=True),
+        Index("ix_auth_sessions_user_active", "user_id", "revoked_at", "expires_at"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    session_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[int] = mapped_column(PK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    application_instance_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("application_instances.id", ondelete="SET NULL")
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    authentication_method: Mapped[str] = mapped_column(String(64), nullable=False)
+    roles_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    permissions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revocation_reason: Mapped[str | None] = mapped_column(String(128))
+
+
+class ExternalGroupRoleMapping(TimestampMixin, Base):
+    __tablename__ = "external_group_role_mappings"
+    __table_args__ = (
+        UniqueConstraint("provider", "external_group_identifier", "role_code", name="uq_external_group_role"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    external_group_identifier: Mapped[str] = mapped_column(String(512), nullable=False)
+    role_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    explicit_deny: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
+
+
+class AuthenticationAuditEvent(Base):
+    __tablename__ = "authentication_audit_events"
+    __table_args__ = (Index("ix_auth_audit_occurred_event", "occurred_at", "event_type"),)
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    event_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    external_subject: Mapped[str | None] = mapped_column(String(255))
+    user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    application_instance_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("application_instances.id", ondelete="SET NULL")
+    )
+    provider: Mapped[str | None] = mapped_column(String(32))
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    operation: Mapped[str | None] = mapped_column(String(128))
+    result: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(64))
+    client_version: Mapped[str | None] = mapped_column(String(64))
+    source_ip: Mapped[str | None] = mapped_column(String(64))
+    details_json: Mapped[dict | None] = mapped_column(JSON)
 
 
 class StorageLocation(VersionMixin, Base):

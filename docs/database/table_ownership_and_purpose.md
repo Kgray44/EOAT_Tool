@@ -8,7 +8,7 @@
 | Fit Check service | fit_check_records | Append historical result; never rewrite old outcomes |
 | Audit service | audit_records | Preserve original source row and details; later evolve to template/response tables |
 | Document service | documents, photos, document_links | Metadata/path authority; binary files remain on controlled storage |
-| Identity/security service | users, roles, user_roles, application_instances | Server-only authorization and attribution boundary |
+| Identity/security service | users, roles, user_roles, application_instances, authentication_sessions, external_group_role_mappings, authentication_audit_events | Server-only Settings authentication, authorization, audit and application attribution boundary |
 | History/audit service | entity_history_events, change_audit_log | Append-only under normal application operation |
 | Synchronization service | change_feed | Append-only server cursor after successful business transaction |
 | Migration service | import_batches, import_rows, import_issues | Administrator-only, batch traceability and review |
@@ -16,4 +16,3 @@
 | Alembic | alembic_version | Migration tooling only |
 
 Expected initial record volumes are small (tens to low thousands) except history, audit, change-feed, document and import-row tables, which are expected to grow append-only and require retention/backup monitoring.
-

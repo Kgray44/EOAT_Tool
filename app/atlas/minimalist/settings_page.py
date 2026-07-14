@@ -38,6 +38,8 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from core.atlas_data_loader import invalidate_atlas_data_cache
+from core.data_gateway import AuthenticationGateway
+from core.data_gateway.exceptions import AuthenticationRequiredError, DataGatewayError, PermissionDeniedError
 from core.globalization.app_metadata import load_app_metadata
 from core.globalization.config import load_or_create_global_config
 from core.globalization.runtime_paths import ensure_runtime_layout, get_runtime_paths
@@ -48,16 +50,13 @@ from core.versioning.compatibility import EXPECTED_API_VERSION, EXPECTED_SCHEMA_
 
 from .settings_store import (
     ADMIN_LOGOUT_TIMEOUT_SECONDS,
-    admin_password_configured,
     custom_defaults_status,
-    ensure_default_admin_password,
     get_effective_default_settings,
     load_settings,
     save_custom_defaults,
     save_settings,
-    set_admin_password,
     settings_path,
-    verify_admin_password,
+    verify_admin_password,  # Retained only for recovery compatibility; no production UI invokes it.
 )
 from .shell import AtlasMinimalistShell
 from .theme import (
@@ -271,7 +270,7 @@ SETTINGS_REGISTRY: tuple[SettingDefinition, ...] = (
         "after Save",
         options=tuple(SettingOption(value, label) for value, label in ADMIN_LOGOUT_TIMEOUT_OPTIONS),
     ),
-    SettingDefinition("diagnostics_support", "admin.password_hash_configured", "Admin password configured", "status", False, "local admin_auth.json credential file", "automatic"),
+    SettingDefinition("diagnostics_support", "admin.authentication_provider", "Settings authentication provider", "status", "unselected", "API authentication configuration", "automatic"),
     SettingDefinition("diagnostics_support", "admin.last_admin_sign_in", "Last admin sign-in", "status", "", "Settings page admin session metadata", "automatic"),
 )
 
@@ -366,12 +365,11 @@ class MinimalistSettingsContent(QWidget):
         self.controller = controller
         self.bundle = None
         self.settings_file = settings_path()
-        ensure_default_admin_password()
         self.saved_settings = load_settings(self.settings_file)
         self.draft_settings = deepcopy(self.saved_settings)
-        password_configured = admin_password_configured()
-        self.saved_settings.setdefault("admin", {})["password_hash_configured"] = password_configured
-        self.draft_settings.setdefault("admin", {})["password_hash_configured"] = password_configured
+        self.authentication_gateway = AuthenticationGateway()
+        self._administrator_display_name = ""
+        self._authentication_provider = "unselected"
         self._theme_preference = normalize_theme_preference(self._setting_from(self.draft_settings, "app.theme"))
         set_active_minimalist_theme(
             self._theme_preference,
@@ -397,6 +395,9 @@ class MinimalistSettingsContent(QWidget):
         self._admin_logout_timer = QTimer(self)
         self._admin_logout_timer.setSingleShot(True)
         self._admin_logout_timer.timeout.connect(self._admin_timeout_elapsed)
+        self._authentication_expiry_timer = QTimer(self)
+        self._authentication_expiry_timer.setSingleShot(True)
+        self._authentication_expiry_timer.timeout.connect(self._admin_timeout_elapsed)
         self.setObjectName("MinimalistSettingsContent")
         self.setStyleSheet(settings_page_styles(self._theme_preference))
 
@@ -532,9 +533,14 @@ class MinimalistSettingsContent(QWidget):
 
     def _sync_admin_state(self, *, rerender: bool = False) -> None:
         if hasattr(self, "admin_button"):
-            self.admin_button.setText("Admin: Active" if self.admin_active else "Admin")
+            self.admin_button.setText("Settings: Unlocked" if self.admin_active else "Admin")
         if hasattr(self, "admin_status_label"):
-            self.admin_status_label.setText("Admin Active" if self.admin_active else "Settings Locked")
+            active_text = (
+                f"Settings Unlocked - {self._administrator_display_name}"
+                if self.admin_active and self._administrator_display_name
+                else "Settings Unlocked"
+            )
+            self.admin_status_label.setText(active_text if self.admin_active else "Settings Locked")
             self.admin_status_label.setProperty("active", self.admin_active)
             self.admin_status_label.style().unpolish(self.admin_status_label)
             self.admin_status_label.style().polish(self.admin_status_label)
@@ -550,6 +556,10 @@ class MinimalistSettingsContent(QWidget):
         if discarded:
             self._discard_unsaved_changes()
         self.admin_active = False
+        self._administrator_display_name = ""
+        self.authentication_gateway.api.clear_settings_session()
+        if self._authentication_expiry_timer.isActive():
+            self._authentication_expiry_timer.stop()
         self._sync_admin_state(rerender=True)
         self._sync_dirty_state()
         self._pending_admin_timeout_notice = (
@@ -570,22 +580,34 @@ class MinimalistSettingsContent(QWidget):
             return
         self._pending_admin_timeout_notice = message
 
-    def _start_admin_session(self) -> None:
+    def _start_admin_session(self, session: dict[str, Any] | None = None) -> None:
+        # The optional path supports focused UI tests and internal tooling; the
+        # normal Admin button always supplies a server-authenticated session.
+        session = session or self.authentication_gateway.begin_login(
+            os.getenv("EOAT_ATLAS_SETTINGS_DEV_IDENTITY", "dev.admin")
+        )
         self.admin_active = True
         if self._admin_logout_timer.isActive():
             self._admin_logout_timer.stop()
         timestamp = datetime.now().isoformat(timespec="seconds")
         self._last_admin_sign_in = timestamp
+        identity = session.get("identity") or {}
+        self._administrator_display_name = str(identity.get("display_name") or identity.get("username") or "Administrator")
+        self._authentication_provider = str(session.get("provider") or "unselected")
+        expires_at = str(session.get("expires_at") or "")
+        try:
+            expiration = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            now = datetime.now(expiration.tzinfo) if expiration.tzinfo else datetime.now()
+            milliseconds = max(1, int((expiration - now).total_seconds() * 1000))
+            self._authentication_expiry_timer.start(milliseconds)
+        except (TypeError, ValueError):
+            self._authentication_expiry_timer.start(5 * 60 * 1000)
         for target in (self.saved_settings, self.draft_settings):
             target.setdefault("admin", {})["last_admin_sign_in"] = timestamp
-            target.setdefault("admin", {})["password_hash_configured"] = True
-        try:
-            save_settings(self.saved_settings, self.settings_file)
-        except OSError:
-            LOGGER.debug("Could not persist admin sign-in timestamp", exc_info=True)
+            target.setdefault("admin", {})["authentication_provider"] = self._authentication_provider
         self._sync_admin_state(rerender=True)
         self._sync_dirty_state()
-        self.show_toast("Admin access enabled.")
+        self.show_toast(f"Settings unlocked for {self._administrator_display_name}.")
 
     def sign_out_admin(self) -> bool:
         return self._end_admin_session(confirm_unsaved=True)
@@ -595,6 +617,8 @@ class MinimalistSettingsContent(QWidget):
             return True
         if self._admin_logout_timer.isActive():
             self._admin_logout_timer.stop()
+        if self._authentication_expiry_timer.isActive():
+            self._authentication_expiry_timer.stop()
         if confirm_unsaved and self._has_unsaved_settings():
             action = show_settings_confirmation(
                 self,
@@ -617,6 +641,11 @@ class MinimalistSettingsContent(QWidget):
         elif discard_unsaved and self._has_unsaved_settings():
             self._discard_unsaved_changes()
         self.admin_active = False
+        self._administrator_display_name = ""
+        try:
+            self.authentication_gateway.logout()
+        except DataGatewayError:
+            self.authentication_gateway.api.clear_settings_session()
         self._sync_admin_state(rerender=True)
         self._sync_dirty_state()
         if notify:
@@ -626,16 +655,31 @@ class MinimalistSettingsContent(QWidget):
     def shutdown_admin_session(self) -> None:
         if self._admin_logout_timer.isActive():
             self._admin_logout_timer.stop()
+        if self._authentication_expiry_timer.isActive():
+            self._authentication_expiry_timer.stop()
         self._end_admin_session(confirm_unsaved=False, notify=False, discard_unsaved=True)
+        self.authentication_gateway.close()
 
     def open_admin_overlay(self) -> None:
         if self.admin_active:
             self.sign_out_admin()
             return
-        dialog = AdminAccessDialog(self, theme_preference=self._theme_preference)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        try:
+            config = self.authentication_gateway.get_authentication_status()
+            self._authentication_provider = str(config.get("provider") or "unselected")
+            identity = os.getenv("EOAT_ATLAS_SETTINGS_DEV_IDENTITY", "dev.admin")
+            session = self.authentication_gateway.begin_login(identity)
+            if "settings.edit" not in set(session.get("permissions") or []):
+                raise PermissionDeniedError("This identity cannot edit Settings.")
+        except PermissionDeniedError:
+            self.show_toast("Administrator access was denied. Settings remain locked.")
             return
-        self._start_admin_session()
+        except (AuthenticationRequiredError, DataGatewayError):
+            self.show_toast(
+                "Administrator authentication is currently unavailable. EOAT Atlas remains fully usable; Settings remain locked."
+            )
+            return
+        self._start_admin_session(session)
 
     def close_search_overlays(self) -> None:
         return None
@@ -1321,10 +1365,10 @@ class MinimalistSettingsContent(QWidget):
                 "Admin Access",
                 "Settings edits are locked until an admin signs in.",
                 (
-                    self._setting_row("Admin status", "", value_label("Active" if self.admin_active else "Locked")),
+                    self._setting_row("Admin status", "", value_label("Unlocked" if self.admin_active else "Locked")),
                     self._setting_row("Auto logout after leaving Settings", "", self._admin_logout_timeout_combo()),
                     self._setting_row("Last admin sign-in", "", value_label(self._last_admin_sign_in or "Not recorded")),
-                    self._setting_row("Admin password", "", value_label("Configured" if admin_password_configured() else "Not configured")),
+                    self._setting_row("Authentication provider", "", value_label(self._authentication_provider)),
                     self._setting_row("Sign out", "", self._admin_action_button("Sign Out", self.sign_out_admin, variant="small", glyph="status")),
                 ),
             )
@@ -1375,6 +1419,14 @@ class MinimalistSettingsContent(QWidget):
 
     def _render_mysql_api_diagnostics(self) -> None:
         metrics = self._mysql_api_metrics()
+        try:
+            auth_metrics = self.authentication_gateway.health()
+        except DataGatewayError:
+            auth_metrics = {
+                "provider": self._authentication_provider,
+                "settings_authentication_available": False,
+                "message": "Authentication diagnostics unavailable; normal application use is unaffected",
+            }
         counts = metrics.get("cached_counts", {}) if isinstance(metrics.get("cached_counts"), dict) else {}
         project_root = str(getattr(getattr(self.controller, "config", None), "project_root", "") or "")
         document_root = Path(project_root).expanduser() if project_root else None
@@ -1414,8 +1466,11 @@ class MinimalistSettingsContent(QWidget):
                 (
                     self._setting_row("Offline/read-only status", "", value_label("Offline read-only" if metrics.get("offline_read_only") else "Online")),
                     self._setting_row("Writes enabled", "", value_label("Enabled" if metrics.get("writes_enabled") else "Disabled")),
-                    self._setting_row("Authentication identity", "", value_label(str(metrics.get("identity") or "Not configured"))),
-                    self._setting_row("Authenticated role", "", value_label(str(metrics.get("role") or "Server-resolved"))),
+                    self._setting_row("Normal user login", "", value_label("Not required")),
+                    self._setting_row("Settings authentication provider", "", value_label(str(auth_metrics.get("provider") or "unselected"))),
+                    self._setting_row("Settings authentication", "", value_label("Available" if auth_metrics.get("settings_authentication_available") else "Unavailable")),
+                    self._setting_row("Settings administrator", "", value_label(self._administrator_display_name or "Not signed in")),
+                    self._setting_row("Authentication status detail", "", value_label(str(auth_metrics.get("message") or ""), muted=True)),
                     self._setting_row("Application instance ID", "", value_label(str(metrics.get("application_instance_id") or "Not configured"), muted=True)),
                     self._setting_row("Client application version", "", value_label(info.application_version)),
                     self._setting_row("Build ID", "", value_label(info.build_id)),
@@ -1865,6 +1920,15 @@ class MinimalistSettingsContent(QWidget):
         if not self._require_admin("Admin access required to save settings."):
             return False
         try:
+            self.authentication_gateway.authorize("settings.edit", "settings.save")
+        except (AuthenticationRequiredError, PermissionDeniedError, DataGatewayError):
+            self.admin_active = False
+            self._administrator_display_name = ""
+            self._sync_admin_state(rerender=True)
+            self._sync_dirty_state()
+            self.show_toast("Settings authorization expired or is unavailable. Settings were not saved.")
+            return False
+        try:
             save_settings(self.draft_settings, self.settings_file)
             self.saved_settings = load_settings(self.settings_file)
         except OSError:
@@ -1877,6 +1941,10 @@ class MinimalistSettingsContent(QWidget):
             commit(deepcopy(self.saved_settings))
         elif hasattr(self.controller, "minimalist_app_settings"):
             self.controller.minimalist_app_settings = deepcopy(self.saved_settings)
+        try:
+            self.authentication_gateway.audit_settings_action("SETTINGS_UPDATED", "settings.save")
+        except DataGatewayError:
+            LOGGER.warning("Settings saved, but the authentication audit acknowledgement failed", exc_info=True)
         self._sync_dirty_state()
         self.show_toast("Settings saved.")
         return True
@@ -1978,6 +2046,14 @@ class MinimalistSettingsContent(QWidget):
                 baseline = self.saved_settings
             else:
                 baseline = self.saved_settings
+        try:
+            self.authentication_gateway.authorize("settings.set_default", "settings.set_default")
+        except (AuthenticationRequiredError, PermissionDeniedError, DataGatewayError):
+            self.admin_active = False
+            self._administrator_display_name = ""
+            self._sync_admin_state(rerender=True)
+            self.show_toast("Default configuration authorization failed. Settings were relocked.")
+            return
         timestamp = datetime.now().isoformat(timespec="seconds")
         try:
             save_custom_defaults(baseline, settings_file=self.settings_file, updated_at=timestamp)
@@ -1985,6 +2061,12 @@ class MinimalistSettingsContent(QWidget):
             LOGGER.exception("Failed to save custom settings defaults")
             self.show_toast("Failed to update default configuration.")
             return
+        try:
+            self.authentication_gateway.audit_settings_action(
+                "SETTINGS_DEFAULT_CHANGED", "settings.set_default"
+            )
+        except DataGatewayError:
+            LOGGER.warning("Default settings changed, but the authentication audit acknowledgement failed", exc_info=True)
         self.show_toast("Default configuration updated.")
         if self.selected_key == "diagnostics_support":
             self._render_selected_section()
@@ -2386,7 +2468,7 @@ class SettingsPanelHeader(QWidget):
         if not editable:
             self.admin_pill.hide()
             return
-        self.admin_pill.setText("Admin Active" if admin_active else "Admin required to edit")
+        self.admin_pill.setText("Settings Unlocked" if admin_active else "Administrator access required to edit")
         self.admin_pill.setProperty("active", bool(admin_active))
         self.admin_pill.style().unpolish(self.admin_pill)
         self.admin_pill.style().polish(self.admin_pill)

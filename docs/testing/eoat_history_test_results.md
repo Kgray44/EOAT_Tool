@@ -17,7 +17,7 @@ The only emitted warning is Starlette's dependency deprecation notice for `httpx
 
 ## Verified outcomes
 
-- Development API: MySQL 8.4.9, API 1.3.0, schema `20260714_0004`, compatible.
+- Development API: MySQL 8.4.9, API 1.3.0, current schema `20260714_0005`, compatible; History remains on migration `20260714_0004` within that chain.
 - Schema: 49 total tables, 180 FKs, 249 indexes, 50 unique constraints, 21 checks; no verifier errors.
 - Controlled import: 102 audit records created 102 traceable History events; workbook SHA-256 `207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac` remained unchanged.
 - Live P4-EOAT-0001: seven events online, seven after cache deletion/rebuild, seven offline; identical source authority.

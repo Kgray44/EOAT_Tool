@@ -16,6 +16,10 @@ from .database.session import get_write_session
 from .errors import APIError
 
 ROLE_PERMISSIONS = {
+    # The application principal preserves the product's normal no-login
+    # experience.  It can perform ordinary EOAT Atlas work, but never a
+    # Settings administration operation.
+    "APPLICATION_USER": frozenset({"*"}),
     "VIEWER": frozenset(),
     "TECHNICIAN": frozenset(
         {
@@ -72,6 +76,8 @@ class ActorContext:
     client_version: str | None
 
     def permits(self, permission: str) -> bool:
+        if self.role == "APPLICATION_USER":
+            return not permission.startswith("settings.")
         permissions = ROLE_PERMISSIONS.get(self.role, frozenset())
         return "*" in permissions or permission in permissions
 
@@ -95,6 +101,7 @@ def _ensure_local_rehearsal_user(session: Session, identity: str, role_code: str
     if user is None:
         user = db.User(
             external_identity=identity,
+            external_subject=identity,
             username=identity,
             display_name=identity.replace(".", " ").title(),
             authentication_provider=f"explicit_{environment}",
@@ -103,6 +110,8 @@ def _ensure_local_rehearsal_user(session: Session, identity: str, role_code: str
         )
         session.add(user)
         session.flush()
+    elif not user.external_subject:
+        user.external_subject = identity
     if not user.is_active or user.archived_at is not None:
         raise APIError(403, "IDENTITY_INACTIVE", "This identity is not permitted to write.")
     role = session.scalar(select(db.Role).where(db.Role.role_code == role_code, db.Role.is_active.is_(True)))
@@ -127,23 +136,28 @@ def actor_context(
 ) -> ActorContext:
     if os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() not in {"1", "true", "yes", "on"}:
         raise APIError(403, "WRITES_DISABLED", "Permanent writes are disabled for this API environment.")
+    identity = request.headers.get("X-EOAT-Identity", "").strip()
+    if not identity:
+        user = _ensure_application_user(session)
+        request_id = getattr(request.state, "request_id", None) or str(uuid4())
+        return ActorContext(
+            user_id=user.id,
+            identity="application.unauthenticated",
+            display_name="EOAT Atlas Application",
+            role="APPLICATION_USER",
+            request_id=request_id,
+            application_instance_id=_application_instance_id(request, session),
+            client_version=request.headers.get("X-EOAT-Client-Version"),
+        )
     environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
     if environment not in {"development", "staging_local"}:
         raise APIError(403, "LOCAL_AUTH_FORBIDDEN", "Local rehearsal authentication is unavailable here.")
-    identity = request.headers.get("X-EOAT-Identity", "").strip()
     configured = _configured_identities(environment)
     role_code = configured.get(identity)
     if not identity or role_code not in ROLE_PERMISSIONS:
         raise APIError(401, "UNKNOWN_IDENTITY", "A configured local identity is required.")
     user = _ensure_local_rehearsal_user(session, identity, role_code, environment)
-    instance_id = None
-    instance_uuid = request.headers.get("X-EOAT-Application-Instance", "").strip()
-    if instance_uuid:
-        instance = session.scalar(
-            select(db.ApplicationInstance).where(db.ApplicationInstance.instance_uuid == instance_uuid)
-        )
-        if instance is not None and instance.is_active:
-            instance_id = instance.id
+    instance_id = _application_instance_id(request, session)
     request_id = getattr(request.state, "request_id", None) or str(uuid4())
     return ActorContext(
         user_id=user.id,
@@ -154,6 +168,37 @@ def actor_context(
         application_instance_id=instance_id,
         client_version=request.headers.get("X-EOAT-Client-Version"),
     )
+
+
+def _ensure_application_user(session: Session) -> db.User:
+    identity = "application.unauthenticated"
+    user = session.scalar(select(db.User).where(db.User.external_identity == identity))
+    if user is None:
+        user = db.User(
+            external_identity=identity,
+            external_subject=identity,
+            username=identity,
+            display_name="EOAT Atlas Application",
+            authentication_provider="application_instance",
+            source_system="application_runtime",
+        )
+        session.add(user)
+        session.flush()
+    elif not user.external_subject:
+        user.external_subject = identity
+    if not user.is_active or user.archived_at is not None:
+        raise APIError(503, "APPLICATION_IDENTITY_DISABLED", "The application identity is unavailable.")
+    return user
+
+
+def _application_instance_id(request: Request, session: Session) -> int | None:
+    instance_uuid = request.headers.get("X-EOAT-Application-Instance", "").strip()
+    if not instance_uuid:
+        return None
+    instance = session.scalar(
+        select(db.ApplicationInstance).where(db.ApplicationInstance.instance_uuid == instance_uuid)
+    )
+    return instance.id if instance is not None and instance.is_active else None
 
 
 def require(permission: str):

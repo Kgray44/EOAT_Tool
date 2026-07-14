@@ -1,6 +1,6 @@
 # EOAT Atlas MySQL Schema Reference
 
-Alembic authority: revision `20260714_0004` (`structured_eoat_history`) over `20260714_0003`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. There are 48 application tables plus `alembic_version`. Verified totals are 180 foreign keys, 249 indexes, 50 unique constraints, and 21 check constraints.
+Alembic authority: revision `20260714_0005` (`enterprise_authentication`) over `20260714_0004`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. There are 51 application tables plus `alembic_version`; Phase 10 adds Settings authentication sessions, stable external-group mappings, and authentication audit events.
 
 ## Implemented tables
 
@@ -14,7 +14,7 @@ Alembic authority: revision `20260714_0004` (`structured_eoat_history`) over `20
 | Operations/location history | `eoat_installations`, `eoat_storage_assignments` | Dated installation/storage intervals and one-active-location guards |
 | Current application features | `fit_check_records`, `audit_records`, `maintenance_events` | Historical Fit Check, audit, and maintenance records |
 | Documents/photos | `documents`, `photos`, `document_links` | Controlled path/metadata model; no binary engineering files in MySQL |
-| Identity | `users`, `roles`, `user_roles`, `application_instances` | Actor, authorization and client attribution foundation |
+| Identity | `users`, `roles`, `user_roles`, `application_instances`, `authentication_sessions`, `external_group_role_mappings`, `authentication_audit_events` | Actor attribution plus Settings-only authentication/authorization foundation |
 | History/auditing/sync | `entity_history_events`, `change_audit_log`, `change_feed` | User-facing timeline, authoritative before/after audit, monotonic cache cursor |
 | Migration | `import_batches`, `import_rows`, `import_issues` | Batch, exact source row, normalized staging and review traceability |
 | Configuration | `system_settings`, `system_metadata` | Central non-secret settings and operational metadata |

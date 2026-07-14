@@ -35,11 +35,43 @@ from app.atlas.minimalist.theme import (
     settings_page_styles,
 )
 from core.config import UserConfig
+from core.data_gateway.exceptions import ApiUnavailableError
 
 
 @pytest.fixture(autouse=True)
 def explicit_legacy_backend_for_legacy_settings_tests(monkeypatch):
     monkeypatch.setenv("EOAT_ATLAS_DATA_BACKEND", "legacy")
+    session = {
+        "provider": "development",
+        "identity": {"username": "dev.admin", "display_name": "Development Administrator"},
+        "roles": ["ADMINISTRATOR"],
+        "permissions": ["settings.edit", "settings.set_default"],
+    }
+    monkeypatch.setattr(
+        settings_page_module.AuthenticationGateway,
+        "get_authentication_status",
+        lambda _self: {"provider": "development", "scope": "settings_only"},
+    )
+    monkeypatch.setattr(
+        settings_page_module.AuthenticationGateway,
+        "begin_login",
+        lambda _self, _identity="dev.admin": deepcopy(session),
+    )
+    monkeypatch.setattr(
+        settings_page_module.AuthenticationGateway,
+        "authorize",
+        lambda _self, permission="settings.edit", operation="settings.save": {
+            **deepcopy(session),
+            "authorized": permission in session["permissions"],
+            "operation": operation,
+        },
+    )
+    monkeypatch.setattr(settings_page_module.AuthenticationGateway, "logout", lambda _self: None)
+    monkeypatch.setattr(
+        settings_page_module.AuthenticationGateway,
+        "audit_settings_action",
+        lambda _self, event_type, operation: {"recorded": True, "event_type": event_type, "operation": operation},
+    )
 
 
 def test_minimalist_theme_tokens_cover_dark_light_and_system() -> None:
@@ -326,9 +358,12 @@ def test_settings_are_locked_until_admin_is_active(qapp, tmp_path: Path, monkeyp
     qapp.processEvents()
     content.select_section("refresh_cache")
     original = content.draft_settings["data_loading"]["refresh_on_launch"]
+    checkbox = _setting_checkbox(content, "data_loading.refresh_on_launch")
 
     assert not content.admin_active
     assert "Settings Locked" in content.admin_status_label.text()
+    assert checkbox.isChecked() is original
+    assert not checkbox.isEnabled()
     content._set_setting("data_loading.refresh_on_launch", not original)
 
     assert content.draft_settings["data_loading"]["refresh_on_launch"] is original
@@ -342,6 +377,44 @@ def test_settings_are_locked_until_admin_is_active(qapp, tmp_path: Path, monkeyp
     assert content.draft_settings["data_loading"]["refresh_on_launch"] is (not original)
     assert content.save_button.isEnabled()
     assert content.setting_rows["data_loading.refresh_on_launch"][0].dirty_indicator.isVisible()
+    content.close()
+
+
+def test_admin_button_unlocks_only_settings_with_server_identity(qapp, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
+    content = MinimalistSettingsContent(
+        SimpleNamespace(config=UserConfig(project_root=str(tmp_path)), minimalist_app_settings={})
+    )
+    content.show()
+
+    content.open_admin_overlay()
+    qapp.processEvents()
+
+    assert content.admin_active
+    assert content._administrator_display_name == "Development Administrator"
+    assert "Settings Unlocked" in content.admin_status_label.text()
+    content.close()
+
+
+def test_authentication_outage_keeps_settings_visible_and_locked(qapp, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
+    content = MinimalistSettingsContent(
+        SimpleNamespace(config=UserConfig(project_root=str(tmp_path)), minimalist_app_settings={})
+    )
+    content.show()
+    monkeypatch.setattr(
+        content.authentication_gateway,
+        "begin_login",
+        lambda _identity="dev.admin": (_ for _ in ()).throw(ApiUnavailableError("provider unavailable")),
+    )
+
+    content.open_admin_overlay()
+    qapp.processEvents()
+
+    assert not content.admin_active
+    assert "Settings Locked" in content.admin_status_label.text()
+    assert content.main_panel.isVisible()
+    assert not content.save_button.isEnabled()
     content.close()
 
 

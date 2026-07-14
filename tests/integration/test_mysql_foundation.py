@@ -27,7 +27,7 @@ def test_migration_created_complete_mysql_schema(engine):
     tables = set(inspector.get_table_names())
     assert set(Base.metadata.tables) <= tables
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260714_0004"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260714_0005"
         assert connection.execute(text("SELECT VERSION()" )).scalar_one().startswith("8.4.")
 
 

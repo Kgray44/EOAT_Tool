@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -12,6 +13,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from .authentication.audit import record_auth_event
+from .authentication.configuration import AuthenticationConfiguration
+from .authentication.routes import router as authentication_router
 from .contracts import (
     FitCheckRequest,
     HealthResult,
@@ -21,7 +25,7 @@ from .contracts import (
     PaginatedTools,
 )
 from .database import models as db
-from .database.session import get_runtime_session, get_write_session
+from .database.session import create_session_factory, get_runtime_session, get_write_session
 from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
@@ -34,7 +38,21 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger("eoat_api")
 
-app = FastAPI(title="EOAT Atlas API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Reject development authentication in production without contacting an IdP."""
+    AuthenticationConfiguration.from_environment()
+    yield
+
+
+app = FastAPI(
+    title="EOAT Atlas API",
+    version=API_VERSION,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
+app.include_router(authentication_router)
 
 
 @app.middleware("http")
@@ -59,6 +77,24 @@ async def api_error(request: Request, exc: APIError):
             exc.error_code,
             request.headers.get("X-EOAT-Identity", "<missing>"),
         )
+        if request.url.path.startswith(("/api/v1/auth", "/api/v1/settings")):
+            try:
+                factory = create_session_factory(migration=False)
+                with factory() as audit_session, audit_session.begin():
+                    record_auth_event(
+                        audit_session,
+                        "SETTINGS_ADMIN_LOGIN_FAILED"
+                        if exc.status_code == 401
+                        else "SETTINGS_ADMIN_ACCESS_DENIED",
+                        result="DENIED",
+                        provider=os.getenv("EOAT_AUTH_PROVIDER", "development"),
+                        request_id=getattr(request.state, "request_id", None),
+                        operation=request.url.path,
+                        reason_code=exc.error_code,
+                        source_ip=request.client.host if request.client else None,
+                    )
+            except SQLAlchemyError:
+                LOGGER.exception("authentication_denial_audit_failed request_id=%s", request.state.request_id)
     return JSONResponse(
         status_code=exc.status_code,
         content={

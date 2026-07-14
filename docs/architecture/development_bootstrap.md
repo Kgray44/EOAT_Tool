@@ -1,6 +1,6 @@
 # Development bootstrap
 
-`run_atlas.py` resolves the repository from its own file location and verifies `EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT` before importing application code. It loads `config/development.json`, verifies the local MySQL 8.4.9 service and Alembic revision `20260714_0004`, verifies or starts API 1.3.0, and then launches the minimalist PySide6 application with `mysql_api` as the backend.
+`run_atlas.py` resolves the repository from its own file location and verifies `EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT` before importing application code. It loads `config/development.json`, verifies the local MySQL 8.4.9 service and Alembic revision `20260714_0005`, verifies or starts API 1.3.0, and then launches the minimalist PySide6 application with `mysql_api` as the backend. Startup never begins user authentication; development authentication is invoked only from the Settings Admin button.
 
 Service process state and the disposable API cache live below `%LOCALAPPDATA%\EOAT Atlas Development`. They are not repository content. The desktop process uses the Data Gateway and HTTP API client; direct MySQL access is confined to the API process.
 

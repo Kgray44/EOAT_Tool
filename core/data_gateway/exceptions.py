@@ -22,6 +22,10 @@ class PermissionDeniedError(DataGatewayError):
     pass
 
 
+class AuthenticationRequiredError(PermissionDeniedError):
+    pass
+
+
 class ValidationError(DataGatewayError):
     def __init__(self, message: str, *, details=None):
         super().__init__(message)

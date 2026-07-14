@@ -24,7 +24,7 @@ class BootstrapConfiguration:
     backend: str = "mysql_api"
     api_url: str = DEFAULT_API_URL
     writes_enabled: bool = True
-    development_identity: str = "dev.admin"
+    development_identity: str = ""
     auto_start_services: bool = True
 
     @classmethod
@@ -59,7 +59,7 @@ class BootstrapConfiguration:
             writes_enabled=str(os.getenv("EOAT_ATLAS_WRITES_ENABLED") or payload.get("writes_enabled", True)).casefold()
             in {"1", "true", "yes", "on"},
             development_identity=str(
-                os.getenv("EOAT_ATLAS_DEV_IDENTITY") or payload.get("development_identity") or "dev.admin"
+                os.environ.get("EOAT_ATLAS_DEV_IDENTITY", payload.get("development_identity", ""))
             ),
             auto_start_services=not no_auto_start_services,
         )
