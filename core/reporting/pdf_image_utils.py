@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from core.performance import log_perf_marker, perf_timer
 
@@ -12,7 +13,7 @@ LOGGER = logging.getLogger(__name__)
 
 PDF_SAFE_FORMATS = {"JPEG", "PNG"}
 PDF_SAFE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
-_FAILED_IMAGE_PREP: dict[str, "PdfImageResult"] = {}
+_FAILED_IMAGE_PREP: dict[str, PdfImageResult] = {}
 _HEIF_REGISTERED: bool | None = None
 
 

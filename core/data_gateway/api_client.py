@@ -87,6 +87,15 @@ class AtlasApiClient:
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/api/v1/health")
 
+    def version(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/version")
+
+    def schema_status(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/schema-status")
+
+    def server_status(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/server-status")
+
     def home_summary(self) -> dict[str, Any]:
         return self._request("GET", "/api/v1/home-summary")
 

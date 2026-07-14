@@ -12,7 +12,6 @@ from .atlas_utils import (
     normalized_tool_key,
 )
 
-
 ENTITY_TYPES = ("eoat", "tool", "machine")
 
 
@@ -89,11 +88,11 @@ class EntitySearchIndex:
         self._search_rows = tuple((item, _search_aliases(item)) for item in items)
 
     @classmethod
-    def empty(cls) -> "EntitySearchIndex":
+    def empty(cls) -> EntitySearchIndex:
         return cls(())
 
     @classmethod
-    def build(cls, bundle: AtlasDataBundle | None) -> "EntitySearchIndex":
+    def build(cls, bundle: AtlasDataBundle | None) -> EntitySearchIndex:
         if bundle is None:
             return cls.empty()
         current_machine_by_eoat: dict[str, str] = {}
@@ -410,7 +409,7 @@ def _unique_texts(*values: Any) -> tuple[str, ...]:
             for item in value.values():
                 add(item)
             return
-        if isinstance(value, (tuple, list, set)):
+        if isinstance(value, tuple | list | set):
             for item in value:
                 add(item)
             return

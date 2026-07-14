@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
+from core.versioning import get_version_info
+from core.versioning.compatibility import EXPECTED_API_VERSION, EXPECTED_SCHEMA_REVISION
+
 from .contracts import (
     FitCheckRequest,
     FitCheckResult,
@@ -18,9 +21,8 @@ from .database import models as db
 from .repositories import AtlasRepository
 from .security import ActorContext
 
-API_VERSION = "1.3.0"
-EXPECTED_SCHEMA_REVISION = "20260714_0004"
-SERVER_REVISION = "mysql-cutover-rehearsal-rc1"
+API_VERSION = EXPECTED_API_VERSION
+SERVER_REVISION = get_version_info().build_id
 
 
 class AtlasService:
@@ -30,6 +32,9 @@ class AtlasService:
 
     def schema_revision(self) -> str | None:
         return self.session.scalar(text("SELECT version_num FROM alembic_version LIMIT 1"))
+
+    def database_server_version(self) -> str:
+        return str(self.session.scalar(text("SELECT VERSION()")) or "")
 
     def fit_check(self, request: FitCheckRequest) -> FitCheckResult:
         machine = self.session.scalar(select(db.Machine).where(db.Machine.machine_number == request.machine_number))

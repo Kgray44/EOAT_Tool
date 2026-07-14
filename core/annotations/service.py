@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import sqlite3
 import os
+import sqlite3
 import time
 import uuid
 from collections.abc import Iterable

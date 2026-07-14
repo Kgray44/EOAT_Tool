@@ -1,9 +1,9 @@
 {
   "app_name": "EOAT Atlas",
-  "app_version": "0.9.0",
-  "build_date": "2026-07-10",
-  "build_id": "development-baseline",
-  "build_timestamp": "2026-07-10T00:00:00",
+  "app_version": "0.9.1",
+  "build_date": "2026-07-14",
+  "build_id": "mysql-api-development",
+  "build_timestamp": "2026-07-14T00:00:00",
   "cache_schema_version": 1,
   "config_schema_version": 1,
   "environment": "development",
@@ -12,5 +12,5 @@
   "metadata_schema_version": 1,
   "minimum_supported_installer_version": "0.1.0",
   "minimum_supported_launcher_version": "0.1.0",
-  "release_id": "eoat-atlas-0.9.0"
+  "release_id": "eoat-atlas-0.9.1"
 }

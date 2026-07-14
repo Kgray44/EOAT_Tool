@@ -12,10 +12,11 @@ import tempfile
 import time
 import uuid
 import zipfile
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -57,7 +58,7 @@ class ReleaseLock:
             self.path.unlink(missing_ok=True)
             self.owned = False
 
-    def __enter__(self) -> "ReleaseLock":
+    def __enter__(self) -> ReleaseLock:
         self.acquire()
         return self
 

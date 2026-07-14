@@ -22,6 +22,7 @@ class HealthResult(BaseModel):
     environment: str
     writes_enabled: bool
     api_version: str
+    database_server_version: str = ""
     server_timestamp: datetime
 
 

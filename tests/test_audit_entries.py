@@ -106,7 +106,7 @@ def test_generate_audit_id_and_add_row(fake_project):
     assert row_values["Gripper Model"] == "N/A"
     assert row_values["# of Grippers"] == "N/A"
     assert row_values["Gripper Type"] == "N/A"
-    assert row_values["Cleanroom/Non-Cleanroom"] == "Cleanroom"
+    assert row_values["Cleanroom/Non-Cleanroom"] == "Unknown / Not Checked"
     wb.close()
 
 
@@ -536,7 +536,7 @@ def test_blank_optional_audit_fields_save_as_na_without_replacing_defaults(fake_
     values = {
         headers[index]: value for index, value in enumerate(next(ws.iter_rows(min_row=2, max_row=2, values_only=True)))
     }
-    assert values["Cleanroom/Non-Cleanroom"] == "Cleanroom"
+    assert values["Cleanroom/Non-Cleanroom"] == "Unknown / Not Checked"
     assert values["Tool #"] == "N/A"
     assert values["Connection Type"] == "N/A"
     assert values["EOAT Moves"] in (None, "")

@@ -24,8 +24,8 @@ from .audit_entries import (
     audit_field_applies,
     repair_workbook_schema,
 )
-from .eoat_ids import assign_missing_eoat_assembly_ids_in_workbook
 from .eoat_id_migration import FIX_REPAIR_EOAT_ID_PREFIXES, run_eoat_id_prefix_migration
+from .eoat_ids import assign_missing_eoat_assembly_ids_in_workbook
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .photo_indexing import repair_photo_eoat_links

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .atlas_models import AtlasDataBundle, EOATRecord, MachineRecord, PhotoItem, ToolRecord, WarningItem
 from .atlas_utils import display_value, normalized_eoat_key, normalized_machine_key, normalized_tool_key
 from .paths import resolve_project_paths
 from .performance import perf_timer
 from .workbook_io import row_dicts
-
 
 ENTITY_EOAT = "eoat"
 ENTITY_TOOL = "tool"
@@ -672,7 +672,7 @@ def _fields(*items: tuple[str, Any]) -> tuple[RecordField, ...]:
 
 
 def _field_value(value: Any) -> str | tuple[str, ...]:
-    if isinstance(value, (tuple, list, set)):
+    if isinstance(value, tuple | list | set):
         cleaned = tuple(display_value(item) for item in value if display_value(item))
         return cleaned or "Not Indexed"
     text = display_value(value)
@@ -680,7 +680,7 @@ def _field_value(value: Any) -> str | tuple[str, ...]:
 
 
 def _has_value(value: Any) -> bool:
-    if isinstance(value, (tuple, list, set)):
+    if isinstance(value, tuple | list | set):
         return any(display_value(item) for item in value)
     return bool(display_value(value))
 

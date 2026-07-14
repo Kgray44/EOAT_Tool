@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import fields, is_dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator, TypeVar
+from typing import Any, TypeVar
 
 from core.atlas_models import (
     AtlasDataBundle,
     AtlasIndexes,
     AtlasSourceStatus,
-    CompatibilityLink,
     DocumentationStatus,
     EOATRecord,
     MachineRecord,
@@ -22,7 +22,6 @@ from core.atlas_models import (
     ToolRecord,
     WarningItem,
 )
-
 
 SCHEMA_VERSION = 1
 T = TypeVar("T")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import atexit
+import json
 import queue
 import threading
 import time
@@ -15,7 +15,6 @@ from pathlib import Path
 from .paths import resolve_project_paths
 from .project_root_status import project_data_mode
 from .safe_files import ensure_directory
-
 
 _LOG_QUEUE: queue.Queue[dict] = queue.Queue()
 _LOG_THREAD: threading.Thread | None = None

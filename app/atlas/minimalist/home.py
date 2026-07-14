@@ -4,7 +4,6 @@ from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QApplication,
-    QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
@@ -14,9 +13,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..command_palette import ITEM_ENTITY_SEARCH, AtlasCommand, resolve_atlas_commands
-from .entity_search import EntitySearchDropdown
+from ..command_palette import AtlasCommand, resolve_atlas_commands
 from .data import MinimalistSearchEntry, loaded_status_text, recent_entries
+from .entity_search import EntitySearchDropdown
 from .theme import active_minimalist_tokens, apply_glass_theme, effective_minimalist_theme
 from .widgets import (
     ArrowButton,

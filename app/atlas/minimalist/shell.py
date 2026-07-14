@@ -4,10 +4,16 @@ import os
 
 from PySide6.QtCore import QEvent, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QKeySequence, QLinearGradient, QPainter, QPainterPath, QRadialGradient, QShortcut
-from PySide6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QLineEdit, QPlainTextEdit, QTextEdit, QWidget
+from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QComboBox, QLineEdit, QPlainTextEdit, QTextEdit, QWidget
 
 from .overlays import MinimalistMenuOverlay, MinimalistSearchOverlay
-from .theme import effective_minimalist_theme, minimalist_styles, minimalist_tokens, normalize_theme_preference, set_active_minimalist_theme
+from .theme import (
+    effective_minimalist_theme,
+    minimalist_styles,
+    minimalist_tokens,
+    normalize_theme_preference,
+    set_active_minimalist_theme,
+)
 from .topbar import MinimalistTopBar
 from .widgets import MinimalistClickCatcher, TopChromeFade, paint_soft_ribbon
 
@@ -314,7 +320,7 @@ class AtlasMinimalistShell(QWidget):
     def _is_editable_target(self, target) -> bool:
         widget = target
         while widget is not None:
-            if isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)):
+            if isinstance(widget, QLineEdit | QTextEdit | QPlainTextEdit | QAbstractSpinBox):
                 return True
             if isinstance(widget, QComboBox) and widget.isEditable():
                 return True

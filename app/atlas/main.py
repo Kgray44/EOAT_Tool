@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 from core.config import UserConfig, load_config
 from core.constants import DEFAULT_PROJECT_ROOT
 from core.globalization.config import load_or_create_global_config
+from core.versioning import get_version_info
 
 from .assets import ATLAS_LOGO_PATH
 from .settings import AtlasSettings, load_atlas_settings
@@ -18,18 +19,23 @@ from .styles import atlas_stylesheet
 
 
 def main() -> int:
+    backend = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold()
+    if backend not in {"mysql_api", "legacy"}:
+        raise SystemExit(f"Invalid EOAT_ATLAS_DATA_BACKEND: {backend}")
     _extract_ui_mode(sys.argv, default="minimalist")
     smoke_test_arg = "--smoke-test" in sys.argv
     if smoke_test_arg:
         sys.argv.remove("--smoke-test")
     smoke_test = smoke_test_arg or os.environ.get("EOAT_ATLAS_SMOKE_TEST") == "1"
-    if smoke_test:
+    if smoke_test and backend == "legacy":
         _initialize_smoke_runtime()
+    if smoke_test:
         watchdog = threading.Timer(15.0, lambda: os._exit(0))
         watchdog.daemon = True
         watchdog.start()
     app = QApplication(sys.argv)
     app.setApplicationName("EOAT Atlas")
+    app.setApplicationDisplayName(f"EOAT Atlas {get_version_info().application_version} [{backend}]")
     app.setFont(QFont("Segoe UI", 10))
     if ATLAS_LOGO_PATH.exists():
         app.setWindowIcon(QIcon(str(ATLAS_LOGO_PATH)))
@@ -54,7 +60,8 @@ def main() -> int:
     )
     window.show()
     if (not settings.auto_refresh_on_startup or not refresh_on_launch) and not smoke_test:
-        window.show_status("Auto-refresh is off. EOAT Atlas opened from the existing local cache.")
+        cache_label = "disposable API cache" if backend == "mysql_api" else "existing local cache"
+        window.show_status(f"Auto-refresh is off. EOAT Atlas opened from the {cache_label}.")
     if smoke_test:
         QTimer.singleShot(700, window.close)
         QTimer.singleShot(900, app.quit)

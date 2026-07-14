@@ -2,13 +2,26 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from PySide6.QtCore import QEvent, QPoint, QEasingCurve, QRect, QRectF, QSize, Qt, QPropertyAnimation, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QImageReader, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import (
+    QEasingCurve,
+    QEvent,
+    QPoint,
+    QPropertyAnimation,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    QTimer,
+    QUrl,
+    Signal,
+)
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QImageReader, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -26,9 +39,16 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.atlas_models import AtlasDataBundle, EOATRecord, MachineRecord, ToolRecord
+from core.atlas_models import AtlasDataBundle, EOATRecord, MachineRecord
 from core.atlas_record_details import RecordDetailData
-from core.atlas_setup_packets import PACKET_TYPE_SETUP_VERIFICATION, PHOTO_KEY, PHOTO_NONE, SetupPacketOptions, atlas_setup_packet_dir, build_setup_packet_context
+from core.atlas_setup_packets import (
+    PACKET_TYPE_SETUP_VERIFICATION,
+    PHOTO_KEY,
+    PHOTO_NONE,
+    SetupPacketOptions,
+    atlas_setup_packet_dir,
+    build_setup_packet_context,
+)
 from core.atlas_utils import display_value, normalized_eoat_key, normalized_machine_key, normalized_tool_key
 from core.fit_check_service import (
     FitCheckAlternativeEOAT,
@@ -43,10 +63,9 @@ from core.reporting.pdf_preview_session import PdfPreviewSession, setup_packet_p
 from core.setup_packet_pdf import export_setup_packet_pdf, setup_packet_filename
 
 from .data import loaded_status_text, machine_label
-from .theme import effective_minimalist_theme, minimalist_tokens, qss_rgba
 from .library import PDFPreviewOverlay
+from .theme import effective_minimalist_theme, minimalist_tokens, qss_rgba
 from .widgets import (
-    ACCENT,
     ACCENT_BRIGHT,
     STATUS_ERROR,
     STATUS_SUCCESS,
@@ -59,13 +78,12 @@ from .widgets import (
     MinimalistToast,
     SearchMiniIcon,
     StatusDot,
+    TitleAccentBar,
     clear_layout,
     glyph_icon,
     prefers_reduced_motion,
     set_placeholder_color,
-    TitleAccentBar,
 )
-
 
 FIT_CHECK_STYLES = """
 QWidget#AtlasMinimalistFitCheckPage,
@@ -1919,7 +1937,7 @@ class FitCheckInputCard(GlassPanel):
         else:
             self.open_dropdown_index = except_index
 
-    def _selector_changed(self, selector: "FitCheckSelector") -> None:
+    def _selector_changed(self, selector: FitCheckSelector) -> None:
         option = selector.selected_option()
         index = self.selectors.index(selector)
         self.last_changed_index = index
@@ -1932,7 +1950,7 @@ class FitCheckInputCard(GlassPanel):
         self._update_clear_button()
         self.selection_changed.emit()
 
-    def _selector_query_changed(self, selector: "FitCheckSelector") -> None:
+    def _selector_query_changed(self, selector: FitCheckSelector) -> None:
         index = self.selectors.index(selector)
         self.close_dropdowns(except_index=index)
         self.active_input_index = index
@@ -1941,7 +1959,7 @@ class FitCheckInputCard(GlassPanel):
         self._update_clear_button()
         self.query_changed.emit()
 
-    def _selector_focused(self, selector: "FitCheckSelector") -> None:
+    def _selector_focused(self, selector: FitCheckSelector) -> None:
         index = self.selectors.index(selector)
         self.close_dropdowns(except_index=index)
         self.active_input_index = index
@@ -2020,9 +2038,7 @@ class FitCheckSelector(QWidget):
         self._options = list(options)
         preserved = False
         if preserve_selection:
-            if current_key and self.select_key(current_key, kind=current_kind, emit=False):
-                preserved = True
-            elif current_mode and self.select_mode(current_mode, emit=False):
+            if current_key and self.select_key(current_key, kind=current_kind, emit=False) or current_mode and self.select_mode(current_mode, emit=False):
                 preserved = True
         if not preserved and default_index is not None and 0 <= default_index < len(self._options):
             self._set_selected(self._options[default_index], emit=False)
@@ -3887,7 +3903,7 @@ def _dict_lines(values: dict[str, Any]) -> list[str]:
         if value is None or value == "" or value == () or value == []:
             continue
         label = str(key).replace("_", " ").title()
-        if isinstance(value, (tuple, list)):
+        if isinstance(value, tuple | list):
             text = ", ".join(str(item) for item in value if str(item or "").strip()) or "Not Indexed"
         else:
             text = str(value)

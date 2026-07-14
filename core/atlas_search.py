@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from .atlas_models import AtlasDataBundle, SearchMatch
-from .atlas_utils import display_value, normalized_eoat_key, normalized_lookup_key, normalized_machine_key, normalized_tool_key
+from .atlas_utils import (
+    display_value,
+    normalized_eoat_key,
+    normalized_lookup_key,
+    normalized_machine_key,
+    normalized_tool_key,
+)
 from .eoat_ids import format_eoat_id
-
 
 ENTITY_RESULT_TYPES = {"eoat", "tool", "machine"}
 

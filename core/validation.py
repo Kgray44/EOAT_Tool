@@ -68,7 +68,6 @@ from .compatibility_health import validate_compatibility_health
 from .constants import TOOLKIT_ROOT
 from .eoat_ids import (
     CANONICAL_AREA_CLEANROOM,
-    CANONICAL_AREA_PLANT4,
     CANONICAL_AREA_UNKNOWN,
     EOAT_ASSEMBLY_ID_FIELD,
     canonical_area,

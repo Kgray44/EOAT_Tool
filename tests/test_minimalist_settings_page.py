@@ -5,16 +5,27 @@ from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QCheckBox, QComboBox, QLabel, QPushButton
 
 from app.atlas.minimalist import settings_page as settings_page_module
 from app.atlas.minimalist.fit_check import fit_check_styles
-from app.atlas.minimalist.library import ENTITY_TOOL, LibraryBrowseStateView, MinimalistLibraryContent
-from app.atlas.minimalist.library import library_widget_styles
+from app.atlas.minimalist.library import (
+    ENTITY_TOOL,
+    LibraryBrowseStateView,
+    MinimalistLibraryContent,
+    library_widget_styles,
+)
 from app.atlas.minimalist.settings_page import DialogAction, MinimalistSettingsContent, SettingsConfirmationDialog
-from app.atlas.minimalist.settings_store import get_default_settings, get_effective_default_settings, load_settings, reset_section, save_settings
+from app.atlas.minimalist.settings_store import (
+    get_default_settings,
+    get_effective_default_settings,
+    load_settings,
+    reset_section,
+    save_settings,
+)
 from app.atlas.minimalist.theme import (
     REQUIRED_THEME_TOKENS,
     THEME_TOKENS,
@@ -24,6 +35,11 @@ from app.atlas.minimalist.theme import (
     settings_page_styles,
 )
 from core.config import UserConfig
+
+
+@pytest.fixture(autouse=True)
+def explicit_legacy_backend_for_legacy_settings_tests(monkeypatch):
+    monkeypatch.setenv("EOAT_ATLAS_DATA_BACKEND", "legacy")
 
 
 def test_minimalist_theme_tokens_cover_dark_light_and_system() -> None:
@@ -274,9 +290,9 @@ def test_settings_page_restores_full_registry_and_has_no_one_option_dropdowns(qa
 
     sidebar_titles = _widget_text(content.sidebar)
     for title in (
-        "Data Sources",
-        "Refresh & Cache",
-        "Write Safety",
+        "Data Services and Engineering Files",
+        "Server, Synchronization, and Cache",
+        "Server Write Safety",
         "Search & Navigation",
         "Fit Check",
         "Library",
@@ -530,7 +546,7 @@ def test_settings_confirmation_dialog_uses_readable_action_labels(qapp) -> None:
     dialog = SettingsConfirmationDialog(
         None,
         "Reset Section",
-        "Reset Refresh & Cache settings to defaults? Unsaved edits in this section will be replaced.",
+        "Reset Server, Synchronization, and Cache settings to defaults? Unsaved edits in this section will be replaced.",
         (
             DialogAction("cancel", "Cancel", "secondary"),
             DialogAction("reset", "Reset Section", "danger"),

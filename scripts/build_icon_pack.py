@@ -9,10 +9,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from html import escape
 from pathlib import Path
-from typing import Callable
 
 try:
     from PIL import Image, ImageDraw, ImageFont

@@ -15,8 +15,15 @@ from core.atlas_exports import (
     validate_eoat_qr_payload,
 )
 from core.atlas_models import DocumentationStatus, EOATRecord
-from core.atlas_record_details import RecordDetailData, RecordField, RecordPhoto, RecordPhotoGroup, RecordSection, build_record_detail_data
 from core.atlas_recommendations import recommend_for_query
+from core.atlas_record_details import (
+    RecordDetailData,
+    RecordField,
+    RecordPhoto,
+    RecordPhotoGroup,
+    RecordSection,
+    build_record_detail_data,
+)
 from core.atlas_search import search_atlas
 from core.atlas_utils import row_value
 from core.compatibility_engine import compatibility_matrix_rows, machine_to_eoats, tool_to_eoats

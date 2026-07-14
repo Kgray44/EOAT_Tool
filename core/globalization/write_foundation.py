@@ -18,7 +18,6 @@ from .events import EventOutbox
 from .pending_updates import PendingUpdateStore
 from .runtime_paths import AtlasRuntimePaths, ensure_runtime_layout, get_runtime_paths
 
-
 ALLOWED_FIELDS: dict[str, set[str]] = {
     "eoat": {
         "status",

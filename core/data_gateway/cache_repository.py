@@ -123,7 +123,7 @@ class CacheRepository:
             self._put_metadata(
                 connection,
                 {
-                    "api_version": snapshot.get("api_version", "1.1.0"),
+                    "api_version": snapshot.get("api_version", ""),
                     "server_schema_revision": snapshot.get("schema_revision", ""),
                     "last_successful_sync_at": now,
                     "last_full_refresh_at": now,

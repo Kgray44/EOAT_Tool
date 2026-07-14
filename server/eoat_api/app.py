@@ -132,6 +132,7 @@ def health(svc: AtlasService = Depends(service)):
         environment=os.getenv("EOAT_API_ENVIRONMENT", "development"),
         writes_enabled=os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"},
         api_version=API_VERSION,
+        database_server_version=svc.database_server_version(),
         server_timestamp=datetime.now(timezone.utc),
     )
 

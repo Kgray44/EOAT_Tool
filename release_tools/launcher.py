@@ -7,11 +7,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import uuid
 import zipfile
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from .manifest import read_manifest, sha256_file
 from .versioning import Version

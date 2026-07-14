@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import gc
+import os
 from pathlib import Path
 
 import pytest
@@ -16,6 +16,23 @@ from tests.fixtures.fake_project import create_fake_eoat_project, create_minimal
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("EOAT_DISABLE_GLOBAL_TYPE_SEARCH", "1")
+
+
+def _load_local_development_database_environment() -> None:
+    """Make the approved local database available to in-process API integration tests."""
+    environment_file = Path(os.environ.get("LOCALAPPDATA", "")) / "EOAT Atlas Development" / "database.env"
+    if not environment_file.is_file():
+        return
+    for raw_line in environment_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key.startswith("EOAT_DB_"):
+            os.environ.setdefault(key, value)
+
+
+_load_local_development_database_environment()
 
 
 @pytest.fixture(autouse=True)
@@ -120,5 +137,3 @@ def fake_config(fake_project: Path) -> UserConfig:
 @pytest.fixture
 def usability_fake_config(usability_fake_project: Path) -> UserConfig:
     return create_fake_config(usability_fake_project)
-
-

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut
@@ -43,6 +45,9 @@ from .settings_store import load_settings as load_minimalist_settings
 from .settings_store import save_settings as save_minimalist_settings
 from .simple_pages import AtlasMinimalistSimplePage
 from .theme import normalize_theme_preference, set_active_minimalist_theme
+
+if TYPE_CHECKING:
+    from core.packet_builder_packets import PacketSetup
 
 LOGGER = logging.getLogger(__name__)
 
@@ -93,15 +98,34 @@ class MinimalistAtlasLoadWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            from core.atlas_data_loader import load_atlas_data
+            backend = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold()
+            if backend == "mysql_api":
+                from core.data_gateway import AtlasDataGateway
 
-            self.progress.emit("Loading Atlas data...")
-            bundle = load_atlas_data(
-                self.project_root,
-                force_refresh=self.force_refresh,
-                exclude_unaudited_tools=self.exclude_unaudited_tools,
-                source_paths=self.source_paths,
-            )
+                gateway = AtlasDataGateway()
+                try:
+                    if self.force_refresh or not gateway.cache.path.exists():
+                        self.progress.emit("Deep Refresh: rebuilding the disposable API cache...")
+                        gateway.deep_refresh()
+                    else:
+                        self.progress.emit("Refreshing through the EOAT Atlas API...")
+                        gateway.refresh()
+                    bundle = gateway.load_bundle(self.project_root)
+                    bundle.metrics["deep_refresh"] = bool(self.force_refresh)
+                finally:
+                    gateway.close()
+            elif backend == "legacy":
+                from core.atlas_data_loader import load_atlas_data
+
+                self.progress.emit("Loading legacy workbook data (explicit legacy mode)...")
+                bundle = load_atlas_data(
+                    self.project_root,
+                    force_refresh=self.force_refresh,
+                    exclude_unaudited_tools=self.exclude_unaudited_tools,
+                    source_paths=self.source_paths,
+                )
+            else:
+                raise RuntimeError(f"Unsupported EOAT Atlas backend: {backend}")
             self.finished.emit(bundle)
         except Exception as exc:
             LOGGER.exception("Atlas data refresh failed")
@@ -247,7 +271,12 @@ class MinimalistAtlasWindow(QMainWindow):
             self._auto_refresh_timer.start(max(1, auto_refresh_minutes) * 60 * 1000)
         else:
             self._auto_refresh_timer.stop()
-        if bool(loading_settings.get("detect_file_changes", True)) and not bool(loading_settings.get("manual_refresh_only", False)):
+        mysql_api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api"
+        if (
+            not mysql_api_mode
+            and bool(loading_settings.get("detect_file_changes", True))
+            and not bool(loading_settings.get("manual_refresh_only", False))
+        ):
             self._capture_source_file_signature()
             self._source_watch_timer.start(60_000)
         else:
@@ -327,7 +356,8 @@ class MinimalistAtlasWindow(QMainWindow):
                     apply_content(preference)
 
     def refresh_data(self, *, force: bool = False, deep_refresh: bool = False) -> None:
-        rebuild_from_workbook = bool(deep_refresh or force)
+        deep = bool(deep_refresh or force)
+        mysql_api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api"
         if self._refresh_in_progress or (self._load_thread is not None and self._load_thread.isRunning()):
             self.show_status("Atlas data refresh is already running.")
             return
@@ -342,16 +372,22 @@ class MinimalistAtlasWindow(QMainWindow):
             self._bundle_before_refresh = None
             self.show_status(f"Atlas data refresh could not start: {type(exc).__name__}: {exc}")
             return
-        if rebuild_from_workbook:
-            self.loading_progress.emit("Deep Refresh: rebuilding local cache from workbook...")
-            self.show_status("Deep Refresh started. EOAT Atlas is staging workbook data into a new local cache.")
+        if deep and mysql_api_mode:
+            self.loading_progress.emit("Deep Refresh: rebuilding the disposable API cache...")
+            self.show_status("Deep Refresh started. EOAT Atlas is rebuilding its disposable cache from the API.")
+        elif deep:
+            self.loading_progress.emit("Deep Refresh: rebuilding the legacy cache from workbook...")
+            self.show_status("Explicit legacy Deep Refresh started.")
+        elif mysql_api_mode:
+            self.loading_progress.emit("Refreshing through the EOAT Atlas API...")
+            self.show_status("Refreshing EOAT Atlas from the server change feed and disposable cache.")
         else:
             self.loading_progress.emit("Refreshing from local cache...")
             self.show_status("Refreshing EOAT Atlas from the existing local cache.")
         self._load_thread = QThread(self)
         self._load_worker = MinimalistAtlasLoadWorker(
             self.config.project_root,
-            force_refresh=rebuild_from_workbook,
+            force_refresh=deep,
             exclude_unaudited_tools=self.settings.exclude_unaudited_tools,
             source_paths=self._configured_source_paths(),
         )
@@ -395,7 +431,8 @@ class MinimalistAtlasWindow(QMainWindow):
         if bool(self.minimalist_setting("data_loading.show_last_refresh_timestamp", True)):
             load_message = f"{load_message} {datetime.now().strftime('%I:%M %p')}."
         self.show_status(load_message)
-        self._capture_source_file_signature()
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() != "mysql_api":
+            self._capture_source_file_signature()
         self._record_diagnostic_timestamp("last_successful_data_load")
         self.data_ready.emit(bundle)
 
@@ -910,6 +947,9 @@ class MinimalistAtlasWindow(QMainWindow):
         self.show_status("QR label generation is not implemented in the minimalist UI yet.")
 
     def queue_current_eoat_status_review(self) -> None:
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+            self.show_status("Legacy pending-update queues are disabled in MySQL/API mode.")
+            return
         selected = getattr(getattr(self.library_page, "library_content", None), "selected_entity", None)
         if getattr(selected, "entity_type", "") != "eoat":
             self.show_status("Open an EOAT profile before queuing a status update.")

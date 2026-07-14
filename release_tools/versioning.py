@@ -15,13 +15,13 @@ class Version:
     patch: int
 
     @classmethod
-    def parse(cls, value: str) -> "Version":
+    def parse(cls, value: str) -> Version:
         match = _SEMVER.fullmatch(str(value).strip())
         if not match:
             raise ValueError(f"Invalid semantic version {value!r}; expected MAJOR.MINOR.PATCH")
         return cls(*(int(part) for part in match.groups()))
 
-    def bump(self, part: str = "patch") -> "Version":
+    def bump(self, part: str = "patch") -> Version:
         if part == "patch":
             return Version(self.major, self.minor, self.patch + 1)
         if part == "minor":
@@ -37,4 +37,3 @@ class Version:
         if not isinstance(other, Version):
             return NotImplemented
         return (self.major, self.minor, self.patch) < (other.major, other.minor, other.patch)
-

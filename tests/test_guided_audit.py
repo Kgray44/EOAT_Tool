@@ -10,6 +10,7 @@ def _entry(**overrides):
         "Audit Date": "2026-05-28",
         "Auditor": "Synthetic Auditor",
         "Plant/Area": "Plant 4",
+        "Audit Context": "Installed on Machine",
         "Press/Machine #": "12",
         "Robot Type": "Wittmann R8",
         "EOAT Type": "Vacuum",

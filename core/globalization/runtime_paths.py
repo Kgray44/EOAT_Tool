@@ -10,7 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 RUNTIME_FOLDER_NAME = "EOAT_Atlas_Dev"
 PRODUCTION_RUNTIME_FOLDER_NAME = "EOAT_Atlas"
 

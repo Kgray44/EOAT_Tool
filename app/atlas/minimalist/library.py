@@ -167,6 +167,7 @@ def get_pagination_items(current_page: int, total_pages: int) -> list[int | str]
         items.append(page)
     return items
 
+
 RECORD_TYPE_TO_LIBRARY_CATEGORY = {
     ENTITY_EOAT: "EOATs",
     ENTITY_TOOL: "Tools",
@@ -174,8 +175,7 @@ RECORD_TYPE_TO_LIBRARY_CATEGORY = {
 }
 
 RECORD_TYPE_TO_LIBRARY_SCOPE = {
-    record_type: TYPE_FROM_LABEL[label]
-    for record_type, label in RECORD_TYPE_TO_LIBRARY_CATEGORY.items()
+    record_type: TYPE_FROM_LABEL[label] for record_type, label in RECORD_TYPE_TO_LIBRARY_CATEGORY.items()
 }
 
 STATUS_OPTIONS = (
@@ -247,7 +247,7 @@ def _controller_project_root(controller) -> str:
     return str(getattr(config, "project_root", "") or "")
 
 
-def _catalog_project_root(catalog: "LibraryCatalog | None") -> str:
+def _catalog_project_root(catalog: LibraryCatalog | None) -> str:
     if catalog is None:
         return ""
     bundle = getattr(catalog, "bundle", None)
@@ -350,7 +350,9 @@ def _maybe_perf_timer(project_root: str, operation: str, *, details: dict[str, A
     )
 
 
-def _log_ui_marker(project_root: str, operation: str, *, details: dict[str, Any] | None = None, page_tool: str = "library") -> None:
+def _log_ui_marker(
+    project_root: str, operation: str, *, details: dict[str, Any] | None = None, page_tool: str = "library"
+) -> None:
     if not project_root:
         return
     log_perf_marker(
@@ -434,7 +436,7 @@ def _natural_eoat_key(value: str) -> tuple[int, int, int, str]:
     return (0, int(parsed["number"]), prefix_rank, text.casefold())
 
 
-def _eoat_entity_sort_key(entity: "LibraryEntity") -> tuple[int, tuple[int, int, int, str] | str]:
+def _eoat_entity_sort_key(entity: LibraryEntity) -> tuple[int, tuple[int, int, int, str] | str]:
     if entity.entity_type == ENTITY_EOAT:
         return (0, _natural_eoat_key(entity.key))
     return (1, entity.key.casefold())
@@ -505,7 +507,15 @@ def _photo_item_preview_kind(photo: Any) -> str:
         return kind
     filename_text = " ".join(
         _normalized_photo_label(getattr(photo, attr, ""))
-        for attr in ("stored_relative_path", "folder_path", "stored_filename", "photo_filename", "original_filename", "filename", "path")
+        for attr in (
+            "stored_relative_path",
+            "folder_path",
+            "stored_filename",
+            "photo_filename",
+            "original_filename",
+            "filename",
+            "path",
+        )
         if _normalized_photo_label(getattr(photo, attr, ""))
     )
     return _photo_preview_kind_from_label(filename_text)
@@ -521,7 +531,7 @@ def _rank_eoat_photo_items(photos: Iterable[Any]) -> list[Any]:
     return [photo for _key, photo in sorted(ranked, key=lambda item: item[0])]
 
 
-def _eoat_hero_photo_candidate(entity: "LibraryEntity", catalog: "LibraryCatalog | None") -> tuple[str, list[str]]:
+def _eoat_hero_photo_candidate(entity: LibraryEntity, catalog: LibraryCatalog | None) -> tuple[str, list[str]]:
     if catalog is None or entity.entity_type != ENTITY_EOAT:
         return "", []
     candidates = catalog.photo_candidates(entity, limit=1)
@@ -532,8 +542,8 @@ def _eoat_hero_photo_candidate(entity: "LibraryEntity", catalog: "LibraryCatalog
 
 
 def _request_eoat_hero_thumbnail(
-    entity: "LibraryEntity",
-    catalog: "LibraryCatalog | None",
+    entity: LibraryEntity,
+    catalog: LibraryCatalog | None,
     *,
     context_id: str,
     priority: int,
@@ -675,7 +685,9 @@ def _semantic_tone_color(tone: str) -> QColor:
 def machine_current_eoat_display(record: MachineRecord) -> MachineCurrentEoatDisplay:
     current = _truthy_text(getattr(record, "current_eoat", ""))
     if current:
-        return MachineCurrentEoatDisplay(current, "normal", _truthy_text(getattr(record, "current_eoat_status", "")) or "indexed")
+        return MachineCurrentEoatDisplay(
+            current, "normal", _truthy_text(getattr(record, "current_eoat_status", "")) or "indexed"
+        )
     resolver_status = _truthy_text(getattr(record, "current_eoat_status", ""))
     if resolver_status == "explicit_none":
         return MachineCurrentEoatDisplay("Not Installed", "warning", "explicit_none")
@@ -701,7 +713,7 @@ def record_status_display(entity: LibraryEntity) -> tuple[str, str]:
     return "Active", "good"
 
 
-def card_status_display(entity: LibraryEntity, catalog: "LibraryCatalog | None" = None) -> tuple[str, str]:
+def card_status_display(entity: LibraryEntity, catalog: LibraryCatalog | None = None) -> tuple[str, str]:
     blob = _source_text(entity.record)
     if _status_has_inactive_language(blob):
         return "Out of Service", "warning"
@@ -720,11 +732,13 @@ def card_status_display(entity: LibraryEntity, catalog: "LibraryCatalog | None" 
     return "In Service", "good"
 
 
-def eoat_condition_display(record: EOATRecord, catalog: "LibraryCatalog | None" = None) -> tuple[str, str]:
+def eoat_condition_display(record: EOATRecord, catalog: LibraryCatalog | None = None) -> tuple[str, str]:
     eoat_id = normalized_eoat_key(getattr(record, "eoat_id", "") or getattr(record, "display_id", ""))
     data_service = getattr(catalog, "data_service", None) if catalog is not None else None
     if data_service is not None and data_service.is_index_ready() and eoat_id:
-        relationships = data_service.peek_relationships(ENTITY_EOAT, getattr(record, "eoat_id", "") or getattr(record, "display_id", ""))
+        relationships = data_service.peek_relationships(
+            ENTITY_EOAT, getattr(record, "eoat_id", "") or getattr(record, "display_id", "")
+        )
         current_machines = tuple(relationships.get("current_machines", ()) or ())
         if current_machines:
             return f"On Machine {sorted(current_machines, key=_natural_machine_key)[0]}", "normal"
@@ -757,20 +771,22 @@ def eoat_condition_display(record: EOATRecord, catalog: "LibraryCatalog | None" 
     return "Not Indexed", "muted"
 
 
-def entity_condition_line(entity: LibraryEntity, catalog: "LibraryCatalog | None" = None) -> tuple[str, str]:
+def entity_condition_line(entity: LibraryEntity, catalog: LibraryCatalog | None = None) -> tuple[str, str]:
     record = entity.record
     if entity.entity_type == ENTITY_EOAT:
         return eoat_condition_display(record, catalog)
     if entity.entity_type == ENTITY_MACHINE:
         current = machine_current_eoat_display(record)
-        return (f"Current {current.value}", current.tone) if current.state == "indexed" else (current.value, current.tone)
+        return (
+            (f"Current {current.value}", current.tone) if current.state == "indexed" else (current.value, current.tone)
+        )
     machines = tuple(getattr(record, "compatible_machines", ()) or ())
     if machines:
         return f"On Machine {sorted(machines, key=_natural_machine_key)[0]}", "normal"
     return "Not Indexed", "muted"
 
 
-def entity_location_line(entity: LibraryEntity, catalog: "LibraryCatalog | None" = None) -> str:
+def entity_location_line(entity: LibraryEntity, catalog: LibraryCatalog | None = None) -> str:
     record = entity.record
     blob = _source_text(record)
     if "plant 3" in blob:
@@ -782,7 +798,9 @@ def entity_location_line(entity: LibraryEntity, catalog: "LibraryCatalog | None"
     return "Plant 4"
 
 
-def atlas_card_metrics(entity: LibraryEntity, catalog: "LibraryCatalog | None", *, variant: str = "compact") -> tuple[AtlasCardMetric, ...]:
+def atlas_card_metrics(
+    entity: LibraryEntity, catalog: LibraryCatalog | None, *, variant: str = "compact"
+) -> tuple[AtlasCardMetric, ...]:
     record = entity.record
     compact = variant in {"compact", "related", "search", "relationship", "node", "center_node", "list"}
     if entity.entity_type == ENTITY_MACHINE:
@@ -796,17 +814,35 @@ def atlas_card_metrics(entity: LibraryEntity, catalog: "LibraryCatalog | None", 
         parts = len(getattr(record, "parts", ()) or ())
         condition, condition_tone = eoat_condition_display(record, catalog)
         metrics = (
-            AtlasCardMetric("machine", str(len(getattr(record, "machines", ()))), "MACHINES" if compact else "COMPATIBLE MACHINES"),
+            AtlasCardMetric(
+                "machine", str(len(getattr(record, "machines", ()))), "MACHINES" if compact else "COMPATIBLE MACHINES"
+            ),
             AtlasCardMetric("grid", str(len(getattr(record, "tools", ()))), "TOOLS" if compact else "COMPATIBLE TOOLS"),
-            AtlasCardMetric("library", str(parts) if parts else "--", "PICKS" if compact else "PARTS PICKED", "muted" if not parts else "normal"),
+            AtlasCardMetric(
+                "library",
+                str(parts) if parts else "--",
+                "PICKS" if compact else "PARTS PICKED",
+                "muted" if not parts else "normal",
+            ),
             AtlasCardMetric("target", condition, "CONDITION", condition_tone),
         )
         return (metrics[0], metrics[1], metrics[3]) if compact else metrics
     parts = len(getattr(record, "parts", ()) or ())
     return (
-        AtlasCardMetric("machine", str(len(getattr(record, "compatible_machines", ()))), "MACHINES" if compact else "COMPATIBLE MACHINES"),
-        AtlasCardMetric("eoat", str(len(getattr(record, "compatible_eoats", ()))), "EOATs" if compact else "EOAT COMPATIBLE"),
-        AtlasCardMetric("library", str(parts) if parts else "--", "PICKS" if compact else "PARTS PICKED", "muted" if not parts else "normal"),
+        AtlasCardMetric(
+            "machine",
+            str(len(getattr(record, "compatible_machines", ()))),
+            "MACHINES" if compact else "COMPATIBLE MACHINES",
+        ),
+        AtlasCardMetric(
+            "eoat", str(len(getattr(record, "compatible_eoats", ()))), "EOATs" if compact else "EOAT COMPATIBLE"
+        ),
+        AtlasCardMetric(
+            "library",
+            str(parts) if parts else "--",
+            "PICKS" if compact else "PARTS PICKED",
+            "muted" if not parts else "normal",
+        ),
     )
 
 
@@ -842,15 +878,23 @@ class LibraryCatalog:
             "library.load_cached_records",
             details={
                 "bundle_loaded": bundle is not None,
-                "eoats": len(data_service.get_eoats()) if data_service is not None and data_service.is_index_ready() else len(getattr(bundle, "eoats", ()) or ()),
-                "tools": len(data_service.get_tools()) if data_service is not None and data_service.is_index_ready() else len(getattr(bundle, "tools", ()) or ()),
-                "machines": len(data_service.get_machines()) if data_service is not None and data_service.is_index_ready() else len(getattr(bundle, "machines", ()) or ()),
+                "eoats": len(data_service.get_eoats())
+                if data_service is not None and data_service.is_index_ready()
+                else len(getattr(bundle, "eoats", ()) or ()),
+                "tools": len(data_service.get_tools())
+                if data_service is not None and data_service.is_index_ready()
+                else len(getattr(bundle, "tools", ()) or ()),
+                "machines": len(data_service.get_machines())
+                if data_service is not None and data_service.is_index_ready()
+                else len(getattr(bundle, "machines", ()) or ()),
             },
             source="minimalist_library",
             page_tool="library",
         ):
             self.entities = self._build_entities(bundle)
-            self.by_key = {(entity.entity_type, self._norm(entity.entity_type, entity.key)): entity for entity in self.entities}
+            self.by_key = {
+                (entity.entity_type, self._norm(entity.entity_type, entity.key)): entity for entity in self.entities
+            }
 
     def entity_for(self, entity_type: str, key: str) -> LibraryEntity | None:
         return self.by_key.get((entity_type, self._norm(entity_type, key)))
@@ -886,7 +930,10 @@ class LibraryCatalog:
             if current and current not in {"Not Indexed", "No Current EOAT"}:
                 current_entity = self.entity_for(ENTITY_EOAT, current)
                 if current_entity is not None:
-                    eoats = [current_entity, *[item for item in eoats if item.key.casefold() != current_entity.key.casefold()]]
+                    eoats = [
+                        current_entity,
+                        *[item for item in eoats if item.key.casefold() != current_entity.key.casefold()],
+                    ]
             return eoats
         if entity.entity_type == ENTITY_TOOL:
             return self._entities_for(ENTITY_EOAT, getattr(entity.record, "compatible_eoats", ()))
@@ -896,7 +943,10 @@ class LibraryCatalog:
             if current:
                 current_entity = self.entity_for(ENTITY_EOAT, current)
                 if current_entity is not None:
-                    eoats = [current_entity, *[item for item in eoats if item.key.casefold() != current_entity.key.casefold()]]
+                    eoats = [
+                        current_entity,
+                        *[item for item in eoats if item.key.casefold() != current_entity.key.casefold()],
+                    ]
             return eoats
         return []
 
@@ -976,14 +1026,22 @@ class LibraryCatalog:
         with perf_timer(
             _catalog_project_root(self),
             "library.card.photo_path_resolution",
-            details={"ui_sensitive": "photo_path_resolution", "record_type": entity.entity_type, "record_id": entity.key},
+            details={
+                "ui_sensitive": "photo_path_resolution",
+                "record_type": entity.entity_type,
+                "record_id": entity.key,
+            },
             source="minimalist_library",
             page_tool="library",
         ):
             if self.data_service is not None and self.data_service.is_index_ready():
                 paths: list[str] = []
                 for photo in self.data_service.peek_photos(entity.entity_type, entity.key):
-                    paths.extend(str(candidate) for candidate in photo.get("resolved_path_candidates", ()) or () if str(candidate).strip())
+                    paths.extend(
+                        str(candidate)
+                        for candidate in photo.get("resolved_path_candidates", ()) or ()
+                        if str(candidate).strip()
+                    )
                 return tuple(dict.fromkeys(paths))
             record = entity.record
             if entity.entity_type == ENTITY_EOAT:
@@ -1012,15 +1070,17 @@ class LibraryCatalog:
         if self.data_service is not None and self.data_service.is_index_ready():
             record = self.data_service.peek_record(entity.entity_type, entity.key) or {}
             preview_paths = [
-                str(path)
-                for path in record.get("preview_photo_path_candidates", ()) or ()
-                if str(path or "").strip()
+                str(path) for path in record.get("preview_photo_path_candidates", ()) or () if str(path or "").strip()
             ]
             if preview_paths:
-                photo_id = _truthy_text(record.get("preview_photo_id")) or f"{entity.entity_type}:{entity.key}:card:preview"
+                photo_id = (
+                    _truthy_text(record.get("preview_photo_id")) or f"{entity.entity_type}:{entity.key}:card:preview"
+                )
                 candidates.append((photo_id, list(dict.fromkeys(preview_paths))))
                 return candidates[: max(1, limit)]
-            for index, photo in enumerate(self.data_service.peek_photos(entity.entity_type, entity.key)[: max(1, limit)]):
+            for index, photo in enumerate(
+                self.data_service.peek_photos(entity.entity_type, entity.key)[: max(1, limit)]
+            ):
                 photo_id = _truthy_text(photo.get("photo_id")) or f"{entity.entity_type}:{entity.key}:card:{index}"
                 paths = [
                     *[str(path) for path in photo.get("resolved_path_candidates", ()) or () if str(path or "").strip()],
@@ -1034,7 +1094,9 @@ class LibraryCatalog:
             photo_set = getattr(entity.record, "photos", None)
             photos = [*(getattr(photo_set, "indexed_photos", ()) or ()), *(getattr(photo_set, "photos", ()) or ())]
             for index, photo in enumerate(_rank_eoat_photo_items(photos)[: max(1, limit)]):
-                photo_id = _truthy_text(getattr(photo, "photo_id", "")) or f"{entity.entity_type}:{entity.key}:card:{index}"
+                photo_id = (
+                    _truthy_text(getattr(photo, "photo_id", "")) or f"{entity.entity_type}:{entity.key}:card:{index}"
+                )
                 paths = [
                     *[str(path) for path in getattr(photo, "path_candidates", ()) or () if str(path or "").strip()],
                     _truthy_text(getattr(photo, "path", "")),
@@ -1082,7 +1144,9 @@ class LibraryCatalog:
         if name == "not indexed":
             return "not indexed" in haystack
         if name == "needs review":
-            return bool(getattr(record, "warnings", ())) or self.documentation_score(entity) < 75 or "review" in haystack
+            return (
+                bool(getattr(record, "warnings", ())) or self.documentation_score(entity) < 75 or "review" in haystack
+            )
         if name in {"plant 4", "plant 3", "cleanroom", "production", "in cabinet", "on machine", "off-machine"}:
             return name in haystack
         if name == "docs good":
@@ -1096,11 +1160,23 @@ class LibraryCatalog:
             return self.photo_count(entity) > 0
         if name == "missing photos":
             return self.photo_count(entity) == 0
-        if name in {"vacuum", "pressure", "mixed air", "robot only", "external peripheral only", "engel", "wittmann", "sytrama", "unknown robot"}:
+        if name in {
+            "vacuum",
+            "pressure",
+            "mixed air",
+            "robot only",
+            "external peripheral only",
+            "engel",
+            "wittmann",
+            "sytrama",
+            "unknown robot",
+        }:
             if name == "mixed air":
                 return "mixed" in haystack and ("air" in haystack or "external" in haystack)
             if name == "unknown robot":
-                return entity.entity_type == ENTITY_MACHINE and not (_truthy_text(getattr(record, "robot_type", "")) or _truthy_text(getattr(record, "robot_model", "")))
+                return entity.entity_type == ENTITY_MACHINE and not (
+                    _truthy_text(getattr(record, "robot_type", "")) or _truthy_text(getattr(record, "robot_model", ""))
+                )
             return name in haystack
         if name in {"mechanical / gripper", "hybrid", "specialty"}:
             return name.replace(" / ", " ") in haystack.replace("/", " ")
@@ -1227,7 +1303,10 @@ class LibraryCatalog:
     def _tool_entity(self, record: ToolRecord) -> LibraryEntity:
         warnings = int(getattr(record, "warning_count", 0) or 0)
         badges = [
-            (f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Fit Check Data", "good" if record.compatible_eoats else "warn"),
+            (
+                f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Fit Check Data",
+                "good" if record.compatible_eoats else "warn",
+            ),
             (f"Machines {len(record.compatible_machines)}", "info"),
         ]
         if warnings:
@@ -1254,7 +1333,10 @@ class LibraryCatalog:
         current = machine_current_eoat_display(record)
         doc_score = int(getattr(record, "documentation_score", 0) or 0)
         badges = [
-            (f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Fit Check Data", "good" if record.compatible_eoats else "warn"),
+            (
+                f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Fit Check Data",
+                "good" if record.compatible_eoats else "warn",
+            ),
             ("Docs Good" if doc_score >= 75 else "Missing Docs", "good" if doc_score >= 75 else "warn"),
         ]
         subtitle = record.robot_type or record.robot_model or "Robot type unknown"
@@ -1276,7 +1358,9 @@ class LibraryCatalog:
             [warning.message for warning in record.warnings],
             [row for row in getattr(record, "source_rows", ())],
         )
-        return LibraryEntity(ENTITY_MACHINE, record.machine, machine_label(record.machine), subtitle, meta, record, tuple(badges), text)
+        return LibraryEntity(
+            ENTITY_MACHINE, record.machine, machine_label(record.machine), subtitle, meta, record, tuple(badges), text
+        )
 
     def _norm(self, entity_type: str, key: str) -> str:
         if entity_type == ENTITY_EOAT:
@@ -1297,7 +1381,7 @@ def _join_record_text(*values: Any) -> str:
     for value in values:
         if isinstance(value, dict):
             pieces.extend(str(item) for item in value.values() if _truthy_text(item))
-        elif isinstance(value, (tuple, list, set)):
+        elif isinstance(value, tuple | list | set):
             pieces.append(_join_record_text(*value))
         elif _truthy_text(value):
             pieces.append(str(value))
@@ -1568,8 +1652,12 @@ class AtlasMinimalistLibraryPage(QWidget):
     def focus_library_search(self) -> None:
         self.library_content.focus_search()
 
-    def open_filtered_view(self, *, query: str = "", record_type: str = "all", location: str = "", lenses: set[str] | None = None) -> None:
-        self.library_content.open_filtered_view(query=query, record_type=record_type, location=location, lenses=lenses or set())
+    def open_filtered_view(
+        self, *, query: str = "", record_type: str = "all", location: str = "", lenses: set[str] | None = None
+    ) -> None:
+        self.library_content.open_filtered_view(
+            query=query, record_type=record_type, location=location, lenses=lenses or set()
+        )
 
     def select_entity(self, entity_type: str, key: str) -> bool:
         return self.library_content.select_entity(entity_type, key)
@@ -1613,11 +1701,11 @@ class AtlasMinimalistLibraryPage(QWidget):
 
 
 class LibraryControlsShim:
-    def __init__(self, content: "MinimalistLibraryContent"):
+    def __init__(self, content: MinimalistLibraryContent):
         self.content = content
 
     @property
-    def search_bar(self) -> "LibrarySearchBar | None":
+    def search_bar(self) -> LibrarySearchBar | None:
         return self.content._active_search_bar()
 
 
@@ -1644,7 +1732,9 @@ class MinimalistLibraryContent(QWidget):
         self._record_view: LibraryRecordStateView | None = None
         self._active_photo_contexts: set[str] = set()
         self._loading_skeleton_visible = False
-        self._cache_refresh_pending = bool(self.data_service.stale or (not self.data_service.is_index_ready() and _controller_project_root(controller)))
+        self._cache_refresh_pending = bool(
+            self.data_service.stale or (not self.data_service.is_index_ready() and _controller_project_root(controller))
+        )
         self.controls = LibraryControlsShim(self)
         self.setObjectName("MinimalistLibraryContent")
         self.setMouseTracking(True)
@@ -1707,18 +1797,24 @@ class MinimalistLibraryContent(QWidget):
             source="minimalist_library",
             page_tool="library",
         ):
-            same_loaded_bundle = bundle is not None and bundle is self.bundle and getattr(self.catalog, "bundle", None) is bundle
+            same_loaded_bundle = (
+                bundle is not None and bundle is self.bundle and getattr(self.catalog, "bundle", None) is bundle
+            )
             self.bundle = bundle
             rebuilt_index = False
             if bundle is not None and (not same_loaded_bundle or not self.data_service.is_index_ready()):
                 self.data_service.rebuild_index_from_bundle(bundle)
                 self._service_generation = self.data_service.generation
-                self.photo_service.set_project_root(getattr(bundle, "project_root", "") or _controller_project_root(self.controller))
+                self.photo_service.set_project_root(
+                    getattr(bundle, "project_root", "") or _controller_project_root(self.controller)
+                )
                 rebuilt_index = True
             if not same_loaded_bundle or rebuilt_index:
                 self.catalog = LibraryCatalog(bundle, self.controller, self.data_service, self.photo_service)
             if self.selected_entity is not None:
-                self.selected_entity = self.catalog.entity_for(self.selected_entity.entity_type, self.selected_entity.key)
+                self.selected_entity = self.catalog.entity_for(
+                    self.selected_entity.entity_type, self.selected_entity.key
+                )
                 if self.selected_entity is None and self.state == "record":
                     self.state = "hub"
             if bundle is not None:
@@ -1834,7 +1930,9 @@ class MinimalistLibraryContent(QWidget):
             search_bar.set_query_text(text)
         self._refresh_current_view()
 
-    def open_filtered_view(self, *, query: str = "", record_type: str = "all", location: str = "", lenses: set[str] | None = None) -> None:
+    def open_filtered_view(
+        self, *, query: str = "", record_type: str = "all", location: str = "", lenses: set[str] | None = None
+    ) -> None:
         self.state = "browse"
         self.browse_query = str(query or "")
         self.scope_type = _normalize_library_scope(record_type) or "all"
@@ -1903,11 +2001,15 @@ class MinimalistLibraryContent(QWidget):
             self._body_opacity.setOpacity(0.0 if not prefers_reduced_motion() else 1.0)
             self._clear_body_layout(preserve=self._record_view)
             if not self.catalog.entities and not self.data_service.is_index_ready():
-                loading_message = "Building Library Index..." if _controller_project_root(self.controller) else "Loading cached records..."
+                loading_message = (
+                    "Building Library Index..."
+                    if _controller_project_root(self.controller)
+                    else "Loading cached records..."
+                )
                 self._show_skeleton_state(loading_message)
                 self.current_view = LibraryBrowseStateView(
                     self.catalog,
-                self.scope_type,
+                    self.scope_type,
                     self.browse_query,
                     self.active_lenses,
                     self._show_hub,
@@ -1921,12 +2023,16 @@ class MinimalistLibraryContent(QWidget):
                 self._hide_skeleton_state()
                 try:
                     if self._record_view is None:
-                        self._record_view = LibraryRecordStateView(self.catalog, self.selected_entity, self._go_back, self._show_record)
+                        self._record_view = LibraryRecordStateView(
+                            self.catalog, self.selected_entity, self._go_back, self._show_record
+                        )
                     else:
                         self._record_view.bind_record(self.catalog, self.selected_entity)
                     self.current_view = self._record_view
                 except Exception as exc:
-                    LOGGER.exception("Failed to open record page: %s %s", self.selected_entity.entity_type, self.selected_entity.key)
+                    LOGGER.exception(
+                        "Failed to open record page: %s %s", self.selected_entity.entity_type, self.selected_entity.key
+                    )
                     log_perf_marker(
                         str(getattr(self.bundle, "project_root", "") or _controller_project_root(self.controller)),
                         "record.open.failed",
@@ -1952,7 +2058,9 @@ class MinimalistLibraryContent(QWidget):
                         self._record_view.setParent(None)
                         self._record_view.deleteLater()
                     self._record_view = None
-                    self.current_view = LibraryRecordErrorPanel(self.selected_entity.entity_type, self.selected_entity.key)
+                    self.current_view = LibraryRecordErrorPanel(
+                        self.selected_entity.entity_type, self.selected_entity.key
+                    )
             else:
                 self._hide_skeleton_state()
                 self.current_view = LibraryBrowseStateView(
@@ -2225,7 +2333,7 @@ class MinimalistLibraryContent(QWidget):
         self.shutdown_photo_service()
         super().closeEvent(event)
 
-    def _active_search_bar(self) -> "LibrarySearchBar | None":
+    def _active_search_bar(self) -> LibrarySearchBar | None:
         view = self.current_view
         search_bar = getattr(view, "search_bar", None)
         return search_bar if isinstance(search_bar, LibrarySearchBar) else None
@@ -2598,7 +2706,12 @@ class LibraryBrowseStateView(QWidget):
         with perf_timer(
             root,
             "library.refresh",
-            details={"reset_page": reset_page, "scope_type": self.scope_type, "view_mode": self.view_mode, "interaction": interaction},
+            details={
+                "reset_page": reset_page,
+                "scope_type": self.scope_type,
+                "view_mode": self.view_mode,
+                "interaction": interaction,
+            },
             source="minimalist_library",
             page_tool="library",
         ):
@@ -2794,7 +2907,11 @@ class LibraryBrowseStateView(QWidget):
             _log_ui_marker(
                 root,
                 "ui.skeleton.show",
-                details={"surface": "library_grid", "visible_card_count": visible_count, "message": self.loading_message},
+                details={
+                    "surface": "library_grid",
+                    "visible_card_count": visible_count,
+                    "message": self.loading_message,
+                },
                 page_tool="library",
             )
             for index in range(visible_count):
@@ -2827,7 +2944,11 @@ class LibraryBrowseStateView(QWidget):
         with perf_timer(
             root,
             "library.interaction.search_execute",
-            details={"selected_category": self.scope_type, "query": self.query_text(), "debounce_ms": SEARCH_DEBOUNCE_MS},
+            details={
+                "selected_category": self.scope_type,
+                "query": self.query_text(),
+                "debounce_ms": SEARCH_DEBOUNCE_MS,
+            },
             source="minimalist_library",
             page_tool="library",
         ):
@@ -2840,13 +2961,21 @@ class LibraryBrowseStateView(QWidget):
         _log_ui_marker(
             _catalog_project_root(self.catalog),
             "ui.search.visual_feedback",
-            details={"selected_category": self.scope_type, "query": self.query_text(), "debounce_ms": SEARCH_DEBOUNCE_MS},
+            details={
+                "selected_category": self.scope_type,
+                "query": self.query_text(),
+                "debounce_ms": SEARCH_DEBOUNCE_MS,
+            },
             page_tool="library",
         )
         log_perf_marker(
             _catalog_project_root(self.catalog),
             "library.interaction.search_debounce_start",
-            details={"selected_category": self.scope_type, "query": self.query_text(), "debounce_ms": SEARCH_DEBOUNCE_MS},
+            details={
+                "selected_category": self.scope_type,
+                "query": self.query_text(),
+                "debounce_ms": SEARCH_DEBOUNCE_MS,
+            },
             source="minimalist_library",
             page_tool="library",
         )
@@ -2951,29 +3080,51 @@ class LibraryBrowseStateView(QWidget):
     def _sort_results(self, results: list[LibraryEntity]) -> list[LibraryEntity]:
         selected = self.sort_dropdown.combo.currentText()
         if selected == "Missing Docs First":
-            return sorted(results, key=lambda entity: (self.catalog.documentation_score(entity) >= 75, entity.title.casefold()))
+            return sorted(
+                results, key=lambda entity: (self.catalog.documentation_score(entity) >= 75, entity.title.casefold())
+            )
         if selected == "Status":
-            return sorted(results, key=lambda entity: (card_status_display(entity, self.catalog)[0], entity.title.casefold()))
+            return sorted(
+                results, key=lambda entity: (card_status_display(entity, self.catalog)[0], entity.title.casefold())
+            )
         if selected == "Location":
-            return sorted(results, key=lambda entity: (entity_location_line(entity, self.catalog), entity.title.casefold()))
+            return sorted(
+                results, key=lambda entity: (entity_location_line(entity, self.catalog), entity.title.casefold())
+            )
         if selected == "Machine Number":
             reverse = (
                 self.scope_type == ENTITY_MACHINE
-                and str(_minimalist_setting(self.controller, "library.machine_sort", "machine_number_ascending")) == "machine_number_descending"
+                and str(_minimalist_setting(self.controller, "library.machine_sort", "machine_number_ascending"))
+                == "machine_number_descending"
             )
-            return sorted(results, key=lambda entity: _natural_machine_key(entity.key if entity.entity_type == ENTITY_MACHINE else entity.meta), reverse=reverse)
+            return sorted(
+                results,
+                key=lambda entity: _natural_machine_key(
+                    entity.key if entity.entity_type == ENTITY_MACHINE else entity.meta
+                ),
+                reverse=reverse,
+            )
         if selected == "Tool Number":
             reverse = (
                 self.scope_type == ENTITY_TOOL
-                and str(_minimalist_setting(self.controller, "library.tool_sort", "tool_number_ascending")) == "tool_number_descending"
+                and str(_minimalist_setting(self.controller, "library.tool_sort", "tool_number_ascending"))
+                == "tool_number_descending"
             )
-            return sorted(results, key=lambda entity: (0 if entity.entity_type == ENTITY_TOOL else 1, entity.key.casefold()), reverse=reverse)
+            return sorted(
+                results,
+                key=lambda entity: (0 if entity.entity_type == ENTITY_TOOL else 1, entity.key.casefold()),
+                reverse=reverse,
+            )
         if selected == "EOAT ID":
             reverse = (
                 self.scope_type == ENTITY_EOAT
-                and str(_minimalist_setting(self.controller, "library.eoat_sort", "eoat_id_ascending")) == "eoat_id_descending"
+                and str(_minimalist_setting(self.controller, "library.eoat_sort", "eoat_id_ascending"))
+                == "eoat_id_descending"
             )
-            if self.scope_type == ENTITY_MACHINE and str(_minimalist_setting(self.controller, "library.machine_sort", "")) == "current_eoat":
+            if (
+                self.scope_type == ENTITY_MACHINE
+                and str(_minimalist_setting(self.controller, "library.machine_sort", "")) == "current_eoat"
+            ):
                 return sorted(results, key=lambda entity: (str(entity.meta or "").casefold(), entity.title.casefold()))
             return sorted(results, key=_eoat_entity_sort_key, reverse=reverse)
         if self.scope_type == ENTITY_EOAT:
@@ -3015,109 +3166,113 @@ class LibraryBrowseStateView(QWidget):
             "scope_type": self.scope_type,
             "sync_thumbnail_decode": False,
         }
-        with perf_timer(
-            root,
-            "library.render.visible_cards",
-            details=details,
-            source="minimalist_library",
-            page_tool="library",
-        ):
-            with perf_timer(
+        with (
+            perf_timer(
+                root,
+                "library.render.visible_cards",
+                details=details,
+                source="minimalist_library",
+                page_tool="library",
+            ),
+            perf_timer(
                 root,
                 "library.render_cards",
                 details=details,
                 source="minimalist_library",
                 page_tool="library",
+            ),
+        ):
+            service = getattr(self.catalog, "photo_service", None)
+            cancelled_contexts = 0
+            if service is not None and self._thumbnail_context_id:
+                service.cancel_context(self._thumbnail_context_id)
+                cancelled_contexts = 1
+            if service is not None and self._hero_prefetch_context_id:
+                service.cancel_context(self._hero_prefetch_context_id)
+                cancelled_contexts += 1
+            self._thumbnail_context_id = context_id
+            self._hero_prefetch_context_id = f"{context_id}:hero"
+            if callable(self.photo_context_callback):
+                self.photo_context_callback(context_id)
+            log_perf_marker(
+                root,
+                "library.thumbnail_requests.cancel_old_context",
+                details={
+                    "selected_category": self.scope_type,
+                    "context_id": context_id,
+                    "stale_thumbnail_requests_cancelled": cancelled_contexts,
+                },
+                source="minimalist_library",
+                page_tool="library",
+            )
+            previous_widgets = self.grid_layout.count()
+            with perf_timer(
+                root,
+                "library.render.clear_old_cards",
+                details={"previous_widget_count": previous_widgets, "selected_category": self.scope_type},
+                source="minimalist_library",
+                page_tool="library",
             ):
-                service = getattr(self.catalog, "photo_service", None)
-                cancelled_contexts = 0
-                if service is not None and self._thumbnail_context_id:
-                    service.cancel_context(self._thumbnail_context_id)
-                    cancelled_contexts = 1
-                if service is not None and self._hero_prefetch_context_id:
-                    service.cancel_context(self._hero_prefetch_context_id)
-                    cancelled_contexts += 1
-                self._thumbnail_context_id = context_id
-                self._hero_prefetch_context_id = f"{context_id}:hero"
-                if callable(self.photo_context_callback):
-                    self.photo_context_callback(context_id)
-                log_perf_marker(
+                clear_layout(self.grid_layout)
+            self._last_rendered_keys = tuple((entity.entity_type, entity.key) for entity in entities)
+            created_widgets = 0
+            if not entities:
+                self._hero_prefetch_context_id = ""
+                active_filters = self._has_active_filters()
+                _log_ui_marker(
                     root,
-                    "library.thumbnail_requests.cancel_old_context",
+                    "ui.empty_state.show",
                     details={
+                        "title": "No records found",
                         "selected_category": self.scope_type,
-                        "context_id": context_id,
-                        "stale_thumbnail_requests_cancelled": cancelled_contexts,
+                        "query": self.query_text(),
+                        "active_filter_count": len(self.active_lenses),
+                        "filtered_record_count": filtered_count,
+                        "clear_filters_available": active_filters,
                     },
-                    source="minimalist_library",
                     page_tool="library",
                 )
-                previous_widgets = self.grid_layout.count()
-                with perf_timer(
-                    root,
-                    "library.render.clear_old_cards",
-                    details={"previous_widget_count": previous_widgets, "selected_category": self.scope_type},
-                    source="minimalist_library",
-                    page_tool="library",
-                ):
-                    clear_layout(self.grid_layout)
-                self._last_rendered_keys = tuple((entity.entity_type, entity.key) for entity in entities)
-                created_widgets = 0
-                if not entities:
-                    self._hero_prefetch_context_id = ""
-                    active_filters = self._has_active_filters()
-                    _log_ui_marker(
-                        root,
-                        "ui.empty_state.show",
-                        details={
-                            "title": "No records found",
-                            "selected_category": self.scope_type,
-                            "query": self.query_text(),
-                            "active_filter_count": len(self.active_lenses),
-                            "filtered_record_count": filtered_count,
-                            "clear_filters_available": active_filters,
-                        },
-                        page_tool="library",
-                    )
-                    empty = LibraryEmptyState(
-                        "No records found",
-                        "Try clearing filters or searching by ID, machine, tool, or status.",
-                        action_text="Clear filters" if active_filters else "",
-                        action_callback=self._clear_all if active_filters else None,
-                    )
-                    self.grid_layout.addWidget(empty, 0, 0, 1, max(1, self._column_count()))
-                    created_widgets = 1
-                    self._rendered_columns = self._column_count()
-                    self.grid_host.setMinimumHeight(220)
-                    self.grid_layout.activate()
-                    self._log_card_widget_count(created_widgets, details)
-                    self._log_thumbnail_request_counts(queued_thumbnails, hidden_skipped, context_id)
-                    return
-                columns = 1 if self.view_mode == "list" else self._column_count()
-                if self.view_mode == "grid" and len(entities) == 12 and columns >= 4:
-                    columns = 3
-                self._rendered_columns = columns
-                self._rendered_card_width = BROWSE_CARD_WIDTH if self.view_mode == "grid" else max(560, self.width() - 80)
-                rows = math.ceil(len(entities) / max(1, columns))
-                card_height = LIST_CARD_HEIGHT if self.view_mode == "list" else BROWSE_CARD_HEIGHT
-                self.grid_host.setMinimumHeight(rows * card_height + max(0, rows - 1) * self.grid_layout.verticalSpacing())
-                for index, entity in enumerate(entities):
-                    variant = "list" if self.view_mode == "list" else "compact"
-                    card = AtlasRecordCard(entity, self.catalog, variant=variant, navigable=True, thumbnail_context=context_id)
-                    card.clicked.connect(lambda entity=entity: self._record_selected(entity))
-                    card.detail_requested.connect(lambda entity=entity: self._record_selected(entity))
-                    row = index // columns
-                    column = index % columns
-                    self.grid_layout.addWidget(card, row, column)
-                    card.show()
-                    created_widgets += 1
-                for column in range(columns):
-                    self.grid_layout.setColumnStretch(column, 1)
-                self.grid_host.updateGeometry()
+                empty = LibraryEmptyState(
+                    "No records found",
+                    "Try clearing filters or searching by ID, machine, tool, or status.",
+                    action_text="Clear filters" if active_filters else "",
+                    action_callback=self._clear_all if active_filters else None,
+                )
+                self.grid_layout.addWidget(empty, 0, 0, 1, max(1, self._column_count()))
+                created_widgets = 1
+                self._rendered_columns = self._column_count()
+                self.grid_host.setMinimumHeight(220)
                 self.grid_layout.activate()
-                self._prefetch_visible_eoat_hero_photos(entities)
                 self._log_card_widget_count(created_widgets, details)
                 self._log_thumbnail_request_counts(queued_thumbnails, hidden_skipped, context_id)
+                return
+            columns = 1 if self.view_mode == "list" else self._column_count()
+            if self.view_mode == "grid" and len(entities) == 12 and columns >= 4:
+                columns = 3
+            self._rendered_columns = columns
+            self._rendered_card_width = BROWSE_CARD_WIDTH if self.view_mode == "grid" else max(560, self.width() - 80)
+            rows = math.ceil(len(entities) / max(1, columns))
+            card_height = LIST_CARD_HEIGHT if self.view_mode == "list" else BROWSE_CARD_HEIGHT
+            self.grid_host.setMinimumHeight(rows * card_height + max(0, rows - 1) * self.grid_layout.verticalSpacing())
+            for index, entity in enumerate(entities):
+                variant = "list" if self.view_mode == "list" else "compact"
+                card = AtlasRecordCard(
+                    entity, self.catalog, variant=variant, navigable=True, thumbnail_context=context_id
+                )
+                card.clicked.connect(lambda entity=entity: self._record_selected(entity))
+                card.detail_requested.connect(lambda entity=entity: self._record_selected(entity))
+                row = index // columns
+                column = index % columns
+                self.grid_layout.addWidget(card, row, column)
+                card.show()
+                created_widgets += 1
+            for column in range(columns):
+                self.grid_layout.setColumnStretch(column, 1)
+            self.grid_host.updateGeometry()
+            self.grid_layout.activate()
+            self._prefetch_visible_eoat_hero_photos(entities)
+            self._log_card_widget_count(created_widgets, details)
+            self._log_thumbnail_request_counts(queued_thumbnails, hidden_skipped, context_id)
 
     def _prefetch_visible_eoat_hero_photos(self, entities: list[LibraryEntity]) -> int:
         if not self._hero_prefetch_context_id:
@@ -3402,7 +3557,13 @@ class LibrarySearchBar(GlassPanel):
     def set_focus_progress(self, value: float) -> None:
         self._focus_progress = max(0.0, min(1.0, float(value)))
         border = QColor("#1f87ff") if self._focus_progress else QColor("#496f9d")
-        self.set_glass(alpha=74 + round(self._focus_progress * 16), border_alpha=70 + round(self._focus_progress * 80), border_color=border, fill_color=QColor("#08172b"), outer_glow_alpha=round(26 * self._focus_progress))
+        self.set_glass(
+            alpha=74 + round(self._focus_progress * 16),
+            border_alpha=70 + round(self._focus_progress * 80),
+            border_color=border,
+            fill_color=QColor("#08172b"),
+            outer_glow_alpha=round(26 * self._focus_progress),
+        )
         self.update()
 
     focusProgress = Property(float, get_focus_progress, set_focus_progress)
@@ -3444,7 +3605,13 @@ class AdvancedFilterPopover(GlassPanel):
         self.category_buttons: dict[str, AnimatedLibraryButton] = {}
         self.value_buttons: dict[str, AnimatedLibraryButton] = {}
         self.setObjectName("AdvancedFilterPopover")
-        self.set_glass(alpha=220, border_alpha=112, border_color=QColor("#4b91dd"), fill_color=QColor("#061226"), outer_glow_alpha=40)
+        self.set_glass(
+            alpha=220,
+            border_alpha=112,
+            border_color=QColor("#4b91dd"),
+            fill_color=QColor("#061226"),
+            outer_glow_alpha=40,
+        )
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 14, 14, 14)
         layout.setSpacing(14)
@@ -3549,7 +3716,9 @@ class CategorySelectorCard(AnimatedGlassCard):
         painter.drawPath(path)
         icon = glyph_icon(self.glyph, QColor("#1496ff" if self.selected else "#f0f5ff"), 34).pixmap(34, 34)
         painter.drawPixmap(32, 18, icon)
-        self._draw_text(painter, self.title, QRectF(82, 14, 120, 42), QColor("#1496ff" if self.selected else "#ffffff"), 16, 760)
+        self._draw_text(
+            painter, self.title, QRectF(82, 14, 120, 42), QColor("#1496ff" if self.selected else "#ffffff"), 16, 760
+        )
         badge_width = max(46, 24 + QFontMetrics(_font(12, 760)).horizontalAdvance(str(self.count)))
         badge_rect = QRectF(rect.right() - badge_width - 24, 20, badge_width, 32)
         badge_path = QPainterPath()
@@ -3557,9 +3726,21 @@ class CategorySelectorCard(AnimatedGlassCard):
         painter.fillPath(badge_path, QColor(21, 111, 255, 212 if self.selected else 82))
         painter.setPen(QPen(QColor(97, 178, 255, 170), 1))
         painter.drawPath(badge_path)
-        self._draw_text(painter, str(self.count), badge_rect, QColor("#ffffff"), 13, 760, align=Qt.AlignmentFlag.AlignCenter)
+        self._draw_text(
+            painter, str(self.count), badge_rect, QColor("#ffffff"), 13, 760, align=Qt.AlignmentFlag.AlignCenter
+        )
 
-    def _draw_text(self, painter: QPainter, text: str, rect: QRectF, color: QColor, point_size: float, weight: int, *, align=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter) -> None:
+    def _draw_text(
+        self,
+        painter: QPainter,
+        text: str,
+        rect: QRectF,
+        color: QColor,
+        point_size: float,
+        weight: int,
+        *,
+        align=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+    ) -> None:
         painter.setFont(_font(point_size, weight))
         painter.setPen(color)
         painter.drawText(rect, align, text)
@@ -3650,7 +3831,9 @@ class AtlasRecordCard(AnimatedGlassCard):
             variant = "search"
         if variant not in {"compact", "list", "relationship", "node", "center_node", "search", "related", "hero"}:
             variant = "compact"
-        super().__init__(parent, radius=8 if variant in {"compact", "list", "relationship", "search", "related"} else 90)
+        super().__init__(
+            parent, radius=8 if variant in {"compact", "list", "relationship", "search", "related"} else 90
+        )
         self.entity = entity
         self.catalog = catalog
         self.variant = "relationship" if variant == "related" else variant
@@ -3802,7 +3985,9 @@ class AtlasRecordCard(AnimatedGlassCard):
         painter.fillPath(path, fill)
         painter.save()
         painter.setClipPath(path)
-        glow = QRadialGradient(rect.right() - rect.width() * 0.22, rect.top() + rect.height() * 0.30, rect.width() * 0.60)
+        glow = QRadialGradient(
+            rect.right() - rect.width() * 0.22, rect.top() + rect.height() * 0.30, rect.width() * 0.60
+        )
         if light:
             accent = QColor(tokens.accent)
             glow.setColorAt(0.0, QColor(accent.red(), accent.green(), accent.blue(), 20 + round(18 * hover)))
@@ -3842,7 +4027,14 @@ class AtlasRecordCard(AnimatedGlassCard):
             830,
             min_point_size=11.5,
         )
-        self._draw_text(painter, clipped_text(self.entity.subtitle, 36), QRectF(text_left, rect.top() + 109, text_width, 30), QColor(tokens.text_secondary if light else "#c9d4e4"), 12, 520)
+        self._draw_text(
+            painter,
+            clipped_text(self.entity.subtitle, 36),
+            QRectF(text_left, rect.top() + 109, text_width, 30),
+            QColor(tokens.text_secondary if light else "#c9d4e4"),
+            12,
+            520,
+        )
         divider_y = rect.bottom() - 57
         painter.setPen(QPen(QColor("#c9d8e8" if light else "#7597be"), 1))
         painter.drawLine(QPointF(rect.left() + 22, divider_y), QPointF(rect.right() - 22, divider_y))
@@ -3852,7 +4044,13 @@ class AtlasRecordCard(AnimatedGlassCard):
         meta_width = rect.width() - 48
         half_width = (meta_width - meta_gap) / 2
         meta_y = divider_y + 17
-        self._draw_info_row(painter, self._bottom_left_icon(), condition, QRectF(rect.left() + 24, meta_y, half_width, 24), condition_tone)
+        self._draw_info_row(
+            painter,
+            self._bottom_left_icon(),
+            condition,
+            QRectF(rect.left() + 24, meta_y, half_width, 24),
+            condition_tone,
+        )
         self._draw_info_row(
             painter,
             "target",
@@ -3889,15 +4087,42 @@ class AtlasRecordCard(AnimatedGlassCard):
         self._draw_status(painter, QRectF(rect.right() - 168, rect.top() + 22, 140, 22), status, tone)
         text_left = visual_column.right() + 22
         title_right = max(text_left + 130, rect.right() - 184)
-        self._draw_text_fit(painter, self.entity.title, QRectF(text_left, rect.top() + 22, title_right - text_left, 34), QColor(tokens.text_primary if light else "#ffffff"), 18, 820, min_point_size=12)
-        self._draw_text(painter, clipped_text(self.entity.subtitle, 90), QRectF(text_left, rect.top() + 58, rect.right() - text_left - 26, 24), QColor(tokens.text_secondary if light else "#c9d4e4"), 12, 520)
+        self._draw_text_fit(
+            painter,
+            self.entity.title,
+            QRectF(text_left, rect.top() + 22, title_right - text_left, 34),
+            QColor(tokens.text_primary if light else "#ffffff"),
+            18,
+            820,
+            min_point_size=12,
+        )
+        self._draw_text(
+            painter,
+            clipped_text(self.entity.subtitle, 90),
+            QRectF(text_left, rect.top() + 58, rect.right() - text_left - 26, 24),
+            QColor(tokens.text_secondary if light else "#c9d4e4"),
+            12,
+            520,
+        )
         condition, condition_tone = entity_condition_line(self.entity, self.catalog)
         meta_gap = 16
         meta_width = max(120.0, rect.right() - text_left - 28)
         left_width = min(250.0, (meta_width - meta_gap) * 0.54)
         right_width = max(120.0, meta_width - left_width - meta_gap)
-        self._draw_info_row(painter, self._bottom_left_icon(), condition, QRectF(text_left, rect.top() + 84, left_width, 22), condition_tone)
-        self._draw_info_row(painter, "target", self._card_location_line(), QRectF(text_left + left_width + meta_gap, rect.top() + 84, right_width, 22), "normal")
+        self._draw_info_row(
+            painter,
+            self._bottom_left_icon(),
+            condition,
+            QRectF(text_left, rect.top() + 84, left_width, 22),
+            condition_tone,
+        )
+        self._draw_info_row(
+            painter,
+            "target",
+            self._card_location_line(),
+            QRectF(text_left + left_width + meta_gap, rect.top() + 84, right_width, 22),
+            "normal",
+        )
 
     def _paint_relationship_card(self) -> None:
         painter = QPainter(self)
@@ -3917,14 +4142,37 @@ class AtlasRecordCard(AnimatedGlassCard):
         self._draw_thumbnail(painter, QRectF(rect.left() + 10, rect.top() + 11, 38, 38), circular=False)
         right_reserve = 58 if self.badge_label else 20
         title_rect = QRectF(rect.left() + 60, rect.top() + 9, rect.width() - 60 - right_reserve, 21)
-        self._draw_text_fit(painter, self.entity.title, title_rect, QColor(tokens.text_primary if light else "#ffffff"), 9.8, 760, min_point_size=7.8)
-        self._draw_text(painter, clipped_text(self.entity.subtitle, 26), QRectF(rect.left() + 60, rect.top() + 32, rect.width() - 76, 19), QColor(tokens.text_secondary if light else "#c3d0e1"), 8.2, 500)
+        self._draw_text_fit(
+            painter,
+            self.entity.title,
+            title_rect,
+            QColor(tokens.text_primary if light else "#ffffff"),
+            9.8,
+            760,
+            min_point_size=7.8,
+        )
+        self._draw_text(
+            painter,
+            clipped_text(self.entity.subtitle, 26),
+            QRectF(rect.left() + 60, rect.top() + 32, rect.width() - 76, 19),
+            QColor(tokens.text_secondary if light else "#c3d0e1"),
+            8.2,
+            500,
+        )
         if self.badge_label:
             badge_rect = QRectF(rect.right() - 58, rect.top() + 7, 48, 17)
             badge_path = QPainterPath()
             badge_path.addRoundedRect(badge_rect, 7, 7)
             painter.fillPath(badge_path, QColor(tokens.accent_soft if light else "#004f9f"))
-            self._draw_text(painter, self.badge_label, badge_rect, QColor(tokens.accent_hover if light else "#9be4ff"), 6.2, 760, align=Qt.AlignmentFlag.AlignCenter)
+            self._draw_text(
+                painter,
+                self.badge_label,
+                badge_rect,
+                QColor(tokens.accent_hover if light else "#9be4ff"),
+                6.2,
+                760,
+                align=Qt.AlignmentFlag.AlignCenter,
+            )
         if self.navigable:
             chevron_x = rect.right() - 17 + hover * 2
             chevron_y = rect.center().y()
@@ -3953,13 +4201,40 @@ class AtlasRecordCard(AnimatedGlassCard):
         painter.drawEllipse(rect)
         self._draw_thumbnail(painter, QRectF(center.x() - 35, rect.top() + 33, 70, 54), circular=False)
         title_size = 12 if self.variant == "node" else 13.5
-        self._draw_text_fit(painter, self.entity.title, QRectF(rect.left() + 14, rect.top() + 88, rect.width() - 28, 26), QColor("#ffffff"), title_size, 820, min_point_size=8, align=Qt.AlignmentFlag.AlignCenter)
-        self._draw_text(painter, clipped_text(self.entity.subtitle, 28), QRectF(rect.left() + 12, rect.top() + 113, rect.width() - 24, 22), QColor("#c2ccdc"), 8.8, 500, align=Qt.AlignmentFlag.AlignCenter)
+        self._draw_text_fit(
+            painter,
+            self.entity.title,
+            QRectF(rect.left() + 14, rect.top() + 88, rect.width() - 28, 26),
+            QColor("#ffffff"),
+            title_size,
+            820,
+            min_point_size=8,
+            align=Qt.AlignmentFlag.AlignCenter,
+        )
+        self._draw_text(
+            painter,
+            clipped_text(self.entity.subtitle, 28),
+            QRectF(rect.left() + 12, rect.top() + 113, rect.width() - 24, 22),
+            QColor("#c2ccdc"),
+            8.8,
+            500,
+            align=Qt.AlignmentFlag.AlignCenter,
+        )
         if self.variant == "center_node":
             status, tone = record_status_display(self.entity)
-            self._draw_status(painter, QRectF(rect.left() + 44, rect.bottom() - 34, rect.width() - 88, 20), status, tone, compact=True)
+            self._draw_status(
+                painter, QRectF(rect.left() + 44, rect.bottom() - 34, rect.width() - 88, 20), status, tone, compact=True
+            )
         elif self.badge_label:
-            self._draw_text(painter, self.badge_label, QRectF(rect.left() + 20, rect.bottom() - 30, rect.width() - 40, 18), QColor("#8bdcff"), 7.5, 760, align=Qt.AlignmentFlag.AlignCenter)
+            self._draw_text(
+                painter,
+                self.badge_label,
+                QRectF(rect.left() + 20, rect.bottom() - 30, rect.width() - 40, 18),
+                QColor("#8bdcff"),
+                7.5,
+                760,
+                align=Qt.AlignmentFlag.AlignCenter,
+            )
 
     def _load_thumbnail(self) -> None:
         if self.catalog is None:
@@ -3982,7 +4257,12 @@ class AtlasRecordCard(AnimatedGlassCard):
                 log_perf_marker(
                     _catalog_project_root(self.catalog),
                     "photo_service.memory_cache_hit",
-                    details={"photo_id": photo_id, "context_id": self._thumbnail_context, "kind": "thumbnail", "surface": "library_card"},
+                    details={
+                        "photo_id": photo_id,
+                        "context_id": self._thumbnail_context,
+                        "kind": "thumbnail",
+                        "surface": "library_card",
+                    },
                     source="photo_service",
                     page_tool="photos",
                 )
@@ -4058,21 +4338,31 @@ class AtlasRecordCard(AnimatedGlassCard):
             frame_path.addEllipse(rect)
         else:
             frame_path.addRoundedRect(rect, 8, 8)
-        show_placeholder = _library_bool(getattr(self.catalog, "controller", None), "library.show_placeholder_while_loading_images", True)
+        show_placeholder = _library_bool(
+            getattr(self.catalog, "controller", None), "library.show_placeholder_while_loading_images", True
+        )
         if not show_placeholder and (self._thumbnail is None or self._thumbnail.isNull()):
             return
         painter.fillPath(frame_path, QColor("#e6eef6" if light else "#081c3a"))
         painter.save()
         painter.setClipPath(frame_path)
         if self._thumbnail is not None and not self._thumbnail.isNull():
-            scaled = self._thumbnail.scaled(rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            scaled = self._thumbnail.scaled(
+                rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            )
             painter.setOpacity(self._thumbnail_opacity)
-            painter.drawPixmap(round(rect.center().x() - scaled.width() / 2), round(rect.center().y() - scaled.height() / 2), scaled)
+            painter.drawPixmap(
+                round(rect.center().x() - scaled.width() / 2), round(rect.center().y() - scaled.height() / 2), scaled
+            )
         else:
             glyph = self._main_glyph()
             icon_side = round(min(rect.width(), rect.height()) * 0.58)
-            pix = glyph_icon(glyph, QColor(tokens.text_secondary if light else "#d7e8ff"), icon_side).pixmap(icon_side, icon_side)
-            painter.drawPixmap(round(rect.center().x() - pix.width() / 2), round(rect.center().y() - pix.height() / 2), pix)
+            pix = glyph_icon(glyph, QColor(tokens.text_secondary if light else "#d7e8ff"), icon_side).pixmap(
+                icon_side, icon_side
+            )
+            painter.drawPixmap(
+                round(rect.center().x() - pix.width() / 2), round(rect.center().y() - pix.height() / 2), pix
+            )
         painter.restore()
         painter.setPen(QPen(QColor("#b6c8db" if light else "#5e92cc"), 1.0))
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -4089,12 +4379,26 @@ class AtlasRecordCard(AnimatedGlassCard):
     def _draw_info_row(self, painter: QPainter, glyph: str, text: str, rect: QRectF, tone: str) -> None:
         tokens = active_minimalist_tokens()
         light = effective_minimalist_theme() == "light"
-        color = self._tone_color(tone) if tone in {"warning", "muted"} else QColor(tokens.text_secondary if light else "#d7dfec")
+        color = (
+            self._tone_color(tone)
+            if tone in {"warning", "muted"}
+            else QColor(tokens.text_secondary if light else "#d7dfec")
+        )
         icon = glyph_icon(glyph, color, 18).pixmap(18, 18)
         painter.drawPixmap(round(rect.left()), round(rect.center().y() - 9), icon)
         self._draw_text_fit(painter, text, rect.adjusted(30, -1, 0, 1), color, 10.5, 500, min_point_size=8.5)
 
-    def _draw_text(self, painter: QPainter, text: str, rect: QRectF, color: QColor, point_size: float, weight: int, *, align=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter) -> None:
+    def _draw_text(
+        self,
+        painter: QPainter,
+        text: str,
+        rect: QRectF,
+        color: QColor,
+        point_size: float,
+        weight: int,
+        *,
+        align=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+    ) -> None:
         painter.setFont(_font(point_size, weight))
         painter.setPen(color)
         painter.drawText(rect, align, text)
@@ -4121,11 +4425,15 @@ class AtlasRecordCard(AnimatedGlassCard):
                 painter.drawText(rect, align, raw)
                 return
             size -= 0.75
-        elided = QFontMetrics(_font(min_point_size, weight)).elidedText(raw, Qt.TextElideMode.ElideRight, round(rect.width()))
+        elided = QFontMetrics(_font(min_point_size, weight)).elidedText(
+            raw, Qt.TextElideMode.ElideRight, round(rect.width())
+        )
         self._draw_text(painter, elided, rect, color, min_point_size, weight, align=align)
 
     def _main_glyph(self) -> str:
-        return {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(self.entity.entity_type, "library")
+        return {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(
+            self.entity.entity_type, "library"
+        )
 
     def _tone_color(self, tone: str) -> QColor:
         return _semantic_tone_color(tone)
@@ -4330,13 +4638,16 @@ class LibraryRecordStateView(QWidget):
                     project_root = _catalog_project_root(self.catalog)
                     data_service = self.catalog.data_service
                     if data_service is not None:
+
                         def history_loader():
                             return data_service.get_eoat_history(self.detail_data.record_id)
                     else:
+
                         def history_loader():
-                            return EOATHistoryService(
-                                configured_eoat_history_repository(project_root)
-                            ).history_for(self.detail_data.record_id)
+                            return EOATHistoryService(configured_eoat_history_repository(project_root)).history_for(
+                                self.detail_data.record_id
+                            )
+
                     widget = RecordHistoryTab(
                         self.detail_data,
                         project_root=project_root,
@@ -4402,7 +4713,11 @@ class LibraryRecordStateView(QWidget):
             from core.reporting.pdf_record_report import export_record_pdf, pdf_image_warnings_for
 
             preview_path = _record_pdf_preview_path(project_root, detail_data)
-            default_save_path = Path(options.output_path) if options.output_path is not None else _record_pdf_output_dir(project_root) / _record_report_default_filename(detail_data)
+            default_save_path = (
+                Path(options.output_path)
+                if options.output_path is not None
+                else _record_pdf_output_dir(project_root) / _record_report_default_filename(detail_data)
+            )
             with perf_timer(
                 project_root,
                 "pdf.generation.worker",
@@ -4418,7 +4733,9 @@ class LibraryRecordStateView(QWidget):
                 source="minimalist_library",
                 page_tool="library_record",
             ):
-                path = export_record_pdf(detail_data, output_path=preview_path, project_root=project_root, options=options)
+                path = export_record_pdf(
+                    detail_data, output_path=preview_path, project_root=project_root, options=options
+                )
                 skipped_photo_count = len(pdf_image_warnings_for(path))
         except Exception as exc:
             LOGGER.exception("PDF export failed for %s %s", detail_data.record_type, detail_data.record_id)
@@ -4473,7 +4790,10 @@ class LibraryRecordStateView(QWidget):
                 record_type=self.detail_data.record_type,
                 record_id=self.detail_data.record_id,
                 temp_pdf_path=Path(path),
-                default_save_path=Path(default_save_path) if default_save_path else _record_pdf_output_dir(_catalog_project_root(self.catalog)) / _record_report_default_filename(self.detail_data),
+                default_save_path=Path(default_save_path)
+                if default_save_path
+                else _record_pdf_output_dir(_catalog_project_root(self.catalog))
+                / _record_report_default_filename(self.detail_data),
                 options=options,
                 temp_preview_dir=_record_pdf_preview_dir(_catalog_project_root(self.catalog)),
             )
@@ -4500,7 +4820,12 @@ class LibraryRecordStateView(QWidget):
         _log_ui_marker(
             _catalog_project_root(self.catalog),
             "ui.error_state.show",
-            details={"surface": "pdf_export", "record_type": self.entity.entity_type, "record_id": self.entity.key, "error": message},
+            details={
+                "surface": "pdf_export",
+                "record_type": self.entity.entity_type,
+                "record_id": self.entity.key,
+                "error": message,
+            },
             page_tool="library_record",
         )
         self._notify("PDF export failed.")
@@ -4540,7 +4865,14 @@ class LibraryRecordStateView(QWidget):
 
 
 class RecordHeroPanel(GlassPanel):
-    def __init__(self, entity: LibraryEntity, catalog: LibraryCatalog, detail_data: RecordDetailData, export_callback, parent=None):
+    def __init__(
+        self,
+        entity: LibraryEntity,
+        catalog: LibraryCatalog,
+        detail_data: RecordDetailData,
+        export_callback,
+        parent=None,
+    ):
         super().__init__(parent, radius=14, streaks=True)
         self.entity = entity
         self.catalog = catalog
@@ -4822,14 +5154,26 @@ class EntityPortrait(QWidget):
             photo_path.addEllipse(photo_rect)
             painter.save()
             painter.setClipPath(photo_path)
-            scaled = self.pixmap.scaled(photo_rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+            scaled = self.pixmap.scaled(
+                photo_rect.size().toSize(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             painter.setOpacity(self._photo_opacity)
-            painter.drawPixmap(round(photo_rect.center().x() - scaled.width() / 2), round(photo_rect.center().y() - scaled.height() / 2), scaled)
+            painter.drawPixmap(
+                round(photo_rect.center().x() - scaled.width() / 2),
+                round(photo_rect.center().y() - scaled.height() / 2),
+                scaled,
+            )
             painter.restore()
         else:
-            glyph = {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(self.entity.entity_type, "library")
+            glyph = {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(
+                self.entity.entity_type, "library"
+            )
             icon = glyph_icon(glyph, QColor("#d7e8ff"), 72).pixmap(72, 72)
-            painter.drawPixmap(round(rect.center().x() - icon.width() / 2), round(rect.center().y() - icon.height() / 2), icon)
+            painter.drawPixmap(
+                round(rect.center().x() - icon.width() / 2), round(rect.center().y() - icon.height() / 2), icon
+            )
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(STATUS_SUCCESS, 1.1))
         painter.drawEllipse(rect)
@@ -4854,7 +5198,9 @@ class StatusLineLabel(QWidget):
         painter.drawEllipse(QRectF(0, 8, 8, 8))
         painter.setFont(_font(9.5, 700))
         painter.setPen(color)
-        painter.drawText(QRectF(16, 0, self.width() - 16, 24), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text)
+        painter.drawText(
+            QRectF(16, 0, self.width() - 16, 24), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text
+        )
 
 
 class InfoPill(QWidget):
@@ -4872,7 +5218,9 @@ class InfoPill(QWidget):
         painter.drawPixmap(0, 4, icon)
         painter.setFont(_font(10, 520))
         painter.setPen(QColor("#c9d4e4"))
-        painter.drawText(QRectF(28, 0, self.width() - 28, 26), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text)
+        painter.drawText(
+            QRectF(28, 0, self.width() - 28, 26), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self.text
+        )
 
 
 class MetadataBlock(QWidget):
@@ -4911,11 +5259,19 @@ class PDFOptionsOverlay(QWidget):
 
         self.panel = GlassPanel(self, radius=24, streaks=False)
         self.panel.setObjectName("PDFOptionsPanel")
-        self.panel.set_glass(alpha=244, border_alpha=190, border_color=QColor("#73b7ff"), fill_color=QColor("#020b1d"), outer_glow_alpha=82)
+        self.panel.set_glass(
+            alpha=244,
+            border_alpha=190,
+            border_color=QColor("#73b7ff"),
+            fill_color=QColor("#020b1d"),
+            outer_glow_alpha=82,
+        )
         self._build_panel()
 
     @classmethod
-    def open_for(cls, source_widget: QWidget, detail_data: RecordDetailData, *, project_root: str = "") -> "PDFOptionsOverlay":
+    def open_for(
+        cls, source_widget: QWidget, detail_data: RecordDetailData, *, project_root: str = ""
+    ) -> PDFOptionsOverlay:
         root = source_widget.window()
         overlay = cls(detail_data, project_root=project_root, parent=root)
         overlay.setGeometry(root.rect())
@@ -5262,7 +5618,9 @@ class PDFGenerationStatusOverlay(QWidget):
         self.timer.timeout.connect(self._tick)
 
     @classmethod
-    def show_for(cls, source_widget: QWidget, detail_data: RecordDetailData, *, project_root: str = "") -> "PDFGenerationStatusOverlay":
+    def show_for(
+        cls, source_widget: QWidget, detail_data: RecordDetailData, *, project_root: str = ""
+    ) -> PDFGenerationStatusOverlay:
         root = source_widget.window()
         overlay = cls(detail_data, project_root=project_root, parent=root)
         overlay.setGeometry(root.rect())
@@ -5323,8 +5681,12 @@ class PDFCloseButton(QPushButton):
         painter.setPen(QPen(QColor("#6ec6ff" if hover else "#4278b8"), 1.2))
         painter.drawEllipse(rect)
         painter.setPen(QPen(QColor("#f5fbff"), 2.0))
-        painter.drawLine(QPointF(rect.center().x() - 5, rect.center().y() - 5), QPointF(rect.center().x() + 5, rect.center().y() + 5))
-        painter.drawLine(QPointF(rect.center().x() + 5, rect.center().y() - 5), QPointF(rect.center().x() - 5, rect.center().y() + 5))
+        painter.drawLine(
+            QPointF(rect.center().x() - 5, rect.center().y() - 5), QPointF(rect.center().x() + 5, rect.center().y() + 5)
+        )
+        painter.drawLine(
+            QPointF(rect.center().x() + 5, rect.center().y() - 5), QPointF(rect.center().x() - 5, rect.center().y() + 5)
+        )
 
 
 class PDFPreviewOverlay(QWidget):
@@ -5372,7 +5734,13 @@ class PDFPreviewOverlay(QWidget):
 
         self.panel = GlassPanel(self, radius=22, streaks=False)
         self.panel.setObjectName("PDFPreviewPanel")
-        self.panel.set_glass(alpha=244, border_alpha=188, border_color=QColor("#73b7ff"), fill_color=QColor("#020b1d"), outer_glow_alpha=86)
+        self.panel.set_glass(
+            alpha=244,
+            border_alpha=188,
+            border_color=QColor("#73b7ff"),
+            fill_color=QColor("#020b1d"),
+            outer_glow_alpha=86,
+        )
         self.close_button = PDFCloseButton(self)
         self.close_button.clicked.connect(self.close_preview)
         self._build_panel()
@@ -5386,9 +5754,11 @@ class PDFPreviewOverlay(QWidget):
         *,
         project_root: str = "",
         skipped_photo_count: int = 0,
-    ) -> "PDFPreviewOverlay":
+    ) -> PDFPreviewOverlay:
         root = source_widget.window()
-        overlay = cls(session, detail_data, project_root=project_root, skipped_photo_count=skipped_photo_count, parent=root)
+        overlay = cls(
+            session, detail_data, project_root=project_root, skipped_photo_count=skipped_photo_count, parent=root
+        )
         overlay.setGeometry(root.rect())
         overlay.show()
         overlay.raise_()
@@ -5399,7 +5769,11 @@ class PDFPreviewOverlay(QWidget):
         _log_ui_marker(
             self.project_root,
             "pdf.preview.open",
-            details={"record_type": self.detail_data.record_type, "record_id": self.detail_data.record_id, "path": str(self.path)},
+            details={
+                "record_type": self.detail_data.record_type,
+                "record_id": self.detail_data.record_id,
+                "path": str(self.path),
+            },
             page_tool="library_record",
         )
         self.setFocus(Qt.FocusReason.PopupFocusReason)
@@ -5511,7 +5885,11 @@ class PDFPreviewOverlay(QWidget):
         _log_ui_marker(
             self.project_root,
             "pdf.preview.zoom",
-            details={"record_type": self.detail_data.record_type, "record_id": self.detail_data.record_id, "mode": "fit_width"},
+            details={
+                "record_type": self.detail_data.record_type,
+                "record_id": self.detail_data.record_id,
+                "mode": "fit_width",
+            },
             page_tool="library_record",
         )
 
@@ -5519,7 +5897,9 @@ class PDFPreviewOverlay(QWidget):
         default_path = self.session.default_save_path
         options = self.session.options if isinstance(self.session.options, dict) else {}
         if options.get("ask_location_when_save_clicked", True):
-            target, _selected_filter = QFileDialog.getSaveFileName(self, "Save PDF report", str(default_path), "PDF files (*.pdf)")
+            target, _selected_filter = QFileDialog.getSaveFileName(
+                self, "Save PDF report", str(default_path), "PDF files (*.pdf)"
+            )
             if not target:
                 return
         else:
@@ -5620,7 +6000,9 @@ class PDFPreviewOverlay(QWidget):
 
         self.viewer_host = QFrame()
         self.viewer_host.setObjectName("PDFViewerHost")
-        self.viewer_host.setStyleSheet("QFrame#PDFViewerHost { background: rgba(1, 7, 16, 210); border: 1px solid rgba(78, 123, 175, 120); border-radius: 10px; }")
+        self.viewer_host.setStyleSheet(
+            "QFrame#PDFViewerHost { background: rgba(1, 7, 16, 210); border: 1px solid rgba(78, 123, 175, 120); border-radius: 10px; }"
+        )
         host_layout = QVBoxLayout(self.viewer_host)
         host_layout.setContentsMargins(8, 8, 8, 8)
         self._pdf_document_cls, self._pdf_view_cls = _qt_pdf_classes()
@@ -5690,7 +6072,11 @@ class PDFPreviewOverlay(QWidget):
         _log_ui_marker(
             self.project_root,
             "pdf.preview.zoom",
-            details={"record_type": self.detail_data.record_type, "record_id": self.detail_data.record_id, "zoom": round(factor, 2)},
+            details={
+                "record_type": self.detail_data.record_type,
+                "record_id": self.detail_data.record_id,
+                "zoom": round(factor, 2),
+            },
             page_tool="library_record",
         )
 
@@ -5806,7 +6192,14 @@ class RecordTabStack(QStackedWidget):
 
 
 class RecordOverviewTab(QWidget):
-    def __init__(self, entity: LibraryEntity, catalog: LibraryCatalog, record_callback, detail_data: RecordDetailData, parent=None):
+    def __init__(
+        self,
+        entity: LibraryEntity,
+        catalog: LibraryCatalog,
+        record_callback,
+        detail_data: RecordDetailData,
+        parent=None,
+    ):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -5815,7 +6208,11 @@ class RecordOverviewTab(QWidget):
         with perf_timer(
             _catalog_project_root(catalog),
             "record.render.summary_strip",
-            details={"record_type": entity.entity_type, "record_id": entity.key, "summary_fields": len(detail_data.summary_fields)},
+            details={
+                "record_type": entity.entity_type,
+                "record_id": entity.key,
+                "summary_fields": len(detail_data.summary_fields),
+            },
             source="minimalist_library",
             page_tool="library_record",
         ):
@@ -5933,7 +6330,9 @@ class RelationshipOverviewPanel(GlassPanel):
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             point = event.position().toPoint()
-            zone = next((item for item in self.hit_zones if item.entity is not None and item.rect.contains(point)), None)
+            zone = next(
+                (item for item in self.hit_zones if item.entity is not None and item.rect.contains(point)), None
+            )
             if zone is not None and zone.entity is not None:
                 self.record_callback(zone.entity)
                 event.accept()
@@ -5967,19 +6366,33 @@ class RelationshipOverviewPanel(GlassPanel):
     def _paint_content(self, painter: QPainter) -> None:
         painter.setFont(_font(15, 800))
         painter.setPen(QColor("#ffffff"))
-        painter.drawText(QRectF(24, 24, 310, 30), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "Relationship Overview")
+        painter.drawText(
+            QRectF(24, 24, 310, 30), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "Relationship Overview"
+        )
         painter.setFont(_font(9.5, 520))
         painter.setPen(QColor("#b9c8dc"))
-        painter.drawText(QRectF(24, 54, 430, 25), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, relationship_subtitle(self.entity))
+        painter.drawText(
+            QRectF(24, 54, 430, 25),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            relationship_subtitle(self.entity),
+        )
         if not self.relationships_loaded:
             painter.setFont(_font(11, 560))
             painter.setPen(QColor("#b8c7d9"))
-            painter.drawText(QRectF(30, self.height() / 2 - 24, self.width() - 60, 48), Qt.AlignmentFlag.AlignCenter, "Loading relationships...")
+            painter.drawText(
+                QRectF(30, self.height() / 2 - 24, self.width() - 60, 48),
+                Qt.AlignmentFlag.AlignCenter,
+                "Loading relationships...",
+            )
             return
         if not self.left_zones and not self.right_zones:
             painter.setFont(_font(11, 560))
             painter.setPen(QColor("#b8c7d9"))
-            painter.drawText(QRectF(30, self.height() / 2 - 36, self.width() - 60, 72), Qt.AlignmentFlag.AlignCenter, "No linked records are indexed for this record yet.")
+            painter.drawText(
+                QRectF(30, self.height() / 2 - 36, self.width() - 60, 72),
+                Qt.AlignmentFlag.AlignCenter,
+                "No linked records are indexed for this record yet.",
+            )
             self._draw_center_node(painter)
             return
         label_y = max(78, self.center_rect.top() - 28)
@@ -5987,12 +6400,27 @@ class RelationshipOverviewPanel(GlassPanel):
             left_bounds = self._bounds_for(self.left_zones)
             painter.setFont(_font(10, 800))
             painter.setPen(QColor("#7edcff"))
-            painter.drawText(QRectF(left_bounds.left() if not left_bounds.isNull() else 24, label_y, 220, 24), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.left_title.upper())
+            painter.drawText(
+                QRectF(left_bounds.left() if not left_bounds.isNull() else 24, label_y, 220, 24),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                self.left_title.upper(),
+            )
         if self.right_title:
             right_bounds = self._bounds_for(self.right_zones)
             painter.setFont(_font(10, 800))
             painter.setPen(QColor("#7edcff"))
-            painter.drawText(QRectF(right_bounds.left() if not right_bounds.isNull() else self.center_rect.right() + self.CENTER_CONNECTOR_GAP, label_y, 220, 24), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.right_title.upper())
+            painter.drawText(
+                QRectF(
+                    right_bounds.left()
+                    if not right_bounds.isNull()
+                    else self.center_rect.right() + self.CENTER_CONNECTOR_GAP,
+                    label_y,
+                    220,
+                    24,
+                ),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                self.right_title.upper(),
+            )
         self._draw_connectors(painter)
         for zone in [*self.left_zones, *self.right_zones]:
             if zone.more_count:
@@ -6002,41 +6430,49 @@ class RelationshipOverviewPanel(GlassPanel):
         self._draw_center_node(painter)
 
     def _populate(self) -> None:
-        with perf_timer(
-            _catalog_project_root(self.catalog),
-            "record.render.relationship_panel",
-            details={"record_type": self.entity.entity_type, "record_id": self.entity.key},
-            source="minimalist_library",
-            page_tool="library_record",
-        ):
-            with perf_timer(
+        with (
+            perf_timer(
                 _catalog_project_root(self.catalog),
-                "record.relationship_render",
-                details={"record_type": self.entity.entity_type, "record_id": self.entity.key, "approach": "custom_painted_canvas"},
+                "record.render.relationship_panel",
+                details={"record_type": self.entity.entity_type, "record_id": self.entity.key},
                 source="minimalist_library",
                 page_tool="library_record",
-            ):
-                self.left_title, left_entities, self.right_title, right_entities, self.badges = relationship_groups(self.entity, self.catalog)
-                self.left_entities = list(left_entities)
-                self.right_entities = list(right_entities)
-                self.relationships_loaded = True
-                self._calculate_layout()
-                log_perf_marker(
-                    _catalog_project_root(self.catalog),
-                    "record.relationship_widget_count",
-                    details={
-                        "record_type": self.entity.entity_type,
-                        "record_id": self.entity.key,
-                        "left_count": len(left_entities),
-                        "right_count": len(right_entities),
-                        "rendered_left_cards": len(self.left_visible_zones),
-                        "rendered_right_cards": len(self.right_visible_zones),
-                        "qwidgets_created": 0,
-                        "approach": "custom_painted_canvas",
-                    },
-                    source="minimalist_library",
-                    page_tool="library_record",
-                )
+            ),
+            perf_timer(
+                _catalog_project_root(self.catalog),
+                "record.relationship_render",
+                details={
+                    "record_type": self.entity.entity_type,
+                    "record_id": self.entity.key,
+                    "approach": "custom_painted_canvas",
+                },
+                source="minimalist_library",
+                page_tool="library_record",
+            ),
+        ):
+            self.left_title, left_entities, self.right_title, right_entities, self.badges = relationship_groups(
+                self.entity, self.catalog
+            )
+            self.left_entities = list(left_entities)
+            self.right_entities = list(right_entities)
+            self.relationships_loaded = True
+            self._calculate_layout()
+            log_perf_marker(
+                _catalog_project_root(self.catalog),
+                "record.relationship_widget_count",
+                details={
+                    "record_type": self.entity.entity_type,
+                    "record_id": self.entity.key,
+                    "left_count": len(left_entities),
+                    "right_count": len(right_entities),
+                    "rendered_left_cards": len(self.left_visible_zones),
+                    "rendered_right_cards": len(self.right_visible_zones),
+                    "qwidgets_created": 0,
+                    "approach": "custom_painted_canvas",
+                },
+                source="minimalist_library",
+                page_tool="library_record",
+            )
         self.update()
 
     def _calculate_layout(self) -> None:
@@ -6059,11 +6495,17 @@ class RelationshipOverviewPanel(GlassPanel):
             center_x = width / 2
             center_y = (diagram_top + diagram_bottom) / 2
             self.center_rect = QRect(round(center_x - 93), round(center_y - 93), 186, 186)
-            self.left_zones = self._layout_side_zones(self.left_entities, "left", self.center_rect, diagram_top, diagram_bottom)
-            self.right_zones = self._layout_side_zones(self.right_entities, "right", self.center_rect, diagram_top, diagram_bottom)
+            self.left_zones = self._layout_side_zones(
+                self.left_entities, "left", self.center_rect, diagram_top, diagram_bottom
+            )
+            self.right_zones = self._layout_side_zones(
+                self.right_entities, "right", self.center_rect, diagram_top, diagram_bottom
+            )
             self.hit_zones = [zone for zone in [*self.left_zones, *self.right_zones] if zone.entity is not None]
 
-    def _layout_side_zones(self, entities: list[LibraryEntity], side: str, center_rect: QRect, top: int, bottom: int) -> list[RelationshipCanvasZone]:
+    def _layout_side_zones(
+        self, entities: list[LibraryEntity], side: str, center_rect: QRect, top: int, bottom: int
+    ) -> list[RelationshipCanvasZone]:
         if not entities:
             return []
         if len(entities) > self.MAX_VISIBLE_SIDE_ITEMS:
@@ -6080,7 +6522,11 @@ class RelationshipOverviewPanel(GlassPanel):
             layout_items.append(RelationshipCanvasZone(QRect(), side, None, more_count=hidden_count))
         column_counts = self._column_counts(len(layout_items))
         column_count = max(1, len(column_counts))
-        side_width = (center_rect.left() if side == "left" else self.width() - center_rect.right()) - self.SIDE_MARGIN - self.CENTER_CONNECTOR_GAP
+        side_width = (
+            (center_rect.left() if side == "left" else self.width() - center_rect.right())
+            - self.SIDE_MARGIN
+            - self.CENTER_CONNECTOR_GAP
+        )
         max_card_w = int((side_width - max(0, column_count - 1) * self.RELATED_COLUMN_GAP) // column_count)
         card_w = max(self.RELATED_CARD_MIN_WIDTH, min(self.RELATED_CARD_WIDTH, max_card_w))
         card_h = self.RELATED_CARD_HEIGHT
@@ -6092,10 +6538,15 @@ class RelationshipOverviewPanel(GlassPanel):
         center_y = center_rect.center().y()
         if side == "left":
             near_x = center_rect.left() - self.CENTER_CONNECTOR_GAP - card_w
-            x_for_column = lambda column: near_x - column * (card_w + self.RELATED_COLUMN_GAP)
+
+            def x_for_column(column):
+                return near_x - column * (card_w + self.RELATED_COLUMN_GAP)
         else:
             near_x = center_rect.right() + self.CENTER_CONNECTOR_GAP
-            x_for_column = lambda column: near_x + column * (card_w + self.RELATED_COLUMN_GAP)
+
+            def x_for_column(column):
+                return near_x + column * (card_w + self.RELATED_COLUMN_GAP)
+
         for column_index, column_items in enumerate(columns):
             total_height = len(column_items) * card_h + max(0, len(column_items) - 1) * self.RELATED_CARD_GAP
             y = round(center_y - total_height / 2)
@@ -6121,7 +6572,9 @@ class RelationshipOverviewPanel(GlassPanel):
                 start = QPointF(self.center_rect.right(), center_y)
                 end = QPointF(zone.rect.left(), zone.rect.center().y())
             self._draw_connector(painter, start, end)
-            self._draw_count_badge(painter, _point_between(start, end, 0.62), "1", self.RELATIONSHIP_BADGE_COLOR, compact=len(related) > 6)
+            self._draw_count_badge(
+                painter, _point_between(start, end, 0.62), "1", self.RELATIONSHIP_BADGE_COLOR, compact=len(related) > 6
+            )
 
     def _draw_connector(self, painter: QPainter, start: QPointF, end: QPointF) -> None:
         path = QPainterPath(start)
@@ -6129,11 +6582,15 @@ class RelationshipOverviewPanel(GlassPanel):
         path.cubicTo(QPointF(midpoint_x, start.y()), QPointF(midpoint_x, end.y()), end)
         painter.drawPath(path)
 
-    def _draw_count_badge(self, painter: QPainter, center: QPointF, text: str, color: QColor, *, compact: bool = False) -> None:
+    def _draw_count_badge(
+        self, painter: QPainter, center: QPointF, text: str, color: QColor, *, compact: bool = False
+    ) -> None:
         side = 20 if compact else 24
         rect = QRectF(center.x() - side / 2, center.y() - side / 2, side, side)
         painter.setBrush(QColor(color.red(), color.green(), color.blue(), 106 if compact else 138))
-        painter.setPen(QPen(QColor(color.red(), color.green(), color.blue(), 206 if compact else 230), 1.0 if compact else 1.2))
+        painter.setPen(
+            QPen(QColor(color.red(), color.green(), color.blue(), 206 if compact else 230), 1.0 if compact else 1.2)
+        )
         painter.drawEllipse(rect)
         painter.setFont(_font(7.8 if compact else 8.5, 760))
         painter.setPen(QColor("#ffffff"))
@@ -6153,12 +6610,28 @@ class RelationshipOverviewPanel(GlassPanel):
         painter.setPen(QPen(STATUS_SUCCESS, 1.6))
         painter.drawEllipse(rect)
         icon_side = 50
-        icon = glyph_icon({ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(self.entity.entity_type, "library"), QColor("#d7e8ff"), icon_side).pixmap(icon_side, icon_side)
+        icon = glyph_icon(
+            {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(
+                self.entity.entity_type, "library"
+            ),
+            QColor("#d7e8ff"),
+            icon_side,
+        ).pixmap(icon_side, icon_side)
         painter.drawPixmap(round(rect.center().x() - icon.width() / 2), round(rect.top() + 36), icon)
-        self._draw_text_fit(painter, self.entity.title, rect.adjusted(14, 88, -14, -72), QColor("#ffffff"), 13.5, 820, align=Qt.AlignmentFlag.AlignCenter)
+        self._draw_text_fit(
+            painter,
+            self.entity.title,
+            rect.adjusted(14, 88, -14, -72),
+            QColor("#ffffff"),
+            13.5,
+            820,
+            align=Qt.AlignmentFlag.AlignCenter,
+        )
         painter.setFont(_font(8.8, 500))
         painter.setPen(QColor("#c2ccdc"))
-        painter.drawText(rect.adjusted(12, 116, -12, -42), Qt.AlignmentFlag.AlignCenter, clipped_text(self.entity.subtitle, 28))
+        painter.drawText(
+            rect.adjusted(12, 116, -12, -42), Qt.AlignmentFlag.AlignCenter, clipped_text(self.entity.subtitle, 28)
+        )
         status, tone = record_status_display(self.entity)
         color = _semantic_tone_color(tone)
         painter.setPen(color)
@@ -6179,14 +6652,30 @@ class RelationshipOverviewPanel(GlassPanel):
         painter.setBrush(QColor(8, 28, 58, 100))
         painter.setPen(QPen(QColor(94, 146, 204, 105), 1.0))
         painter.drawRoundedRect(icon_rect, 7, 7)
-        glyph = {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(zone.entity.entity_type, "library")
+        glyph = {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(
+            zone.entity.entity_type, "library"
+        )
         pix = glyph_icon(glyph, QColor("#d7e8ff"), 23).pixmap(23, 23)
-        painter.drawPixmap(round(icon_rect.center().x() - pix.width() / 2), round(icon_rect.center().y() - pix.height() / 2), pix)
+        painter.drawPixmap(
+            round(icon_rect.center().x() - pix.width() / 2), round(icon_rect.center().y() - pix.height() / 2), pix
+        )
         right_reserve = 58 if zone.badge else 20
-        self._draw_text_fit(painter, zone.entity.title, QRectF(rect.left() + 60, rect.top() + 9, rect.width() - 60 - right_reserve, 21), QColor("#ffffff"), 9.8, 760, min_point_size=7.8)
+        self._draw_text_fit(
+            painter,
+            zone.entity.title,
+            QRectF(rect.left() + 60, rect.top() + 9, rect.width() - 60 - right_reserve, 21),
+            QColor("#ffffff"),
+            9.8,
+            760,
+            min_point_size=7.8,
+        )
         painter.setFont(_font(8.2, 500))
         painter.setPen(QColor("#c3d0e1"))
-        painter.drawText(QRectF(rect.left() + 60, rect.top() + 32, rect.width() - 76, 19), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, clipped_text(zone.entity.subtitle, 26))
+        painter.drawText(
+            QRectF(rect.left() + 60, rect.top() + 32, rect.width() - 76, 19),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            clipped_text(zone.entity.subtitle, 26),
+        )
         if zone.badge:
             badge_rect = QRectF(rect.right() - 58, rect.top() + 7, 48, 17)
             badge_path = QPainterPath()
@@ -6229,7 +6718,9 @@ class RelationshipOverviewPanel(GlassPanel):
                 painter.drawText(rect, align, raw)
                 return
             size -= 0.75
-        elided = QFontMetrics(_font(min_point_size, weight)).elidedText(raw, Qt.TextElideMode.ElideRight, round(rect.width()))
+        elided = QFontMetrics(_font(min_point_size, weight)).elidedText(
+            raw, Qt.TextElideMode.ElideRight, round(rect.width())
+        )
         painter.setFont(_font(min_point_size, weight))
         painter.setPen(color)
         painter.drawText(rect, align, elided)
@@ -6259,7 +6750,13 @@ def _profile_metric_value(label: str, value: str | tuple[str, ...]) -> str:
     normalized = text.strip().casefold()
     if normalized in {"", "not indexed", "unknown", "not assigned"}:
         return "Not Assigned"
-    if normalized in {"no current eoat", "no eoat installed", "eoat not installed", "not installed / bench audit", "not installed"}:
+    if normalized in {
+        "no current eoat",
+        "no eoat installed",
+        "eoat not installed",
+        "not installed / bench audit",
+        "not installed",
+    }:
         return "Not Installed"
     return text
 
@@ -6275,7 +6772,11 @@ class SummaryMetricsPanel(GlassPanel):
         layout.setContentsMargins(26 if has_current_eoat else 34, 18, 26 if has_current_eoat else 34, 18)
         layout.setSpacing(22 if has_current_eoat else 34)
         for field in detail_data.summary_fields:
-            block = MetricBlock(AtlasCardMetric(_metric_icon_for(field.label), _profile_metric_value(field.label, field.value), field.label))
+            block = MetricBlock(
+                AtlasCardMetric(
+                    _metric_icon_for(field.label), _profile_metric_value(field.label, field.value), field.label
+                )
+            )
             if has_current_eoat and block.is_current_eoat_metric():
                 block.setMinimumWidth(320)
                 block.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -6305,7 +6806,10 @@ class MetricBlock(QWidget):
         self._display_value = _profile_metric_value(metric.label, metric.value)
         self._is_current_eoat = metric.label.casefold() == "current eoat"
         self.setMinimumWidth(320 if self._is_current_eoat else 230)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding if self._is_current_eoat else QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding if self._is_current_eoat else QSizePolicy.Policy.Preferred,
+            QSizePolicy.Policy.Preferred,
+        )
         self.setToolTip(self._display_value)
 
     def is_current_eoat_metric(self) -> bool:
@@ -6335,17 +6839,27 @@ class MetricBlock(QWidget):
         painter.setPen(QPen(QColor(88, 130, 178, 92), 1))
         painter.drawEllipse(icon_rect)
         pix = glyph_icon(self._metric.icon, QColor("#dbeaff"), 25).pixmap(25, 25)
-        painter.drawPixmap(round(icon_rect.center().x() - pix.width() / 2), round(icon_rect.center().y() - pix.height() / 2), pix)
+        painter.drawPixmap(
+            round(icon_rect.center().x() - pix.width() / 2), round(icon_rect.center().y() - pix.height() / 2), pix
+        )
         painter.setFont(_font(11, 520))
         painter.setPen(QColor("#c7d1df"))
-        painter.drawText(QRectF(72, 12, self.width() - 72, 24), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._metric.label)
+        painter.drawText(
+            QRectF(72, 12, self.width() - 72, 24),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            self._metric.label,
+        )
         value_rect = QRectF(72, 40, max(10, self.width() - 76), 38)
         painter.setFont(self._value_font_for_width(value_rect.width()))
         painter.setPen(QColor("#ffffff"))
         painter.drawText(value_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._display_value)
         painter.setFont(_font(9, 500))
         painter.setPen(QColor("#b8c7d9"))
-        painter.drawText(QRectF(72, 76, self.width() - 72, 22), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, metric_caption(self._metric))
+        painter.drawText(
+            QRectF(72, 76, self.width() - 72, 22),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            metric_caption(self._metric),
+        )
 
 
 class RecordDetailsTab(QWidget):
@@ -6386,7 +6900,9 @@ class RecordDocsTab(QWidget):
             0,
             0,
         )
-        layout.addWidget(InfoSectionCard(RecordSection("Documentation Checklist", detail_data.documentation_fields)), 0, 1)
+        layout.addWidget(
+            InfoSectionCard(RecordSection("Documentation Checklist", detail_data.documentation_fields)), 0, 1
+        )
         layout.setColumnStretch(0, 1)
         layout.setColumnStretch(1, 1)
 
@@ -6448,7 +6964,10 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index) -> QSize:
         event = index.data(EOATHistoryListModel.EventRole)
         available = max(220, option.rect.width() - 390)
-        wraps = isinstance(event, EOATHistoryEvent) and QFontMetrics(_font(10.8, 760)).horizontalAdvance(event.title) > available
+        wraps = (
+            isinstance(event, EOATHistoryEvent)
+            and QFontMetrics(_font(10.8, 760)).horizontalAdvance(event.title) > available
+        )
         return QSize(max(520, option.rect.width()), 116 if wraps else 99)
 
     def paint(self, painter: QPainter, option, index: QModelIndex) -> None:
@@ -6506,10 +7025,16 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
         if wraps:
             title_rect.setWidth(title_available)
             title_rect.setHeight(38)
-            painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap, event.title)
+            painter.drawText(
+                title_rect,
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
+                event.title,
+            )
             badge_rect = QRectF(content_right - badge_width, rect.top() + 13, badge_width, 18)
         else:
-            title = QFontMetrics(title_font).elidedText(event.title, Qt.TextElideMode.ElideRight, round(title_available))
+            title = QFontMetrics(title_font).elidedText(
+                event.title, Qt.TextElideMode.ElideRight, round(title_available)
+            )
             painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, title)
             title_width = min(title_available, QFontMetrics(title_font).horizontalAdvance(title))
             badge_rect = QRectF(content_left + title_width + 10, rect.top() + 13, badge_width, 18)
@@ -6529,10 +7054,18 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
         muted_rect = QRectF(content_left, muted_top, max(80, content_right - content_left), 18)
         painter.setFont(body_font)
         painter.setPen(QColor("#d9e5f4"))
-        painter.drawText(body_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, QFontMetrics(body_font).elidedText(primary, Qt.TextElideMode.ElideRight, round(body_rect.width())))
+        painter.drawText(
+            body_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            QFontMetrics(body_font).elidedText(primary, Qt.TextElideMode.ElideRight, round(body_rect.width())),
+        )
         painter.setFont(muted_font)
         painter.setPen(QColor("#b7c4d5"))
-        painter.drawText(muted_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, QFontMetrics(muted_font).elidedText(secondary, Qt.TextElideMode.ElideRight, round(muted_rect.width())))
+        painter.drawText(
+            muted_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            QFontMetrics(muted_font).elidedText(secondary, Qt.TextElideMode.ElideRight, round(muted_rect.width())),
+        )
 
         timestamp = event.effective_timestamp
         date_text = "Date not documented"
@@ -6554,8 +7087,12 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
 
         chevron_rect = QRectF(rect.right() - 26, rect.center().y() - 8, 16, 16)
         painter.setPen(QPen(QColor("#eaf3ff"), 1.8))
-        painter.drawLine(chevron_rect.left() + 2, chevron_rect.top() + 5, chevron_rect.center().x(), chevron_rect.bottom() - 3)
-        painter.drawLine(chevron_rect.center().x(), chevron_rect.bottom() - 3, chevron_rect.right() - 2, chevron_rect.top() + 5)
+        painter.drawLine(
+            chevron_rect.left() + 2, chevron_rect.top() + 5, chevron_rect.center().x(), chevron_rect.bottom() - 3
+        )
+        painter.drawLine(
+            chevron_rect.center().x(), chevron_rect.bottom() - 3, chevron_rect.right() - 2, chevron_rect.top() + 5
+        )
         painter.restore()
 
 
@@ -6601,7 +7138,9 @@ class EOATHistoryDetailsPanel(GlassPanel):
             val = QLabel(value)
             val.setObjectName("EOATHistoryDetailValue")
             val.setWordWrap(True)
-            val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+            val.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard
+            )
             cell.addWidget(key)
             cell.addWidget(val)
             row = index // 2
@@ -6646,7 +7185,9 @@ class RecordHistoryTab(GlassPanel):
         title = QLabel("EOAT Lifecycle History")
         title.setObjectName("EOATHistoryTitle")
         root.addWidget(title)
-        subtitle = QLabel("Machine assignments, production runs, audits, maintenance, and record changes for this EOAT.")
+        subtitle = QLabel(
+            "Machine assignments, production runs, audits, maintenance, and record changes for this EOAT."
+        )
         subtitle.setObjectName("EOATHistorySubtitle")
         subtitle.setWordWrap(True)
         root.addWidget(subtitle)
@@ -6730,7 +7271,9 @@ class RecordHistoryTab(GlassPanel):
         self.empty_title.setObjectName("EOATHistoryEmptyTitle")
         self.empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(self.empty_title)
-        self.empty_message = QLabel("No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT.")
+        self.empty_message = QLabel(
+            "No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT."
+        )
         self.empty_message.setObjectName("EOATHistoryEmptyMessage")
         self.empty_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_message.setWordWrap(True)
@@ -6775,7 +7318,13 @@ class RecordHistoryTab(GlassPanel):
         return combo
 
     def _layout_toolbar(self, narrow: bool) -> None:
-        for widget in (self.search_edit, self.event_type_combo, self.machine_combo, self.date_combo, self.export_button):
+        for widget in (
+            self.search_edit,
+            self.event_type_combo,
+            self.machine_combo,
+            self.date_combo,
+            self.export_button,
+        ):
             self.toolbar_layout.removeWidget(widget)
         if narrow:
             self.toolbar_layout.addWidget(self.search_edit, 0, 0, 1, 2)
@@ -6870,7 +7419,9 @@ class RecordHistoryTab(GlassPanel):
             date_range=str(self.date_combo.currentData() or "All"),
         )
         self.model.set_events(self.filtered_events)
-        selected_row = next((index for index, event in enumerate(self.filtered_events) if event.event_id == previous), 0)
+        selected_row = next(
+            (index for index, event in enumerate(self.filtered_events) if event.event_id == previous), 0
+        )
         if self.filtered_events:
             target = self.model.index(selected_row, 0)
             self.list_view.setCurrentIndex(target)
@@ -6884,7 +7435,9 @@ class RecordHistoryTab(GlassPanel):
                 self.empty_note.setText("Clear or adjust the filters to restore the activity list.")
             else:
                 self.empty_title.setText("No documented history")
-                self.empty_message.setText("No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT.")
+                self.empty_message.setText(
+                    "No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT."
+                )
                 self.empty_note.setText("History will appear here when supported records become available.")
             self.retry_button.hide()
             self._show_empty(True)
@@ -6996,7 +7549,9 @@ def _history_event_summaries(event: EOATHistoryEvent) -> tuple[str, str]:
         secondary.append(f"Source: {event.source_type}")
     if event.notes and not primary:
         secondary.append(event.notes)
-    return "   â€¢   ".join(primary) or "Documented lifecycle event", "   â€¢   ".join(secondary) or "No additional documentation"
+    return "   •   ".join(primary) or "Documented lifecycle event", "   •   ".join(
+        secondary
+    ) or "No additional documentation"
 
 
 def _history_detail_fields(event: EOATHistoryEvent) -> tuple[tuple[str, str], ...]:
@@ -7019,7 +7574,10 @@ def _history_detail_fields(event: EOATHistoryEvent) -> tuple[tuple[str, str], ..
         ("Maintenance ID", event.maintenance_id),
         ("Reason", event.reason),
         ("Notes", event.notes),
-        ("Verification Status", "Verified" if event.is_verified is True else "Unverified" if event.is_verified is False else ""),
+        (
+            "Verification Status",
+            "Verified" if event.is_verified is True else "Unverified" if event.is_verified is False else "",
+        ),
     ]
     return tuple((label, value) for label, value in values if str(value or "").strip() and value != "Not documented")
 
@@ -7495,7 +8053,12 @@ class PhotoTile(QWidget):
                 log_perf_marker(
                     self.project_root,
                     "photo_service.memory_cache_hit",
-                    details={"photo_id": self.photo_id, "context_id": self.context_id, "kind": "thumbnail", "surface": "photo_tile"},
+                    details={
+                        "photo_id": self.photo_id,
+                        "context_id": self.context_id,
+                        "kind": "thumbnail",
+                        "surface": "photo_tile",
+                    },
                     source="photo_service",
                     page_tool="photos",
                 )
@@ -7503,10 +8066,17 @@ class PhotoTile(QWidget):
                 return
             self.photo_service.thumbnail_ready.connect(self._thumbnail_ready)
             self.photo_service.photo_load_failed.connect(self._photo_load_failed)
-            self.photo_service.request_thumbnail(self.photo_id, self.path_candidates, (320, 180), priority, self.context_id)
+            self.photo_service.request_thumbnail(
+                self.photo_id, self.path_candidates, (320, 180), priority, self.context_id
+            )
         except Exception as exc:
             self.load_error = f"Thumbnail request failed: {exc}"
-            LOGGER.exception("Photo tile thumbnail request failed for %s %s photo=%s", self.record_type, self.record_id, self.photo_id)
+            LOGGER.exception(
+                "Photo tile thumbnail request failed for %s %s photo=%s",
+                self.record_type,
+                self.record_id,
+                self.photo_id,
+            )
             self.update()
 
     @Slot(str, object, str, str)
@@ -7582,7 +8152,7 @@ class PhotoTile(QWidget):
             return
         super().mousePressEvent(event)
 
-    def open_lightbox(self) -> "PhotoLightboxOverlay | None":
+    def open_lightbox(self) -> PhotoLightboxOverlay | None:
         return PhotoLightboxOverlay.open_for(
             self,
             self.photo,
@@ -7600,7 +8170,13 @@ class PhotoTile(QWidget):
                 notifier(message)
                 return
             widget = widget.parentWidget()
-        LOGGER.warning("%s Photo=%s path=%s error=%s", message, self.photo.photo_id or self.photo.filename, self.photo.path, self.load_error)
+        LOGGER.warning(
+            "%s Photo=%s path=%s error=%s",
+            message,
+            self.photo.photo_id or self.photo.filename,
+            self.photo.path,
+            self.load_error,
+        )
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -7620,9 +8196,17 @@ class PhotoTile(QWidget):
         painter.fillPath(thumb_path, QColor(4, 13, 27, 185))
         painter.setClipPath(thumb_path)
         if not self.pixmap.isNull():
-            scaled = self.pixmap.scaled(thumb_rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+            scaled = self.pixmap.scaled(
+                thumb_rect.size().toSize(),
+                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             painter.setOpacity(self._thumbnail_opacity)
-            painter.drawPixmap(round(thumb_rect.center().x() - scaled.width() / 2), round(thumb_rect.center().y() - scaled.height() / 2), scaled)
+            painter.drawPixmap(
+                round(thumb_rect.center().x() - scaled.width() / 2),
+                round(thumb_rect.center().y() - scaled.height() / 2),
+                scaled,
+            )
             painter.setOpacity(1.0)
             if not self._display_logged:
                 self._display_logged = True
@@ -7641,7 +8225,11 @@ class PhotoTile(QWidget):
         else:
             painter.setClipping(False)
             icon = glyph_icon("image", QColor("#8fa6c2"), 30).pixmap(30, 30)
-            painter.drawPixmap(round(thumb_rect.center().x() - icon.width() / 2), round(thumb_rect.center().y() - icon.height() / 2), icon)
+            painter.drawPixmap(
+                round(thumb_rect.center().x() - icon.width() / 2),
+                round(thumb_rect.center().y() - icon.height() / 2),
+                icon,
+            )
             if self.load_error:
                 painter.setFont(_font(7.4, 620))
                 painter.setPen(STATUS_WARNING)
@@ -7652,11 +8240,19 @@ class PhotoTile(QWidget):
         painter.drawPath(path)
         painter.setFont(_font(8.8, 740))
         painter.setPen(QColor("#ffffff"))
-        painter.drawText(QRectF(rect.left() + 10, rect.top() + 101, rect.width() - 20, 18), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, clipped_text(self.photo.category or self.photo.filename, 24))
+        painter.drawText(
+            QRectF(rect.left() + 10, rect.top() + 101, rect.width() - 20, 18),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            clipped_text(self.photo.category or self.photo.filename, 24),
+        )
         painter.setFont(_font(7.6, 520))
         painter.setPen(QColor("#b7c4d5"))
         meta = self.photo.date_taken or self.photo.association or self.photo.filename
-        painter.drawText(QRectF(rect.left() + 10, rect.top() + 119, rect.width() - 20, 16), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, clipped_text(meta, 28))
+        painter.drawText(
+            QRectF(rect.left() + 10, rect.top() + 119, rect.width() - 20, 16),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            clipped_text(meta, 28),
+        )
 
 
 class PhotoLightboxOverlay(QWidget):
@@ -7678,7 +8274,9 @@ class PhotoLightboxOverlay(QWidget):
         self.photo_id = photo_id or _record_photo_id(photo)
         self.path_candidates = list(path_candidates or _record_photo_candidates(photo))
         self.context_id = f"lightbox:photo:{self.photo_id}:{id(self)}"
-        self._status_message = "Loading full image..." if self.photo_service is not None and self.path_candidates else ""
+        self._status_message = (
+            "Loading full image..." if self.photo_service is not None and self.path_candidates else ""
+        )
         if self.photo_service is not None and not self.path_candidates:
             self._status_message = "No image path is indexed."
         self._source_rect = QRect(source_rect)
@@ -7704,7 +8302,7 @@ class PhotoLightboxOverlay(QWidget):
         photo_service: PhotoService | None = None,
         photo_id: str = "",
         path_candidates: list[str] | None = None,
-    ) -> "PhotoLightboxOverlay":
+    ) -> PhotoLightboxOverlay:
         root = source_widget.window()
         overlay = cls(
             photo,
@@ -7747,7 +8345,14 @@ class PhotoLightboxOverlay(QWidget):
         if self.photo_service is not None:
             self.photo_service.cancel_context(self.context_id)
         self.preview.reset_view()
-        self._animate(self.preview.geometry(), self._source_rect, self._dim_opacity, 0.0, QEasingCurve.Type.InOutCubic, closing=True)
+        self._animate(
+            self.preview.geometry(),
+            self._source_rect,
+            self._dim_opacity,
+            0.0,
+            QEasingCurve.Type.InOutCubic,
+            closing=True,
+        )
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -7761,7 +8366,11 @@ class PhotoLightboxOverlay(QWidget):
         if self._status_message and self._dim_opacity > 0.55:
             painter.setFont(_font(9.5, 600))
             painter.setPen(QColor("#d7e8ff"))
-            painter.drawText(QRectF(80, self.height() - 58, self.width() - 160, 28), Qt.AlignmentFlag.AlignCenter, self._status_message)
+            painter.drawText(
+                QRectF(80, self.height() - 58, self.width() - 160, 28),
+                Qt.AlignmentFlag.AlignCenter,
+                self._status_message,
+            )
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Escape:
@@ -7789,7 +8398,16 @@ class PhotoLightboxOverlay(QWidget):
         rect.moveCenter(bounds.center())
         return rect.toAlignedRect()
 
-    def _animate(self, start_rect: QRect, end_rect: QRect, start_dim: float, end_dim: float, easing: QEasingCurve.Type, *, closing: bool) -> None:
+    def _animate(
+        self,
+        start_rect: QRect,
+        end_rect: QRect,
+        start_dim: float,
+        end_dim: float,
+        easing: QEasingCurve.Type,
+        *,
+        closing: bool,
+    ) -> None:
         self._closing = closing
         if self._animation_group is not None:
             self._animation_group.stop()
@@ -7976,7 +8594,11 @@ class PhotoPreviewSurface(QWidget):
         if not self.pixmap.isNull():
             scaled_size = QSize(round(rect.width() * self._zoom), round(rect.height() * self._zoom))
             top_left = rect.center() + self._pan - QPointF(scaled_size.width() / 2, scaled_size.height() / 2)
-            painter.drawPixmap(QRectF(top_left.x(), top_left.y(), scaled_size.width(), scaled_size.height()), self.pixmap, QRectF(self.pixmap.rect()))
+            painter.drawPixmap(
+                QRectF(top_left.x(), top_left.y(), scaled_size.width(), scaled_size.height()),
+                self.pixmap,
+                QRectF(self.pixmap.rect()),
+            )
         painter.setClipping(False)
         painter.setPen(QPen(QColor(127, 177, 255, 166), 1.2))
         painter.drawPath(path)
@@ -8026,7 +8648,9 @@ def hero_actions(entity: LibraryEntity) -> tuple[str, str]:
     return (f"Edit {noun}", "Export PDF")
 
 
-def relationship_groups(entity: LibraryEntity, catalog: LibraryCatalog) -> tuple[str, list[LibraryEntity], str, list[LibraryEntity], dict[tuple[str, str], str]]:
+def relationship_groups(
+    entity: LibraryEntity, catalog: LibraryCatalog
+) -> tuple[str, list[LibraryEntity], str, list[LibraryEntity], dict[tuple[str, str], str]]:
     with perf_timer(
         _catalog_project_root(catalog),
         "record.relationship_lookup",
@@ -8062,11 +8686,15 @@ def relationship_groups(entity: LibraryEntity, catalog: LibraryCatalog) -> tuple
         if entity.entity_type == ENTITY_EOAT:
             machines = catalog.related_machines(entity)
             tools = catalog.related_tools(entity)
-            current_ids = {
-                machine.machine
-                for machine in getattr(catalog.bundle, "machines", ())
-                if normalized_eoat_key(getattr(machine, "current_eoat", "")) == normalized_eoat_key(entity.key)
-            } if catalog.bundle is not None else set()
+            current_ids = (
+                {
+                    machine.machine
+                    for machine in getattr(catalog.bundle, "machines", ())
+                    if normalized_eoat_key(getattr(machine, "current_eoat", "")) == normalized_eoat_key(entity.key)
+                }
+                if catalog.bundle is not None
+                else set()
+            )
             for machine in machines:
                 if machine.key in current_ids:
                     badges[(machine.entity_type, machine.key)] = "CURRENT"
@@ -8131,7 +8759,9 @@ def _record_report_default_filename(detail_data: RecordDetailData) -> str:
 
 
 def _safe_filename_component(value: str) -> str:
-    text = "".join(character if character.isalnum() or character in "._-" else "_" for character in str(value or "record").strip())
+    text = "".join(
+        character if character.isalnum() or character in "._-" else "_" for character in str(value or "record").strip()
+    )
     return text.strip("_") or "record"
 
 
@@ -8267,7 +8897,17 @@ def _field_should_render_as_chip(label: str, value: str) -> bool:
 
 def _chip_tone_for(value: str) -> str:
     folded = str(value or "").casefold()
-    if folded in {"indexed", "good", "complete", "active", "confirmed", "compatible", "installed", "supported", "match"}:
+    if folded in {
+        "indexed",
+        "good",
+        "complete",
+        "active",
+        "confirmed",
+        "compatible",
+        "installed",
+        "supported",
+        "match",
+    }:
         return "good"
     if folded in {"warning", "partial", "needs review", "verify"}:
         return "warn"

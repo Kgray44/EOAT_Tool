@@ -11,7 +11,6 @@ from core.atlas_entity_search import EntitySearchResult, entity_type_label
 from .data import MinimalistSearchEntry
 from .widgets import GlassPanel, clear_layout, glyph_icon
 
-
 ENTITY_GROUP_ORDER = ("eoat", "tool", "machine")
 
 
@@ -147,7 +146,7 @@ class EntitySearchDropdown(GlassPanel):
         row.hovered.connect(self._row_hovered)
         self._append_row(row, result)
 
-    def _append_row(self, row: "EntitySearchRow", item: object) -> None:
+    def _append_row(self, row: EntitySearchRow, item: object) -> None:
         self._rows.append(row)
         self._selectable.append(item)
         self._row_count += 1
@@ -168,7 +167,7 @@ class EntitySearchDropdown(GlassPanel):
         empty.setMinimumHeight(54)
         self.body_layout.addWidget(empty)
 
-    def _row_hovered(self, row: "EntitySearchRow") -> None:
+    def _row_hovered(self, row: EntitySearchRow) -> None:
         if row not in self._rows:
             return
         self._set_highlight(self._rows.index(row))

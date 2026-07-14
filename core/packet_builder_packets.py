@@ -51,7 +51,7 @@ class PacketSetup:
     machine_id: str = ""
     eoat_id: str = ""
 
-    def normalized(self) -> "PacketSetup":
+    def normalized(self) -> PacketSetup:
         return PacketSetup(
             tool_id=str(self.tool_id or "").strip(),
             machine_id=str(self.machine_id or "").strip(),

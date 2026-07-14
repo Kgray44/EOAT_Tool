@@ -14,7 +14,6 @@ from .install_identity import load_or_create_install_identity
 from .runtime_paths import AtlasRuntimePaths, atomic_write_json, ensure_runtime_layout, get_runtime_paths, read_json
 from .sqlite_store import SCHEMA_VERSION
 
-
 NETWORK_ROOT = Path(r"\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas")
 PRODUCT_NAME = "EOAT Atlas"
 PRODUCT_SCOPE_NOTE = "minimalist/current EOAT Atlas only"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import time
 import threading
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, QRect, Qt
@@ -9,46 +9,54 @@ from PySide6.QtGui import QColor, QImage, QImageReader, QPainter
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
-from core.atlas_models import AtlasDataBundle, AtlasIndexes, DocumentationStatus, EOATRecord, MachineRecord, PhotoItem, PhotoSet, ToolRecord
-from core.atlas_utils import normalized_eoat_key, normalized_machine_key, normalized_tool_key
-from core.atlas_data_loader import _current_eoat_for_rows, _current_eoat_resolution_for_rows
-from core.atlas_record_details import RecordDetailData, RecordField, RecordPhoto, RecordPhotoGroup
-from core.library_data_service import LibraryDataService
-from core.photos.photo_service import PhotoService
-
+from app.atlas.minimalist.home import AtlasMinimalistHomePage
 from app.atlas.minimalist.library import (
-    AtlasMinimalistLibraryPage,
     ENTITY_EOAT,
     ENTITY_MACHINE,
     ENTITY_TOOL,
     SEARCH_DEBOUNCE_MS,
+    AtlasMinimalistLibraryPage,
     AtlasRecordCard,
     CopyIdButton,
-    LibraryCatalog,
-    LibraryBrowseStateView,
-    LibraryRecordStateView,
-    MinimalistLibraryContent,
     EntityPortrait,
-    PhotoGalleryCard,
-    PhotoGroupSection,
-    PhotoLightboxOverlay,
+    LibraryBrowseStateView,
+    LibraryCatalog,
+    LibraryRecordStateView,
+    MetricBlock,
+    MinimalistLibraryContent,
     PDFOptionsOverlay,
     PDFPreviewOverlay,
+    PhotoGalleryCard,
+    PhotoGroupSection,
     PhotoTile,
     RecordHeroPanel,
     RecordOverviewTab,
     RecordTabBar,
     RelationshipOverviewPanel,
     SummaryMetricsPanel,
-    MetricBlock,
     atlas_card_metrics,
     machine_current_eoat_display,
     parse_eoat_id,
     record_status_display,
 )
-from app.atlas.minimalist.home import AtlasMinimalistHomePage
 from app.atlas.minimalist.widgets import TopChromeFade
+from core.atlas_data_loader import _current_eoat_for_rows, _current_eoat_resolution_for_rows
+from core.atlas_models import (
+    AtlasDataBundle,
+    AtlasIndexes,
+    DocumentationStatus,
+    EOATRecord,
+    MachineRecord,
+    PhotoItem,
+    PhotoSet,
+    ToolRecord,
+)
+from core.atlas_record_details import RecordDetailData, RecordField, RecordPhoto, RecordPhotoGroup
+from core.atlas_utils import normalized_eoat_key, normalized_machine_key, normalized_tool_key
+from core.library_data_service import LibraryDataService
+from core.photos.photo_service import PhotoService
 from core.reporting.pdf_preview_session import PdfPreviewSession
+from core.reporting.record_report_options import ReportOptions
 
 
 def test_library_catalog_searches_records_by_relationship_ids(tmp_path: Path) -> None:
@@ -183,8 +191,13 @@ def test_visible_eoat_cards_prefetch_hero_thumbnail(qapp, tmp_path: Path) -> Non
 
     view = page.current_view
     assert isinstance(view, LibraryBrowseStateView)
-    assert any(request[2] == (512, 512) and request[3] == 70 and request[4].endswith(":hero") for request in photo_service.thumbnail_requests)
-    assert not any(request[2] == (512, 512) and request[0].startswith("machine") for request in photo_service.thumbnail_requests)
+    assert any(
+        request[2] == (512, 512) and request[3] == 70 and request[4].endswith(":hero")
+        for request in photo_service.thumbnail_requests
+    )
+    assert not any(
+        request[2] == (512, 512) and request[0].startswith("machine") for request in photo_service.thumbnail_requests
+    )
     _cleanup_widget(qapp, page)
 
 
@@ -203,7 +216,10 @@ def test_hover_or_focus_eoat_card_prefetches_hero_thumbnail(qapp, tmp_path: Path
     card._prefetch_hover_hero_photo()
     qapp.processEvents()
 
-    assert any(request[2] == (512, 512) and request[3] == 85 and request[4] == "library:eoat_card_hover:P4-EOAT-0052" for request in photo_service.thumbnail_requests)
+    assert any(
+        request[2] == (512, 512) and request[3] == 85 and request[4] == "library:eoat_card_hover:P4-EOAT-0052"
+        for request in photo_service.thumbnail_requests
+    )
     _cleanup_widget(qapp, card)
 
 
@@ -363,7 +379,9 @@ def test_record_card_click_and_keyboard_activation_use_whole_card(qapp, tmp_path
     clicked: list[str] = []
     card.clicked.connect(lambda: clicked.append("open"))
 
-    QTest.mouseClick(card, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(card.width() - 12, card.height() - 12))
+    QTest.mouseClick(
+        card, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(card.width() - 12, card.height() - 12)
+    )
     card.setFocus(Qt.FocusReason.TabFocusReason)
     qapp.processEvents()
     QTest.keyClick(card, Qt.Key.Key_Return)
@@ -826,7 +844,9 @@ def test_record_pdf_generate_runs_in_background_shows_status_and_preview(qapp, t
         path = Path(output_path)
         assert "pdf_previews" in str(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n")
+        path.write_bytes(
+            b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 0>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n"
+        )
         assert options is not None
         assert options.include_summary
         return path
@@ -868,7 +888,10 @@ def test_pdf_preview_save_creates_final_report_without_duplicate_auto_save(qapp,
     detail = _gallery_detail_data(tmp_path, group_count=0, photos_per_group=0)
     overlay = PDFPreviewOverlay.open_for(host, session, detail, project_root=str(tmp_path))
     qapp.processEvents()
-    monkeypatch.setattr("app.atlas.minimalist.library.QFileDialog.getSaveFileName", lambda *_args, **_kwargs: (str(final_pdf), "PDF files (*.pdf)"))
+    monkeypatch.setattr(
+        "app.atlas.minimalist.library.QFileDialog.getSaveFileName",
+        lambda *_args, **_kwargs: (str(final_pdf), "PDF files (*.pdf)"),
+    )
 
     overlay.save_button.click()
     qapp.processEvents()
@@ -1053,7 +1076,12 @@ def test_loader_does_not_treat_not_installed_as_current_eoat() -> None:
 
 def test_loader_resolves_current_eoat_from_machine_audit_row() -> None:
     rows = [
-        {"Audit Date": "2026-06-01", "Press/Machine #": "36", "Entry Type": "Compatible", "EOAT Assembly ID": "P4-EOAT-0009"},
+        {
+            "Audit Date": "2026-06-01",
+            "Press/Machine #": "36",
+            "Entry Type": "Compatible",
+            "EOAT Assembly ID": "P4-EOAT-0009",
+        },
         {"Audit Date": "2026-06-08", "Press/Machine #": "36", "Status": "Complete", "EOAT Assembly ID": "P4-EOAT-0014"},
     ]
     resolution = _current_eoat_resolution_for_rows(rows)
@@ -1292,7 +1320,7 @@ def test_record_back_button_fades_in_and_out_from_top_chrome(qapp, tmp_path: Pat
         assert back.isVisibleTo(page)
         assert back.isEnabled()
         assert page.shell.top_bar._back_animation.duration() == 500
-        assert _wait_for_qt(qapp, lambda: float(opacity.opacity()) >= 0.98)
+        assert _wait_for_qt(qapp, lambda opacity=opacity: float(opacity.opacity()) >= 0.98)
         assert back.geometry().left() > menu.geometry().right()
         assert abs(back.geometry().center().y() - menu.geometry().center().y()) <= 2
         assert abs(back.geometry().center().y() - search.geometry().center().y()) <= 2
@@ -1306,7 +1334,12 @@ def test_record_back_button_fades_in_and_out_from_top_chrome(qapp, tmp_path: Pat
         assert not back.isEnabled()
         assert page.library_content.current_view is not None
         assert page.library_content.current_view.objectName() == "LibraryBrowseStateView"
-        assert _wait_for_qt(qapp, lambda: not back.isVisibleTo(page) and not back.isEnabled() and float(opacity.opacity()) <= 0.02)
+        assert _wait_for_qt(
+            qapp,
+            lambda back=back, opacity=opacity: not back.isVisibleTo(page)
+            and not back.isEnabled()
+            and float(opacity.opacity()) <= 0.02,
+        )
 
     _cleanup_widget(qapp, page)
 
@@ -1337,7 +1370,9 @@ def test_record_back_button_handles_rapid_navigation_without_stuck_opacity(qapp,
     back.click()
     qapp.processEvents()
     assert page.library_content.state == "browse"
-    assert _wait_for_qt(qapp, lambda: not back.isVisibleTo(page) and not back.isEnabled() and float(opacity.opacity()) <= 0.02)
+    assert _wait_for_qt(
+        qapp, lambda: not back.isVisibleTo(page) and not back.isEnabled() and float(opacity.opacity()) <= 0.02
+    )
     _cleanup_widget(qapp, page)
 
 
@@ -1491,7 +1526,9 @@ def test_relationship_overview_uses_uniform_blue_structure(qapp, tmp_path: Path)
 def test_photo_deduplication_preserves_best_metadata_label(tmp_path: Path) -> None:
     path = tmp_path / "front.png"
     generic = PhotoItem(path=str(path), filename=path.name, category="Other", date_taken="2026-07-01")
-    specific = PhotoItem(path=str(path), filename=path.name, photo_type="01_Front_View", imported_at="2026-07-02T08:00:00")
+    specific = PhotoItem(
+        path=str(path), filename=path.name, photo_type="01_Front_View", imported_at="2026-07-02T08:00:00"
+    )
     service = LibraryDataService(tmp_path)
     service.rebuild_index_from_bundle(_library_bundle_with_photos(tmp_path, (generic, specific)))
 
@@ -1913,7 +1950,10 @@ def _relationship_capacity_bundle(tmp_path: Path, *, machine_count: int, tool_co
 
 
 def _relationship_panel(tmp_path: Path, *, machine_count: int, tool_count: int) -> RelationshipOverviewPanel:
-    catalog = LibraryCatalog(_relationship_capacity_bundle(tmp_path, machine_count=machine_count, tool_count=tool_count), controller=_Controller())
+    catalog = LibraryCatalog(
+        _relationship_capacity_bundle(tmp_path, machine_count=machine_count, tool_count=tool_count),
+        controller=_Controller(),
+    )
     entity = catalog.entity_for(ENTITY_EOAT, "P4-EOAT-0777")
     assert entity is not None
     panel = RelationshipOverviewPanel(entity, catalog, lambda _entity: None)
@@ -1987,7 +2027,13 @@ def _assert_record_content_visible(view) -> None:
     assert view.isVisible()
     assert view.width() > 0
     assert view.height() > 0
-    for widget_type in (RecordHeroPanel, RecordTabBar, RecordOverviewTab, RelationshipOverviewPanel, SummaryMetricsPanel):
+    for widget_type in (
+        RecordHeroPanel,
+        RecordTabBar,
+        RecordOverviewTab,
+        RelationshipOverviewPanel,
+        SummaryMetricsPanel,
+    ):
         widget = view.findChild(widget_type)
         assert widget is not None, widget_type.__name__
         assert widget.isVisible(), widget_type.__name__
@@ -2106,9 +2152,14 @@ def _multi_tool_bundle(tmp_path: Path, *, count: int) -> AtlasDataBundle:
         eoat_by_id=base.indexes.eoat_by_id,
         eoats_by_tool={normalized_tool_key(tool.tool): ("P4-EOAT-0052",) for tool in tools},
         eoats_by_machine={normalized_machine_key(machine.machine): ("P4-EOAT-0052",) for machine in machines},
-        machines_by_tool={normalized_tool_key(tool.tool): tuple(machine.machine for machine in machines) for tool in tools},
+        machines_by_tool={
+            normalized_tool_key(tool.tool): tuple(machine.machine for machine in machines) for tool in tools
+        },
         machines_by_eoat={normalized_eoat_key("P4-EOAT-0052"): tuple(machine.machine for machine in machines)},
-        tools_by_machine={normalized_machine_key(machine.machine): (tools[index % count].tool,) for index, machine in enumerate(machines)},
+        tools_by_machine={
+            normalized_machine_key(machine.machine): (tools[index % count].tool,)
+            for index, machine in enumerate(machines)
+        },
     )
     return AtlasDataBundle(
         project_root=str(tmp_path),
@@ -2162,10 +2213,18 @@ def _multi_navigation_bundle(tmp_path: Path, *, count: int) -> AtlasDataBundle:
     indexes = AtlasIndexes(
         eoat_by_id={normalized_eoat_key(eoat.eoat_id): eoat.eoat_id for eoat in eoats},
         eoats_by_tool={normalized_tool_key(tool.tool): (eoats[index].eoat_id,) for index, tool in enumerate(tools)},
-        eoats_by_machine={normalized_machine_key(machine.machine): (eoats[index].eoat_id,) for index, machine in enumerate(machines)},
-        machines_by_tool={normalized_tool_key(tool.tool): (machines[index].machine,) for index, tool in enumerate(tools)},
-        machines_by_eoat={normalized_eoat_key(eoat.eoat_id): (machines[index].machine,) for index, eoat in enumerate(eoats)},
-        tools_by_machine={normalized_machine_key(machine.machine): (tools[index].tool,) for index, machine in enumerate(machines)},
+        eoats_by_machine={
+            normalized_machine_key(machine.machine): (eoats[index].eoat_id,) for index, machine in enumerate(machines)
+        },
+        machines_by_tool={
+            normalized_tool_key(tool.tool): (machines[index].machine,) for index, tool in enumerate(tools)
+        },
+        machines_by_eoat={
+            normalized_eoat_key(eoat.eoat_id): (machines[index].machine,) for index, eoat in enumerate(eoats)
+        },
+        tools_by_machine={
+            normalized_machine_key(machine.machine): (tools[index].tool,) for index, machine in enumerate(machines)
+        },
     )
     return AtlasDataBundle(
         project_root=str(tmp_path),
@@ -2209,7 +2268,15 @@ def _machine36_bundle(tmp_path: Path) -> AtlasDataBundle:
         current_eoat_confidence="high",
         current_eoat_resolution_reason="latest audit",
         documentation_score=91,
-        source_rows=({"Audit ID": "AUD-36", "Audit Date": "2026-06-08", "Press/Machine #": "36", "EOAT Assembly ID": "P4-EOAT-0014", "Status": "Complete"},),
+        source_rows=(
+            {
+                "Audit ID": "AUD-36",
+                "Audit Date": "2026-06-08",
+                "Press/Machine #": "36",
+                "EOAT Assembly ID": "P4-EOAT-0014",
+                "Status": "Complete",
+            },
+        ),
     )
     indexes = AtlasIndexes(
         eoat_by_id={normalized_eoat_key(eoat.eoat_id): eoat.eoat_id},

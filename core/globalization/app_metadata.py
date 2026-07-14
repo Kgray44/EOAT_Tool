@@ -12,7 +12,6 @@ from core.resources import app_base_path, release_metadata_path
 
 from .sqlite_store import SCHEMA_VERSION
 
-
 APP_NAME = "EOAT Atlas"
 APP_VERSION = "0.0.0"
 RELEASE_ID = "eoat-atlas-unknown"

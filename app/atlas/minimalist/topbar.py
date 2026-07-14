@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Property, QAbstractAnimation, QEasingCurve, QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import Property, QAbstractAnimation, QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
-from PySide6.QtCore import QPropertyAnimation
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QLabel, QPushButton, QWidget
 
 from .theme import active_minimalist_tokens, effective_minimalist_theme

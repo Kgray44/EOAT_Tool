@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QEasingCurve, QPoint, QRect, QRectF, QSize, Qt, QPropertyAnimation, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QFrame,
-    QGraphicsOpacityEffect,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -23,8 +20,13 @@ from PySide6.QtWidgets import (
 )
 
 from core.atlas_models import AtlasDataBundle, EOATRecord, MachineRecord, ToolRecord
-from core.atlas_setup_packets import PACKET_TYPE_SETUP_VERIFICATION, PHOTO_KEY, SetupPacketOptions, build_setup_packet_context
-from core.atlas_utils import display_value, row_value
+from core.atlas_setup_packets import (
+    PACKET_TYPE_SETUP_VERIFICATION,
+    PHOTO_KEY,
+    SetupPacketOptions,
+    build_setup_packet_context,
+)
+from core.atlas_utils import display_value
 from core.fit_check_service import FitCheckResult, FitCheckService
 from core.openers import open_path
 from core.packet_builder_packets import (
@@ -44,10 +46,9 @@ from core.packet_builder_packets import (
 from core.setup_packet_pdf import export_setup_packet_pdf
 
 from .data import loaded_status_text, machine_label
-from .fit_check import CompatibilityOptionFilter, FIT_CHECK_STYLES, FitCheckScrim, FitCheckSelector, SelectorOption
+from .fit_check import FIT_CHECK_STYLES, CompatibilityOptionFilter, FitCheckScrim, FitCheckSelector, SelectorOption
 from .widgets import (
     ACCENT_BRIGHT,
-    GREEN,
     AnimatedGlassPanel,
     CloseIconButton,
     GlassPanel,
@@ -56,7 +57,6 @@ from .widgets import (
     TitleAccentBar,
     clear_layout,
     glyph_icon,
-    prefers_reduced_motion,
 )
 
 
@@ -808,7 +808,7 @@ class MinimalistPacketBuilderContent(QWidget):
     def _change_summary(self) -> tuple[str, ...]:
         return build_change_summary(self.bundle, self.from_group.selected_setup(), self.to_group.selected_setup(), from_result=self.from_result, to_result=self.to_result)
 
-    def _run_group(self, group: "PacketSetupGroup") -> FitCheckResult | None:
+    def _run_group(self, group: PacketSetupGroup) -> FitCheckResult | None:
         setup = group.selected_setup()
         if setup == PacketSetup():
             return None
@@ -844,7 +844,7 @@ class MinimalistPacketBuilderContent(QWidget):
             self.close_search_overlays()
         super().mousePressEvent(event)
 
-    def _packet_groups(self) -> tuple["PacketSetupGroup", ...]:
+    def _packet_groups(self) -> tuple[PacketSetupGroup, ...]:
         return tuple(
             group
             for group in (
@@ -856,10 +856,7 @@ class MinimalistPacketBuilderContent(QWidget):
         )
 
     def _point_inside_selector_or_dropdown(self, point: QPoint) -> bool:
-        for group in self._packet_groups():
-            if group.contains_content_point(point, self):
-                return True
-        return False
+        return any(group.contains_content_point(point, self) for group in self._packet_groups())
 
     def _open_record(self, kind: str, key: str) -> None:
         self.close_search_overlays()
@@ -1210,7 +1207,7 @@ class ChangeoverValidationSummary(GlassPanel):
             tone = "good" if is_valid_fit_result(from_result) and is_valid_fit_result(to_result) else "warn"
             self.change_metric.set_value("Compared", tone, note)
 
-    def _set_metric(self, metric: "SummaryMetric", setup: PacketSetup, result: FitCheckResult | None) -> None:
+    def _set_metric(self, metric: SummaryMetric, setup: PacketSetup, result: FitCheckResult | None) -> None:
         if not setup.complete():
             metric.set_value("Incomplete", "warn", "Select Tool, Machine, and EOAT.")
         elif is_valid_fit_result(result):

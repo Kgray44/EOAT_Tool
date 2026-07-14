@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from time import perf_counter
 from uuid import uuid4
 
 from .api_client import AtlasApiClient
@@ -49,6 +50,53 @@ class AtlasDataGateway:
 
     def get_cache_status(self):
         return self.cache.status()
+
+    def diagnostics(self) -> dict:
+        started = perf_counter()
+        health: dict = {}
+        version: dict = {}
+        server: dict = {}
+        try:
+            health = self.client.health()
+            version = self.client.version()
+            server = self.client.server_status()
+            api_online = bool(health.get("api_reachable") and health.get("database_reachable"))
+        except ApiUnavailableError as exc:
+            api_online = False
+            self.last_server_failure = str(exc)
+        cache = self.get_cache_status() if self.cache.path.exists() else None
+        return {
+            "backend": "mysql_api",
+            "operational_authority": "MySQL/API",
+            "api_online": api_online,
+            "api_url": self.configuration.api_base_url,
+            "api_version": str(health.get("api_version") or version.get("api_version") or ""),
+            "api_response_ms": round((perf_counter() - started) * 1000, 1),
+            "database_connected": bool(health.get("database_reachable")),
+            "mysql_version": str(health.get("database_server_version") or ""),
+            "schema_revision": str(health.get("current_schema_revision") or ""),
+            "required_schema_revision": self.configuration.expected_schema_revision,
+            "server_revision": str(version.get("server_revision") or (cache.server_revision if cache else "")),
+            "change_feed_cursor": int(server.get("cursor") or (cache.last_change_cursor if cache else 0)),
+            "cache_path": str(self.configuration.cache_path),
+            "cache_schema_version": str(cache.schema_version if cache else ""),
+            "cached_counts": dict(cache.entity_counts if cache else {}),
+            "last_successful_api_contact": str(cache.last_successful_sync_at if cache else ""),
+            "last_incremental_refresh": str(cache.last_successful_sync_at if cache else ""),
+            "last_deep_refresh": str(cache.last_full_refresh_at if cache else ""),
+            "offline_read_only": not api_online,
+            "writes_enabled": bool(self.configuration.writes_enabled and health.get("writes_enabled")),
+            "identity": self.configuration.development_identity,
+            "role": {
+                "dev.viewer": "VIEWER",
+                "dev.technician": "TECHNICIAN",
+                "dev.engineer": "ENGINEER",
+                "dev.admin": "ADMINISTRATOR",
+            }.get(self.configuration.development_identity, "Server-resolved"),
+            "application_instance_id": self.configuration.application_instance_id,
+            "client_version": self.configuration.client_version,
+            "legacy_fallback": False,
+        }
 
     def _online_or_cache(self, online, cached):
         status = self.get_connection_status()
@@ -502,8 +550,13 @@ class AtlasDataGateway:
             {"expected_row_version": expected_version} if expected_version else {},
         )
 
-    def create_annotation(self, entity_type, entity_id, request):
-        return self._server_first_write("POST", f"/api/v1/entities/{entity_type}/{entity_id}/annotations", request)
+    def create_annotation(self, entity_type, entity_id, request, *, idempotency_key=None):
+        return self._server_first_write(
+            "POST",
+            f"/api/v1/entities/{entity_type}/{entity_id}/annotations",
+            request,
+            idempotency_key=self._key(idempotency_key),
+        )
 
     def update_annotation(self, annotation_id, changes, expected_version):
         return self._server_first_write(
@@ -597,4 +650,5 @@ class AtlasDataGateway:
                 "last_change_cursor": cache_status.last_change_cursor if cache_status else 0,
             }
         )
+        bundle.metrics.update(self.diagnostics())
         return bundle

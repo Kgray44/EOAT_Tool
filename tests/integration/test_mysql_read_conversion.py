@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -17,10 +16,8 @@ from core.data_gateway.models import ConnectivityMode
 from server.eoat_api.app import app, database_error
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
-from tools.migration.import_pipeline import build_review_items
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKBOOK = ROOT / "EOAT_Standardization_Project" / "01_EOAT_Audit" / "EOAT_Audit_Database" / "EOAT_Master_Tracker.xlsx"
 
 
 @pytest.fixture(scope="module")
@@ -277,13 +274,26 @@ def test_import_traceability_and_safety():
         assert session.scalar(select(func.count(db.Part.id))) == 0
         assert session.scalar(select(func.count(db.ToolPart.id))) == 0
         assert session.scalar(select(func.count(db.EOATInstallation.id))) == 0
-    before = hashlib.sha256(WORKBOOK.read_bytes()).hexdigest()
-    items, rows = build_review_items(WORKBOOK)
-    after = hashlib.sha256(WORKBOOK.read_bytes()).hexdigest()
-    assert before == after
-    assert len(rows["EOAT Inventory"]) == 102
-    assert sum(item.issue_code == "POSSIBLE_PART_NOT_CONFIRMED" for item in items) == 67
-    assert sum(item.issue_code == "CONFLICTING_EOAT_ATTRIBUTE" for item in items) == 2
+        assert batch.source_file_name.endswith("EOAT_Master_Tracker.xlsx")
+        assert len(batch.source_file_checksum) == 64
+        assert (
+            session.scalar(
+                select(func.count(db.ImportIssue.id)).where(
+                    db.ImportIssue.import_batch_id == batch.id,
+                    db.ImportIssue.issue_code == "POSSIBLE_PART_NOT_CONFIRMED",
+                )
+            )
+            == 67
+        )
+        assert (
+            session.scalar(
+                select(func.count(db.ImportIssue.id)).where(
+                    db.ImportIssue.import_batch_id == batch.id,
+                    db.ImportIssue.issue_code == "CONFLICTING_EOAT_ATTRIBUTE",
+                )
+            )
+            == 2
+        )
 
 
 def test_desktop_gateway_contains_no_mysql_driver_or_credentials():
@@ -296,7 +306,6 @@ def test_desktop_gateway_contains_no_mysql_driver_or_credentials():
 def test_mysql_api_workers_do_not_call_legacy_loader(monkeypatch):
     monkeypatch.setenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api")
     import core.data_gateway as gateway_module
-    from app.atlas.atlas_window import AtlasLoadWorker
     from app.atlas.minimalist.window import MinimalistAtlasLoadWorker
     from core.atlas_models import AtlasDataBundle
 
@@ -320,20 +329,11 @@ def test_mysql_api_workers_do_not_call_legacy_loader(monkeypatch):
 
     monkeypatch.setattr(gateway_module, "AtlasDataGateway", FakeGateway)
     monkeypatch.setattr(Path, "exists", lambda _self: True)
-    import app.atlas.atlas_window as classic
     import app.atlas.minimalist.window as minimalist
 
-    monkeypatch.setattr(classic, "load_atlas_data", lambda *a, **k: pytest.fail("classic worker opened legacy data"))
-    monkeypatch.setattr(
-        minimalist, "load_atlas_data", lambda *a, **k: pytest.fail("minimalist worker opened legacy data")
-    )
-    classic_results = []
+    assert not hasattr(minimalist, "load_atlas_data")
     minimalist_results = []
-    first = AtlasLoadWorker("test")
-    first.finished.connect(classic_results.append)
-    first.run()
     second = MinimalistAtlasLoadWorker("test")
     second.finished.connect(minimalist_results.append)
     second.run()
-    assert classic_results == [bundle]
     assert minimalist_results == [bundle]

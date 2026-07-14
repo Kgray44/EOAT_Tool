@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import importlib.util
+import os
 from pathlib import Path
 
 from core.atlas_data_loader import _load_atlas_data_uncached, load_atlas_data
@@ -12,7 +12,7 @@ from core.globalization.config import NETWORK_ROOT, load_or_create_global_config
 from core.globalization.pending_updates import PendingUpdateStore, detect_pending_update_conflicts
 from core.globalization.repositories import EOATRepository
 from core.globalization.runtime_paths import ensure_runtime_layout, get_runtime_paths
-from core.globalization.sqlite_store import cache_metadata, connect_cache_db
+from core.globalization.sqlite_store import connect_cache_db
 from core.globalization.workbook_import import load_atlas_data_from_sqlite_cache
 from core.globalization.write_foundation import (
     ConflictDetectionService,

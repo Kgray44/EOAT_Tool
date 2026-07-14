@@ -5,21 +5,21 @@ import filecmp
 import json
 import shutil
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from openpyxl import load_workbook
 from openpyxl.comments import Comment
 from openpyxl.utils import get_column_letter
 
 from .audit.relationships import is_compatibility_row
-from .audit_constants import SOURCE_AUDIT_ID_FIELD
 from .audit_by_press import refresh_audit_by_press_view
+from .audit_constants import SOURCE_AUDIT_ID_FIELD
 from .eoat_ids import (
     CANONICAL_AREA_CLEANROOM,
-    CANONICAL_AREA_PLANT4,
     CANONICAL_AREA_UNKNOWN,
     EOAT_ASSEMBLY_ID_FIELD,
     EOAT_ID_SEARCH_PATTERN,

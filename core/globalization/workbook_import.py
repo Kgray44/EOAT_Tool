@@ -4,10 +4,11 @@ import hashlib
 import os
 import shutil
 import uuid
+from collections.abc import Callable
 from dataclasses import fields, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from core.atlas_models import AtlasDataBundle
 
@@ -16,7 +17,6 @@ from .events import EventOutbox
 from .pending_updates import pending_updates_for_entity, reindex_pending_updates
 from .runtime_paths import AtlasRuntimePaths, atomic_write_json, ensure_runtime_layout, get_runtime_paths
 from .sqlite_store import cache_metadata, connect_cache_db, read_bundle, write_bundle
-
 
 LegacyLoader = Callable[..., AtlasDataBundle]
 WORKBOOK_KEYS = {"eoat_master_tracker", "press_capacity_workbook", "robot_workbook"}

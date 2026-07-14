@@ -10,8 +10,7 @@ import pytest
 from release_tools.launcher import APP_EXE, LauncherError, install_package, update_and_launch
 from release_tools.manifest import read_manifest, sha256_file, validate_manifest
 from release_tools.versioning import Version
-from scripts.publish_release import PublishError, ReleaseLock, _publish_package
-from scripts.publish_release import staged_source_metadata
+from scripts.publish_release import PublishError, ReleaseLock, _publish_package, staged_source_metadata
 
 
 @pytest.mark.parametrize("source,expected", [("0.4.7", "0.4.8"), ("1.2.9", "1.2.10"), ("0.9.9", "0.9.10")])
@@ -39,6 +38,7 @@ def test_invalid_versions_rejected(value):
 
 def test_launcher_version_is_independent():
     from release_tools.launcher import LAUNCHER_VERSION
+
     assert LAUNCHER_VERSION == "0.1.0"
     assert str(Version.parse("0.9.0").bump()) == "0.9.1"
 
@@ -48,13 +48,24 @@ def make_package(root: Path, version: str, *, corrupt_metadata: bool = False) ->
     source.mkdir(parents=True)
     (source / APP_EXE).write_bytes(b"fake-executable")
     (source / "_internal").mkdir()
-    (source / "release_metadata.json").write_text(json.dumps({"app_name": "EOAT Atlas", "app_version": "9.9.9" if corrupt_metadata else version}), encoding="utf-8")
+    (source / "release_metadata.json").write_text(
+        json.dumps({"app_name": "EOAT Atlas", "app_version": "9.9.9" if corrupt_metadata else version}),
+        encoding="utf-8",
+    )
     package = root / f"EOAT-Atlas_v{version}.zip"
     with zipfile.ZipFile(package, "w") as archive:
         for path in source.rglob("*"):
             if path.is_file():
                 archive.write(path, Path("EOAT Atlas") / path.relative_to(source))
-    manifest = {"latest_version": version, "release_path": str(package), "minimum_supported_version": "0.1.0", "sha256": sha256_file(package), "package_size": package.stat().st_size, "published_at": "2026-07-13T12:00:00-04:00", "release_notes": "test"}
+    manifest = {
+        "latest_version": version,
+        "release_path": str(package),
+        "minimum_supported_version": "0.1.0",
+        "sha256": sha256_file(package),
+        "package_size": package.stat().st_size,
+        "published_at": "2026-07-13T12:00:00-04:00",
+        "release_notes": "test",
+    }
     return package, manifest
 
 
@@ -79,7 +90,9 @@ def test_manifest_unknown_fields_tolerated(tmp_path):
     assert validate_manifest(manifest)["future_field"] == {"ok": True}
 
 
-@pytest.mark.parametrize("field", ["latest_version", "release_path", "minimum_supported_version", "sha256", "package_size", "published_at"])
+@pytest.mark.parametrize(
+    "field", ["latest_version", "release_path", "minimum_supported_version", "sha256", "package_size", "published_at"]
+)
 def test_manifest_required_fields(field, tmp_path):
     _, manifest = make_package(tmp_path, "1.0.0")
     manifest.pop(field)
@@ -161,9 +174,13 @@ def test_newer_local_not_downgraded(tmp_path):
 def test_offline_fallback_and_minimum_enforcement(tmp_path):
     local = tmp_path / "local"
     install_local(local, "1.0.0")
-    (local / "last_known_good_manifest.json").write_text(json.dumps({"minimum_supported_version": "0.9.0"}), encoding="utf-8")
+    (local / "last_known_good_manifest.json").write_text(
+        json.dumps({"minimum_supported_version": "0.9.0"}), encoding="utf-8"
+    )
     assert update_and_launch(tmp_path / "offline", local, launch=lambda _: None) == "offline-fallback"
-    (local / "last_known_good_manifest.json").write_text(json.dumps({"minimum_supported_version": "1.1.0"}), encoding="utf-8")
+    (local / "last_known_good_manifest.json").write_text(
+        json.dumps({"minimum_supported_version": "1.1.0"}), encoding="utf-8"
+    )
     with pytest.raises(LauncherError, match="required"):
         update_and_launch(tmp_path / "offline", local, launch=lambda _: None)
 
@@ -173,10 +190,15 @@ def test_invalid_update_preserves_local(failure, tmp_path):
     package, manifest = make_package(tmp_path, "1.0.1", corrupt_metadata=failure == "metadata")
     deploy, local = tmp_path / "deploy", tmp_path / "local"
     old = install_local(local, "1.0.0")
-    if failure == "missing": package.unlink()
-    elif failure == "checksum": manifest["sha256"] = "0" * 64
-    elif failure == "size": manifest["package_size"] += 1
-    elif failure == "zip": package.write_bytes(b"not a zip"); manifest.update(sha256=sha256_file(package), package_size=package.stat().st_size)
+    if failure == "missing":
+        package.unlink()
+    elif failure == "checksum":
+        manifest["sha256"] = "0" * 64
+    elif failure == "size":
+        manifest["package_size"] += 1
+    elif failure == "zip":
+        package.write_bytes(b"not a zip")
+        manifest.update(sha256=sha256_file(package), package_size=package.stat().st_size)
     deploy_manifest(deploy, manifest)
     launches = []
     assert update_and_launch(deploy, local, launch=launches.append) == "update-failed-fallback"
@@ -188,9 +210,17 @@ def test_partial_staging_never_installed_and_user_data_preserved(tmp_path):
     _, manifest = make_package(tmp_path, "1.0.1")
     local = tmp_path / "local"
     install_local(local, "1.0.0")
-    protected = [local / "settings.json", local / "data" / "local_cache.db", local / "cache" / "x", local / "logs" / "x", local / "exports" / "x", local / "install_identity.json"]
+    protected = [
+        local / "settings.json",
+        local / "data" / "local_cache.db",
+        local / "cache" / "x",
+        local / "logs" / "x",
+        local / "exports" / "x",
+        local / "install_identity.json",
+    ]
     for path in protected:
-        path.parent.mkdir(parents=True, exist_ok=True); path.write_text("keep", encoding="utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("keep", encoding="utf-8")
     install_package(manifest, local)
     assert all(path.read_text(encoding="utf-8") == "keep" for path in protected)
     assert not (local / "app_staging").exists() or not any((local / "app_staging").iterdir())
@@ -205,6 +235,7 @@ def test_concurrent_lock_and_stale_lock_are_safe(tmp_path):
         lock_path = tmp_path / "Manifests" / "publish.lock"
         old = lock_path.stat().st_mtime - 9 * 3600
         import os
+
         os.utime(lock_path, (old, old))
         with pytest.raises(PublishError, match="verify the recorded process"):
             ReleaseLock(tmp_path).acquire()
@@ -216,19 +247,25 @@ def test_concurrent_lock_and_stale_lock_are_safe(tmp_path):
 def test_publisher_manifest_last_and_previous_recoverable(tmp_path, monkeypatch):
     deploy = tmp_path / "Deployment With Spaces & Ampersand"
     old_package, old_manifest = make_package(tmp_path / "old", "1.0.0")
-    current = deploy / "Packages" / "Current"; current.mkdir(parents=True)
-    old_network = current / old_package.name; shutil.copy2(old_package, old_network)
+    current = deploy / "Packages" / "Current"
+    current.mkdir(parents=True)
+    old_network = current / old_package.name
+    shutil.copy2(old_package, old_network)
     old_manifest["release_path"] = str(old_network)
-    manifests = deploy / "Manifests"; manifests.mkdir(parents=True)
+    manifests = deploy / "Manifests"
+    manifests.mkdir(parents=True)
     (manifests / "latest.json").write_text(json.dumps(old_manifest), encoding="utf-8")
     new_package, new_manifest = make_package(tmp_path / "new", "1.0.1")
     events = []
     from scripts import publish_release
+
     original = publish_release.atomic_write_json
+
     def observed(path, payload):
         assert (current / new_package.name).is_file()
         events.append("manifest")
         return original(path, payload)
+
     monkeypatch.setattr(publish_release, "atomic_write_json", observed)
     _publish_package(deploy, new_package, new_manifest, old_manifest)
     assert events == ["manifest"]
@@ -239,10 +276,14 @@ def test_publisher_manifest_last_and_previous_recoverable(tmp_path, monkeypatch)
 def test_manifest_failure_restores_previous_package(tmp_path, monkeypatch):
     deploy = tmp_path / "deploy"
     old_package, old_manifest = make_package(tmp_path / "old", "1.0.0")
-    current = deploy / "Packages" / "Current"; current.mkdir(parents=True)
-    old_network = current / old_package.name; shutil.copy2(old_package, old_network); old_manifest["release_path"] = str(old_network)
+    current = deploy / "Packages" / "Current"
+    current.mkdir(parents=True)
+    old_network = current / old_package.name
+    shutil.copy2(old_package, old_network)
+    old_manifest["release_path"] = str(old_network)
     new_package, new_manifest = make_package(tmp_path / "new", "1.0.1")
     from scripts import publish_release
+
     monkeypatch.setattr(publish_release, "atomic_write_json", lambda *_: (_ for _ in ()).throw(OSError("copy failure")))
     with pytest.raises(OSError):
         _publish_package(deploy, new_package, new_manifest, old_manifest)
@@ -252,18 +293,20 @@ def test_manifest_failure_restores_previous_package(tmp_path, monkeypatch):
 
 def test_source_metadata_rolls_back_on_failure(tmp_path, monkeypatch):
     from scripts import publish_release
+
     metadata = tmp_path / "release_metadata.json"
     metadata.write_text('{"app_version":"1.0.0"}', encoding="utf-8")
     monkeypatch.setattr(publish_release, "ROOT", tmp_path)
-    with pytest.raises(RuntimeError):
-        with staged_source_metadata({"app_version": "1.0.1"}):
-            assert json.loads(metadata.read_text())["app_version"] == "1.0.1"
-            raise RuntimeError("preflight failure")
+    with pytest.raises(RuntimeError), staged_source_metadata({"app_version": "1.0.1"}):
+        assert json.loads(metadata.read_text())["app_version"] == "1.0.1"
+        raise RuntimeError("preflight failure")
     assert metadata.read_text(encoding="utf-8") == '{"app_version":"1.0.0"}'
 
 
 def test_same_version_different_content_rejected(tmp_path):
-    deploy = tmp_path / "deploy"; current = deploy / "Packages" / "Current"; current.mkdir(parents=True)
+    deploy = tmp_path / "deploy"
+    current = deploy / "Packages" / "Current"
+    current.mkdir(parents=True)
     package, manifest = make_package(tmp_path / "one", "1.0.0")
     (current / package.name).write_bytes(b"different")
     with pytest.raises(PublishError, match="different content"):
@@ -272,6 +315,7 @@ def test_same_version_different_content_rejected(tmp_path):
 
 def test_frozen_and_development_runtime_roots_are_separate(monkeypatch, tmp_path):
     from core.globalization import runtime_paths
+
     monkeypatch.setenv("EOAT_ATLAS_LOCALAPPDATA", str(tmp_path))
     monkeypatch.setattr(runtime_paths.sys, "frozen", False, raising=False)
     assert runtime_paths.get_runtime_paths().runtime_root.name == "EOAT_Atlas_Dev"

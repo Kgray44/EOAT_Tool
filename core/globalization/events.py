@@ -13,7 +13,6 @@ from .config import AtlasGlobalConfig
 from .install_identity import load_or_create_install_identity
 from .runtime_paths import AtlasRuntimePaths, atomic_write_json, ensure_runtime_layout
 
-
 EVENT_SCHEMA_VERSION = 1
 REQUIRED_EVENT_FIELDS = {
     "event_id",

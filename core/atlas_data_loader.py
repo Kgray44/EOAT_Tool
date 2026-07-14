@@ -43,6 +43,9 @@ from .eoat_ids import is_valid_eoat_assembly_id, normalize_eoat_assembly_id
 from .paths import get_press_capacity_file, resolve_project_paths
 from .performance import log_perf_marker, perf_timer
 from .photo_index import build_photo_index
+from .standards_index import STANDARD_EXTENSIONS, STANDARDIZATION_KEYWORDS, build_standards_index, standards_for_record
+from .tool_fields import TOOL_FIELD
+from .workbook_cache import row_dicts_cached, workbook_file_signature
 
 
 @dataclass(frozen=True)
@@ -56,9 +59,7 @@ class CurrentEoatResolution:
     matching_rows_count: int = 0
     eoat_ids_found: tuple[str, ...] = ()
     ambiguous: bool = False
-from .standards_index import STANDARD_EXTENSIONS, STANDARDIZATION_KEYWORDS, build_standards_index, standards_for_record
-from .tool_fields import TOOL_FIELD
-from .workbook_cache import row_dicts_cached, workbook_file_signature
+
 
 _CACHE_LOCK = RLock()
 _CACHE: dict[str, tuple[tuple[tuple[str, bool, int, int], ...], AtlasDataBundle]] = {}
@@ -92,29 +93,31 @@ def load_atlas_data(
         signature = _cache_signature(root, source_paths=source_paths)
     cache_key = _cache_key(root, exclude_unaudited_tools=exclude_unaudited_tools, source_paths=source_paths)
     if not force_refresh:
-        with perf_timer(
-            root,
-            "atlas.load.memory_cache_lookup",
-            details={"ui_sensitive": "cached_data_load", "cache_key": cache_key},
-            source="atlas_data_loader",
-            page_tool="atlas_backend",
+        with (
+            perf_timer(
+                root,
+                "atlas.load.memory_cache_lookup",
+                details={"ui_sensitive": "cached_data_load", "cache_key": cache_key},
+                source="atlas_data_loader",
+                page_tool="atlas_backend",
+            ),
+            _CACHE_LOCK,
         ):
-            with _CACHE_LOCK:
-                cached = _CACHE.get(cache_key)
-                if cached and cached[0] == signature:
-                    log_perf_marker(
-                        root,
-                        "atlas.load.memory_cache_hit",
-                        details={
-                            "ui_sensitive": "cached_data_load",
-                            "eoats": len(cached[1].eoats),
-                            "tools": len(cached[1].tools),
-                            "machines": len(cached[1].machines),
-                        },
-                        source="atlas_data_loader",
-                        page_tool="atlas_backend",
-                    )
-                    return cached[1]
+            cached = _CACHE.get(cache_key)
+            if cached and cached[0] == signature:
+                log_perf_marker(
+                    root,
+                    "atlas.load.memory_cache_hit",
+                    details={
+                        "ui_sensitive": "cached_data_load",
+                        "eoats": len(cached[1].eoats),
+                        "tools": len(cached[1].tools),
+                        "machines": len(cached[1].machines),
+                    },
+                    source="atlas_data_loader",
+                    page_tool="atlas_backend",
+                )
+                return cached[1]
         log_perf_marker(
             root,
             "atlas.load.memory_cache_miss",
@@ -130,7 +133,9 @@ def load_atlas_data(
         source="atlas_data_loader",
         page_tool="atlas_backend",
     ):
-        bundle = _load_atlas_data_uncached(root, exclude_unaudited_tools=exclude_unaudited_tools, source_paths=source_paths)
+        bundle = _load_atlas_data_uncached(
+            root, exclude_unaudited_tools=exclude_unaudited_tools, source_paths=source_paths
+        )
     with _CACHE_LOCK:
         _CACHE[cache_key] = (signature, bundle)
     return bundle
@@ -159,83 +164,99 @@ def _load_atlas_data_uncached(
     warnings: list[WarningItem] = []
     excluded_unaudited_tool_count = 0
 
-    with timed_step(diagnostics, "workbook_load"):
-        with perf_timer(
+    with (
+        timed_step(diagnostics, "workbook_load"),
+        perf_timer(
             project_root,
             "atlas.workbook_load",
             details={"ui_sensitive": "excel_read", "workbooks": "master tracker, photo index, robot info"},
             source="atlas_data_loader",
             page_tool="atlas_backend",
-        ):
-            inventory_rows, inventory_warnings = _safe_rows(paths["eoat_master_tracker"], "EOAT Inventory", "EOAT Master Tracker")
-            photo_rows, photo_warnings = _safe_rows(paths["eoat_master_tracker"], "Photo Index", "EOAT Photo Index")
-            robot_rows, robot_warnings = _safe_rows(paths["robot_workbook"], "Robot Info", "Robot Info", optional=True)
+        ),
+    ):
+        inventory_rows, inventory_warnings = _safe_rows(
+            paths["eoat_master_tracker"], "EOAT Inventory", "EOAT Master Tracker"
+        )
+        photo_rows, photo_warnings = _safe_rows(paths["eoat_master_tracker"], "Photo Index", "EOAT Photo Index")
+        robot_rows, robot_warnings = _safe_rows(paths["robot_workbook"], "Robot Info", "Robot Info", optional=True)
     warnings.extend(inventory_warnings)
     warnings.extend(photo_warnings)
     warnings.extend(robot_warnings)
 
-    with timed_step(diagnostics, "press_capacity_load"):
-        with perf_timer(
+    with (
+        timed_step(diagnostics, "press_capacity_load"),
+        perf_timer(
             project_root,
             "atlas.press_capacity_load",
             details={"ui_sensitive": "excel_read", "exclude_unaudited_tools": bool(exclude_unaudited_tools)},
             source="atlas_data_loader",
             page_tool="atlas_backend",
-        ):
-            press_relationships, press_warnings = load_required_relationships(paths["press_capacity_workbook"])
-            if exclude_unaudited_tools:
-                audited_tool_keys = _audited_tool_keys(inventory_rows)
-                before_count = len(press_relationships)
-                press_relationships = [
-                    relationship
-                    for relationship in press_relationships
-                    if normalized_tool_key(relationship.part_number) in audited_tool_keys
-                ]
-                excluded_unaudited_tool_count = before_count - len(press_relationships)
-    warnings.extend(_warning("warning", "Press Capacity", warning, source="Press Capacity") for warning in press_warnings)
+        ),
+    ):
+        press_relationships, press_warnings = load_required_relationships(paths["press_capacity_workbook"])
+        if exclude_unaudited_tools:
+            audited_tool_keys = _audited_tool_keys(inventory_rows)
+            before_count = len(press_relationships)
+            press_relationships = [
+                relationship
+                for relationship in press_relationships
+                if normalized_tool_key(relationship.part_number) in audited_tool_keys
+            ]
+            excluded_unaudited_tool_count = before_count - len(press_relationships)
+    warnings.extend(
+        _warning("warning", "Press Capacity", warning, source="Press Capacity") for warning in press_warnings
+    )
 
-    with timed_step(diagnostics, "standards_index"):
-        with perf_timer(
+    with (
+        timed_step(diagnostics, "standards_index"),
+        perf_timer(
             project_root,
             "atlas.standards_index",
             details={"ui_sensitive": "folder_scan"},
             source="atlas_data_loader",
             page_tool="atlas_backend",
-        ):
-            standards, standards_warnings = build_standards_index(project_root, standards_root=paths["reference_docs_folder"])
+        ),
+    ):
+        standards, standards_warnings = build_standards_index(
+            project_root, standards_root=paths["reference_docs_folder"]
+        )
     warnings.extend(_warning("info", "Standards", warning, source="Standards") for warning in standards_warnings)
 
-    with timed_step(diagnostics, "photo_index"):
-        with perf_timer(
+    with (
+        timed_step(diagnostics, "photo_index"),
+        perf_timer(
             project_root,
             "atlas.photo_index",
             details={"ui_sensitive": "photo_index_scan"},
             source="atlas_data_loader",
             page_tool="atlas_backend",
-        ):
-            photo_sets, photos_by_tool, photo_warnings = build_photo_index(
-                project_root,
-                inventory_rows,
-                photo_rows,
-                photos_root=paths["photos_root"],
-            )
+        ),
+    ):
+        photo_sets, photos_by_tool, photo_warnings = build_photo_index(
+            project_root,
+            inventory_rows,
+            photo_rows,
+            photos_root=paths["photos_root"],
+        )
     warnings.extend(_warning("warning", "Photos", warning, source="Photos") for warning in photo_warnings)
 
     robot_by_machine = _robot_rows_by_machine(robot_rows)
-    with timed_step(diagnostics, "cache_build"):
-        with perf_timer(
+    with (
+        timed_step(diagnostics, "cache_build"),
+        perf_timer(
             project_root,
             "atlas.cache_build",
             details={"ui_sensitive": "cached_data_load"},
             source="atlas_data_loader",
             page_tool="atlas_backend",
-        ):
-            eoats = _build_eoat_records(inventory_rows, press_relationships, photo_sets, standards, warnings)
-            machines = _build_machine_records(inventory_rows, press_relationships, eoats, robot_by_machine)
-            tools = _build_tool_records(inventory_rows, press_relationships, eoats)
-            indexes = _build_indexes(eoats, machines, tools, photos_by_tool, robot_by_machine)
-            bundle_warnings = _bundle_warnings(eoats, machines, tools, indexes)
-            warnings.extend(bundle_warnings)
+        ),
+    ):
+        eoats = _build_eoat_records(inventory_rows, press_relationships, photo_sets, standards, warnings)
+        machines = _build_machine_records(inventory_rows, press_relationships, eoats, robot_by_machine)
+        tools = _build_tool_records(inventory_rows, press_relationships, eoats)
+        indexes = _build_indexes(eoats, machines, tools, photos_by_tool, robot_by_machine)
+        bundle_warnings = _bundle_warnings(eoats, machines, tools, indexes)
+        warnings.extend(bundle_warnings)
 
     diagnostics.counters.update(
         {
@@ -283,7 +304,9 @@ def _cache_key(root: Path, *, exclude_unaudited_tools: bool, source_paths: dict[
         for key, value in sorted((source_paths or {}).items())
         if str(value or "").strip()
     )
-    return f"{_cache_key_root(root)}::exclude_unaudited_tools={int(bool(exclude_unaudited_tools))}::sources={override_key}"
+    return (
+        f"{_cache_key_root(root)}::exclude_unaudited_tools={int(bool(exclude_unaudited_tools))}::sources={override_key}"
+    )
 
 
 def _audited_tool_keys(inventory_rows: list[dict[str, Any]]) -> set[str]:
@@ -509,10 +532,14 @@ def _build_tool_records(inventory_rows: list[dict[str, Any]], press_relationship
                 molds=tuple(_row_values(rows, "Mold #", "Mold Number")),
                 parts=tuple(sorted(parts, key=str.casefold)),
                 part_family=first_present(rows[0], "Part Family") if rows else "",
-                part_description=part_description_from_row(rows[0]) if rows else (capacity[0].part_description if capacity else ""),
+                part_description=part_description_from_row(rows[0])
+                if rows
+                else (capacity[0].part_description if capacity else ""),
                 compatible_eoats=tuple(sorted(eoats_by_tool.get(key, set()), key=str.casefold)),
                 compatible_machines=tuple(_sort_machine_values(machines)),
-                source="EOAT Master Tracker + Press Capacity" if rows and capacity else ("EOAT Master Tracker" if rows else "Press Capacity"),
+                source="EOAT Master Tracker + Press Capacity"
+                if rows and capacity
+                else ("EOAT Master Tracker" if rows else "Press Capacity"),
                 warnings=tuple(warnings),
                 source_rows=tuple(rows),
             )
@@ -547,10 +574,14 @@ def _build_indexes(eoats, machines, tools, photos_by_tool, robot_by_machine) -> 
     return AtlasIndexes(
         eoat_by_id=eoat_by_id,
         eoats_by_tool={key: tuple(sorted(set(values), key=str.casefold)) for key, values in eoats_by_tool.items()},
-        eoats_by_machine={key: tuple(sorted(set(values), key=str.casefold)) for key, values in eoats_by_machine.items()},
+        eoats_by_machine={
+            key: tuple(sorted(set(values), key=str.casefold)) for key, values in eoats_by_machine.items()
+        },
         machines_by_tool=machines_by_tool,
         machines_by_eoat=machines_by_eoat,
-        tools_by_machine={key: tuple(sorted(set(values), key=str.casefold)) for key, values in tools_by_machine.items()},
+        tools_by_machine={
+            key: tuple(sorted(set(values), key=str.casefold)) for key, values in tools_by_machine.items()
+        },
         photos_by_eoat=photos_by_eoat,
         photos_by_tool={key: tuple(photo.path for photo in photos) for key, photos in photos_by_tool.items()},
         robot_info_by_machine={normalized_machine_key(key): value for key, value in robot_by_machine.items()},
@@ -581,7 +612,11 @@ def _source_statuses(project_root: Path, *, source_paths: dict[str, str] | None 
     paths = _source_path_overrides(project_root, source_paths)
     sources = [
         ("EOAT Master Tracker", paths["eoat_master_tracker"], "Required for Atlas inventory/search data."),
-        ("Press Capacity", paths["press_capacity_workbook"], "Optional, but needed for capacity-derived tool/machine compatibility."),
+        (
+            "Press Capacity",
+            paths["press_capacity_workbook"],
+            "Optional, but needed for capacity-derived tool/machine compatibility.",
+        ),
         ("Robot Info", paths["robot_workbook"], "Optional robot-side circuit details."),
         ("EOAT Photos", paths["photos_root"], "Optional visual/photo profile support."),
         ("Standards", paths["reference_docs_folder"], "Optional standards/documentation navigation."),
@@ -601,7 +636,9 @@ def _source_statuses(project_root: Path, *, source_paths: dict[str, str] | None 
     return statuses
 
 
-def _safe_rows(path: Path, sheet_name: str, label: str, *, optional: bool = False) -> tuple[list[dict[str, Any]], list[WarningItem]]:
+def _safe_rows(
+    path: Path, sheet_name: str, label: str, *, optional: bool = False
+) -> tuple[list[dict[str, Any]], list[WarningItem]]:
     if not path.exists():
         severity = "info" if optional else "warning"
         return [], [
@@ -619,7 +656,9 @@ def _safe_rows(path: Path, sheet_name: str, label: str, *, optional: bool = Fals
         return [], [_warning(severity, f"{label} could not be read", str(exc), source=label)]
 
 
-def _cache_signature(project_root: Path, *, source_paths: dict[str, str] | None = None) -> tuple[tuple[str, bool, int, int], ...]:
+def _cache_signature(
+    project_root: Path, *, source_paths: dict[str, str] | None = None
+) -> tuple[tuple[str, bool, int, int], ...]:
     paths = _source_path_overrides(project_root, source_paths)
     project_paths = resolve_project_paths(project_root)
     candidates = [
@@ -630,7 +669,9 @@ def _cache_signature(project_root: Path, *, source_paths: dict[str, str] | None 
         paths["reference_docs_folder"],
     ]
     candidates.extend(_root_standardization_candidates(project_root))
-    candidates.extend(_standards_document_candidates(project_root, project_paths, standards_root=paths["reference_docs_folder"]))
+    candidates.extend(
+        _standards_document_candidates(project_root, project_paths, standards_root=paths["reference_docs_folder"])
+    )
     signature = []
     seen: set[str] = set()
     for path in candidates:
@@ -673,7 +714,10 @@ def _root_standardization_candidates(project_root: Path) -> list[Path]:
             for path in sorted(project_root.iterdir())
             if path.is_file()
             and path.suffix.lower() in {".docx", ".pdf", ".md", ".txt"}
-            and any(keyword in path.name.casefold().replace("_", " ").replace("-", " ") for keyword in STANDARDIZATION_KEYWORDS)
+            and any(
+                keyword in path.name.casefold().replace("_", " ").replace("-", " ")
+                for keyword in STANDARDIZATION_KEYWORDS
+            )
         ]
     except OSError:
         return []
@@ -771,11 +815,23 @@ def _warnings_for_eoat(primary, eoat_id, tools, machines, photo_set, documentati
         )
     if not tools:
         warnings.append(
-            _warning("warning", "No tool linked", "No Tool # / Mold # / Part # was found.", source="EOAT Inventory", related_eoat_id=eoat_id)
+            _warning(
+                "warning",
+                "No tool linked",
+                "No Tool # / Mold # / Part # was found.",
+                source="EOAT Inventory",
+                related_eoat_id=eoat_id,
+            )
         )
     if not machines:
         warnings.append(
-            _warning("warning", "No compatible machine linked", "No machine compatibility is known.", source="EOAT Inventory", related_eoat_id=eoat_id)
+            _warning(
+                "warning",
+                "No compatible machine linked",
+                "No machine compatibility is known.",
+                source="EOAT Inventory",
+                related_eoat_id=eoat_id,
+            )
         )
     if photo_set.total_count == 0:
         warnings.append(
@@ -924,7 +980,13 @@ def _gripper_summary(row: dict[str, Any]) -> str:
 
 
 def _sensor_summary(row: dict[str, Any]) -> str:
-    fields = ("Sensors Present?", "Sensor Type", "Sensor Brand/Model", "Vacuum Confirmation Present?", "Part-Present Detection Present?")
+    fields = (
+        "Sensors Present?",
+        "Sensor Type",
+        "Sensor Brand/Model",
+        "Vacuum Confirmation Present?",
+        "Part-Present Detection Present?",
+    )
     return "; ".join(f"{field}: {display_value(row.get(field))}" for field in fields if display_value(row.get(field)))
 
 
@@ -960,8 +1022,16 @@ def _current_eoat_resolution_for_rows(rows: list[dict[str, Any]]) -> CurrentEoat
         explicit_score = _current_row_explicit_score(context)
         source = _current_row_source(row, index)
         confidence = "high" if explicit_score >= 300 else "medium" if explicit_score >= 200 else "low"
-        reason = "latest audit" if has_date else "explicit installed audit" if explicit_score >= 300 else "fallback audit row"
-        candidates.append(((has_date, date_value, explicit_score, index), index, row, eoat_id, source, f"{confidence}|{reason}"))
+        reason = (
+            "latest audit"
+            if has_date
+            else "explicit installed audit"
+            if explicit_score >= 300
+            else "fallback audit row"
+        )
+        candidates.append(
+            ((has_date, date_value, explicit_score, index), index, row, eoat_id, source, f"{confidence}|{reason}")
+        )
     unique_ids = tuple(sorted(set(ids_found), key=str.casefold))
     if not candidates:
         if explicit_no_current:
@@ -974,7 +1044,9 @@ def _current_eoat_resolution_for_rows(rows: list[dict[str, Any]]) -> CurrentEoat
                 eoat_ids_found=unique_ids,
             )
         return CurrentEoatResolution(matching_rows_count=len(rows), eoat_ids_found=unique_ids)
-    _sort_key, source_index, _row, eoat_id, source, confidence_reason = max(candidates, key=lambda candidate: candidate[0])
+    _sort_key, source_index, _row, eoat_id, source, confidence_reason = max(
+        candidates, key=lambda candidate: candidate[0]
+    )
     confidence, reason = confidence_reason.split("|", 1)
     return CurrentEoatResolution(
         eoat_id=eoat_id,
@@ -1015,7 +1087,9 @@ def _current_context_text(row: dict[str, Any]) -> str:
 def _row_is_compatibility_only(context: str) -> bool:
     if "compatibility row" in context or "entry type compatible" in context or "press capacity" in context:
         return True
-    return "compatible" in context and not any(phrase in context for phrase in ("installed", "current", "audited", "physical audit"))
+    return "compatible" in context and not any(
+        phrase in context for phrase in ("installed", "current", "audited", "physical audit")
+    )
 
 
 def _row_explicitly_has_no_current_eoat(context: str) -> bool:

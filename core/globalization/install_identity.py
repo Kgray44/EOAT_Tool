@@ -5,7 +5,6 @@ import os
 import platform
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -13,7 +12,6 @@ from core.resources import app_base_path, packaged_executable_dir
 
 from .app_metadata import load_app_metadata
 from .runtime_paths import AtlasRuntimePaths, atomic_write_json, ensure_runtime_layout, get_runtime_paths, read_json
-
 
 IDENTITY_SCHEMA_VERSION = 1
 

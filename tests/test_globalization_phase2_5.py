@@ -8,13 +8,13 @@ import pytest
 from openpyxl import Workbook, load_workbook
 
 from core.atlas_data_loader import _load_atlas_data_uncached
+from core.globalization import workbook_import
 from core.globalization.app_metadata import load_app_metadata
 from core.globalization.config import load_or_create_global_config
 from core.globalization.events import EventOutbox, validate_event_payload
 from core.globalization.install_identity import load_or_create_install_identity
 from core.globalization.pending_updates import PendingUpdateStore
 from core.globalization.runtime_paths import atomic_write_json, ensure_runtime_layout, get_runtime_paths
-from core.globalization import workbook_import
 from core.globalization.workbook_import import (
     deep_refresh_sqlite_cache,
     load_atlas_data_from_sqlite_cache,
@@ -34,8 +34,8 @@ def test_app_metadata_and_install_identity_are_stable_and_installer_ready(tmp_pa
     loaded_again = load_or_create_install_identity(runtime)
 
     assert metadata.app_name == "EOAT Atlas"
-    assert metadata.app_version == "0.9.0-dev"
-    assert metadata.release_id.startswith("eoat-atlas-0.9.0-dev-phase-")
+    assert metadata.app_version == "0.9.1"
+    assert metadata.release_id == "eoat-atlas-0.9.1"
     assert metadata.cache_schema_version >= 1
     assert metadata.event_schema_version == 1
     assert generated.install_id == loaded_again.install_id

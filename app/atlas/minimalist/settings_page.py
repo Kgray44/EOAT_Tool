@@ -1,7 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import logging
+import os
 import platform
 import sys
 import weakref
@@ -42,6 +43,8 @@ from core.globalization.config import load_or_create_global_config
 from core.globalization.runtime_paths import ensure_runtime_layout, get_runtime_paths
 from core.globalization.workbook_import import cache_health_summary
 from core.paths import get_press_capacity_file, resolve_project_paths
+from core.versioning import get_version_info
+from core.versioning.compatibility import EXPECTED_API_VERSION, EXPECTED_SCHEMA_REVISION
 
 from .settings_store import (
     ADMIN_LOGOUT_TIMEOUT_SECONDS,
@@ -112,9 +115,9 @@ class SettingDefinition:
 
 
 SECTIONS: tuple[SectionSpec, ...] = (
-    SectionSpec("data_sources", "Data Sources", "Workbooks, folders, and documents", "grid"),
-    SectionSpec("refresh_cache", "Refresh & Cache", "Data loading and caching behavior", "swap"),
-    SectionSpec("read_only_safety", "Write Safety", "Pending updates and workbook protection", "status"),
+    SectionSpec("data_sources", "Data Services and Engineering Files", "API, network documents, and controlled imports", "grid"),
+    SectionSpec("refresh_cache", "Server, Synchronization, and Cache", "Server refresh and disposable cache behavior", "swap"),
+    SectionSpec("read_only_safety", "Server Write Safety", "Transactions, authorization, conflicts, and offline behavior", "status"),
     SectionSpec("search_navigation", "Search & Navigation", "Search behavior and navigation", "search"),
     SectionSpec("fit_check", "Fit Check", "Compatibility and flow behavior", "target"),
     SectionSpec("library", "Library", "Library display and defaults", "library"),
@@ -751,10 +754,16 @@ class MinimalistSettingsContent(QWidget):
         return next((spec for spec in SECTIONS if spec.key == self.selected_key), SECTIONS[0])
 
     def _status_for_section(self, key: str) -> tuple[str, str] | None:
+        mysql_api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api"
         if key == "data_sources":
+            if mysql_api_mode:
+                return "MySQL/API Authority", "good"
             configured = sum(1 for spec in SOURCE_SPECS if str(self._effective_source_path(spec) or "").strip())
             return f"{configured} Sources Configured", "good" if configured else "warn"
         if key == "read_only_safety":
+            if mysql_api_mode:
+                metrics = self._mysql_api_metrics()
+                return ("Writes Enabled" if metrics.get("writes_enabled") else "Read Only", "good" if metrics.get("api_online") else "warn")
             return "Production Sync Disabled", "good"
         if key == "validation_health":
             warnings = len(getattr(self.bundle, "warnings", ()) or ())
@@ -765,6 +774,28 @@ class MinimalistSettingsContent(QWidget):
         return None
 
     def _render_data_sources(self) -> None:
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+            project_root = str(getattr(getattr(self.controller, "config", None), "project_root", "") or "")
+            self.main_layout.addWidget(
+                info_card(
+                    "MySQL/API operational authority",
+                    "Normal reads and writes use the EOAT Atlas API. Excel is not a runtime authority in this mode.",
+                    "good",
+                )
+            )
+            self.main_layout.addWidget(
+                CollapsibleSection.with_rows(
+                    "Data Services",
+                    "Authoritative application and engineering-file services.",
+                    (
+                        self._setting_row("EOAT Atlas API", "Standardized Data Gateway endpoint.", value_label(os.getenv("EOAT_ATLAS_API_URL", "http://127.0.0.1:8765"), muted=True)),
+                        self._setting_row("MySQL database", "Available only through the local API.", value_label("eoat_atlas_dev")),
+                        self._setting_row("Engineering documents and photos", "Network storage may be unavailable without blocking database functions.", value_label(project_root or "Not configured", muted=True)),
+                        self._setting_row("Legacy Excel source", "Controlled migration, import, export, and archival reference only.", value_label("Not used by normal runtime")),
+                    ),
+                )
+            )
+            return
         self.main_layout.addWidget(
             info_card(
                 "Protected source access",
@@ -794,6 +825,22 @@ class MinimalistSettingsContent(QWidget):
         self.main_layout.addWidget(health_section)
 
     def _render_refresh_cache(self) -> None:
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+            metrics = self._mysql_api_metrics()
+            self.main_layout.addWidget(
+                CollapsibleSection.with_rows(
+                    "Server Refresh Behavior",
+                    "Refresh consumes the change feed; Deep Refresh rebuilds the disposable cache from the API.",
+                    (
+                        self._setting_row("API status", "", value_label("Online" if metrics.get("api_online") else "Unavailable")),
+                        self._setting_row("Change-feed cursor", "", value_label(str(metrics.get("change_feed_cursor", 0)))),
+                        self._setting_row("Disposable cache", "", value_label(str(metrics.get("cache_path") or "Not built"), muted=True)),
+                        self._setting_row("Refresh", "Incremental server synchronization.", action_button("Refresh", self.reload_data)),
+                        self._setting_row("Deep Refresh", "Rebuild from authoritative API data.", action_button("Deep Refresh", self._request_api_deep_refresh)),
+                    ),
+                )
+            )
+            return
         self.main_layout.addWidget(
             CollapsibleSection.with_rows(
                 "Refresh Behavior",
@@ -833,6 +880,31 @@ class MinimalistSettingsContent(QWidget):
         )
 
     def _render_read_only_safety(self) -> None:
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+            metrics = self._mysql_api_metrics()
+            self.main_layout.addWidget(
+                info_card(
+                    "Server-first write safety",
+                    "Permanent writes require an online compatible API, authorization, transactions, and optimistic concurrency checks. Offline writes are never queued.",
+                    "good" if metrics.get("api_online") else "warn",
+                )
+            )
+            self.main_layout.addWidget(
+                CollapsibleSection.with_rows(
+                    "Validated Write State",
+                    "No SQLite or Excel fallback is available.",
+                    (
+                        self._setting_row("API compatibility", "", value_label("Compatible" if metrics.get("api_online") else "Unavailable")),
+                        self._setting_row("Writes", "", value_label("Enabled" if metrics.get("writes_enabled") else "Blocked")),
+                        self._setting_row("Offline behavior", "", value_label("Cached reads only; writes blocked")),
+                        self._setting_row("Concurrency", "", value_label("Optimistic record versions")),
+                        self._setting_row("Idempotency", "", value_label("Server enforced")),
+                        self._setting_row("Legacy queue", "", value_label("Disabled")),
+                        self._setting_row("Excel fallback", "", value_label("Disabled")),
+                    ),
+                )
+            )
+            return
         self.main_layout.addWidget(
             info_card(
                 "Production workbook sync is disabled",
@@ -1180,6 +1252,9 @@ class MinimalistSettingsContent(QWidget):
         self.main_layout.addWidget(links)
 
     def _render_diagnostics_support(self) -> None:
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+            self._render_mysql_api_diagnostics()
+            return
         health = cache_health_summary()
         counts = health.get("cached_counts", {}) if isinstance(health.get("cached_counts"), dict) else {}
         self.main_layout.addWidget(
@@ -1281,13 +1356,108 @@ class MinimalistSettingsContent(QWidget):
             )
         )
 
+    def _mysql_api_metrics(self) -> dict[str, Any]:
+        metrics = dict(getattr(self.bundle, "metrics", {}) or {})
+        if metrics.get("backend") == "mysql_api" and metrics.get("api_url"):
+            return metrics
+        try:
+            from core.data_gateway import AtlasDataGateway
+
+            gateway = AtlasDataGateway()
+            try:
+                metrics.update(gateway.diagnostics())
+            finally:
+                gateway.close()
+        except Exception as exc:
+            LOGGER.debug("Could not refresh MySQL/API diagnostics", exc_info=True)
+            metrics.update({"backend": "mysql_api", "api_online": False, "diagnostic_error": str(exc)})
+        return metrics
+
+    def _render_mysql_api_diagnostics(self) -> None:
+        metrics = self._mysql_api_metrics()
+        counts = metrics.get("cached_counts", {}) if isinstance(metrics.get("cached_counts"), dict) else {}
+        project_root = str(getattr(getattr(self.controller, "config", None), "project_root", "") or "")
+        document_root = Path(project_root).expanduser() if project_root else None
+        info = get_version_info()
+        self.main_layout.addWidget(
+            CollapsibleSection.with_rows(
+                "Server, Synchronization, and Cache",
+                "MySQL/API authority and the disposable local read cache.",
+                (
+                    self._setting_row("Environment", "", value_label(str(metrics.get("environment") or os.getenv("EOAT_ATLAS_ENVIRONMENT", "development")))),
+                    self._setting_row("Backend", "", value_label("mysql_api")),
+                    self._setting_row("Operational authority", "", value_label("MySQL/API")),
+                    self._setting_row("API connection", "", value_label("Online" if metrics.get("api_online") else "Unavailable")),
+                    self._setting_row("API URL", "", value_label(str(metrics.get("api_url") or os.getenv("EOAT_ATLAS_API_URL", "http://127.0.0.1:8765")), muted=True)),
+                    self._setting_row("API version", "", value_label(str(metrics.get("api_version") or "Unavailable"))),
+                    self._setting_row("API response time", "", value_label(f"{metrics.get('api_response_ms', 'Unavailable')} ms")),
+                    self._setting_row("Database service", "", value_label("Connected" if metrics.get("database_connected") else "Unavailable")),
+                    self._setting_row("MySQL server version", "", value_label(str(metrics.get("mysql_version") or "Unavailable"))),
+                    self._setting_row("Database schema revision", "", value_label(str(metrics.get("schema_revision") or "Unavailable"))),
+                    self._setting_row("Required schema revision", "", value_label(str(metrics.get("required_schema_revision") or EXPECTED_SCHEMA_REVISION))),
+                    self._setting_row("Server revision", "", value_label(str(metrics.get("server_revision") or "Unavailable"))),
+                    self._setting_row("Change-feed cursor", "", value_label(str(metrics.get("change_feed_cursor", 0)))),
+                    self._setting_row("Cache type", "", value_label("Disposable API cache")),
+                    self._setting_row("Disposable cache path", "", value_label(str(metrics.get("cache_path") or "Not built"), muted=True)),
+                    self._setting_row("Cache schema version", "", value_label(str(metrics.get("cache_schema_version") or "Not built"))),
+                    self._setting_row("Cached records", "", value_label(f"EOATs {counts.get('eoats', 0)} | Tools {counts.get('tools', 0)} | Machines {counts.get('machines', 0)}")),
+                    self._setting_row("Last successful API contact", "", value_label(str(metrics.get("last_successful_api_contact") or "Not recorded"))),
+                    self._setting_row("Last incremental refresh", "", value_label(str(metrics.get("last_incremental_refresh") or "Not recorded"))),
+                    self._setting_row("Last Deep Refresh", "", value_label(str(metrics.get("last_deep_refresh") or "Not recorded"))),
+                ),
+            )
+        )
+        self.main_layout.addWidget(
+            CollapsibleSection.with_rows(
+                "Server Write Safety",
+                "Transactions, conflicts, authorization, and offline behavior.",
+                (
+                    self._setting_row("Offline/read-only status", "", value_label("Offline read-only" if metrics.get("offline_read_only") else "Online")),
+                    self._setting_row("Writes enabled", "", value_label("Enabled" if metrics.get("writes_enabled") else "Disabled")),
+                    self._setting_row("Authentication identity", "", value_label(str(metrics.get("identity") or "Not configured"))),
+                    self._setting_row("Authenticated role", "", value_label(str(metrics.get("role") or "Server-resolved"))),
+                    self._setting_row("Application instance ID", "", value_label(str(metrics.get("application_instance_id") or "Not configured"), muted=True)),
+                    self._setting_row("Client application version", "", value_label(info.application_version)),
+                    self._setting_row("Build ID", "", value_label(info.build_id)),
+                    self._setting_row("Legacy fallback", "", value_label("Disabled")),
+                ),
+            )
+        )
+        self.main_layout.addWidget(
+            CollapsibleSection.with_rows(
+                "Data Services and Engineering Files",
+                "API, database service, network documents, and controlled imports.",
+                (
+                    self._setting_row("Engineering document root", "Documents and photos may remain on network storage.", value_label(project_root or "Not configured", muted=True)),
+                    self._setting_row("Document storage", "Does not block database-backed functions.", value_label("Available" if document_root and document_root.exists() else "Unavailable")),
+                    self._setting_row("Legacy Excel role", "Not used for normal runtime reads or writes.", value_label("Controlled migration/import/export only")),
+                ),
+            )
+        )
+        self.main_layout.addWidget(
+            CollapsibleSection.with_rows(
+                "Tools",
+                "Server and disposable-cache support actions.",
+                (
+                    self._setting_row("Refresh", "Apply the server change feed and reload the disposable cache.", action_button("Refresh", self.reload_data)),
+                    self._setting_row("Deep Refresh", "Rebuild the disposable cache from the API.", action_button("Deep Refresh", self._request_api_deep_refresh)),
+                    self._setting_row("Open Logs Folder", "Open local development logs.", action_button("Open Logs", self.open_logs_folder)),
+                    self._setting_row("Copy Diagnostic Summary", "Copy backend-aware diagnostics without secrets.", action_button("Copy Summary", self.copy_diagnostic_summary)),
+                ),
+            )
+        )
+
     def _render_about(self) -> None:
         project_root = str(getattr(getattr(self.controller, "config", None), "project_root", "") or "")
-        source_names = ", ".join(spec.title for spec in SOURCE_SPECS[:3])
+        backend = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold()
+        metrics = self._mysql_api_metrics() if backend == "mysql_api" else dict(getattr(self.bundle, "metrics", {}) or {})
         metadata = load_app_metadata()
+        canonical = get_version_info()
         purpose = (
-            "EOAT Atlas is the current EOAT, tool, machine, compatibility, "
-            "and setup packet application. Production workbook sync is disabled by default."
+            "EOAT Atlas is using the MySQL/API development backend. Excel is retained only for controlled "
+            "migration, import, export, and archival reference."
+            if backend == "mysql_api"
+            else "EOAT Atlas is running explicit legacy migration-comparison mode."
         )
         self.main_layout.addWidget(info_card("EOAT Atlas", purpose, "good"))
         self.main_layout.addWidget(
@@ -1295,14 +1465,17 @@ class MinimalistSettingsContent(QWidget):
                 "App Information",
                 "Version and current runtime details.",
                 (
-                    self._setting_row("Version", "Central release metadata.", value_label(metadata.app_version)),
-                    self._setting_row("Release ID", "Launcher and support release identifier.", value_label(metadata.release_id)),
-                    self._setting_row("Build ID", "Build metadata identifier.", value_label(metadata.build_id)),
-                    self._setting_row("Mode", "Production workbook sync remains disabled by default.", value_label("Local cache + pending updates")),
-                    self._setting_row("Last data load", "Most recent loaded bundle timestamp.", value_label(self._last_read_text())),
-                    self._setting_row("Build date", "Runtime build metadata.", value_label(metadata.build_date or metadata.build_timestamp)),
-                    self._setting_row("Project root", "Current configured EOAT project root.", value_label(project_root or "Not configured")),
-                    self._setting_row("Source workbooks", "Primary source workbooks.", value_label(source_names)),
+                    self._setting_row("Application version", "Canonical release metadata.", value_label(canonical.application_version)),
+                    self._setting_row("Release ID", "Canonical release identifier.", value_label(canonical.release_id)),
+                    self._setting_row("Build ID", "Canonical build identifier.", value_label(canonical.build_id)),
+                    self._setting_row("Environment", "", value_label(os.getenv("EOAT_ATLAS_ENVIRONMENT", "development"))),
+                    self._setting_row("Backend", "", value_label(backend)),
+                    self._setting_row("Operational authority", "", value_label("MySQL/API" if backend == "mysql_api" else "Legacy migration comparison")),
+                    self._setting_row("API version", "", value_label(str(metrics.get("api_version") or EXPECTED_API_VERSION if backend == "mysql_api" else "N/A"))),
+                    self._setting_row("Database schema version", "", value_label(str(metrics.get("schema_revision") or EXPECTED_SCHEMA_REVISION if backend == "mysql_api" else "N/A"))),
+                    self._setting_row("Last successful server contact", "", value_label(str(metrics.get("last_successful_api_contact") or "Not recorded"))),
+                    self._setting_row("Project root", "Current canonical source repository.", value_label(str(Path(__file__).resolve().parents[3]), muted=True)),
+                    self._setting_row("Engineering document root", "Network documents and photos.", value_label(project_root or "Not configured", muted=True)),
                     self._setting_row("Python runtime", "Useful for local support diagnostics.", value_label(platform.python_version())),
                     self._setting_row("Platform", "Operating system runtime.", value_label(platform.platform())),
                 ),
@@ -1322,6 +1495,13 @@ class MinimalistSettingsContent(QWidget):
             self.setting_rows.setdefault(setting_path, []).append(row)
             row.set_dirty(setting_path in self.dirty_keys)
         return row
+
+    def _request_api_deep_refresh(self) -> None:
+        callback = getattr(self.controller, "deep_refresh_data", None)
+        if callable(callback):
+            callback()
+            return
+        self.show_toast("Deep Refresh is available from the running EOAT Atlas window.")
 
     def _admin_action_button(self, text: str, callback: Callable, *, variant: str = "small", glyph: str | None = None) -> QPushButton:
         button = settings_button(text, variant, glyph, callback)
@@ -1486,7 +1666,7 @@ class MinimalistSettingsContent(QWidget):
         controls = [
             control
             for control in self.findChildren(QWidget)
-            if isinstance(control, (QCheckBox, QComboBox, QSpinBox, QLineEdit))
+            if isinstance(control, QCheckBox | QComboBox | QSpinBox | QLineEdit)
         ]
         for control in controls:
             if not isValid(control):
@@ -1999,6 +2179,21 @@ class MinimalistSettingsContent(QWidget):
         self.show_toast(f"Source validation complete. {connected} of {len(SOURCE_SPECS)} locations connected.")
 
     def copy_diagnostic_summary(self) -> None:
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+            metrics = self._mysql_api_metrics()
+            info = get_version_info()
+            keys = (
+                "backend", "operational_authority", "api_online", "api_url", "api_version", "api_response_ms",
+                "database_connected", "mysql_version", "schema_revision", "required_schema_revision",
+                "server_revision", "change_feed_cursor", "cache_path", "cache_schema_version", "cached_counts",
+                "last_successful_api_contact", "last_deep_refresh", "offline_read_only", "writes_enabled",
+                "identity", "role", "application_instance_id", "legacy_fallback",
+            )
+            lines = [f"Application version: {info.application_version}", f"Build ID: {info.build_id}"]
+            lines.extend(f"{key}: {metrics.get(key)}" for key in keys)
+            QApplication.clipboard().setText("\n".join(lines))
+            self.show_toast("MySQL/API diagnostic summary copied.")
+            return
         health = cache_health_summary()
         lines = [
             f"Environment: {health.get('environment')}",
@@ -2029,11 +2224,14 @@ class MinimalistSettingsContent(QWidget):
         )
         if not target:
             return
+        mysql_api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api"
         bundle = {
-            "app_version": load_app_metadata().app_version,
+            "app_version": get_version_info().application_version,
+            "build_id": get_version_info().build_id,
+            "backend": "mysql_api" if mysql_api_mode else "legacy",
             "settings": self.draft_settings,
-            "source_paths": {spec.key: str(self._effective_source_path(spec)) for spec in SOURCE_SPECS},
-            "cache_health": cache_health_summary(),
+            "source_paths": ({spec.key: str(self._effective_source_path(spec)) for spec in SOURCE_SPECS} if not mysql_api_mode else {}),
+            "runtime_health": self._mysql_api_metrics() if mysql_api_mode else cache_health_summary(),
             "last_validation": self._setting("diagnostics.last_validation"),
             "warnings_indexed": len(getattr(self.bundle, "warnings", ()) or ()),
             "python": sys.version,

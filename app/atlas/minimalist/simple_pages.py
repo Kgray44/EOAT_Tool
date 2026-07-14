@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from .data import loaded_status_text
 from .fit_check import FIT_CHECK_STYLES
 from .widgets import GlassPanel, MinimalistToast, StatusDot, TitleAccentBar, glyph_icon
-
 
 SIMPLE_PAGE_STYLES = (
     FIT_CHECK_STYLES

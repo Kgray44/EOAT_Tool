@@ -28,7 +28,7 @@ def test_metadata_loads_from_source_without_repo_cwd(tmp_path, monkeypatch) -> N
     loaded = app_metadata.load_app_metadata(repo_root)
 
     assert loaded.app_name == "EOAT Atlas"
-    assert loaded.release_id == "eoat-atlas-0.9.0-dev-phase-2.6"
+    assert loaded.release_id == "eoat-atlas-0.9.1"
     assert loaded.cache_schema_version == loaded.event_schema_version == loaded.config_schema_version == 1
 
 
@@ -120,7 +120,7 @@ def test_spec_is_ready_for_metadata_and_excludes_old_targets() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     spec_text = (repo_root / "EOAT_Atlas.spec").read_text(encoding="utf-8")
 
-    assert "Path(__file__).resolve().parent" in spec_text
+    assert "Path(SPECPATH).resolve()" in spec_text
     assert '["packaging/eoat_atlas_entry.py"]' in spec_text
     assert "release_metadata.json" in spec_text
     assert 'name="EOAT Atlas"' in spec_text

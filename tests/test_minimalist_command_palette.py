@@ -4,6 +4,7 @@ import threading
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtTest import QTest
 
@@ -17,6 +18,11 @@ from core.atlas_record_details import RecordDetailData
 from core.atlas_utils import normalized_eoat_key, normalized_machine_key, normalized_tool_key
 from core.config import UserConfig
 from core.reporting.pdf_preview_session import PdfPreviewSession
+
+
+@pytest.fixture(autouse=True)
+def explicit_legacy_backend_for_legacy_palette_tests(monkeypatch):
+    monkeypatch.setenv("EOAT_ATLAS_DATA_BACKEND", "legacy")
 
 
 def test_empty_palette_library_suggestion_navigates_without_recent_search(qapp, tmp_path: Path, monkeypatch) -> None:
