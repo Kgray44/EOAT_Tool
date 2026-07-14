@@ -14,7 +14,7 @@ class GatewayConfiguration:
     timeout_seconds: float = 10.0
     cache_path: Path = Path.home() / "AppData" / "Local" / "EOAT Atlas Development" / "eoat_atlas_api_cache_dev.db"
     supported_api_major: int = 1
-    expected_schema_revision: str = "20260713_0002"
+    expected_schema_revision: str = "20260714_0003"
     writes_enabled: bool = False
     environment: str = "production"
     development_identity: str = ""

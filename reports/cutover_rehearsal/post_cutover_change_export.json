@@ -1,0 +1,167 @@
+{
+  "generated_at": "2026-07-14T12:33:45.451474+00:00",
+  "cutover_uuid": "4f26cee2-7849-48ba-b437-f8a2a5bb485e",
+  "cursor": null,
+  "changes": [
+    {
+      "cursor": 1,
+      "entity_type": "eoat",
+      "entity_id": 58,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:21"
+    },
+    {
+      "cursor": 2,
+      "entity_type": "machine",
+      "entity_id": 57,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:21"
+    },
+    {
+      "cursor": 3,
+      "entity_type": "tool",
+      "entity_id": 66,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:21"
+    },
+    {
+      "cursor": 4,
+      "entity_type": "eoat_machine_compatibility",
+      "entity_id": 88,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 5,
+      "entity_type": "installation",
+      "entity_id": 1,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 6,
+      "entity_type": "eoat",
+      "entity_id": 58,
+      "operation": "location_update",
+      "row_version": 2,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 7,
+      "entity_type": "installation",
+      "entity_id": 1,
+      "operation": "close",
+      "row_version": 2,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 8,
+      "entity_type": "eoat",
+      "entity_id": 58,
+      "operation": "location_unknown",
+      "row_version": 3,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 9,
+      "entity_type": "audit",
+      "entity_id": 103,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 10,
+      "entity_type": "audit",
+      "entity_id": 103,
+      "operation": "complete",
+      "row_version": 2,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 11,
+      "entity_type": "maintenance",
+      "entity_id": 1,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 12,
+      "entity_type": "maintenance",
+      "entity_id": 1,
+      "operation": "complete",
+      "row_version": 2,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 13,
+      "entity_type": "document",
+      "entity_id": 159,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 14,
+      "entity_type": "document",
+      "entity_id": 160,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 15,
+      "entity_type": "photo",
+      "entity_id": 159,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:22"
+    },
+    {
+      "cursor": 16,
+      "entity_type": "photo",
+      "entity_id": 159,
+      "operation": "set_profile",
+      "row_version": 2,
+      "changed_at": "2026-07-14T12:33:23"
+    },
+    {
+      "cursor": 17,
+      "entity_type": "tag",
+      "entity_id": 16,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:23"
+    },
+    {
+      "cursor": 18,
+      "entity_type": "entity_tag",
+      "entity_id": 46,
+      "operation": "assign",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:23"
+    },
+    {
+      "cursor": 19,
+      "entity_type": "annotation",
+      "entity_id": 12,
+      "operation": "create",
+      "row_version": 1,
+      "changed_at": "2026-07-14T12:33:23"
+    },
+    {
+      "cursor": 20,
+      "entity_type": "eoat",
+      "entity_id": 58,
+      "operation": "update",
+      "row_version": 4,
+      "changed_at": "2026-07-14T12:33:24"
+    }
+  ]
+}

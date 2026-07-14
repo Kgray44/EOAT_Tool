@@ -1,0 +1,214 @@
+{
+  "status": "PASS_WITH_ACCEPTED_RISK",
+  "generated_at": "2026-07-14T13:07:47.815288+00:00",
+  "strategy": "post-write restore into disposable allowlisted database",
+  "pre_write_backup": {
+    "path": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\backups\\eoat_atlas_staging_local-20260714-083054.sql",
+    "sha256": "52ad64d961634a76ad500f7c51524e6bc52824f878e808da41722d86be94012f"
+  },
+  "post_write_backup": {
+    "path": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\backups\\eoat_atlas_staging_local-20260714-083403.sql",
+    "sha256": "bfa4fd88d9b3d669d576fc084bf07ff7649a9c92a7d9b7ddf78186d799277539"
+  },
+  "restore_seconds": 2.348,
+  "restore_database": "eoat_atlas_staging_restore_check",
+  "restore_database_removed": true,
+  "restored_counts": {
+    "plants": 1,
+    "areas": 2,
+    "eoats": 57,
+    "machines": 56,
+    "tools": 65,
+    "robots": 0,
+    "eoat_machine_compatibility": 87,
+    "eoat_tool_compatibility": 65,
+    "tool_machine_compatibility": 88,
+    "audit_records": 102,
+    "documents": 158,
+    "photos": 158,
+    "tags": 15,
+    "annotation_targets": 52,
+    "entity_tags": 45,
+    "annotations": 11,
+    "annotation_target_links": 2,
+    "import_batches": 2,
+    "import_rows": 261,
+    "import_issues": 202,
+    "change_audit_log": 0,
+    "change_feed": 0
+  },
+  "expected_pre_write_counts": {
+    "plants": 1,
+    "areas": 2,
+    "eoats": 57,
+    "machines": 56,
+    "tools": 65,
+    "robots": 0,
+    "eoat_machine_compatibility": 87,
+    "eoat_tool_compatibility": 65,
+    "tool_machine_compatibility": 88,
+    "audit_records": 102,
+    "documents": 158,
+    "photos": 158,
+    "tags": 15,
+    "annotation_targets": 52,
+    "entity_tags": 45,
+    "annotations": 11,
+    "annotation_target_links": 2,
+    "import_batches": 2,
+    "import_rows": 261,
+    "import_issues": 202,
+    "change_audit_log": 0,
+    "change_feed": 0
+  },
+  "counts_match": true,
+  "exported_change_records": 20,
+  "classified_change_records": 20,
+  "classification_by_type": {
+    "eoat": 4,
+    "machine": 1,
+    "tool": 1,
+    "eoat_machine_compatibility": 1,
+    "installation": 2,
+    "audit": 2,
+    "maintenance": 2,
+    "document": 2,
+    "photo": 2,
+    "tag": 1,
+    "entity_tag": 1,
+    "annotation": 1
+  },
+  "manual_reconciliation_records": 4,
+  "unclassified_records": 0,
+  "controlled_legacy_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rollback-reconciliation",
+  "original_sources_unchanged": true,
+  "data_loss_prevention_result": "All exported writes accounted for; manual items retained in reconciliation queue",
+  "changes": [
+    {
+      "change_id": null,
+      "entity_type": "eoat",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "machine",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "tool",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "eoat_machine_compatibility",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "installation",
+      "action": null,
+      "rollback_representation": "MANUAL_RECONCILIATION"
+    },
+    {
+      "change_id": null,
+      "entity_type": "eoat",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "installation",
+      "action": null,
+      "rollback_representation": "MANUAL_RECONCILIATION"
+    },
+    {
+      "change_id": null,
+      "entity_type": "eoat",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "audit",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "audit",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "maintenance",
+      "action": null,
+      "rollback_representation": "MANUAL_RECONCILIATION"
+    },
+    {
+      "change_id": null,
+      "entity_type": "maintenance",
+      "action": null,
+      "rollback_representation": "MANUAL_RECONCILIATION"
+    },
+    {
+      "change_id": null,
+      "entity_type": "document",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "document",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "photo",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "photo",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "tag",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "entity_tag",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "annotation",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    },
+    {
+      "change_id": null,
+      "entity_type": "eoat",
+      "action": null,
+      "rollback_representation": "CONTROLLED_LEGACY_COPY_OR_API_REPLAY"
+    }
+  ],
+  "staging_cleanup": {
+    "status": "PASS",
+    "restored_pre_write_baseline": true,
+    "uat_business_rows_removed": true,
+    "api_service_expected_stopped": true
+  }
+}

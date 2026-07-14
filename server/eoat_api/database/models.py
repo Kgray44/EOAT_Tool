@@ -880,3 +880,33 @@ class IdempotencyRecord(Base):
     request_id: Mapped[str] = mapped_column(String(36), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class CutoverSession(VersionMixin, Base):
+    __tablename__ = "cutover_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PLANNED','SOURCE_FROZEN','IMPORTING','VALIDATING','READY',"
+            "'AUTHORITY_ENABLED','MONITORING','ROLLED_BACK','COMPLETED','FAILED','CANCELLED')",
+            name="ck_cutover_sessions_status",
+        ),
+        Index("ix_cutover_sessions_environment_status", "environment", "status"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    cutover_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    environment: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_snapshot_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    database_schema_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    api_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    client_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    authority_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rollback_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rollback_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rollback_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    start_change_feed_cursor: Mapped[int] = mapped_column(PK, server_default=text("0"), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)

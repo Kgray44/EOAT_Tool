@@ -19,7 +19,7 @@ from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
 from tools.migration.excel_to_mysql import MISSING_TOKENS, _checksum, _rows, _text
 
-SCHEMA_REVISION = "20260713_0001"
+SCHEMA_REVISION = "20260714_0003"
 MACHINE_PATTERN = re.compile(r"^\d+$")
 RESOLUTION_STATUSES = {"UNRESOLVED", "DEFERRED", "RESOLVED", "NOT_APPLICABLE", "REJECTED_WITH_REASON"}
 

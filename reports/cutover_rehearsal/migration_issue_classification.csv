@@ -1,0 +1,203 @@
+issue_id,issue_code,source_sheet,source_row,entity,disposition,reason
+e3a79e91-f96c-5fa6-906f-c460f57854f3,MISSING_TOOL,EOAT Inventory,29,P4-EOAT-0011,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the tool relationship.
+4db7db2e-d816-5532-b0a7-9e32d8e4cf70,AMBIGUOUS_MACHINE_VALUE,EOAT Inventory,37,26 - Xqual in 25,DISPLAY_AS_UNKNOWN,Preserve the value in traceability; do not create a machine relationship.
+31cb73be-2b7f-553c-9fb9-d6dd0e560550,MISSING_MACHINE,EOAT Inventory,54,P4-EOAT-0028,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+355d1e3c-a1b7-5c4c-87fb-255ce43fdc8c,MISSING_MACHINE,EOAT Inventory,55,P4-EOAT-0029,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+e4a51585-7d90-5019-8921-01dcfcfc8ac8,MISSING_MACHINE,EOAT Inventory,56,P4-EOAT-0030,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+1fc63741-acfb-54b7-b585-c3ac293d61c8,MISSING_MACHINE,EOAT Inventory,57,P4-EOAT-0031,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+f7fe5f11-6707-5fce-99b4-7167f76c117d,MISSING_MACHINE,EOAT Inventory,58,P4-EOAT-0032,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+e4e78fe7-d6cf-54c1-9789-13d242d83ae2,MISSING_MACHINE,EOAT Inventory,59,P4-EOAT-0033,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+32e93633-a183-5c3f-837f-d6ddf0c43bd0,MISSING_MACHINE,EOAT Inventory,60,P4-EOAT-0034,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+e8055613-d050-5fb2-bc44-04eaf0348782,MISSING_MACHINE,EOAT Inventory,61,P4-EOAT-0035,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+02a0e214-261d-5cf1-ad74-0924ed626372,MISSING_MACHINE,EOAT Inventory,62,P4-EOAT-0036,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+28cd88af-51ad-53ec-9895-abc48cbcc2a6,MISSING_MACHINE,EOAT Inventory,63,P4-EOAT-0037,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+61f3b209-a1c4-5754-a006-9855f64c5f0a,MISSING_MACHINE,EOAT Inventory,65,P4-EOAT-0039,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+cfa8401d-a5d9-5985-a3ab-e6c1d96ce961,MISSING_MACHINE,EOAT Inventory,66,P4-EOAT-0040,DISPLAY_AS_UNKNOWN,Import the audit and EOAT; defer the machine relationship.
+1e781722-631d-5a38-972e-cc7eae7d71a9,CONFLICTING_EOAT_ATTRIBUTE,EOAT Inventory,86,CL-EOAT-0052,DISPLAY_AS_UNKNOWN,Leave the normalized field unknown until an administrator resolves it.
+65de14e8-2b13-5fd5-a154-aadf3429718c,CONFLICTING_EOAT_ATTRIBUTE,EOAT Inventory,89,CL-EOAT-0052,DISPLAY_AS_UNKNOWN,Leave the normalized field unknown until an administrator resolves it.
+0b99e4bc-cc60-514f-9ca1-4914c2003bdb,CONFLICTING_CURRENT_ASSIGNMENT,EOAT Inventory,,CL-EOAT-0050,DISPLAY_AS_UNKNOWN,Do not create an active installation or storage assignment.
+7d94270e-b85f-59df-b389-2c4fa24da652,CONFLICTING_CURRENT_ASSIGNMENT,EOAT Inventory,,CL-EOAT-0052,DISPLAY_AS_UNKNOWN,Do not create an active installation or storage assignment.
+f6f83033-ec78-5461-974a-0d789068dfb8,CONFLICTING_CURRENT_ASSIGNMENT,EOAT Inventory,,CL-EOAT-0054,DISPLAY_AS_UNKNOWN,Do not create an active installation or storage assignment.
+3dbd8c52-0208-5eb3-95a9-540397713bae,CONFLICTING_CURRENT_ASSIGNMENT,EOAT Inventory,,P4-EOAT-0057,DISPLAY_AS_UNKNOWN,Do not create an active installation or storage assignment.
+3566aee7-8278-5cb4-9352-56b50d2f3f14,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,2,WORM GEAR,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+70dae375-7324-5913-873d-9e520419c2bb,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,3,"WASHER, 29MM",SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+9154de5c-2dc3-5124-a4e3-ce0fea673183,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,4,PRINTED BODY,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+5aaa1da7-04ab-5f73-bf85-194675f519e3,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,13,POPPET,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+c4227bec-1079-5d18-8bf6-dc64fea3d5ce,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,14,LEVER STOPCOCK,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+a6c9a84e-d95d-5900-811d-31f0a6151569,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,15,TOP CAP,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+b52d4c04-5e32-55d4-8e9b-d3e3067b8e65,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,16,KNIFE BLOCK,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+119e62f9-8bea-55f5-8b63-f79333194b61,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,26,HANDLE GREY,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+cda55a9a-341c-50a3-bbd7-c577c0dfe0a3,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,27,SKIRT,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+4aed32f8-0b3f-539a-98ca-34128ed3a7ed,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,28,CARTRIDGE SHROUD,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+d2144af3-838a-54c7-81a7-506a6a53924f,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,29,N/A,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+e9f866f4-a9a9-573b-b03f-61bf7f63f729,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,30,SNAP BASE,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+3c6f44d2-71b0-56ae-b04e-7518c8b017b5,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,31,BOTTOM HOUSING,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+86836746-58f1-514c-a273-85cd89852c4b,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,34,2ML TUBE SAMPLE CUP,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+3209c89b-3d1d-55da-a485-480f6ab44e52,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,35,LUER ADAPTER RED,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+5b91320e-45fc-53cf-8bda-f858f6a719e8,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,41,TRIGGER CLAMPING,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+32fb3af4-cda6-537f-8627-7c5955f50382,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,42,SNAP ACTIVATOR H MOL,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+105a2ec8-99c4-5b60-9a89-bf001163a339,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,44,HOUSING RIGHT INLINE,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+40ae8bda-82b0-5d15-b260-713f1ee26ed5,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,45,HANDLE LOWER JAW,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+d6e5815a-05ab-5c8c-8db3-13ab89831633,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,47,CHEMOLOCK,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+744d4414-3a8f-587c-a070-00a5bdb520e8,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,48,SHROUD LEFT ROADR 60,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+d6208b32-f18e-5384-871d-ddc484787afd,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,49,SKIRT,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+fe28d486-ee00-5754-94b0-7a298c071487,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,50,"SNAP COVER ""H MOLD""",SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+dd03a93d-ac8b-56b4-a1d3-68d3cd33e143,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,51,APPOSE TRIGGER,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+b615a3f9-28ef-5764-8a83-11db6d595bc5,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,52,STRAP 25 HANDLE LEFT,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+cd0ebb75-1e79-562d-a8dd-b7570790bf4e,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,53,RETAINER PRO FLEX CA,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+71f58b16-6a81-575a-b2fb-741dbb2ec0c3,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,54,DRIVE GEAR,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+18bfde79-1632-5e73-971f-a51f705d99fe,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,55,"ANVIL SHROUD, 23MM",SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+133fad1c-7c92-5ffc-bce4-427e567ec13e,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,56,ANVIL SHROUD,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+5483eca5-5072-5bb0-b3db-228eb07d54ff,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,57,KNOB,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+7bfca3c2-ad5d-5cae-be80-c8d9fa574adf,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,58,TRIGGER,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+192d5273-b184-56f3-846c-7df1826f4c60,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,59,ALIGNMENT PIN,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+1c45e863-d1c8-5f4e-a8e1-769063a8caee,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,60,WORM GEAR,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+29ea1372-9719-5c7d-b899-0cc3af9c342d,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,61,DRIVE GEAR,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+40aad28e-bb77-525e-af2f-bbe33c86b5ea,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,62,KNIFE PUSHER,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+d8044b25-7651-50da-9618-e9ff28cf9b98,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,63,CAM,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+5c6dc664-2286-54fd-86ed-fb1861ffe10e,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,64,GRASPER HANDLE LOAD,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+0e6ce095-bdb7-5e2d-8948-19ee00a3956d,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,65,LUER ADAPTER WHITE,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+41732d3e-fa32-57c9-8276-44f0b8d4a957,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,66,WHITE PERITONEAL LUER ADAPTER,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+030eeb09-c1b0-5dff-b340-2e0b37e518d5,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,68,N/A,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+ce7ecdc3-3345-5b34-8fc9-ac0156052a47,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,70,HOUSING RIGHT INLINE,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+d41f61fe-01fc-5d13-8dfd-e1d939a15964,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,71,INFUSION ADAPTER,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+ecf84b43-1596-5810-b19f-966193f472a7,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,74,"NEEDLE CAP, TWO SHOT",SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+15cdf183-af0a-5f23-af21-28797b6de2c3,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,75,BOTTOM HOUSING,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+1565135c-b9c3-5a06-90cc-ee26cac8d407,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,76,BOTTOM HOUSING,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+a817ed84-1f6b-5e4d-8436-8ef11eace482,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,77,RATCHET GEAR,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+1bd36c31-b8eb-55ff-b506-193cf1e7b2a3,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,78,COVER DOUBLE ARM FOA,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+2db70246-68e5-576a-85a0-733c3960a277,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,79,32 CNT TUBE-32 32 32,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+48616ece-2f23-506d-a2a1-5f4b0c4d6666,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,80,IMUNOCOVER WIC108975,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+f1238a31-c681-55f2-bc60-50e01bdb4017,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,81,CHASSIS,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+0e6dc7d4-a830-5617-8097-b38303633285,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,82,CHASSIS,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+b639ac54-053b-5b55-a861-5f192d7fabd2,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,83,CHASSIS,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+d8a203fc-db95-5752-9b29-0b01ae54482a,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,84,DISTAL TRIGGER SHROUD,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+9845a184-8da5-5265-995c-0ca08c626750,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,85,SMX HOL CLIP,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+a41d1649-937d-5440-84b4-eb83d060b4a7,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,86,"HEM-O-LOK, L CLIP LIG",SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+42ced0c4-b889-5dd2-9b70-f821153c9b90,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,87,TIP INSERT,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+f53c89ed-6cf3-5fe4-9464-d6b30d0c1096,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,88,BG COVER WBGC 108992,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+688f955c-10ea-5894-a721-5b149c2824a1,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,90,SMALL GRAFT SIZER,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+d1b4e6e6-c366-5cc4-ba3f-36966f550df9,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,91,SNAP DAIRY COVER,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+30cfb2e9-7193-5f3d-aecf-973dd3242855,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,92,BG COVER WBGC 108823,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+3a78c5d8-4348-53d4-8695-095604fe6512,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,93,BG COVER WBGC 108823,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+1da2f132-1551-5fef-9775-d8a65088367f,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,94,CORE BASE TOOL,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+5778631c-f897-57e3-b38f-5f1f71387ceb,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,95,EG7+BASE WCB 108825,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+8592e433-1b14-5e6f-b0dd-8b14afb2a4af,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,96,EG7+BASE WCB 108822,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+04f7d32f-34e9-5887-b518-3057ee443b50,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,97,BG Base,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+4157c7f2-4065-54fa-8350-e702a428b94e,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,98,BG Base,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+5363fdc1-183a-5a51-824b-eda952706536,POSSIBLE_PART_NOT_CONFIRMED,EOAT Inventory,99,BG BASE TOOL,SAFE_TO_DEFER,Preserve the candidate; do not create a part or tool-part relationship.
+3ec847ea-70f7-5120-9a0d-7c22c49a5575,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0043,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+565056b9-7e86-5dac-8c3b-812bd4f26fc8,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0043,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+6d95bc74-770b-5aba-8ff4-2bc433437175,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0044,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+fea09042-93a4-5ec0-9b24-f27308b79501,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0044,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+00188771-e027-57d7-b3cd-176a6dc964f6,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0045,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+b8983c9e-312c-5cf9-aeba-879aae06c706,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0045,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+99c7ce5d-1e64-58fd-baa5-295066134e96,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0046,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+9fc45691-9bbd-5319-b40a-3052d9dfaddd,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0046,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+5050dad7-4696-53f7-a9d8-f8ee8dcaf6f1,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0047,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+a19cb920-666e-5979-9a14-bf4d8ddff728,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0047,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+07baf903-d518-5e59-a73b-4a34280777e7,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0048,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+0d00ef6e-65b8-5a3c-9f5a-c255d93a184c,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0048,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+2083e59d-477d-57d6-9084-7968eaf2cab6,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0049,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+ff7bcb03-400e-579c-b2b8-41b8f44e6684,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0049,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+458c1bb4-f4d1-5d22-86e5-a1dcb3ae9358,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0050,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+da7b64ba-ab10-5117-b468-df87aece6dae,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0050,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+11bae5e0-56d3-50cd-8a1f-7d0c6e134ede,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0051,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+fd1f045a-227c-5185-8490-4acbffb5aacb,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0051,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+d03a04a2-00d6-5fdd-bf22-4b5752ace81d,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0052,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+fd9ddf73-17cf-5c7d-834d-59597323a551,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0052,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+b042a1f9-935d-5d18-89e9-bdb90b5904d0,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0053,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+31952430-5d00-5aa0-90eb-8a351475eaf1,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0053,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+a40baede-e08b-5710-b729-5a82f0f928d5,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0054,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+0bbcfd80-7c80-55bb-8428-55f5b6e380d7,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0054,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+725f3391-92f0-5e96-87f6-d09dc3cf2107,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0055,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+57e9ddc5-0856-5737-90c5-191cb25f400f,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0055,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+47c6041d-9f25-5f35-9b4f-c0aed543afad,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,CL-EOAT-0056,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+15e44a97-1217-5ca1-b003-1a3c7d58bca6,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,CL-EOAT-0056,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+899adb27-c20b-5bf7-ae28-7a8285cf2ade,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0001,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+5f39cec0-d195-57cf-a89d-dd326b2a40b9,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0001,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+2e50c2c1-ddca-5103-9e1a-4aba9cab966b,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0002,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+31b13b80-61d5-5b08-b4bf-7f58fb391236,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0002,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+97c88d32-b34a-5ceb-b1d5-7631e8e811c4,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0003,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+46b334e7-71b0-592e-984d-c5adc669f33c,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0003,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+63f1ff5f-82af-5b06-82dd-f0e5e9bd81f0,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0004,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+dd904a21-1fb0-51be-87e4-4b73449886f2,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0004,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+60616929-346a-50cf-9d69-99fb91ae81e2,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0005,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+0160eb7f-4a1a-51f2-aaf0-8a63f6f7fbf6,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0005,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+21c78f34-99a6-5ae3-9d5f-7bf6289a9ea7,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0006,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+5adb27aa-16e1-55d2-b80e-5215cdd3433e,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0006,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+427b955a-7395-53d8-bccb-39329f0bb826,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0007,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+06abed9b-50e6-514f-8181-e8b91abad552,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0007,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+19e999b1-9c7e-5248-8e4b-08a0a15cdf95,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0008,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+d37cbe39-1a69-5093-af7a-2f29fc97685a,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0008,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+61ea8256-a545-5769-8b35-122dab593f23,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0009,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+6b0e2b0a-92f7-5858-9adc-76fe4b3b60d7,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0009,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+ce274bf2-3fa8-5874-89ce-bb6bad50c8a9,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0010,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+78b6e571-8abe-51df-8ff9-cb4a9362b2b4,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0010,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+f2d25e8b-1c65-51f9-9a52-5a72d6d9deb6,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0011,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+cca617fd-18aa-51de-9498-8abe1f85b7b5,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0011,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+4c43ffc7-dfdf-5cb5-84ad-6b26cda79285,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0012,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+0cbaac8d-bcf2-56e5-a356-cbf67cc9adbf,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0012,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+95df152a-1bee-5230-804a-a299e4e91ea0,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0013,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+302a20ce-caea-54ae-bd9c-acc7fe012672,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0013,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+33264f4d-8dc5-5504-a133-faa75c3dfce2,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0014,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+d3025372-7192-5143-9664-518c8ee99541,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0014,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+212e278b-b42f-5f3c-abf4-e46c070e35b2,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0015,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+5cd0aeb3-9a0e-57cb-958d-7c3e532c775e,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0015,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+550661e3-348f-5973-b582-d280b8021c72,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0016,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+bc2d884a-cf26-5343-822d-79ff88e44e4b,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0016,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+81160e9d-3bf8-5394-bc0e-c0378809bd1e,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0017,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+50118e5f-88d0-5c55-b114-c22c5215db58,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0017,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+70c23589-bbf4-5f50-850a-1c6e2dd358b4,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0018,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+d662032f-759e-566d-9292-5472745c498c,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0018,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+9ae72535-4d5a-5f42-ac70-96a5098089da,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0019,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+c4d2a875-2945-5d08-a141-a63f2d88ea13,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0019,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+d0aee3ad-de99-5e77-84d5-92e11f16b68d,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0020,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+3d14082a-668b-5ce7-accc-b0a035cee80b,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0020,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+5b6337b1-7787-5809-9cb0-2edd9fd6a52a,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0021,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+614da876-4bfb-5ab0-a8cc-117d6252c92c,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0021,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+68eb6302-5f68-5e0a-9206-7f3ec6ab2664,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0023,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+f6a4f703-c443-5f0e-bb6d-936440ebf2e4,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0023,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+722e55e5-fbae-5de8-be2b-061245f8be82,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0024,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+4a8a8ff7-f142-5172-909d-a3ac161fb19e,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0024,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+eb837ecd-7ac2-52be-a9a4-8aafd4ef048a,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0025,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+ccc4d921-8762-596b-bf90-6bd38a9286f6,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0025,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+41782a5e-ff26-5363-a40e-365026f0fa0f,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0026,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+e66b9317-18f0-5a48-97fc-27587dc5f8ed,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0026,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+8d222a25-7686-51cb-8896-24d7d1802e1f,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0027,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+4ae3ff56-f0ae-5df0-aad4-c8d1dd28d48d,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0027,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+be2ddbd0-9320-5c2c-8408-8eabce875519,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0028,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+89926a76-83c7-5343-b2e4-1f863b0d3d36,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0028,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+4d6c33e5-d7d4-50bd-a0de-0159f3a71601,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0029,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+51a195ca-0ed4-51be-9abd-eae23254c9ed,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0029,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+6f95f604-0a82-5d88-9c63-d49fd83fa6b1,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0030,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+05810962-17bb-5501-a20a-86e723be6054,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0030,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+5d0d712a-f24b-5f1a-bfc0-6d2e6288f3fc,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0031,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+e90c9b1a-ae2b-52e8-a01d-877883dd59a3,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0031,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+037f0793-da44-5a8c-99b3-979072bcb473,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0032,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+2321cae2-657f-5a82-b5c2-8e1df654b160,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0032,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+f48855ec-4817-540c-84fa-e1328711fa40,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0033,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+36e5e47b-b340-5546-9989-2c3584dc390a,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0033,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+df99b357-3963-5f2c-a51d-766dac40ee87,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0034,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+9cc3d2cf-262d-5949-a804-7a80745d72e2,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0034,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+7206f217-6977-5a3a-947a-8fb68ef57098,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0035,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+aa7b65af-2163-5065-85f4-62972181373d,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0035,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+63308a84-6060-5971-8f6c-37898c672ceb,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0036,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+b54e46c2-fa26-5f3e-b120-832405c8f737,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0036,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+b94dbae7-ae64-5050-a6a3-e3194759e1a1,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0037,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+f6089b0d-7095-5033-b3eb-92fabca7fbc4,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0037,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+4df7bbb9-de5b-58bd-8ccf-be2cbb9fb7a3,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0038,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+4ac42635-c486-56ee-898a-ef79054bf3b2,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0038,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+2d0fad8d-7338-5d23-9c09-56b9f11ffa55,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0039,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+082831a4-4279-54ed-9933-24545fcae9c7,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0039,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+f4f64af0-c02e-50c7-8c21-c4a45e4086bf,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0040,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+05448113-dd03-5122-b912-422969e83037,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0040,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+07236f0a-dc71-5f63-9f86-d45f2c68a01e,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0041,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+4aa3c40f-7a1c-5660-a460-64f822b174ef,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0041,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+bd46510b-5f7c-5175-8b58-c5b305927c9a,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0042,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+f768b5b6-fb3d-5895-9f81-8ca07a7c3882,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0042,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+7985df99-7483-5144-a180-3488393a0e9b,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0057,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+010ac4b1-8b8a-5999-9b53-7be029a58702,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0057,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+50ef1786-8d28-5e30-a550-6e48f2becb41,INSTALLATION_DATE_UNKNOWN,EOAT Inventory,,P4-EOAT-0058,DISPLAY_AS_UNKNOWN,Do not fabricate installation history.
+0c238d73-6a64-5942-b5d7-c8e2a25bcb3a,CURRENT_LOCATION_UNKNOWN,EOAT Inventory,,P4-EOAT-0058,DISPLAY_AS_UNKNOWN,Return Unknown / Not Verified until authoritative evidence exists.
+72030258-b6e7-5017-adfc-9834001f5b54,PLACEHOLDER_PHOTO_ROW,Photo Index,2,,NOT_APPLICABLE,Preserve the import row but do not create document/photo records.

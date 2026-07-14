@@ -38,7 +38,7 @@ class MigrationReport:
     started_at: str
     completed_at: str = ""
     dry_run: bool = True
-    schema_revision: str = "20260713_0001"
+    schema_revision: str = "20260714_0003"
     workbook_schema_version: str = ""
     source_rows: dict[str, int] = field(default_factory=dict)
     staged_counts: dict[str, int] = field(default_factory=dict)
@@ -556,13 +556,13 @@ def main() -> int:
     if selected != 1:
         parser.error("Choose exactly one of --dry-run, --validate-only, or --execute.")
     if args.execute:
-        if args.database_profile != "development":
-            parser.error("Executable import is restricted to --database-profile development in this phase.")
+        if args.database_profile not in {"development", "staging_local"}:
+            parser.error("Executable import is restricted to development or isolated staging_local profiles.")
         from tools.migration.import_pipeline import execute_import
 
         report = execute_import(
             args.source_workbook,
-            batch_name=args.import_batch_name or "controlled-development-import",
+            batch_name=args.import_batch_name or f"controlled-{args.database_profile}-import",
             reset_imported_data=args.reset_imported_data,
             report_output=args.report_output,
         )

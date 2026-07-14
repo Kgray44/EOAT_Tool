@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "database": "eoat_atlas_staging_local",
+  "host": "127.0.0.1",
+  "schema_revision": "20260714_0003",
+  "table_count_including_alembic": 49,
+  "separate_runtime_and_migration_accounts": true,
+  "secrets_location": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\staging.env",
+  "migration_seconds": 12.684,
+  "generated_at": "2026-07-14T12:29:19.323094+00:00"
+}

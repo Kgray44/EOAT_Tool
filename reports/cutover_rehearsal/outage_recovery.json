@@ -1,0 +1,38 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-07-14T13:01:37.273874+00:00",
+  "before": {
+    "api_reachable": true,
+    "database_reachable": true,
+    "current_schema_revision": "20260714_0003",
+    "expected_schema_revision": "20260714_0003",
+    "compatible": true,
+    "environment": "staging_local",
+    "writes_enabled": true,
+    "api_version": "1.2.0",
+    "server_timestamp": "2026-07-14T13:01:28.347920Z"
+  },
+  "api_unavailable_during_outage": true,
+  "cache_readable_during_outage": true,
+  "cache_counts": {
+    "documents": 160,
+    "eoats": 58,
+    "machines": 57,
+    "photos": 159,
+    "tools": 66
+  },
+  "writes_during_outage": "BLOCKED_NOT_QUEUED",
+  "recovery_seconds": 5.365,
+  "restart_exit_code": 0,
+  "after": {
+    "api_reachable": true,
+    "database_reachable": true,
+    "current_schema_revision": "20260714_0003",
+    "expected_schema_revision": "20260714_0003",
+    "compatible": true,
+    "environment": "staging_local",
+    "writes_enabled": true,
+    "api_version": "1.2.0",
+    "server_timestamp": "2026-07-14T13:01:37.271052Z"
+  }
+}

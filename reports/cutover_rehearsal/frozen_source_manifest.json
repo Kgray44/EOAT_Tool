@@ -1,0 +1,1538 @@
+{
+  "status": "PASS",
+  "rehearsal_id": "4f26cee2-7849-48ba-b437-f8a2a5bb485e",
+  "created_at": "2026-07-14T12:28:47.375355+00:00",
+  "frozen_source_directory": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source",
+  "originals_are_authoritative": false,
+  "files": [
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\EOAT_Audit_Database\\EOAT_Master_Tracker.xlsx",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\EOAT_Audit_Database\\EOAT_Master_Tracker.xlsx",
+      "size": 431742,
+      "modified_utc": "2026-07-07T00:48:49.798361+00:00",
+      "sha256": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac",
+      "copy_sha256": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\EOAT_Audit_Database\\Robot_Info.xlsx",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\EOAT_Audit_Database\\Robot_Info.xlsx",
+      "size": 8574,
+      "modified_utc": "2026-06-29T18:28:27.108783+00:00",
+      "sha256": "d72d64f79741d8436f0ebfcf17905b9bda315ef0f9f96ef9a99526433e9e3146",
+      "copy_sha256": "d72d64f79741d8436f0ebfcf17905b9bda315ef0f9f96ef9a99526433e9e3146"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\project_data\\annotations.sqlite",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\project_data\\annotations.sqlite",
+      "size": 200704,
+      "modified_utc": "2026-07-06T23:00:21.652444+00:00",
+      "sha256": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db",
+      "copy_sha256": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\01_Front_View\\CL-EOAT-0047_2026-06-24_Front_View_001.heic",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\01_Front_View\\CL-EOAT-0047_2026-06-24_Front_View_001.heic",
+      "size": 285841,
+      "modified_utc": "2026-06-24T14:04:00.067920+00:00",
+      "sha256": "f41c06fbdeccc75d8d7cd7e1f92e49c29a148de141f1a97682562890604ec7c3",
+      "copy_sha256": "f41c06fbdeccc75d8d7cd7e1f92e49c29a148de141f1a97682562890604ec7c3"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\02_Side_View\\CL-EOAT-0047_2026-06-24_Side_View_001.heic",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\02_Side_View\\CL-EOAT-0047_2026-06-24_Side_View_001.heic",
+      "size": 274781,
+      "modified_utc": "2026-06-24T14:04:02.017115+00:00",
+      "sha256": "9933972b314437823b7e0d1c33503489f7c84b1b0f1e611deca09106b58f4b39",
+      "copy_sha256": "9933972b314437823b7e0d1c33503489f7c84b1b0f1e611deca09106b58f4b39"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\03_Vacuum_Cups_Grippers\\CL-EOAT-0047_2026-06-24_Vacuum_Cups_Grippers_001.heic",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\03_Vacuum_Cups_Grippers\\CL-EOAT-0047_2026-06-24_Vacuum_Cups_Grippers_001.heic",
+      "size": 215629,
+      "modified_utc": "2026-06-24T14:04:01.139027+00:00",
+      "sha256": "d989533c04db9124e9da9af0e11b0b2052cbe72ee33ada704cae20e027ba2dab",
+      "copy_sha256": "d989533c04db9124e9da9af0e11b0b2052cbe72ee33ada704cae20e027ba2dab"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\04_Tubing_Routing\\CL-EOAT-0047_2026-06-24_Tubing_Routing_001.heic",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\04_Tubing_Routing\\CL-EOAT-0047_2026-06-24_Tubing_Routing_001.heic",
+      "size": 261334,
+      "modified_utc": "2026-06-24T14:04:02.959209+00:00",
+      "sha256": "323508b08caf9ff58739c3c08c28d62a1a3ed3dc75875faf2cedfe320f784a4e",
+      "copy_sha256": "323508b08caf9ff58739c3c08c28d62a1a3ed3dc75875faf2cedfe320f784a4e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\10_Back_View\\CL-EOAT-0047_2026-06-24_Back_View_001.heic",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\10_Back_View\\CL-EOAT-0047_2026-06-24_Back_View_001.heic",
+      "size": 254899,
+      "modified_utc": "2026-06-24T14:03:58.898803+00:00",
+      "sha256": "e379030045e830c6f30114c5913cb5d8f201099c722f6868a310f187096cb120",
+      "copy_sha256": "e379030045e830c6f30114c5913cb5d8f201099c722f6868a310f187096cb120"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\CL-EOAT-0047\\eoat_info.json",
+      "size": 332,
+      "modified_utc": "2026-06-24T14:09:10.004936+00:00",
+      "sha256": "8db3a5ddcf6e906120895fb06c46c5d087dd6c76a33dac9d63e9f6071169a9e4",
+      "copy_sha256": "8db3a5ddcf6e906120895fb06c46c5d087dd6c76a33dac9d63e9f6071169a9e4"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\Incoming_Photos\\Thumbs.db",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\Incoming_Photos\\Thumbs.db",
+      "size": 122368,
+      "modified_utc": "2026-06-11T21:18:52.537000+00:00",
+      "sha256": "6c067bd6746b942f16df83fc09ff459a849b22cae68825615ad29f1b99fae0b8",
+      "copy_sha256": "6c067bd6746b942f16df83fc09ff459a849b22cae68825615ad29f1b99fae0b8"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\01_Front_View\\P4-EOAT-0002_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\01_Front_View\\P4-EOAT-0002_2026-06-10_Front_View_001.HEIC",
+      "size": 3660218,
+      "modified_utc": "2026-06-10T18:24:56+00:00",
+      "sha256": "48963cfaa5ebadebb5428e8270e272b31cdc5325b7ac6d7fcd95fac454e2003d",
+      "copy_sha256": "48963cfaa5ebadebb5428e8270e272b31cdc5325b7ac6d7fcd95fac454e2003d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\01_Front_View\\P4-EOAT-0002_2026-06-10_Front_View_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\01_Front_View\\P4-EOAT-0002_2026-06-10_Front_View_002.HEIC",
+      "size": 4287324,
+      "modified_utc": "2026-06-10T18:25:14+00:00",
+      "sha256": "54ce9d48478f3fd2ddb9ddcf8c126fb49468414beeae025dc104cdb83e13e421",
+      "copy_sha256": "54ce9d48478f3fd2ddb9ddcf8c126fb49468414beeae025dc104cdb83e13e421"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\02_Side_View\\P4-EOAT-0002_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\02_Side_View\\P4-EOAT-0002_2026-06-10_Side_View_001.HEIC",
+      "size": 3260098,
+      "modified_utc": "2026-06-10T18:25:02+00:00",
+      "sha256": "bc1a3732f8a111e51727c5c674aa29aa50aaf2938c9e0fbe4f8d662f73c055c7",
+      "copy_sha256": "bc1a3732f8a111e51727c5c674aa29aa50aaf2938c9e0fbe4f8d662f73c055c7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\11_Tool_Number\\P4-EOAT-0002_2026-06-10_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\11_Tool_Number\\P4-EOAT-0002_2026-06-10_Tool_Number_001.HEIC",
+      "size": 3289177,
+      "modified_utc": "2026-06-10T18:25:24+00:00",
+      "sha256": "1ee5db14143262aeddcf4be4b31f8647870b7b6f1b1989ada244e410d3ab20c5",
+      "copy_sha256": "1ee5db14143262aeddcf4be4b31f8647870b7b6f1b1989ada244e410d3ab20c5"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0002\\eoat_info.json",
+      "size": 329,
+      "modified_utc": "2026-06-11T18:58:42.941984+00:00",
+      "sha256": "1b3bac614df8e8461c7b98b8454287fe05f339493abef6b91be535412a7a5f09",
+      "copy_sha256": "1b3bac614df8e8461c7b98b8454287fe05f339493abef6b91be535412a7a5f09"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\01_Front_View\\P4-EOAT-0003_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\01_Front_View\\P4-EOAT-0003_2026-06-08_Front_View_001.HEIC",
+      "size": 2972852,
+      "modified_utc": "2026-06-08T18:18:34+00:00",
+      "sha256": "1d96acef9f3c25816047979d0521a072074c5879836fa306fe45bfab006a2884",
+      "copy_sha256": "1d96acef9f3c25816047979d0521a072074c5879836fa306fe45bfab006a2884"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\02_Side_View\\P4-EOAT-0003_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\02_Side_View\\P4-EOAT-0003_2026-06-08_Side_View_001.HEIC",
+      "size": 2608182,
+      "modified_utc": "2026-06-08T18:18:40+00:00",
+      "sha256": "6e43968ef230400dde8e52ce38d77602f6a5a1557cc9af9a7155c3f0225b0536",
+      "copy_sha256": "6e43968ef230400dde8e52ce38d77602f6a5a1557cc9af9a7155c3f0225b0536"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\08_Mounting_Hardware\\P4-EOAT-0003_2026-06-08_Mounting_Hardware_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\08_Mounting_Hardware\\P4-EOAT-0003_2026-06-08_Mounting_Hardware_001.HEIC",
+      "size": 2118392,
+      "modified_utc": "2026-06-08T18:18:48+00:00",
+      "sha256": "b3371749fa71e7ebae3f6eff6102ed5ce985f4f258614e2bba14b0223ce9c37f",
+      "copy_sha256": "b3371749fa71e7ebae3f6eff6102ed5ce985f4f258614e2bba14b0223ce9c37f"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\10_Back_View\\P4-EOAT-0003_2026-06-08_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\10_Back_View\\P4-EOAT-0003_2026-06-08_Back_View_001.HEIC",
+      "size": 1971494,
+      "modified_utc": "2026-06-08T18:18:58+00:00",
+      "sha256": "2d937c5d7f2ab72d58988948456fcefe3250c278613b9cb8de0f11df9a02cc7d",
+      "copy_sha256": "2d937c5d7f2ab72d58988948456fcefe3250c278613b9cb8de0f11df9a02cc7d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\11_Tool_Number\\P4-EOAT-0003_2026-06-08_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\11_Tool_Number\\P4-EOAT-0003_2026-06-08_Tool_Number_001.HEIC",
+      "size": 2090913,
+      "modified_utc": "2026-06-08T18:18:54+00:00",
+      "sha256": "0c76b434a1478ffdfcd6ab3833aabff524ca72e372beaefc20859a171c5c0ac9",
+      "copy_sha256": "0c76b434a1478ffdfcd6ab3833aabff524ca72e372beaefc20859a171c5c0ac9"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0003\\eoat_info.json",
+      "size": 332,
+      "modified_utc": "2026-06-11T13:20:27.939603+00:00",
+      "sha256": "3f989e1774c3e7d6d0eed1007d109000a360ad8d0cd49004cf5ea3a49bf5f178",
+      "copy_sha256": "3f989e1774c3e7d6d0eed1007d109000a360ad8d0cd49004cf5ea3a49bf5f178"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\01_Front_View\\P4-EOAT-0004_2026-06-16_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\01_Front_View\\P4-EOAT-0004_2026-06-16_Front_View_001.HEIC",
+      "size": 2042282,
+      "modified_utc": "2026-06-16T15:10:50+00:00",
+      "sha256": "1eddec687c6ee4bcfe8673cf7ff4d7f204a250605666e01e8e1c7199efb1eab1",
+      "copy_sha256": "1eddec687c6ee4bcfe8673cf7ff4d7f204a250605666e01e8e1c7199efb1eab1"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\02_Side_View\\P4-EOAT-0004_2026-06-16_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\02_Side_View\\P4-EOAT-0004_2026-06-16_Side_View_001.HEIC",
+      "size": 1143887,
+      "modified_utc": "2026-06-16T15:11:10+00:00",
+      "sha256": "8c998bf18feba8232381b73edd886f4fbce321bd9643a6b4bc85a7e54ebd183d",
+      "copy_sha256": "8c998bf18feba8232381b73edd886f4fbce321bd9643a6b4bc85a7e54ebd183d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\03_Vacuum_Cups_Grippers\\P4-EOAT-0004_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\03_Vacuum_Cups_Grippers\\P4-EOAT-0004_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 983447,
+      "modified_utc": "2026-06-16T15:11:20+00:00",
+      "sha256": "ac12b52d307f9371642ad8ae7dbb3908f5cee7227ae90d1aaeff0bc2b44cd1b3",
+      "copy_sha256": "ac12b52d307f9371642ad8ae7dbb3908f5cee7227ae90d1aaeff0bc2b44cd1b3"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\10_Back_View\\P4-EOAT-0004_2026-06-16_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\10_Back_View\\P4-EOAT-0004_2026-06-16_Back_View_001.HEIC",
+      "size": 1345059,
+      "modified_utc": "2026-06-16T15:11:02+00:00",
+      "sha256": "fb1514a4f5b5894f0c2a56b35cc44349bf7ffddaa087e64b6fea67c72218e8a3",
+      "copy_sha256": "fb1514a4f5b5894f0c2a56b35cc44349bf7ffddaa087e64b6fea67c72218e8a3"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0004\\eoat_info.json",
+      "size": 478,
+      "modified_utc": "2026-06-16T15:14:40.815989+00:00",
+      "sha256": "3ba0368be39fabf4d2cc86edfa33b7b9995e5670eb2a61d45ea37015c140a2cd",
+      "copy_sha256": "3ba0368be39fabf4d2cc86edfa33b7b9995e5670eb2a61d45ea37015c140a2cd"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\01_Front_View\\P4-EOAT-0005_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\01_Front_View\\P4-EOAT-0005_2026-06-08_Front_View_001.HEIC",
+      "size": 3320131,
+      "modified_utc": "2026-06-08T18:02:42+00:00",
+      "sha256": "762681380af43decd10409015b2c6c72bd10419d995c7347cfa66ee53ed73189",
+      "copy_sha256": "762681380af43decd10409015b2c6c72bd10419d995c7347cfa66ee53ed73189"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\02_Side_View\\P4-EOAT-0005_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\02_Side_View\\P4-EOAT-0005_2026-06-08_Side_View_001.HEIC",
+      "size": 3673475,
+      "modified_utc": "2026-06-08T18:02:50+00:00",
+      "sha256": "965ee3ed5f036158c6a3dc3979851b55086ccea08ecc36cab94dde606d2c7c63",
+      "copy_sha256": "965ee3ed5f036158c6a3dc3979851b55086ccea08ecc36cab94dde606d2c7c63"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\03_Vacuum_Cups_Grippers\\P4-EOAT-0005_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\03_Vacuum_Cups_Grippers\\P4-EOAT-0005_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 3427940,
+      "modified_utc": "2026-06-08T18:02:46+00:00",
+      "sha256": "138e638e02477b9d702eea441784067df0b31035ab3bee461ff9149ae861c7a7",
+      "copy_sha256": "138e638e02477b9d702eea441784067df0b31035ab3bee461ff9149ae861c7a7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\08_Mounting_Hardware\\P4-EOAT-0005_2026-06-08_Mounting_Hardware_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\08_Mounting_Hardware\\P4-EOAT-0005_2026-06-08_Mounting_Hardware_001.HEIC",
+      "size": 4798724,
+      "modified_utc": "2026-06-08T18:02:52+00:00",
+      "sha256": "fb6de4c9ffded79902166822bf77ba2f3098449767c8d4aeb84861b5069a6ee6",
+      "copy_sha256": "fb6de4c9ffded79902166822bf77ba2f3098449767c8d4aeb84861b5069a6ee6"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0005\\eoat_info.json",
+      "size": 310,
+      "modified_utc": "2026-06-10T15:09:47.703166+00:00",
+      "sha256": "2d22328b898bf8653d4f052bdbdb47948e1efd915cfb5a20cc3ba8a30d896d89",
+      "copy_sha256": "2d22328b898bf8653d4f052bdbdb47948e1efd915cfb5a20cc3ba8a30d896d89"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\01_Front_View\\P4-EOAT-0006_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\01_Front_View\\P4-EOAT-0006_2026-06-08_Front_View_001.HEIC",
+      "size": 3440374,
+      "modified_utc": "2026-06-08T18:05:06+00:00",
+      "sha256": "e5a3ed6416e3c2a9846d2f8226ae7d3aef4c9b2bb32e46832ccdb4914954a69c",
+      "copy_sha256": "e5a3ed6416e3c2a9846d2f8226ae7d3aef4c9b2bb32e46832ccdb4914954a69c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\02_Side_View\\P4-EOAT-0006_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\02_Side_View\\P4-EOAT-0006_2026-06-08_Side_View_001.HEIC",
+      "size": 3205424,
+      "modified_utc": "2026-06-08T18:05:10+00:00",
+      "sha256": "ced622691252bd5f7d2ff271129c1651e1ad4b7056d1fb69b91e122069023c38",
+      "copy_sha256": "ced622691252bd5f7d2ff271129c1651e1ad4b7056d1fb69b91e122069023c38"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\03_Vacuum_Cups_Grippers\\P4-EOAT-0006_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\03_Vacuum_Cups_Grippers\\P4-EOAT-0006_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1316516,
+      "modified_utc": "2026-06-08T18:05:16+00:00",
+      "sha256": "ff08c4540e6e8a4fbea277ce06eaf9e1be1a4667782fda261856de4a97edcb58",
+      "copy_sha256": "ff08c4540e6e8a4fbea277ce06eaf9e1be1a4667782fda261856de4a97edcb58"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0006\\eoat_info.json",
+      "size": 307,
+      "modified_utc": "2026-06-10T15:09:47.878166+00:00",
+      "sha256": "22c16d87fab1b4474625874729b49bdc26ba311c40e336efd07355779bdb1ec1",
+      "copy_sha256": "22c16d87fab1b4474625874729b49bdc26ba311c40e336efd07355779bdb1ec1"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\01_Front_View\\P4-EOAT-0007_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\01_Front_View\\P4-EOAT-0007_2026-06-08_Front_View_001.HEIC",
+      "size": 3248448,
+      "modified_utc": "2026-06-08T18:10:40+00:00",
+      "sha256": "d9307f4c106ff2dbba32257e664c6d7757483d60b301eafc7d4e3745fab68d5b",
+      "copy_sha256": "d9307f4c106ff2dbba32257e664c6d7757483d60b301eafc7d4e3745fab68d5b"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\02_Side_View\\P4-EOAT-0007_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\02_Side_View\\P4-EOAT-0007_2026-06-08_Side_View_001.HEIC",
+      "size": 3229371,
+      "modified_utc": "2026-06-08T18:10:48+00:00",
+      "sha256": "96bf55a580e29082b2c3f054a33dbe5653781c7972d5cb901716f002b8da8ee0",
+      "copy_sha256": "96bf55a580e29082b2c3f054a33dbe5653781c7972d5cb901716f002b8da8ee0"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\03_Vacuum_Cups_Grippers\\P4-EOAT-0007_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\03_Vacuum_Cups_Grippers\\P4-EOAT-0007_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1392235,
+      "modified_utc": "2026-06-08T18:10:52+00:00",
+      "sha256": "666cce11cc4671ebf242461bcc32c100717f36d2e0e44ca30d60d97e5f60fcf0",
+      "copy_sha256": "666cce11cc4671ebf242461bcc32c100717f36d2e0e44ca30d60d97e5f60fcf0"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\11_Tool_Number\\P4-EOAT-0007_2026-06-08_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\11_Tool_Number\\P4-EOAT-0007_2026-06-08_Tool_Number_001.HEIC",
+      "size": 1673901,
+      "modified_utc": "2026-06-08T18:10:56+00:00",
+      "sha256": "addb8744e3bd011b7a997554af0d0f70e674b1d8f10f649f8b0ddec7a267d310",
+      "copy_sha256": "addb8744e3bd011b7a997554af0d0f70e674b1d8f10f649f8b0ddec7a267d310"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0007\\eoat_info.json",
+      "size": 330,
+      "modified_utc": "2026-06-10T15:09:48.071167+00:00",
+      "sha256": "7261d1fdc677c3a22b8fd074adb4b5bc100cefd5386f0b15b0cce881b545e39c",
+      "copy_sha256": "7261d1fdc677c3a22b8fd074adb4b5bc100cefd5386f0b15b0cce881b545e39c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\01_Front_View\\P4-EOAT-0008_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\01_Front_View\\P4-EOAT-0008_2026-06-10_Front_View_001.HEIC",
+      "size": 2477571,
+      "modified_utc": "2026-06-10T18:22:52+00:00",
+      "sha256": "7d0e3f77ec08f4109b4ccdf4f4d6c946d6bb1ddcafacee50da8eeab9c9a26158",
+      "copy_sha256": "7d0e3f77ec08f4109b4ccdf4f4d6c946d6bb1ddcafacee50da8eeab9c9a26158"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\02_Side_View\\P4-EOAT-0008_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\02_Side_View\\P4-EOAT-0008_2026-06-10_Side_View_001.HEIC",
+      "size": 2803060,
+      "modified_utc": "2026-06-10T18:23:06+00:00",
+      "sha256": "ac3f762cf67a1a77cefd0aff933c96296ec71f90b2c80896a39868cc4f95cd62",
+      "copy_sha256": "ac3f762cf67a1a77cefd0aff933c96296ec71f90b2c80896a39868cc4f95cd62"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\03_Vacuum_Cups_Grippers\\P4-EOAT-0008_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\03_Vacuum_Cups_Grippers\\P4-EOAT-0008_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 2053279,
+      "modified_utc": "2026-06-10T18:23:28+00:00",
+      "sha256": "00bf9bfaa2b7090837846e1a2cbb64e80d038849655fc89c80006539fed7ce2b",
+      "copy_sha256": "00bf9bfaa2b7090837846e1a2cbb64e80d038849655fc89c80006539fed7ce2b"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\10_Back_View\\P4-EOAT-0008_2026-06-10_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\10_Back_View\\P4-EOAT-0008_2026-06-10_Back_View_001.HEIC",
+      "size": 2092535,
+      "modified_utc": "2026-06-10T18:23:10+00:00",
+      "sha256": "5bfd6a1c74f16daae2dd4b0732ec76affae7e26a2d7ea47656354395fb0d0b26",
+      "copy_sha256": "5bfd6a1c74f16daae2dd4b0732ec76affae7e26a2d7ea47656354395fb0d0b26"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0008\\eoat_info.json",
+      "size": 371,
+      "modified_utc": "2026-06-11T14:07:49.239372+00:00",
+      "sha256": "93dffc7c7015a4307a8e0fc7bc5b0bb21bc014be527df6d34c99b687e6acb534",
+      "copy_sha256": "93dffc7c7015a4307a8e0fc7bc5b0bb21bc014be527df6d34c99b687e6acb534"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\01_Front_View\\P4-EOAT-0009_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\01_Front_View\\P4-EOAT-0009_2026-06-08_Front_View_001.HEIC",
+      "size": 3783152,
+      "modified_utc": "2026-06-08T18:38:58+00:00",
+      "sha256": "dec8cdd809018e6117722d8aad51a72dfff2c94b424d03cb81e3dc7ce17198d9",
+      "copy_sha256": "dec8cdd809018e6117722d8aad51a72dfff2c94b424d03cb81e3dc7ce17198d9"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\02_Side_View\\P4-EOAT-0009_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\02_Side_View\\P4-EOAT-0009_2026-06-08_Side_View_001.HEIC",
+      "size": 3847607,
+      "modified_utc": "2026-06-08T18:39:12+00:00",
+      "sha256": "42d81a82961e749cce6c95bf1996e5683985215c4842c3af7241f3dfc4ced6a7",
+      "copy_sha256": "42d81a82961e749cce6c95bf1996e5683985215c4842c3af7241f3dfc4ced6a7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\03_Vacuum_Cups_Grippers\\P4-EOAT-0009_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\03_Vacuum_Cups_Grippers\\P4-EOAT-0009_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 3661404,
+      "modified_utc": "2026-06-08T18:39:30+00:00",
+      "sha256": "3c06975e99ef1c7d17acf8334025cd6b6f91accd7f23720b20370ca738d85c81",
+      "copy_sha256": "3c06975e99ef1c7d17acf8334025cd6b6f91accd7f23720b20370ca738d85c81"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\07_Cable_Management\\P4-EOAT-0009_2026-06-08_Cable_Management_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\07_Cable_Management\\P4-EOAT-0009_2026-06-08_Cable_Management_001.HEIC",
+      "size": 1559948,
+      "modified_utc": "2026-06-08T18:39:22+00:00",
+      "sha256": "64b069f99c0cd05ab1e451646e5f1941634a6217421c0f7ba51c370b160e3037",
+      "copy_sha256": "64b069f99c0cd05ab1e451646e5f1941634a6217421c0f7ba51c370b160e3037"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\08_Mounting_Hardware\\P4-EOAT-0009_2026-06-08_Mounting_Hardware_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\08_Mounting_Hardware\\P4-EOAT-0009_2026-06-08_Mounting_Hardware_001.HEIC",
+      "size": 1178502,
+      "modified_utc": "2026-06-08T18:39:22+00:00",
+      "sha256": "8ea181edd2326f604ea4afe25c5b052cc57c5882755a6acb08b00890bee27cb5",
+      "copy_sha256": "8ea181edd2326f604ea4afe25c5b052cc57c5882755a6acb08b00890bee27cb5"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\11_Tool_Number\\P4-EOAT-0009_2026-06-08_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\11_Tool_Number\\P4-EOAT-0009_2026-06-08_Tool_Number_001.HEIC",
+      "size": 1440778,
+      "modified_utc": "2026-06-08T18:39:02+00:00",
+      "sha256": "d2ba050176d6403463da7db2bca89619823678af0084402f5485670ad44f102d",
+      "copy_sha256": "d2ba050176d6403463da7db2bca89619823678af0084402f5485670ad44f102d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0009\\eoat_info.json",
+      "size": 332,
+      "modified_utc": "2026-06-11T13:34:10.309304+00:00",
+      "sha256": "5a17466e6ea9ec313be432053ba91a20417f59abe1cf3c9f6904dc2661c17a76",
+      "copy_sha256": "5a17466e6ea9ec313be432053ba91a20417f59abe1cf3c9f6904dc2661c17a76"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0010\\01_Front_View\\P4-EOAT-0010_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0010\\01_Front_View\\P4-EOAT-0010_2026-06-08_Front_View_001.HEIC",
+      "size": 3563041,
+      "modified_utc": "2026-06-08T18:11:34+00:00",
+      "sha256": "e57beaac5d40a116ac61c570a1cf44bc6ed897365091a809e039110384fdc98a",
+      "copy_sha256": "e57beaac5d40a116ac61c570a1cf44bc6ed897365091a809e039110384fdc98a"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0010\\02_Side_View\\P4-EOAT-0010_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0010\\02_Side_View\\P4-EOAT-0010_2026-06-08_Side_View_001.HEIC",
+      "size": 1425783,
+      "modified_utc": "2026-06-08T18:11:38+00:00",
+      "sha256": "7351d4be93fba24fb380cd23ab23602d79428db2b2603761be1714f6fae280af",
+      "copy_sha256": "7351d4be93fba24fb380cd23ab23602d79428db2b2603761be1714f6fae280af"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0010\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0010\\eoat_info.json",
+      "size": 323,
+      "modified_utc": "2026-06-10T15:09:48.241167+00:00",
+      "sha256": "57b370a1d9f360cef0231344bbf61a272663e143ae09cae00c040ee8e6b57f2c",
+      "copy_sha256": "57b370a1d9f360cef0231344bbf61a272663e143ae09cae00c040ee8e6b57f2c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\01_Front_View\\P4-EOAT-0012_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\01_Front_View\\P4-EOAT-0012_2026-06-08_Front_View_001.HEIC",
+      "size": 2424132,
+      "modified_utc": "2026-06-08T18:34:00+00:00",
+      "sha256": "4cb396d128127522297e7b2bf9b0fbf5ab88f66a02ea3427a92b28879e8d58b0",
+      "copy_sha256": "4cb396d128127522297e7b2bf9b0fbf5ab88f66a02ea3427a92b28879e8d58b0"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\02_Side_View\\P4-EOAT-0012_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\02_Side_View\\P4-EOAT-0012_2026-06-08_Side_View_001.HEIC",
+      "size": 2555903,
+      "modified_utc": "2026-06-08T18:34:14+00:00",
+      "sha256": "da225673f6344dbbb585bdbf47e228368637badb4b7039909a4cde287e692a47",
+      "copy_sha256": "da225673f6344dbbb585bdbf47e228368637badb4b7039909a4cde287e692a47"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\10_Back_View\\P4-EOAT-0012_2026-06-08_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\10_Back_View\\P4-EOAT-0012_2026-06-08_Back_View_001.HEIC",
+      "size": 2304378,
+      "modified_utc": "2026-06-08T18:34:26+00:00",
+      "sha256": "7307763d1e86ca68c7bf12e451703181ba0121c08db96c654a8eb43b09def24c",
+      "copy_sha256": "7307763d1e86ca68c7bf12e451703181ba0121c08db96c654a8eb43b09def24c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\11_Tool_Number\\P4-EOAT-0012_2026-06-08_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\11_Tool_Number\\P4-EOAT-0012_2026-06-08_Tool_Number_001.HEIC",
+      "size": 1834416,
+      "modified_utc": "2026-06-08T18:34:04+00:00",
+      "sha256": "fc4a7ac0c82745e8c8f79579229a43feeeb94758a7c7f78f51bbddac4b99beae",
+      "copy_sha256": "fc4a7ac0c82745e8c8f79579229a43feeeb94758a7c7f78f51bbddac4b99beae"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0012\\eoat_info.json",
+      "size": 354,
+      "modified_utc": "2026-06-11T13:28:59.245199+00:00",
+      "sha256": "4baf5b15c217147ae06cf56af3a106b73f5343e436f26d3804fc96123885d5c5",
+      "copy_sha256": "4baf5b15c217147ae06cf56af3a106b73f5343e436f26d3804fc96123885d5c5"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\01_Front_View\\P4-EOAT-0013_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\01_Front_View\\P4-EOAT-0013_2026-06-08_Front_View_001.HEIC",
+      "size": 2531777,
+      "modified_utc": "2026-06-08T18:26:34+00:00",
+      "sha256": "ec9fd3b7eb2801d0b22ddc5bd8b1ec08dca272c145a7c4ce6ef9bf08d3dbf0c4",
+      "copy_sha256": "ec9fd3b7eb2801d0b22ddc5bd8b1ec08dca272c145a7c4ce6ef9bf08d3dbf0c4"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\02_Side_View\\P4-EOAT-0013_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\02_Side_View\\P4-EOAT-0013_2026-06-08_Side_View_001.HEIC",
+      "size": 2569567,
+      "modified_utc": "2026-06-08T18:26:38+00:00",
+      "sha256": "83b714e7a2779ecfe5ca4c8b8e5d126ee053f3931bcb7ec19febe6bfc7466ba8",
+      "copy_sha256": "83b714e7a2779ecfe5ca4c8b8e5d126ee053f3931bcb7ec19febe6bfc7466ba8"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\03_Vacuum_Cups_Grippers\\P4-EOAT-0013_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\03_Vacuum_Cups_Grippers\\P4-EOAT-0013_2026-06-08_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1641923,
+      "modified_utc": "2026-06-08T18:27:04+00:00",
+      "sha256": "6097599a398240fc0faec3dba411a828ce99045ddcbd0a371cb7088a180c2b9d",
+      "copy_sha256": "6097599a398240fc0faec3dba411a828ce99045ddcbd0a371cb7088a180c2b9d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\03_Vacuum_Cups_Grippers\\P4-EOAT-0013_2026-06-08_Vacuum_Cups_Grippers_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\03_Vacuum_Cups_Grippers\\P4-EOAT-0013_2026-06-08_Vacuum_Cups_Grippers_002.HEIC",
+      "size": 2115742,
+      "modified_utc": "2026-06-08T18:26:48+00:00",
+      "sha256": "dc126d57398629aa1c19b983ebdf82e7d5c70c3957da7dcc7a5c84bb941c89c9",
+      "copy_sha256": "dc126d57398629aa1c19b983ebdf82e7d5c70c3957da7dcc7a5c84bb941c89c9"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\10_Back_View\\P4-EOAT-0013_2026-06-08_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\10_Back_View\\P4-EOAT-0013_2026-06-08_Back_View_001.HEIC",
+      "size": 2515111,
+      "modified_utc": "2026-06-08T18:26:52+00:00",
+      "sha256": "41559ad0f2bf17131a80f2c0e43e3f9ce5baacd9b4339ba10fc3b667180889c3",
+      "copy_sha256": "41559ad0f2bf17131a80f2c0e43e3f9ce5baacd9b4339ba10fc3b667180889c3"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\11_Tool_Number\\P4-EOAT-0013_2026-06-08_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\11_Tool_Number\\P4-EOAT-0013_2026-06-08_Tool_Number_001.HEIC",
+      "size": 1946347,
+      "modified_utc": "2026-06-08T18:26:44+00:00",
+      "sha256": "3b348cfd6e60ba634eb9ab3121eb0f321b05ef285f972b63b8af09e42489592c",
+      "copy_sha256": "3b348cfd6e60ba634eb9ab3121eb0f321b05ef285f972b63b8af09e42489592c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0013\\eoat_info.json",
+      "size": 354,
+      "modified_utc": "2026-06-11T13:24:59.255467+00:00",
+      "sha256": "5168ec38bf8606e0db9ef2ed7561fe9c394457e1eb4ee6679a21e6684666bc9d",
+      "copy_sha256": "5168ec38bf8606e0db9ef2ed7561fe9c394457e1eb4ee6679a21e6684666bc9d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\01_Front_View\\P4-EOAT-0016_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\01_Front_View\\P4-EOAT-0016_2026-06-10_Front_View_001.HEIC",
+      "size": 3383795,
+      "modified_utc": "2026-06-10T18:36:48+00:00",
+      "sha256": "0dcd1fb0845b7678c49a4f660b491bcfeb9b3231300efc1dfe462821f710710e",
+      "copy_sha256": "0dcd1fb0845b7678c49a4f660b491bcfeb9b3231300efc1dfe462821f710710e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\02_Side_View\\P4-EOAT-0016_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\02_Side_View\\P4-EOAT-0016_2026-06-10_Side_View_001.HEIC",
+      "size": 3790003,
+      "modified_utc": "2026-06-10T18:37:16+00:00",
+      "sha256": "27b14be70d7c994f6620a00fa7cc8a160130f76e1c7658ae1bcbdf77a7c53dab",
+      "copy_sha256": "27b14be70d7c994f6620a00fa7cc8a160130f76e1c7658ae1bcbdf77a7c53dab"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\03_Vacuum_Cups_Grippers\\P4-EOAT-0016_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\03_Vacuum_Cups_Grippers\\P4-EOAT-0016_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1776679,
+      "modified_utc": "2026-06-10T18:37:06+00:00",
+      "sha256": "e5febd0e7e11905bfbc8a0bb1cd3a1a83405d9364c158ec5307182ad45f27b16",
+      "copy_sha256": "e5febd0e7e11905bfbc8a0bb1cd3a1a83405d9364c158ec5307182ad45f27b16"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\10_Back_View\\P4-EOAT-0016_2026-06-10_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\10_Back_View\\P4-EOAT-0016_2026-06-10_Back_View_001.HEIC",
+      "size": 3963708,
+      "modified_utc": "2026-06-10T18:37:00+00:00",
+      "sha256": "4adb91841edf916c4b776fbeea23be60d4dffa408918fc08ebdc50dc1d6b94c7",
+      "copy_sha256": "4adb91841edf916c4b776fbeea23be60d4dffa408918fc08ebdc50dc1d6b94c7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\11_Tool_Number\\P4-EOAT-0016_2026-06-10_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\11_Tool_Number\\P4-EOAT-0016_2026-06-10_Tool_Number_001.HEIC",
+      "size": 1391154,
+      "modified_utc": "2026-06-10T18:36:54+00:00",
+      "sha256": "026c0139f2c03d080ca0e4caf89e284001901007dc853522fbd78c2a198f0e60",
+      "copy_sha256": "026c0139f2c03d080ca0e4caf89e284001901007dc853522fbd78c2a198f0e60"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0016\\eoat_info.json",
+      "size": 310,
+      "modified_utc": "2026-06-11T20:52:52.491121+00:00",
+      "sha256": "ee740b106ef55ea7bb11e940bc0de2bb39aff82e59026deb1672c370c433dbdc",
+      "copy_sha256": "ee740b106ef55ea7bb11e940bc0de2bb39aff82e59026deb1672c370c433dbdc"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\01_Front_View\\P4-EOAT-0017_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\01_Front_View\\P4-EOAT-0017_2026-06-10_Front_View_001.HEIC",
+      "size": 3598200,
+      "modified_utc": "2026-06-10T18:31:50+00:00",
+      "sha256": "b2913977f4abc07dbaf8ecfca5c0418a89fc036cd3b5ef0fedd7345cdfbd21c4",
+      "copy_sha256": "b2913977f4abc07dbaf8ecfca5c0418a89fc036cd3b5ef0fedd7345cdfbd21c4"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\02_Side_View\\P4-EOAT-0017_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\02_Side_View\\P4-EOAT-0017_2026-06-10_Side_View_001.HEIC",
+      "size": 3576201,
+      "modified_utc": "2026-06-10T18:32:38+00:00",
+      "sha256": "545ad61331af806b98caf849c896839307509ee8669e8fa376fbf96791b603ab",
+      "copy_sha256": "545ad61331af806b98caf849c896839307509ee8669e8fa376fbf96791b603ab"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\10_Back_View\\P4-EOAT-0017_2026-06-10_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\10_Back_View\\P4-EOAT-0017_2026-06-10_Back_View_001.HEIC",
+      "size": 2915521,
+      "modified_utc": "2026-06-10T18:32:46+00:00",
+      "sha256": "ef5a1056855d489ad6c48f775e4ae36bfce457251cb102f116ea7649e47a7a7f",
+      "copy_sha256": "ef5a1056855d489ad6c48f775e4ae36bfce457251cb102f116ea7649e47a7a7f"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\10_Back_View\\P4-EOAT-0017_2026-06-10_Back_View_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\10_Back_View\\P4-EOAT-0017_2026-06-10_Back_View_002.HEIC",
+      "size": 2308765,
+      "modified_utc": "2026-06-10T18:32:54+00:00",
+      "sha256": "4aee81de4c7beed2106791d574cc910417d20211539b4b9b3f8f7024fefcd76f",
+      "copy_sha256": "4aee81de4c7beed2106791d574cc910417d20211539b4b9b3f8f7024fefcd76f"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0017\\eoat_info.json",
+      "size": 332,
+      "modified_utc": "2026-06-11T20:42:47.143388+00:00",
+      "sha256": "ea788da8d4bf2dbc24e3cc2d9af4129d40ace1e0e85b7fdcd39eab153a8a7a3a",
+      "copy_sha256": "ea788da8d4bf2dbc24e3cc2d9af4129d40ace1e0e85b7fdcd39eab153a8a7a3a"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\01_Front_View\\P4-EOAT-0018_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\01_Front_View\\P4-EOAT-0018_2026-06-10_Front_View_001.HEIC",
+      "size": 2919239,
+      "modified_utc": "2026-06-10T18:28:14+00:00",
+      "sha256": "9fc7e1e696c4ef325282914786aefcf1c8ec333cdf7a89663b00c7d1f3a06300",
+      "copy_sha256": "9fc7e1e696c4ef325282914786aefcf1c8ec333cdf7a89663b00c7d1f3a06300"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\02_Side_View\\P4-EOAT-0018_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\02_Side_View\\P4-EOAT-0018_2026-06-10_Side_View_001.HEIC",
+      "size": 3346987,
+      "modified_utc": "2026-06-10T18:28:22+00:00",
+      "sha256": "a6b4e555d1dbf4875da5f371578434861a8c55b153d0f81e8c97a1d1b7935143",
+      "copy_sha256": "a6b4e555d1dbf4875da5f371578434861a8c55b153d0f81e8c97a1d1b7935143"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\03_Vacuum_Cups_Grippers\\P4-EOAT-0018_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\03_Vacuum_Cups_Grippers\\P4-EOAT-0018_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1235083,
+      "modified_utc": "2026-06-10T18:29:18+00:00",
+      "sha256": "be9e869300bc9e86fd5eb9da922998e254a475b5abc3ad3de5dd90764fc5d8fc",
+      "copy_sha256": "be9e869300bc9e86fd5eb9da922998e254a475b5abc3ad3de5dd90764fc5d8fc"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\03_Vacuum_Cups_Grippers\\P4-EOAT-0018_2026-06-10_Vacuum_Cups_Grippers_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\03_Vacuum_Cups_Grippers\\P4-EOAT-0018_2026-06-10_Vacuum_Cups_Grippers_002.HEIC",
+      "size": 1380894,
+      "modified_utc": "2026-06-10T18:29:20+00:00",
+      "sha256": "d8fb377e539e449631af715f7ddac70dd93532406d909feafe1dc64241a60563",
+      "copy_sha256": "d8fb377e539e449631af715f7ddac70dd93532406d909feafe1dc64241a60563"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\07_Cable_Management\\P4-EOAT-0018_2026-06-10_Cable_Management_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\07_Cable_Management\\P4-EOAT-0018_2026-06-10_Cable_Management_001.HEIC",
+      "size": 1314526,
+      "modified_utc": "2026-06-10T18:29:30+00:00",
+      "sha256": "06b7df7245f5193678ef70c0fc92014a2f0c71fc348ea33d892136110c66db4b",
+      "copy_sha256": "06b7df7245f5193678ef70c0fc92014a2f0c71fc348ea33d892136110c66db4b"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\10_Back_View\\P4-EOAT-0018_2026-06-10_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\10_Back_View\\P4-EOAT-0018_2026-06-10_Back_View_001.HEIC",
+      "size": 1306316,
+      "modified_utc": "2026-06-10T18:29:22+00:00",
+      "sha256": "1860ce37ca622ff21bf1f7d30ffe801692bafb850b187c0dbd0b4eca5b198ccd",
+      "copy_sha256": "1860ce37ca622ff21bf1f7d30ffe801692bafb850b187c0dbd0b4eca5b198ccd"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\11_Tool_Number\\P4-EOAT-0018_2026-06-10_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\11_Tool_Number\\P4-EOAT-0018_2026-06-10_Tool_Number_001.HEIC",
+      "size": 1240848,
+      "modified_utc": "2026-06-10T18:28:18+00:00",
+      "sha256": "55cc54e7a748b354d7f403bee0fd5740de8b019cadae76c0db20d96701475dfc",
+      "copy_sha256": "55cc54e7a748b354d7f403bee0fd5740de8b019cadae76c0db20d96701475dfc"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0018\\eoat_info.json",
+      "size": 354,
+      "modified_utc": "2026-06-11T20:09:11.828943+00:00",
+      "sha256": "ff60bc1984e0852d1b8e476093fb7b418472400b41ced1e3d4f8fabdc5cc6146",
+      "copy_sha256": "ff60bc1984e0852d1b8e476093fb7b418472400b41ced1e3d4f8fabdc5cc6146"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\01_Front_View\\P4-EOAT-0019_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\01_Front_View\\P4-EOAT-0019_2026-06-10_Front_View_001.HEIC",
+      "size": 3948349,
+      "modified_utc": "2026-06-10T18:19:02+00:00",
+      "sha256": "ac03d8d0d2005ae5d6798651864ca79c847ab067aa3ff59801a09201c6a90915",
+      "copy_sha256": "ac03d8d0d2005ae5d6798651864ca79c847ab067aa3ff59801a09201c6a90915"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\02_Side_View\\P4-EOAT-0019_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\02_Side_View\\P4-EOAT-0019_2026-06-10_Side_View_001.HEIC",
+      "size": 3166771,
+      "modified_utc": "2026-06-10T18:19:12+00:00",
+      "sha256": "f63f6a8acd378706cd96589c0c21bde3975b4e31b838ceb3b376e50478130a01",
+      "copy_sha256": "f63f6a8acd378706cd96589c0c21bde3975b4e31b838ceb3b376e50478130a01"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\03_Vacuum_Cups_Grippers\\P4-EOAT-0019_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\03_Vacuum_Cups_Grippers\\P4-EOAT-0019_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1223981,
+      "modified_utc": "2026-06-10T18:19:24+00:00",
+      "sha256": "7c93f9a4f837a9678c695426bf97d9dce8f3f7819d23592dc6ca6217dba183cc",
+      "copy_sha256": "7c93f9a4f837a9678c695426bf97d9dce8f3f7819d23592dc6ca6217dba183cc"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\10_Back_View\\P4-EOAT-0019_2026-06-10_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\10_Back_View\\P4-EOAT-0019_2026-06-10_Back_View_001.HEIC",
+      "size": 5182070,
+      "modified_utc": "2026-06-10T18:19:34+00:00",
+      "sha256": "a2017888830aeb0d6da1710c8cbf09825a4fc77064b7efc675a4935623830917",
+      "copy_sha256": "a2017888830aeb0d6da1710c8cbf09825a4fc77064b7efc675a4935623830917"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\11_Tool_Number\\P4-EOAT-0019_2026-06-10_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\11_Tool_Number\\P4-EOAT-0019_2026-06-10_Tool_Number_001.HEIC",
+      "size": 1411678,
+      "modified_utc": "2026-06-10T18:19:06+00:00",
+      "sha256": "e37d9be1d72e7cf07f15e0c4f8f32ce1bfa004a21089656ea6955810e2c3259c",
+      "copy_sha256": "e37d9be1d72e7cf07f15e0c4f8f32ce1bfa004a21089656ea6955810e2c3259c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0019\\eoat_info.json",
+      "size": 365,
+      "modified_utc": "2026-06-11T14:04:58.966364+00:00",
+      "sha256": "0ba9ce16d73e81e1b1b1b2ef0369b9cdff697c084058731b52ce365beef916a3",
+      "copy_sha256": "0ba9ce16d73e81e1b1b1b2ef0369b9cdff697c084058731b52ce365beef916a3"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\01_Front_View\\P4-EOAT-0021_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\01_Front_View\\P4-EOAT-0021_2026-06-10_Front_View_001.HEIC",
+      "size": 4559232,
+      "modified_utc": "2026-06-10T18:41:20+00:00",
+      "sha256": "f2b60d57a5e5d4fb9199cafe6501d7de7e2eeea39d0a32c6b90495e8202d18d6",
+      "copy_sha256": "f2b60d57a5e5d4fb9199cafe6501d7de7e2eeea39d0a32c6b90495e8202d18d6"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\02_Side_View\\P4-EOAT-0021_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\02_Side_View\\P4-EOAT-0021_2026-06-10_Side_View_001.HEIC",
+      "size": 2577974,
+      "modified_utc": "2026-06-10T18:41:28+00:00",
+      "sha256": "cc5b71f9d482cd74c92d846aa42b7335d701fa87be211c8472a4d604415ef85a",
+      "copy_sha256": "cc5b71f9d482cd74c92d846aa42b7335d701fa87be211c8472a4d604415ef85a"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\11_Tool_Number\\P4-EOAT-0021_2026-06-10_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\11_Tool_Number\\P4-EOAT-0021_2026-06-10_Tool_Number_001.HEIC",
+      "size": 1296846,
+      "modified_utc": "2026-06-10T18:41:22+00:00",
+      "sha256": "3d7a7a508413d226ef7a6c3f5a36d8eeb0896ec2937fcbe4ca7802d13f6e7312",
+      "copy_sha256": "3d7a7a508413d226ef7a6c3f5a36d8eeb0896ec2937fcbe4ca7802d13f6e7312"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0021\\eoat_info.json",
+      "size": 310,
+      "modified_utc": "2026-06-11T21:16:29.910676+00:00",
+      "sha256": "07fc9ff21c3e199251d0f9e980f6be77599aed8c89b01f17b90f5b0e6ff44d49",
+      "copy_sha256": "07fc9ff21c3e199251d0f9e980f6be77599aed8c89b01f17b90f5b0e6ff44d49"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\01_Front_View\\P4-EOAT-0023_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\01_Front_View\\P4-EOAT-0023_2026-06-10_Front_View_001.HEIC",
+      "size": 4356564,
+      "modified_utc": "2026-06-10T18:46:58+00:00",
+      "sha256": "c6b944c93b62c29b2dfeb58694276603e44cfa5681b44a42090cbb01f6011fbe",
+      "copy_sha256": "c6b944c93b62c29b2dfeb58694276603e44cfa5681b44a42090cbb01f6011fbe"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\02_Side_View\\P4-EOAT-0023_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\02_Side_View\\P4-EOAT-0023_2026-06-10_Side_View_001.HEIC",
+      "size": 3470525,
+      "modified_utc": "2026-06-10T18:47:16+00:00",
+      "sha256": "8705968e98fb495677ca1d5e5f86c168adcdd62a95ea5354a45b0e98e9ad0ca1",
+      "copy_sha256": "8705968e98fb495677ca1d5e5f86c168adcdd62a95ea5354a45b0e98e9ad0ca1"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\03_Vacuum_Cups_Grippers\\P4-EOAT-0023_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\03_Vacuum_Cups_Grippers\\P4-EOAT-0023_2026-06-10_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1022571,
+      "modified_utc": "2026-06-10T18:47:44+00:00",
+      "sha256": "2387077b9d84c7b91c46d3888b1d4ba0264b764ec3e7550056479d7a0f424fb2",
+      "copy_sha256": "2387077b9d84c7b91c46d3888b1d4ba0264b764ec3e7550056479d7a0f424fb2"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\10_Back_View\\P4-EOAT-0023_2026-06-10_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\10_Back_View\\P4-EOAT-0023_2026-06-10_Back_View_001.HEIC",
+      "size": 4274131,
+      "modified_utc": "2026-06-10T18:47:26+00:00",
+      "sha256": "066b288b11a8a69caeeff6d253b66619c4626ebdf5fb18ce60cc4de069abf68f",
+      "copy_sha256": "066b288b11a8a69caeeff6d253b66619c4626ebdf5fb18ce60cc4de069abf68f"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0023\\eoat_info.json",
+      "size": 332,
+      "modified_utc": "2026-06-11T21:23:52.590678+00:00",
+      "sha256": "481af3e4f242865cdb770383b3c0fe65d911d45d3cde4bf05cb610a086acdad7",
+      "copy_sha256": "481af3e4f242865cdb770383b3c0fe65d911d45d3cde4bf05cb610a086acdad7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\01_Front_View\\P4-EOAT-0024_2026-06-10_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\01_Front_View\\P4-EOAT-0024_2026-06-10_Front_View_001.HEIC",
+      "size": 3698185,
+      "modified_utc": "2026-06-10T18:49:30+00:00",
+      "sha256": "b43b6a48a8d3ed20c4e426eedf548d080aae50ae1919f42c42c9fb7ce593d9c8",
+      "copy_sha256": "b43b6a48a8d3ed20c4e426eedf548d080aae50ae1919f42c42c9fb7ce593d9c8"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\02_Side_View\\P4-EOAT-0024_2026-06-10_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\02_Side_View\\P4-EOAT-0024_2026-06-10_Side_View_001.HEIC",
+      "size": 3730095,
+      "modified_utc": "2026-06-10T18:49:42+00:00",
+      "sha256": "8bdc87e0af7a67cd6ad17e100c8685809603bba5136ad6e229c43cc23f8dd0aa",
+      "copy_sha256": "8bdc87e0af7a67cd6ad17e100c8685809603bba5136ad6e229c43cc23f8dd0aa"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\10_Back_View\\P4-EOAT-0024_2026-06-10_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\10_Back_View\\P4-EOAT-0024_2026-06-10_Back_View_001.HEIC",
+      "size": 3882938,
+      "modified_utc": "2026-06-10T18:49:54+00:00",
+      "sha256": "8b746595d9765f883f372a0e87da679bcba473453451d624768f6ab2551ecfaa",
+      "copy_sha256": "8b746595d9765f883f372a0e87da679bcba473453451d624768f6ab2551ecfaa"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0024\\eoat_info.json",
+      "size": 332,
+      "modified_utc": "2026-06-11T21:33:58.914308+00:00",
+      "sha256": "f16ca33e4e89388d5ea5a57c2a5a4aed966e79f047134fbdd92c5af93f09b714",
+      "copy_sha256": "f16ca33e4e89388d5ea5a57c2a5a4aed966e79f047134fbdd92c5af93f09b714"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\01_Front_View\\P4-EOAT-0027_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\01_Front_View\\P4-EOAT-0027_2026-06-11_Front_View_001.HEIC",
+      "size": 2433691,
+      "modified_utc": "2026-06-11T17:35:16+00:00",
+      "sha256": "def95ce3cf6246ad145cd336519e202e73ccd97a52e5061968730cdb161dc5e7",
+      "copy_sha256": "def95ce3cf6246ad145cd336519e202e73ccd97a52e5061968730cdb161dc5e7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\02_Side_View\\P4-EOAT-0027_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\02_Side_View\\P4-EOAT-0027_2026-06-11_Side_View_001.HEIC",
+      "size": 2024925,
+      "modified_utc": "2026-06-11T17:35:30+00:00",
+      "sha256": "16b164923391e50a7402eb274058ef78217d269bee022da828e9f5cd7369059d",
+      "copy_sha256": "16b164923391e50a7402eb274058ef78217d269bee022da828e9f5cd7369059d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\03_Vacuum_Cups_Grippers\\P4-EOAT-0027_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\03_Vacuum_Cups_Grippers\\P4-EOAT-0027_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1704961,
+      "modified_utc": "2026-06-11T17:35:50+00:00",
+      "sha256": "23533f19e80428f062dceb51078f0e1c2033cc7f4a3bf28ed7f9e7c745641144",
+      "copy_sha256": "23533f19e80428f062dceb51078f0e1c2033cc7f4a3bf28ed7f9e7c745641144"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\03_Vacuum_Cups_Grippers\\P4-EOAT-0027_2026-06-11_Vacuum_Cups_Grippers_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\03_Vacuum_Cups_Grippers\\P4-EOAT-0027_2026-06-11_Vacuum_Cups_Grippers_002.HEIC",
+      "size": 1047455,
+      "modified_utc": "2026-06-11T17:36:06+00:00",
+      "sha256": "559779c196561a51dba90e1a82d8dd6610aa5d1148f7ff5c7f818c7b5428308e",
+      "copy_sha256": "559779c196561a51dba90e1a82d8dd6610aa5d1148f7ff5c7f818c7b5428308e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\10_Back_View\\P4-EOAT-0027_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\10_Back_View\\P4-EOAT-0027_2026-06-11_Back_View_001.HEIC",
+      "size": 1922652,
+      "modified_utc": "2026-06-11T17:35:36+00:00",
+      "sha256": "ffd6ead3e99a659bd707926a55bc632453227a9b20428f1dc03764c307f0992d",
+      "copy_sha256": "ffd6ead3e99a659bd707926a55bc632453227a9b20428f1dc03764c307f0992d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\11_Tool_Number\\P4-EOAT-0027_2026-06-11_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\11_Tool_Number\\P4-EOAT-0027_2026-06-11_Tool_Number_001.HEIC",
+      "size": 1134735,
+      "modified_utc": "2026-06-11T17:35:58+00:00",
+      "sha256": "6ef25911891e36be7f9d20ebace2738a51e8647b42748d57676e5711840dfa28",
+      "copy_sha256": "6ef25911891e36be7f9d20ebace2738a51e8647b42748d57676e5711840dfa28"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0027\\eoat_info.json",
+      "size": 348,
+      "modified_utc": "2026-06-29T19:09:15.555507+00:00",
+      "sha256": "dcc7360e109a1b025f7f0a6f16a43b92bfd30f82ff648329a7197dff531189b2",
+      "copy_sha256": "dcc7360e109a1b025f7f0a6f16a43b92bfd30f82ff648329a7197dff531189b2"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\01_Front_View\\P4-EOAT-0028_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\01_Front_View\\P4-EOAT-0028_2026-06-11_Front_View_001.HEIC",
+      "size": 2539634,
+      "modified_utc": "2026-06-11T17:51:50+00:00",
+      "sha256": "746c95f056476329cb1b5e6d41f39bedf99ae55e862fa0f6acfabd942be2bc7d",
+      "copy_sha256": "746c95f056476329cb1b5e6d41f39bedf99ae55e862fa0f6acfabd942be2bc7d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\02_Side_View\\P4-EOAT-0028_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\02_Side_View\\P4-EOAT-0028_2026-06-11_Side_View_001.HEIC",
+      "size": 1922970,
+      "modified_utc": "2026-06-11T17:52:00+00:00",
+      "sha256": "ce7e3192bc6faa8a892a203dbacf60f2ac990926fd340ebcc1e0add0464d3a8e",
+      "copy_sha256": "ce7e3192bc6faa8a892a203dbacf60f2ac990926fd340ebcc1e0add0464d3a8e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\04_Tubing_Routing\\P4-EOAT-0028_2026-06-11_Tubing_Routing_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\04_Tubing_Routing\\P4-EOAT-0028_2026-06-11_Tubing_Routing_001.HEIC",
+      "size": 1642824,
+      "modified_utc": "2026-06-11T17:52:18+00:00",
+      "sha256": "7b6a19a13b21beac849daae4656b25d7e367fa9fefa99e1a737c5b5ad44b377b",
+      "copy_sha256": "7b6a19a13b21beac849daae4656b25d7e367fa9fefa99e1a737c5b5ad44b377b"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\07_Cable_Management\\P4-EOAT-0028_2026-06-11_Cable_Management_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\07_Cable_Management\\P4-EOAT-0028_2026-06-11_Cable_Management_001.HEIC",
+      "size": 1516483,
+      "modified_utc": "2026-06-11T17:52:14+00:00",
+      "sha256": "621c4a0eac7ca744a6baa10d4614f9b32dd6686937098829c3baa08a143b0511",
+      "copy_sha256": "621c4a0eac7ca744a6baa10d4614f9b32dd6686937098829c3baa08a143b0511"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\10_Back_View\\P4-EOAT-0028_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\10_Back_View\\P4-EOAT-0028_2026-06-11_Back_View_001.HEIC",
+      "size": 2564515,
+      "modified_utc": "2026-06-11T17:52:04+00:00",
+      "sha256": "4eed4197d0d6cbad51171286b761bf076301c7cd3060d520c47f3fcc9cf04c46",
+      "copy_sha256": "4eed4197d0d6cbad51171286b761bf076301c7cd3060d520c47f3fcc9cf04c46"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\11_Tool_Number\\P4-EOAT-0028_2026-06-11_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\11_Tool_Number\\P4-EOAT-0028_2026-06-11_Tool_Number_001.HEIC",
+      "size": 1536071,
+      "modified_utc": "2026-06-11T17:52:10+00:00",
+      "sha256": "8043f8354fc3701dd40929d0772d48a3722da1863c99754ccf27a7d4d2d98465",
+      "copy_sha256": "8043f8354fc3701dd40929d0772d48a3722da1863c99754ccf27a7d4d2d98465"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0028\\eoat_info.json",
+      "size": 292,
+      "modified_utc": "2026-06-29T19:05:10.926075+00:00",
+      "sha256": "9db9369930fe563a17f6d46fef5fb0fc98ef1811891afde50baac863594d6b0a",
+      "copy_sha256": "9db9369930fe563a17f6d46fef5fb0fc98ef1811891afde50baac863594d6b0a"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\01_Front_View\\P4-EOAT-0029_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\01_Front_View\\P4-EOAT-0029_2026-06-11_Front_View_001.HEIC",
+      "size": 1706434,
+      "modified_utc": "2026-06-11T15:47:54+00:00",
+      "sha256": "9d3117ffe6a12fb8cece6f23d777aaa6273b3c41a86da6627ea0c1578c2d4d34",
+      "copy_sha256": "9d3117ffe6a12fb8cece6f23d777aaa6273b3c41a86da6627ea0c1578c2d4d34"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\02_Side_View\\P4-EOAT-0029_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\02_Side_View\\P4-EOAT-0029_2026-06-11_Side_View_001.HEIC",
+      "size": 1880019,
+      "modified_utc": "2026-06-11T15:48:02+00:00",
+      "sha256": "047b2d7279472586113e86b098899777582d5a65325d144162b81ce32fe2b3a6",
+      "copy_sha256": "047b2d7279472586113e86b098899777582d5a65325d144162b81ce32fe2b3a6"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\03_Vacuum_Cups_Grippers\\P4-EOAT-0029_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\03_Vacuum_Cups_Grippers\\P4-EOAT-0029_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1003626,
+      "modified_utc": "2026-06-11T15:48:30+00:00",
+      "sha256": "516245c49c9c7ac7f4dec1f5719fbe4d5f1023a66d85cae28f0ad34700cd5899",
+      "copy_sha256": "516245c49c9c7ac7f4dec1f5719fbe4d5f1023a66d85cae28f0ad34700cd5899"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\10_Back_View\\P4-EOAT-0029_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\10_Back_View\\P4-EOAT-0029_2026-06-11_Back_View_001.HEIC",
+      "size": 1621022,
+      "modified_utc": "2026-06-11T15:48:04+00:00",
+      "sha256": "aabae9f3f1eeb6e45d01d082e620b50416fd050daa3ee6c67b20b4fda8f66af2",
+      "copy_sha256": "aabae9f3f1eeb6e45d01d082e620b50416fd050daa3ee6c67b20b4fda8f66af2"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\11_Tool_Number\\P4-EOAT-0029_2026-06-11_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\11_Tool_Number\\P4-EOAT-0029_2026-06-11_Tool_Number_001.HEIC",
+      "size": 2203552,
+      "modified_utc": "2026-06-11T15:48:40+00:00",
+      "sha256": "931238417e0b5cb2a8652b6ab908725c2ca46f7c31ed4a6ce3d47429c199f98c",
+      "copy_sha256": "931238417e0b5cb2a8652b6ab908725c2ca46f7c31ed4a6ce3d47429c199f98c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0029\\eoat_info.json",
+      "size": 316,
+      "modified_utc": "2026-06-11T15:51:23.424396+00:00",
+      "sha256": "7443fd7b7599dafd28d771d3b87bf7480db77d8e9fc1b358831af297e828d689",
+      "copy_sha256": "7443fd7b7599dafd28d771d3b87bf7480db77d8e9fc1b358831af297e828d689"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\01_Front_View\\P4-EOAT-0031_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\01_Front_View\\P4-EOAT-0031_2026-06-11_Front_View_001.HEIC",
+      "size": 1423969,
+      "modified_utc": "2026-06-11T15:38:28+00:00",
+      "sha256": "a83be844fbc5acc8f2bb4a0a69bb770560951b8c9889745cbd4afcbf8191796f",
+      "copy_sha256": "a83be844fbc5acc8f2bb4a0a69bb770560951b8c9889745cbd4afcbf8191796f"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\02_Side_View\\P4-EOAT-0031_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\02_Side_View\\P4-EOAT-0031_2026-06-11_Side_View_001.HEIC",
+      "size": 1452217,
+      "modified_utc": "2026-06-11T15:38:40+00:00",
+      "sha256": "f0b7a58c4df57c87c30ce4d7ba70468ee94f752d98e13390ecfda423a9eb5b2a",
+      "copy_sha256": "f0b7a58c4df57c87c30ce4d7ba70468ee94f752d98e13390ecfda423a9eb5b2a"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\03_Vacuum_Cups_Grippers\\P4-EOAT-0031_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\03_Vacuum_Cups_Grippers\\P4-EOAT-0031_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1553487,
+      "modified_utc": "2026-06-11T15:38:44+00:00",
+      "sha256": "bbaeda1d6de73cfce8af49ea3f11f1d328a8649ca089b70dd78bc60129da839f",
+      "copy_sha256": "bbaeda1d6de73cfce8af49ea3f11f1d328a8649ca089b70dd78bc60129da839f"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\03_Vacuum_Cups_Grippers\\P4-EOAT-0031_2026-06-11_Vacuum_Cups_Grippers_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\03_Vacuum_Cups_Grippers\\P4-EOAT-0031_2026-06-11_Vacuum_Cups_Grippers_002.HEIC",
+      "size": 990885,
+      "modified_utc": "2026-06-11T15:38:52+00:00",
+      "sha256": "e931607fc34d48f6e793ebe242c601f7833d88db8cc121d8be1498c95688728e",
+      "copy_sha256": "e931607fc34d48f6e793ebe242c601f7833d88db8cc121d8be1498c95688728e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\10_Back_View\\P4-EOAT-0031_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\10_Back_View\\P4-EOAT-0031_2026-06-11_Back_View_001.HEIC",
+      "size": 1590343,
+      "modified_utc": "2026-06-11T15:38:34+00:00",
+      "sha256": "7d696c3166357e9a6ae400d174714d41f7c3e0d8e8ab56340867c2c12ad9fd97",
+      "copy_sha256": "7d696c3166357e9a6ae400d174714d41f7c3e0d8e8ab56340867c2c12ad9fd97"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0031\\eoat_info.json",
+      "size": 316,
+      "modified_utc": "2026-06-11T15:42:15.345224+00:00",
+      "sha256": "239ab809c2db9def0f97cc6a5e0203bf141f75f44159aa47ab75603ef2349293",
+      "copy_sha256": "239ab809c2db9def0f97cc6a5e0203bf141f75f44159aa47ab75603ef2349293"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\01_Front_View\\P4-EOAT-0032_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\01_Front_View\\P4-EOAT-0032_2026-06-11_Front_View_001.HEIC",
+      "size": 2259790,
+      "modified_utc": "2026-06-11T15:24:36+00:00",
+      "sha256": "a48d79ded985e7dcdd56eec0b3caab5d12e1ee37bfecd9bd6d7dec6a6df110a0",
+      "copy_sha256": "a48d79ded985e7dcdd56eec0b3caab5d12e1ee37bfecd9bd6d7dec6a6df110a0"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\02_Side_View\\P4-EOAT-0032_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\02_Side_View\\P4-EOAT-0032_2026-06-11_Side_View_001.HEIC",
+      "size": 1081706,
+      "modified_utc": "2026-06-11T15:24:46+00:00",
+      "sha256": "66d8aa786a170297b520ff62f9a8209269de27f2ee4bbbfdca6a2638817f7d37",
+      "copy_sha256": "66d8aa786a170297b520ff62f9a8209269de27f2ee4bbbfdca6a2638817f7d37"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\10_Back_View\\P4-EOAT-0032_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\10_Back_View\\P4-EOAT-0032_2026-06-11_Back_View_001.HEIC",
+      "size": 2278350,
+      "modified_utc": "2026-06-11T15:24:54+00:00",
+      "sha256": "c823edc08c9b5f1add60af736a6b2190107eba3b448bc99baba14180a58ac78b",
+      "copy_sha256": "c823edc08c9b5f1add60af736a6b2190107eba3b448bc99baba14180a58ac78b"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0032\\eoat_info.json",
+      "size": 294,
+      "modified_utc": "2026-06-11T15:27:49.808493+00:00",
+      "sha256": "c1a76f5bc8e3e302660614aca8d2e730425fae5624276c706e069e93f0023c5d",
+      "copy_sha256": "c1a76f5bc8e3e302660614aca8d2e730425fae5624276c706e069e93f0023c5d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\01_Front_View\\P4-EOAT-0034_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\01_Front_View\\P4-EOAT-0034_2026-06-11_Front_View_001.HEIC",
+      "size": 4611992,
+      "modified_utc": "2026-06-11T15:29:58+00:00",
+      "sha256": "6f20e5ece754b2af4d222fad16d3d54ca61044fd72898102dc0f73ff297ac799",
+      "copy_sha256": "6f20e5ece754b2af4d222fad16d3d54ca61044fd72898102dc0f73ff297ac799"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\02_Side_View\\P4-EOAT-0034_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\02_Side_View\\P4-EOAT-0034_2026-06-11_Side_View_001.HEIC",
+      "size": 1784232,
+      "modified_utc": "2026-06-11T15:30:16+00:00",
+      "sha256": "e10ad4d4437ba15736b9d4dbe872ad6c103974e0565bb512a5a70930b7d44269",
+      "copy_sha256": "e10ad4d4437ba15736b9d4dbe872ad6c103974e0565bb512a5a70930b7d44269"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\03_Vacuum_Cups_Grippers\\P4-EOAT-0034_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\03_Vacuum_Cups_Grippers\\P4-EOAT-0034_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1474710,
+      "modified_utc": "2026-06-11T15:30:02+00:00",
+      "sha256": "bf58780b82e8b2e7f5e5a1d625cb6385fb5d73cd287491640504d127018d3fad",
+      "copy_sha256": "bf58780b82e8b2e7f5e5a1d625cb6385fb5d73cd287491640504d127018d3fad"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\10_Back_View\\P4-EOAT-0034_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\10_Back_View\\P4-EOAT-0034_2026-06-11_Back_View_001.HEIC",
+      "size": 2009928,
+      "modified_utc": "2026-06-11T15:30:36+00:00",
+      "sha256": "0ab989e2345eb9afd511b0c0c17cca7c2a93e6217910c543cb439ed5c9c33672",
+      "copy_sha256": "0ab989e2345eb9afd511b0c0c17cca7c2a93e6217910c543cb439ed5c9c33672"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\11_Tool_Number\\P4-EOAT-0034_2026-06-11_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\11_Tool_Number\\P4-EOAT-0034_2026-06-11_Tool_Number_001.HEIC",
+      "size": 3262787,
+      "modified_utc": "2026-06-11T15:30:08+00:00",
+      "sha256": "61485856790ad9af85842e0087a34c1a981676222e98b0a6df2141f2a21cd97b",
+      "copy_sha256": "61485856790ad9af85842e0087a34c1a981676222e98b0a6df2141f2a21cd97b"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0034\\eoat_info.json",
+      "size": 318,
+      "modified_utc": "2026-06-11T15:35:49.888226+00:00",
+      "sha256": "2be037155d3d14026608ffd3080437ac8e1351dbf4ee628aba7511b60c978eb3",
+      "copy_sha256": "2be037155d3d14026608ffd3080437ac8e1351dbf4ee628aba7511b60c978eb3"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\01_Front_View\\P4-EOAT-0035_2026-06-16_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\01_Front_View\\P4-EOAT-0035_2026-06-16_Front_View_001.HEIC",
+      "size": 4892489,
+      "modified_utc": "2026-06-16T13:33:36+00:00",
+      "sha256": "7a1192ea59ae15342134ea97a75b9956d5a8c3b2240c9270fa8956228036fd5e",
+      "copy_sha256": "7a1192ea59ae15342134ea97a75b9956d5a8c3b2240c9270fa8956228036fd5e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\01_Front_View\\P4-EOAT-0035_2026-06-16_Front_View_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\01_Front_View\\P4-EOAT-0035_2026-06-16_Front_View_002.HEIC",
+      "size": 1580369,
+      "modified_utc": "2026-06-16T13:52:14+00:00",
+      "sha256": "cac19d86397a1ef6ef88345cc0a2f52d09dd1a906f36335d83070f9a28d29054",
+      "copy_sha256": "cac19d86397a1ef6ef88345cc0a2f52d09dd1a906f36335d83070f9a28d29054"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\02_Side_View\\P4-EOAT-0035_2026-06-16_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\02_Side_View\\P4-EOAT-0035_2026-06-16_Side_View_001.HEIC",
+      "size": 2670873,
+      "modified_utc": "2026-06-16T13:34:20+00:00",
+      "sha256": "1fa2c3c4f0da29a79aa9c12c6b374e77988093650469f9a1c48e3f8806b0773e",
+      "copy_sha256": "1fa2c3c4f0da29a79aa9c12c6b374e77988093650469f9a1c48e3f8806b0773e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\02_Side_View\\P4-EOAT-0035_2026-06-16_Side_View_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\02_Side_View\\P4-EOAT-0035_2026-06-16_Side_View_002.HEIC",
+      "size": 1206923,
+      "modified_utc": "2026-06-16T13:51:54+00:00",
+      "sha256": "638af59858d7a55471e8ef8eed07782bd776cf3064c79783238579cc107398f5",
+      "copy_sha256": "638af59858d7a55471e8ef8eed07782bd776cf3064c79783238579cc107398f5"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1249055,
+      "modified_utc": "2026-06-16T13:33:50+00:00",
+      "sha256": "bcf37d62d6634797527cc45d043caf07af14f86b0cf64ce1a38d1aeda4d50223",
+      "copy_sha256": "bcf37d62d6634797527cc45d043caf07af14f86b0cf64ce1a38d1aeda4d50223"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_002.HEIC",
+      "size": 1362832,
+      "modified_utc": "2026-06-16T13:33:52+00:00",
+      "sha256": "14de846f0fe8c0e08480f1bcd744e88dca5b429b75092451f9a0e11c9cafdbb2",
+      "copy_sha256": "14de846f0fe8c0e08480f1bcd744e88dca5b429b75092451f9a0e11c9cafdbb2"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_003.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_003.HEIC",
+      "size": 911731,
+      "modified_utc": "2026-06-16T13:54:02+00:00",
+      "sha256": "6bb3dbdf549351539c6ef355000ef88a6c7b6073f8cd73e49ba2efd94aa9c540",
+      "copy_sha256": "6bb3dbdf549351539c6ef355000ef88a6c7b6073f8cd73e49ba2efd94aa9c540"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_004.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\03_Vacuum_Cups_Grippers\\P4-EOAT-0035_2026-06-16_Vacuum_Cups_Grippers_004.HEIC",
+      "size": 987832,
+      "modified_utc": "2026-06-16T13:54:06+00:00",
+      "sha256": "6f456de33602ac972a8d632e4b1d4d3738460ad69ddb9e07760bc6ede5d252dc",
+      "copy_sha256": "6f456de33602ac972a8d632e4b1d4d3738460ad69ddb9e07760bc6ede5d252dc"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\10_Back_View\\P4-EOAT-0035_2026-06-16_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\10_Back_View\\P4-EOAT-0035_2026-06-16_Back_View_001.HEIC",
+      "size": 3417320,
+      "modified_utc": "2026-06-16T13:33:58+00:00",
+      "sha256": "35e17a11bf17b28a2f098c27c5ae87d268d7eb106a42419acd66dc32c7a51dfd",
+      "copy_sha256": "35e17a11bf17b28a2f098c27c5ae87d268d7eb106a42419acd66dc32c7a51dfd"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\10_Back_View\\P4-EOAT-0035_2026-06-16_Back_View_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\10_Back_View\\P4-EOAT-0035_2026-06-16_Back_View_002.HEIC",
+      "size": 1577675,
+      "modified_utc": "2026-06-16T13:51:34+00:00",
+      "sha256": "aaa458e827cc2f0277e183c3c1882eea9f4df7e3e7ae7c1bc87b434f4d0a835e",
+      "copy_sha256": "aaa458e827cc2f0277e183c3c1882eea9f4df7e3e7ae7c1bc87b434f4d0a835e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\11_Tool_Number\\P4-EOAT-0035_2026-06-16_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\11_Tool_Number\\P4-EOAT-0035_2026-06-16_Tool_Number_001.HEIC",
+      "size": 1488748,
+      "modified_utc": "2026-06-16T13:33:42+00:00",
+      "sha256": "d2e1d635be676abda009175ec4a84554a876192f821bc8921094a2518d9983ca",
+      "copy_sha256": "d2e1d635be676abda009175ec4a84554a876192f821bc8921094a2518d9983ca"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\11_Tool_Number\\P4-EOAT-0035_2026-06-16_Tool_Number_002.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\11_Tool_Number\\P4-EOAT-0035_2026-06-16_Tool_Number_002.HEIC",
+      "size": 1035617,
+      "modified_utc": "2026-06-16T13:53:04+00:00",
+      "sha256": "a49a6cfadbd0b4a233e8839c68200c2e537e411a3faa08df9093d873171a960c",
+      "copy_sha256": "a49a6cfadbd0b4a233e8839c68200c2e537e411a3faa08df9093d873171a960c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0035\\eoat_info.json",
+      "size": 296,
+      "modified_utc": "2026-06-16T13:57:00.199632+00:00",
+      "sha256": "b8bc339bc821c257711d9b49cf55d41fcc15eb06d1d9e10323b432d92a13a141",
+      "copy_sha256": "b8bc339bc821c257711d9b49cf55d41fcc15eb06d1d9e10323b432d92a13a141"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\01_Front_View\\P4-EOAT-0036_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\01_Front_View\\P4-EOAT-0036_2026-06-11_Front_View_001.HEIC",
+      "size": 1570046,
+      "modified_utc": "2026-06-11T15:17:20+00:00",
+      "sha256": "3a02c60882e69e49b4c7fb1dd8c7951c223cd8f676f69b4415d74e77678d5bd0",
+      "copy_sha256": "3a02c60882e69e49b4c7fb1dd8c7951c223cd8f676f69b4415d74e77678d5bd0"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\02_Side_View\\P4-EOAT-0036_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\02_Side_View\\P4-EOAT-0036_2026-06-11_Side_View_001.HEIC",
+      "size": 1847614,
+      "modified_utc": "2026-06-11T15:17:36+00:00",
+      "sha256": "bd85800068e6aef2b58f10bac602bacb24de5145397cc7ad363da59770e1d8c9",
+      "copy_sha256": "bd85800068e6aef2b58f10bac602bacb24de5145397cc7ad363da59770e1d8c9"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\03_Vacuum_Cups_Grippers\\P4-EOAT-0036_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\03_Vacuum_Cups_Grippers\\P4-EOAT-0036_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1221080,
+      "modified_utc": "2026-06-11T15:18:02+00:00",
+      "sha256": "a5240d6b122f18f6d9b8b24e2562bc87d3a2215d5e688badb62e8b849b079f50",
+      "copy_sha256": "a5240d6b122f18f6d9b8b24e2562bc87d3a2215d5e688badb62e8b849b079f50"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\10_Back_View\\P4-EOAT-0036_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\10_Back_View\\P4-EOAT-0036_2026-06-11_Back_View_001.HEIC",
+      "size": 1554493,
+      "modified_utc": "2026-06-11T15:17:30+00:00",
+      "sha256": "b47066443db3a810ecc118ebf7199f8f007fc69a94778c4d3de0b7723d1cea3c",
+      "copy_sha256": "b47066443db3a810ecc118ebf7199f8f007fc69a94778c4d3de0b7723d1cea3c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0036\\eoat_info.json",
+      "size": 338,
+      "modified_utc": "2026-06-11T15:21:19.977589+00:00",
+      "sha256": "1ad425e06f06e8ae58afa0a654a687291e066f4fbeea86a2d623f22b92ca3207",
+      "copy_sha256": "1ad425e06f06e8ae58afa0a654a687291e066f4fbeea86a2d623f22b92ca3207"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\01_Front_View\\P4-EOAT-0037_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\01_Front_View\\P4-EOAT-0037_2026-06-11_Front_View_001.HEIC",
+      "size": 5728470,
+      "modified_utc": "2026-06-11T15:09:26+00:00",
+      "sha256": "681360b5b8a20e2e3bc7d216cc20d343803c5017bc2e66d910f728ceb5e53592",
+      "copy_sha256": "681360b5b8a20e2e3bc7d216cc20d343803c5017bc2e66d910f728ceb5e53592"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\02_Side_View\\P4-EOAT-0037_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\02_Side_View\\P4-EOAT-0037_2026-06-11_Side_View_001.HEIC",
+      "size": 2979176,
+      "modified_utc": "2026-06-11T15:09:32+00:00",
+      "sha256": "68522d8827f6767decf42ec542d0f97a8f9509973d979070ea1322be60022407",
+      "copy_sha256": "68522d8827f6767decf42ec542d0f97a8f9509973d979070ea1322be60022407"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\03_Vacuum_Cups_Grippers\\P4-EOAT-0037_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\03_Vacuum_Cups_Grippers\\P4-EOAT-0037_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 745343,
+      "modified_utc": "2026-06-11T15:10:14+00:00",
+      "sha256": "69d2d72d32b9126239962ac660ca5deeb7e6d0bf8ec2ab6fabcb0ff04fc870fa",
+      "copy_sha256": "69d2d72d32b9126239962ac660ca5deeb7e6d0bf8ec2ab6fabcb0ff04fc870fa"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\10_Back_View\\P4-EOAT-0037_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\10_Back_View\\P4-EOAT-0037_2026-06-11_Back_View_001.HEIC",
+      "size": 1512893,
+      "modified_utc": "2026-06-11T15:09:44+00:00",
+      "sha256": "9c157b234d4535310615d85b61694cec94353241e4573d167738d816cfe5e934",
+      "copy_sha256": "9c157b234d4535310615d85b61694cec94353241e4573d167738d816cfe5e934"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0037\\eoat_info.json",
+      "size": 294,
+      "modified_utc": "2026-06-11T15:15:30.886947+00:00",
+      "sha256": "7579f733111c92b3db989f7546da77645b5c9164f2e856fed70a2b8fe3d71b4d",
+      "copy_sha256": "7579f733111c92b3db989f7546da77645b5c9164f2e856fed70a2b8fe3d71b4d"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\01_Front_View\\P4-EOAT-0038_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\01_Front_View\\P4-EOAT-0038_2026-06-08_Front_View_001.HEIC",
+      "size": 3341304,
+      "modified_utc": "2026-06-08T18:01:16+00:00",
+      "sha256": "2b7fa9016da1e89626ab3e30a2515324e1622f55aa703507c0f62ece288bd0be",
+      "copy_sha256": "2b7fa9016da1e89626ab3e30a2515324e1622f55aa703507c0f62ece288bd0be"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\01_Front_View\\P4-EOAT-0038_2026-06-11_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\01_Front_View\\P4-EOAT-0038_2026-06-11_Front_View_001.HEIC",
+      "size": 4397101,
+      "modified_utc": "2026-06-11T14:45:06+00:00",
+      "sha256": "dc5c0f7736f3a8dccac31faae7b3913c8bba7bff76a6ecff0f72bbbac38e61b5",
+      "copy_sha256": "dc5c0f7736f3a8dccac31faae7b3913c8bba7bff76a6ecff0f72bbbac38e61b5"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\02_Side_View\\P4-EOAT-0038_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\02_Side_View\\P4-EOAT-0038_2026-06-08_Side_View_001.HEIC",
+      "size": 3173272,
+      "modified_utc": "2026-06-08T18:01:24+00:00",
+      "sha256": "146bb6a4f67537d5a3777a6ad9a3dfb82cbd2ff6bdfafb2f53bc118a86ccc0a5",
+      "copy_sha256": "146bb6a4f67537d5a3777a6ad9a3dfb82cbd2ff6bdfafb2f53bc118a86ccc0a5"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\02_Side_View\\P4-EOAT-0038_2026-06-11_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\02_Side_View\\P4-EOAT-0038_2026-06-11_Side_View_001.HEIC",
+      "size": 2278141,
+      "modified_utc": "2026-06-11T14:45:32+00:00",
+      "sha256": "2a30f3e86b4c46c62e942c78c2be1c398c98a89c101166ee6e38406f67a0aa47",
+      "copy_sha256": "2a30f3e86b4c46c62e942c78c2be1c398c98a89c101166ee6e38406f67a0aa47"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\03_Vacuum_Cups_Grippers\\P4-EOAT-0038_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\03_Vacuum_Cups_Grippers\\P4-EOAT-0038_2026-06-11_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 974341,
+      "modified_utc": "2026-06-11T14:48:56+00:00",
+      "sha256": "9feeb904b92be559fa45f385689ee61325270c72bf143b7139e0109aca215067",
+      "copy_sha256": "9feeb904b92be559fa45f385689ee61325270c72bf143b7139e0109aca215067"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\10_Back_View\\P4-EOAT-0038_2026-06-08_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\10_Back_View\\P4-EOAT-0038_2026-06-08_Back_View_001.HEIC",
+      "size": 3257953,
+      "modified_utc": "2026-06-08T18:01:30+00:00",
+      "sha256": "a6f1f9088d4564fdc7c4b0d30df5fe118e6eb449f5e015b70d9cbc1c7b970e01",
+      "copy_sha256": "a6f1f9088d4564fdc7c4b0d30df5fe118e6eb449f5e015b70d9cbc1c7b970e01"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\10_Back_View\\P4-EOAT-0038_2026-06-11_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\10_Back_View\\P4-EOAT-0038_2026-06-11_Back_View_001.HEIC",
+      "size": 4138849,
+      "modified_utc": "2026-06-11T14:45:22+00:00",
+      "sha256": "dc66574c3ad8362105467b3dbff25e298eb5d4bf39d5b3b4a73c34e5164e4355",
+      "copy_sha256": "dc66574c3ad8362105467b3dbff25e298eb5d4bf39d5b3b4a73c34e5164e4355"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\11_Tool_Number\\P4-EOAT-0038_2026-06-08_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\11_Tool_Number\\P4-EOAT-0038_2026-06-08_Tool_Number_001.HEIC",
+      "size": 1424855,
+      "modified_utc": "2026-06-08T18:01:20+00:00",
+      "sha256": "6e77481fd4082dedce45096d8d55bd2117c4d941285760d54b8fb76984f45f66",
+      "copy_sha256": "6e77481fd4082dedce45096d8d55bd2117c4d941285760d54b8fb76984f45f66"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\11_Tool_Number\\P4-EOAT-0038_2026-06-11_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\11_Tool_Number\\P4-EOAT-0038_2026-06-11_Tool_Number_001.HEIC",
+      "size": 2177175,
+      "modified_utc": "2026-06-11T14:45:12+00:00",
+      "sha256": "4d36be8d16ea44cba1db13e9aef25db92a6dd0b532bf640a030d334f4e9be27c",
+      "copy_sha256": "4d36be8d16ea44cba1db13e9aef25db92a6dd0b532bf640a030d334f4e9be27c"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0038\\eoat_info.json",
+      "size": 354,
+      "modified_utc": "2026-06-11T15:01:28.888030+00:00",
+      "sha256": "770f92fe8aa8072be73effa6d5feeeefa0921905c0ac7750d0fe04ae078ed2ee",
+      "copy_sha256": "770f92fe8aa8072be73effa6d5feeeefa0921905c0ac7750d0fe04ae078ed2ee"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\01_Front_View\\P4-EOAT-0039_2026-06-16_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\01_Front_View\\P4-EOAT-0039_2026-06-16_Front_View_001.HEIC",
+      "size": 1474981,
+      "modified_utc": "2026-06-16T15:16:44+00:00",
+      "sha256": "c195557c1a6b1709421e552abc01cd8dd977be0775937e8776ed352783c3f501",
+      "copy_sha256": "c195557c1a6b1709421e552abc01cd8dd977be0775937e8776ed352783c3f501"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\02_Side_View\\P4-EOAT-0039_2026-06-16_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\02_Side_View\\P4-EOAT-0039_2026-06-16_Side_View_001.HEIC",
+      "size": 1490887,
+      "modified_utc": "2026-06-16T15:17:36+00:00",
+      "sha256": "3c72ce088678394d9b52d18aadebefa0697b8594ec18e158580745e3658716b7",
+      "copy_sha256": "3c72ce088678394d9b52d18aadebefa0697b8594ec18e158580745e3658716b7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\03_Vacuum_Cups_Grippers\\P4-EOAT-0039_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\03_Vacuum_Cups_Grippers\\P4-EOAT-0039_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1044055,
+      "modified_utc": "2026-06-16T15:17:10+00:00",
+      "sha256": "8fb08ec508ef9cdb2f3dcbb97c2d82009bbd0502c7431f9fce17c001143d3f51",
+      "copy_sha256": "8fb08ec508ef9cdb2f3dcbb97c2d82009bbd0502c7431f9fce17c001143d3f51"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\07_Cable_Management\\P4-EOAT-0039_2026-06-16_Cable_Management_001.jpg",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\07_Cable_Management\\P4-EOAT-0039_2026-06-16_Cable_Management_001.jpg",
+      "size": 1245365,
+      "modified_utc": "2026-06-16T15:17:20+00:00",
+      "sha256": "1cd596ba487de1afc6dd439fcbdb5113ed66271a2c42732cad1a1388ba4b6d43",
+      "copy_sha256": "1cd596ba487de1afc6dd439fcbdb5113ed66271a2c42732cad1a1388ba4b6d43"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\10_Back_View\\P4-EOAT-0039_2026-06-16_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\10_Back_View\\P4-EOAT-0039_2026-06-16_Back_View_001.HEIC",
+      "size": 2391759,
+      "modified_utc": "2026-06-16T15:16:22+00:00",
+      "sha256": "20d651a501da68c5e279240ae62edee4e89e7306015fd2ed91b947400c0911b4",
+      "copy_sha256": "20d651a501da68c5e279240ae62edee4e89e7306015fd2ed91b947400c0911b4"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\11_Tool_Number\\P4-EOAT-0039_2026-06-16_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\11_Tool_Number\\P4-EOAT-0039_2026-06-16_Tool_Number_001.HEIC",
+      "size": 1851141,
+      "modified_utc": "2026-06-16T15:17:00+00:00",
+      "sha256": "f4aaf2e3f49003ab0d021e42df00ef7c0ea19160c20dcb8045711f651a1242cb",
+      "copy_sha256": "f4aaf2e3f49003ab0d021e42df00ef7c0ea19160c20dcb8045711f651a1242cb"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0039\\eoat_info.json",
+      "size": 296,
+      "modified_utc": "2026-06-16T15:22:28.531099+00:00",
+      "sha256": "6fbc4130cc866d1666f3ba25d3c423b705bd0320ba0cf70fb5a78fa1c61159c6",
+      "copy_sha256": "6fbc4130cc866d1666f3ba25d3c423b705bd0320ba0cf70fb5a78fa1c61159c6"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\01_Front_View\\P4-EOAT-0040_2026-06-16_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\01_Front_View\\P4-EOAT-0040_2026-06-16_Front_View_001.HEIC",
+      "size": 1474981,
+      "modified_utc": "2026-06-16T15:16:44+00:00",
+      "sha256": "c195557c1a6b1709421e552abc01cd8dd977be0775937e8776ed352783c3f501",
+      "copy_sha256": "c195557c1a6b1709421e552abc01cd8dd977be0775937e8776ed352783c3f501"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\02_Side_View\\P4-EOAT-0040_2026-06-16_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\02_Side_View\\P4-EOAT-0040_2026-06-16_Side_View_001.HEIC",
+      "size": 1490887,
+      "modified_utc": "2026-06-16T15:17:36+00:00",
+      "sha256": "3c72ce088678394d9b52d18aadebefa0697b8594ec18e158580745e3658716b7",
+      "copy_sha256": "3c72ce088678394d9b52d18aadebefa0697b8594ec18e158580745e3658716b7"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\03_Vacuum_Cups_Grippers\\P4-EOAT-0040_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\03_Vacuum_Cups_Grippers\\P4-EOAT-0040_2026-06-16_Vacuum_Cups_Grippers_001.HEIC",
+      "size": 1044055,
+      "modified_utc": "2026-06-16T15:17:10+00:00",
+      "sha256": "8fb08ec508ef9cdb2f3dcbb97c2d82009bbd0502c7431f9fce17c001143d3f51",
+      "copy_sha256": "8fb08ec508ef9cdb2f3dcbb97c2d82009bbd0502c7431f9fce17c001143d3f51"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\07_Cable_Management\\P4-EOAT-0040_2026-06-16_Cable_Management_001.jpg",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\07_Cable_Management\\P4-EOAT-0040_2026-06-16_Cable_Management_001.jpg",
+      "size": 1245365,
+      "modified_utc": "2026-06-16T15:17:20+00:00",
+      "sha256": "1cd596ba487de1afc6dd439fcbdb5113ed66271a2c42732cad1a1388ba4b6d43",
+      "copy_sha256": "1cd596ba487de1afc6dd439fcbdb5113ed66271a2c42732cad1a1388ba4b6d43"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\10_Back_View\\P4-EOAT-0040_2026-06-16_Back_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\10_Back_View\\P4-EOAT-0040_2026-06-16_Back_View_001.HEIC",
+      "size": 2391759,
+      "modified_utc": "2026-06-16T15:16:22+00:00",
+      "sha256": "20d651a501da68c5e279240ae62edee4e89e7306015fd2ed91b947400c0911b4",
+      "copy_sha256": "20d651a501da68c5e279240ae62edee4e89e7306015fd2ed91b947400c0911b4"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\11_Tool_Number\\P4-EOAT-0040_2026-06-16_Tool_Number_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\11_Tool_Number\\P4-EOAT-0040_2026-06-16_Tool_Number_001.HEIC",
+      "size": 1851141,
+      "modified_utc": "2026-06-16T15:17:00+00:00",
+      "sha256": "f4aaf2e3f49003ab0d021e42df00ef7c0ea19160c20dcb8045711f651a1242cb",
+      "copy_sha256": "f4aaf2e3f49003ab0d021e42df00ef7c0ea19160c20dcb8045711f651a1242cb"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0040\\eoat_info.json",
+      "size": 296,
+      "modified_utc": "2026-06-16T15:23:34.881718+00:00",
+      "sha256": "61170e478f591945d5935ce4588fb07bca90813954903bc3c0a7614ed3bae52e",
+      "copy_sha256": "61170e478f591945d5935ce4588fb07bca90813954903bc3c0a7614ed3bae52e"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0041\\01_Front_View\\P4-EOAT-0041_2026-06-08_Front_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0041\\01_Front_View\\P4-EOAT-0041_2026-06-08_Front_View_001.HEIC",
+      "size": 1345042,
+      "modified_utc": "2026-06-08T17:58:42+00:00",
+      "sha256": "c714f757c0c1bf79d8d7510e7c55536688377c17599ce6dc86bbf0fffe087410",
+      "copy_sha256": "c714f757c0c1bf79d8d7510e7c55536688377c17599ce6dc86bbf0fffe087410"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0041\\02_Side_View\\P4-EOAT-0041_2026-06-08_Side_View_001.HEIC",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0041\\02_Side_View\\P4-EOAT-0041_2026-06-08_Side_View_001.HEIC",
+      "size": 1467730,
+      "modified_utc": "2026-06-08T17:58:46+00:00",
+      "sha256": "680623de291683cc5d669d7db5b48084ebcf6b9b5e9455c821d5a8571ec917ea",
+      "copy_sha256": "680623de291683cc5d669d7db5b48084ebcf6b9b5e9455c821d5a8571ec917ea"
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0041\\eoat_info.json",
+      "frozen_copy": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\Cell_Photos\\P4-EOAT-0041\\eoat_info.json",
+      "size": 293,
+      "modified_utc": "2026-06-10T15:09:48.632166+00:00",
+      "sha256": "c49d2048ac3af7c5339dd5b3cecea4a1647705adb83c22dbc987048ef7e68bb0",
+      "copy_sha256": "c49d2048ac3af7c5339dd5b3cecea4a1647705adb83c22dbc987048ef7e68bb0"
+    }
+  ],
+  "photo_files": 188
+}

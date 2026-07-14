@@ -1,0 +1,265 @@
+{
+  "batch_uuid": "08af702b-8b58-4a62-90b7-2b1ce0459789",
+  "batch_name": "Phase 9 frozen-source dry run",
+  "source_workbook": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\EOAT_Audit_Database\\EOAT_Master_Tracker.xlsx",
+  "source_checksum_sha256": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac",
+  "started_at": "2026-07-14T13:02:12.850594+00:00",
+  "completed_at": "2026-07-14T13:02:13.226987+00:00",
+  "dry_run": true,
+  "schema_revision": "20260714_0003",
+  "workbook_schema_version": "2026.06.26.1",
+  "source_rows": {
+    "EOAT Inventory": 102,
+    "Photo Index": 159
+  },
+  "staged_counts": {
+    "plants": 1,
+    "areas": 2,
+    "eoats": 57,
+    "machines": 61,
+    "tools": 65,
+    "parts": 0,
+    "part_candidates_requiring_crosswalk": 67,
+    "eoat_machine_compatibility": 87,
+    "eoat_tool_compatibility": 65,
+    "tool_machine_compatibility": 88,
+    "audit_records": 102,
+    "installation_records": 0,
+    "documents": 155,
+    "photos": 158,
+    "import_rows": 261
+  },
+  "rejected_rows": 0,
+  "warnings": 22,
+  "errors": 0,
+  "duplicate_counts": {
+    "audit_identifiers": 0,
+    "photo_identifiers": 0
+  },
+  "unresolved_relationships": 19,
+  "document_paths_checked": 158,
+  "document_paths_missing": 0,
+  "issues": [
+    {
+      "severity": "WARNING",
+      "code": "MISSING_TOOL",
+      "sheet": "EOAT Inventory",
+      "row": 29,
+      "field": "Tool #",
+      "source_value": "N/A",
+      "description": "No tool relationship can be created for this row.",
+      "suggested_resolution": "Confirm the tool number or explicitly mark the row as not tool-specific."
+    },
+    {
+      "severity": "WARNING",
+      "code": "AMBIGUOUS_MACHINE_NUMBER",
+      "sheet": "EOAT Inventory",
+      "row": 37,
+      "field": "Press/Machine #",
+      "source_value": "26 - Xqual in 25",
+      "description": "Machine value contains qualifiers or multiple meanings and cannot be normalized safely.",
+      "suggested_resolution": "Replace with one canonical machine number and retain the qualifier in notes."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 54,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 55,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 56,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 57,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 58,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 59,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 60,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 61,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 62,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 63,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 65,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_MACHINE",
+      "sheet": "EOAT Inventory",
+      "row": 66,
+      "field": "Press/Machine #",
+      "source_value": "N/A",
+      "description": "No machine relationship can be created for this row.",
+      "suggested_resolution": "Confirm whether the EOAT is in storage or the machine value is missing."
+    },
+    {
+      "severity": "WARNING",
+      "code": "CONFLICTING_EOAT_ATTRIBUTES",
+      "sheet": "EOAT Inventory",
+      "row": 86,
+      "field": "cleanroom_classification",
+      "source_value": "CL-EOAT-0052",
+      "description": "Repeated EOAT rows disagree on stable profile attributes.",
+      "suggested_resolution": "Review the named fields and choose authoritative values before import."
+    },
+    {
+      "severity": "WARNING",
+      "code": "CONFLICTING_EOAT_ATTRIBUTES",
+      "sheet": "EOAT Inventory",
+      "row": 89,
+      "field": "cleanroom_classification",
+      "source_value": "CL-EOAT-0052",
+      "description": "Repeated EOAT rows disagree on stable profile attributes.",
+      "suggested_resolution": "Review the named fields and choose authoritative values before import."
+    },
+    {
+      "severity": "WARNING",
+      "code": "CONFLICTING_CURRENT_ASSIGNMENT",
+      "sheet": "EOAT Inventory",
+      "row": null,
+      "field": "Press/Machine #",
+      "source_value": "CL:51, CL:52, CL:55",
+      "description": "CL-EOAT-0050 has multiple audited machine assignments and no explicit removal timeline.",
+      "suggested_resolution": "Review audit dates and create approved installation-history intervals; do not infer a current location automatically."
+    },
+    {
+      "severity": "WARNING",
+      "code": "CONFLICTING_CURRENT_ASSIGNMENT",
+      "sheet": "EOAT Inventory",
+      "row": null,
+      "field": "Press/Machine #",
+      "source_value": "CL:63, CL:65, CL:66",
+      "description": "CL-EOAT-0052 has multiple audited machine assignments and no explicit removal timeline.",
+      "suggested_resolution": "Review audit dates and create approved installation-history intervals; do not infer a current location automatically."
+    },
+    {
+      "severity": "WARNING",
+      "code": "CONFLICTING_CURRENT_ASSIGNMENT",
+      "sheet": "EOAT Inventory",
+      "row": null,
+      "field": "Press/Machine #",
+      "source_value": "CL:40, CL:47, CL:57",
+      "description": "CL-EOAT-0054 has multiple audited machine assignments and no explicit removal timeline.",
+      "suggested_resolution": "Review audit dates and create approved installation-history intervals; do not infer a current location automatically."
+    },
+    {
+      "severity": "WARNING",
+      "code": "CONFLICTING_CURRENT_ASSIGNMENT",
+      "sheet": "EOAT Inventory",
+      "row": null,
+      "field": "Press/Machine #",
+      "source_value": "P4:41, P4:42, P4:48, P4:50",
+      "description": "P4-EOAT-0057 has multiple audited machine assignments and no explicit removal timeline.",
+      "suggested_resolution": "Review audit dates and create approved installation-history intervals; do not infer a current location automatically."
+    },
+    {
+      "severity": "WARNING",
+      "code": "PART_IDENTIFIER_AMBIGUITY",
+      "sheet": "EOAT Inventory",
+      "row": null,
+      "field": "Part Name/Description",
+      "source_value": "67",
+      "description": "The workbook contains part names but no independent Part Number field; Tool # cannot safely be assumed to be the part number.",
+      "suggested_resolution": "Provide a part-number crosswalk before importing parts and tool_parts."
+    },
+    {
+      "severity": "WARNING",
+      "code": "MISSING_PHOTO_PATH",
+      "sheet": "Photo Index",
+      "row": 2,
+      "field": "Stored Relative Path",
+      "source_value": null,
+      "description": "Photo metadata has no resolvable file path.",
+      "suggested_resolution": "Supply a controlled relative path; do not discard the metadata row."
+    }
+  ],
+  "source_unchanged": true
+}

@@ -1,1 +1,0 @@
-﻿Dry run only. No destination files were copied, so verification was not performed.

@@ -1,0 +1,6380 @@
+{
+  "status": "PASS",
+  "database": "eoat_atlas_dev",
+  "server_version": "8.4.9",
+  "schema_revision": "20260714_0003",
+  "collation": "utf8mb4_0900_ai_ci",
+  "engines": {
+    "InnoDB": 49
+  },
+  "totals": {
+    "tables": 49,
+    "model_tables": 48,
+    "foreign_keys": 180,
+    "indexes": 246,
+    "unique_constraints": 49,
+    "check_constraints": 21
+  },
+  "extra_tables": [
+    "alembic_version"
+  ],
+  "errors": [],
+  "tables": {
+    "annotation_target_links": {
+      "columns": [
+        "id",
+        "annotation_id",
+        "annotation_target_id",
+        "created_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "annotation_target_links_ibfk_1",
+          "constrained_columns": [
+            "annotation_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "annotations",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        },
+        {
+          "name": "annotation_target_links_ibfk_2",
+          "constrained_columns": [
+            "annotation_target_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "annotation_targets",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "annotation_target_id",
+          "column_names": [
+            "annotation_target_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_annotation_target_links",
+          "column_names": [
+            "annotation_id",
+            "annotation_target_id"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_annotation_target_links",
+          "column_names": [
+            "annotation_id",
+            "annotation_target_id"
+          ],
+          "duplicates_index": "uq_annotation_target_links"
+        }
+      ],
+      "check_constraints": []
+    },
+    "annotation_targets": {
+      "columns": [
+        "id",
+        "target_uuid",
+        "target_type",
+        "target_label",
+        "audit_identifier",
+        "machine_identifier",
+        "field_key",
+        "field_label",
+        "sheet_name",
+        "header_name",
+        "workbook_path",
+        "cached_cell_ref",
+        "object_ref",
+        "source_record_identifier",
+        "created_at",
+        "updated_at",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "annotation_targets_ibfk_1",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "annotation_targets_ibfk_2",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "annotation_targets_ibfk_3",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "annotation_targets_ibfk_4",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_annotation_targets_audit_field",
+          "column_names": [
+            "audit_identifier",
+            "field_key"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_annotation_targets_type",
+          "column_names": [
+            "target_type"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "target_uuid",
+          "column_names": [
+            "target_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "duplicates_index": "source_record_identifier"
+        },
+        {
+          "name": "target_uuid",
+          "column_names": [
+            "target_uuid"
+          ],
+          "duplicates_index": "target_uuid"
+        }
+      ],
+      "check_constraints": []
+    },
+    "annotations": {
+      "columns": [
+        "id",
+        "annotation_uuid",
+        "entity_type",
+        "entity_id",
+        "annotation_target_id",
+        "annotation_type",
+        "subject",
+        "body",
+        "importance",
+        "status",
+        "collection",
+        "follow_up_date",
+        "source_record_identifier",
+        "created_at",
+        "updated_at",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "annotations_ibfk_1",
+          "constrained_columns": [
+            "annotation_target_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "annotation_targets",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "annotations_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "annotations_ibfk_3",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "annotations_ibfk_4",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "annotations_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "annotation_uuid",
+          "column_names": [
+            "annotation_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_annotations_entity",
+          "column_names": [
+            "entity_type",
+            "entity_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_annotations_status",
+          "column_names": [
+            "status"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_annotations_target",
+          "column_names": [
+            "annotation_target_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "annotation_uuid",
+          "column_names": [
+            "annotation_uuid"
+          ],
+          "duplicates_index": "annotation_uuid"
+        },
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "duplicates_index": "source_record_identifier"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_annotations_row_version",
+          "sqltext": "(`row_version` > 0)"
+        }
+      ]
+    },
+    "application_instances": {
+      "columns": [
+        "id",
+        "instance_uuid",
+        "computer_name",
+        "installation_name",
+        "plant_id",
+        "area_id",
+        "application_version",
+        "launcher_version",
+        "operating_system",
+        "registered_at",
+        "last_seen_at",
+        "is_active",
+        "notes",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "application_instances_ibfk_1",
+          "constrained_columns": [
+            "area_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "areas",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "application_instances_ibfk_2",
+          "constrained_columns": [
+            "plant_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "plants",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "area_id",
+          "column_names": [
+            "area_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "instance_uuid",
+          "column_names": [
+            "instance_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "plant_id",
+          "column_names": [
+            "plant_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "instance_uuid",
+          "column_names": [
+            "instance_uuid"
+          ],
+          "duplicates_index": "instance_uuid"
+        }
+      ],
+      "check_constraints": []
+    },
+    "areas": {
+      "columns": [
+        "id",
+        "plant_id",
+        "area_code",
+        "area_name",
+        "area_type",
+        "cleanroom_classification_id",
+        "description",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "areas_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "areas_ibfk_2",
+          "constrained_columns": [
+            "cleanroom_classification_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "cleanroom_classifications",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "areas_ibfk_3",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "areas_ibfk_4",
+          "constrained_columns": [
+            "plant_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "plants",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "areas_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "areas_ibfk_6",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "cleanroom_classification_id",
+          "column_names": [
+            "cleanroom_classification_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_areas_plant_code",
+          "column_names": [
+            "plant_id",
+            "area_code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_areas_plant_code",
+          "column_names": [
+            "plant_id",
+            "area_code"
+          ],
+          "duplicates_index": "uq_areas_plant_code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "asset_statuses": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "audit_records": {
+      "columns": [
+        "id",
+        "audit_identifier",
+        "eoat_id",
+        "machine_id",
+        "tool_id",
+        "robot_id",
+        "audit_date",
+        "performed_by_user_id",
+        "status_id",
+        "source_sheet",
+        "source_row_number",
+        "details_json",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "audit_records_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_10",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_3",
+          "constrained_columns": [
+            "eoat_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoats",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_4",
+          "constrained_columns": [
+            "machine_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "machines",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_5",
+          "constrained_columns": [
+            "performed_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_6",
+          "constrained_columns": [
+            "robot_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "robots",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_7",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_8",
+          "constrained_columns": [
+            "status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "asset_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "audit_records_ibfk_9",
+          "constrained_columns": [
+            "tool_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "tools",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "audit_identifier",
+          "column_names": [
+            "audit_identifier"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_audit_records_date",
+          "column_names": [
+            "audit_date"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_audit_records_entities",
+          "column_names": [
+            "eoat_id",
+            "machine_id",
+            "tool_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "machine_id",
+          "column_names": [
+            "machine_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "performed_by_user_id",
+          "column_names": [
+            "performed_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "robot_id",
+          "column_names": [
+            "robot_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "status_id",
+          "column_names": [
+            "status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "tool_id",
+          "column_names": [
+            "tool_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "audit_identifier",
+          "column_names": [
+            "audit_identifier"
+          ],
+          "duplicates_index": "audit_identifier"
+        }
+      ],
+      "check_constraints": []
+    },
+    "change_audit_log": {
+      "columns": [
+        "id",
+        "event_uuid",
+        "request_id",
+        "occurred_at",
+        "actor_user_id",
+        "application_instance_id",
+        "entity_type",
+        "entity_id",
+        "action",
+        "previous_values_json",
+        "new_values_json",
+        "changed_fields_json",
+        "reason",
+        "source",
+        "success",
+        "error_code",
+        "api_version",
+        "client_version",
+        "created_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "change_audit_log_ibfk_1",
+          "constrained_columns": [
+            "actor_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "change_audit_log_ibfk_2",
+          "constrained_columns": [
+            "application_instance_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "application_instances",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "application_instance_id",
+          "column_names": [
+            "application_instance_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "event_uuid",
+          "column_names": [
+            "event_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "ix_change_audit_actor",
+          "column_names": [
+            "actor_user_id",
+            "occurred_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_change_audit_entity",
+          "column_names": [
+            "entity_type",
+            "entity_id",
+            "occurred_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_change_audit_request",
+          "column_names": [
+            "request_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "event_uuid",
+          "column_names": [
+            "event_uuid"
+          ],
+          "duplicates_index": "event_uuid"
+        }
+      ],
+      "check_constraints": []
+    },
+    "change_feed": {
+      "columns": [
+        "change_id",
+        "entity_type",
+        "entity_id",
+        "operation",
+        "entity_row_version",
+        "changed_at",
+        "changed_by_user_id",
+        "request_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "change_id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "change_feed_ibfk_1",
+          "constrained_columns": [
+            "changed_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "changed_by_user_id",
+          "column_names": [
+            "changed_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_change_feed_changed",
+          "column_names": [
+            "changed_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_change_feed_entity_cursor",
+          "column_names": [
+            "entity_type",
+            "change_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [],
+      "check_constraints": []
+    },
+    "cleanroom_classifications": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "compatibility_sources": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "compatibility_statuses": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "connection_types": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "cutover_sessions": {
+      "columns": [
+        "id",
+        "cutover_uuid",
+        "environment",
+        "source_checksum",
+        "source_snapshot_timestamp",
+        "database_schema_revision",
+        "api_version",
+        "client_version",
+        "started_at",
+        "completed_at",
+        "started_by_user_id",
+        "status",
+        "authority_enabled_at",
+        "rollback_deadline",
+        "rollback_started_at",
+        "rollback_completed_at",
+        "start_change_feed_cursor",
+        "notes",
+        "created_at",
+        "updated_at",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "cutover_sessions_ibfk_1",
+          "constrained_columns": [
+            "started_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "cutover_sessions_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "cutover_sessions_ibfk_3",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "cutover_sessions_ibfk_4",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "cutover_sessions_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "cutover_uuid",
+          "column_names": [
+            "cutover_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "ix_cutover_sessions_environment_status",
+          "column_names": [
+            "environment",
+            "status"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "started_by_user_id",
+          "column_names": [
+            "started_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "cutover_uuid",
+          "column_names": [
+            "cutover_uuid"
+          ],
+          "duplicates_index": "cutover_uuid"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_cutover_sessions_row_version",
+          "sqltext": "(`row_version` > 0)"
+        },
+        {
+          "name": "ck_cutover_sessions_status",
+          "sqltext": "(`status` in (_utf8mb4'PLANNED',_utf8mb4'SOURCE_FROZEN',_utf8mb4'IMPORTING',_utf8mb4'VALIDATING',_utf8mb4'READY',_utf8mb4'AUTHORITY_ENABLED',_utf8mb4'MONITORING',_utf8mb4'ROLLED_BACK',_utf8mb4'COMPLETED',_utf8mb4'FAILED',_utf8mb4'CANCELLED'))"
+        }
+      ]
+    },
+    "document_links": {
+      "columns": [
+        "id",
+        "document_id",
+        "entity_type",
+        "entity_id",
+        "relationship_type",
+        "is_primary",
+        "created_at",
+        "created_by_user_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "document_links_ibfk_1",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "document_links_ibfk_2",
+          "constrained_columns": [
+            "document_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "documents",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_document_links_entity",
+          "column_names": [
+            "entity_type",
+            "entity_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_document_links",
+          "column_names": [
+            "document_id",
+            "entity_type",
+            "entity_id",
+            "relationship_type"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_document_links",
+          "column_names": [
+            "document_id",
+            "entity_type",
+            "entity_id",
+            "relationship_type"
+          ],
+          "duplicates_index": "uq_document_links"
+        }
+      ],
+      "check_constraints": []
+    },
+    "document_types": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "documents": {
+      "columns": [
+        "id",
+        "document_uuid",
+        "document_type_id",
+        "document_number",
+        "title",
+        "description",
+        "revision",
+        "file_name",
+        "file_extension",
+        "storage_path",
+        "storage_provider",
+        "checksum_sha256",
+        "file_size_bytes",
+        "mime_type",
+        "status_id",
+        "effective_from",
+        "superseded_at",
+        "superseded_by_document_id",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "documents_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "documents_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "documents_ibfk_3",
+          "constrained_columns": [
+            "document_type_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "document_types",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "documents_ibfk_4",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "documents_ibfk_5",
+          "constrained_columns": [
+            "status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "asset_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "documents_ibfk_6",
+          "constrained_columns": [
+            "superseded_by_document_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "documents",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "documents_ibfk_7",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "document_type_id",
+          "column_names": [
+            "document_type_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "document_uuid",
+          "column_names": [
+            "document_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "ix_documents_checksum",
+          "column_names": [
+            "checksum_sha256"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_documents_number",
+          "column_names": [
+            "document_number"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "status_id",
+          "column_names": [
+            "status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "superseded_by_document_id",
+          "column_names": [
+            "superseded_by_document_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "document_uuid",
+          "column_names": [
+            "document_uuid"
+          ],
+          "duplicates_index": "document_uuid"
+        }
+      ],
+      "check_constraints": []
+    },
+    "entity_history_events": {
+      "columns": [
+        "id",
+        "entity_type",
+        "entity_id",
+        "event_type_id",
+        "occurred_at",
+        "actor_user_id",
+        "application_instance_id",
+        "summary",
+        "details",
+        "related_entity_type",
+        "related_entity_id",
+        "source_table",
+        "source_record_id",
+        "created_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "entity_history_events_ibfk_1",
+          "constrained_columns": [
+            "actor_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "entity_history_events_ibfk_2",
+          "constrained_columns": [
+            "application_instance_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "application_instances",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "entity_history_events_ibfk_3",
+          "constrained_columns": [
+            "event_type_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "history_event_types",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "actor_user_id",
+          "column_names": [
+            "actor_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "application_instance_id",
+          "column_names": [
+            "application_instance_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "event_type_id",
+          "column_names": [
+            "event_type_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_entity_history_timeline",
+          "column_names": [
+            "entity_type",
+            "entity_id",
+            "occurred_at"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [],
+      "check_constraints": []
+    },
+    "entity_tags": {
+      "columns": [
+        "id",
+        "tag_id",
+        "entity_type",
+        "entity_id",
+        "annotation_target_id",
+        "comment",
+        "assigned_at",
+        "assigned_by_user_id",
+        "removed_at",
+        "removed_by_user_id",
+        "row_version",
+        "source_record_identifier",
+        "source_import_batch_id",
+        "active_assignment_key"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "entity_tags_ibfk_1",
+          "constrained_columns": [
+            "tag_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "tags",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "entity_tags_ibfk_2",
+          "constrained_columns": [
+            "annotation_target_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "annotation_targets",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "entity_tags_ibfk_3",
+          "constrained_columns": [
+            "assigned_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "entity_tags_ibfk_4",
+          "constrained_columns": [
+            "removed_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "entity_tags_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "assigned_by_user_id",
+          "column_names": [
+            "assigned_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_entity_tags_entity",
+          "column_names": [
+            "entity_type",
+            "entity_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_entity_tags_target",
+          "column_names": [
+            "annotation_target_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "removed_by_user_id",
+          "column_names": [
+            "removed_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "tag_id",
+          "column_names": [
+            "tag_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_entity_tags_active_assignment",
+          "column_names": [
+            "active_assignment_key"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "duplicates_index": "source_record_identifier"
+        },
+        {
+          "name": "uq_entity_tags_active_assignment",
+          "column_names": [
+            "active_assignment_key"
+          ],
+          "duplicates_index": "uq_entity_tags_active_assignment"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_entity_tags_row_version",
+          "sqltext": "(`row_version` > 0)"
+        }
+      ]
+    },
+    "eoat_installations": {
+      "columns": [
+        "id",
+        "eoat_id",
+        "machine_id",
+        "tool_id",
+        "robot_id",
+        "installed_at",
+        "installed_by_user_id",
+        "removed_at",
+        "removed_by_user_id",
+        "installation_reason",
+        "removal_reason",
+        "installation_notes",
+        "removal_notes",
+        "application_instance_id",
+        "source",
+        "row_version",
+        "source_import_batch_id",
+        "active_eoat_marker",
+        "active_machine_marker",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "eoat_installations_ibfk_1",
+          "constrained_columns": [
+            "application_instance_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "application_instances",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_installations_ibfk_2",
+          "constrained_columns": [
+            "eoat_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoats",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_installations_ibfk_3",
+          "constrained_columns": [
+            "installed_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_installations_ibfk_4",
+          "constrained_columns": [
+            "machine_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "machines",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_installations_ibfk_5",
+          "constrained_columns": [
+            "removed_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_installations_ibfk_6",
+          "constrained_columns": [
+            "robot_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "robots",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_installations_ibfk_7",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_installations_ibfk_8",
+          "constrained_columns": [
+            "tool_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "tools",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "application_instance_id",
+          "column_names": [
+            "application_instance_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "installed_by_user_id",
+          "column_names": [
+            "installed_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_installations_eoat_started",
+          "column_names": [
+            "eoat_id",
+            "installed_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_installations_machine_started",
+          "column_names": [
+            "machine_id",
+            "installed_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_installations_removed",
+          "column_names": [
+            "removed_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "removed_by_user_id",
+          "column_names": [
+            "removed_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "robot_id",
+          "column_names": [
+            "robot_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "tool_id",
+          "column_names": [
+            "tool_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_active_installation_eoat",
+          "column_names": [
+            "active_eoat_marker"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "uq_active_installation_machine",
+          "column_names": [
+            "active_machine_marker"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_active_installation_eoat",
+          "column_names": [
+            "active_eoat_marker"
+          ],
+          "duplicates_index": "uq_active_installation_eoat"
+        },
+        {
+          "name": "uq_active_installation_machine",
+          "column_names": [
+            "active_machine_marker"
+          ],
+          "duplicates_index": "uq_active_installation_machine"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_eoat_installations_dates",
+          "sqltext": "((`removed_at` is null) or (`removed_at` >= `installed_at`))"
+        }
+      ]
+    },
+    "eoat_machine_compatibility": {
+      "columns": [
+        "id",
+        "eoat_id",
+        "machine_id",
+        "connection_compatible",
+        "payload_compatible",
+        "reach_compatible",
+        "cleanroom_compatible",
+        "robot_interface_compatible",
+        "utilities_compatible",
+        "compatibility_status_id",
+        "verified_at",
+        "verified_by_user_id",
+        "verification_source_id",
+        "effective_from",
+        "effective_to",
+        "reason",
+        "conditions",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "eoat_machine_compatibility_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_2",
+          "constrained_columns": [
+            "compatibility_status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_3",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_4",
+          "constrained_columns": [
+            "eoat_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoats",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_5",
+          "constrained_columns": [
+            "machine_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "machines",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_6",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_7",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_8",
+          "constrained_columns": [
+            "verification_source_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_sources",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_machine_compatibility_ibfk_9",
+          "constrained_columns": [
+            "verified_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "compatibility_status_id",
+          "column_names": [
+            "compatibility_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_eoat_machine_lookup",
+          "column_names": [
+            "eoat_id",
+            "machine_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_machine_compatibility_status",
+          "column_names": [
+            "machine_id",
+            "compatibility_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_eoat_machine_compatibility_effective",
+          "column_names": [
+            "eoat_id",
+            "machine_id",
+            "effective_from"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "verification_source_id",
+          "column_names": [
+            "verification_source_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "verified_by_user_id",
+          "column_names": [
+            "verified_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_eoat_machine_compatibility_effective",
+          "column_names": [
+            "eoat_id",
+            "machine_id",
+            "effective_from"
+          ],
+          "duplicates_index": "uq_eoat_machine_compatibility_effective"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_eoat_machine_compatibility_dates",
+          "sqltext": "((`effective_to` is null) or (`effective_to` >= `effective_from`))"
+        }
+      ]
+    },
+    "eoat_storage_assignments": {
+      "columns": [
+        "id",
+        "eoat_id",
+        "storage_location_id",
+        "stored_at",
+        "removed_from_storage_at",
+        "stored_by_user_id",
+        "removed_by_user_id",
+        "reason",
+        "notes",
+        "created_at",
+        "active_eoat_marker"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "eoat_storage_assignments_ibfk_1",
+          "constrained_columns": [
+            "eoat_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoats",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_storage_assignments_ibfk_2",
+          "constrained_columns": [
+            "removed_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_storage_assignments_ibfk_3",
+          "constrained_columns": [
+            "storage_location_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "storage_locations",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_storage_assignments_ibfk_4",
+          "constrained_columns": [
+            "stored_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "eoat_id",
+          "column_names": [
+            "eoat_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "removed_by_user_id",
+          "column_names": [
+            "removed_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "storage_location_id",
+          "column_names": [
+            "storage_location_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "stored_by_user_id",
+          "column_names": [
+            "stored_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_active_storage_eoat",
+          "column_names": [
+            "active_eoat_marker"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_active_storage_eoat",
+          "column_names": [
+            "active_eoat_marker"
+          ],
+          "duplicates_index": "uq_active_storage_eoat"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_eoat_storage_dates",
+          "sqltext": "((`removed_from_storage_at` is null) or (`removed_from_storage_at` >= `stored_at`))"
+        }
+      ]
+    },
+    "eoat_tool_compatibility": {
+      "columns": [
+        "id",
+        "eoat_id",
+        "tool_id",
+        "part_geometry_compatible",
+        "number_of_parts_compatible",
+        "vacuum_or_gripper_compatible",
+        "sensor_compatible",
+        "cycle_requirement_compatible",
+        "compatibility_status_id",
+        "verified_at",
+        "verified_by_user_id",
+        "verification_source_id",
+        "effective_from",
+        "effective_to",
+        "reason",
+        "conditions",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "eoat_tool_compatibility_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_2",
+          "constrained_columns": [
+            "compatibility_status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_3",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_4",
+          "constrained_columns": [
+            "eoat_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoats",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_6",
+          "constrained_columns": [
+            "tool_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "tools",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_7",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_8",
+          "constrained_columns": [
+            "verification_source_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_sources",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoat_tool_compatibility_ibfk_9",
+          "constrained_columns": [
+            "verified_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "compatibility_status_id",
+          "column_names": [
+            "compatibility_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_eoat_tool_lookup",
+          "column_names": [
+            "eoat_id",
+            "tool_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "tool_id",
+          "column_names": [
+            "tool_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_eoat_tool_compatibility_effective",
+          "column_names": [
+            "eoat_id",
+            "tool_id",
+            "effective_from"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "verification_source_id",
+          "column_names": [
+            "verification_source_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "verified_by_user_id",
+          "column_names": [
+            "verified_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_eoat_tool_compatibility_effective",
+          "column_names": [
+            "eoat_id",
+            "tool_id",
+            "effective_from"
+          ],
+          "duplicates_index": "uq_eoat_tool_compatibility_effective"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_eoat_tool_compatibility_dates",
+          "sqltext": "((`effective_to` is null) or (`effective_to` >= `effective_from`))"
+        }
+      ]
+    },
+    "eoat_types": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "eoats": {
+      "columns": [
+        "id",
+        "business_identifier",
+        "legacy_identifier",
+        "display_name",
+        "description",
+        "eoat_type_id",
+        "connection_type_id",
+        "cleanroom_classification_id",
+        "status_id",
+        "revision",
+        "number_of_parts_picked",
+        "number_of_vacuum_cups",
+        "number_of_grippers",
+        "vacuum_present",
+        "sensors_present",
+        "part_present_sensor_present",
+        "vacuum_confirmation_sensor_present",
+        "quick_disconnect_present",
+        "cup_material",
+        "frame_material",
+        "weight_kg",
+        "maximum_payload_kg",
+        "drawing_number",
+        "manufacturer",
+        "date_built",
+        "date_commissioned",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "eoats_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoats_ibfk_2",
+          "constrained_columns": [
+            "cleanroom_classification_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "cleanroom_classifications",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoats_ibfk_3",
+          "constrained_columns": [
+            "connection_type_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "connection_types",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoats_ibfk_4",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoats_ibfk_5",
+          "constrained_columns": [
+            "eoat_type_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoat_types",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoats_ibfk_6",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoats_ibfk_7",
+          "constrained_columns": [
+            "status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "asset_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "eoats_ibfk_8",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "business_identifier",
+          "column_names": [
+            "business_identifier"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "cleanroom_classification_id",
+          "column_names": [
+            "cleanroom_classification_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "connection_type_id",
+          "column_names": [
+            "connection_type_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "eoat_type_id",
+          "column_names": [
+            "eoat_type_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_eoats_display_name",
+          "column_names": [
+            "display_name"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_eoats_legacy_identifier",
+          "column_names": [
+            "legacy_identifier"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "status_id",
+          "column_names": [
+            "status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "business_identifier",
+          "column_names": [
+            "business_identifier"
+          ],
+          "duplicates_index": "business_identifier"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_eoats_cups_nonnegative",
+          "sqltext": "((`number_of_vacuum_cups` is null) or (`number_of_vacuum_cups` >= 0))"
+        },
+        {
+          "name": "ck_eoats_grippers_nonnegative",
+          "sqltext": "((`number_of_grippers` is null) or (`number_of_grippers` >= 0))"
+        },
+        {
+          "name": "ck_eoats_parts_nonnegative",
+          "sqltext": "((`number_of_parts_picked` is null) or (`number_of_parts_picked` >= 0))"
+        },
+        {
+          "name": "ck_eoats_row_version",
+          "sqltext": "(`row_version` > 0)"
+        }
+      ]
+    },
+    "fit_check_records": {
+      "columns": [
+        "id",
+        "machine_id",
+        "tool_id",
+        "eoat_id",
+        "overall_status_id",
+        "machine_tool_status_id",
+        "machine_eoat_status_id",
+        "tool_eoat_status_id",
+        "evaluation_engine_version",
+        "performed_at",
+        "performed_by_user_id",
+        "application_instance_id",
+        "request_id",
+        "result_summary",
+        "result_details_json",
+        "created_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "fit_check_records_ibfk_1",
+          "constrained_columns": [
+            "application_instance_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "application_instances",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_2",
+          "constrained_columns": [
+            "eoat_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoats",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_3",
+          "constrained_columns": [
+            "machine_eoat_status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_4",
+          "constrained_columns": [
+            "machine_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "machines",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_5",
+          "constrained_columns": [
+            "machine_tool_status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_6",
+          "constrained_columns": [
+            "overall_status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_7",
+          "constrained_columns": [
+            "performed_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_8",
+          "constrained_columns": [
+            "tool_eoat_status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "fit_check_records_ibfk_9",
+          "constrained_columns": [
+            "tool_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "tools",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "application_instance_id",
+          "column_names": [
+            "application_instance_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "eoat_id",
+          "column_names": [
+            "eoat_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_fit_checks_entities",
+          "column_names": [
+            "machine_id",
+            "tool_id",
+            "eoat_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_fit_checks_performed",
+          "column_names": [
+            "performed_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "machine_eoat_status_id",
+          "column_names": [
+            "machine_eoat_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "machine_tool_status_id",
+          "column_names": [
+            "machine_tool_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "overall_status_id",
+          "column_names": [
+            "overall_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "performed_by_user_id",
+          "column_names": [
+            "performed_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "tool_eoat_status_id",
+          "column_names": [
+            "tool_eoat_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "tool_id",
+          "column_names": [
+            "tool_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [],
+      "check_constraints": []
+    },
+    "history_event_types": {
+      "columns": [
+        "id",
+        "code",
+        "display_name",
+        "description",
+        "sort_order",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "code",
+          "column_names": [
+            "code"
+          ],
+          "duplicates_index": "code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "idempotency_records": {
+      "columns": [
+        "id",
+        "actor_user_id",
+        "operation",
+        "idempotency_key",
+        "request_hash",
+        "response_status",
+        "response_json",
+        "result_entity_type",
+        "result_entity_id",
+        "request_id",
+        "created_at",
+        "expires_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "idempotency_records_ibfk_1",
+          "constrained_columns": [
+            "actor_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_idempotency_expires",
+          "column_names": [
+            "expires_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_idempotency_actor_operation_key",
+          "column_names": [
+            "actor_user_id",
+            "operation",
+            "idempotency_key"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_idempotency_actor_operation_key",
+          "column_names": [
+            "actor_user_id",
+            "operation",
+            "idempotency_key"
+          ],
+          "duplicates_index": "uq_idempotency_actor_operation_key"
+        }
+      ],
+      "check_constraints": []
+    },
+    "import_batches": {
+      "columns": [
+        "id",
+        "batch_uuid",
+        "batch_name",
+        "source_type",
+        "source_file_name",
+        "source_file_checksum",
+        "started_at",
+        "completed_at",
+        "started_by_user_id",
+        "status",
+        "dry_run",
+        "records_discovered",
+        "records_imported",
+        "records_rejected",
+        "warnings_count",
+        "notes",
+        "created_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "batch_uuid",
+          "column_names": [
+            "batch_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "batch_uuid",
+          "column_names": [
+            "batch_uuid"
+          ],
+          "duplicates_index": "batch_uuid"
+        }
+      ],
+      "check_constraints": []
+    },
+    "import_issues": {
+      "columns": [
+        "id",
+        "import_batch_id",
+        "import_row_id",
+        "severity",
+        "issue_code",
+        "field_name",
+        "source_value",
+        "description",
+        "suggested_resolution",
+        "resolved_at",
+        "resolved_by_user_id",
+        "resolution_notes",
+        "created_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "import_issues_ibfk_1",
+          "constrained_columns": [
+            "import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        },
+        {
+          "name": "import_issues_ibfk_2",
+          "constrained_columns": [
+            "import_row_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_rows",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        },
+        {
+          "name": "import_issues_ibfk_3",
+          "constrained_columns": [
+            "resolved_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "import_row_id",
+          "column_names": [
+            "import_row_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_import_issues_batch_severity",
+          "column_names": [
+            "import_batch_id",
+            "severity"
+          ],
+          "unique": false
+        },
+        {
+          "name": "resolved_by_user_id",
+          "column_names": [
+            "resolved_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [],
+      "check_constraints": []
+    },
+    "import_rows": {
+      "columns": [
+        "id",
+        "import_batch_id",
+        "source_sheet",
+        "source_row_number",
+        "source_identifier",
+        "target_entity_type",
+        "target_entity_id",
+        "status",
+        "raw_values_json",
+        "normalized_values_json",
+        "error_summary",
+        "created_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "import_rows_ibfk_1",
+          "constrained_columns": [
+            "import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "ix_import_rows_target",
+          "column_names": [
+            "target_entity_type",
+            "target_entity_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_import_rows_source",
+          "column_names": [
+            "import_batch_id",
+            "source_sheet",
+            "source_row_number"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_import_rows_source",
+          "column_names": [
+            "import_batch_id",
+            "source_sheet",
+            "source_row_number"
+          ],
+          "duplicates_index": "uq_import_rows_source"
+        }
+      ],
+      "check_constraints": []
+    },
+    "machine_robot_assignments": {
+      "columns": [
+        "id",
+        "machine_id",
+        "robot_id",
+        "assigned_at",
+        "removed_at",
+        "assignment_reason",
+        "notes",
+        "created_at",
+        "created_by_user_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "machine_robot_assignments_ibfk_1",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "machine_robot_assignments_ibfk_2",
+          "constrained_columns": [
+            "machine_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "machines",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "machine_robot_assignments_ibfk_3",
+          "constrained_columns": [
+            "robot_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "robots",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_machine_robot_active",
+          "column_names": [
+            "machine_id",
+            "removed_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "robot_id",
+          "column_names": [
+            "robot_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [],
+      "check_constraints": [
+        {
+          "name": "ck_machine_robot_dates",
+          "sqltext": "((`removed_at` is null) or (`removed_at` >= `assigned_at`))"
+        }
+      ]
+    },
+    "machines": {
+      "columns": [
+        "id",
+        "plant_id",
+        "area_id",
+        "machine_number",
+        "machine_name",
+        "manufacturer",
+        "model",
+        "serial_number",
+        "machine_type",
+        "press_capacity_tons",
+        "controller_type",
+        "cleanroom_classification_id",
+        "status_id",
+        "installation_date",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "machines_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "machines_ibfk_2",
+          "constrained_columns": [
+            "area_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "areas",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "machines_ibfk_3",
+          "constrained_columns": [
+            "cleanroom_classification_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "cleanroom_classifications",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "machines_ibfk_4",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "machines_ibfk_5",
+          "constrained_columns": [
+            "plant_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "plants",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "machines_ibfk_6",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "machines_ibfk_7",
+          "constrained_columns": [
+            "status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "asset_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "machines_ibfk_8",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "cleanroom_classification_id",
+          "column_names": [
+            "cleanroom_classification_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_machines_area",
+          "column_names": [
+            "area_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_machines_number",
+          "column_names": [
+            "machine_number"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "status_id",
+          "column_names": [
+            "status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_machines_plant_number",
+          "column_names": [
+            "plant_id",
+            "machine_number"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_machines_plant_number",
+          "column_names": [
+            "plant_id",
+            "machine_number"
+          ],
+          "duplicates_index": "uq_machines_plant_number"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_machines_capacity_positive",
+          "sqltext": "((`press_capacity_tons` is null) or (`press_capacity_tons` > 0))"
+        }
+      ]
+    },
+    "maintenance_events": {
+      "columns": [
+        "id",
+        "event_uuid",
+        "eoat_id",
+        "machine_id",
+        "event_type",
+        "status",
+        "occurred_at",
+        "completed_at",
+        "downtime_minutes",
+        "summary",
+        "details_json",
+        "application_instance_id",
+        "created_at",
+        "updated_at",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "maintenance_events_ibfk_1",
+          "constrained_columns": [
+            "eoat_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "eoats",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "maintenance_events_ibfk_2",
+          "constrained_columns": [
+            "machine_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "machines",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "maintenance_events_ibfk_3",
+          "constrained_columns": [
+            "application_instance_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "application_instances",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "maintenance_events_ibfk_4",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "maintenance_events_ibfk_5",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "maintenance_events_ibfk_6",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "maintenance_events_ibfk_7",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "application_instance_id",
+          "column_names": [
+            "application_instance_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "event_uuid",
+          "column_names": [
+            "event_uuid"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "ix_maintenance_entity",
+          "column_names": [
+            "eoat_id",
+            "machine_id",
+            "occurred_at"
+          ],
+          "unique": false
+        },
+        {
+          "name": "machine_id",
+          "column_names": [
+            "machine_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "event_uuid",
+          "column_names": [
+            "event_uuid"
+          ],
+          "duplicates_index": "event_uuid"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_maintenance_downtime_nonnegative",
+          "sqltext": "((`downtime_minutes` is null) or (`downtime_minutes` >= 0))"
+        }
+      ]
+    },
+    "parts": {
+      "columns": [
+        "id",
+        "part_number",
+        "part_name",
+        "part_family",
+        "customer",
+        "material",
+        "resin_type",
+        "color",
+        "cleanroom_required",
+        "status_id",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "parts_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "parts_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "parts_ibfk_3",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "parts_ibfk_4",
+          "constrained_columns": [
+            "status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "asset_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "parts_ibfk_5",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_parts_family",
+          "column_names": [
+            "part_family"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_parts_name",
+          "column_names": [
+            "part_name"
+          ],
+          "unique": false
+        },
+        {
+          "name": "part_number",
+          "column_names": [
+            "part_number"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "status_id",
+          "column_names": [
+            "status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "part_number",
+          "column_names": [
+            "part_number"
+          ],
+          "duplicates_index": "part_number"
+        }
+      ],
+      "check_constraints": []
+    },
+    "photos": {
+      "columns": [
+        "id",
+        "document_id",
+        "photo_view_type",
+        "captured_at",
+        "captured_by_user_id",
+        "caption",
+        "is_profile_photo",
+        "sort_order",
+        "width_pixels",
+        "height_pixels",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "photos_ibfk_1",
+          "constrained_columns": [
+            "captured_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "photos_ibfk_2",
+          "constrained_columns": [
+            "document_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "documents",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "captured_by_user_id",
+          "column_names": [
+            "captured_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "document_id",
+          "column_names": [
+            "document_id"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "document_id",
+          "column_names": [
+            "document_id"
+          ],
+          "duplicates_index": "document_id"
+        }
+      ],
+      "check_constraints": []
+    },
+    "plants": {
+      "columns": [
+        "id",
+        "plant_code",
+        "plant_name",
+        "description",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "plants_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "plants_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "plants_ibfk_3",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "plants_ibfk_4",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "plant_code",
+          "column_names": [
+            "plant_code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "plant_code",
+          "column_names": [
+            "plant_code"
+          ],
+          "duplicates_index": "plant_code"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_plants_row_version",
+          "sqltext": "(`row_version` > 0)"
+        }
+      ]
+    },
+    "robots": {
+      "columns": [
+        "id",
+        "plant_id",
+        "area_id",
+        "robot_number",
+        "robot_name",
+        "manufacturer",
+        "model",
+        "controller_model",
+        "serial_number",
+        "payload_capacity_kg",
+        "reach_mm",
+        "mounting_type",
+        "communication_interface",
+        "status_id",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "robots_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "robots_ibfk_2",
+          "constrained_columns": [
+            "area_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "areas",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "robots_ibfk_3",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "robots_ibfk_4",
+          "constrained_columns": [
+            "plant_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "plants",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "robots_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "robots_ibfk_6",
+          "constrained_columns": [
+            "status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "asset_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "robots_ibfk_7",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "area_id",
+          "column_names": [
+            "area_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_robots_number",
+          "column_names": [
+            "robot_number"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "status_id",
+          "column_names": [
+            "status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_robots_plant_number",
+          "column_names": [
+            "plant_id",
+            "robot_number"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_robots_plant_number",
+          "column_names": [
+            "plant_id",
+            "robot_number"
+          ],
+          "duplicates_index": "uq_robots_plant_number"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_robots_payload_positive",
+          "sqltext": "((`payload_capacity_kg` is null) or (`payload_capacity_kg` > 0))"
+        },
+        {
+          "name": "ck_robots_reach_positive",
+          "sqltext": "((`reach_mm` is null) or (`reach_mm` > 0))"
+        }
+      ]
+    },
+    "roles": {
+      "columns": [
+        "id",
+        "role_code",
+        "role_name",
+        "description",
+        "is_active",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "role_code",
+          "column_names": [
+            "role_code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "role_code",
+          "column_names": [
+            "role_code"
+          ],
+          "duplicates_index": "role_code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "storage_locations": {
+      "columns": [
+        "id",
+        "plant_id",
+        "area_id",
+        "location_code",
+        "location_name",
+        "description",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "storage_locations_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "storage_locations_ibfk_2",
+          "constrained_columns": [
+            "area_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "areas",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "storage_locations_ibfk_3",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "storage_locations_ibfk_4",
+          "constrained_columns": [
+            "plant_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "plants",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "storage_locations_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "storage_locations_ibfk_6",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "area_id",
+          "column_names": [
+            "area_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_storage_locations_plant_code",
+          "column_names": [
+            "plant_id",
+            "location_code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_storage_locations_plant_code",
+          "column_names": [
+            "plant_id",
+            "location_code"
+          ],
+          "duplicates_index": "uq_storage_locations_plant_code"
+        }
+      ],
+      "check_constraints": []
+    },
+    "system_metadata": {
+      "columns": [
+        "id",
+        "metadata_key",
+        "metadata_value",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "name": "metadata_key",
+          "column_names": [
+            "metadata_key"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "metadata_key",
+          "column_names": [
+            "metadata_key"
+          ],
+          "duplicates_index": "metadata_key"
+        }
+      ],
+      "check_constraints": []
+    },
+    "system_settings": {
+      "columns": [
+        "id",
+        "setting_key",
+        "setting_value_json",
+        "value_type",
+        "description",
+        "is_sensitive",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "system_settings_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "system_settings_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "system_settings_ibfk_3",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "system_settings_ibfk_4",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "setting_key",
+          "column_names": [
+            "setting_key"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "setting_key",
+          "column_names": [
+            "setting_key"
+          ],
+          "duplicates_index": "setting_key"
+        }
+      ],
+      "check_constraints": []
+    },
+    "tags": {
+      "columns": [
+        "id",
+        "tag_code",
+        "display_name",
+        "description",
+        "color_key",
+        "is_default",
+        "source_record_identifier",
+        "created_at",
+        "updated_at",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "tags_ibfk_1",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tags_ibfk_2",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tags_ibfk_3",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tags_ibfk_4",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_tags_display_name",
+          "column_names": [
+            "display_name"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "tag_code",
+          "column_names": [
+            "tag_code"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "source_record_identifier",
+          "column_names": [
+            "source_record_identifier"
+          ],
+          "duplicates_index": "source_record_identifier"
+        },
+        {
+          "name": "tag_code",
+          "column_names": [
+            "tag_code"
+          ],
+          "duplicates_index": "tag_code"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_tags_row_version",
+          "sqltext": "(`row_version` > 0)"
+        }
+      ]
+    },
+    "tool_machine_compatibility": {
+      "columns": [
+        "id",
+        "tool_id",
+        "machine_id",
+        "tonnage_compatible",
+        "physical_size_compatible",
+        "utilities_compatible",
+        "process_compatible",
+        "compatibility_status_id",
+        "verified_at",
+        "verified_by_user_id",
+        "verification_source_id",
+        "effective_from",
+        "effective_to",
+        "reason",
+        "conditions",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "tool_machine_compatibility_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_2",
+          "constrained_columns": [
+            "compatibility_status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_3",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_4",
+          "constrained_columns": [
+            "machine_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "machines",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_5",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_6",
+          "constrained_columns": [
+            "tool_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "tools",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_7",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_8",
+          "constrained_columns": [
+            "verification_source_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "compatibility_sources",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tool_machine_compatibility_ibfk_9",
+          "constrained_columns": [
+            "verified_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "compatibility_status_id",
+          "column_names": [
+            "compatibility_status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_tool_machine_lookup",
+          "column_names": [
+            "tool_id",
+            "machine_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "machine_id",
+          "column_names": [
+            "machine_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_tool_machine_compatibility_effective",
+          "column_names": [
+            "tool_id",
+            "machine_id",
+            "effective_from"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "verification_source_id",
+          "column_names": [
+            "verification_source_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "verified_by_user_id",
+          "column_names": [
+            "verified_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_tool_machine_compatibility_effective",
+          "column_names": [
+            "tool_id",
+            "machine_id",
+            "effective_from"
+          ],
+          "duplicates_index": "uq_tool_machine_compatibility_effective"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_tool_machine_compatibility_dates",
+          "sqltext": "((`effective_to` is null) or (`effective_to` >= `effective_from`))"
+        }
+      ]
+    },
+    "tool_parts": {
+      "columns": [
+        "id",
+        "tool_id",
+        "part_id",
+        "is_primary_part",
+        "effective_from",
+        "effective_to",
+        "notes",
+        "created_at",
+        "created_by_user_id"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "tool_parts_ibfk_1",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tool_parts_ibfk_2",
+          "constrained_columns": [
+            "part_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "parts",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "tool_parts_ibfk_3",
+          "constrained_columns": [
+            "tool_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "tools",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "part_id",
+          "column_names": [
+            "part_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_tool_parts_effective",
+          "column_names": [
+            "tool_id",
+            "part_id",
+            "effective_from"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_tool_parts_effective",
+          "column_names": [
+            "tool_id",
+            "part_id",
+            "effective_from"
+          ],
+          "duplicates_index": "uq_tool_parts_effective"
+        }
+      ],
+      "check_constraints": [
+        {
+          "name": "ck_tool_parts_dates",
+          "sqltext": "((`effective_to` is null) or (`effective_to` >= `effective_from`))"
+        }
+      ]
+    },
+    "tools": {
+      "columns": [
+        "id",
+        "business_identifier",
+        "tool_number",
+        "mold_number",
+        "display_name",
+        "description",
+        "cavity_count",
+        "tool_type",
+        "customer",
+        "program_name",
+        "status_id",
+        "notes",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "tools_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tools_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tools_ibfk_3",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tools_ibfk_4",
+          "constrained_columns": [
+            "status_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "asset_statuses",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "tools_ibfk_5",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "business_identifier",
+          "column_names": [
+            "business_identifier"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_tools_mold_number",
+          "column_names": [
+            "mold_number"
+          ],
+          "unique": false
+        },
+        {
+          "name": "ix_tools_tool_number",
+          "column_names": [
+            "tool_number"
+          ],
+          "unique": false
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "status_id",
+          "column_names": [
+            "status_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "business_identifier",
+          "column_names": [
+            "business_identifier"
+          ],
+          "duplicates_index": "business_identifier"
+        }
+      ],
+      "check_constraints": []
+    },
+    "user_roles": {
+      "columns": [
+        "id",
+        "user_id",
+        "role_id",
+        "assigned_at",
+        "assigned_by_user_id",
+        "removed_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "user_roles_ibfk_1",
+          "constrained_columns": [
+            "assigned_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "user_roles_ibfk_2",
+          "constrained_columns": [
+            "role_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "roles",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "RESTRICT"
+          }
+        },
+        {
+          "name": "user_roles_ibfk_3",
+          "constrained_columns": [
+            "user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "CASCADE"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "assigned_by_user_id",
+          "column_names": [
+            "assigned_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "role_id",
+          "column_names": [
+            "role_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "uq_user_roles_assignment",
+          "column_names": [
+            "user_id",
+            "role_id",
+            "assigned_at"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "uq_user_roles_assignment",
+          "column_names": [
+            "user_id",
+            "role_id",
+            "assigned_at"
+          ],
+          "duplicates_index": "uq_user_roles_assignment"
+        }
+      ],
+      "check_constraints": []
+    },
+    "users": {
+      "columns": [
+        "id",
+        "external_identity",
+        "username",
+        "display_name",
+        "email",
+        "authentication_provider",
+        "last_login_at",
+        "created_by_user_id",
+        "updated_by_user_id",
+        "row_version",
+        "is_active",
+        "archived_at",
+        "archived_by_user_id",
+        "source_system",
+        "source_import_batch_id",
+        "created_at",
+        "updated_at"
+      ],
+      "primary_key": {
+        "constrained_columns": [
+          "id"
+        ],
+        "name": null
+      },
+      "foreign_keys": [
+        {
+          "name": "users_ibfk_1",
+          "constrained_columns": [
+            "archived_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "users_ibfk_2",
+          "constrained_columns": [
+            "created_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "users_ibfk_3",
+          "constrained_columns": [
+            "source_import_batch_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "import_batches",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        },
+        {
+          "name": "users_ibfk_4",
+          "constrained_columns": [
+            "updated_by_user_id"
+          ],
+          "referred_schema": null,
+          "referred_table": "users",
+          "referred_columns": [
+            "id"
+          ],
+          "options": {
+            "ondelete": "SET NULL"
+          }
+        }
+      ],
+      "indexes": [
+        {
+          "name": "archived_by_user_id",
+          "column_names": [
+            "archived_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "created_by_user_id",
+          "column_names": [
+            "created_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "external_identity",
+          "column_names": [
+            "external_identity"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        },
+        {
+          "name": "source_import_batch_id",
+          "column_names": [
+            "source_import_batch_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "updated_by_user_id",
+          "column_names": [
+            "updated_by_user_id"
+          ],
+          "unique": false
+        },
+        {
+          "name": "username",
+          "column_names": [
+            "username"
+          ],
+          "unique": true,
+          "type": "UNIQUE"
+        }
+      ],
+      "unique_constraints": [
+        {
+          "name": "external_identity",
+          "column_names": [
+            "external_identity"
+          ],
+          "duplicates_index": "external_identity"
+        },
+        {
+          "name": "username",
+          "column_names": [
+            "username"
+          ],
+          "duplicates_index": "username"
+        }
+      ],
+      "check_constraints": []
+    }
+  }
+}

@@ -1,0 +1,416 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-07-14T12:33:45.597737+00:00",
+  "duration_seconds": 25.453,
+  "api": "http://127.0.0.1:8766",
+  "release": {
+    "api_version": "1.2.0",
+    "schema_revision": "20260714_0003",
+    "client": "rehearsal-rc1"
+  },
+  "identifiers": {
+    "eoat": "UAT-EOAT-123318",
+    "machine": "UAT-M-123318",
+    "tool": "UAT-T-123318"
+  },
+  "cases": {
+    "health_and_version": {
+      "status": "PASS",
+      "evidence": {
+        "api_reachable": true,
+        "database_reachable": true,
+        "current_schema_revision": "20260714_0003",
+        "expected_schema_revision": "20260714_0003",
+        "compatible": true,
+        "environment": "staging_local",
+        "writes_enabled": true,
+        "api_version": "1.2.0",
+        "server_timestamp": "2026-07-14T12:33:20.307731Z"
+      }
+    },
+    "home_summary": {
+      "status": "PASS",
+      "evidence": {
+        "keys": [
+          "backend",
+          "eoats",
+          "machines",
+          "tools",
+          "unresolved_migration_issues"
+        ]
+      }
+    },
+    "browse_and_search": {
+      "status": "PASS",
+      "evidence": {
+        "eoats": 50,
+        "machines": 50,
+        "tools": 50,
+        "search": 50
+      }
+    },
+    "authorization": {
+      "status": "PASS",
+      "evidence": "viewer write rejected with 403"
+    },
+    "assets_compatibility_movement": {
+      "status": "PASS",
+      "evidence": {
+        "eoat": 58,
+        "machine": 57,
+        "tool": 66,
+        "relationship": 88,
+        "movement": {
+          "id": 1,
+          "eoat_id": 58,
+          "machine_id": 57,
+          "tool_id": null,
+          "robot_id": null,
+          "installed_at": "2026-07-14T12:33:21.632039+00:00",
+          "installed_by_user_id": 3,
+          "removed_at": null,
+          "removed_by_user_id": null,
+          "installation_reason": "UAT movement",
+          "removal_reason": null,
+          "installation_notes": null,
+          "removal_notes": null,
+          "application_instance_id": null,
+          "source": "eoat_api",
+          "row_version": 1,
+          "source_import_batch_id": null,
+          "created_at": "2026-07-14T12:33:22",
+          "updated_at": "2026-07-14T12:33:22"
+        }
+      }
+    },
+    "audit_and_maintenance": {
+      "status": "PASS",
+      "evidence": {
+        "audit_id": 103,
+        "maintenance_id": 1
+      }
+    },
+    "documents_and_profile_photo": {
+      "status": "PASS",
+      "evidence": {
+        "document_id": 159,
+        "photo_id": 159,
+        "profile_selected": true
+      }
+    },
+    "tags_and_annotations": {
+      "status": "PASS",
+      "evidence": {
+        "target_id": 53,
+        "tag_id": 16,
+        "annotation_id": 12
+      }
+    },
+    "multi_client_concurrency": {
+      "status": "PASS",
+      "evidence": "independent client B received 409 and did not overwrite client A"
+    },
+    "cache_and_api_outage": {
+      "status": "PASS",
+      "evidence": {
+        "clients": [
+          {
+            "client": "a",
+            "path": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\caches\\uat-client-a.db",
+            "counts": {
+              "documents": 160,
+              "eoats": 58,
+              "machines": 57,
+              "photos": 159,
+              "tools": 66
+            },
+            "metadata": {
+              "cache_schema_version": "2",
+              "api_version": "1.1.0",
+              "server_schema_revision": "20260714_0003",
+              "last_successful_sync_at": "2026-07-14T12:33:24.530130+00:00",
+              "last_full_refresh_at": "2026-07-14T12:33:24.530130+00:00",
+              "last_change_cursor": "20",
+              "server_revision": "mysql-cutover-rehearsal-rc1",
+              "cache_created_at": "2026-07-14T12:33:24.503303+00:00"
+            }
+          },
+          {
+            "client": "b",
+            "path": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\caches\\uat-client-b.db",
+            "counts": {
+              "documents": 160,
+              "eoats": 58,
+              "machines": 57,
+              "photos": 159,
+              "tools": 66
+            },
+            "metadata": {
+              "cache_schema_version": "2",
+              "api_version": "1.1.0",
+              "server_schema_revision": "20260714_0003",
+              "last_successful_sync_at": "2026-07-14T12:33:25.320114+00:00",
+              "last_full_refresh_at": "2026-07-14T12:33:25.320114+00:00",
+              "last_change_cursor": "20",
+              "server_revision": "mysql-cutover-rehearsal-rc1",
+              "cache_created_at": "2026-07-14T12:33:25.291850+00:00"
+            }
+          },
+          {
+            "client": "c",
+            "path": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\caches\\uat-client-c.db",
+            "counts": {
+              "documents": 160,
+              "eoats": 58,
+              "machines": 57,
+              "photos": 159,
+              "tools": 66
+            },
+            "metadata": {
+              "cache_schema_version": "2",
+              "api_version": "1.1.0",
+              "server_schema_revision": "20260714_0003",
+              "last_successful_sync_at": "2026-07-14T12:33:26.142704+00:00",
+              "last_full_refresh_at": "2026-07-14T12:33:26.142704+00:00",
+              "last_change_cursor": "20",
+              "server_revision": "mysql-cutover-rehearsal-rc1",
+              "cache_created_at": "2026-07-14T12:33:26.114583+00:00"
+            }
+          }
+        ],
+        "cached_record_available_with_api_unreachable": true
+      }
+    },
+    "performance": {
+      "status": "PASS",
+      "evidence": {
+        "health": {
+          "samples": 12,
+          "median_ms": 348.928,
+          "p95_ms": 376.822,
+          "max_ms": 396.331
+        },
+        "home": {
+          "samples": 12,
+          "median_ms": 339.724,
+          "p95_ms": 354.481,
+          "max_ms": 375.255
+        },
+        "search": {
+          "samples": 12,
+          "median_ms": 372.613,
+          "p95_ms": 395.724,
+          "max_ms": 403.173
+        },
+        "eoat_list": {
+          "samples": 12,
+          "median_ms": 364.196,
+          "p95_ms": 387.835,
+          "max_ms": 405.365
+        }
+      }
+    },
+    "legacy_sources_unchanged": {
+      "status": "PASS",
+      "evidence": [
+        {
+          "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\EOAT_Audit_Database\\EOAT_Master_Tracker.xlsx",
+          "expected": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac",
+          "actual": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac"
+        },
+        {
+          "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\EOAT_Audit_Database\\Robot_Info.xlsx",
+          "expected": "d72d64f79741d8436f0ebfcf17905b9bda315ef0f9f96ef9a99526433e9e3146",
+          "actual": "d72d64f79741d8436f0ebfcf17905b9bda315ef0f9f96ef9a99526433e9e3146"
+        },
+        {
+          "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\project_data\\annotations.sqlite",
+          "expected": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db",
+          "actual": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db"
+        }
+      ]
+    }
+  },
+  "http_requests": [
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "status": 200,
+      "elapsed_ms": 169.029
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/home-summary",
+      "status": 200,
+      "elapsed_ms": 119.149
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/eoats",
+      "status": 200,
+      "elapsed_ms": 96.461
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/machines",
+      "status": 200,
+      "elapsed_ms": 99.527
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tools",
+      "status": 200,
+      "elapsed_ms": 80.381
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search?q=EOAT",
+      "status": 200,
+      "elapsed_ms": 123.615
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/eoats",
+      "status": 200,
+      "elapsed_ms": 103.794
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/machines",
+      "status": 200,
+      "elapsed_ms": 103.388
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tools",
+      "status": 200,
+      "elapsed_ms": 107.72
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/compatibility/eoat-machine",
+      "status": 200,
+      "elapsed_ms": 224.783
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/eoats/UAT-EOAT-123318",
+      "status": 200,
+      "elapsed_ms": 101.818
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/documents",
+      "status": 200,
+      "elapsed_ms": 142.633
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/photos",
+      "status": 200,
+      "elapsed_ms": 125.449
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/photos/159/set-profile",
+      "status": 200,
+      "elapsed_ms": 103.032
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tags",
+      "status": 200,
+      "elapsed_ms": 84.094
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/eoats/UAT-EOAT-123318",
+      "status": 200,
+      "elapsed_ms": 95.567
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/sync/changes?after_cursor=0",
+      "status": 200,
+      "elapsed_ms": 84.238
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/eoats/UAT-EOAT-123318/move-to-machine",
+      "status": 200,
+      "elapsed_ms": 113.809
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/eoats/UAT-EOAT-123318/mark-location-unknown",
+      "status": 200,
+      "elapsed_ms": 82.439
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/audits",
+      "status": 200,
+      "elapsed_ms": 105.001
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/audits/103/complete",
+      "status": 200,
+      "elapsed_ms": 91.59
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/maintenance-events",
+      "status": 200,
+      "elapsed_ms": 79.662
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/maintenance-events/1/complete",
+      "status": 200,
+      "elapsed_ms": 103.675
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/annotation-targets",
+      "status": 200,
+      "elapsed_ms": 81.318
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities/annotation_target/uat_target_123318/tags/16",
+      "status": 200,
+      "elapsed_ms": 86.238
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/entities/annotation_target/uat_target_123318/annotations",
+      "status": 200,
+      "elapsed_ms": 90.218
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/eoats",
+      "status": 403,
+      "elapsed_ms": 163.303
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/eoats/UAT-EOAT-123318",
+      "status": 200,
+      "elapsed_ms": 84.167
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/eoats/UAT-EOAT-123318",
+      "status": 409,
+      "elapsed_ms": 90.629
+    }
+  ],
+  "failed_cases": [],
+  "post_cutover_export": {
+    "json": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\reports\\cutover_rehearsal\\post_cutover_change_export.json",
+    "csv": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\reports\\cutover_rehearsal\\post_cutover_change_export.csv",
+    "records": 20
+  }
+}

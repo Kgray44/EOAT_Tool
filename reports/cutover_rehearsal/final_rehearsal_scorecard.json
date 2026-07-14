@@ -1,0 +1,29 @@
+{
+  "status": "PASS_WITH_ACCEPTED_RISK",
+  "generated_at": "2026-07-14T13:08:17.850756+00:00",
+  "local_rehearsal_decision": "PASS_WITH_ACCEPTED_RISK",
+  "production_deployment_decision": "NO_GO_NOT_AUTHORIZED",
+  "gates": {
+    "source_checkpoint": "PASS",
+    "frozen_snapshot": "PASS",
+    "clean_staging_database": "PASS",
+    "issue_classification": "PASS",
+    "final_import": "PASS",
+    "annotation_import": "PASS",
+    "parity": "PASS_WITH_DOCUMENTED_SOURCE_AMBIGUITIES",
+    "backup_restore": "PASS",
+    "mysql_tests": "PASS",
+    "automated_uat": "PASS",
+    "outage_recovery": "PASS",
+    "package_install_reinstall": "PASS",
+    "post_write_rollback": "PASS_WITH_ACCEPTED_RISK",
+    "production_identity_security_approval": "NOT_EXECUTED",
+    "human_business_uat_signoff": "NOT_EXECUTED",
+    "production_deployment": "NOT_PERFORMED"
+  },
+  "accepted_local_risks": [
+    "Four exported installation/maintenance change-feed records require manual legacy reconciliation on rollback.",
+    "One source EOAT has conflicting cleanroom values and remains explicitly unknown.",
+    "Production authentication/security approval and human business sign-off are outside this local rehearsal."
+  ]
+}

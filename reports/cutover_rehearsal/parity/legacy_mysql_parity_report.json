@@ -1,0 +1,87 @@
+{
+  "source_workbook": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\01_EOAT_Audit\\EOAT_Audit_Database\\EOAT_Master_Tracker.xlsx",
+  "source_checksum": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac",
+  "expected": {
+    "eoats": 57,
+    "machines": 56,
+    "tools": 65,
+    "eoat_machine_compatibility": 87,
+    "eoat_tool_compatibility": 65,
+    "tool_machine_compatibility": 88,
+    "audits": 102,
+    "valid_photo_rows": 158
+  },
+  "actual": {
+    "eoats": 57,
+    "machines": 56,
+    "tools": 65,
+    "eoat_machine_compatibility": 87,
+    "eoat_tool_compatibility": 65,
+    "tool_machine_compatibility": 88,
+    "audits": 102,
+    "documents": 158,
+    "photos": 158,
+    "parts": 0,
+    "installations": 0
+  },
+  "duplicate_identifiers": {
+    "eoats": 0,
+    "tools": 0,
+    "audits": 0
+  },
+  "sqlite_legacy_counts": {
+    "schema_migrations": 2,
+    "notes": 11,
+    "tags": 15,
+    "annotation_targets": 52,
+    "tag_assignments": 45,
+    "note_targets": 2,
+    "note_tags": 0,
+    "attachments": 0,
+    "annotation_suggestion_ignores": 0,
+    "open_item_states": 0
+  },
+  "differences": [
+    {
+      "classification": "SOURCE_CONFLICT",
+      "entity_type": "EOAT",
+      "identifier": "CL-EOAT-0052",
+      "field": "Cleanroom/Non-Cleanroom",
+      "legacy_value": [
+        "Cleanroom",
+        "Unknown / Not Checked"
+      ],
+      "mysql_value": null,
+      "explanation": "Conflicting source values are retained; normalized value must remain unknown unless explicitly resolved."
+    },
+    {
+      "classification": "EXPECTED_DEFERRED_AMBIGUITY",
+      "entity_type": "SQLiteAnnotations",
+      "identifier": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\project_data\\annotations.sqlite",
+      "field": "permanent_annotation_records",
+      "legacy_value": {
+        "schema_migrations": 2,
+        "notes": 11,
+        "tags": 15,
+        "annotation_targets": 52,
+        "tag_assignments": 45,
+        "note_targets": 2,
+        "note_tags": 0,
+        "attachments": 0,
+        "annotation_suggestion_ignores": 0,
+        "open_item_states": 0
+      },
+      "mysql_value": null,
+      "explanation": "Permanent legacy annotations remain in the legacy SQLite authority during this read-only phase."
+    }
+  ],
+  "classification_counts": {
+    "EXPECTED_NORMALIZATION": 0,
+    "EXPECTED_DEFERRED_AMBIGUITY": 1,
+    "MISSING_FROM_MYSQL": 0,
+    "UNEXPECTED_EXTRA_IN_MYSQL": 0,
+    "VALUE_MISMATCH": 0,
+    "RELATIONSHIP_MISMATCH": 0,
+    "SOURCE_CONFLICT": 1
+  }
+}

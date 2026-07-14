@@ -1,0 +1,32 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-07-14T13:08:34.083504+00:00",
+  "database": "eoat_atlas_staging_local",
+  "schema_revision": "20260714_0003",
+  "foreign_keys": 180,
+  "index_columns": 343,
+  "counts": {
+    "plants": 1,
+    "areas": 2,
+    "eoats": 57,
+    "machines": 56,
+    "tools": 65,
+    "robots": 0,
+    "eoat_machine_compatibility": 87,
+    "eoat_tool_compatibility": 65,
+    "tool_machine_compatibility": 88,
+    "audit_records": 102,
+    "documents": 158,
+    "photos": 158,
+    "tags": 15,
+    "annotation_targets": 52,
+    "entity_tags": 45,
+    "annotations": 11,
+    "annotation_target_links": 2,
+    "import_batches": 2,
+    "import_rows": 261,
+    "import_issues": 202,
+    "change_audit_log": 0,
+    "change_feed": 0
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "cutover_uuid": "4f26cee2-7849-48ba-b437-f8a2a5bb485e",
+  "database_id": 1,
+  "session_status": "COMPLETED",
+  "start_change_feed_cursor": 0,
+  "generated_at": "2026-07-14T12:58:47.632166+00:00"
+}

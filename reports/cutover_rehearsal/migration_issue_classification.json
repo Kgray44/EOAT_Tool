@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-07-14T12:26:22.090219+00:00",
+  "source_report": "reports\\mysql_import\\development_import_report.json",
+  "issues": 202,
+  "by_code": {
+    "MISSING_TOOL": 1,
+    "AMBIGUOUS_MACHINE_VALUE": 1,
+    "MISSING_MACHINE": 12,
+    "CONFLICTING_EOAT_ATTRIBUTE": 2,
+    "CONFLICTING_CURRENT_ASSIGNMENT": 4,
+    "POSSIBLE_PART_NOT_CONFIRMED": 67,
+    "INSTALLATION_DATE_UNKNOWN": 57,
+    "CURRENT_LOCATION_UNKNOWN": 57,
+    "PLACEHOLDER_PHOTO_ROW": 1
+  },
+  "by_disposition": {
+    "DISPLAY_AS_UNKNOWN": 134,
+    "SAFE_TO_DEFER": 67,
+    "NOT_APPLICABLE": 1
+  },
+  "blockers": 0,
+  "csv": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\reports\\cutover_rehearsal\\migration_issue_classification.csv"
+}

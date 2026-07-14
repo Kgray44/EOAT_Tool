@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-07-14T13:08:17.850756+00:00",
+  "branch": "codex/mysql-cutover-rehearsal",
+  "checkpoint_commit": "20820226993f816e3b28d5e7ae3865adfc5ab9fc",
+  "checkpoint_subject": "Checkpoint EOAT Atlas MySQL cutover rehearsal candidate",
+  "phase_8_9_changes_are_after_checkpoint": true
+}

@@ -1,6 +1,6 @@
 # EOAT Atlas MySQL Schema Reference
 
-Alembic authority: revision `20260713_0002` (`write_architecture_support`) over `20260713_0001`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. There are 47 application tables plus `alembic_version`, 175 foreign keys, 239 indexes, 48 unique constraints, and 19 check constraints.
+Alembic authority: revision `20260714_0003` (`cutover_session_traceability`) over `20260713_0002`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. There are 48 application tables plus `alembic_version`. The cutover session table provides a durable source-checksum, release-version, authority-window, and rollback audit anchor.
 
 ## Implemented tables
 

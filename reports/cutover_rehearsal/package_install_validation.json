@@ -1,0 +1,3226 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-07-14T12:56:43.510400+00:00",
+  "candidate": "eoat-atlas-rehearsal-rc1",
+  "candidate_directory": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\installer\\eoat-atlas-rehearsal-rc1",
+  "zip": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\installer\\eoat-atlas-rehearsal-rc1.zip",
+  "zip_sha256": "0e6582a870a9b666aa7f66ef899b16309c7952fd0b31115550298ade2646b180",
+  "installed_directory": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\installed-client",
+  "artifact_files": 636,
+  "client_exe_sha256": "39aa472d20c9d89b8159bd709a775be5d8017cdf079b15cdd4a60a7828919e06",
+  "launcher_exe_sha256": "b50adb77e69b1ccc10f6004f79a6d28297684a1a3e0552db6bca70962425f0ed",
+  "clean_install": {
+    "launcher_check": {
+      "exit_code": 0,
+      "seconds": 0.894,
+      "stdout_tail": "EOAT Atlas Launcher check complete: EOAT Atlas is ready to launch.\n",
+      "stderr_tail": ""
+    },
+    "client_smoke": {
+      "exit_code": 0,
+      "seconds": 6.098,
+      "stdout_tail": "",
+      "stderr_tail": ""
+    }
+  },
+  "uninstall": {
+    "status": "PASS"
+  },
+  "reinstall": {
+    "launcher_check": {
+      "exit_code": 0,
+      "seconds": 0.905,
+      "stdout_tail": "EOAT Atlas Launcher check complete: EOAT Atlas is ready to launch.\n",
+      "stderr_tail": ""
+    },
+    "client_smoke": {
+      "exit_code": 0,
+      "seconds": 12.77,
+      "stdout_tail": "",
+      "stderr_tail": ""
+    }
+  },
+  "installed_candidate_retained": true,
+  "manifest": [
+    {
+      "path": "Install-Staging.ps1",
+      "bytes": 368,
+      "sha256": "f9441c12d53175d99e7aa7676c17e42d4039fa80d4f043274a1da251e89007d1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\81d243bd2c585b0f4821__mypyc.cp314-win_amd64.pyd",
+      "bytes": 216576,
+      "sha256": "ab64835b63093c31975df2692756c8008e7ec190e4aa86f15a713bcc62e1d432"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_asyncio.pyd",
+      "bytes": 78048,
+      "sha256": "cc27a21453b309197030b5fa8051a8a9c89aec79f9b81ee4ea2a2551ac0f912f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_bz2.pyd",
+      "bytes": 88288,
+      "sha256": "ef5277eb670219274e7d1e92190ddf7f4bb94d4922ca1c1a12efadfd2c4c66f6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_ctypes.pyd",
+      "bytes": 142560,
+      "sha256": "fd4847b99cd504a66bdc4739f15181b562774e6736bb88775880b073276dede1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_decimal.pyd",
+      "bytes": 290016,
+      "sha256": "1ee2247153ec6c6e5b3b49402f294b2b7325385ad489a5522e6fa9b406575e8b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_elementtree.pyd",
+      "bytes": 138464,
+      "sha256": "1f8259cc74aed52e4cd2de6cb1b54bec8b1725a84760c1c5b30ded49f652824a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_hashlib.pyd",
+      "bytes": 69344,
+      "sha256": "9bc6ffcd2ab4ac87c4035f18b432e888d0d4a36795c97bf3f28ddf32cc34e40f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_lzma.pyd",
+      "bytes": 160992,
+      "sha256": "39e5bc3624a26c9f6ad2e2df412543b0bd697a1d75338b44fe99763358d6d8cb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_multiprocessing.pyd",
+      "bytes": 38624,
+      "sha256": "a8c15ee29f60536e00fd7c26c0315e062c4f018e2e46e7f6eb65c1fed0d886a4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_overlapped.pyd",
+      "bytes": 58080,
+      "sha256": "0e8b684fdcc8c6de88bd4b92b6ed44a6fd917949c98b0691285e0cf6c760dc36"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_pillow_heif.cp314-win_amd64.pyd",
+      "bytes": 50688,
+      "sha256": "9713f4041819d9629ccc9de11aa5e0e66a545a18a74197568be24653ec2f80ed"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_queue.pyd",
+      "bytes": 36576,
+      "sha256": "acf60e246f6a83a914fb6c411f04bd3eb8bba83070612ca44af99d74f06c5524"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_socket.pyd",
+      "bytes": 87776,
+      "sha256": "65caaa6f35c329d901ba3f3d9f7fc4d7443dcde89907dccbd6748786cc517476"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_sqlite3.pyd",
+      "bytes": 132320,
+      "sha256": "e33fd2ccfd0bd878d50f5c093a56e324ad146e03ebd47e4dc81d6c833badedbe"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_ssl.pyd",
+      "bytes": 184544,
+      "sha256": "12e31f50739e33b115c7e10febf1ccedeb5d9353cd539c608cc5dd164bee17a7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_uuid.pyd",
+      "bytes": 28384,
+      "sha256": "635d6c46bbf6b86dd30a802bd1c6e214dabccb44d1452c52f0b557ae5bcc6f68"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_wmi.pyd",
+      "bytes": 40160,
+      "sha256": "6fb2c6316628664319b2abcf961f0cbbac809966a65b653c86e7864ad8701496"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\_zstd.pyd",
+      "bytes": 503520,
+      "sha256": "54e6acfbc1cb27c9afea0e133cadac68b89869ff1a14eb0c678d40eb9c655347"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-console-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "0d77162accacf1656cbcea1aaaba809aa8a3eb490365af8f030f65e36a447ab7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-datetime-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "bc1d97722466d54adbe260a8683bb6e470ebdeaf5d5b03b3d6ab28e3dd2e5ea4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-debug-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "cc64f2bf1868cfcf320d28f0c20bc6f4a7a566845eeca3f7e85f844d40443215"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-errorhandling-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "0efea53ac5bddd17b95161723153ec0a55bda75f47cb29838b24c84372e4cfa2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-file-l1-1-0.dll",
+      "bytes": 15472,
+      "sha256": "b5cd4466bdd87a276f075e8553849d690964ace892d0e89bced8d96d141f9549"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-file-l1-2-0.dll",
+      "bytes": 11888,
+      "sha256": "ddb48c574ee1c4e605c9517791e3754029b67c6dfe07a9ca352968c62c0919fb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-file-l2-1-0.dll",
+      "bytes": 11888,
+      "sha256": "91249d81fb7e89f6356fd27d3ebdba70e8bce1291e70a20d94f87d2a95103b0b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-handle-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "26f41eb724ef94ffe9f36460e1c8a89b2e6d68cb9d4341b1a17b86982d02fb10"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-heap-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "d6ea536f409cdcdf0433ec9edd998abe41269259fdafabe9407331903f583699"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-interlocked-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "e89f510db0797c6f3c2abfa9c649e5f6a6ddbc687bf8bb3262a4c277d2610179"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-libraryloader-l1-1-0.dll",
+      "bytes": 12912,
+      "sha256": "80b1accc4f44ee575c8521579233f25600c24ba9175dc5e6aa13a1ae2d878a94"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-localization-l1-2-0.dll",
+      "bytes": 14448,
+      "sha256": "13c1c272d2065b9cd6604ca401494d3b9805fcc90cd98638a6b2859278f5a90b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-memory-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "27cb31d615a1c9e9ae9ca577ef703ef8d52a639fb18d579be9f4fcdf6dae4976"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-namedpipe-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "00f794e6d9f29f8b4eb16e674869353b5033db095a4398a8c81ea82b1939218b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-processenvironment-l1-1-0.dll",
+      "bytes": 12912,
+      "sha256": "66a639a4d7621ab6312693230b5feb13306f4c1fa3662117385f894f1fdcfb72"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-processthreads-l1-1-0.dll",
+      "bytes": 13936,
+      "sha256": "b3fbba288fe3cf61042ec7a009b4a92d19bc2178ee0fa5161aa87a56c5a994fb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-processthreads-l1-1-1.dll",
+      "bytes": 12400,
+      "sha256": "d5a1c63bc40f71f21a9cbd2b3b5a132a5ca1492d506521d2213e02d005a3d25d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-profile-l1-1-0.dll",
+      "bytes": 11376,
+      "sha256": "52befbbf05b9900a3be9f87896551e361f26c90f2cd52ba3c2dc4612e906dd45"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-rtlsupport-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "50266c0af5b25b01c5e7631ba71be3f7192f3117897c3b3b2106619837cb1f51"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-string-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "447be1aa6c31c5340081bcb12df47b54af60cc90786941abfa0b1ed3e96b00e1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-synch-l1-1-0.dll",
+      "bytes": 13936,
+      "sha256": "725baa7259ae31c95f4cd18424fe424da32c1d4394dc177c4160417310da2b21"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-synch-l1-2-0.dll",
+      "bytes": 12400,
+      "sha256": "ee62b87dd9b38503b0df4a6a42574514d5eca00e4ed81dc058f5942bfb5f75de"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-sysinfo-l1-1-0.dll",
+      "bytes": 12912,
+      "sha256": "6847f57a5fc3ce435a41c1264417473c9b0adfc15429c13fa0e86544a6dfd4e6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-timezone-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "318bca5f658d96f23e045d7e482822da5e887e83ca163b1f04e46d5addc79acd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-core-util-l1-1-0.dll",
+      "bytes": 11888,
+      "sha256": "d965775262619187e3c2c9fa849c4e2677af582bf43870f9f96d4e0fbe582a81"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-conio-l1-1-0.dll",
+      "bytes": 12912,
+      "sha256": "34062220337a17d798efb329af1bf90984c663d34b582add55ffd1fe0f0dcb34"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-convert-l1-1-0.dll",
+      "bytes": 15984,
+      "sha256": "327ed22f4e726e4fc8e49f6643d1128b515b47b459077fe956441ad85ddf9346"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-environment-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "d626d9c2298e5a1f5d7b51b910bb5463a4d2e1c0878b47b744f8749630c6d748"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-filesystem-l1-1-0.dll",
+      "bytes": 13936,
+      "sha256": "f307899464331efd8af87f3ee3ccdc02562eb82b7eb6299c55f7b0809e8b6561"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-heap-l1-1-0.dll",
+      "bytes": 12912,
+      "sha256": "5b4a85f07018f28ae71de4d8fcd692ad2932a9645ac597589bc909853963039f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-locale-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "582069fbca4e1c9646b5dbcd19528cb969ef20aea2b4d586fff8c7da4ce565a9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-math-l1-1-0.dll",
+      "bytes": 21104,
+      "sha256": "b64d55d1d5696e95ff658191761f00a22b8db8dbc0931e7b1d039143e5dc7671"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-private-l1-1-0.dll",
+      "bytes": 64624,
+      "sha256": "f0210eb8604506fcf695948d80d6286ee82e0551f146851e28992f6e7d87cb5d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-process-l1-1-0.dll",
+      "bytes": 12912,
+      "sha256": "83f7e7fed01515e0bbd99336d96040d0c506b7d18499494679da5bef1676e21a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-runtime-l1-1-0.dll",
+      "bytes": 16496,
+      "sha256": "fce957d5279cffc401f58f0cfc59c33e709506241b3b6dd933751ac796f76013"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-stdio-l1-1-0.dll",
+      "bytes": 18032,
+      "sha256": "b73cb1b9eadca31228c83686242339018e909484592410c15a07fea342dd51fa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-string-l1-1-0.dll",
+      "bytes": 18032,
+      "sha256": "e123e9990266747d25d419c6898ad3cd4827a9143e7351d06599a0dba17fd995"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-time-l1-1-0.dll",
+      "bytes": 14448,
+      "sha256": "dfa48d191e67761843e218f2ee8841ea2b79f6098e821904137bba4c1fa592be"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\api-ms-win-crt-utility-l1-1-0.dll",
+      "bytes": 12400,
+      "sha256": "89e52c5a3587e2415c6a57d47fa40e532562889d250f42b4028a4e94d3450e44"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\app\\atlas\\version.json",
+      "bytes": 133,
+      "sha256": "7115fb20e037a45be0b98ce261c0f1482c57b11484e444cbe3e1e757182d1f64"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\base_library.zip",
+      "bytes": 1388172,
+      "sha256": "a9de94256949e2c0ec21782f1ecc4c41226a1dff039477b95362c621751768ae"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\certifi\\cacert.pem",
+      "bytes": 234354,
+      "sha256": "bbc7e9c01d7551bb8a159b5dedd989b8ee3ce105aff522b68eb1b01bf854cab0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\certifi\\py.typed",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\charset_normalizer\\cd.cp314-win_amd64.pyd",
+      "bytes": 10752,
+      "sha256": "da3ce780d6d58ae8c6920b99f806f64d58a1b33f4a01382861b01b50549199f8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\charset_normalizer\\md.cp314-win_amd64.pyd",
+      "bytes": 10752,
+      "sha256": "8e3e0a719a4ec835fbd9b3128636a09692fe173f4e01c527653bfdb7bd723808"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\click-8.4.2.dist-info\\INSTALLER",
+      "bytes": 4,
+      "sha256": "ceebae7b8927a3227e5303cf5e0f1f7b34bb542ad7250ac03fbcde36ec2f1508"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\click-8.4.2.dist-info\\licenses\\LICENSE.txt",
+      "bytes": 1475,
+      "sha256": "9a8ad106a394e853bfe21f42f4e72d592819a22805d991b5f3275029292b658d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\click-8.4.2.dist-info\\METADATA",
+      "bytes": 2621,
+      "sha256": "194c9dd81d567f9081f026c7e401060fbafa7bc147c8e0a58b3668b40a64c031"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\click-8.4.2.dist-info\\RECORD",
+      "bytes": 2533,
+      "sha256": "c6c0de5fcf047a8a433750052cc8d96af407c7966b8783368a0ccb70f81d1ba6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\click-8.4.2.dist-info\\WHEEL",
+      "bytes": 82,
+      "sha256": "1b68144734c4b66791f27add5d425f3620775585718a03d0f9b110ba3a4d88db"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\config\\config.example.json",
+      "bytes": 293,
+      "sha256": "b9e6ea90653e5e335ce22dee89f5aa7dca4c242c1b252cdacb5121ad3326060d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\contourpy\\_contourpy.cp314-win_amd64.pyd",
+      "bytes": 462336,
+      "sha256": "f8c27d14df8c81468444ce506ebc5d6f209ace37b0e9f8755389e7edba363453"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\__init__.py",
+      "bytes": 6793,
+      "sha256": "957a91bfd98ffb07a10cd789b7c5c46806568476b61e34c7ad56a00092b981a5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\config-3.py",
+      "bytes": 748,
+      "sha256": "de28c7b5213cca148f09469916584611b3d66c1c8c432880259d6a3a92380213"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\config.py",
+      "bytes": 123,
+      "sha256": "6c6367abce55995ae4a8d3c199420ec53afab287cb17dfc2f430378af75dd301"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\cv2.pyd",
+      "bytes": 74492416,
+      "sha256": "90034927004e4a4ebf29360480d609c8a8d2ca07c93f8b89dff86399e8534b2a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\data\\__init__.py",
+      "bytes": 73,
+      "sha256": "f4ce16721ed7f623a4dcc443ba600d1856db610cb2c3d53c13a8ca028cc68f6d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\gapi\\__init__.py",
+      "bytes": 10621,
+      "sha256": "74f5fd2a142a31b0a4707b70c0be3637f0fbf8a940eec4372e7ba87e5a5cedb8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\load_config_py3.py",
+      "bytes": 253,
+      "sha256": "074dfaf20ac94f2ca3815393de3a394944470334c51a85b9521f452e0e17bb85"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\mat_wrapper\\__init__.py",
+      "bytes": 1164,
+      "sha256": "c44707ea1c76f35518ae572b6c1989d76c2ada7e850432e41805dfe112d4e306"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\misc\\__init__.py",
+      "bytes": 38,
+      "sha256": "495bd79594cce174673e372c85c4dd8f4ffdf2b3a73fd4623955b0d55de0d462"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\misc\\version.py",
+      "bytes": 95,
+      "sha256": "c93a418793fcb15b9b4316c0741b8336740e490e94f3b7d1ebe8cd5f6f23815c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\opencv_videoio_ffmpeg4130_64.dll",
+      "bytes": 28578304,
+      "sha256": "fcc614672159094a35815b7ea2819a648cbf86c30d90c57e8c6ba1432f594548"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\typing\\__init__.py",
+      "bytes": 5545,
+      "sha256": "93e85c151a97226003ff9df8bb92801b0d07cda86e3c048a5df4e6b09b77ba94"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\utils\\__init__.py",
+      "bytes": 344,
+      "sha256": "2b16990b35b569af1ca7239dc10f7b24ec62f27a46626b1e2f1271d2e1aa3554"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\cv2\\version.py",
+      "bytes": 96,
+      "sha256": "29dba880ba5dd0586f885cfa8d74da71dc8b808d95282c37367a2b1380b63dac"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\fmea_defaults.json",
+      "bytes": 329,
+      "sha256": "aae800eeb9338ced235414fbaea967acc45270535bf829ad36baef6f1a4cc398"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\gripper_presets.example.json",
+      "bytes": 682,
+      "sha256": "331017d3a05ae9f9b250b561f39abf37185c480bbb4db1e9c63255a4c7f789a8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\issue_categories.json",
+      "bytes": 244,
+      "sha256": "5a573da01f2bc6e2543f80472e480265d4e75b1d297c2d8008fe984a19375b5e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\part_aliases.example.json",
+      "bytes": 277,
+      "sha256": "b5213c1c96f8360c1ea6687d7b1e1a3f65fd97b449606f9287b2081e2af88dc2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\pm_checklist_templates.json",
+      "bytes": 348,
+      "sha256": "4c9e25bb983d4a62ed4636e4ffc327af2ed7ca233872b38934fc0b11b35bd9a8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\project_schedule_12_week_template.json",
+      "bytes": 1060,
+      "sha256": "37fc503a243212ddb89fddf4b445aac61b375371460a6cb79ed98c364e28409c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\task_progress_template.json",
+      "bytes": 41,
+      "sha256": "07b0068fb06ef2e4fef42dacdec4d67a2c9981a8ea048f0fe1f7d5698dba848c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\tool_registry_seed.json",
+      "bytes": 17411,
+      "sha256": "22506daf2e6f74897ea43d227170a14e4699ab36f48304b23ed9f8c73d82aad1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\data_templates\\workbook_schema.json",
+      "bytes": 5901,
+      "sha256": "245398e67682f8278138b5cce6f461e2ea632b89782509e16b7a02db7e1c2780"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\dateutil\\zoneinfo\\dateutil-zoneinfo.tar.gz",
+      "bytes": 156400,
+      "sha256": "d3ea52e7b6e968de0d884df1288193596fa95b803db4f92a18279a7398004475"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\authorization_model.md",
+      "bytes": 1021,
+      "sha256": "525907685889c1a9b4885589f38775149311c0b5ea9bfb2c5bcccbd6dfc2a4b7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\backend_selection_migration_strategy.md",
+      "bytes": 870,
+      "sha256": "0572b77982336eb8521e2e62fb46ca5ea4ad21ee750dc24ee89cf48b7fb54b44"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\current_write_path_inventory.md",
+      "bytes": 4195,
+      "sha256": "74ec0eafe7324b8960b44d35ca1dcb8e84740509cf18edc7c06efc5b1a7f58ea"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\data_gateway_design.md",
+      "bytes": 1433,
+      "sha256": "6aa49d75e5ddf6a30a410e6855da8348a2b874bcc1e26708d4ad1b81819743b7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\eoat_api_design.md",
+      "bytes": 1374,
+      "sha256": "cfdf7b0258ebbe28be0679a4613f3bfbdad9db1ff4f9eb881264e2cabcb29e1c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\idempotency_design.md",
+      "bytes": 667,
+      "sha256": "a8b10b90d123b80075a0a4c5f100d534a551d08f22682a58653825becca47e88"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\legacy_data_architecture_inventory.md",
+      "bytes": 8713,
+      "sha256": "bd376428cdf83bffccaeb86b0275c7a9e05c014aa0060d8f11f018ea04e4adad"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\optimistic_concurrency.md",
+      "bytes": 708,
+      "sha256": "ada45e349e562eb923d9393859f1eee69320128af882bb7181207f94783ad40e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\sqlite_cache_design.md",
+      "bytes": 1053,
+      "sha256": "ddccf3858c468509d0534f369b58aac1dda0baf72c7e6e8d0802f5b8abdeea9d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\transaction_boundaries.md",
+      "bytes": 1299,
+      "sha256": "221dbd8d15f7cc9cd365e32fdc30880fe37d98a60e52a80ff395a496309ee91c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture\\write_path_architecture.md",
+      "bytes": 2075,
+      "sha256": "ea8f269257098a7d7a7d679a574e822dfaac845d974eb60066bdb867faebbfdc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\ARCHITECTURE.md",
+      "bytes": 1455,
+      "sha256": "84ac578772e751654474da3a52c34187e93684bf2a2924fafdf75d215948c2cd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\architecture_notes.md",
+      "bytes": 2418,
+      "sha256": "461a1c992cb2e5380e3ea5aee39e717cc257a21486e8375aaddc1d86a91c3193"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\audit_coach_and_guided_completion.md",
+      "bytes": 4352,
+      "sha256": "91afbe701a663c7e21cbe90dc2025660d647cbfc5dd1c1a8a8e6510a22f5b380"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\audit_page_performance_report.md",
+      "bytes": 8997,
+      "sha256": "1af7b78412bc164b657965394b9fb221648129528e607da655571c07ffc9703c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\audit_workflow_safety.md",
+      "bytes": 2208,
+      "sha256": "d53deba0a996f2a5753af2a81bb78306919c7c59d8dca1e14fe184d6ad09c874"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\current_state_architecture_inventory.md",
+      "bytes": 16083,
+      "sha256": "a0785c97b5bf7d239f7c957ec010ae1d56c9a092304ce64a0fc15a5411f6fd21"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\current_state_baseline_test_results.md",
+      "bytes": 5973,
+      "sha256": "6ab8ae72b87aeece03b44f61bd6dd6f4b0946fbb16461c174a20431ad102c0e5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\current_state_entry_points_and_workflows.md",
+      "bytes": 13604,
+      "sha256": "38e418505ced3ba818c927f618992662f3fd439a164270cdcd25decd3f5ced1e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\cutover_roles_and_responsibilities.md",
+      "bytes": 855,
+      "sha256": "d74d5dfa1f65a555186600c233c2a24e29157b5eeb518ef7e40dabf5cc4d7f11"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\data_freeze_strategy.md",
+      "bytes": 1410,
+      "sha256": "e6cf0a3439b5ccf7a0a93b01e51fca7ccb4cd6a928c7afd49930ed4733868a88"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\final_import_strategy.md",
+      "bytes": 1355,
+      "sha256": "842e381db6f5d46d6d34c3cf472f097783475ce1fb88d26216c3200e44a2afcf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\go_no_go_scorecard.md",
+      "bytes": 1245,
+      "sha256": "a37db4e1f8dfda8be17d0b13a3f5a64da6f9d58556b4825fd5362f5e60c420f2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\local_staging_environment.md",
+      "bytes": 1046,
+      "sha256": "c09935988d592fb1ebce6443eaf843af5c7468e326b47220e75eae741de3989d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\mysql_backup_restore_plan.md",
+      "bytes": 1007,
+      "sha256": "098c0fff94c22425712509ff72c5c8b160f181c963448c93639cdce9a55e18df"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\production_cutover_runbook.md",
+      "bytes": 1904,
+      "sha256": "069bb4ce8ff2ff2c225be10142891617f1bad1a7e232534685e41c187a18d2f9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\remaining_legacy_dependency_inventory.md",
+      "bytes": 1951,
+      "sha256": "cf5d94ee173a1742223bdf81421f4f2117ea35f100b2d8fdacc6a7435292cf8b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\rollback_decision_matrix.md",
+      "bytes": 1296,
+      "sha256": "c4e5ff4d9cbd72a352bdf45f714dea46073f244cc1cd98fd59583abeaf74073c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\rollback_strategy.md",
+      "bytes": 1212,
+      "sha256": "37cc26fcfc2d2be4feaf31c964e85a1fb927fc535807bf263338612c01f32afc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\cutover\\user_acceptance_test_plan.md",
+      "bytes": 1066,
+      "sha256": "e7f32ccf50992f39cc475aabb72695de53fff145916b8ce69426fa62df629464"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\DASHBOARD_GUIDE.md",
+      "bytes": 5227,
+      "sha256": "9fbc0b582cf06977d01768094586dc1453af7f601d52faa9f8cb0c0741c0c4fe"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\annotation_tag_migration_mapping.md",
+      "bytes": 1959,
+      "sha256": "d1e70c0587af27203af4d552cb1f53d48f3ae883da39bae371bdc7b3bf2ca503"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\constraint_reference.md",
+      "bytes": 1197,
+      "sha256": "2de4f91de634f0cc242cdc41f91317fe8cee6ef78806574d2c14dbd75ec7843d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\current_data_inventory.md",
+      "bytes": 4738,
+      "sha256": "e9dc188f3bb505b2b963408c68c7b160fd71eb259864def1ffd9d1f93bc3f5cd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\data_retention_policy.md",
+      "bytes": 1161,
+      "sha256": "94e2f0bf95fed82f766995dc75b1e3d2cb1ec0c521c0b285b970018739e0e5e3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\entity_relationship_diagram.md",
+      "bytes": 1690,
+      "sha256": "13661c099b636cc08ef0523b7351001dc0c2a9f2262b1f937e7d7850b70ec9eb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\index_reference.md",
+      "bytes": 613,
+      "sha256": "0d1a544dbe9526389106167e2b25dc56e8f63a3439798d80a8f37d50b3a6aa43"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\legacy_to_mysql_field_mapping.md",
+      "bytes": 19583,
+      "sha256": "5b52890c35fd428c32531f41643e06bb51486eb58873a82e80803cb199fcc039"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\schema_reference.md",
+      "bytes": 4036,
+      "sha256": "bca22a89d5043ccf55bcba9beba747ba47fc9811d59a05001f9082b96a79009e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\database\\table_ownership_and_purpose.md",
+      "bytes": 1674,
+      "sha256": "aa8c31d0b174cb40518ed4ce5397c3c27fd37bee3edc6e972972a3c2ed9ffe9e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\DEVELOPMENT_PHASES.md",
+      "bytes": 1849,
+      "sha256": "b2329307f2b6a92048a81ee0269a54455c89069bfa72b604c48e37121da53966"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_ATLAS.md",
+      "bytes": 28323,
+      "sha256": "c157153a427db7993f8c37e231c94ded1ec83ef72b6d70a0dc5d9c4355930988"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_ATLAS_LAUNCHER.md",
+      "bytes": 3469,
+      "sha256": "5d806a4b7af01458ba0b5b98b1909bdf1a529d094b4e28d8c8f788e890a9dec4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_Command_Center_Manual_QA_Script.md",
+      "bytes": 4973,
+      "sha256": "934bca28fdc272fd994b9be8631d67226c49ee97d4cb832e672b712d75f03916"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_Command_Center_Responsiveness_and_Dark_Mode_Report.md",
+      "bytes": 8283,
+      "sha256": "53f03a6b15a1f47fdfefbfbb24e09e570c2e0515145461f8b422fa04ace59359"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_Command_Center_UI_Overhaul_Report.md",
+      "bytes": 6381,
+      "sha256": "894d308e23c0916a0f14d61c3f467e393cb583152dbac9191eac24f1aa277a55"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_Command_Center_Usability_Test_Matrix.md",
+      "bytes": 9689,
+      "sha256": "3948d04f551123d78625147b1afce47207372944a8d5999bdd2fe7e2abf5fe95"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_Command_Center_Usability_Test_Report.md",
+      "bytes": 7214,
+      "sha256": "26918fac96ab55345f89cb4690a9813cbda259842ea787f7610daa9c94d8aeb2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\EOAT_HISTORY.md",
+      "bytes": 6258,
+      "sha256": "6e8e10b7b652d4e55203066d31ee12e3de1888dc17293d16b6fcd6e748d854fa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\eoat_notes_tags_codex_prompt.md",
+      "bytes": 35260,
+      "sha256": "1d73a9eedb0079fe6cdaea386e4d9e0912a7776fbd6bdee334c1a5be2234e331"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\feature_expansion_plan.md",
+      "bytes": 2266,
+      "sha256": "0bced9d6f80693f0409ef581c4bc4eeceb8621d1f186e10e27c97c5fb4bd381c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\final_handoff_outputs.md",
+      "bytes": 4133,
+      "sha256": "3f45256bbf07ab71f62c3157ce1dd22ada6f64808687dd6494a30edd9a8b7378"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\INFORMATION_LIBRARY.md",
+      "bytes": 3297,
+      "sha256": "c28b7ef2ff03ede02ea863871107abe8e8b292d566cb658ac0b04408da15ece0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\LIBRARY_OPTIMIZATION_ARCHITECTURE.md",
+      "bytes": 5243,
+      "sha256": "65c8c788b49a12c2730130d76795b09e7ee2327031fb070cf6bdca1b7e2ec83d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\maintenance_and_release_readiness.md",
+      "bytes": 4327,
+      "sha256": "d579d8dee8b6fd6ca26af5922453b53eca7160e41902c28d497ac07c48626aba"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\manual_smoke_test_checklist.md",
+      "bytes": 8556,
+      "sha256": "ea5a9ce106d537e08440f36537ca16fd0bea00ec75f78e8a4851da0e29cc247d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\migration\\import_ambiguity_policy.md",
+      "bytes": 1224,
+      "sha256": "476390f3cb4fc310191deffcd98ababcfd9c32b0d662d6df6b2f1c46e777d3d7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\migration\\mysql_development_import.md",
+      "bytes": 1549,
+      "sha256": "d3818f5bf9fda0ed5a93fb421054129fc812bebdaebc3abcd8f1418e51e71e27"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\Morning_Plan_Date_Resolver_and_Quality_Fix_Report.md",
+      "bytes": 4719,
+      "sha256": "fa999c103d0a47af1d06d6e3f4ab716c2f4a9bc1ded178d383c54dc047777db8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\Morning_Plan_Usability_Polish_Report.md",
+      "bytes": 4483,
+      "sha256": "abd7b6095d8203ea6a1d590b0f6b0299f829b6de30a83409509152e9d4f63c00"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\open_items_and_annotation_workflow.md",
+      "bytes": 2782,
+      "sha256": "b008fcbf3d78ee82d381249b3395a5ab35bebdf601a6d14586631fdec7641b7c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\overnight_baseline_report.md",
+      "bytes": 1693,
+      "sha256": "3ee429392c978b01343b8a6741b4d3c318d079fbd92ebb38a0a8f7e932ec10ce"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\overnight_implementation_report.md",
+      "bytes": 41237,
+      "sha256": "bbc35118e8e0d15125ce9d854284d51e2ba877cb28c5037dd2dbbed57db8cf59"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\PACKAGING.md",
+      "bytes": 5135,
+      "sha256": "151439f19241734c1fb2c1ca1023b621bbf9cdf7024edec9828ed2e92cce8013"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\page_registry_and_event_bus.md",
+      "bytes": 5214,
+      "sha256": "0ca888a34c266f4f48ab2564b1935846318557273d9492a757e187504ee1bcf8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\performance_cache_and_telemetry.md",
+      "bytes": 3135,
+      "sha256": "f62c9be5da425e5c48c88c9125deb442fe5d71d4c51410badd64462cddc672b1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\photo_evidence_and_gripper_presets.md",
+      "bytes": 5199,
+      "sha256": "fec1a0bd3acbe574e7e9d610ba5127cc4c288bab6492522af037d5a6b38375aa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\pre_merge_stabilization_report.md",
+      "bytes": 4790,
+      "sha256": "38a1ee32e03d0514d510b64f160b2e27867f30d54c1cf8dd5898fcb0dba6bdae"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\RELEASE_NOTES.md",
+      "bytes": 765,
+      "sha256": "1bd50b12dec262a67f23071acc3c9d91defec1f1a5f7534e0407e79c20400ea9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\repo_sanitization_report.md",
+      "bytes": 4991,
+      "sha256": "21248e87deb0370b460d0d955bd81d81bd2b76bad50fe6983aa5e2f7d80f62e0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\scheduled_reports_reliability.md",
+      "bytes": 2854,
+      "sha256": "674906eec1a11a9622e4241c9b21cc8c1b8f5726a09370b8879a4801fb3e443f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\search_command_palette_and_press_view.md",
+      "bytes": 2769,
+      "sha256": "18dd520feabb5b1bcd28b18a481c222b28d65eeef73d02141342e16a5ec12a8d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\settings_defaults.md",
+      "bytes": 1428,
+      "sha256": "54a7a64675bd29f41fcfea0d52eb9acd0cbd3d709a974371a9578425e83feedb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\setup\\LOCAL_MYSQL_DEVELOPMENT_SETUP.md",
+      "bytes": 2104,
+      "sha256": "030eb15e133e7dcdc491b0bbf8c4c40bf42477ced884dab3aaa5fca09d0ec0f6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\sqlite_audit_mirror_decision.md",
+      "bytes": 1352,
+      "sha256": "a9fc11b6cda677f6e959990dc17d0fadf0339c6c3bb01c9f628bcb23aef59746"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\standards_fmea_pilot_analysis.md",
+      "bytes": 2541,
+      "sha256": "c58b7600df371254aa24ec88a6a443bd28958a399502963e39f5283b0e7ac31d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\testing\\failure_recovery_test_plan.md",
+      "bytes": 958,
+      "sha256": "ce1b2e51b56926e7f99051e4c062822ba22fcf1151c4ae6bdd8b872df4338f35"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\testing\\multi_client_write_test_plan.md",
+      "bytes": 500,
+      "sha256": "da1fbedd7e3f90413abf77c61d3aff1b86a570709beb08f3e3150526a8ff85df"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\testing\\mysql_read_conversion_results.md",
+      "bytes": 1610,
+      "sha256": "43af83e5c6e18ea2d6a641a1a58b37a2d2a90bd8cdf54913dd3e1c6bde7eebde"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\testing\\mysql_read_conversion_test_plan.md",
+      "bytes": 1028,
+      "sha256": "b0af15b8e8ff98b163b905ef95bb863d76e84478ed8170a3aadbe63ff5b8e739"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\testing\\mysql_write_conversion_results.md",
+      "bytes": 484,
+      "sha256": "3c7998282cc5c17b162d22d4753474568acd563b0ba0c9ca08bc318adbc863f9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\testing\\mysql_write_conversion_test_plan.md",
+      "bytes": 832,
+      "sha256": "0dcafc24e6e925434c9f2afa633653baf7ab2b3ba87cad79183e9b9775db5c1b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\testing_strategy.md",
+      "bytes": 2155,
+      "sha256": "6718408415209dcdee91891ac4b88f9ef22a4e3be6ff91d82197a656aa89481a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\TOOL_GUIDE.md",
+      "bytes": 2604,
+      "sha256": "419bf5bddf77a27f5129e054242910412077aa239022927ea9f238201b073a64"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\TROUBLESHOOTING.md",
+      "bytes": 1208,
+      "sha256": "298b502d50881b58d4942a09e51ed67c8dd5ee387ecdd490bf0808c5df6f79e0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\USAGE.md",
+      "bytes": 4412,
+      "sha256": "38ef8e820c6d40cc6808d5f156c05ca583ba3f38f55eb1cac2438ebdced87011"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\docs\\workbook_validation_and_repair_system.md",
+      "bytes": 3731,
+      "sha256": "84827d3cbb7de017556eac7550c699150c224b23706921281a90076ce003d3e2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\kiwisolver\\_cext.cp314-win_amd64.pyd",
+      "bytes": 160768,
+      "sha256": "d895ffe34aef1584b7d4478e9c2d439850ec820363a007b92baa5558f0d6d07d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libcrypto-3.dll",
+      "bytes": 5235960,
+      "sha256": "8b27ebae75cc99f20075322446af36c9ffcb4e3b400a77d712ef43f007f47f7d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libde265-0-917e506a532d55cfb99a65f420b94dad.dll",
+      "bytes": 466944,
+      "sha256": "56ee5229cf288145fb0d6bc59269d9454dda34b52b0241f3eaaa9f0b48580c33"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libffi-8.dll",
+      "bytes": 39696,
+      "sha256": "eff52743773eb550fcc6ce3efc37c85724502233b6b002a35496d828bd7b280a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libgcc_s_seh-1-35347f88da2137d3acaf083f81128552.dll",
+      "bytes": 148480,
+      "sha256": "2b152679a53f52abd209eee24ffac5d55d15891b84f9aeff387774b826191383"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libheif-b635e78a7344f62641d67e07394f8251.dll",
+      "bytes": 1778688,
+      "sha256": "6e42c1b3472aabf98f5a8def5b2c9e3c561bff1977f2a76c58d43a97750eed2a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libssl-3.dll",
+      "bytes": 794872,
+      "sha256": "56dd50fb903b860ace831d0cd6c6250cd57e8655867c3a0fa16eac2d4cc0ba0b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libstdc++-6-9fabacf176759adf41c62dee1152fe69.dll",
+      "bytes": 2455040,
+      "sha256": "0f9b52cbca1a25d689a2a04767c25f6b3dd2ce561439be6d58402fa3b1963b9b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libwinpthread-1-199474f4885374778124211409eb94f5.dll",
+      "bytes": 64931,
+      "sha256": "199474f4885374778124211409eb94f55c012a57718316f86efd54f4cfbd8f20"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\libx265-215-6f48200d6b1de3157e62a6336079e247.dll",
+      "bytes": 20826112,
+      "sha256": "431cd35da538df7c19fab1166e97bfd9a16e11f0ada282f609a24e6b37d2827c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\_elementpath.cp314-win_amd64.pyd",
+      "bytes": 146944,
+      "sha256": "3284023fbbc06f8dc563b7660813c29aadacc0cf40772424a3d29761fbfac744"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\builder.cp314-win_amd64.pyd",
+      "bytes": 87040,
+      "sha256": "d22062eb0c46b976c4f606c5a32e965f10522c77e8970e1ed6d2ea08daf9b05a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\etree.cp314-win_amd64.pyd",
+      "bytes": 4084224,
+      "sha256": "4feb5ab02430ea17458fc82f0e1164808f4ef31de1af180ec7fc40b08518c7cd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\html\\_difflib.cp314-win_amd64.pyd",
+      "bytes": 374272,
+      "sha256": "7a1ae35f2bebef83dc95d8b25b651c2cc0a8dd738ff3b6a65cc8dfcae9bc44a9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\html\\diff.cp314-win_amd64.pyd",
+      "bytes": 236032,
+      "sha256": "d7090246f4c3dffabadea216dc7364ea5ef1d0587cf1d5189fe66650968983b4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\rng\\iso-schematron.rng",
+      "bytes": 19046,
+      "sha256": "702338aa97ee4d8015b6e923c65a1b3cc949f2767e6aeec380e352da0e2b60ee"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\iso-schematron-xslt1\\iso_abstract_expand.xsl",
+      "bytes": 12015,
+      "sha256": "492519900916845606fd8347bd6f5453a5fcb6630e1f5bdda519b3aaed25e103"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\iso-schematron-xslt1\\iso_dsdl_include.xsl",
+      "bytes": 41116,
+      "sha256": "659f9def6af14250027ebb381266836316916f177480f6be0cf2d195557a4118"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\iso-schematron-xslt1\\iso_schematron_message.xsl",
+      "bytes": 2069,
+      "sha256": "3506a5e33dc4b99ff9415a0c15b26a99ad922a0e3e8739bf0dbdbcdfed25d245"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\iso-schematron-xslt1\\iso_schematron_skeleton_for_xslt1.xsl",
+      "bytes": 73560,
+      "sha256": "568d45e7bea875191d2c19ae1045ab2dae4b17748c4d7f41e841069f151bbfff"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\iso-schematron-xslt1\\iso_svrl_for_xslt1.xsl",
+      "bytes": 20970,
+      "sha256": "508ef11f1d2578d5d2f41694e9cc90e021de7e5b9f2a6004fb38ceae286e1fe1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\iso-schematron-xslt1\\readme.txt",
+      "bytes": 3310,
+      "sha256": "3862e216cc2e2c9116e443d828e7a86aeb8224512d55aea3cb3044d4e70923df"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\RNG2Schtrn.xsl",
+      "bytes": 3247,
+      "sha256": "832f84eb1476a77e522bdc1715386b68f24423d35da084cd1dde319aacbba316"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\isoschematron\\resources\\xsl\\XSD2Schtrn.xsl",
+      "bytes": 4563,
+      "sha256": "430791ac820cfb315c820f7c19703609a59f21b8151345ca11e6127efbfaec0d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\objectify.cp314-win_amd64.pyd",
+      "bytes": 1753088,
+      "sha256": "bc0eff5c73e180de65db5225f0f2f6f14267cf8497faf38ab936fd400bc2596c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\lxml\\sax.cp314-win_amd64.pyd",
+      "bytes": 119808,
+      "sha256": "19811268c0fbe8fdcea25c3e03e6202d937c5fcea318f38a54ebf5ffb2dde7b2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\_c_internal_utils.cp314-win_amd64.pyd",
+      "bytes": 163328,
+      "sha256": "22fbbcb357c4f9491133665e44bf62f8063e53ee455914feae317dcd48e06512"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\_image.cp314-win_amd64.pyd",
+      "bytes": 364032,
+      "sha256": "8aa043600152ae66770d04af5039065a23f3f337def43ca55c9642545238bebe"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\_path.cp314-win_amd64.pyd",
+      "bytes": 327168,
+      "sha256": "0cd555bc03b4d4175fa98f1d58cdf2ddd2a720e5340178f20b830595fd179723"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\_qhull.cp314-win_amd64.pyd",
+      "bytes": 605184,
+      "sha256": "ce2ea7b814611e50846942919fb5407bc4c0f3f73dd6558e5261049a3ca435a6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\_tri.cp314-win_amd64.pyd",
+      "bytes": 300032,
+      "sha256": "86d19dd2a28f132ce6b31c4d4aa39b0ebb4619053541e20457bbcbda770264ce"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\backends\\_backend_agg.cp314-win_amd64.pyd",
+      "bytes": 437760,
+      "sha256": "ffd29e3efbbc1a2496df527a763a16ebd2d7db9a31d73272136e330b59c5aaf6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\ft2font.cp314-win_amd64.pyd",
+      "bytes": 990208,
+      "sha256": "b3df9ffb1f262db5aa093b8d56c3a8da0fcd0c5808afc3721d59244426c72034"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\cmex10.afm",
+      "bytes": 12070,
+      "sha256": "6e54771119ab5415795ca9009c30a3e0d31e6158331fb717b49deee7dbbd1ae1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\cmmi10.afm",
+      "bytes": 10416,
+      "sha256": "e6ac043a979d128efa6c351a872bae175ab4703f38b51ad7f95438a773257c1a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\cmr10.afm",
+      "bytes": 10101,
+      "sha256": "583be00bf0f752418983dbbe27453a45a4f4da5178a33de54311ed835af7958c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\cmsy10.afm",
+      "bytes": 8295,
+      "sha256": "01b9b3bc255605c78745f9917de27d13ac733904c52e4d14d730dfa5fdff31a3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\cmtt10.afm",
+      "bytes": 6501,
+      "sha256": "e238bbfe64e979631af77a3f5070563ca0a7aac05f84924d9656add65240acfe"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pagd8a.afm",
+      "bytes": 17183,
+      "sha256": "8e316b8a0c244e960ba9adba729cd9bca40d068f8fb85e1b98356a68ce29316c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pagdo8a.afm",
+      "bytes": 17255,
+      "sha256": "b2035075e632c7c27e8ad1b0f61df5cbde5a301893091be63523d35f0c12ef18"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pagk8a.afm",
+      "bytes": 17241,
+      "sha256": "654b5f1cf96836a72f18c1ccc5a2834a5b2184e723c21794c75e37470a467485"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pagko8a.afm",
+      "bytes": 17346,
+      "sha256": "623d70060e89b2aab3d4a05f851a09dc0091f82310a25f058ff64ce4d6758039"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pbkd8a.afm",
+      "bytes": 15157,
+      "sha256": "665e68e89fdd8bd6398f61291ed8dec3efec7e0efe5a879598ef4fcce6124d47"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pbkdi8a.afm",
+      "bytes": 15278,
+      "sha256": "2403a7a3ddf4893c9f6482cc7f5d6f5ad89a4e0ac970fa4fe8545346110c303e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pbkl8a.afm",
+      "bytes": 15000,
+      "sha256": "509a898ce27ac500e00c12d7d79ee62a9a2120915598733e37ac76f83886bf5e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pbkli8a.afm",
+      "bytes": 15181,
+      "sha256": "0168ac959da10dbb34a31fea396444ba0b1b4bcffc9692f8f0b3cc478d2aa62d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pcrb8a.afm",
+      "bytes": 15352,
+      "sha256": "ea3d534b651cec359273ef25e364c60dcd6ed0583c26ca5e59fc456b28d4c22f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pcrbo8a.afm",
+      "bytes": 15422,
+      "sha256": "b268379a397d41a043b5022dd3a928e46bdac4bb0ef50b53bd800db84e617c6d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pcrr8a.afm",
+      "bytes": 15339,
+      "sha256": "ee7c45af4121cf8139286ff3484e5264e871447f0cc9f9c26f0fbbc79c2eeedc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pcrro8a.afm",
+      "bytes": 15443,
+      "sha256": "34a133ed7b5d16487d700f0cbd8f92dd4399955d98fc9ded3045851718fb4128"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvb8a.afm",
+      "bytes": 17155,
+      "sha256": "340c783381e32fbbc034225b73eb64d38564a25f93d28697790dd3da1f9752f3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvb8an.afm",
+      "bytes": 17086,
+      "sha256": "f1efe6c83f80424345eeaf5734b6f69bbebf957d9352bddae70a20fcb204d6c9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvbo8a.afm",
+      "bytes": 17230,
+      "sha256": "f1f90146627e49663662b060f1f1728c9cab269f1d690e893cee8bbe133cc4f2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvbo8an.afm",
+      "bytes": 17195,
+      "sha256": "69e551bd5e2bd79041bf1b91274306f191ee1f61d58ae22209892fb9aa669263"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvl8a.afm",
+      "bytes": 15627,
+      "sha256": "23231833e6e097e808eab1b412e659d8e2f397125f19e4a1f31aac874b7e7894"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvlo8a.afm",
+      "bytes": 15729,
+      "sha256": "b35d82f9e3672031c9fd455bba2a6b8f10630a21c86d2dd8f0e4530bea93a6e2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvr8a.afm",
+      "bytes": 17839,
+      "sha256": "2adf0a69189db6cf3d10120adbd5f62689835040f1beba1e689cff44d4e2eabe"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvr8an.afm",
+      "bytes": 17781,
+      "sha256": "94be5f0074d1c0e0e5fac079987ec87ec0f5b679de6b8c9150afbf09ad9b4073"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvro8a.afm",
+      "bytes": 17919,
+      "sha256": "dcaa8adde7a3891e21205054ca7b925ffe2531d1365764f9f31385f255fe7f07"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\phvro8an.afm",
+      "bytes": 17877,
+      "sha256": "571f6b45fdd87dab0c63bb73fa78d2c73ebbc472a4f9f36437bc818b45f620fd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pncb8a.afm",
+      "bytes": 16028,
+      "sha256": "6a85dea5370342d41afe6b297e530990414a79fcd71e8ca3cfa8a825523460d7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pncbi8a.afm",
+      "bytes": 17496,
+      "sha256": "a42596d4c620cb4126bf0698b1a60968023f2dfaec2a60c0347bbb3e4d116a25"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pncr8a.afm",
+      "bytes": 16665,
+      "sha256": "d02201d812def6bfbafd697939b4534dff7c50eadece6190f193ae057e642e4b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pncri8a.afm",
+      "bytes": 16920,
+      "sha256": "e51fa92d93a7687346f298d5e8c3f7022f9dd8e4d0611fdc6026f9cd08737d25"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pplb8a.afm",
+      "bytes": 15662,
+      "sha256": "dc4cd46cd9d7af916de5e14b634d16f685aee7dac73918035d4b8968ea0a379f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pplbi8a.afm",
+      "bytes": 15810,
+      "sha256": "5fff6d56ca6fadc31eaf7392f2abddc23145aa90176199dec822f634703dd368"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pplr8a.afm",
+      "bytes": 15752,
+      "sha256": "8a331be3dec50c9f6755d54c6f6d45ed6dfe72ef6c6fff67174a2b885a529fc9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pplri8a.afm",
+      "bytes": 15733,
+      "sha256": "f0a2136daadc514322fe176844b2e6347b65aacd13b4e48aaad3c57eded7e676"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\psyr.afm",
+      "bytes": 9644,
+      "sha256": "232b7c6a31380764e6df8a018f6a4ab5cb487fd90f7ead39b2e41e7eaf29dd1a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\ptmb8a.afm",
+      "bytes": 17983,
+      "sha256": "6cbd5f035342e3f9d6d7866b9f1cf89c795725be1dcc42c93efa1da8a9d878c8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\ptmbi8a.afm",
+      "bytes": 18070,
+      "sha256": "fbf522e9794a6854c71279284bffb51ad22be55b466b78054367b32ce607b34f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\ptmr8a.afm",
+      "bytes": 17942,
+      "sha256": "20472c59c9b32728c2c2482cc38a3a848326ce5c975209496adf6cd4f64d9c45"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\ptmri8a.afm",
+      "bytes": 18068,
+      "sha256": "e3d7d0320e5f20682e67bae073fdacb7230ae793efe5b3d3b3bc02ceaa5c1a99"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\putb8a.afm",
+      "bytes": 21532,
+      "sha256": "a8c6874dda64acd2fe9b80d6863a712424a6818902bf5a88ccb9457ccd2b978d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\putbi8a.afm",
+      "bytes": 21931,
+      "sha256": "83b015272893c5e329364ff57127e6620334f6e3547cf959c961afdc3d6f7009"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\putr8a.afm",
+      "bytes": 22148,
+      "sha256": "5d898d0b919081254064a4c861d61e364b04eb39cd9bd185ff44a6425ae2ab1d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\putri8a.afm",
+      "bytes": 21891,
+      "sha256": "8bb7d57be88bc8bb50c427c06b82317711feb9f70798c93b85b0861b94f1018e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pzcmi8a.afm",
+      "bytes": 16250,
+      "sha256": "c32ba821611939ca17ad2975b4fccb9046a18a4ee41a2f752498feb641511b80"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\afm\\pzdr.afm",
+      "bytes": 9467,
+      "sha256": "3328cb027cca61175005fa1fd56de4fe17f7d0cbea3a4a8bfff1b6da6439c70c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Courier-Bold.afm",
+      "bytes": 15333,
+      "sha256": "b080c323e07cd956770b4988fe61c5213099ecf567dfb00860cbf50ab1d7e2c1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Courier-BoldOblique.afm",
+      "bytes": 15399,
+      "sha256": "ce0eb54286c3dd853d5017c25e6be684135a14a9e8fb18fcb18d1bd91a607cbc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Courier-Oblique.afm",
+      "bytes": 15441,
+      "sha256": "bd1426e63d6c4d4378862713d4f71567d3fd0d34d41e11337cf5ea514cd56611"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Courier.afm",
+      "bytes": 15335,
+      "sha256": "31d72adad79910126b22a5579ec9e179eee86674ecebe3fcff6f76916193af0e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Helvetica-Bold.afm",
+      "bytes": 69269,
+      "sha256": "8b697881c8ee617a177f6f2e2bbc88570b9fd2b9f0e89ecfc0f5507878f988fc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Helvetica-BoldOblique.afm",
+      "bytes": 69365,
+      "sha256": "526e4eeaa2b5d435cbb7cba3ff42285a473ce132aa1caddb39b48a52cc10aaf6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Helvetica-Oblique.afm",
+      "bytes": 74392,
+      "sha256": "8556038366f9da4aad6d5782ce68afdb96d6d7261da64652f8b5e519110dd91b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Helvetica.afm",
+      "bytes": 74292,
+      "sha256": "db772f2830fb6d000907791d8d26a12524d96943a9a739e520ee855c6b25c96f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\readme.txt",
+      "bytes": 828,
+      "sha256": "311bfca694884d86006fb96de443b0f4359635921b95fc6c161bb94d013b7292"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Symbol.afm",
+      "bytes": 9740,
+      "sha256": "3f951aa17af8cb4aa1e1288c6b9baa8a30d3e990ebdbe8cf9a3d5acabcb9f771"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Times-Bold.afm",
+      "bytes": 64251,
+      "sha256": "7104e6af62c53f029013fb0641a81e31c98589c8f27b5ea6289b25b092c74321"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Times-BoldItalic.afm",
+      "bytes": 59642,
+      "sha256": "a7358e772726e91aa87015a001563926ad33dc5a7b2eea9680b34cc78aba385c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Times-Italic.afm",
+      "bytes": 66328,
+      "sha256": "6cae69b92329193fd85082f0c89ad7a318df8fb5c939d7efe5343f88ab09473c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\Times-Roman.afm",
+      "bytes": 60460,
+      "sha256": "86136b527a5acee0c3283d56a6b68fc6a3d60982eb3bb0fb6cc54e83ecc8d77a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\pdfcorefonts\\ZapfDingbats.afm",
+      "bytes": 9527,
+      "sha256": "66e3a6b7d19c2a87e374eabc92a84f86d00884ec242f6ad3253999c408c56a40"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\cmb10.ttf",
+      "bytes": 25680,
+      "sha256": "074497b50c43ea57597181591f9893d38fc12a87e95104f5657fc2481f61a23a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\cmex10.ttf",
+      "bytes": 21092,
+      "sha256": "af28f0c170723ac776a71bfa595aca09e98d15ae5c3d54ce19afd5619c96a905"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\cmmi10.ttf",
+      "bytes": 32560,
+      "sha256": "3092965b8811fd6a6765799664845181fc1dd1330b937f915808c485d316234d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\cmr10.ttf",
+      "bytes": 26348,
+      "sha256": "4dd9761b058c009db9b2145f55ee6617d093c273dd3d6c5b3e43ff6110fa9bf6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\cmss10.ttf",
+      "bytes": 20376,
+      "sha256": "7df91a83d05b2e471ec638cb0b435a360a3c792b09fc42a7da67e91f2e79115a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\cmsy10.ttf",
+      "bytes": 29396,
+      "sha256": "bb226ed932f3f100cd0e52f5e4912ee553b41b69e7bfdb8d3854db0eb6605232"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\cmtt10.ttf",
+      "bytes": 28136,
+      "sha256": "6211f09ae93599991afda970c24669dad1a77e253d915624fbf212f702f071d7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSans-Bold.ttf",
+      "bytes": 704128,
+      "sha256": "b184b89e3c1075f22f6b71575b6fc20d4972b3cfd3b23322ca6fd596dcaef167"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSans-BoldOblique.ttf",
+      "bytes": 641720,
+      "sha256": "6edf0283160186af451cbee71e7b845f2e4cabf264bb992ce668c83c25465e6f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSans-Oblique.ttf",
+      "bytes": 633840,
+      "sha256": "ccdf74b350f11fd3dd5774de50e5e6346a1a5da1f5b7d5fb83590665e97a5213"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSans.ttf",
+      "bytes": 756072,
+      "sha256": "3fdf69cabf06049ea70a00b5919340e2ce1e6d02b0cc3c4b44fb6801bd1e0d22"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSansDisplay.ttf",
+      "bytes": 25712,
+      "sha256": "82099dcfba5aa868cdfc27451989525fe3292f737fb3c9e0328ce9cef59652f6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSansMono-Bold.ttf",
+      "bytes": 331536,
+      "sha256": "baada9a5172fe20886251aff0433fc38461912d5daf07287e7bee56620a8da96"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSansMono-BoldOblique.ttf",
+      "bytes": 253116,
+      "sha256": "a69081c15c76c827e0a27a5a7f5c74b6135c843499955495ffa8c20d3a98288b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSansMono-Oblique.ttf",
+      "bytes": 251472,
+      "sha256": "28052813f7a709fc89f52d192dc995ef4f0fdc5c3d7b73a49d6849b1916d0cd0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSansMono.ttf",
+      "bytes": 340240,
+      "sha256": "602ec86b8948cfcd956482fe64f94c36c867770149ef2f791d4613f443bcecb3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSerif-Bold.ttf",
+      "bytes": 355692,
+      "sha256": "c3753f2ed6bc673f15846dc45addbeb3b9c872f32fb18fd53a21f1bef1ed7676"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSerif-BoldItalic.ttf",
+      "bytes": 347064,
+      "sha256": "d93efec7a9d2e826768d1a2ee95b95870e15e29599a84f3484af1de1cec2e181"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSerif-Italic.ttf",
+      "bytes": 345612,
+      "sha256": "3e7994fbc54fa10ce3352a42d548fadd7d9cadb69cb1109bc9d960f6dac57f04"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSerif.ttf",
+      "bytes": 379740,
+      "sha256": "107244956e9962b9e96faccdc551825e0ae0898ae13737133e1b921a2fd35ffa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\DejaVuSerifDisplay.ttf",
+      "bytes": 14300,
+      "sha256": "2914f32e47c777c27be5677afae7db4de79f9e45de6fc9097d9949c23c14f7d5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\LICENSE_DEJAVU",
+      "bytes": 4816,
+      "sha256": "d75938dec098f06f0ac3c00853065d94f020be1c3c62ef1dc2975ba15b4d9b0e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\LICENSE_STIX",
+      "bytes": 5476,
+      "sha256": "bab3d31dfef07f483624f2f65f2711e76065b8e7273278b1c071ede1041c9959"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXGeneral.ttf",
+      "bytes": 448228,
+      "sha256": "167378031e2dddc6216d67819c9260e9a06ffc4c478e4e23cb98a6fd44b183c2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXGeneralBol.ttf",
+      "bytes": 237360,
+      "sha256": "e8533dc7083fa346bda1933d60ea4a83b67d0945bceaf1b3541f82b4a0e2c6a0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXGeneralBolIta.ttf",
+      "bytes": 181152,
+      "sha256": "98788fd4ba48dfbb2bd026c0e20a247a8b06c7372879628b7a6bb0d5bb09736c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXGeneralItalic.ttf",
+      "bytes": 175040,
+      "sha256": "6cfcb333d22b7c3c623bdfd40174f14c85c3d6731ca6166c1edc80140eae8527"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXNonUni.ttf",
+      "bytes": 59108,
+      "sha256": "5256f7e021335ac4854d180f0e8bf198964ec2fc820176276e16aabc6537bb57"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXNonUniBol.ttf",
+      "bytes": 30512,
+      "sha256": "5d106a5b78d1ffc30174553439b86257bfa45f088120cb3b4150a51dc4f9b60b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXNonUniBolIta.ttf",
+      "bytes": 41272,
+      "sha256": "a5bdb60e76c37f6c90aa2ce8b5cdf0043a85182fe0dbb61c086262bc7f7e2def"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXNonUniIta.ttf",
+      "bytes": 46752,
+      "sha256": "04cafda56881bf660865dab4e17e1cdc280be8d3cb50fae5eb8695d4de30f548"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizFiveSymReg.ttf",
+      "bytes": 13656,
+      "sha256": "c18b87d60614a42baeb2a22d447e647fda7fb3a9940fef57dcbe51bd1b4a4b1b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizFourSymBol.ttf",
+      "bytes": 12228,
+      "sha256": "c8d76f8d4a129ac64250b983ed256af4769b9dd1bd3f874f85ba0bd49a407f4b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizFourSymReg.ttf",
+      "bytes": 15972,
+      "sha256": "fbdc553182f8ff5adc3bc16208aac27d1e0f69298ab40e3675d2c6ab0b5e8b5c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizOneSymBol.ttf",
+      "bytes": 12556,
+      "sha256": "7187b1ca8f2b65c76a325a5af5f345e5ad88a172d44d9b88be1d090f5429d22e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizOneSymReg.ttf",
+      "bytes": 19760,
+      "sha256": "d256c7ce99ddcc998ef12e369a5921b33e4d6ef24b402687e4c71ced06510f37"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizThreeSymBol.ttf",
+      "bytes": 12192,
+      "sha256": "dde05cf95b586e1414dc19f18b2a5f3ba780cc4bbc05d0efb4825215b912da86"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizThreeSymReg.ttf",
+      "bytes": 15836,
+      "sha256": "5c548a0a9b5b11233cbb11ed5054805767326f0c614a377c756541caae9fdf0d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizTwoSymBol.ttf",
+      "bytes": 12116,
+      "sha256": "3140981eb03466a162484fcf8c81a525980cbafefd694810a84ec3b6ede4ba8d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\fonts\\ttf\\STIXSizTwoSymReg.ttf",
+      "bytes": 15704,
+      "sha256": "fec7710ee130043b400e9bbd0b221743157bb08a80d93655042522523ab95029"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\back-symbolic.svg",
+      "bytes": 1532,
+      "sha256": "3a48ffadeb2c6647dee84c2ffe8ec6179b68739a9609e164436707436e417551"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\back.pdf",
+      "bytes": 1623,
+      "sha256": "651ec2268fdd01e08cf8a95a1afb2482d1d0c91b6b3c8a2573c4443a6728a899"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\back.png",
+      "bytes": 380,
+      "sha256": "1387467f81a7cf5c49d6fdad33280757460d4204a1ade0de540a5a31bfbbe265"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\back.svg",
+      "bytes": 1532,
+      "sha256": "3a48ffadeb2c6647dee84c2ffe8ec6179b68739a9609e164436707436e417551"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\back_large.png",
+      "bytes": 620,
+      "sha256": "f40ea151241eb3385838d13866e1f792f388b4cd097c356eead91fae89826ec4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\filesave-symbolic.svg",
+      "bytes": 2049,
+      "sha256": "74c197bcb48e1cfbb8e24896819c7e07f332fed2d668fe89e8683125f2f8156d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\filesave.pdf",
+      "bytes": 1734,
+      "sha256": "3f510f3d5da0e74593b7c51a5feea41684d9335c55aa8e92d87e8527a65dd5e7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\filesave.png",
+      "bytes": 458,
+      "sha256": "6fb72db9caccfc5da61be0f271379d1bf6bfcb8a47931dc5fb333b975f062e19"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\filesave.svg",
+      "bytes": 2049,
+      "sha256": "74c197bcb48e1cfbb8e24896819c7e07f332fed2d668fe89e8683125f2f8156d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\filesave_large.png",
+      "bytes": 720,
+      "sha256": "2cd6d10f9299dca7fb9dba7eb2dc7f6b5ffa5df18149651f0dda609a7ce846f9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\forward-symbolic.svg",
+      "bytes": 1551,
+      "sha256": "90e88aab76b89a278c44b542c1005d38c4d1ad61b634e5ffe7eadb0051e97664"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\forward.pdf",
+      "bytes": 1630,
+      "sha256": "288a882f8608778dcb91c3b157f4d3e6ebf3d523fc939894354789980125315f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\forward.png",
+      "bytes": 357,
+      "sha256": "a4a6cb7a98068867b26364c2065f2cbe3be6ed9e024b78b2b05c5cab8191fb09"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\forward.svg",
+      "bytes": 1551,
+      "sha256": "90e88aab76b89a278c44b542c1005d38c4d1ad61b634e5ffe7eadb0051e97664"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\forward_large.png",
+      "bytes": 593,
+      "sha256": "dfa87b9bb0d90c7aa5ea491da4d3dc9328b62ca09eff1861c9abd6011cffda44"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\hand.pdf",
+      "bytes": 4172,
+      "sha256": "86ca7090d63dd7928f0fb00c5a7550b3b2c53ceb65723d155222eeefa74c69b4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\hand.png",
+      "bytes": 979,
+      "sha256": "d9c7214444c629ad2160d294c672400709326171013ea272fd5a923e54f45b64"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\hand.svg",
+      "bytes": 4906,
+      "sha256": "871c41b5a91a54503b9a964e19a92fa3441471bdb1d3aae88de4b9827566cae7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\help-symbolic.svg",
+      "bytes": 1890,
+      "sha256": "5d570572ecdc2f7490dcb8df49bb5d2d80e3a01e585248f68e4d8693cbda645f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\help.pdf",
+      "bytes": 1813,
+      "sha256": "09e13defc20c8b4616ce758a8c84f547c22b3f82a16744bbbac3d4beb79281c0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\help.png",
+      "bytes": 472,
+      "sha256": "b38a50aea690d29cbc23bbdcf61bf7048dc33bfb64cbeed804ca5a1ee0430816"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\help.svg",
+      "bytes": 1890,
+      "sha256": "5d570572ecdc2f7490dcb8df49bb5d2d80e3a01e585248f68e4d8693cbda645f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\help_large.png",
+      "bytes": 747,
+      "sha256": "d48c04c967c64609e809633eafd0891c4a204c9543e67d5cf0b5d32b8009e111"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\home-symbolic.svg",
+      "bytes": 1911,
+      "sha256": "a6daeeb3c8793d94e2f5a8587e76b3fae67c3001c2afbd9a3de316e3c4c147d4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\home.pdf",
+      "bytes": 1737,
+      "sha256": "7b47b4a48f9746d3e6bd4096d954ca2f50de62ed69bcf99451e4528046d69a29"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\home.png",
+      "bytes": 468,
+      "sha256": "21c15d00051aebf034aadf083b723ca78ae95e942002527c9dd04408287b0b5c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\home.svg",
+      "bytes": 1911,
+      "sha256": "a6daeeb3c8793d94e2f5a8587e76b3fae67c3001c2afbd9a3de316e3c4c147d4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\home_large.png",
+      "bytes": 790,
+      "sha256": "bb14b63b7b5638787589abbb09a555e1eae6209699d34ee26e6e59de2f245d88"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\matplotlib.pdf",
+      "bytes": 22852,
+      "sha256": "0644947fedb1a228fe7977e9576b7bcb5245286d730f582d57a6808375e2ff01"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\matplotlib.png",
+      "bytes": 1283,
+      "sha256": "c3c28b45855afafa146576b8d618096ae42ea288acdb77f73457dd73bda95186"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\matplotlib.svg",
+      "bytes": 62087,
+      "sha256": "4224c872a950c066953ed1ec124fafb66264d70c70652be28e1a817bf6fd5422"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\matplotlib_large.png",
+      "bytes": 3088,
+      "sha256": "125468b9ef60ad4aa4657267824fa7be1e0629fa6f278804ebd5abca309b5f95"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\move-symbolic.svg",
+      "bytes": 2529,
+      "sha256": "fee6a62e78d0db48b04ae29b77c26f4d7505691ab8db4e8cae9156bed12bafc2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\move.pdf",
+      "bytes": 1867,
+      "sha256": "0979373c62bd58be6dfb927e1b65f94e5fa76fa95c12b4c14b9a148f64ade9a5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\move.png",
+      "bytes": 481,
+      "sha256": "4e68d1e352334b3c466e1894715eb85f4cf1d818ebc5b587ddc48abe71b6bf37"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\move.svg",
+      "bytes": 2529,
+      "sha256": "fee6a62e78d0db48b04ae29b77c26f4d7505691ab8db4e8cae9156bed12bafc2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\move_large.png",
+      "bytes": 767,
+      "sha256": "4a48f3da75bf453039b3fd20f3c81dab686b55b9ba0ce71f616e05bb8d859fd5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\qt4_editor_options.pdf",
+      "bytes": 1568,
+      "sha256": "daabba195c81ac9bd51f1c9c850a095225cf63107295b1f68fdd109f2b57b3fc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\qt4_editor_options.png",
+      "bytes": 380,
+      "sha256": "12bc908d0e61876770988c6dcc216230dd54e939ddd75a750837e01f96478cd3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\qt4_editor_options.svg",
+      "bytes": 1264,
+      "sha256": "b1dacd231613f812ef277d004a76914393f1177481e35fa981d688253d0aa818"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\qt4_editor_options_large.png",
+      "bytes": 619,
+      "sha256": "f8f77ef55879688af73d96bc3ba19efc12e8e35922127a6691d0e3f1ad752646"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\subplots-symbolic.svg",
+      "bytes": 2150,
+      "sha256": "1aae1f0d24bdf51bf9adb47cfe77a757a8dc63956c28f01159e1fe059064f425"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\subplots.pdf",
+      "bytes": 1714,
+      "sha256": "434b323cc23912fb6033e084f985ca3a42fd7855006678ff5f6221a23e91e29e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\subplots.png",
+      "bytes": 445,
+      "sha256": "3147c222dab7ff2cdbf724627863a09699f463be21f0803b9b98bbd01eb78917"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\subplots.svg",
+      "bytes": 2150,
+      "sha256": "1aae1f0d24bdf51bf9adb47cfe77a757a8dc63956c28f01159e1fe059064f425"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\subplots_large.png",
+      "bytes": 662,
+      "sha256": "11dbbd4b054c4045c9679a205397325bb54b7305c976175ff84b71c66c5d908b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\zoom_to_rect-symbolic.svg",
+      "bytes": 1499,
+      "sha256": "b8c99d1a43b8dd91e57b392989e477fcc8aa944739bd139f7d10ce858e2cc66e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\zoom_to_rect.pdf",
+      "bytes": 1609,
+      "sha256": "484bcf736e207d946997e747bfb9f1f0a9313f253ae8aab8ce0413bc6166f4a0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\zoom_to_rect.png",
+      "bytes": 530,
+      "sha256": "68dcf741906b220c6ef44f9f15f690c1e095362b46b83505a02dbb7b9354d8be"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\zoom_to_rect.svg",
+      "bytes": 1499,
+      "sha256": "b8c99d1a43b8dd91e57b392989e477fcc8aa944739bd139f7d10ce858e2cc66e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\images\\zoom_to_rect_large.png",
+      "bytes": 1016,
+      "sha256": "57aa64c669ba570144c5d83f3c425674adfb1c1ee4ddc13f728acb6bb45b50c9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\kpsewhich.lua",
+      "bytes": 139,
+      "sha256": "45dc986819c12f2dcdb01e5cd91e451ab2aef95f9605c6629b6e0d5a296c4dfc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\matplotlibrc",
+      "bytes": 44226,
+      "sha256": "da13b0e06e583117b135c5a6713fdda20a309a8ba2fc07d839f56f18ce9a3c73"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\plot_directive\\plot_directive.css",
+      "bytes": 318,
+      "sha256": "bad489d68113cf4506e800bd854d77e09fc963bf043628ea3195cdd0930151f9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\axes_grid\\bivariate_normal.npy",
+      "bytes": 1880,
+      "sha256": "0e9599f6e74087aa2ca58aa77846b6ec3e8491180e445c07a2c69c65756ef7c5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\data_x_x2_x3.csv",
+      "bytes": 132,
+      "sha256": "034494ddbb8e506853f8d23fe8b43aa7bd1f152214de22c5760cefceb291e921"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\eeg.dat",
+      "bytes": 25600,
+      "sha256": "28656316df0004acfba7a5d98ab35f7314933a918636ec80f09604ad128b4417"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\embedding_in_wx3.xrc",
+      "bytes": 2186,
+      "sha256": "714a95c39bc31cd499a1a3b827479b6547f94ab24fdfaefbe5a6eced1f417258"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\goog.npz",
+      "bytes": 22845,
+      "sha256": "400917cf30e6b664f7b0da93d7c745860d3aa9008da8b7f160d2dd12e6a318b1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\grace_hopper.jpg",
+      "bytes": 61306,
+      "sha256": "a8ca6d734765703b09728ab47fe59f473d93ae3967fc24c7c0288c3c7adb7130"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\jacksboro_fault_dem.npz",
+      "bytes": 174061,
+      "sha256": "d493f50a33e82a4420494c54d1fca1539d177bdc27ab190bc5fe6e92f62fb637"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\logo2.png",
+      "bytes": 22279,
+      "sha256": "0d7371e055decaac47cb6e809af3442e9c1ecd02f1c1e2d063d1cfee4b4a21d7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\membrane.dat",
+      "bytes": 48000,
+      "sha256": "ab795b429201a5bb575c6370d5e17090dfcfc317431aa9382f8e881366f43357"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\Minduka_Present_Blue_Pack.png",
+      "bytes": 13634,
+      "sha256": "5e72868826a7a4329a950e5a9efa393594807833fb7f27e5cd001a8afb9cd081"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\msft.csv",
+      "bytes": 3211,
+      "sha256": "180aca6f43b70e029946c29d25fea55f7acc49ff8f09e908881a0b35d805ecc9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\README.txt",
+      "bytes": 128,
+      "sha256": "001cf5f5504a7c67b0758dfd4089c6f5071c827d4c4d85776d3e4f87b4c2cb66"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\s1045.ima.gz",
+      "bytes": 33229,
+      "sha256": "32b424d64f62b7e71cb24d29fd53938ad5664d608055a67ab2b2af4369f8b89e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\Stocks.csv",
+      "bytes": 67924,
+      "sha256": "ef6f3bf1a64d5c6c5de702ef154c3fae78fe9df83882ab6bb9c6638bec3cdf47"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\sample_data\\topobathy.npz",
+      "bytes": 45224,
+      "sha256": "0244e03291702df45024dcb5cacbc4f3d4cb30d72dfa7fd371c4ac61c42b4fbf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\_classic_test_patch.mplstyle",
+      "bytes": 167,
+      "sha256": "8a8a47a4c68cde29bf00ad9a8871ae3360ca3398bd29cf38bfa35012849bd744"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\_mpl-gallery-nogrid.mplstyle",
+      "bytes": 489,
+      "sha256": "d5538bdd44aa0fa8ae190692ca7360d50872530bca2e790bc9429d6c13279ea8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\_mpl-gallery.mplstyle",
+      "bytes": 504,
+      "sha256": "30dfaae7d0a20ea1d707cc45297c7309b2496c998d0e105ef650c9240a0c4cf0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\bmh.mplstyle",
+      "bytes": 712,
+      "sha256": "f8a6e1688f39f412131c8a3251921fa500e37dc9202c0943012ff274ab26ea67"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\classic.mplstyle",
+      "bytes": 24670,
+      "sha256": "d68e5be3b543fd1219bf7ba79c6f469b6b5ba6b4ef39e3465ccf21242986b982"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\dark_background.mplstyle",
+      "bytes": 607,
+      "sha256": "1b34810f4ea3be54583aabbb0f96796b9c76e65f499d382d39b9fb4b80fdcee8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\fast.mplstyle",
+      "bytes": 288,
+      "sha256": "c936b66042083fdc62e55fc6d29daf4a5c6086e84dc23462f603c408cc724623"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\fivethirtyeight.mplstyle",
+      "bytes": 780,
+      "sha256": "21c06dd83483cfd0adbb20a2b3d259b53dcdaa887a2d53be741eba03139b51c0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\ggplot.mplstyle",
+      "bytes": 956,
+      "sha256": "bb6a0f1cc2d616d65ca488c7936b308b636bb783609c4b687f9971730334443d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\grayscale.mplstyle",
+      "bytes": 526,
+      "sha256": "2822e0fa95e99ecf5c9ca0d728dd961fa995e35387fba71b4fee73290a2d49dc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\petroff10.mplstyle",
+      "bytes": 298,
+      "sha256": "423ee93db1e1dcbdb991db0fb75ca9c2f291ddd3f3b8eac5cf34133f731f8a58"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-bright.mplstyle",
+      "bytes": 144,
+      "sha256": "a43aa7dfe354c952ef95f918b3c9fc1f3359be6b2554c0a191e1fe1ed66e2487"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-colorblind.mplstyle",
+      "bytes": 148,
+      "sha256": "7824b3163e7fdaf47a9f9aaed6b1c4e3ac2f49519971d56acfce68bf8d19b07f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-dark-palette.mplstyle",
+      "bytes": 142,
+      "sha256": "a7900128d407446edb9381d7a8c42b4418c3971180a374425c775098fee0f8d8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-dark.mplstyle",
+      "bytes": 667,
+      "sha256": "238c50ef9bc4e7ff57e24d1c3438aa8619c5dce72b676c653d7f0b97b3829281"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-darkgrid.mplstyle",
+      "bytes": 670,
+      "sha256": "d9b5ce4b34b98263f3441ad19b3556ca183fed9681450eadffe3be711bb26680"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-deep.mplstyle",
+      "bytes": 142,
+      "sha256": "e3874b7178e346047eeb26a8a60191227695833de393c5495504db048731441d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-muted.mplstyle",
+      "bytes": 143,
+      "sha256": "4f8a378efa8a0ff2265c3929eba5c5395ff1ac1545528949537e090c59355e49"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-notebook.mplstyle",
+      "bytes": 382,
+      "sha256": "3dcbd941b62b0dd76e72b3656af04f990d60da68a78a8ffd1a4514151760b683"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-paper.mplstyle",
+      "bytes": 393,
+      "sha256": "9f499ba14a760b852cab68fab4d59cbb84d9fd84f8fa42a0ad83b4b7eaf3d72c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-pastel.mplstyle",
+      "bytes": 144,
+      "sha256": "f2757ca91a5b52b9c565ec84e95710d6846e64f2e29765bbe0cd94dfb0cd30e1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-poster.mplstyle",
+      "bytes": 403,
+      "sha256": "75468aa931383117d4ab6ad65576dba2eee4cc3ed9f4f13d2a8f1a5cbcdaf090"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-talk.mplstyle",
+      "bytes": 403,
+      "sha256": "ec59c168111d5816e77139bafc447e11055afdb66053b7677207b3f9ecfc47be"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-ticks.mplstyle",
+      "bytes": 665,
+      "sha256": "0884d9999154169e3430ad8ecfcb48f1aed64680a2cd053d678275ef66167d6c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-white.mplstyle",
+      "bytes": 665,
+      "sha256": "5a327a2c453aae50b052e813a1ac1c8806ca3fda044451ebf6b7c5954add4f1d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8-whitegrid.mplstyle",
+      "bytes": 664,
+      "sha256": "79ce018ec37398ebc7a6d709de674fc542c5dd2d7f535114a1cbaa7c8a70f8d9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\seaborn-v0_8.mplstyle",
+      "bytes": 1130,
+      "sha256": "fd7bbaa972b38b86f71b2982381d5bd7eca429343cc610e5899f1ecc7193880b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\Solarize_Light2.mplstyle",
+      "bytes": 1257,
+      "sha256": "6b2b4e9b8793fd23efb3b1c2dbc658e06ba478de38abe484d0910c091f2454e9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\matplotlib\\mpl-data\\stylelib\\tableau-colorblind10.mplstyle",
+      "bytes": 190,
+      "sha256": "06c8ab6557752e63d64f8b41233ea5a193e365c227a10ac819f0bbaefcea989c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\_core\\_multiarray_tests.cp314-win_amd64.pyd",
+      "bytes": 65536,
+      "sha256": "bf0b17886b12d616d088f78dc6cc85b388dcd8114d91cb540ab83420ca9d5392"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\_core\\_multiarray_umath.cp314-win_amd64.pyd",
+      "bytes": 3725312,
+      "sha256": "5766ef2c56abcfa16881e536fb9a32e43a72842486b86f2d7b8fe1aa895579d6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\fft\\_pocketfft_umath.cp314-win_amd64.pyd",
+      "bytes": 276480,
+      "sha256": "7b60fd26a4ffc22d840a1c2f45eff42dcc0d394ef36e9b8fa3d178d5ec944701"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\linalg\\_umath_linalg.cp314-win_amd64.pyd",
+      "bytes": 112128,
+      "sha256": "cfcb66b2f3d89b82f5101559586272a156c3f35158acbf68d827ad0b1dd60343"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\_bounded_integers.cp314-win_amd64.pyd",
+      "bytes": 215040,
+      "sha256": "0363665f6213ba01a1f2b2270ab7c658a882e66d11aa2612b9774c5b36ce0cec"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\_common.cp314-win_amd64.pyd",
+      "bytes": 173056,
+      "sha256": "20d06c279c8afe3fc8b9ce4e4d0767d025e3c77b86ecb2354d66e335fec91230"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\_generator.cp314-win_amd64.pyd",
+      "bytes": 596480,
+      "sha256": "1c2d9ba8fdb338e6f636a37705934c893dc73ba571c8f474078e8ddfd300f3f3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\_mt19937.cp314-win_amd64.pyd",
+      "bytes": 84992,
+      "sha256": "b831fe2dd6d6995bf857211e77ddae4bce1be609471133b09ad907c8493eaf31"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\_pcg64.cp314-win_amd64.pyd",
+      "bytes": 94720,
+      "sha256": "39e8e32e8eef89b6732d8ffc05c41b103f00c605f7d949d14fe6f310b8935677"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\_philox.cp314-win_amd64.pyd",
+      "bytes": 79872,
+      "sha256": "c53dfc9dcc83715cc27e226bdebe50d0b18a88baa3b84e979b1dfb5f9c4bb4ee"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\_sfc64.cp314-win_amd64.pyd",
+      "bytes": 58880,
+      "sha256": "5554fdb43f56559e532b86d3e3354b095dfae52c3c592fd756d253d9f529a856"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\bit_generator.cp314-win_amd64.pyd",
+      "bytes": 160768,
+      "sha256": "ac122eee62a820724af09ded83882e20d270d712fe133dfcd35a711729ffca66"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy\\random\\mtrand.cp314-win_amd64.pyd",
+      "bytes": 496128,
+      "sha256": "e22413fbd5d57e24f0b19b4e05854c7e16eb028d9a07aaa255181d88bf3461ff"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\DELVEWHEEL",
+      "bytes": 462,
+      "sha256": "19722e9df7761142c7655c0bb213916b02c16e0e6f0c95bda783d92a63919810"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\entry_points.txt",
+      "bytes": 220,
+      "sha256": "ec26fade0c8bdac211a6c1dd003a65eb16885b925395423e93fcaa115af4052c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\INSTALLER",
+      "bytes": 4,
+      "sha256": "ceebae7b8927a3227e5303cf5e0f1f7b34bb542ad7250ac03fbcde36ec2f1508"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\LICENSE.txt",
+      "bytes": 45831,
+      "sha256": "a804dff0ead9fadc5293456410bcbfc32bf024be9c4513459663fb7b442d2341"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\_core\\include\\numpy\\libdivide\\LICENSE.txt",
+      "bytes": 1039,
+      "sha256": "d544761558b510866c21f7e8a2d5716fca76e0b98117e3b6b86314db7244d150"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\_core\\src\\common\\pythoncapi-compat\\COPYING",
+      "bytes": 704,
+      "sha256": "aea41976c720f91bd19725c16916a1ace40eb1ea42620d340e587a5de4bbcea0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\_core\\src\\highway\\LICENSE",
+      "bytes": 21155,
+      "sha256": "d208152e2777ffd0126eacc1bd21c0320d69e4e6b622d21a2a12a47e8ef73763"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\_core\\src\\multiarray\\dragon4_LICENSE.txt",
+      "bytes": 1441,
+      "sha256": "b0fd592d4ead563148e3977e7b589169d46a5ef2ff133c755a81af880a3fc919"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\_core\\src\\npysort\\x86-simd-sort\\LICENSE.md",
+      "bytes": 1542,
+      "sha256": "a732977853530066790c42817087f4829b518dd98d340c916acbfd227e39d3cb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\_core\\src\\umath\\svml\\LICENSE",
+      "bytes": 1573,
+      "sha256": "585483905b13d4b42f800c55ba99e89d6e2e33ccd5f503e201c07531d148ff41"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\fft\\pocketfft\\LICENSE.md",
+      "bytes": 1523,
+      "sha256": "8db000e158c162e7249787852d8c69764706502ccee725c06641b31c1e95c8af"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\linalg\\lapack_lite\\LICENSE.txt",
+      "bytes": 2314,
+      "sha256": "19060ef465e1797d682ee0fc3081bd25ab1395e995e43d25c9d13c95d9a3cd6b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\ma\\LICENSE",
+      "bytes": 1616,
+      "sha256": "d78dbb208b80d92b4d333e41a4baae50d12444f46e53199fa7726a91de6e2da7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\random\\LICENSE.md",
+      "bytes": 3582,
+      "sha256": "b4bc2f4fa1c95778f1ed3dd8f14706bece399475b978f9f34b5d3cd72521b48a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\random\\src\\distributions\\LICENSE.md",
+      "bytes": 2805,
+      "sha256": "cf5619f25b112d5ce7c896efffc8e610bcb345dfadcc19f2c1460aa48fff2c9e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\random\\src\\mt19937\\LICENSE.md",
+      "bytes": 2986,
+      "sha256": "92c10699884321f1c2947fe2a70ab23b0fbf1507f756d89dd08f38c61fc3d4fa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\random\\src\\pcg64\\LICENSE.md",
+      "bytes": 1176,
+      "sha256": "41190663b77bee5302386495a07b7eabfbfa571aa0ae2f11da6764162062fc4f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\random\\src\\philox\\LICENSE.md",
+      "bytes": 1540,
+      "sha256": "322ac46d870c8aeead6c53adcccc839296fb3c8e456eae155081297daf7f8013"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\random\\src\\sfc64\\LICENSE.md",
+      "bytes": 1253,
+      "sha256": "28cad82ce1379dc529df30da78ec012d7d0d1d576b03ddcb93388aee53659f59"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\licenses\\numpy\\random\\src\\splitmix64\\LICENSE.md",
+      "bytes": 340,
+      "sha256": "454ec7350e478e037061850b67395753b425b1cb0a34bbc26290b020bf89d763"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\METADATA",
+      "bytes": 6608,
+      "sha256": "84ffd40eb01250c3c7c9d6da1baefac179fe74795096bd46313770a7aad154fa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\RECORD",
+      "bytes": 112276,
+      "sha256": "d897c9c6b68dd5fbfcc8c5c53f8a686d20214ee942e99b4e16ba3d8ecfed930c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy-2.4.5.dist-info\\WHEEL",
+      "bytes": 85,
+      "sha256": "cc5470f047694c6baa5786778b2e707f26827a8311aa1dea261a6c914aed193e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy.libs\\libscipy_openblas64_-63c857e738469261263c764a36be9436.dll",
+      "bytes": 20415488,
+      "sha256": "63c857e738469261263c764a36be9436ebdeaa272e340a828f42047a97131080"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\numpy.libs\\msvcp140-a4c2229bdc2a2a630acdc095b4d86008.dll",
+      "bytes": 575056,
+      "sha256": "a4c2229bdc2a2a630acdc095b4d86008e5c3e3bc7773174354f3da4f5beb9cde"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PIL\\_avif.cp314-win_amd64.pyd",
+      "bytes": 7892992,
+      "sha256": "c934bd54355739daff001ca516f566ce942cf02e76b4b1727568a02542625a17"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PIL\\_imaging.cp314-win_amd64.pyd",
+      "bytes": 2584576,
+      "sha256": "b4e06283c347910b5973bd5732159ea9eb26eda48e3eed183be2e3382db26597"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PIL\\_imagingcms.cp314-win_amd64.pyd",
+      "bytes": 269824,
+      "sha256": "68b85230ac4d44a2a377b69965936dfa7a5aff04b7a9ba562af3438d9a5a6550"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PIL\\_imagingft.cp314-win_amd64.pyd",
+      "bytes": 2162688,
+      "sha256": "7e6910e39fa06b4049f058a781a20bcac40c4844d46037859c76de76852dbb3e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PIL\\_imagingmath.cp314-win_amd64.pyd",
+      "bytes": 25600,
+      "sha256": "a1c024d3e0e75802e3249a1a33335809b6cf032749ed2c4507d622d6610e36f2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PIL\\_imagingtk.cp314-win_amd64.pyd",
+      "bytes": 14848,
+      "sha256": "783d411905ecd94a341401c12b267f74e649627e046051e9813f8a8114851a60"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PIL\\_webp.cp314-win_amd64.pyd",
+      "bytes": 409600,
+      "sha256": "1f61a83c78f034f06f9229c80008e900ea7fd5422e1b5b8e1515fc6df31820eb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\pyexpat.pyd",
+      "bytes": 219360,
+      "sha256": "9349be352300fef4b16da0574c670b174d75094574ab51f3d385767d1e3dfc0d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\MSVCP140.dll",
+      "bytes": 549176,
+      "sha256": "708dd7bbc7bd23bce9e93f7837a70c2dd7ad55cff43801e92c0f7fcd7dda47cd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\MSVCP140_1.dll",
+      "bytes": 27448,
+      "sha256": "b2113956aa3fcb9decfe65be1ee7829f8e3ae0899633ae89fe04888ada201594"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\MSVCP140_2.dll",
+      "bytes": 271672,
+      "sha256": "1b806b427ffb573deff8478cf6fe336465fe2c67e0919bb95f452b6f31d25736"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\opengl32sw.dll",
+      "bytes": 20639544,
+      "sha256": "4a7d90f91fdecb5df7b426bc2d05974b8d7ffa450af2d1f93f3eca05800718da"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\generic\\qtuiotouchplugin.dll",
+      "bytes": 101176,
+      "sha256": "1ee2810eef83dbb2740d4f796f8149dc5752ffd3dd60e39796a9a4d6a6a0ae38"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\iconengines\\qsvgicon.dll",
+      "bytes": 72504,
+      "sha256": "dd60826f1959faa7ea137e00959717450da9f2e0c151054daeff1e9d1226fab2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qgif.dll",
+      "bytes": 47928,
+      "sha256": "8b8dea2abaed333f1fbbdf3c8867ceb6040722c88a1fb81ea451f8b8bc9e8ee0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qicns.dll",
+      "bytes": 55608,
+      "sha256": "6a5aed435989d54234c16581e66f6a59137bfccd180565a217a8676bcda6dc8d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qico.dll",
+      "bytes": 45880,
+      "sha256": "f81378dd51392ff0d3ae094d5e59dfc4fa664a0ef4d756d6ed40584f90af2758"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qjpeg.dll",
+      "bytes": 577848,
+      "sha256": "97af9ceaf3ebefefeb7aede27ae07b73ae1d2ed479427beebf61c58654361d43"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qpdf.dll",
+      "bytes": 42296,
+      "sha256": "273a1b6daaf3c0def92902044cf35d0ec65e56f904acb7fbf428d80dae2bb9d5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qsvg.dll",
+      "bytes": 39224,
+      "sha256": "d4100055c3a4d6c1bca5e303e3d2049bde54d4e916442ee0a3e9b4dfa7d416fc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qtga.dll",
+      "bytes": 38200,
+      "sha256": "50f0e6ff9b7fca9386ccad52eb5e83466774e6282c9532b03b11e5a64951dffb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qtiff.dll",
+      "bytes": 441656,
+      "sha256": "087a3425962e838c35c9073bdf8de13712466e9b9590717666af7839db068dba"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qwbmp.dll",
+      "bytes": 36664,
+      "sha256": "28a6447d44169acbf2eab38c475dc0aa9e32abb3f29f72257726497353b9bf63"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\imageformats\\qwebp.dll",
+      "bytes": 562488,
+      "sha256": "3e2bf546a3885cbe3e2b64058b1c58377d3c8822f51b37ba967f61e8054d7719"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\networkinformation\\qnetworklistmanager.dll",
+      "bytes": 70968,
+      "sha256": "aeef84e74d3114f62f4650305b403ef9f81e8c05bc67c86683d999c5c1243926"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\platforminputcontexts\\qtvirtualkeyboardplugin.dll",
+      "bytes": 33592,
+      "sha256": "d116b216a50037cbfa6ee9afd94bea357cdbee263e0f9b8c6ef2e811da29eb70"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\platforms\\qdirect2d.dll",
+      "bytes": 1088824,
+      "sha256": "f099af483b0d71a6a028bc15ad98a407e4c820400e6626cdc8e66b5f5e4cfed2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\platforms\\qminimal.dll",
+      "bytes": 61752,
+      "sha256": "97d81b9ee7cbbeb68e46eefce24d4b929b7a24cc646cebe3d4d03e2734f97935"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\platforms\\qoffscreen.dll",
+      "bytes": 113976,
+      "sha256": "426266e8ba0ea07c416616ad9973702fe126d4559cb2ee11e1c9bdbae85ba755"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\platforms\\qwindows.dll",
+      "bytes": 1006904,
+      "sha256": "54d736de022f707e9f7f555e4c9f9e993253cd5b0ee2364e6a9458c180828c42"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\styles\\qmodernwindowsstyle.dll",
+      "bytes": 230712,
+      "sha256": "9af96b09ebaf7ff13e22c70bf69b9c3f226f069375d1a9f9efd63e944e43f5fb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\tls\\qcertonlybackend.dll",
+      "bytes": 103736,
+      "sha256": "45b9f59593a1567f7d6725ddfa53f667f8f26b7795b1e2d0e1080a4025bafc02"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\tls\\qopensslbackend.dll",
+      "bytes": 319288,
+      "sha256": "c7222880a7defe7a5c84f5871cdc7e34df22f3de6646026683042fab5c22b561"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\plugins\\tls\\qschannelbackend.dll",
+      "bytes": 263992,
+      "sha256": "d09487a64be0e1d4545a8230e7fe05d163375610adf175407a6742944f16deb9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\pyside6.abi3.dll",
+      "bytes": 248632,
+      "sha256": "d4072be872b31f3748de5e6c28cb2976dafbf063d3ccfa38e5dabda29babcdaf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Charts.dll",
+      "bytes": 1758520,
+      "sha256": "4cc985103b280a359be3f2283025a743085f65c91b03bdd0949ca6a2fdd96827"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Core.dll",
+      "bytes": 10480440,
+      "sha256": "65fe6224b6c47a15b058738031d31dce9928c4d7a58e1b8db6434f6f5cddd702"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Gui.dll",
+      "bytes": 9589560,
+      "sha256": "cd071161ad325ff2de92b0e33d71334ef20712544796949623ce92dfb3957e90"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Network.dll",
+      "bytes": 1771320,
+      "sha256": "dfd0dd852274a5fe9b3c7d2dd9fffe7e2117d28c10fc862174d6675d42395177"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6OpenGL.dll",
+      "bytes": 1977656,
+      "sha256": "b31d20dc5ab28731d43ac5312c46c8fe1c39ea3e9614c46e6419b4debc87c1eb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6OpenGLWidgets.dll",
+      "bytes": 64824,
+      "sha256": "2bf39d881bc9f489652805c5f983262b4ecfbaadccebe2e8a8a5d0ba4ca4decd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Pdf.dll",
+      "bytes": 4611384,
+      "sha256": "cf8ae19cf5f98db4a3ae332fbe6bd00bc4cdf5ca5779f88b2071cf8180610106"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6PdfWidgets.dll",
+      "bytes": 104248,
+      "sha256": "4a08a9772a78e495a6dda1179651fbbc129267e7250e59a7edca3fdcbf761bde"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6PrintSupport.dll",
+      "bytes": 407352,
+      "sha256": "978f4fbf76293fbfe8e8c8a504f78dbf7351122b220729f1e3d69d55951644fd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Qml.dll",
+      "bytes": 5380920,
+      "sha256": "5dd60d8e2048557bc1b8a57f6bb44986f45d693c3b0930d1341b07089478f09d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6QmlMeta.dll",
+      "bytes": 160056,
+      "sha256": "1ae5a50e8defa2b60518a2261a2472ecf4d3e3ca965780339953d658844d4aa0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6QmlModels.dll",
+      "bytes": 997176,
+      "sha256": "1ec0d115747d65a994798064618ffd9e3e9efa1548297e64e08c49c9a98f0feb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6QmlWorkerScript.dll",
+      "bytes": 80696,
+      "sha256": "3a764b6c2bc8cb21f009485e7410e6d29b9edd5e0addbed8fb89292c0ab64c97"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Quick.dll",
+      "bytes": 6593336,
+      "sha256": "33bddb006a99c82ce3bb677fd2535dfb651d4b2fb12aa13eadde6dc442bf7f0d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Svg.dll",
+      "bytes": 642360,
+      "sha256": "a7352e8062d02e2108e37db4050fb3315d3c03c7d36acdc24b98b9a6c129c1de"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6VirtualKeyboard.dll",
+      "bytes": 443192,
+      "sha256": "e8db083111dc264c80c81920c882ed1c2c28043edffa988894e0a82723b2aa4b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\Qt6Widgets.dll",
+      "bytes": 6594360,
+      "sha256": "5a9f37dedd3dc5bcc1a4bb8ea919c49fc62df751a1450accc34379eb6710eab6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtCharts.pyd",
+      "bytes": 810296,
+      "sha256": "11c443ab87450a8cc814d99047583e5a90efa088c7634d6022b289b778b7b48f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtCore.pyd",
+      "bytes": 3330360,
+      "sha256": "be52341a5df1f76ecca2fb1e94eb429dfa46f0b659ed6536f25119b565b21ea8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtGui.pyd",
+      "bytes": 3896632,
+      "sha256": "f0549716b10a8b4fbd5c6c041f36af215223809f919f4c4722d44cc199d5c593"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtNetwork.pyd",
+      "bytes": 1007416,
+      "sha256": "3953a86c9545ad8fa1cf1dec27085dd357838464cd6e2131c9963caad6234b67"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtOpenGL.pyd",
+      "bytes": 8713016,
+      "sha256": "0e166f207602e2de6153a05ebe04762d1396428ab0734947d9ebd6f871bbedf5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtOpenGLWidgets.pyd",
+      "bytes": 122168,
+      "sha256": "cd6a86d70ccda279d24656f20cc9ab232a22c732bac1b4751ff2f6dde400ed57"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtPdf.pyd",
+      "bytes": 245560,
+      "sha256": "8282aecff6c12f60e5c05af1479934dc93254553f9299ed4704c4f04fd75bc33"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtPdfWidgets.pyd",
+      "bytes": 141112,
+      "sha256": "5fc032c08bc7c0f2d44991594df5f63a1ac42e307bbd18986acc5e96cd6f6e25"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtPrintSupport.pyd",
+      "bytes": 277304,
+      "sha256": "be544f7f2abba474ebdcb9169c3baf143d12cba8f7cd5256e9877af168e6756e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\QtWidgets.pyd",
+      "bytes": 4856120,
+      "sha256": "85cb6c2181b4b09887a7d8507dd950844d1b8f74a9c4002c7b71169f75bf6fda"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_ar.qm",
+      "bytes": 104,
+      "sha256": "b11333c520ccd8e375cde20985df402d586a1a95e0796313bbeb9f717d4db22e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_bg.qm",
+      "bytes": 91,
+      "sha256": "1e22ee126ec9f76031d880285a907b3a0c4510392319ff700dcdee964abbb1ad"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_ca.qm",
+      "bytes": 91,
+      "sha256": "17ab2623c7f6e8def44b3dbcb517544185817d65f1298ddb10ef71136f232bdc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_cs.qm",
+      "bytes": 95,
+      "sha256": "c585918fb1d4821a054ea40bdcf279f275ca76c88a5793f433dac6a611ac7e8f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_da.qm",
+      "bytes": 91,
+      "sha256": "f6773c672acb73fdef6e092060d69d1e5dfee840012bac912d1e92de28714386"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_de.qm",
+      "bytes": 91,
+      "sha256": "0401c316aa3b50a172eb44a4ff1ec384924073beec7c928ef888ec48e4612688"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_en.qm",
+      "bytes": 33,
+      "sha256": "494ac9a2b2cb2fdeced353f4a9f898ed8dcf616e9bc667438c62681e3f7f79cf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_es.qm",
+      "bytes": 91,
+      "sha256": "648ed4519bc45d7a4779479a7626ea16cf9aa23e93a0b178546cc47bea0591ab"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_fa.qm",
+      "bytes": 84,
+      "sha256": "3f4c989c6b2990d80cc6299408214b31698923b52f154483b3371875de91f88e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_fi.qm",
+      "bytes": 91,
+      "sha256": "342d01c7eeb234e431d0506821c4cd03c0433115d8d63fee3357be2331858879"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_fr.qm",
+      "bytes": 91,
+      "sha256": "c896a38892a92346b033793d56440993236b23e47e06f3974afdb0552f628387"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_gd.qm",
+      "bytes": 70,
+      "sha256": "49df855a004a17950338af3146466f6df4d5852410bd0b58ea80e0d0203a9d24"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_gl.qm",
+      "bytes": 323590,
+      "sha256": "204a01ac7deb6b5bae193afecbd1e50d18c73bf7d94badeb2bbfdf6123c4ed93"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_he.qm",
+      "bytes": 57,
+      "sha256": "36f01fff2f25e116d4b7af78097b7e49520fd5b7fb6fb120e40be228c05c045f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_ar.qm",
+      "bytes": 8743,
+      "sha256": "222088c9752d1cc3bab985ef2dc77e5ae78578dce18a61ec15b39f02e588163d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_bg.qm",
+      "bytes": 10599,
+      "sha256": "cbcdd1e0bbae332d80ddb0a286056f17c824fa28d353d7fdf12fc97d9f6fe054"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_ca.qm",
+      "bytes": 7426,
+      "sha256": "8c98b5ee246e18397d0de7bd76b2891773a975553ec5dcdce42f8a696e5b34de"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_cs.qm",
+      "bytes": 15297,
+      "sha256": "4ac56fc63e400943bab13f1d4c418502138908e1d488c24aee6131d3d17552aa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_da.qm",
+      "bytes": 4795,
+      "sha256": "6bb092552a398687119f6d52145f04bf8373977446d8f00c0dcbd56b96829f0f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_de.qm",
+      "bytes": 7569,
+      "sha256": "037bc99abf98571ae9375c2513536c15b571d66406c36c1de447b547ff539c07"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_en.qm",
+      "bytes": 33,
+      "sha256": "494ac9a2b2cb2fdeced353f4a9f898ed8dcf616e9bc667438c62681e3f7f79cf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_es.qm",
+      "bytes": 10704,
+      "sha256": "fd16b279f8cf69077f75e94d90c9c07a2afff3948a579e3789f5ffb5e5f4202d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_fr.qm",
+      "bytes": 3573,
+      "sha256": "875ee2dcdc64e3dea888d84048e382d3921a175f12847de2e6b1cb12ad9add50"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_gl.qm",
+      "bytes": 10891,
+      "sha256": "7399a248609974773f60866c87b78ea7dfbc4f750313d692f7886cd763883c9f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_hr.qm",
+      "bytes": 5170,
+      "sha256": "8c8cc3c5b1ab2b074f82937001b896603420ef75592b3b78172177360dd7ea61"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_hu.qm",
+      "bytes": 7255,
+      "sha256": "7be32e015119c969453abb6e8f3fb377963a69fafb10c27b796737b5eb283eaf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_it.qm",
+      "bytes": 10612,
+      "sha256": "316fe8d0815e2b4b396895beb38ef1a40431915b5e054df80f4c0cd556f26e4b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_ja.qm",
+      "bytes": 7917,
+      "sha256": "ae603b2c0d434d40cde433ffcba65f9ee27978a9e19316007be7fe782a5b8b47"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_ka.qm",
+      "bytes": 7091,
+      "sha256": "159c74f94b384b5ee6afdf38b6cfc4806bc99ecf73be02d4a7021d4ceba7ec7e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_ko.qm",
+      "bytes": 5708,
+      "sha256": "f11c64694e8e34e1d2c46c1a1d15d6ba9f2db7b61de4fdf54eca5ab977c3e052"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_nl.qm",
+      "bytes": 5087,
+      "sha256": "44a8a0daf775d14352180052d13f623814d7bdf98e2c5c80144b7bf74214e3b0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_nn.qm",
+      "bytes": 6934,
+      "sha256": "4c8a7213942078e4f72f5babd26c41b77ace70189714a58b5504a7d5ad0193dc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_pl.qm",
+      "bytes": 9673,
+      "sha256": "cc6cb4d8c54086224672f2e49e623c8cb7c0c1cd65b8d5ecd42fc9ba3a6065bd"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_pt_BR.qm",
+      "bytes": 16030,
+      "sha256": "b4015c5d519b4fe93c00bf734d1742e4f0094d89862664d548eb64a46a2feae7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_ru.qm",
+      "bytes": 7288,
+      "sha256": "557b644e6da5f1ec720ef93965617087e4d1f40b2494cc5aa524cf3796108de7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_sk.qm",
+      "bytes": 10388,
+      "sha256": "f41e33e1d790bd0d3eb180f1f875bc191fe74773628f25c2cad95e1402e66867"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_sl.qm",
+      "bytes": 10363,
+      "sha256": "2ec955e662407ebcd8dcdae5aaa21e4108e0b5b0aee0e9db712c27072943535f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_sv.qm",
+      "bytes": 6934,
+      "sha256": "95bdb03dbaa6dbdfda46c249e9ccce9a353f71ddb8b112961e8b005b2c60b13c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_tr.qm",
+      "bytes": 6723,
+      "sha256": "81da2f88cd624097581f2d29b10311796bcd9ab289e65883346d276110542d28"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_uk.qm",
+      "bytes": 9750,
+      "sha256": "497cfc473684692ee44d7a3795e8fb2270c57069fd9eb98a615dd29ab9be8a7c"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_zh_CN.qm",
+      "bytes": 5115,
+      "sha256": "e256d1f6034a5a5521c62f129f91731216e474f71e1d9caea3d3dcb11b670deb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_help_zh_TW.qm",
+      "bytes": 5160,
+      "sha256": "40112812abb43853d678cc6d97729f21f21b3a7321c827fc9d18f6c936447d1e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_hr.qm",
+      "bytes": 102,
+      "sha256": "fc9e4146f33be3d09b234be01e56235d3037d8d82d64f0700b4d4a6e253a61a7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_hu.qm",
+      "bytes": 84,
+      "sha256": "c2fa649f167cdb801d1cc0cb69c1d93594fd5bf8c0b7e79b969935da5c3e19aa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_it.qm",
+      "bytes": 91,
+      "sha256": "9e7a18bc20ebeec54baaaf41c918a74534511271f796dffffd0f9b9ec31c68d3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_ja.qm",
+      "bytes": 84,
+      "sha256": "0f5fe50452947d1ee9755249d860354bff6977279b4c496a5bc77e5b89dd745e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_ka.qm",
+      "bytes": 94,
+      "sha256": "00b67c6dfc255079b5b98a5640f82519c96b2520a028682fba4078b39d743eaa"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_ko.qm",
+      "bytes": 84,
+      "sha256": "1d254b535e1cb35cbcad8210b15b89f4488159826bf35b4504696263dd102fa3"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_lg.qm",
+      "bytes": 57,
+      "sha256": "6ba668501f4c040c66da1bdc022362da3c8cf663da6aa484cbdb599028da98ed"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_lt.qm",
+      "bytes": 165383,
+      "sha256": "47eb5f97467df769261421d54a5bea1131c9fb9b6388791d38bb6574335b64bf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_lv.qm",
+      "bytes": 63,
+      "sha256": "addeca285282338294f24ca50d37d08a5f68d3785d0a94af86dd4ec8f2a3b449"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_nl.qm",
+      "bytes": 91,
+      "sha256": "39e870cbd25c0f97fa9b1828d5ea1ed9849857a2e26c5321b3f13c76be8f0548"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_nn.qm",
+      "bytes": 91,
+      "sha256": "4e544e23f75eafe1553dc896973db23b5795cd243786d5c653cc0f36a46ca74f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_pl.qm",
+      "bytes": 99,
+      "sha256": "e6890afa0caf0f6db0248e4c94f6016b8ec8bc266f1e0e9b8f01e8ea912cf968"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_pt_BR.qm",
+      "bytes": 106,
+      "sha256": "0e24c58e35271853f8cdfb3f0f7b0741b5a9a588e43cdec62ae85a3842771e0a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_pt_PT.qm",
+      "bytes": 70334,
+      "sha256": "2c1e7bbf5168a64b43752dd4c547601c0bde6d610f8671fa3e3af38597e84783"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_ru.qm",
+      "bytes": 102,
+      "sha256": "1b388e2d6d1bd405603e794e498c6d7ec5f5a5ad819243546f6399181da36758"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_sk.qm",
+      "bytes": 95,
+      "sha256": "840c3b01c89df976fc1d2e5bfc6fc84b65666b8a3ceb4cbf5aa0c22af3d2a383"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_sl.qm",
+      "bytes": 228428,
+      "sha256": "c44e0313a9414cc0e490b65b0c036fa11bca959353b228886547bc2c8492034f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_sv.qm",
+      "bytes": 91,
+      "sha256": "daaae448e0814b469ac3d7a91096fde15491600a6b8bc6c01508425fb5e8b3ec"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_tr.qm",
+      "bytes": 84,
+      "sha256": "59e8a0c411be3b0802a68561b090f182099d6b75c4fe46f398e55f11528e11b9"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_uk.qm",
+      "bytes": 102,
+      "sha256": "053ec1f677c4dba48c6a97eb28f4fc78c1511324d1843d7f4cec2c7c00a66145"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_zh_CN.qm",
+      "bytes": 99,
+      "sha256": "c0e29d32c9540a7e78643b74214e633c56f6ab11f018e516629f2c11b1fb09fc"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qt_zh_TW.qm",
+      "bytes": 99,
+      "sha256": "24e226954491689549a1a1990db3b8cb78888008d8163b2fd2442b772b6d1b5f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_ar.qm",
+      "bytes": 160017,
+      "sha256": "e03fe68d83201543698fd7fe267dd5dfc5bfd195147e74ff2f19ac3491401263"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_bg.qm",
+      "bytes": 165337,
+      "sha256": "e448ac9e3f16c29eb27af3012efe21052daa78fabfb34cd6dff2f69ee3bd3cdb"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_ca.qm",
+      "bytes": 209899,
+      "sha256": "005b0aa0c9a5b930dfdd870661958a8069bbec862d75f98bce20bf7401bea13d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_cs.qm",
+      "bytes": 174701,
+      "sha256": "03028b42df5479270371e4c3bdc7df2f56cbbe6dda956a2864ac6f6415861fe8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_da.qm",
+      "bytes": 181387,
+      "sha256": "7d1e5ca3310b54d104c19bf2abd402b38e584e87039a70e153c4a9af74b25c22"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_de.qm",
+      "bytes": 223282,
+      "sha256": "ed828a83dfaa51944f166c842155b48ab3bd7cb2c46dcd96269eb5d48af4f63f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_en.qm",
+      "bytes": 33,
+      "sha256": "494ac9a2b2cb2fdeced353f4a9f898ed8dcf616e9bc667438c62681e3f7f79cf"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_es.qm",
+      "bytes": 165170,
+      "sha256": "4ffda56ba3bb5414ab0482d1dde64a6f226e3488f6b7f3f11a150e01f53fa4c8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_fa.qm",
+      "bytes": 148156,
+      "sha256": "f78e59b5bdd586181a999034ba418868ed17fe9c05707fb65e523f70e92253d2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_fi.qm",
+      "bytes": 179941,
+      "sha256": "e47fe13713e184d07fa4495dde0c589b0e8f562e91574a3558a9363443a4fa72"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_fr.qm",
+      "bytes": 159463,
+      "sha256": "314243a55c32679ad473fdfe48dc7d66e973ad0fc8bf2164480c58dddb50c1a7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_gd.qm",
+      "bytes": 189580,
+      "sha256": "63b439dd44139aa3aed54c2ebe03fa9bc77f22c14ed8fba8eff2608445bb233d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_he.qm",
+      "bytes": 138690,
+      "sha256": "e1ebca16afe8994356f81ca007fbdb9ddf865842010fe908923d873b687cad3f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_hr.qm",
+      "bytes": 149711,
+      "sha256": "bb9eec9a9a652c1340dc75eb2e749be50df00f885b3d6900dfc76799c45b244d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_hu.qm",
+      "bytes": 205885,
+      "sha256": "98463295539d769c8645a0b7fb95ad38454cfd0b14f36af485513f036ddbbbc6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_it.qm",
+      "bytes": 161166,
+      "sha256": "7808ed542a7833c4bd94ec8bdfbbca00bb4f2fe15979b9121ce3249323687300"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_ja.qm",
+      "bytes": 129913,
+      "sha256": "2b9581c69b975f59be505b127cd3c19d403ef3d12e0e8386fb97238223e9c1df"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_ka.qm",
+      "bytes": 201105,
+      "sha256": "e55e4b72fa620bebee5297ca59dfe2f49894a1e544f2b7485b1cfd8829289d6f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_ko.qm",
+      "bytes": 156799,
+      "sha256": "0179ed1b136e1cb3f583351eaa2c545ba3d83a6ee3f82c32505926a1a5f5f183"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_lg.qm",
+      "bytes": 315764,
+      "sha256": "31c0cc4ce13b1d74fe0c19ed0b47638fb31e20c93ee08092533e884007aebfb5"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_lv.qm",
+      "bytes": 153608,
+      "sha256": "846e047573ae40c83671c3ba7f73e27efc24b98c82701da0df9973e574178bb2"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_nl.qm",
+      "bytes": 202861,
+      "sha256": "f61513bcdbb6ad800585f9437a95d018aab17fa12ee414aa31462ff279d8240e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_nn.qm",
+      "bytes": 196411,
+      "sha256": "f9f2fb7c60e7fcb38bbd3c1314ef122145594265e20b0659ff00004baab13ac7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_pl.qm",
+      "bytes": 162962,
+      "sha256": "3cf6b5c14d5eb0cf81e9af2066e66b3aa579a6b9b3c323ed670761f6254a8c54"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_pt_BR.qm",
+      "bytes": 290955,
+      "sha256": "3475d61604b938d459949801a906dbd34a8ca824ade94120015d676e208da859"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_ru.qm",
+      "bytes": 203767,
+      "sha256": "3da6605668f9178d11a838c4515478084dcfb4f9cf22f99d7a92b492db9c224b"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_sk.qm",
+      "bytes": 125763,
+      "sha256": "d586ae2c314074cf398417fdecb40709d5478dfeb0a67c2fe60d509ee9b59ed7"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_sv.qm",
+      "bytes": 249963,
+      "sha256": "5a2178dd2c03cc4516697f1fb0049649c9ed53f5cde6b937786733dae06aeda8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_tr.qm",
+      "bytes": 248720,
+      "sha256": "353fdfd7165659a49212e7a25bf91c0a71588e52c836f7496640f26782414634"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_uk.qm",
+      "bytes": 158274,
+      "sha256": "51b8ff55b37dc5907d637a8ddda12fbe816852b0244c74eb4f0fb84867a786e0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_zh_CN.qm",
+      "bytes": 147222,
+      "sha256": "0481a9b92a6f0578400e960a7d5ee70217a6a450eaf7f98b7d32b8dbd0d58616"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\translations\\qtbase_zh_TW.qm",
+      "bytes": 126185,
+      "sha256": "21012b2b427f8d09d31ce9cae582ca27955b478ca3dc2ec18a3068d808638c6a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\VCRUNTIME140.dll",
+      "bytes": 116024,
+      "sha256": "c6e841078cd352299a58925991e2552f7251b046253ba895b3ad50cd5cd32ec6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\PySide6\\VCRUNTIME140_1.dll",
+      "bytes": 41272,
+      "sha256": "b322e382ea249b50009f14a9a71ad16729eb6e4b58a8d3b3be6ac66ea6342a22"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\python3.dll",
+      "bytes": 73952,
+      "sha256": "f3d0cd260a46a9617a8b1d4d5e8703278478c22a910165bffb4e4ddf6562d93f"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\python314.dll",
+      "bytes": 6776544,
+      "sha256": "18310593c50ad109fc5c95db1fd5c92ecec9e1bfc66c976df9fc11dd62616d5a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\select.pyd",
+      "bytes": 33504,
+      "sha256": "8c3ee20776d8eb7c441f2006ed46b9ba932060c6b66df4c1e156dcf7738d56ce"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\shiboken6\\MSVCP140.dll",
+      "bytes": 549176,
+      "sha256": "005f2324c7ff79bbe9a44992b0708abb4c871bd24bcc7a34aca5eab4439c1f4a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\shiboken6\\Shiboken.pyd",
+      "bytes": 33080,
+      "sha256": "0e2c5318c5ac60a016a12230bbb1f6a9d990c45cbf4a7c4af24aefb5ab7dc40a"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\shiboken6\\shiboken6.abi3.dll",
+      "bytes": 384824,
+      "sha256": "47f4f9b44c95037565dd14f4be04f350f20c53c05483b750e0be867c39a7441e"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\shiboken6\\VCRUNTIME140.dll",
+      "bytes": 116024,
+      "sha256": "8d9c679c825c5fff298d66c41af30f35c289fc101868dfc9635547bada0daba6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\shiboken6\\VCRUNTIME140_1.dll",
+      "bytes": 41272,
+      "sha256": "e4d7ea5f4f4ff6d0c208e693853617cdef0ad71cfe5dd5c3ae16c8a6b64c18ea"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\sqlite3.dll",
+      "bytes": 1584864,
+      "sha256": "cb9676d3b9aeae83a63da5903add3fe4f17ed2e26e7e01a4f1877c4fcdeee99d"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\templates\\audit_workbook_template.csv",
+      "bytes": 730,
+      "sha256": "3231b2766eef09a1c18768998e7bf11f3121397326a65eacefb948e95320b2ab"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\templates\\kpi_template.csv",
+      "bytes": 367,
+      "sha256": "27a6547636eef5c1f9789d3bc0b18d527abede13cf3b573ecfe1d8ef29cf94fe"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\templates\\master_tracker_template.csv",
+      "bytes": 823,
+      "sha256": "b6f21de67557bc861be3cc2da692538f4662a14f32896a86c7f937654f04c6f0"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\templates\\press_list_template.csv",
+      "bytes": 233,
+      "sha256": "07ce7eef8e8e31a6ee30839e5f4fa988099a42e3f4d186c0dc3582c3544e55c1"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\templates\\README.md",
+      "bytes": 477,
+      "sha256": "5f84b710dd5080b46bf08d670c542f571b522e6c7a7fb3b48ac646c9f9136116"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\ucrtbase.dll",
+      "bytes": 1009776,
+      "sha256": "bf4cf4acefac88156728052caa43acac69e742850bd0da0b9ec7a559aa426115"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\unicodedata.pyd",
+      "bytes": 758496,
+      "sha256": "a7a2bfeed5d0480d8c458b3a61ee32c478ae10c694e8be61c3ba0e8cc2a6e1c6"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\VCRUNTIME140.dll",
+      "bytes": 120400,
+      "sha256": "052ad6a20d375957e82aa6a3c441ea548d89be0981516ca7eb306e063d5027f4"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\VCRUNTIME140_1.dll",
+      "bytes": 49776,
+      "sha256": "6a99bc0128e0c7d6cbbf615fcc26909565e17d4ca3451b97f8987f9c6acbc6c8"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\_internal\\yaml\\_yaml.cp314-win_amd64.pyd",
+      "bytes": 258560,
+      "sha256": "ef5cde08b05f7c8222a458fa49ca5ec891e54d4c721ffdbe1d6a609e26a26718"
+    },
+    {
+      "path": "payload\\EOAT Atlas\\EOAT Atlas.exe",
+      "bytes": 15075096,
+      "sha256": "39aa472d20c9d89b8159bd709a775be5d8017cdf079b15cdd4a60a7828919e06"
+    },
+    {
+      "path": "payload\\EOAT Atlas Launcher.exe",
+      "bytes": 9336264,
+      "sha256": "b50adb77e69b1ccc10f6004f79a6d28297684a1a3e0552db6bca70962425f0ed"
+    },
+    {
+      "path": "README.txt",
+      "bytes": 173,
+      "sha256": "e23a715b704075055b9b6640039040dfab239666976d83b243192c34448ff15c"
+    },
+    {
+      "path": "Start-EOAT-Atlas-Staging.ps1",
+      "bytes": 481,
+      "sha256": "68c73b62d5c599ec3660726b59f5827123d859f7f26fd047c14346ee2687ab2c"
+    },
+    {
+      "path": "Uninstall-Staging.ps1",
+      "bytes": 244,
+      "sha256": "1b61ac32e05985ad717a4c826c88649e56a7dba9df707ec227d13c6504fbd1b5"
+    }
+  ]
+}

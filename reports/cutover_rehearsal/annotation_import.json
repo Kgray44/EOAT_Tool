@@ -1,0 +1,37 @@
+{
+  "dry_run": false,
+  "source_path": "C:\\Users\\kgray\\AppData\\Local\\EOAT Atlas Staging\\rehearsals\\4f26cee2-7849-48ba-b437-f8a2a5bb485e\\frozen_source\\project_data\\annotations.sqlite",
+  "source_checksum_before": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db",
+  "source_checksum_after": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db",
+  "source_unchanged": true,
+  "batch_uuid": "4bec7c35-8108-4d06-afaf-78ff8d436e94",
+  "source_counts": {
+    "tags": 15,
+    "annotation_targets": 52,
+    "tag_assignments": 45,
+    "notes": 11,
+    "note_targets": 2,
+    "note_tags": 0,
+    "attachments": 0
+  },
+  "imported_counts": {
+    "tags": 15,
+    "annotation_targets": 52,
+    "tag_assignments": 45,
+    "notes": 11,
+    "note_targets": 2,
+    "note_tags": 0,
+    "attachments": 0
+  },
+  "duplicates": {
+    "tag_names": 0,
+    "active_tag_assignments": 0
+  },
+  "orphans": {
+    "tag_assignments": 0,
+    "note_targets": 0,
+    "note_tags": 0
+  },
+  "warnings": [],
+  "status": "COMPLETED"
+}

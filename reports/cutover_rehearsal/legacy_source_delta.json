@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "generated_at": "2026-07-14T13:08:17.850756+00:00",
+  "changes_detected": 0,
+  "sources": [
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\EOAT_Audit_Database\\EOAT_Master_Tracker.xlsx",
+      "snapshot_sha256": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac",
+      "current_sha256": "207e166c3c75f4a517a47f572c84d683b3b7a194bb23b1f5649e97c5d76b7eac",
+      "changed": false
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\01_EOAT_Audit\\EOAT_Audit_Database\\Robot_Info.xlsx",
+      "snapshot_sha256": "d72d64f79741d8436f0ebfcf17905b9bda315ef0f9f96ef9a99526433e9e3146",
+      "current_sha256": "d72d64f79741d8436f0ebfcf17905b9bda315ef0f9f96ef9a99526433e9e3146",
+      "changed": false
+    },
+    {
+      "source": "\\\\gwplastics.com\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project\\project_data\\annotations.sqlite",
+      "snapshot_sha256": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db",
+      "current_sha256": "70bcc70d498878b35b095a551f46fe8b59adf47229ebe0bf9654cf2a88a3c5db",
+      "changed": false
+    }
+  ]
+}
