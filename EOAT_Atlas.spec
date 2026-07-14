@@ -1,0 +1,85 @@
+# -*- mode: python ; coding: utf-8 -*-
+
+from pathlib import Path
+import os
+
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+
+ROOT = Path(SPECPATH).resolve()
+
+METADATA_PATH = Path(os.environ.get("EOAT_ATLAS_BUILD_METADATA", str(ROOT / "release_metadata.json")))
+datas = [(str(METADATA_PATH), ".")]
+binaries = []
+hiddenimports = []
+
+
+def add_tree(folder_name: str, destination: str, *, suffixes: set[str] | None = None) -> None:
+    source = ROOT / folder_name
+    if not source.exists():
+        return
+    for path in source.rglob("*"):
+        if not path.is_file():
+            continue
+        if suffixes is not None and path.suffix.casefold() not in suffixes:
+            continue
+        relative_parent = path.relative_to(source).parent
+        datas.append((str(path), str(Path(destination) / relative_parent)))
+
+
+add_tree("app/atlas/logo", "app/atlas/logo")
+add_tree("assets/icons", "assets/icons", suffixes={".png", ".ico", ".svg", ".md"})
+
+hiddenimports += collect_submodules("app.atlas.minimalist")
+hiddenimports += collect_submodules("core.globalization")
+hiddenimports += collect_submodules("core.reporting")
+hiddenimports += collect_submodules("pillow_heif")
+datas += collect_data_files("pillow_heif")
+binaries += collect_dynamic_libs("pillow_heif")
+hiddenimports += [
+    "matplotlib.backends.backend_qtagg",
+]
+hiddenimports = sorted(set(hiddenimports))
+
+
+a = Analysis(
+    ["packaging/eoat_atlas_entry.py"],
+    pathex=[str(ROOT)],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="EOAT Atlas",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="EOAT Atlas",
+)

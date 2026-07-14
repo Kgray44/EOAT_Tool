@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="eoat-title eoat-desc">
+  <title id="eoat-title">EOAT</title>
+  <desc id="eoat-desc">End-of-arm tooling plate with suction cups and side mounting rails.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 20 H48 V30 H38 V38 M26 30 V38 M16 30 H48" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <path d="M19 38 H33 L36 48 H16 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="18" y1="52" x2="34" y2="52" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <path d="M31 38 H45 L48 48 H28 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="30" y1="52" x2="46" y2="52" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="12" y1="25" x2="16" y2="25" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="48" y1="25" x2="52" y2="25" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

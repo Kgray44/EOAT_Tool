@@ -310,7 +310,7 @@ def test_save_with_compatibility_autorun_creates_compatible_entries(fake_project
 
     assert result.success, result.errors
     assert "Audit Save Summary" in result.summary
-    assert "Compatibility Entry Summary" in result.summary
+    assert "Fit Check Entry Summary" in result.summary
     assert result.metrics["compatibility_autorun_success"] is True
     assert result.metrics["compatibility_created"] == 1
     rows = _inventory_rows(fake_project)
@@ -720,7 +720,7 @@ def test_off_machine_press_capacity_load_failure_warns_and_leaves_audit_saved(fa
 
     assert result.success, result.errors
     assert result.metrics["press_capacity_lookup_failed"] is True
-    assert any("Compatibility lookup could not be completed" in warning for warning in result.warnings)
+    assert any("Fit Check lookup could not be completed" in warning for warning in result.warnings)
     row = next(row for row in _inventory_rows(fake_project) if row["Audit ID"] == "AUD-OFF-LOAD-FAIL")
     assert row["Press/Machine #"] == "N/A"
     activity, warning = read_recent_activity(fake_project, limit=10)
@@ -745,7 +745,7 @@ def test_progress_separates_covered_remaining_and_missing_reasons(fake_project):
         (row["Machine No."], row["NGW Part Number"]): row["Suggested Next Action"]
         for row in summary.missing_relationships
     }
-    assert missing_actions[("3", "PN-X")] == "Use Compatibility Entry"
+    assert missing_actions[("3", "PN-X")] == "Use Fit Check Entry"
     assert missing_actions[("4", "PN-Y")] == "Needs Physical Audit"
 
 

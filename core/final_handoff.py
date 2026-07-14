@@ -241,7 +241,7 @@ def _index_markdown(
         "## Truth And Evidence Labels",
         "- Missing evidence remains listed as missing or needs review; this package does not certify blank evidence as complete.",
         "- Estimated or subjective KPI/pilot data must remain labeled in the source report. No financial or performance impact is invented in this index.",
-        "- Compatibility rows and physical audit rows should be interpreted using the workbook entry type and source metadata.",
+        "- Fit Check rows and physical audit rows should be interpreted using the workbook entry type and source metadata.",
         "",
         "## Contents Overview",
     ]

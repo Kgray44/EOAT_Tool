@@ -46,6 +46,20 @@ def test_photo_service_loads_disk_thumbnail_after_memory_eviction(qapp, tmp_path
     assert not second_ready[0].isNull()
 
 
+def test_photo_service_reuses_larger_cached_thumbnail_for_smaller_request(qapp, tmp_path: Path) -> None:
+    image_path = _write_image(tmp_path / "photos" / "large.png", size=(800, 600))
+    service = PhotoService(tmp_path, max_workers=1)
+    ready: list[QImage] = []
+    service.thumbnail_ready.connect(lambda _photo_id, image, _path, _context: ready.append(image))
+
+    service.request_thumbnail("photo-large", [str(image_path)], (512, 512), 90, "library:eoat_cards:page:1")
+    assert _wait_for(qapp, lambda: len(ready) == 1)
+
+    cached = service.get_cached_thumbnail("photo-large", (384, 256))
+    assert cached is not None
+    assert not cached.isNull()
+
+
 def test_photo_service_cancelled_context_does_not_emit(qapp, tmp_path: Path) -> None:
     image_path = _write_image(tmp_path / "photos" / "cancel.png")
     service = PhotoService(tmp_path, max_workers=1)

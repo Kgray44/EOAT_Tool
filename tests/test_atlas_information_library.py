@@ -34,7 +34,7 @@ def test_information_library_seed_content_is_structured_and_valid(tmp_path: Path
         "Home / Command Deck",
         "What Do I Need?",
         "Vacuum Cup Selection",
-        "Tool-to-Machine Compatibility",
+        "Tool-to-Machine Fit Check",
         "EOAT Assembly ID",
         "Photos do not preview",
         "Documentation Gap Report",
@@ -47,7 +47,7 @@ def test_information_library_seed_content_is_structured_and_valid(tmp_path: Path
     assert off_machine.examples
     assert "Machine 12" in off_machine.examples[0].text
 
-    data_field = next(entry for entry in entries if entry.title == "Compatibility Confidence")
+    data_field = next(entry for entry in entries if entry.title == "Fit Check Confidence")
     assert data_field.entry_type == "data_dictionary"
     assert {"Definition", "Source Of Truth", "Used By", "Repair Action"}.issubset(
         {section.title for section in data_field.sections}

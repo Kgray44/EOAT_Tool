@@ -69,10 +69,16 @@ LIBRARY_PERFORMANCE_TARGETS_SECONDS = {
 
 
 def performance_log_path(project_root: str | Path) -> Path:
+    root = Path(project_root)
+    if root.name in {"EOAT_Atlas_Dev", "EOAT_Atlas"}:
+        return root / "logs" / "performance.log"
     return resolve_project_paths(project_root).logs / "performance.log"
 
 
 def performance_jsonl_path(project_root: str | Path) -> Path:
+    root = Path(project_root)
+    if root.name in {"EOAT_Atlas_Dev", "EOAT_Atlas"}:
+        return root / "logs" / "performance.jsonl"
     return resolve_project_paths(project_root).logs / "performance.jsonl"
 
 

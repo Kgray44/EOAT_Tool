@@ -852,7 +852,7 @@ def _context_cli_values(
     except Exception as exc:
         values = {"completed": [], "need": [], "plan": [], "notes": [f"Report context builder warning: {exc}"]}
     if not values.get("completed"):
-        values["completed"] = ["Reviewed EOAT Command Center dashboard status"]
+        values["completed"] = ["Reviewed EOAT Atlas status"]
     if not values.get("need"):
         values["need"] = ["Confirm next EOAT project priority with mentor or supervisor"]
     if not values.get("plan"):

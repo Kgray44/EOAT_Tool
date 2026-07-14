@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="quick_disconnect-title quick_disconnect-desc">
+  <title id="quick_disconnect-title">Quick Disconnect</title>
+  <desc id="quick_disconnect-desc">Aligned plug and socket halves for a disconnectable coupling.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(4.8 4.8) scale(0.85)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 24 H27 V40 H10 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <path d="M37 22 H54 V42 H37 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="27" y1="30" x2="36" y2="30" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="27" y1="34" x2="36" y2="34" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

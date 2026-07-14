@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EOAT Atlas Icon Pack Preview</title>
+  <style>
+    :root {
+      --primary: #00A6C8;
+      --secondary: #9AA6AD;
+      --accent: #A6CE39;
+      --dark: #1E2A32;
+      --light: #F6F8FA;
+      --border: #D6DEE4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--light);
+      color: var(--dark);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 28px 32px 18px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+    .tokens {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      color: var(--secondary);
+      font-size: 12px;
+    }
+    .token {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 1px solid rgba(30, 42, 50, 0.16);
+    }
+    main {
+      padding: 24px 32px 36px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+      gap: 14px;
+    }
+    .icon-card {
+      min-height: 168px;
+      padding: 14px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .icon-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 10px;
+      min-height: 72px;
+    }
+    .transparent-swatch {
+      display: grid;
+      place-items: center;
+      height: 64px;
+      border-radius: 8px;
+      background:
+        linear-gradient(45deg, #eef2f5 25%, transparent 25%),
+        linear-gradient(-45deg, #eef2f5 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #eef2f5 75%),
+        linear-gradient(-45deg, transparent 75%, #eef2f5 75%);
+      background-size: 14px 14px;
+      background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+    }
+    img {
+      width: 56px;
+      height: 56px;
+    }
+    .tile-icon {
+      width: 64px;
+      height: 64px;
+      justify-self: center;
+    }
+    h2 {
+      margin: 12px 0 3px;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 0 0 8px;
+      color: var(--secondary);
+      font-size: 12px;
+    }
+    code {
+      color: var(--primary);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>EOAT Atlas / EOAT Command Center Icon Pack</h1>
+    <div class="tokens" aria-label="Color tokens">
+      <span class="token"><span class="swatch" style="background:#00A6C8"></span>PRIMARY</span>
+      <span class="token"><span class="swatch" style="background:#9AA6AD"></span>SECONDARY</span>
+      <span class="token"><span class="swatch" style="background:#A6CE39"></span>ACCENT</span>
+      <span class="token"><span class="swatch" style="background:#D6DEE4"></span>BORDER</span>
+    </div>
+  </header>
+  <main>
+    <section class="grid" aria-label="Icon preview">
+
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/robot.svg" alt="Robot standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/robot.svg" alt="Robot tile">
+        </div>
+        <h2>Robot</h2>
+        <p>Machine Components</p>
+        <code>robot</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/mold.svg" alt="Mold standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/mold.svg" alt="Mold tile">
+        </div>
+        <h2>Mold</h2>
+        <p>Machine Components</p>
+        <code>mold</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/eoat.svg" alt="EOAT standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/eoat.svg" alt="EOAT tile">
+        </div>
+        <h2>EOAT</h2>
+        <p>EOAT Hardware</p>
+        <code>eoat</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/injection_unit.svg" alt="Injection Unit standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/injection_unit.svg" alt="Injection Unit tile">
+        </div>
+        <h2>Injection Unit</h2>
+        <p>Machine Components</p>
+        <code>injection_unit</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/ejector.svg" alt="Ejector standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/ejector.svg" alt="Ejector tile">
+        </div>
+        <h2>Ejector</h2>
+        <p>Machine Components</p>
+        <code>ejector</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/peripherals.svg" alt="Peripherals standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/peripherals.svg" alt="Peripherals tile">
+        </div>
+        <h2>Peripherals</h2>
+        <p>Machine Components</p>
+        <code>peripherals</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/air_circuit.svg" alt="Air Circuit standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/air_circuit.svg" alt="Air Circuit tile">
+        </div>
+        <h2>Air Circuit</h2>
+        <p>Pneumatics</p>
+        <code>air_circuit</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/vacuum.svg" alt="Vacuum standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/vacuum.svg" alt="Vacuum tile">
+        </div>
+        <h2>Vacuum</h2>
+        <p>Pneumatics</p>
+        <code>vacuum</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/pressure_air.svg" alt="Pressure Air standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/pressure_air.svg" alt="Pressure Air tile">
+        </div>
+        <h2>Pressure Air</h2>
+        <p>Pneumatics</p>
+        <code>pressure_air</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/interchangeable_air.svg" alt="Interchangeable Air standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/interchangeable_air.svg" alt="Interchangeable Air tile">
+        </div>
+        <h2>Interchangeable Air</h2>
+        <p>Pneumatics</p>
+        <code>interchangeable_air</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/sensor.svg" alt="Sensor standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/sensor.svg" alt="Sensor tile">
+        </div>
+        <h2>Sensor</h2>
+        <p>EOAT Hardware</p>
+        <code>sensor</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/quick_disconnect.svg" alt="Quick Disconnect standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/quick_disconnect.svg" alt="Quick Disconnect tile">
+        </div>
+        <h2>Quick Disconnect</h2>
+        <p>Pneumatics</p>
+        <code>quick_disconnect</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/tubing.svg" alt="Tubing standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/tubing.svg" alt="Tubing tile">
+        </div>
+        <h2>Tubing</h2>
+        <p>Pneumatics</p>
+        <code>tubing</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/gripper.svg" alt="Gripper standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/gripper.svg" alt="Gripper tile">
+        </div>
+        <h2>Gripper</h2>
+        <p>EOAT Hardware</p>
+        <code>gripper</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/vacuum_cup.svg" alt="Vacuum Cup standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/vacuum_cup.svg" alt="Vacuum Cup tile">
+        </div>
+        <h2>Vacuum Cup</h2>
+        <p>EOAT Hardware</p>
+        <code>vacuum_cup</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/part_present.svg" alt="Part Present standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/part_present.svg" alt="Part Present tile">
+        </div>
+        <h2>Part Present</h2>
+        <p>EOAT Hardware</p>
+        <code>part_present</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/compatibility.svg" alt="Compatibility standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/compatibility.svg" alt="Compatibility tile">
+        </div>
+        <h2>Compatibility</h2>
+        <p>App Navigation</p>
+        <code>compatibility</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/machine.svg" alt="Machine standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/machine.svg" alt="Machine tile">
+        </div>
+        <h2>Machine</h2>
+        <p>Machine Components</p>
+        <code>machine</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/press.svg" alt="Press standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/press.svg" alt="Press tile">
+        </div>
+        <h2>Press</h2>
+        <p>Machine Components</p>
+        <code>press</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/cleanroom.svg" alt="Cleanroom standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/cleanroom.svg" alt="Cleanroom tile">
+        </div>
+        <h2>Cleanroom</h2>
+        <p>App Navigation</p>
+        <code>cleanroom</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/maintenance.svg" alt="Maintenance standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/maintenance.svg" alt="Maintenance tile">
+        </div>
+        <h2>Maintenance</h2>
+        <p>App Navigation</p>
+        <code>maintenance</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/warning.svg" alt="Warning standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/warning.svg" alt="Warning tile">
+        </div>
+        <h2>Warning</h2>
+        <p>App Navigation</p>
+        <code>warning</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/analytics.svg" alt="Analytics standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/analytics.svg" alt="Analytics tile">
+        </div>
+        <h2>Analytics</h2>
+        <p>Analytics</p>
+        <code>analytics</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/photos.svg" alt="Photos standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/photos.svg" alt="Photos tile">
+        </div>
+        <h2>Photos</h2>
+        <p>Documentation</p>
+        <code>photos</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/standards.svg" alt="Standards standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/standards.svg" alt="Standards tile">
+        </div>
+        <h2>Standards</h2>
+        <p>Documentation</p>
+        <code>standards</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/checklist.svg" alt="Checklist standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/checklist.svg" alt="Checklist tile">
+        </div>
+        <h2>Checklist</h2>
+        <p>Documentation</p>
+        <code>checklist</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/documentation.svg" alt="Documentation standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/documentation.svg" alt="Documentation tile">
+        </div>
+        <h2>Documentation</h2>
+        <p>Documentation</p>
+        <code>documentation</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/settings.svg" alt="Settings standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/settings.svg" alt="Settings tile">
+        </div>
+        <h2>Settings</h2>
+        <p>App Navigation</p>
+        <code>settings</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/map.svg" alt="Map standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/map.svg" alt="Map tile">
+        </div>
+        <h2>Map</h2>
+        <p>App Navigation</p>
+        <code>map</code>
+      </article>
+      <article class="icon-card">
+        <div class="icon-pair">
+          <div class="transparent-swatch">
+            <img src="../svg/standalone/what_do_i_need.svg" alt="What Do I Need? standalone">
+          </div>
+          <img class="tile-icon" src="../svg/tile/what_do_i_need.svg" alt="What Do I Need? tile">
+        </div>
+        <h2>What Do I Need?</h2>
+        <p>App Navigation</p>
+        <code>what_do_i_need</code>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -19,7 +19,7 @@ _BUILTIN_GRIPPER_PRESETS = (
         "part_number": "MHZL2-16D",
         "manufacturer": "SMC",
         "default_type": "Double Pressure",
-        "notes": "Default EOAT Command Center gripper preset.",
+        "notes": "Default EOAT Atlas gripper preset.",
         "active": True,
     },
     {
@@ -27,7 +27,7 @@ _BUILTIN_GRIPPER_PRESETS = (
         "part_number": "MHZL2-10S",
         "manufacturer": "SMC",
         "default_type": "Single Pressure",
-        "notes": "Default EOAT Command Center gripper preset.",
+        "notes": "Default EOAT Atlas gripper preset.",
         "active": True,
     },
 )

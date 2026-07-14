@@ -5,7 +5,7 @@ from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any
 
-from core.resources import writable_config_path
+from core.globalization.runtime_paths import ensure_runtime_layout, get_runtime_paths
 
 THEME_CHOICES = ("light", "dark", "system")
 COLOR_SCHEME_CHOICES = ("atlas_blue", "nolato_logo", "industrial_graphite", "aurora_tech")
@@ -140,7 +140,8 @@ class AtlasSettings:
 
 
 def atlas_settings_path() -> Path:
-    return writable_config_path("atlas_settings.json")
+    runtime = ensure_runtime_layout(get_runtime_paths())
+    return runtime.settings_dir / "atlas_settings.json"
 
 
 def load_atlas_settings(path: str | Path | None = None) -> AtlasSettings:

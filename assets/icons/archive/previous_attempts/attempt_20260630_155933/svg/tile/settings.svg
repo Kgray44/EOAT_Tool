@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="settings-title settings-desc">
+  <title id="settings-title">Settings</title>
+  <desc id="settings-desc">Three clean configuration sliders.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(4.8 4.8) scale(0.85)" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="12" y1="20" x2="52" y2="20" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="42" cy="20" r="5" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="12" y1="32" x2="52" y2="32" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="24" cy="32" r="5" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="12" y1="44" x2="52" y2="44" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="36" cy="44" r="5" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

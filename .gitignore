@@ -39,6 +39,14 @@ private_data/
 local_data/
 
 # Audit databases, generated project outputs, and operational datasets
+_migration_logs/
+EOAT_Atlas_Dev/
+EOAT_Atlas/
+local_cache*.db
+cache_manifest.json
+pending_local_updates/
+event_outbox/
+workbook_staging/
 **/EOAT_Audit_Database/
 **/reference_data/
 **/Daily_Status_Reports/

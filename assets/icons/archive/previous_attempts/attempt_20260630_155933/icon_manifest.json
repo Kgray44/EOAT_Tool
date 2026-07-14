@@ -1,0 +1,830 @@
+{
+  "name": "eoat_atlas_command_center_icon_pack",
+  "version": "2.0.0",
+  "style": "Original generic strict-system industrial HMI line icons.",
+  "viewBox": "0 0 64 64",
+  "safe_area": "x=8..56, y=8..56",
+  "stroke_width": 4,
+  "detail_stroke_width": 3,
+  "colors": {
+    "PRIMARY": "#00A6C8",
+    "SECONDARY": "#9AA6AD",
+    "ACCENT": "#A6CE39",
+    "DARK": "#1E2A32",
+    "LIGHT": "#F6F8FA",
+    "TILE_BG_LIGHT": "#FFFFFF",
+    "TILE_BORDER": "#D6DEE4"
+  },
+  "icons": [
+    {
+      "name": "robot",
+      "display_name": "Robot",
+      "category": "Machine Components",
+      "description": "Cartesian or linear gantry robot with a vertical Z axis and EOAT block.",
+      "recommended_usage": "Robot pages, automation views, and robot compatibility selectors.",
+      "svg_standalone_path": "assets/icons/svg/standalone/robot.svg",
+      "svg_tile_path": "assets/icons/svg/tile/robot.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/robot.png",
+          "tile": "assets/icons/png/32/robot_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/robot.png",
+          "tile": "assets/icons/png/64/robot_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/robot.png",
+          "tile": "assets/icons/png/128/robot_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/robot.png",
+          "tile": "assets/icons/png/256/robot_tile.png"
+        }
+      }
+    },
+    {
+      "name": "mold",
+      "display_name": "Mold",
+      "category": "Machine Components",
+      "description": "Two mold halves with a center parting line and simple cavity marks.",
+      "recommended_usage": "Mold-area navigation, tooling records, and mold references.",
+      "svg_standalone_path": "assets/icons/svg/standalone/mold.svg",
+      "svg_tile_path": "assets/icons/svg/tile/mold.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/mold.png",
+          "tile": "assets/icons/png/32/mold_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/mold.png",
+          "tile": "assets/icons/png/64/mold_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/mold.png",
+          "tile": "assets/icons/png/128/mold_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/mold.png",
+          "tile": "assets/icons/png/256/mold_tile.png"
+        }
+      }
+    },
+    {
+      "name": "eoat",
+      "display_name": "EOAT",
+      "category": "EOAT Hardware",
+      "description": "End-of-arm tooling plate with suction cups and side mounting rails.",
+      "recommended_usage": "EOAT records, tool summaries, and dashboard entry points.",
+      "svg_standalone_path": "assets/icons/svg/standalone/eoat.svg",
+      "svg_tile_path": "assets/icons/svg/tile/eoat.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/eoat.png",
+          "tile": "assets/icons/png/32/eoat_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/eoat.png",
+          "tile": "assets/icons/png/64/eoat_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/eoat.png",
+          "tile": "assets/icons/png/128/eoat_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/eoat.png",
+          "tile": "assets/icons/png/256/eoat_tile.png"
+        }
+      }
+    },
+    {
+      "name": "injection_unit",
+      "display_name": "Injection Unit",
+      "category": "Machine Components",
+      "description": "Injection barrel and nozzle pointing toward a mold face.",
+      "recommended_usage": "Injection-side documentation and machine component maps.",
+      "svg_standalone_path": "assets/icons/svg/standalone/injection_unit.svg",
+      "svg_tile_path": "assets/icons/svg/tile/injection_unit.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/injection_unit.png",
+          "tile": "assets/icons/png/32/injection_unit_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/injection_unit.png",
+          "tile": "assets/icons/png/64/injection_unit_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/injection_unit.png",
+          "tile": "assets/icons/png/128/injection_unit_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/injection_unit.png",
+          "tile": "assets/icons/png/256/injection_unit_tile.png"
+        }
+      }
+    },
+    {
+      "name": "ejector",
+      "display_name": "Ejector",
+      "category": "Machine Components",
+      "description": "Mold halves with a part pushed out by a single clean arrow.",
+      "recommended_usage": "Ejection, demolding, and part-removal process notes.",
+      "svg_standalone_path": "assets/icons/svg/standalone/ejector.svg",
+      "svg_tile_path": "assets/icons/svg/tile/ejector.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/ejector.png",
+          "tile": "assets/icons/png/32/ejector_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/ejector.png",
+          "tile": "assets/icons/png/64/ejector_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/ejector.png",
+          "tile": "assets/icons/png/128/ejector_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/ejector.png",
+          "tile": "assets/icons/png/256/ejector_tile.png"
+        }
+      }
+    },
+    {
+      "name": "peripherals",
+      "display_name": "Peripherals",
+      "category": "Machine Components",
+      "description": "Connected external IO or peripheral modules.",
+      "recommended_usage": "Auxiliary equipment, external controllers, and cell devices.",
+      "svg_standalone_path": "assets/icons/svg/standalone/peripherals.svg",
+      "svg_tile_path": "assets/icons/svg/tile/peripherals.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/peripherals.png",
+          "tile": "assets/icons/png/32/peripherals_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/peripherals.png",
+          "tile": "assets/icons/png/64/peripherals_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/peripherals.png",
+          "tile": "assets/icons/png/128/peripherals_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/peripherals.png",
+          "tile": "assets/icons/png/256/peripherals_tile.png"
+        }
+      }
+    },
+    {
+      "name": "air_circuit",
+      "display_name": "Air Circuit",
+      "category": "Pneumatics",
+      "description": "Routed pneumatic tubing with one airflow arrow.",
+      "recommended_usage": "Pneumatic circuit overviews and air-routing documentation.",
+      "svg_standalone_path": "assets/icons/svg/standalone/air_circuit.svg",
+      "svg_tile_path": "assets/icons/svg/tile/air_circuit.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/air_circuit.png",
+          "tile": "assets/icons/png/32/air_circuit_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/air_circuit.png",
+          "tile": "assets/icons/png/64/air_circuit_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/air_circuit.png",
+          "tile": "assets/icons/png/128/air_circuit_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/air_circuit.png",
+          "tile": "assets/icons/png/256/air_circuit_tile.png"
+        }
+      }
+    },
+    {
+      "name": "vacuum",
+      "display_name": "Vacuum",
+      "category": "Pneumatics",
+      "description": "Suction cup pulling toward a surface with one accent arrow.",
+      "recommended_usage": "Vacuum controls, suction validation, and vacuum process notes.",
+      "svg_standalone_path": "assets/icons/svg/standalone/vacuum.svg",
+      "svg_tile_path": "assets/icons/svg/tile/vacuum.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/vacuum.png",
+          "tile": "assets/icons/png/32/vacuum_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/vacuum.png",
+          "tile": "assets/icons/png/64/vacuum_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/vacuum.png",
+          "tile": "assets/icons/png/128/vacuum_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/vacuum.png",
+          "tile": "assets/icons/png/256/vacuum_tile.png"
+        }
+      }
+    },
+    {
+      "name": "pressure_air",
+      "display_name": "Pressure Air",
+      "category": "Pneumatics",
+      "description": "Air nozzle with one outward airflow arrow.",
+      "recommended_usage": "Pressure-air outputs, blowoff notes, and pneumatic references.",
+      "svg_standalone_path": "assets/icons/svg/standalone/pressure_air.svg",
+      "svg_tile_path": "assets/icons/svg/tile/pressure_air.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/pressure_air.png",
+          "tile": "assets/icons/png/32/pressure_air_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/pressure_air.png",
+          "tile": "assets/icons/png/64/pressure_air_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/pressure_air.png",
+          "tile": "assets/icons/png/128/pressure_air_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/pressure_air.png",
+          "tile": "assets/icons/png/256/pressure_air_tile.png"
+        }
+      }
+    },
+    {
+      "name": "interchangeable_air",
+      "display_name": "Interchangeable Air",
+      "category": "Pneumatics",
+      "description": "Air port with two clean swap arrows for pressure/vacuum dual use.",
+      "recommended_usage": "Connections that can switch between pressure and vacuum service.",
+      "svg_standalone_path": "assets/icons/svg/standalone/interchangeable_air.svg",
+      "svg_tile_path": "assets/icons/svg/tile/interchangeable_air.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/interchangeable_air.png",
+          "tile": "assets/icons/png/32/interchangeable_air_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/interchangeable_air.png",
+          "tile": "assets/icons/png/64/interchangeable_air_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/interchangeable_air.png",
+          "tile": "assets/icons/png/128/interchangeable_air_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/interchangeable_air.png",
+          "tile": "assets/icons/png/256/interchangeable_air_tile.png"
+        }
+      }
+    },
+    {
+      "name": "sensor",
+      "display_name": "Sensor",
+      "category": "EOAT Hardware",
+      "description": "Rectangular sensor block with a beam and target dot.",
+      "recommended_usage": "Sensor lists, part-detect devices, and IO validation.",
+      "svg_standalone_path": "assets/icons/svg/standalone/sensor.svg",
+      "svg_tile_path": "assets/icons/svg/tile/sensor.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/sensor.png",
+          "tile": "assets/icons/png/32/sensor_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/sensor.png",
+          "tile": "assets/icons/png/64/sensor_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/sensor.png",
+          "tile": "assets/icons/png/128/sensor_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/sensor.png",
+          "tile": "assets/icons/png/256/sensor_tile.png"
+        }
+      }
+    },
+    {
+      "name": "quick_disconnect",
+      "display_name": "Quick Disconnect",
+      "category": "Pneumatics",
+      "description": "Aligned plug and socket halves for a disconnectable coupling.",
+      "recommended_usage": "Couplers, fittings, and changeover documentation.",
+      "svg_standalone_path": "assets/icons/svg/standalone/quick_disconnect.svg",
+      "svg_tile_path": "assets/icons/svg/tile/quick_disconnect.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/quick_disconnect.png",
+          "tile": "assets/icons/png/32/quick_disconnect_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/quick_disconnect.png",
+          "tile": "assets/icons/png/64/quick_disconnect_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/quick_disconnect.png",
+          "tile": "assets/icons/png/128/quick_disconnect_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/quick_disconnect.png",
+          "tile": "assets/icons/png/256/quick_disconnect_tile.png"
+        }
+      }
+    },
+    {
+      "name": "tubing",
+      "display_name": "Tubing",
+      "category": "Pneumatics",
+      "description": "Smooth routed tubing with two connector ends.",
+      "recommended_usage": "Tube routing, hose lists, and pneumatic bill-of-materials views.",
+      "svg_standalone_path": "assets/icons/svg/standalone/tubing.svg",
+      "svg_tile_path": "assets/icons/svg/tile/tubing.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/tubing.png",
+          "tile": "assets/icons/png/32/tubing_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/tubing.png",
+          "tile": "assets/icons/png/64/tubing_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/tubing.png",
+          "tile": "assets/icons/png/128/tubing_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/tubing.png",
+          "tile": "assets/icons/png/256/tubing_tile.png"
+        }
+      }
+    },
+    {
+      "name": "gripper",
+      "display_name": "Gripper",
+      "category": "EOAT Hardware",
+      "description": "Opposing gripper fingers around a part block.",
+      "recommended_usage": "Mechanical grippers and EOAT actuation details.",
+      "svg_standalone_path": "assets/icons/svg/standalone/gripper.svg",
+      "svg_tile_path": "assets/icons/svg/tile/gripper.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/gripper.png",
+          "tile": "assets/icons/png/32/gripper_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/gripper.png",
+          "tile": "assets/icons/png/64/gripper_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/gripper.png",
+          "tile": "assets/icons/png/128/gripper_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/gripper.png",
+          "tile": "assets/icons/png/256/gripper_tile.png"
+        }
+      }
+    },
+    {
+      "name": "vacuum_cup",
+      "display_name": "Vacuum Cup",
+      "category": "EOAT Hardware",
+      "description": "Single suction cup on a stem.",
+      "recommended_usage": "Vacuum cup inventory, cup placement, and replacement notes.",
+      "svg_standalone_path": "assets/icons/svg/standalone/vacuum_cup.svg",
+      "svg_tile_path": "assets/icons/svg/tile/vacuum_cup.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/vacuum_cup.png",
+          "tile": "assets/icons/png/32/vacuum_cup_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/vacuum_cup.png",
+          "tile": "assets/icons/png/64/vacuum_cup_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/vacuum_cup.png",
+          "tile": "assets/icons/png/128/vacuum_cup_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/vacuum_cup.png",
+          "tile": "assets/icons/png/256/vacuum_cup_tile.png"
+        }
+      }
+    },
+    {
+      "name": "part_present",
+      "display_name": "Part Present",
+      "category": "EOAT Hardware",
+      "description": "Part block with a compact check indicator.",
+      "recommended_usage": "Part-present checks, verification status, and sensor confirmation.",
+      "svg_standalone_path": "assets/icons/svg/standalone/part_present.svg",
+      "svg_tile_path": "assets/icons/svg/tile/part_present.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/part_present.png",
+          "tile": "assets/icons/png/32/part_present_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/part_present.png",
+          "tile": "assets/icons/png/64/part_present_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/part_present.png",
+          "tile": "assets/icons/png/128/part_present_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/part_present.png",
+          "tile": "assets/icons/png/256/part_present_tile.png"
+        }
+      }
+    },
+    {
+      "name": "compatibility",
+      "display_name": "Compatibility",
+      "category": "App Navigation",
+      "description": "Machine and EOAT mini-symbols linked by a compatibility check.",
+      "recommended_usage": "Compatibility matrices, fit checks, and machine-to-EOAT matching.",
+      "svg_standalone_path": "assets/icons/svg/standalone/compatibility.svg",
+      "svg_tile_path": "assets/icons/svg/tile/compatibility.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/compatibility.png",
+          "tile": "assets/icons/png/32/compatibility_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/compatibility.png",
+          "tile": "assets/icons/png/64/compatibility_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/compatibility.png",
+          "tile": "assets/icons/png/128/compatibility_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/compatibility.png",
+          "tile": "assets/icons/png/256/compatibility_tile.png"
+        }
+      }
+    },
+    {
+      "name": "machine",
+      "display_name": "Machine",
+      "category": "Machine Components",
+      "description": "Simplified injection molding machine with base, clamp area, and injection unit.",
+      "recommended_usage": "Machine records, press pages, and cell-level navigation.",
+      "svg_standalone_path": "assets/icons/svg/standalone/machine.svg",
+      "svg_tile_path": "assets/icons/svg/tile/machine.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/machine.png",
+          "tile": "assets/icons/png/32/machine_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/machine.png",
+          "tile": "assets/icons/png/64/machine_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/machine.png",
+          "tile": "assets/icons/png/128/machine_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/machine.png",
+          "tile": "assets/icons/png/256/machine_tile.png"
+        }
+      }
+    },
+    {
+      "name": "press",
+      "display_name": "Press",
+      "category": "Machine Components",
+      "description": "Two clamp plates with compression arrows.",
+      "recommended_usage": "Clamp-unit details, press capacity, and molding-machine sections.",
+      "svg_standalone_path": "assets/icons/svg/standalone/press.svg",
+      "svg_tile_path": "assets/icons/svg/tile/press.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/press.png",
+          "tile": "assets/icons/png/32/press_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/press.png",
+          "tile": "assets/icons/png/64/press_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/press.png",
+          "tile": "assets/icons/png/128/press_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/press.png",
+          "tile": "assets/icons/png/256/press_tile.png"
+        }
+      }
+    },
+    {
+      "name": "cleanroom",
+      "display_name": "Cleanroom",
+      "category": "App Navigation",
+      "description": "Simple room/window outline with a small sterility sparkle.",
+      "recommended_usage": "Cleanroom requirements and controlled-environment indicators.",
+      "svg_standalone_path": "assets/icons/svg/standalone/cleanroom.svg",
+      "svg_tile_path": "assets/icons/svg/tile/cleanroom.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/cleanroom.png",
+          "tile": "assets/icons/png/32/cleanroom_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/cleanroom.png",
+          "tile": "assets/icons/png/64/cleanroom_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/cleanroom.png",
+          "tile": "assets/icons/png/128/cleanroom_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/cleanroom.png",
+          "tile": "assets/icons/png/256/cleanroom_tile.png"
+        }
+      }
+    },
+    {
+      "name": "maintenance",
+      "display_name": "Maintenance",
+      "category": "App Navigation",
+      "description": "Clean wrench over a compact machine/EOAT block.",
+      "recommended_usage": "Maintenance tasks, spare parts, and service workflows.",
+      "svg_standalone_path": "assets/icons/svg/standalone/maintenance.svg",
+      "svg_tile_path": "assets/icons/svg/tile/maintenance.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/maintenance.png",
+          "tile": "assets/icons/png/32/maintenance_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/maintenance.png",
+          "tile": "assets/icons/png/64/maintenance_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/maintenance.png",
+          "tile": "assets/icons/png/128/maintenance_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/maintenance.png",
+          "tile": "assets/icons/png/256/maintenance_tile.png"
+        }
+      }
+    },
+    {
+      "name": "warning",
+      "display_name": "Warning",
+      "category": "App Navigation",
+      "description": "Standard caution triangle with machine-base cue.",
+      "recommended_usage": "Risk notes, validation warnings, and attention states.",
+      "svg_standalone_path": "assets/icons/svg/standalone/warning.svg",
+      "svg_tile_path": "assets/icons/svg/tile/warning.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/warning.png",
+          "tile": "assets/icons/png/32/warning_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/warning.png",
+          "tile": "assets/icons/png/64/warning_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/warning.png",
+          "tile": "assets/icons/png/128/warning_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/warning.png",
+          "tile": "assets/icons/png/256/warning_tile.png"
+        }
+      }
+    },
+    {
+      "name": "analytics",
+      "display_name": "Analytics",
+      "category": "Analytics",
+      "description": "Bar chart with one trend line arrow.",
+      "recommended_usage": "Metrics dashboards, usage reports, and compatibility analytics.",
+      "svg_standalone_path": "assets/icons/svg/standalone/analytics.svg",
+      "svg_tile_path": "assets/icons/svg/tile/analytics.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/analytics.png",
+          "tile": "assets/icons/png/32/analytics_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/analytics.png",
+          "tile": "assets/icons/png/64/analytics_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/analytics.png",
+          "tile": "assets/icons/png/128/analytics_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/analytics.png",
+          "tile": "assets/icons/png/256/analytics_tile.png"
+        }
+      }
+    },
+    {
+      "name": "photos",
+      "display_name": "Photos",
+      "category": "Documentation",
+      "description": "Stacked photo frame with camera/lens cue.",
+      "recommended_usage": "Image galleries, setup photos, and visual references.",
+      "svg_standalone_path": "assets/icons/svg/standalone/photos.svg",
+      "svg_tile_path": "assets/icons/svg/tile/photos.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/photos.png",
+          "tile": "assets/icons/png/32/photos_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/photos.png",
+          "tile": "assets/icons/png/64/photos_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/photos.png",
+          "tile": "assets/icons/png/128/photos_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/photos.png",
+          "tile": "assets/icons/png/256/photos_tile.png"
+        }
+      }
+    },
+    {
+      "name": "standards",
+      "display_name": "Standards",
+      "category": "Documentation",
+      "description": "Checked standard document with simple rule lines.",
+      "recommended_usage": "Standards, specifications, and compliance documentation.",
+      "svg_standalone_path": "assets/icons/svg/standalone/standards.svg",
+      "svg_tile_path": "assets/icons/svg/tile/standards.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/standards.png",
+          "tile": "assets/icons/png/32/standards_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/standards.png",
+          "tile": "assets/icons/png/64/standards_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/standards.png",
+          "tile": "assets/icons/png/128/standards_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/standards.png",
+          "tile": "assets/icons/png/256/standards_tile.png"
+        }
+      }
+    },
+    {
+      "name": "checklist",
+      "display_name": "Checklist",
+      "category": "Documentation",
+      "description": "Clipboard with three checked rows.",
+      "recommended_usage": "Setup checklists, validation steps, and inspection workflows.",
+      "svg_standalone_path": "assets/icons/svg/standalone/checklist.svg",
+      "svg_tile_path": "assets/icons/svg/tile/checklist.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/checklist.png",
+          "tile": "assets/icons/png/32/checklist_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/checklist.png",
+          "tile": "assets/icons/png/64/checklist_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/checklist.png",
+          "tile": "assets/icons/png/128/checklist_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/checklist.png",
+          "tile": "assets/icons/png/256/checklist_tile.png"
+        }
+      }
+    },
+    {
+      "name": "documentation",
+      "display_name": "Documentation",
+      "category": "Documentation",
+      "description": "Stacked documents with consistent line details.",
+      "recommended_usage": "Manuals, reference files, and EOAT documentation sections.",
+      "svg_standalone_path": "assets/icons/svg/standalone/documentation.svg",
+      "svg_tile_path": "assets/icons/svg/tile/documentation.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/documentation.png",
+          "tile": "assets/icons/png/32/documentation_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/documentation.png",
+          "tile": "assets/icons/png/64/documentation_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/documentation.png",
+          "tile": "assets/icons/png/128/documentation_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/documentation.png",
+          "tile": "assets/icons/png/256/documentation_tile.png"
+        }
+      }
+    },
+    {
+      "name": "settings",
+      "display_name": "Settings",
+      "category": "App Navigation",
+      "description": "Three clean configuration sliders.",
+      "recommended_usage": "Settings screens, filters, and configurable options.",
+      "svg_standalone_path": "assets/icons/svg/standalone/settings.svg",
+      "svg_tile_path": "assets/icons/svg/tile/settings.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/settings.png",
+          "tile": "assets/icons/png/32/settings_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/settings.png",
+          "tile": "assets/icons/png/64/settings_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/settings.png",
+          "tile": "assets/icons/png/128/settings_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/settings.png",
+          "tile": "assets/icons/png/256/settings_tile.png"
+        }
+      }
+    },
+    {
+      "name": "map",
+      "display_name": "Map",
+      "category": "App Navigation",
+      "description": "Factory-style grid map with route line.",
+      "recommended_usage": "Factory maps, cell layouts, and location-based navigation.",
+      "svg_standalone_path": "assets/icons/svg/standalone/map.svg",
+      "svg_tile_path": "assets/icons/svg/tile/map.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/map.png",
+          "tile": "assets/icons/png/32/map_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/map.png",
+          "tile": "assets/icons/png/64/map_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/map.png",
+          "tile": "assets/icons/png/128/map_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/map.png",
+          "tile": "assets/icons/png/256/map_tile.png"
+        }
+      }
+    },
+    {
+      "name": "what_do_i_need",
+      "display_name": "What Do I Need?",
+      "category": "App Navigation",
+      "description": "Question mark combined with machine and EOAT selection symbols.",
+      "recommended_usage": "Guided selection, requirement discovery, and onboarding flows.",
+      "svg_standalone_path": "assets/icons/svg/standalone/what_do_i_need.svg",
+      "svg_tile_path": "assets/icons/svg/tile/what_do_i_need.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/what_do_i_need.png",
+          "tile": "assets/icons/png/32/what_do_i_need_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/what_do_i_need.png",
+          "tile": "assets/icons/png/64/what_do_i_need_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/what_do_i_need.png",
+          "tile": "assets/icons/png/128/what_do_i_need_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/what_do_i_need.png",
+          "tile": "assets/icons/png/256/what_do_i_need_tile.png"
+        }
+      }
+    }
+  ]
+}

@@ -65,6 +65,16 @@ class SetupPacketOptions:
     detail_level: str = "standard"
     manual_override_used: bool = False
     manual_override_note: str = ""
+    include_setup_summary: bool = True
+    include_compatibility_result: bool = True
+    include_requirements_check: bool = True
+    include_warnings: bool = True
+    include_alternatives: bool = True
+    include_eoat_photo: bool = True
+    include_setup_checklist: bool = True
+    include_detailed_record_information: bool = False
+    include_related_records: bool = False
+    include_extra_notes: bool = False
 
     def normalized(self) -> SetupPacketOptions:
         return SetupPacketOptions(
@@ -75,6 +85,16 @@ class SetupPacketOptions:
             detail_level=_choice(self.detail_level, DETAIL_LEVEL_CHOICES, "standard"),
             manual_override_used=bool(self.manual_override_used),
             manual_override_note=str(self.manual_override_note or "").strip(),
+            include_setup_summary=bool(self.include_setup_summary),
+            include_compatibility_result=bool(self.include_compatibility_result),
+            include_requirements_check=bool(self.include_requirements_check),
+            include_warnings=bool(self.include_warnings),
+            include_alternatives=bool(self.include_alternatives),
+            include_eoat_photo=bool(self.include_eoat_photo),
+            include_setup_checklist=bool(self.include_setup_checklist),
+            include_detailed_record_information=bool(self.include_detailed_record_information),
+            include_related_records=bool(self.include_related_records),
+            include_extra_notes=bool(self.include_extra_notes),
         )
 
     @property
@@ -453,6 +473,8 @@ def select_photos_for_packet(eoat: EOATRecord | None, options: SetupPacketOption
     if eoat is None:
         return ()
     photo_mode = options.normalized().photo_inclusion
+    if not options.normalized().include_eoat_photo:
+        return ()
     photos = _combined_photos(eoat)
     if photo_mode == PHOTO_NONE:
         return ()
@@ -475,7 +497,7 @@ def packet_section_names(options: SetupPacketOptions) -> tuple[str, ...]:
     sections_by_type = {
         PACKET_TYPE_STANDARD: (
             "Cover / Setup Summary",
-            "Compatibility Summary",
+            "Fit Check Summary",
             "Machine Information",
             "Robot Information",
             "Tool / Part Information",
@@ -490,7 +512,7 @@ def packet_section_names(options: SetupPacketOptions) -> tuple[str, ...]:
         ),
         PACKET_TYPE_SETUP_VERIFICATION: (
             "Cover / Verification Summary",
-            "Compatibility Summary",
+            "Fit Check Summary",
             "Machine / Tool / EOAT IDs",
             "Robot Information",
             "Key EOAT Setup Details",
@@ -541,7 +563,7 @@ def build_standard_changeover_checklist() -> tuple[str, ...]:
         "Verify EOAT alignment.",
         "Run/observe first cycle according to normal plant procedure.",
         "Check for part drops, mis-picks, tubing interference, or sensor faults.",
-        "Record any missing documentation or issues in Command Center.",
+        "Record any missing documentation or issues through EOAT Atlas source workflows.",
     )
 
 
@@ -554,19 +576,25 @@ def build_documentation_checklist() -> tuple[str, ...]:
         "Capture missing photos if needed.",
         "Confirm standards/PM references are linked.",
         "Confirm notes/warnings are current.",
-        "Record missing or incorrect information in Command Center.",
+        "Record missing or incorrect information through EOAT Atlas source workflows.",
         "Do not edit source workbooks directly from Atlas.",
     )
 
 
 def build_verification_checklist() -> tuple[str, ...]:
     return (
-        "Verify Machine number matches the selected press.",
-        "Verify Tool / Mold / Part number matches the setup.",
-        "Verify EOAT ID tag matches this packet.",
-        "Confirm compatibility status is acceptable for setup release.",
-        "Review robot-side circuit details before the first cycle.",
-        "Review warnings and missing information before production.",
+        "Confirm tool/mold number.",
+        "Confirm machine number.",
+        "Confirm EOAT ID.",
+        "Inspect vacuum cups or grippers for wear/damage.",
+        "Inspect pneumatic tubing.",
+        "Verify sensor operation.",
+        "Inspect mounting hardware.",
+        "Verify EOAT alignment.",
+        "Check quick disconnect fittings.",
+        "Verify cable management condition.",
+        "Dry-cycle robot before production.",
+        "Confirm first-shot/first-part handling.",
     )
 
 
@@ -578,7 +606,7 @@ def build_pm_checklist() -> tuple[str, ...]:
         "Check quick disconnects and electrical connectors.",
         "Confirm sensors and part-present or vacuum detection.",
         "Review known issues and open warnings.",
-        "Record maintenance findings in Command Center.",
+        "Record maintenance findings through EOAT Atlas source workflows.",
     )
 
 
@@ -664,14 +692,14 @@ def _validation_warnings(
                 ),
                 source="Setup Packet Generator",
                 why_it_matters="The packet may be used on the plant floor, so unconfirmed compatibility must be visible.",
-                suggested_fix="Verify the setup through an approved source and record the missing compatibility in Command Center.",
+                suggested_fix="Verify the setup through an approved source and record the missing compatibility through EOAT Atlas source workflows.",
             )
         )
     if status == COMPATIBILITY_NOT_CONFIRMED:
         warnings.append(
             WarningItem(
                 severity="warning",
-                title="Compatibility not confirmed",
+                title="Fit Check not confirmed",
                 message="Atlas does not find the selected Machine + Tool + EOAT combination in compatibility data.",
                 source="Setup Packet Generator",
                 why_it_matters="Unconfirmed setups can cause changeover errors, robot connection issues, or part handling failures.",
@@ -686,7 +714,7 @@ def _validation_warnings(
                     title=f"{check.relationship} not confirmed",
                     message=" ".join(check.notes),
                     source=check.source or "Atlas compatibility data",
-                    suggested_fix="Review Press Capacity, EOAT Inventory, and Command Center compatibility records.",
+                    suggested_fix="Review Press Capacity, EOAT Inventory, and EOAT Atlas compatibility records.",
                 )
             )
     for item in missing_data:
@@ -696,7 +724,7 @@ def _validation_warnings(
                 title="Missing compatibility data",
                 message=item,
                 source="Setup Packet Generator",
-                suggested_fix="Record or repair missing compatibility fields in Command Center/source workflow.",
+                suggested_fix="Record or repair missing compatibility fields in the EOAT Atlas source workflow.",
             )
         )
     return warnings

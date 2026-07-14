@@ -8,7 +8,7 @@ from core.release_readiness import install_pre_commit_hook
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Install the local EOAT Command Center pre-commit safety hook.")
+    parser = argparse.ArgumentParser(description="Install the local EOAT Atlas pre-commit safety hook.")
     parser.add_argument("--root", default=str(TOOLKIT_ROOT), help="Repository root. Defaults to this checkout.")
     parser.add_argument("--git", default="git", help="Git executable.")
     parser.add_argument("--force", action="store_true", help="Overwrite an existing local hook after backing it up.")

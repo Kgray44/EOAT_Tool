@@ -73,7 +73,7 @@ def _write_schedule_files(root: Path) -> None:
         "days": {
             "1": [
                 "Confirm project folder structure and workbook access",
-                "Review EOAT Command Center with mentor",
+                "Review EOAT Atlas with mentor",
                 "Start Press 101 baseline audit",
             ],
             "2": [
@@ -100,7 +100,7 @@ def _write_schedule_files(root: Path) -> None:
             {
                 "id": "W1D1T2",
                 "day": "1",
-                "task": "Review EOAT Command Center with mentor",
+                "task": "Review EOAT Atlas with mentor",
                 "status": "In progress",
             },
             {

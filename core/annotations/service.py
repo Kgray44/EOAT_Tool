@@ -1051,7 +1051,7 @@ class AnnotationService:
                 "fields_needing_review": tag_count("Needs Review", "audit_field"),
                 "data_conflicts": tag_count("Data Conflict"),
                 "missing_evidence": tag_count("Missing Evidence"),
-                "compatibility_concerns": tag_count("Compatibility Concern"),
+                "compatibility_concerns": tag_count("Fit Check Concern"),
                 "documentation_gaps": tag_count("Documentation Gap"),
                 "info_tags": tag_count("Info"),
                 "followups_due_soon": int(followups),

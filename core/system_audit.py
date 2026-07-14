@@ -19,7 +19,7 @@ from .tool_registry import ToolRegistry
 from .validation import validate_project_foundation
 
 TOOL_ID = "system_audit"
-TOOL_NAME = "EOAT Command Center System Audit"
+TOOL_NAME = "EOAT Atlas System Audit"
 
 REQUIRED_IMPORTS = ["PySide6", "openpyxl", "pandas", "matplotlib", "docx", "pytest"]
 

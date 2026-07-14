@@ -26,7 +26,7 @@ def create_fake_master_workbook(path: str | Path) -> Path:
     metadata.sheet_state = "hidden"
     metadata.append(["key", "value"])
     metadata.append(["schema_version", CURRENT_WORKBOOK_SCHEMA_VERSION])
-    metadata.append(["app_name", "EOAT Command Center"])
+    metadata.append(["app_name", "EOAT Atlas"])
 
     inventory = workbook["EOAT Inventory"]
     inventory.append(

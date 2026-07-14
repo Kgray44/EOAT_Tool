@@ -10,7 +10,7 @@ from .atlas_models import AtlasDataBundle, WarningItem
 ENTRY_TYPE_LABELS = {
     "app_help": "App Help",
     "eoat_standard": "EOAT Standard",
-    "compatibility_rule": "Compatibility Rule",
+    "compatibility_rule": "Fit Check Rule",
     "data_dictionary": "Data Dictionary",
     "troubleshooting": "Troubleshooting",
     "report_guide": "Report Guide",
@@ -230,7 +230,7 @@ def validate_information_library(entries: list[InformationLibraryEntry]) -> list
         section_titles = {section.title.casefold() for section in entry.sections}
         if entry.entry_type == "compatibility_rule":
             if "inputs used" not in section_titles or "decision logic" not in section_titles:
-                errors.append(f"{entry.title}: compatibility rules require Inputs Used and Decision Logic.")
+                errors.append(f"{entry.title}: Fit Check rules require Inputs Used and Decision Logic.")
         if entry.entry_type == "troubleshooting":
             required = {"symptom", "likely causes", "checks to run", "fix steps"}
             missing = required - section_titles
@@ -355,7 +355,7 @@ def _seed_entries() -> list[InformationLibraryEntry]:
     entries: list[InformationLibraryEntry] = []
     entries.extend(_app_help_entries())
     entries.extend(_standard_entries())
-    entries.extend(_compatibility_entries())
+    entries.extend(_fit_check_entries())
     entries.extend(_data_dictionary_entries())
     entries.extend(_troubleshooting_entries())
     entries.extend(_report_guide_entries())
@@ -416,19 +416,19 @@ def _app_help_entries() -> list[InformationLibraryEntry]:
             ("Find the best EOAT for a known setup.", "Compare backup EOAT candidates.", "Launch profile, photo, tool, and machine context."),
             ("EOAT Master Tracker", "Press Capacity Workbook", "Robot Info when robot context is part of the decision"),
             ("Entering a part description when the workbook only carries a tool number.", "Skipping warnings because the top recommendation has a high score."),
-            ("Search the exact Tool # if a keyword search is weak.", "Check Compatibility Confidence Levels when backup choices look close."),
-            ("Compatibility Data Table", "EOAT Profiles", "Tool / Mold / Part", "Compatibility Confidence Levels"),
+            ("Search the exact Tool # if a keyword search is weak.", "Check Fit Check Confidence Levels when backup choices look close."),
+            ("Fit Check Data Table", "EOAT Profiles", "Tool / Mold / Part", "Fit Check Confidence Levels"),
             ("recommendation", "search", "install"),
         ),
         app(
             "Changeover Packet Builder",
             "Builds a PDF setup/changeover packet for a selected machine, tool, and EOAT combination.",
             "A packet is a snapshot of the current Atlas cache; refresh first when source data just changed.",
-            ("Create a setup handoff PDF.", "Include photos and QR payloads when enabled.", "Review compatibility warnings before export."),
+            ("Create a setup handoff PDF.", "Include photos and QR payloads when enabled.", "Review Fit Check warnings before export."),
             ("Selected machine", "Selected Tool #", "Selected EOAT Assembly ID", "Photo index for optional images"),
-            ("Generating from stale cache after workbook edits.", "Treating a manual override as the same as confirmed compatibility."),
-            ("Run compatibility review again after changing selections.", "Open the generated packet library if the PDF viewer is unavailable."),
-            ("Compatibility Data Table", "Photos", "Changeover packet exports", "Manual override warning rules"),
+            ("Generating from stale cache after workbook edits.", "Treating a manual override as the same as confirmed Fit Check."),
+            ("Run Fit Check review again after changing selections.", "Open the generated packet library if the PDF viewer is unavailable."),
+            ("Fit Check Data Table", "Photos", "Changeover packet exports", "Manual override warning rules"),
             ("changeover packet", "setup packet", "pdf", "handoff"),
         ),
         app(
@@ -436,10 +436,10 @@ def _app_help_entries() -> list[InformationLibraryEntry]:
             "Profile page for one EOAT's identity, compatible tools and machines, readiness, photos, warnings, and technical context.",
             "Start with the header and readiness cards, then inspect source fields only when a warning points there.",
             ("Confirm what an EOAT supports.", "Review documentation and photo coverage.", "Open changeover packets or photos for a selected EOAT."),
-            ("EOAT Assembly ID", "Tool # rows", "Machine compatibility rows", "Photo Folder Index"),
+            ("EOAT Assembly ID", "Tool # rows", "Machine Fit Check rows", "Photo Folder Index"),
             ("Assuming a merged profile means all rows were physically audited.", "Ignoring compatible rows created from off-machine handling."),
-            ("Search by normalized EOAT Assembly ID.", "Review EOAT-to-Tool Compatibility when tools are missing."),
-            ("EOAT Assembly ID", "EOAT-to-Tool Compatibility", "Photo Coverage Status", "Compatibility Confidence Levels", "Documentation Requirements", "Photos do not preview"),
+            ("Search by normalized EOAT Assembly ID.", "Review EOAT-to-Tool Fit Check when tools are missing."),
+            ("EOAT Assembly ID", "EOAT-to-Tool Fit Check", "Photo Coverage Status", "Fit Check Confidence Levels", "Documentation Requirements", "Photos do not preview"),
             ("eoat", "profile", "readiness"),
         ),
         app(
@@ -448,10 +448,10 @@ def _app_help_entries() -> list[InformationLibraryEntry]:
             "Missing EOATs usually means a relationship gap, not that the machine cannot run tooling.",
             ("Confirm which EOATs and tools are linked to a machine.", "Check robot type and controller context.", "Export a machine summary."),
             ("Press Capacity Workbook", "Robot Info", "EOAT Master Tracker machine rows"),
-            ("Treating an empty EOAT list as a verified incompatibility.", "Comparing machine numbers without normalization."),
-            ("Check Tool-to-Machine Compatibility first.", "Check Machine # and Robot Type field definitions."),
-            ("Tool-to-Machine Compatibility", "Robot Type", "Machine #", "Press Capacity Workbook", "EOAT profile missing compatible machines"),
-            ("machine", "robot", "compatibility"),
+            ("Treating an empty EOAT list as a verified incompatible.", "Comparing machine numbers without normalization."),
+            ("Check Tool-to-Machine Fit Check first.", "Check Machine # and Robot Type field definitions."),
+            ("Tool-to-Machine Fit Check", "Robot Type", "Machine #", "Press Capacity Workbook", "EOAT profile missing compatible machines"),
+            ("machine", "robot", "Fit Check"),
         ),
         app(
             "Tool / Mold / Part",
@@ -460,20 +460,20 @@ def _app_help_entries() -> list[InformationLibraryEntry]:
             ("Find EOATs linked to a tool.", "Find machines from Press Capacity.", "Compare multiple tools in a family."),
             ("Tool # field", "Press Capacity Workbook", "EOAT Master Tracker tool rows"),
             ("Searching a display description when the source workbook stores a different part name.", "Forgetting that one tool can map to multiple machines."),
-            ("Search the exact Tool #.", "Inspect Duplicate Compatibility Row Handling if counts look inflated."),
-            ("Tool #", "Tool-to-Machine Compatibility", "EOAT-to-Tool Compatibility", "Tool search returns no results"),
+            ("Search the exact Tool #.", "Inspect Duplicate Fit Check Row Handling if counts look inflated."),
+            ("Tool #", "Tool-to-Machine Fit Check", "EOAT-to-Tool Fit Check", "Tool search returns no results"),
             ("tool", "mold", "part"),
         ),
         app(
-            "Compatibility Data Table",
+            "Fit Check Data Table",
             "Dense comparison table for EOAT, machine, tool, status, confidence, and warning relationships.",
             "Use the matrix to audit relationships; use profiles to answer one setup question quickly.",
-            ("Sort and filter compatibility rows.", "Export compatibility data.", "Find duplicate or low-confidence relationships."),
-            ("EOAT Master Tracker", "Press Capacity Workbook", "compatibility cache"),
+            ("Sort and filter Fit Check rows.", "Export Fit Check data.", "Find duplicate or low-confidence relationships."),
+            ("EOAT Master Tracker", "Press Capacity Workbook", "Fit Check cache"),
             ("Reading a derived row as physical audit evidence.", "Exporting before refresh after source edits."),
-            ("Filter by one identifier first.", "Open Compatibility Warning Rules when row status is unclear."),
-            ("Tool-to-Machine Compatibility", "EOAT-to-Machine Compatibility", "Compatibility Export", "Duplicate Compatibility Row Handling"),
-            ("matrix", "compatibility", "export"),
+            ("Filter by one identifier first.", "Open Fit Check Warning Rules when row status is unclear."),
+            ("Tool-to-Machine Fit Check", "EOAT-to-Machine Fit Check", "Fit Check Export", "Duplicate Fit Check Row Handling"),
+            ("matrix", "Fit Check", "export"),
         ),
         app(
             "Analytics Dashboard",
@@ -523,11 +523,11 @@ def _app_help_entries() -> list[InformationLibraryEntry]:
             "Reports & Handoff",
             "Exports timestamped CSV, PDF, or summary files from the currently loaded Atlas cache.",
             "Reports are evidence for review and cleanup; they are not a hidden second source of truth.",
-            ("Export documentation gaps.", "Export compatibility rows.", "Export photo coverage and PM checklists."),
+            ("Export documentation gaps.", "Export Fit Check rows.", "Export photo coverage and PM checklists."),
             ("Loaded Atlas bundle", "Generated Report folder", "source workbook paths for provenance"),
             ("Expecting an export to refresh data automatically.", "Comparing old and new exports without checking timestamps."),
             ("Refresh data first if source workbooks changed.", "Use Export looks stale when numbers do not match the UI."),
-            ("Documentation Gap Report", "Audit Progress Report", "Standards Compliance Summary", "Compatibility Export", "Source workbook path is missing"),
+            ("Documentation Gap Report", "Audit Progress Report", "Standards Compliance Summary", "Fit Check Export", "Source workbook path is missing"),
             ("reports", "export", "generated report"),
         ),
         app(
@@ -632,9 +632,9 @@ def _standard_entries() -> list[InformationLibraryEntry]:
         standard(
             "EOAT Weight and Rigidity",
             "Control EOAT mass and structure so robot payload, deflection, and repeatability stay within acceptable setup limits.",
-            ("Weight notes should be captured when known.", "Large or flexible assemblies need photo and inspection context.", "Do not infer payload approval from compatibility rows alone."),
+            ("Weight notes should be captured when known.", "Large or flexible assemblies need photo and inspection context.", "Do not infer payload approval from Fit Check rows alone."),
             ("Rigid frame visible with mounting points photographed.", "Known weight or construction notes included for heavy tools."),
-            ("Long unsupported bracket with no rigidity note.", "Compatibility treated as payload confirmation.", "Missing mounting photos on a large EOAT."),
+            ("Long unsupported bracket with no rigidity note.", "Fit Check treated as payload confirmation.", "Missing mounting photos on a large EOAT."),
             ("Check frame cracks, bent brackets, loose mounts, and sag under load.", "Escalate missing payload data for heavy EOATs."),
             ("Robot overload", "Part placement drift", "Bracket fatigue", "Repeatability loss"),
             ("EOAT Type", "Moves", "Machine #", "Robot Type", "Readiness Status"),
@@ -664,13 +664,13 @@ def _standard_entries() -> list[InformationLibraryEntry]:
         ),
         standard(
             "Documentation Requirements",
-            "Minimum EOAT documentation should support identity, compatibility, photos, setup, inspection, and troubleshooting.",
+            "Minimum EOAT documentation should support identity, Fit Check, photos, setup, inspection, and troubleshooting.",
             ("EOAT Assembly ID, Tool #, and Machine # must be normalized.", "Critical fields should not be left blank when hardware is present.", "Photos must show enough context to verify fields."),
             ("EOAT has ID, tools, compatible machines, connection, vacuum/sensor notes, and required photos.", "Warnings explain remaining uncertainty."),
             ("Tool # buried in notes only.", "Machine list conflicts with Press Capacity.", "Profile has photos but no identity fields."),
             ("Review critical missing fields, source workbook rows, and photo category chips.", "Repair source workbook values rather than only adding notes."),
             ("Bad search results", "Low confidence", "Stale changeover packet", "Missed PM finding"),
-            ("EOAT Assembly ID", "Tool #", "Machine #", "Readiness Status", "Compatibility Confidence"),
+            ("EOAT Assembly ID", "Tool #", "Machine #", "Readiness Status", "Fit Check Confidence"),
             ("documentation", "readiness", "fields"),
         ),
         standard(
@@ -678,7 +678,7 @@ def _standard_entries() -> list[InformationLibraryEntry]:
             "Process binders should preserve the setup evidence needed to reproduce a known-good EOAT installation.",
             ("Binder content should connect Tool #, machine, EOAT, changeover packet, photos, and key warnings.", "Generated reports should include timestamp and source context.", "Manual notes should not contradict Atlas source fields."),
             ("Setup packet references the selected machine, tool, EOAT, photos, and warnings.", "Report timestamp matches review date."),
-            ("Binder contains old export with no source date.", "EOAT photo folder missing from binder reference.", "Manual compatibility note conflicts with matrix."),
+            ("Binder contains old export with no source date.", "EOAT photo folder missing from binder reference.", "Manual Fit Check note conflicts with matrix."),
             ("Check export timestamp, source workbook path, selected identifiers, and warning list.", "Refresh and regenerate stale reports."),
             ("Wrong EOAT staged", "Old setup reused", "Audit trail confusion"),
             ("Tool #", "Machine #", "EOAT Assembly ID", "Export Location", "Warning Severity"),
@@ -700,7 +700,7 @@ def _standard_entries() -> list[InformationLibraryEntry]:
     ]
 
 
-def _compatibility_entries() -> list[InformationLibraryEntry]:
+def _fit_check_entries() -> list[InformationLibraryEntry]:
     def compat(
         title: str,
         purpose: str,
@@ -718,7 +718,7 @@ def _compatibility_entries() -> list[InformationLibraryEntry]:
             "compatibility_rule",
             title,
             purpose,
-            "Compatibility is an evidence ranking, not a substitute for confirming the physical EOAT condition.",
+            "Fit Check is an evidence ranking, not a substitute for confirming the physical EOAT condition.",
             (
                 _section("Purpose", purpose),
                 _section("Inputs Used", *inputs),
@@ -728,15 +728,15 @@ def _compatibility_entries() -> list[InformationLibraryEntry]:
                 _section("Repair Actions", *repair),
                 _section("Related Pages", *related),
             ),
-            category="Compatibility Logic",
-            tags=tags or ("compatibility",),
-            related_fields=("Tool #", "Machine #", "EOAT Assembly ID", "Compatibility Confidence", "Warning Severity"),
+            category="Fit Check Logic",
+            tags=tags or ("Fit Check",),
+            related_fields=("Tool #", "Machine #", "EOAT Assembly ID", "Fit Check Confidence", "Warning Severity"),
             related_pages=related,
-            related_references=("Compatibility Confidence Levels", "Compatibility Warning Rules"),
+            related_references=("Fit Check Confidence Levels", "Fit Check Warning Rules"),
             examples=examples,
             warnings=warnings,
             source=source,
-            tree_path=("Compatibility Logic", title),
+            tree_path=("Fit Check Logic", title),
         )
 
     press = _source("Press Capacity Workbook", section="Tool-machine relationships")
@@ -744,14 +744,14 @@ def _compatibility_entries() -> list[InformationLibraryEntry]:
     internal = _source("Atlas internal reference", source_type="Atlas internal reference")
     return [
         compat(
-            "Tool-to-Machine Compatibility",
+            "Tool-to-Machine Fit Check",
             "Determines which machines can run a tool based on Press Capacity and normalized tool identifiers.",
             ("Tool # from search/profile row.", "Press Capacity part number or tool number.", "Machine number from capacity row."),
             ("Normalize Tool #.", "Look up matching capacity rows.", "Return all machines linked to the tool.", "Do not require an EOAT row for this relationship."),
             ("High when exact normalized Tool # is found.", "Medium when only related descriptive text matches.", "Low when no Press Capacity source is available."),
             ("Tool # not found in Press Capacity.", "Capacity workbook missing.", "Machine number cannot be normalized."),
             ("Repair or add the tool-machine row in Press Capacity.", "Normalize Tool # formatting in source workbook.", "Refresh Atlas data."),
-            ("Machine Profiles", "Tool / Mold / Part", "Compatibility Data Table"),
+            ("Machine Profiles", "Tool / Mold / Part", "Fit Check Data Table"),
             press,
             examples=(
                 _example(
@@ -764,7 +764,7 @@ def _compatibility_entries() -> list[InformationLibraryEntry]:
             tags=("tool", "machine", "press capacity"),
         ),
         compat(
-            "EOAT-to-Tool Compatibility",
+            "EOAT-to-Tool Fit Check",
             "Determines which tools an EOAT is linked to through EOAT inventory and audit rows.",
             ("EOAT Assembly ID.", "Tool # field.", "Audit rows merged into the EOAT profile."),
             ("Normalize EOAT Assembly ID.", "Collect all tool values from rows in the EOAT group.", "Display unique tools on the EOAT profile."),
@@ -776,14 +776,14 @@ def _compatibility_entries() -> list[InformationLibraryEntry]:
             tags=("eoat", "tool", "inventory"),
         ),
         compat(
-            "EOAT-to-Machine Compatibility",
+            "EOAT-to-Machine Fit Check",
             "Connects EOATs to machines from direct audit rows and tool-derived capacity relationships.",
             ("EOAT Assembly ID.", "Machine # from inventory rows.", "Tool # linked to the EOAT.", "Press Capacity machines for that tool."),
             ("Prefer explicit machine rows when present.", "Expand compatible machines from Tool # and Press Capacity.", "Merge and deduplicate the machine list."),
             ("High when direct machine and tool-derived machine agree.", "Medium when machine comes from capacity only.", "Low when robot info or machine normalization is missing."),
             ("Machine # blank or N/A.", "Tool has no capacity row.", "Robot Info missing for machine."),
             ("Confirm Tool # in Press Capacity.", "Repair Machine # formatting.", "Add Robot Info for the machine where available."),
-            ("EOAT Profiles", "Machine Profiles", "Compatibility Data Table"),
+            ("EOAT Profiles", "Machine Profiles", "Fit Check Data Table"),
             tracker,
             tags=("eoat", "machine", "derived"),
         ),
@@ -791,55 +791,55 @@ def _compatibility_entries() -> list[InformationLibraryEntry]:
             "Off-Machine EOAT Audit Handling",
             "Preserves physical off-machine audit evidence while offering machine rows derived from tool capacity.",
             ("Tool #.", "Machine # value such as N/A or blank.", "EOAT Assembly ID.", "Press Capacity tool-machine rows."),
-            ("Keep the original off-machine audit row.", "Search Press Capacity for the Tool #.", "Offer compatibility rows for found machines.", "Mark derived rows separately from physical audit rows when that status exists."),
-            ("High for the preserved physical audit evidence.", "Medium for capacity-derived compatibility rows until verified on-machine.", "Low if Tool # cannot be found."),
+            ("Keep the original off-machine audit row.", "Search Press Capacity for the Tool #.", "Offer Fit Check rows for found machines.", "Mark derived rows separately from physical audit rows when that status exists."),
+            ("High for the preserved physical audit evidence.", "Medium for capacity-derived Fit Check rows until verified on-machine.", "Low if Tool # cannot be found."),
             ("Tool # not found in Press Capacity.", "Derived rows look like physical audits.", "Duplicate rows already exist."),
-            ("Correct Tool #.", "Use Entry Type or audit context to distinguish derived compatibility.", "Deduplicate rows before adding new derived records."),
-            ("EOAT Profiles", "Compatibility Data Table", "Audit Progress Report"),
+            ("Correct Tool #.", "Use Entry Type or audit context to distinguish derived Fit Check.", "Deduplicate rows before adding new derived records."),
+            ("EOAT Profiles", "Fit Check Data Table", "Audit Progress Report"),
             tracker,
             examples=(
                 _example(
                     "Off-machine audit expansion",
-                    inputs=("Tool #: 12345", "Machine #: N/A", "EOAT Assembly ID: P4-EOAT-0021"),
-                    logic=("Search Press Capacity for Tool # 12345.", "Find all compatible machines.", "Preserve original off-machine audit row.", "Offer derived compatibility rows."),
-                    outputs=("Original audit remains Machine # N/A.", "Compatibility rows created for Machine 12, Machine 14, Machine 22.", "Warning shown if Tool # is not found in Press Capacity."),
+                    inputs=("Tool #: 12345", "Machine #: N/A", "EOAT Assembly ID: P4-EOAT-0021 or CL-EOAT-0021"),
+                    logic=("Search Press Capacity for Tool # 12345.", "Find all compatible machines.", "Preserve original off-machine audit row.", "Offer derived Fit Check rows."),
+                    outputs=("Original audit remains Machine # N/A.", "Fit Check rows created for Machine 12, Machine 14, Machine 22.", "Warning shown if Tool # is not found in Press Capacity."),
                 ),
             ),
             tags=("off-machine", "audit", "derived rows"),
         ),
         compat(
-            "Compatibility Confidence Levels",
+            "Fit Check Confidence Levels",
             "Explains why Atlas labels a relationship high, medium, low, or warning-prone.",
             ("Direct EOAT row evidence.", "Press Capacity evidence.", "Robot Info availability.", "Documentation and photo completeness.", "Open warnings."),
             ("Raise confidence when independent sources agree.", "Lower confidence for missing source fields or derived-only links.", "Surface warning severity next to the relationship."),
             ("High: direct row plus capacity support and no critical gaps.", "Medium: useful relationship with source gaps.", "Low: inferred or missing source support."),
             ("Source workbook missing.", "Tool or machine key ambiguous.", "Critical documentation fields blank."),
             ("Repair the missing source field.", "Refresh data.", "Open the profile warning card for the specific cause."),
-            ("Compatibility Data Table", "EOAT Profiles", "Machine Profiles"),
+            ("Fit Check Data Table", "EOAT Profiles", "Machine Profiles"),
             internal,
             tags=("confidence", "warnings", "readiness"),
         ),
         compat(
-            "Compatibility Warning Rules",
-            "Defines the main conditions that should make a compatibility answer display a warning.",
+            "Fit Check Warning Rules",
+            "Defines the main conditions that should make a Fit Check answer display a warning.",
             ("Missing Tool #.", "Missing Machine #.", "Missing EOAT Assembly ID.", "Press Capacity lookup status.", "Duplicate row status.", "Source workbook status."),
-            ("Attach warnings to the affected profile or row.", "Keep the compatibility answer visible when partial evidence is still useful.", "Do not hide low-confidence rows without explanation."),
+            ("Attach warnings to the affected profile or row.", "Keep the Fit Check answer visible when partial evidence is still useful.", "Do not hide low-confidence rows without explanation."),
             ("Warning severity increases when a critical identifier is missing.", "Informational warnings are used for cleanup hints that do not block lookup."),
             ("Machine profile missing EOATs.", "EOAT has tools but no machines.", "Source path is missing.", "Duplicate compatible rows inflate counts."),
             ("Fix identifiers first.", "Repair source path second.", "Rebuild exports after refresh."),
-            ("Compatibility Data Table", "Settings / Diagnostics", "Documentation Gap Report"),
+            ("Fit Check Data Table", "Settings / Diagnostics", "Documentation Gap Report"),
             internal,
             tags=("warnings", "severity", "rules"),
         ),
         compat(
-            "Duplicate Compatibility Row Handling",
+            "Duplicate Fit Check Row Handling",
             "Prevents repeated audit or derived rows from inflating counts and confusing profiles.",
             ("EOAT Assembly ID.", "Tool #.", "Machine #.", "Entry Type or audit context.", "Source row identifier if present."),
-            ("Normalize the compatibility key.", "Group rows with the same EOAT-tool-machine relationship.", "Prefer physical audited evidence over derived compatibility when summarizing."),
+            ("Normalize the Fit Check key.", "Group rows with the same EOAT-tool-machine relationship.", "Prefer physical audited evidence over derived Fit Check when summarizing."),
             ("High when duplicate rows agree and one audited row exists.", "Medium when duplicates are derived-only.", "Warning when duplicates conflict."),
             ("Same EOAT-tool-machine appears multiple times.", "Rows disagree on Entry Type.", "Source ID missing on compatible rows."),
             ("Remove accidental duplicates.", "Fill Source Audit ID for derived rows.", "Keep one physical audit row as the primary evidence."),
-            ("Compatibility Data Table", "EOAT Profiles", "Audit Progress Report"),
+            ("Fit Check Data Table", "EOAT Profiles", "Audit Progress Report"),
             tracker,
             tags=("duplicates", "rows", "audit"),
         ),
@@ -863,7 +863,7 @@ def _compatibility_entries() -> list[InformationLibraryEntry]:
             ("High when tools are present and capacity rows exist.", "Medium when tools exist but capacity is unavailable.", "Low when tool values are missing or inconsistent."),
             ("Tool # list empty.", "Same tool appears with different formatting.", "Compatible machines missing for a listed tool."),
             ("Repair Tool # fields.", "Check Press Capacity for each tool.", "Refresh and re-open the EOAT profile."),
-            ("EOAT Profiles", "Tool / Mold / Part", "Compatibility Data Table"),
+            ("EOAT Profiles", "Tool / Mold / Part", "Fit Check Data Table"),
             tracker,
             tags=("tool list", "eoat profile", "normalization"),
         ),
@@ -913,10 +913,10 @@ def _data_dictionary_entries() -> list[InformationLibraryEntry]:
         )
 
     return [
-        field_entry("EOAT Assembly ID", "Unique identifier for a physical EOAT assembly or documented EOAT group.", ("Normalized plant EOAT ID such as P4-EOAT-0021.", "Blank only for incomplete source rows."), "EOAT Master Tracker.", "Audit owner or workbook maintainer.", ("EOAT Profiles", "Compatibility Data Table", "Changeover Packet Builder"), ("TBD", "same EOAT with two spellings", "tool number used as EOAT ID"), ("Normalize punctuation and spacing.", "Must not collide across different physical EOATs."), "Assign or correct the EOAT Assembly ID in the tracker, then refresh Atlas.", tracker, ("identity",)),
-        field_entry("Tool #", "Tool or mold identifier used to connect EOAT rows to Press Capacity.", ("Numeric or plant-approved tool identifier.", "Multiple values only when the source supports a clear separator."), "EOAT Master Tracker and Press Capacity Workbook.", "Tooling or audit owner.", ("Tool / Mold / Part", "What Do I Need?", "Compatibility Data Table"), ("part description only", "tool family name", "mold number in notes only"), ("Normalize leading zeros consistently.", "Should match Press Capacity for machine expansion."), "Move the actual tool number into Tool # and repair the capacity row if needed.", tracker, ("tool",)),
-        field_entry("Machine #", "Machine or press number connected to an audited or compatible EOAT relationship.", ("Plant machine number.", "N/A only for off-machine physical audit rows."), "EOAT Master Tracker for audited rows; Press Capacity for derived compatibility.", "Audit owner or process engineering.", ("Machine Profiles", "Compatibility Data Table", "Changeover Packet Builder"), ("press text with no number", "N/A on a row that is actually installed", "multiple machines in free text"), ("Normalize machine tokens.", "N/A must not be treated as a confirmed installed machine."), "Correct the machine number or preserve N/A only for true off-machine evidence.", tracker, ("machine",)),
-        field_entry("Robot Type", "Robot family or automation type associated with a machine or EOAT setup.", ("Known robot type from Robot Info.", "Blank when unknown."), "Robot Info workbook or machine profile source.", "Automation or maintenance owner.", ("Machine Profiles", "Compatibility Confidence Levels", "Changeover Packet Builder"), ("controller model only", "brand nickname", "copied machine number"), ("Should align with machine number.", "Missing Robot Info lowers compatibility confidence."), "Update Robot Info or the tracker row with the correct robot type.", internal, ("robot",)),
+        field_entry("EOAT Assembly ID", "Unique identifier for a physical EOAT assembly or documented EOAT group.", ("Normalized EOAT ID such as P4-EOAT-0021 or CL-EOAT-0021.", "Cleanroom rows use CL; Plant 4 / non-Cleanroom rows use P4.", "Blank only for incomplete source rows."), "EOAT Master Tracker.", "Audit owner or workbook maintainer.", ("EOAT Profiles", "Fit Check Data Table", "Changeover Packet Builder"), ("TBD", "same EOAT with two spellings", "tool number used as EOAT ID"), ("Normalize punctuation and spacing.", "Must not collide across different physical EOATs.", "Prefix must match Plant/Area."), "Assign or correct the EOAT Assembly ID in the tracker, then refresh Atlas.", tracker, ("identity",)),
+        field_entry("Tool #", "Tool or mold identifier used to connect EOAT rows to Press Capacity.", ("Numeric or plant-approved tool identifier.", "Multiple values only when the source supports a clear separator."), "EOAT Master Tracker and Press Capacity Workbook.", "Tooling or audit owner.", ("Tool / Mold / Part", "What Do I Need?", "Fit Check Data Table"), ("part description only", "tool family name", "mold number in notes only"), ("Normalize leading zeros consistently.", "Should match Press Capacity for machine expansion."), "Move the actual tool number into Tool # and repair the capacity row if needed.", tracker, ("tool",)),
+        field_entry("Machine #", "Machine or press number connected to an audited or compatible EOAT relationship.", ("Plant machine number.", "N/A only for off-machine physical audit rows."), "EOAT Master Tracker for audited rows; Press Capacity for derived Fit Check.", "Audit owner or process engineering.", ("Machine Profiles", "Fit Check Data Table", "Changeover Packet Builder"), ("press text with no number", "N/A on a row that is actually installed", "multiple machines in free text"), ("Normalize machine tokens.", "N/A must not be treated as a confirmed installed machine."), "Correct the machine number or preserve N/A only for true off-machine evidence.", tracker, ("machine",)),
+        field_entry("Robot Type", "Robot family or automation type associated with a machine or EOAT setup.", ("Known robot type from Robot Info.", "Blank when unknown."), "Robot Info workbook or machine profile source.", "Automation or maintenance owner.", ("Machine Profiles", "Fit Check Confidence Levels", "Changeover Packet Builder"), ("controller model only", "brand nickname", "copied machine number"), ("Should align with machine number.", "Missing Robot Info lowers Fit Check confidence."), "Update Robot Info or the tracker row with the correct robot type.", internal, ("robot",)),
         field_entry("EOAT Type", "High-level EOAT construction or handling style.", ("Vacuum", "Gripper", "Hybrid", "Custom plant-approved type"), "EOAT Master Tracker.", "Audit owner.", ("EOAT Profiles", "PM / Inspection", "Standards & Work Instructions"), ("misc", "unknown but hardware visible", "part name"), ("Should agree with vacuum/gripper/sensor fields.", "Blank type lowers readiness."), "Choose the closest approved EOAT type and add notes for unusual hardware.", tracker, ("type",)),
         field_entry("Connection Type", "Pneumatic/electrical connection description needed for setup.", ("Quick disconnect type.", "Pneumatic/electrical notes.", "Blank only when not recorded."), "EOAT Master Tracker and photos.", "Audit owner or maintenance.", ("EOAT Profiles", "Changeover Packet Builder", "Quick Disconnect Standards"), ("yes", "air", "see photo"), ("Should explain the actual connection, not just presence.", "Should align with Quick Disconnect Present."), "Replace vague values with fitting or connection details and add a connection photo.", tracker, ("connection",)),
         field_entry("Moves", "Motion or pick/place behavior notes that affect setup and inspection.", ("Short engineering note.", "Blank when not captured."), "EOAT Master Tracker.", "Process engineering or audit owner.", ("EOAT Profiles", "EOAT Weight and Rigidity", "Pneumatic Tubing Routing"), ("good", "normal", "operator initials"), ("Should describe movement risk or count when relevant.", "Should not duplicate status."), "Capture the motion detail needed for routing, rigidity, or setup review.", tracker, ("motion",)),
@@ -928,9 +928,9 @@ def _data_dictionary_entries() -> list[InformationLibraryEntry]:
         field_entry("Cup Material", "Material of vacuum cups or contact cups where it affects handling or cleanroom risk.", ("Silicone", "Nitrile", "Urethane", "Plant-approved material", "Blank when not applicable"), "EOAT Master Tracker and standards.", "Process engineering or audit owner.", ("Vacuum Cup Selection", "Cleanroom Documentation Considerations", "EOAT Profiles"), ("rubber", "unknown", "color only"), ("Required when vacuum cups are present and material matters.", "Should not conflict with cleanroom notes."), "Confirm cup material from parts list, standard, or physical inspection.", tracker, ("cup", "material")),
         field_entry("# Parts Picked", "Number of parts picked per cycle by the EOAT.", ("Positive integer.", "Blank when unknown."), "EOAT Master Tracker or process setup.", "Process engineering or audit owner.", ("What Do I Need?", "Changeover Packet Builder", "Vacuum Cup Selection"), ("many", "2?", "cavity count in notes only"), ("Must be numeric when known.", "Should align with cup/gripper count and changeover packet context."), "Enter the verified number of parts picked per cycle.", tracker, ("parts picked",)),
         field_entry("Photo Coverage Status", "Atlas-derived status for whether required EOAT photo categories are present.", ("Complete", "Partial", "Missing folder", "No photos"), "Photo Folder Index and photo scan.", "Atlas generated from source folders.", ("Photos", "EOAT Profiles", "Photo Coverage Report"), ("manual status in notes", "folder exists but no category coverage", "old path"), ("Folder presence alone is not complete coverage.", "Missing categories should remain visible."), "Add or index the missing required photo categories, then refresh Atlas.", photo, ("photos", "coverage")),
-        field_entry("Readiness Status", "Atlas-derived status that summarizes whether profile data is complete enough for confident reuse.", ("Ready", "Review", "Needs cleanup", "Unknown"), "Atlas generated from documentation, compatibility, photos, and warnings.", "Atlas generated.", ("EOAT Profiles", "Analytics Dashboard", "Executive Summary Export"), ("manual override without evidence", "status copied from old report"), ("Should be derived from current cache.", "Warnings and missing critical fields lower readiness."), "Repair the underlying missing fields, photos, or source paths rather than editing readiness text.", internal, ("readiness",)),
-        field_entry("Compatibility Confidence", "Atlas-derived confidence label for a relationship between EOAT, tool, and machine.", ("High", "Medium", "Low", "Unknown"), "Atlas compatibility logic.", "Atlas generated.", ("Compatibility Data Table", "What Do I Need?", "Changeover Packet Builder"), ("manually typed confidence", "green without source", "blank on warning row"), ("Must reflect source evidence and warning conditions.", "Derived rows are not the same as physical audits."), "Repair source evidence or review the warning rather than forcing the confidence label.", internal, ("confidence",)),
-        field_entry("Warning Severity", "Severity label used to prioritize source-data, compatibility, photo, or standards issues.", ("Info", "Warning", "Critical"), "Atlas validation and compatibility checks.", "Atlas generated.", ("EOAT Profiles", "Machine Profiles", "Reports & Handoff"), ("urgent", "red", "operator note"), ("Critical means the lookup may be materially misleading.", "Info means cleanup or context, not necessarily blocked use."), "Fix the root warning condition in the relevant source or document the exception.", internal, ("warnings", "severity")),
+        field_entry("Readiness Status", "Atlas-derived status that summarizes whether profile data is complete enough for confident reuse.", ("Ready", "Review", "Needs cleanup", "Unknown"), "Atlas generated from documentation, Fit Check, photos, and warnings.", "Atlas generated.", ("EOAT Profiles", "Analytics Dashboard", "Executive Summary Export"), ("manual override without evidence", "status copied from old report"), ("Should be derived from current cache.", "Warnings and missing critical fields lower readiness."), "Repair the underlying missing fields, photos, or source paths rather than editing readiness text.", internal, ("readiness",)),
+        field_entry("Fit Check Confidence", "Atlas-derived confidence label for a relationship between EOAT, tool, and machine.", ("High", "Medium", "Low", "Unknown"), "Atlas Fit Check logic.", "Atlas generated.", ("Fit Check Data Table", "What Do I Need?", "Changeover Packet Builder"), ("manually typed confidence", "green without source", "blank on warning row"), ("Must reflect source evidence and warning conditions.", "Derived rows are not the same as physical audits."), "Repair source evidence or review the warning rather than forcing the confidence label.", internal, ("confidence",)),
+        field_entry("Warning Severity", "Severity label used to prioritize source-data, Fit Check, photo, or standards issues.", ("Info", "Warning", "Critical"), "Atlas validation and Fit Check checks.", "Atlas generated.", ("EOAT Profiles", "Machine Profiles", "Reports & Handoff"), ("urgent", "red", "operator note"), ("Critical means the lookup may be materially misleading.", "Info means cleanup or context, not necessarily blocked use."), "Fix the root warning condition in the relevant source or document the exception.", internal, ("warnings", "severity")),
     ]
 
 
@@ -978,11 +978,11 @@ def _troubleshooting_entries() -> list[InformationLibraryEntry]:
     return [
         trouble("Photos do not preview", "A photo path is listed, but the in-app preview panel shows an error, blank image, or fallback message.", ("Unsupported file format.", "File moved after indexing.", "Corrupt image.", "Network path temporarily unavailable."), ("Open the same file externally.", "Check the file path in the photo card tooltip.", "Review photo loader failure count in diagnostics."), ("Refresh Atlas after restoring the photo file.", "Convert unsupported files to JPG or PNG when preview is required.", "Clear photo cache if a replaced image still shows the old failure."), "Use Open Folder or Open Externally to inspect the original image.", ("Photo loader stats", "Photo Coverage Status"), ("Photos", "Settings / Diagnostics"), photo, ("photos", "preview")),
         trouble("HEIC / HEIF images do not load", "Phone images with HEIC or HEIF extensions are indexed but fail to render in the Atlas preview.", ("Qt image plugins may not decode HEIC.", "Pillow HEIF support may be unavailable in the runtime.", "File extension does not match actual content."), ("Try Open Externally.", "Check whether the same folder contains JPG/PNG alternatives.", "Review photo decode error text."), ("Convert inspection images to JPG or PNG for reliable in-app preview.", "Install or package HEIF decoder support only if the deployment target allows it."), "Keep the original HEIC in the folder and add a JPG copy for Atlas preview.", ("Photo loader stats", "Supported image suffixes"), ("Photos", "Photo Coverage Report"), photo, ("heic", "heif", "format")),
-        trouble("EOAT profile missing compatible machines", "An EOAT profile opens, but the compatible machine chips are empty or lower than expected.", ("Tool # missing on EOAT row.", "Tool not found in Press Capacity.", "Machine # stored as N/A for off-machine audit.", "Machine tokens use inconsistent formatting."), ("Open EOAT profile Tool # list.", "Search the Tool # directly.", "Check Press Capacity source status.", "Look for off-machine audit rows."), ("Repair Tool # in the tracker.", "Add or correct Press Capacity rows.", "Preserve off-machine rows but create verified compatibility rows where appropriate."), "Use Tool / Mold / Part to inspect the tool-machine side while source data is repaired.", ("Compatibility Warning Rules", "Off-Machine EOAT Audit Handling"), ("EOAT Profiles", "Compatibility Data Table", "Tool / Mold / Part"), tracker, ("eoat", "machines", "compatibility")),
-        trouble("Machine profile missing EOATs", "A machine profile has robot or tool context, but no linked EOATs appear.", ("Press Capacity has tools but tracker lacks EOAT-tool links.", "Machine number mismatch.", "Only derived compatibility exists and source rows are missing.", "Atlas cache is stale."), ("Search a known Tool # for that machine.", "Check Machine # formatting.", "Review source status on Home.", "Refresh data."), ("Repair EOAT-tool rows in the tracker.", "Normalize machine values.", "Refresh Atlas and re-open the machine profile."), "Use Press Capacity to list likely tools while EOAT links are corrected.", ("Tool-to-Machine Compatibility", "EOAT-to-Machine Compatibility"), ("Machine Profiles", "Compatibility Data Table"), press, ("machine", "eoats", "missing")),
+        trouble("EOAT profile missing compatible machines", "An EOAT profile opens, but the compatible machine chips are empty or lower than expected.", ("Tool # missing on EOAT row.", "Tool not found in Press Capacity.", "Machine # stored as N/A for off-machine audit.", "Machine tokens use inconsistent formatting."), ("Open EOAT profile Tool # list.", "Search the Tool # directly.", "Check Press Capacity source status.", "Look for off-machine audit rows."), ("Repair Tool # in the tracker.", "Add or correct Press Capacity rows.", "Preserve off-machine rows but create verified Fit Check rows where appropriate."), "Use Tool / Mold / Part to inspect the tool-machine side while source data is repaired.", ("Fit Check Warning Rules", "Off-Machine EOAT Audit Handling"), ("EOAT Profiles", "Fit Check Data Table", "Tool / Mold / Part"), tracker, ("eoat", "machines", "Fit Check")),
+        trouble("Machine profile missing EOATs", "A machine profile has robot or tool context, but no linked EOATs appear.", ("Press Capacity has tools but tracker lacks EOAT-tool links.", "Machine number mismatch.", "Only derived Fit Check exists and source rows are missing.", "Atlas cache is stale."), ("Search a known Tool # for that machine.", "Check Machine # formatting.", "Review source status on Home.", "Refresh data."), ("Repair EOAT-tool rows in the tracker.", "Normalize machine values.", "Refresh Atlas and re-open the machine profile."), "Use Press Capacity to list likely tools while EOAT links are corrected.", ("Tool-to-Machine Fit Check", "EOAT-to-Machine Fit Check"), ("Machine Profiles", "Fit Check Data Table"), press, ("machine", "eoats", "missing")),
         trouble("Tool search returns no results", "A tool, mold, or part search returns no matching tool cards or recommendations.", ("Tool # formatting differs from source.", "Identifier is stored as Mold # or part description only.", "Source workbook path is missing.", "Atlas cache predates the workbook change."), ("Search exact Tool #.", "Search part description fragment.", "Check source status.", "Refresh data."), ("Move the tool number into Tool #.", "Repair Press Capacity key.", "Refresh Atlas after workbook changes."), "Open the source workbook read-only and verify the tool exists before editing.", ("Source workbook path is missing", "Tool # data dictionary"), ("Tool / Mold / Part", "What Do I Need?"), tracker, ("tool", "search")),
-        trouble("Compatibility confidence is lower than expected", "Atlas shows a relationship but labels confidence as medium, low, or warning-prone.", ("Source evidence is derived-only.", "Robot Info missing.", "Documentation or photos incomplete.", "Warnings attached to the EOAT or machine."), ("Open the row's warnings.", "Compare EOAT, tool, and machine profile evidence.", "Check Robot Type and photo coverage."), ("Repair missing source fields.", "Add photo categories.", "Add Robot Info where available.", "Refresh and re-export if needed."), "Treat the relationship as usable for investigation but not as fully verified until warnings are resolved.", ("Compatibility Confidence Levels", "Warning Severity"), ("Compatibility Data Table", "EOAT Profiles"), internal, ("confidence", "warnings")),
-        trouble("Off-machine audit did not create expected rows", "An EOAT audited off-machine remains visible, but expected machine compatibility rows are absent.", ("Tool # missing or not in Press Capacity.", "Duplicate row protection skipped rows already present.", "Compatibility-derived row creation was not requested.", "Source row type is not recognized as off-machine."), ("Check Tool # and Machine # on the source row.", "Search Tool # in Press Capacity.", "Review duplicate compatibility warnings."), ("Correct Tool #.", "Resolve duplicates.", "Create or verify compatibility rows with source audit context preserved."), "Use the original off-machine EOAT profile as physical evidence and inspect tools separately.", ("Off-Machine EOAT Audit Handling", "Duplicate Compatibility Row Handling"), ("EOAT Profiles", "Compatibility Data Table", "Audit Progress Report"), tracker, ("off-machine", "audit")),
+        trouble("Fit Check confidence is lower than expected", "Atlas shows a relationship but labels confidence as medium, low, or warning-prone.", ("Source evidence is derived-only.", "Robot Info missing.", "Documentation or photos incomplete.", "Warnings attached to the EOAT or machine."), ("Open the row's warnings.", "Compare EOAT, tool, and machine profile evidence.", "Check Robot Type and photo coverage."), ("Repair missing source fields.", "Add photo categories.", "Add Robot Info where available.", "Refresh and re-export if needed."), "Treat the relationship as usable for investigation but not as fully verified until warnings are resolved.", ("Fit Check Confidence Levels", "Warning Severity"), ("Fit Check Data Table", "EOAT Profiles"), internal, ("confidence", "warnings")),
+        trouble("Off-machine audit did not create expected rows", "An EOAT audited off-machine remains visible, but expected machine Fit Check rows are absent.", ("Tool # missing or not in Press Capacity.", "Duplicate row protection skipped rows already present.", "Fit Check-derived row creation was not requested.", "Source row type is not recognized as off-machine."), ("Check Tool # and Machine # on the source row.", "Search Tool # in Press Capacity.", "Review duplicate Fit Check warnings."), ("Correct Tool #.", "Resolve duplicates.", "Create or verify Fit Check rows with source audit context preserved."), "Use the original off-machine EOAT profile as physical evidence and inspect tools separately.", ("Off-Machine EOAT Audit Handling", "Duplicate Fit Check Row Handling"), ("EOAT Profiles", "Fit Check Data Table", "Audit Progress Report"), tracker, ("off-machine", "audit")),
         trouble("Source workbook path is missing", "Home or Settings shows a required or optional source as missing.", ("Workbook not created in the expected project folder.", "Project root points to the wrong location.", "Network path unavailable.", "Workbook renamed."), ("Open Settings / Diagnostics source status.", "Verify project root.", "Check file exists in expected numbered folder.", "Try refresh after network reconnect."), ("Restore the workbook path.", "Rename or place the workbook in the expected folder.", "Update project configuration if the root is wrong."), "Use available pages that do not depend on the missing source, but do not trust missing-data conclusions.", ("Source Status", "Settings / Diagnostics"), ("Home / Command Deck", "Settings / Diagnostics"), internal, ("source", "workbook", "path")),
         trouble("Standards document does not appear", "A standards or PM reference file exists, but it is not listed in Standards & Work Instructions or Information Library.", ("File is outside the standards folder or project root detection path.", "Filename lacks EOAT standardization keywords.", "File type is not indexed.", "Atlas cache is stale."), ("Check the Standards source status.", "Confirm file location.", "Refresh data.", "Review filename and extension."), ("Move or copy the file into the standards folder.", "Use a descriptive standardization filename.", "Refresh Atlas."), "Open the file from Windows while the standards index is repaired.", ("Standards source status", "EOAT Standard Design Guidelines"), ("Standards & Work Instructions", "Information Library"), internal, ("standards", "documents")),
         trouble("Export looks stale", "A generated report or changeover packet does not match the current source workbook or UI expectation.", ("Export was generated before refresh.", "Source workbook changed after export.", "User is comparing two report timestamps.", "Atlas opened an older file from the output folder."), ("Check export timestamp.", "Check Atlas loaded_at time.", "Refresh data.", "Regenerate the report."), ("Refresh Atlas.", "Regenerate the export.", "Archive or rename older reports when comparing deliverables."), "Use the UI profile as current cache context and treat the old export as historical evidence.", ("Generated Report", "Reports & Handoff"), ("Reports & Handoff", "Changeover Packet Builder"), generated, ("export", "stale", "reports")),
@@ -1030,10 +1030,10 @@ def _report_guide_entries() -> list[InformationLibraryEntry]:
         report("Documentation Gap Report", "Lists missing critical fields, weak documentation scores, photo gaps, and warnings that need cleanup.", ("EOAT Master Tracker", "Photo Folder Index", "Atlas warning cache"), ("EOAT Assembly ID", "Missing Field", "Severity", "Suggested Repair", "Source"), ("Sort by severity first.", "Group by field to plan workbook cleanup.", "Use EOAT ID to open the profile before editing."), ("Critical missing fields are rare.", "Every row has a clear repair action."), ("Critical means lookup or setup confidence can be misleading.", "Warning means cleanup is needed before high confidence."), ("Repair the source field.", "Refresh Atlas.", "Re-export for handoff evidence."), "Reports & Handoff output folder.", ("documentation", "gaps")),
         report("Audit Progress Report", "Summarizes audited, compatible, off-machine, and incomplete audit coverage.", ("EOAT Master Tracker", "Entry Type", "Audit context fields"), ("Entry Type", "Count", "Missing Required Fields", "Coverage Percent"), ("Separate physical audited rows from compatible rows.", "Use missing required fields as audit backlog."), ("Audited rows have required identifiers.", "Compatible rows preserve source audit context."), ("Unknown entry type means Atlas had to infer context.", "Missing source audit ID weakens derived rows."), ("Fix Entry Type values.", "Complete required fields.", "Use off-machine handling guidance where applicable."), "Reports & Handoff output folder.", ("audit", "progress")),
         report("Standards Compliance Summary", "Summarizes EOAT warnings and documentation issues against the standards library.", ("Standards index", "EOAT warnings", "Documentation status"), ("Standard Area", "Affected EOAT", "Finding", "Severity", "Related Field"), ("Use standard area to batch similar fixes.", "Open the referenced standard before changing rules."), ("Few repeated findings.", "Every finding maps to a source field or inspection action."), ("Repeated findings suggest a standard needs training or template updates.", "Missing source standard means compliance context is incomplete."), ("Review the related standard.", "Repair source fields/photos.", "Add PM actions for physical findings."), "Reports & Handoff output folder.", ("standards", "compliance")),
-        report("Compatibility Export", "Exports the dense EOAT-tool-machine relationship table for offline review.", ("EOAT Master Tracker", "Press Capacity Workbook", "Compatibility logic"), ("EOAT Assembly ID", "Tool #", "Machine #", "Confidence", "Warnings", "Source Type"), ("Filter low confidence rows first.", "Check duplicate relationship keys.", "Compare source type before treating rows as physical audit evidence."), ("High-confidence rows dominate.", "Derived rows are labeled clearly."), ("Low confidence means missing evidence, not automatic incompatibility.", "Duplicate warnings mean counts may be inflated."), ("Repair relationship keys.", "Resolve duplicates.", "Refresh and export again."), "Reports & Handoff output folder.", ("compatibility", "csv")),
+        report("Fit Check Export", "Exports the dense EOAT-tool-machine relationship table for offline review.", ("EOAT Master Tracker", "Press Capacity Workbook", "Fit Check logic"), ("EOAT Assembly ID", "Tool #", "Machine #", "Confidence", "Warnings", "Source Type"), ("Filter low confidence rows first.", "Check duplicate relationship keys.", "Compare source type before treating rows as physical audit evidence."), ("High-confidence rows dominate.", "Derived rows are labeled clearly."), ("Low confidence means missing evidence, not automatic incompatible.", "Duplicate warnings mean counts may be inflated."), ("Repair relationship keys.", "Resolve duplicates.", "Refresh and export again."), "Reports & Handoff output folder.", ("Fit Check", "csv")),
         report("Photo Coverage Report", "Shows EOAT photo folder presence, image counts, and missing required categories.", ("Photo Folder Index", "EOAT profile index", "required category rules"), ("EOAT Assembly ID", "Folder Status", "Photo Count", "Missing Categories", "Source Path"), ("Do not use photo count alone.", "Prioritize missing connection, sensor, vacuum, and mounting views."), ("Most EOATs have folder found and required categories covered.", "Missing categories are specific enough for a photo pass."), ("Missing folder blocks visual verification.", "Partial coverage means the profile may still be hard to use."), ("Capture missing categories.", "Fix folder naming or index rows.", "Refresh Atlas."), "Reports & Handoff output folder.", ("photos", "coverage")),
         report("PM Checklist Export", "Creates inspection checklist content for offline weekly, monthly, or targeted EOAT review.", ("PM guidance", "EOAT profile warnings", "Standards entries"), ("Checklist Item", "Pass/Fail Criteria", "Finding", "Corrective Action", "Related Standard"), ("Use each row as a physical inspection task.", "Record findings back into the maintenance process."), ("Every item has pass/fail criteria.", "Findings map to corrective actions."), ("Repeated failures suggest standards or design issues.", "Blank findings after inspection reduce traceability."), ("Complete the checklist during inspection.", "Update source data and photos after corrective action."), "Reports & Handoff output folder.", ("pm", "checklist")),
-        report("Executive Summary Export", "Condenses Atlas status into leadership-friendly coverage, risks, and next actions.", ("Atlas metrics", "Documentation gaps", "Compatibility counts", "Photo coverage"), ("Metric", "Current Value", "Risk", "Recommended Action"), ("Read it as project health, not setup instructions.", "Use linked detail reports for root cause."), ("Coverage is high and risks have named actions.", "Metrics match the refreshed Atlas UI."), ("Large gaps mean source data is not ready for handoff.", "Stale timestamp means regenerate before presenting."), ("Refresh data.", "Regenerate supporting reports.", "Use detail exports for action owners."), "Reports & Handoff output folder.", ("executive", "summary")),
+        report("Executive Summary Export", "Condenses Atlas status into leadership-friendly coverage, risks, and next actions.", ("Atlas metrics", "Documentation gaps", "Fit Check counts", "Photo coverage"), ("Metric", "Current Value", "Risk", "Recommended Action"), ("Read it as project health, not setup instructions.", "Use linked detail reports for root cause."), ("Coverage is high and risks have named actions.", "Metrics match the refreshed Atlas UI."), ("Large gaps mean source data is not ready for handoff.", "Stale timestamp means regenerate before presenting."), ("Refresh data.", "Regenerate supporting reports.", "Use detail exports for action owners."), "Reports & Handoff output folder.", ("executive", "summary")),
     ]
 
 
@@ -1090,7 +1090,7 @@ def _static_source_document_entries() -> list[InformationLibraryEntry]:
         ("EOAT Standard Design Guidelines", "Design, documentation, and inspection expectations used by EOAT standard entries.", "Open it when a standards entry needs the original engineering context."),
         ("EOAT Preventive Maintenance Checklist", "Inspection checklist source for recurring PM and condition checks.", "Open it when an inspection item needs pass/fail wording or corrective action detail."),
         ("Robot EOAT Intern Project Charter", "Project scope reference for why Atlas emphasizes source traceability, handoff, and documentation quality.", "Use it to distinguish project deliverables from operating data."),
-        ("Press Capacity Workbook", "Primary source for tool-to-machine compatibility.", "Repair capacity rows here when tools do not expand to machines."),
+        ("Press Capacity Workbook", "Primary source for tool-to-machine Fit Check.", "Repair capacity rows here when tools do not expand to machines."),
         ("EOAT Master Tracker", "Primary source for EOAT identity, tool links, technical fields, audit context, and documentation status.", "Repair source values here instead of editing Atlas output."),
         ("Photo Folder Index", "Source for folder and image paths used by the Photos page and photo coverage reports.", "Repair folder naming, source paths, or missing category photos here."),
         ("Generated Report", "Timestamped export produced from the loaded Atlas cache.", "Use the report timestamp to decide whether it reflects current source data."),

@@ -53,8 +53,13 @@ from .audit_context import (
     physical_audit_verified_default,
 )
 from .eoat_ids import (
+    CANONICAL_AREA_UNKNOWN,
     EOAT_ASSEMBLY_ID_FIELD,
+    canonical_area,
+    determine_eoat_prefix,
+    expected_eoat_id_for_area,
     generate_next_eoat_assembly_id,
+    get_eoat_prefix,
     is_valid_eoat_assembly_id,
     normalize_eoat_assembly_id,
 )
@@ -153,7 +158,7 @@ CONNECTION_TYPE_VALUES = ["ATI", "DoveTail", "Direct Mount", "Lever Lock"]
 EOAT_MOVES_VALUES = ["Part", "Sprue", "Both"]
 EOAT_TYPE_DROPDOWN_VALUES = ["Vacuum", "Mechanical / Gripper", "Hybrid", "Unknown / Needs Review", "Miscellaneous"]
 CLEANROOM_DROPDOWN_VALUES = ["Cleanroom", "Non-Cleanroom", "Whiteroom", "Unknown / Not Checked"]
-CLEANROOM_DEFAULT = "Cleanroom"
+CLEANROOM_DEFAULT = UNKNOWN_NOT_CHECKED
 CUP_TYPE_DEFAULT = "Silicone"
 TOOLING_COLUMN_ORDER = [
     "EOAT Type",
@@ -499,6 +504,23 @@ def _existing_eoat_assembly_ids(project_root: str | Path) -> list[str]:
     return [normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD)) for row in rows]
 
 
+def _eoat_assembly_id_for_source_audit(project_root: str | Path, source_audit_id: Any) -> str:
+    source_key = _text(source_audit_id).casefold()
+    if not source_key:
+        return ""
+    workbook_path = resolve_project_paths(project_root).master_workbook
+    if not workbook_path.exists():
+        return ""
+    try:
+        rows = row_dicts_cached(workbook_path, "EOAT Inventory")
+    except Exception:
+        return ""
+    for row in rows:
+        if _text(row.get("Audit ID")).casefold() == source_key:
+            return normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD))
+    return ""
+
+
 def normalize_audit_entry(project_root: str | Path, entry: dict[str, Any]) -> dict[str, Any]:
     normalized, _details = normalize_audit_entry_with_details(project_root, entry)
     return normalized
@@ -536,9 +558,15 @@ def normalize_audit_entry_with_details(
         )
     normalized[EOAT_ASSEMBLY_ID_FIELD] = normalize_eoat_assembly_id(normalized.get(EOAT_ASSEMBLY_ID_FIELD))
     if not normalized.get(EOAT_ASSEMBLY_ID_FIELD):
-        normalized[EOAT_ASSEMBLY_ID_FIELD] = generate_next_eoat_assembly_id(
-            _existing_eoat_assembly_ids(project_root)
-        )
+        if entry_type == ENTRY_TYPE_COMPATIBLE.lower():
+            normalized[EOAT_ASSEMBLY_ID_FIELD] = _eoat_assembly_id_for_source_audit(
+                project_root, normalized.get(SOURCE_AUDIT_ID_FIELD)
+            )
+        else:
+            normalized[EOAT_ASSEMBLY_ID_FIELD] = generate_next_eoat_assembly_id(
+                _existing_eoat_assembly_ids(project_root),
+                normalized,
+            )
     if not normalized.get("Cleanroom/Non-Cleanroom"):
         normalized["Cleanroom/Non-Cleanroom"] = CLEANROOM_DEFAULT
     if PHYSICAL_AUDIT_VERIFIED_FIELD in normalized and not _text(normalized.get(PHYSICAL_AUDIT_VERIFIED_FIELD)):
@@ -581,7 +609,7 @@ def normalize_audit_entry_with_details(
             normalized["Changeover Difficulty"] = "Medium"
     for header in headers:
         if not _text(normalized.get(header)):
-            if header in {SOURCE_AUDIT_ID_FIELD, COMPATIBILITY_SOURCE_FIELD, EOAT_MOVES_FIELD}:
+            if header in {SOURCE_AUDIT_ID_FIELD, COMPATIBILITY_SOURCE_FIELD, EOAT_MOVES_FIELD, EOAT_ASSEMBLY_ID_FIELD}:
                 normalized[header] = ""
             else:
                 normalized[header] = NA_VALUE
@@ -644,7 +672,21 @@ def validate_audit_entry(entry: dict[str, Any]) -> tuple[list[str], list[str]]:
             errors.append(f"{field} must be a non-negative whole number.")
     eoat_assembly_id = normalize_eoat_assembly_id(entry.get(EOAT_ASSEMBLY_ID_FIELD))
     if eoat_assembly_id and not is_valid_eoat_assembly_id(eoat_assembly_id):
-        warnings.append(f"{EOAT_ASSEMBLY_ID_FIELD} should use format P4-EOAT-0001.")
+        warnings.append(f"{EOAT_ASSEMBLY_ID_FIELD} should use format P4-EOAT-0001 or CL-EOAT-0001.")
+    elif eoat_assembly_id:
+        expected_prefix = determine_eoat_prefix(entry)
+        actual_prefix = get_eoat_prefix(eoat_assembly_id)
+        area = canonical_area(entry)
+        if area == CANONICAL_AREA_UNKNOWN:
+            warnings.append(
+                f"{EOAT_ASSEMBLY_ID_FIELD} prefix could not be verified because Plant/Area is unknown."
+            )
+        elif actual_prefix != expected_prefix:
+            expected_id = expected_eoat_id_for_area(entry, eoat_assembly_id)
+            errors.append(
+                f"{EOAT_ASSEMBLY_ID_FIELD} prefix does not match Plant/Area: "
+                f"{eoat_assembly_id} should be {expected_id}."
+            )
     return errors, warnings
 
 
@@ -1113,7 +1155,7 @@ def _set_workbook_schema_current(workbook) -> None:
     values = {
         "schema_version": CURRENT_WORKBOOK_SCHEMA_VERSION,
         "last_schema_repair_at": datetime.now().isoformat(timespec="seconds"),
-        "app_name": "EOAT Command Center",
+        "app_name": "EOAT Atlas",
     }
     existing_rows: dict[str, int] = {}
     for row in range(2, ws.max_row + 1):
@@ -1994,7 +2036,7 @@ def save_audit_entry(
             )
             files_modified.append(str(history_path))
         except Exception as exc:
-            warnings.append(f"Compatibility history was not updated: {exc}")
+            warnings.append(f"Fit Check history was not updated: {exc}")
     timing_metrics["audit_save.history_seconds"] = round(time.perf_counter() - history_started, 3)
 
     result = ToolResult.ok(
@@ -2070,9 +2112,9 @@ def save_audit_entry_with_compatibility_autorun(
                 "------------------",
                 *_audit_save_summary_lines(save_result),
                 "",
-                "Compatibility Entry Summary",
-                "---------------------------",
-                "Skipped for uninstalled EOAT audit; no machine compatibility row is created automatically.",
+                "Fit Check Entry Summary",
+                "-----------------------",
+                "Skipped for uninstalled EOAT audit; no machine Fit Check row is created automatically.",
             ]
         )
         return ToolResult.ok(
@@ -2081,7 +2123,7 @@ def save_audit_entry_with_compatibility_autorun(
             combined_summary,
             details=[
                 *save_result.details,
-                "Compatibility autorun skipped for uninstalled EOAT audit.",
+                "Fit Check autorun skipped for uninstalled EOAT audit.",
             ],
             warnings=save_result.warnings,
             files_created=save_result.files_created,
@@ -2109,8 +2151,8 @@ def save_audit_entry_with_compatibility_autorun(
             "------------------",
             *save_lines,
             "",
-            "Compatibility Entry Summary",
-            "---------------------------",
+            "Fit Check Entry Summary",
+            "-----------------------",
             *compatibility_lines,
         ]
     )
@@ -2143,8 +2185,8 @@ def _autorun_compatibility_entry(project_root: str | Path, audit_id: str) -> Too
     if not audit_id:
         return ToolResult.fail(
             "compatibility_entry_autorun",
-            "Compatibility Entry",
-            "Compatibility update failed.",
+            "Fit Check Entry",
+            "Fit Check update failed.",
             errors=["Saved audit ID was not available."],
             duration_seconds=time.perf_counter() - started,
         )
@@ -2155,8 +2197,8 @@ def _autorun_compatibility_entry(project_root: str | Path, audit_id: str) -> Too
         if candidate_result.errors:
             return ToolResult.fail(
                 "compatibility_entry_autorun",
-                "Compatibility Entry",
-                "Compatibility update failed.",
+                "Fit Check Entry",
+                "Fit Check update failed.",
                 errors=candidate_result.errors,
                 warnings=candidate_result.warnings,
                 duration_seconds=time.perf_counter() - started,
@@ -2172,11 +2214,11 @@ def _autorun_compatibility_entry(project_root: str | Path, audit_id: str) -> Too
         )
         return ToolResult.ok(
             "compatibility_entry_autorun",
-            "Compatibility Entry",
-            f"Compatibility entries were checked for {audit_id}. No new compatibility entries were needed.",
+            "Fit Check Entry",
+            f"Fit Check entries were checked for {audit_id}. No new Fit Check entries were needed.",
             details=[
                 f"Create-compatible candidates found: {len(machines)}",
-                f"Compatibility conflicts needing review: {conflicts}",
+                f"Fit Check conflicts needing review: {conflicts}",
             ],
             warnings=candidate_result.warnings,
             metrics={"created": 0, "conflicts": conflicts},
@@ -2185,9 +2227,9 @@ def _autorun_compatibility_entry(project_root: str | Path, audit_id: str) -> Too
     except Exception as exc:
         return ToolResult.fail(
             "compatibility_entry_autorun",
-            "Compatibility Entry",
-            "Compatibility update failed.",
-            errors=[f"Could not run compatibility update: {exc}"],
+            "Fit Check Entry",
+            "Fit Check update failed.",
+            errors=[f"Could not run Fit Check update: {exc}"],
             duration_seconds=time.perf_counter() - started,
         )
 
@@ -2209,11 +2251,11 @@ def _compatibility_summary_lines(result: ToolResult) -> list[str]:
     if result.success:
         lines = [result.summary]
         if result.metrics.get("created"):
-            lines.append(f"Created {result.metrics.get('created')} compatibility entrie(s).")
+            lines.append(f"Created {result.metrics.get('created')} Fit Check entrie(s).")
         if result.metrics.get("conflicts"):
-            lines.append(f"{result.metrics.get('conflicts')} compatibility concern(s) need review.")
+            lines.append(f"{result.metrics.get('conflicts')} Fit Check concern(s) need review.")
         if result.warnings:
             lines.append(f"Warnings: {'; '.join(result.warnings)}")
         return lines
     message = "; ".join(result.errors) if result.errors else result.summary
-    return [f"Compatibility update failed: {message}", "The saved audit entry was not rolled back."]
+    return [f"Fit Check update failed: {message}", "The saved audit entry was not rolled back."]

@@ -1,14 +1,12 @@
 # EOAT Atlas
 
-EOAT Atlas is a companion app for EOAT Command Center. It is designed for fast search, compatibility lookup, visual review, install support, standards navigation, and read-only data exploration.
+EOAT Atlas is the active app for the current globalization release scope: minimalistic/current EOAT Atlas only. It is designed for fast search, compatibility lookup, visual review, install support, standards navigation, and read-only data exploration.
 
-Launch it separately:
+Launch it:
 
 ```powershell
 python -m app.atlas.main
 ```
-
-EOAT Command Center remains the place for audit entry, editing, workbook repair, photo intake, report generation, and data maintenance.
 
 EOAT Atlas is read-only by default. It may create timestamped exports under:
 
@@ -20,7 +18,7 @@ It does not modify the EOAT Master Tracker, Press Capacity workbook, Robot Info 
 
 ## Data Sources
 
-Atlas uses the active project root from the normal Command Center config and reads:
+Atlas uses the configured project root and reads:
 
 - `01_EOAT_Audit/EOAT_Audit_Database/EOAT_Master_Tracker.xlsx`
 - `00_Project_Admin/reference_data/press_capacity.xlsx`
@@ -277,22 +275,6 @@ Fit, Fill, Actual Size, Zoom In, Zoom Out, and Reset Zoom controls keep large im
 
 Large photo folders are not eagerly rendered on the library page, which keeps filtering and navigation fast. Optional previews should only use already-cached images. Settings / Diagnostics exposes photo preload mode, cache statistics, failed-load counts, and a clear-cache button for troubleshooting.
 
-## Page Screenshots
-
-The repository keeps one current Atlas page screenshot set in:
-
-```text
-EOAT_Atlas_pages/
-```
-
-Refresh the set after Atlas UI updates:
-
-```powershell
-python scripts/capture_atlas_pages.py
-```
-
-The script removes old PNGs in that folder before writing the new set. It uses the bundled synthetic demo project by default so committed screenshots do not expose private project data.
-
 ## Warning Statuses
 
 Atlas flags human-readable warnings such as:
@@ -305,7 +287,7 @@ Atlas flags human-readable warnings such as:
 - Press Capacity tool with no linked EOAT
 - Source workbook/folder missing
 
-Each warning includes what is missing, why it matters when available, the source, and a suggested fix. Fixes should be made in EOAT Command Center or the source-of-truth workbook process, not directly in Atlas.
+Each warning includes what is missing, why it matters when available, the source, and a suggested fix. Fixes should be made through the source-of-truth workbook process, not by directly editing generated Atlas cache files.
 
 ## Information Library
 

@@ -1,0 +1,278 @@
+{
+  "name": "eoat_atlas_hmi_sample_icons",
+  "version": "0.1.0-sample",
+  "status": "sample_for_review",
+  "scope": "10 sample icons only; full pack intentionally not generated",
+  "viewBox": "0 0 64 64",
+  "safe_area": "x=5..59, y=5..59",
+  "colors": {
+    "ATLAS_CYAN": "#00A6C8",
+    "ATLAS_LIME": "#A6CE39",
+    "MACHINE_GRAY": "#9AA6AD",
+    "DARK": "#1E2A32",
+    "TILE_BG": "#FFFFFF",
+    "TILE_BORDER": "#D6DEE4"
+  },
+  "icons": [
+    {
+      "name": "robot",
+      "display_name": "Robot",
+      "category": "Machine Components",
+      "description": "Cartesian gantry robot with rail, carriage, vertical axis, and EOAT head.",
+      "svg_standalone_path": "assets/icons/svg/standalone/robot.svg",
+      "svg_tile_path": "assets/icons/svg/tile/robot.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/robot.png",
+          "tile": "assets/icons/png/32/robot_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/robot.png",
+          "tile": "assets/icons/png/64/robot_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/robot.png",
+          "tile": "assets/icons/png/128/robot_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/robot.png",
+          "tile": "assets/icons/png/256/robot_tile.png"
+        }
+      }
+    },
+    {
+      "name": "mold",
+      "display_name": "Mold",
+      "category": "Machine Components",
+      "description": "Two bold mold halves with center parting line and active lime center detail.",
+      "svg_standalone_path": "assets/icons/svg/standalone/mold.svg",
+      "svg_tile_path": "assets/icons/svg/tile/mold.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/mold.png",
+          "tile": "assets/icons/png/32/mold_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/mold.png",
+          "tile": "assets/icons/png/64/mold_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/mold.png",
+          "tile": "assets/icons/png/128/mold_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/mold.png",
+          "tile": "assets/icons/png/256/mold_tile.png"
+        }
+      }
+    },
+    {
+      "name": "eoat",
+      "display_name": "EOAT",
+      "category": "EOAT Hardware",
+      "description": "Tool plate with suction cups and active pickup highlight.",
+      "svg_standalone_path": "assets/icons/svg/standalone/eoat.svg",
+      "svg_tile_path": "assets/icons/svg/tile/eoat.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/eoat.png",
+          "tile": "assets/icons/png/32/eoat_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/eoat.png",
+          "tile": "assets/icons/png/64/eoat_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/eoat.png",
+          "tile": "assets/icons/png/128/eoat_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/eoat.png",
+          "tile": "assets/icons/png/256/eoat_tile.png"
+        }
+      }
+    },
+    {
+      "name": "injection_unit",
+      "display_name": "Injection Unit",
+      "category": "Machine Components",
+      "description": "Chunky barrel and nozzle aimed into a mold plate.",
+      "svg_standalone_path": "assets/icons/svg/standalone/injection_unit.svg",
+      "svg_tile_path": "assets/icons/svg/tile/injection_unit.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/injection_unit.png",
+          "tile": "assets/icons/png/32/injection_unit_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/injection_unit.png",
+          "tile": "assets/icons/png/64/injection_unit_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/injection_unit.png",
+          "tile": "assets/icons/png/128/injection_unit_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/injection_unit.png",
+          "tile": "assets/icons/png/256/injection_unit_tile.png"
+        }
+      }
+    },
+    {
+      "name": "ejector",
+      "display_name": "Ejector",
+      "category": "Machine Components",
+      "description": "Mold blocks with a part pushed out by one bold lime motion arrow.",
+      "svg_standalone_path": "assets/icons/svg/standalone/ejector.svg",
+      "svg_tile_path": "assets/icons/svg/tile/ejector.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/ejector.png",
+          "tile": "assets/icons/png/32/ejector_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/ejector.png",
+          "tile": "assets/icons/png/64/ejector_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/ejector.png",
+          "tile": "assets/icons/png/128/ejector_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/ejector.png",
+          "tile": "assets/icons/png/256/ejector_tile.png"
+        }
+      }
+    },
+    {
+      "name": "vacuum",
+      "display_name": "Vacuum",
+      "category": "Pneumatics",
+      "description": "Large suction cup pulling onto a surface.",
+      "svg_standalone_path": "assets/icons/svg/standalone/vacuum.svg",
+      "svg_tile_path": "assets/icons/svg/tile/vacuum.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/vacuum.png",
+          "tile": "assets/icons/png/32/vacuum_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/vacuum.png",
+          "tile": "assets/icons/png/64/vacuum_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/vacuum.png",
+          "tile": "assets/icons/png/128/vacuum_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/vacuum.png",
+          "tile": "assets/icons/png/256/vacuum_tile.png"
+        }
+      }
+    },
+    {
+      "name": "pressure_air",
+      "display_name": "Pressure Air",
+      "category": "Pneumatics",
+      "description": "Pressure nozzle with one bold outward airflow arrow.",
+      "svg_standalone_path": "assets/icons/svg/standalone/pressure_air.svg",
+      "svg_tile_path": "assets/icons/svg/tile/pressure_air.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/pressure_air.png",
+          "tile": "assets/icons/png/32/pressure_air_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/pressure_air.png",
+          "tile": "assets/icons/png/64/pressure_air_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/pressure_air.png",
+          "tile": "assets/icons/png/128/pressure_air_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/pressure_air.png",
+          "tile": "assets/icons/png/256/pressure_air_tile.png"
+        }
+      }
+    },
+    {
+      "name": "air_circuit",
+      "display_name": "Air Circuit",
+      "category": "Pneumatics",
+      "description": "Chunky routed tubing with connector endpoints and one airflow arrow.",
+      "svg_standalone_path": "assets/icons/svg/standalone/air_circuit.svg",
+      "svg_tile_path": "assets/icons/svg/tile/air_circuit.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/air_circuit.png",
+          "tile": "assets/icons/png/32/air_circuit_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/air_circuit.png",
+          "tile": "assets/icons/png/64/air_circuit_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/air_circuit.png",
+          "tile": "assets/icons/png/128/air_circuit_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/air_circuit.png",
+          "tile": "assets/icons/png/256/air_circuit_tile.png"
+        }
+      }
+    },
+    {
+      "name": "compatibility",
+      "display_name": "Compatibility",
+      "category": "App Navigation",
+      "description": "Machine/mold and EOAT blocks connected by a lime Atlas-style path and check.",
+      "svg_standalone_path": "assets/icons/svg/standalone/compatibility.svg",
+      "svg_tile_path": "assets/icons/svg/tile/compatibility.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/compatibility.png",
+          "tile": "assets/icons/png/32/compatibility_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/compatibility.png",
+          "tile": "assets/icons/png/64/compatibility_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/compatibility.png",
+          "tile": "assets/icons/png/128/compatibility_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/compatibility.png",
+          "tile": "assets/icons/png/256/compatibility_tile.png"
+        }
+      }
+    },
+    {
+      "name": "machine",
+      "display_name": "Machine",
+      "category": "Machine Components",
+      "description": "Simplified injection molding machine silhouette with base, clamp area, and injection unit.",
+      "svg_standalone_path": "assets/icons/svg/standalone/machine.svg",
+      "svg_tile_path": "assets/icons/svg/tile/machine.svg",
+      "png_paths": {
+        "32": {
+          "standalone": "assets/icons/png/32/machine.png",
+          "tile": "assets/icons/png/32/machine_tile.png"
+        },
+        "64": {
+          "standalone": "assets/icons/png/64/machine.png",
+          "tile": "assets/icons/png/64/machine_tile.png"
+        },
+        "128": {
+          "standalone": "assets/icons/png/128/machine.png",
+          "tile": "assets/icons/png/128/machine_tile.png"
+        },
+        "256": {
+          "standalone": "assets/icons/png/256/machine.png",
+          "tile": "assets/icons/png/256/machine_tile.png"
+        }
+      }
+    }
+  ]
+}

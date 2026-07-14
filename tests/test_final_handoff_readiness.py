@@ -106,7 +106,7 @@ def test_technical_appendix_required_headings(fake_project):
         "## PM/BOM Findings",
         "## Photo / Evidence References",
         "## Open Items",
-        "## Compatibility Health Summary",
+        "## Fit Check Health Summary",
     ]:
         assert heading in text
 
@@ -137,7 +137,7 @@ def test_machine_summary_report_is_truth_labeled_and_exportable(usability_fake_p
 
     assert "# Machine Summary Report" in text
     assert "Source And Confidence Labels" in text
-    assert "Compatibility counts are workbook-derived" in text
+    assert "Fit Check counts are workbook-derived" in text
     assert "No KPI impact" in text
 
     result = export_machine_summary_report(usability_fake_project)

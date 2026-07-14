@@ -31,6 +31,7 @@ from .atlas_record_details import (
     RecordSection,
 )
 from .atlas_utils import display_value, normalized_eoat_key, normalized_machine_key, normalized_tool_key
+from .eoat_history import EOATHistoryService, EOATHistoryViewModel, configured_eoat_history_repository
 from .paths import get_press_capacity_file, resolve_project_paths
 from .performance import log_perf_marker, perf_timer
 from .safe_files import ensure_directory
@@ -95,6 +96,14 @@ class LibraryDataService:
         cache_dir = resolve_project_paths(root).cache
         self.cache_path = cache_dir / INDEX_FILENAME
         self.meta_path = cache_dir / META_FILENAME
+
+    def get_eoat_history(self, eoat_id: str) -> EOATHistoryViewModel:
+        """Load documented lifecycle events through the configured history provider."""
+        root = self._root()
+        if root is None:
+            return EOATHistoryViewModel(str(eoat_id or ""), (), (), ())
+        service = EOATHistoryService(configured_eoat_history_repository(root))
+        return service.history_for(eoat_id)
 
     def load_cached_index(self) -> None:
         root = self._root()
@@ -618,16 +627,23 @@ class LibraryDataService:
         by_tool: dict[str, list[dict[str, Any]]] = defaultdict(list)
         by_machine: dict[str, list[dict[str, Any]]] = defaultdict(list)
         by_audit_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        seen: dict[str, set[str]] = {"eoat": set(), "tool": set(), "machine": set(), "audit": set()}
+        seen: dict[str, dict[str, int]] = {"eoat": {}, "tool": {}, "machine": {}, "audit": {}}
 
         def add(map_name: str, mapping: dict[str, list[dict[str, Any]]], key: str, photo: dict[str, Any]) -> None:
             normalized = str(key or "").strip()
             if not normalized:
                 return
             fingerprint = f"{map_name}|{normalized}|{photo.get('photo_id')}|{photo.get('stored_filename')}|{photo.get('photo_filename')}|{photo.get('path')}"
-            if fingerprint in seen[map_name]:
+            existing_index = seen[map_name].get(fingerprint)
+            if existing_index is not None:
+                mapping[normalized][existing_index] = _preferred_photo_record(
+                    mapping[normalized][existing_index],
+                    photo,
+                    record_type=map_name,
+                    record_id=normalized,
+                )
                 return
-            seen[map_name].add(fingerprint)
+            seen[map_name][fingerprint] = len(mapping[normalized])
             mapping[normalized].append(photo)
 
         for eoat in getattr(bundle, "eoats", ()) or ():
@@ -946,7 +962,7 @@ class LibraryDataService:
                 ),
             ),
             RecordSection(
-                "Compatibility",
+                "Fit Check",
                 _fields(
                     ("Compatible EOATs", relationships.get("eoats") or NOT_INDEXED),
                     ("Compatible Machines", relationships.get("machines") or NOT_INDEXED),
@@ -1021,7 +1037,7 @@ class LibraryDataService:
                 ),
             ),
             RecordSection(
-                "Compatibility",
+                "Fit Check",
                 _fields(
                     ("Compatible EOATs", relationships.get("eoats") or NOT_INDEXED),
                     ("Compatible Tools", relationships.get("tools") or NOT_INDEXED),

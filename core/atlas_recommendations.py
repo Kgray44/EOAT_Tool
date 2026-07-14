@@ -259,7 +259,7 @@ def _install_checklist(bundle: AtlasDataBundle, best: RecommendationCandidate | 
         return (
             "Confirm the tool, mold, part, or machine number.",
             "Check whether the EOAT is missing from the master tracker.",
-            "Use EOAT Command Center to repair missing compatibility data if needed.",
+            "Use EOAT Atlas source workflows to repair missing compatibility data if needed.",
         )
     record = _eoat(bundle, best.eoat_id)
     if record is None:

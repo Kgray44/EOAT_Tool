@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .resources import default_project_root, is_frozen, resource_path, writable_config_path
 
-APP_NAME = "EOAT Command Center"
+APP_NAME = "EOAT Atlas"
 TOOLKIT_ROOT = resource_path("")
 DEFAULT_PROJECT_ROOT = default_project_root()
 DEFAULT_CONFIG_PATH = writable_config_path("local_config.json") if is_frozen() else TOOLKIT_ROOT / "config" / "local_config.json"

@@ -1,0 +1,447 @@
+{
+  "reference_only": true,
+  "crops": [
+    {
+      "crop_filename": "engel_assistent_reference_001.png",
+      "normalized_128_filename": "engel_assistent_reference_001_128.png",
+      "normalized_256_filename": "engel_assistent_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        498,
+        143,
+        541,
+        190
+      ],
+      "visible_label": "Assistent",
+      "guessed_meaning": "assistant/setup",
+      "confidence": "medium",
+      "notes": "Square turquoise CC300 tile from a public controller screen.",
+      "created_at": "2026-06-30T20:28:47.448435+00:00"
+    },
+    {
+      "crop_filename": "engel_own_page_reference_001.png",
+      "normalized_128_filename": "engel_own_page_reference_001_128.png",
+      "normalized_256_filename": "engel_own_page_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        588,
+        143,
+        630,
+        190
+      ],
+      "visible_label": "Eigene Seite erstellen",
+      "guessed_meaning": "custom page",
+      "confidence": "medium",
+      "notes": "Turquoise tile; useful for studying square tile scale and white pictogram style.",
+      "created_at": "2026-06-30T20:28:47.634150+00:00"
+    },
+    {
+      "crop_filename": "engel_week_timer_reference_001.png",
+      "normalized_128_filename": "engel_week_timer_reference_001_128.png",
+      "normalized_256_filename": "engel_week_timer_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        681,
+        146,
+        724,
+        192
+      ],
+      "visible_label": "Wochenschaltuhr",
+      "guessed_meaning": "timer/schedule",
+      "confidence": "medium",
+      "notes": "Turquoise status/task tile from CC300 screen.",
+      "created_at": "2026-06-30T20:28:47.830093+00:00"
+    },
+    {
+      "crop_filename": "engel_tool_heating_reference_001.png",
+      "normalized_128_filename": "engel_tool_heating_reference_001_128.png",
+      "normalized_256_filename": "engel_tool_heating_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        777,
+        148,
+        823,
+        194
+      ],
+      "visible_label": "Werkzeugheizung",
+      "guessed_meaning": "mold/tool heating",
+      "confidence": "medium",
+      "notes": "Turquoise tile showing tool/mold heating task.",
+      "created_at": "2026-06-30T20:28:47.989596+00:00"
+    },
+    {
+      "crop_filename": "engel_tool_cooling_reference_001.png",
+      "normalized_128_filename": "engel_tool_cooling_reference_001_128.png",
+      "normalized_256_filename": "engel_tool_cooling_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        499,
+        230,
+        543,
+        276
+      ],
+      "visible_label": "Werkzeugkuehlung",
+      "guessed_meaning": "mold/tool cooling",
+      "confidence": "medium",
+      "notes": "Turquoise component/task tile with compact white pictogram.",
+      "created_at": "2026-06-30T20:28:48.145589+00:00"
+    },
+    {
+      "crop_filename": "engel_nozzle_reference_001.png",
+      "normalized_128_filename": "engel_nozzle_reference_001_128.png",
+      "normalized_256_filename": "engel_nozzle_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        588,
+        229,
+        633,
+        277
+      ],
+      "visible_label": "Duese",
+      "guessed_meaning": "nozzle",
+      "confidence": "medium",
+      "notes": "Turquoise nozzle-related tile.",
+      "created_at": "2026-06-30T20:28:48.313588+00:00"
+    },
+    {
+      "crop_filename": "engel_injection_reference_001.png",
+      "normalized_128_filename": "engel_injection_reference_001_128.png",
+      "normalized_256_filename": "engel_injection_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        681,
+        235,
+        727,
+        282
+      ],
+      "visible_label": "Einspritzen",
+      "guessed_meaning": "injection",
+      "confidence": "medium",
+      "notes": "Lime tile indicating active/action injection function.",
+      "created_at": "2026-06-30T20:28:48.488168+00:00"
+    },
+    {
+      "crop_filename": "engel_switch_over_reference_001.png",
+      "normalized_128_filename": "engel_switch_over_reference_001_128.png",
+      "normalized_256_filename": "engel_switch_over_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        777,
+        236,
+        824,
+        284
+      ],
+      "visible_label": "Umschaltart",
+      "guessed_meaning": "changeover/switchover",
+      "confidence": "medium",
+      "notes": "Lime task tile; useful for active state color usage.",
+      "created_at": "2026-06-30T20:28:48.665066+00:00"
+    },
+    {
+      "crop_filename": "engel_holding_pressure_reference_001.png",
+      "normalized_128_filename": "engel_holding_pressure_reference_001_128.png",
+      "normalized_256_filename": "engel_holding_pressure_reference_001_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        499,
+        313,
+        544,
+        359
+      ],
+      "visible_label": "Nachdruck",
+      "guessed_meaning": "holding pressure",
+      "confidence": "medium",
+      "notes": "Turquoise process tile from the lower row.",
+      "created_at": "2026-06-30T20:28:48.857836+00:00"
+    },
+    {
+      "crop_filename": "engel_tool_heating_reference_002.png",
+      "normalized_128_filename": "engel_tool_heating_reference_002_128.png",
+      "normalized_256_filename": "engel_tool_heating_reference_002_256.png",
+      "source_image_filename": "020_568e7072396149_5be5b50daed54_2046986178.png",
+      "crop_box": [
+        588,
+        313,
+        633,
+        361
+      ],
+      "visible_label": "Werkzeugheizung",
+      "guessed_meaning": "mold/tool heating",
+      "confidence": "medium",
+      "notes": "Second visible tool-heating tile from lower row.",
+      "created_at": "2026-06-30T20:28:49.028082+00:00"
+    },
+    {
+      "crop_filename": "engel_production_settings_reference_001.png",
+      "normalized_128_filename": "engel_production_settings_reference_001_128.png",
+      "normalized_256_filename": "engel_production_settings_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        527,
+        254,
+        572,
+        300
+      ],
+      "visible_label": "Production settings",
+      "guessed_meaning": "production settings",
+      "confidence": "medium",
+      "notes": "Perspective CC300 screen crop; turquoise machine/process tile.",
+      "created_at": "2026-06-30T20:28:49.264237+00:00"
+    },
+    {
+      "crop_filename": "engel_cycle_reference_001.png",
+      "normalized_128_filename": "engel_cycle_reference_001_128.png",
+      "normalized_256_filename": "engel_cycle_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        516,
+        296,
+        560,
+        342
+      ],
+      "visible_label": "",
+      "guessed_meaning": "cycle/return",
+      "confidence": "low",
+      "notes": "Curved arrow-like process tile on production settings screen.",
+      "created_at": "2026-06-30T20:28:49.417933+00:00"
+    },
+    {
+      "crop_filename": "engel_profile_reference_001.png",
+      "normalized_128_filename": "engel_profile_reference_001_128.png",
+      "normalized_256_filename": "engel_profile_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        503,
+        344,
+        548,
+        393
+      ],
+      "visible_label": "",
+      "guessed_meaning": "profile/setting",
+      "confidence": "low",
+      "notes": "Vertical process tile; perspective crop.",
+      "created_at": "2026-06-30T20:28:49.616334+00:00"
+    },
+    {
+      "crop_filename": "engel_pressure_gauge_reference_001.png",
+      "normalized_128_filename": "engel_pressure_gauge_reference_001_128.png",
+      "normalized_256_filename": "engel_pressure_gauge_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        490,
+        386,
+        537,
+        436
+      ],
+      "visible_label": "",
+      "guessed_meaning": "pressure/measurement",
+      "confidence": "medium",
+      "notes": "Gauge-like process tile; useful for round symbol treatment.",
+      "created_at": "2026-06-30T20:28:49.848864+00:00"
+    },
+    {
+      "crop_filename": "engel_alarm_temperature_reference_001.png",
+      "normalized_128_filename": "engel_alarm_temperature_reference_001_128.png",
+      "normalized_256_filename": "engel_alarm_temperature_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        477,
+        429,
+        526,
+        478
+      ],
+      "visible_label": "",
+      "guessed_meaning": "temperature/alarm",
+      "confidence": "medium",
+      "notes": "Tile with colored alarm/status marks; reference-only.",
+      "created_at": "2026-06-30T20:28:50.001847+00:00"
+    },
+    {
+      "crop_filename": "engel_handling_reference_001.png",
+      "normalized_128_filename": "engel_handling_reference_001_128.png",
+      "normalized_256_filename": "engel_handling_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        462,
+        506,
+        512,
+        556
+      ],
+      "visible_label": "",
+      "guessed_meaning": "handling/manual action",
+      "confidence": "low",
+      "notes": "Lower visible process tile from angled production-settings screen.",
+      "created_at": "2026-06-30T20:28:50.208373+00:00"
+    },
+    {
+      "crop_filename": "engel_active_process_reference_001.png",
+      "normalized_128_filename": "engel_active_process_reference_001_128.png",
+      "normalized_256_filename": "engel_active_process_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        601,
+        280,
+        650,
+        329
+      ],
+      "visible_label": "",
+      "guessed_meaning": "active process",
+      "confidence": "medium",
+      "notes": "Lime active tile on production settings screen.",
+      "created_at": "2026-06-30T20:28:50.394330+00:00"
+    },
+    {
+      "crop_filename": "engel_mold_clamp_reference_001.png",
+      "normalized_128_filename": "engel_mold_clamp_reference_001_128.png",
+      "normalized_256_filename": "engel_mold_clamp_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        586,
+        321,
+        636,
+        371
+      ],
+      "visible_label": "",
+      "guessed_meaning": "mold/clamp",
+      "confidence": "medium",
+      "notes": "Turquoise tile with broad machine component silhouette.",
+      "created_at": "2026-06-30T20:28:50.562603+00:00"
+    },
+    {
+      "crop_filename": "engel_robot_transfer_reference_001.png",
+      "normalized_128_filename": "engel_robot_transfer_reference_001_128.png",
+      "normalized_256_filename": "engel_robot_transfer_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        572,
+        370,
+        621,
+        420
+      ],
+      "visible_label": "",
+      "guessed_meaning": "robot/transfer",
+      "confidence": "low",
+      "notes": "Partially obscured by finger but useful for broad machine-action motif.",
+      "created_at": "2026-06-30T20:28:50.749911+00:00"
+    },
+    {
+      "crop_filename": "engel_vision_monitor_reference_001.png",
+      "normalized_128_filename": "engel_vision_monitor_reference_001_128.png",
+      "normalized_256_filename": "engel_vision_monitor_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        556,
+        423,
+        606,
+        473
+      ],
+      "visible_label": "",
+      "guessed_meaning": "vision/monitoring",
+      "confidence": "medium",
+      "notes": "Eye/monitor-like tile on production settings screen.",
+      "created_at": "2026-06-30T20:28:50.911592+00:00"
+    },
+    {
+      "crop_filename": "engel_chart_status_reference_001.png",
+      "normalized_128_filename": "engel_chart_status_reference_001_128.png",
+      "normalized_256_filename": "engel_chart_status_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        544,
+        479,
+        595,
+        529
+      ],
+      "visible_label": "",
+      "guessed_meaning": "chart/status",
+      "confidence": "low",
+      "notes": "Lower center process tile; partially distorted by perspective.",
+      "created_at": "2026-06-30T20:28:51.064250+00:00"
+    },
+    {
+      "crop_filename": "engel_refresh_reference_001.png",
+      "normalized_128_filename": "engel_refresh_reference_001_128.png",
+      "normalized_256_filename": "engel_refresh_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        755,
+        329,
+        808,
+        380
+      ],
+      "visible_label": "",
+      "guessed_meaning": "refresh/cycle",
+      "confidence": "medium",
+      "notes": "Right-column curved arrow tile.",
+      "created_at": "2026-06-30T20:28:51.213242+00:00"
+    },
+    {
+      "crop_filename": "engel_axes_reference_001.png",
+      "normalized_128_filename": "engel_axes_reference_001_128.png",
+      "normalized_256_filename": "engel_axes_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        720,
+        403,
+        770,
+        452
+      ],
+      "visible_label": "",
+      "guessed_meaning": "axis/tool movement",
+      "confidence": "low",
+      "notes": "Right-column movement tile with colored axis marks.",
+      "created_at": "2026-06-30T20:28:51.388681+00:00"
+    },
+    {
+      "crop_filename": "engel_lm_reference_001.png",
+      "normalized_128_filename": "engel_lm_reference_001_128.png",
+      "normalized_256_filename": "engel_lm_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        704,
+        498,
+        755,
+        548
+      ],
+      "visible_label": "LM",
+      "guessed_meaning": "machine module",
+      "confidence": "low",
+      "notes": "Tile with visible LM label from production settings screen.",
+      "created_at": "2026-06-30T20:28:51.545741+00:00"
+    },
+    {
+      "crop_filename": "engel_page_tile_reference_001.png",
+      "normalized_128_filename": "engel_page_tile_reference_001_128.png",
+      "normalized_256_filename": "engel_page_tile_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        662,
+        548,
+        710,
+        598
+      ],
+      "visible_label": "",
+      "guessed_meaning": "page/module tile",
+      "confidence": "low",
+      "notes": "Lower right simple tile; useful for studying square turquoise tile proportions.",
+      "created_at": "2026-06-30T20:28:51.716108+00:00"
+    },
+    {
+      "crop_filename": "engel_small_home_reference_001.png",
+      "normalized_128_filename": "engel_small_home_reference_001_128.png",
+      "normalized_256_filename": "engel_small_home_reference_001_256.png",
+      "source_image_filename": "021_507a3172396149_5be5b50db04c6_271e42062a.png",
+      "crop_box": [
+        753,
+        275,
+        807,
+        324
+      ],
+      "visible_label": "",
+      "guessed_meaning": "home/navigation",
+      "confidence": "low",
+      "notes": "Small top-right navigation/action tile visible on production screen.",
+      "created_at": "2026-06-30T20:28:51.878313+00:00"
+    }
+  ]
+}

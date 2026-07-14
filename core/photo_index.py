@@ -7,7 +7,7 @@ from typing import Any
 
 from .atlas_models import PhotoItem, PhotoSet
 from .atlas_utils import display_value, normalized_eoat_key, normalized_tool_key, row_value
-from .eoat_ids import normalize_eoat_assembly_id
+from .eoat_ids import EOAT_ID_SEARCH_PATTERN, normalize_eoat_assembly_id
 from .paths import resolve_project_paths
 from .photo_indexing import PHOTO_CATEGORY_FOLDERS, SUPPORTED_IMAGE_EXTENSIONS, eoat_photo_root, photo_category_folder
 from .tool_fields import TOOL_FIELD
@@ -17,10 +17,13 @@ def build_photo_index(
     project_root: str | Path,
     eoat_rows: list[dict[str, Any]],
     photo_rows: list[dict[str, Any]],
+    *,
+    photos_root: str | Path | None = None,
 ) -> tuple[dict[str, PhotoSet], dict[str, tuple[PhotoItem, ...]], list[str]]:
     paths = resolve_project_paths(project_root)
+    photo_root = Path(photos_root).expanduser() if photos_root else paths.cell_photos
     warnings: list[str] = []
-    folder_photos = _scan_photo_folder(paths.cell_photos, warnings)
+    folder_photos = _scan_photo_folder(photo_root, warnings)
     indexed_photos = [_photo_item_from_index_row(project_root, row) for row in photo_rows]
     indexed_photos = [photo for photo in indexed_photos if photo is not None]
 
@@ -41,7 +44,7 @@ def build_photo_index(
         if not display_id:
             continue
         eoat_key = normalized_eoat_key(display_id)
-        folder = eoat_photo_root(project_root, eoat_id) if eoat_id else Path("")
+        folder = (photo_root / eoat_id) if eoat_id and photos_root else (eoat_photo_root(project_root, eoat_id) if eoat_id else Path(""))
         folder_items = tuple(_dedupe_photos(photos_by_eoat.get(eoat_key, [])))
         indexed_items = tuple(photo for photo in indexed_photos if normalized_eoat_key(photo.eoat_id) == eoat_key)
         missing_categories = _missing_photo_categories(folder_items)
@@ -142,11 +145,11 @@ def _resolve_photo_path(project_root: str | Path, folder_reference: str, filenam
 
 def _infer_eoat_from_path(path: str | Path) -> str:
     for part in Path(path).parts:
-        match = re.fullmatch(r"P4-EOAT-\d{4}", part, flags=re.IGNORECASE)
+        match = re.fullmatch(EOAT_ID_SEARCH_PATTERN, part)
         if match:
-            return part.upper()
-    name_match = re.search(r"P4-EOAT-\d{4}", Path(path).name, flags=re.IGNORECASE)
-    return name_match.group(0).upper() if name_match else ""
+            return normalize_eoat_assembly_id(part)
+    name_match = EOAT_ID_SEARCH_PATTERN.search(Path(path).name)
+    return normalize_eoat_assembly_id(name_match.group(0)) if name_match else ""
 
 
 def _infer_tool_from_path(path: str | Path) -> str:

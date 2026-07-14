@@ -213,6 +213,6 @@ def test_export_csv_markdown_includes_cell_details_without_creating_rows(fake_pr
 
     assert result.success is True
     assert before_count == after_count
-    assert "Compatibility Matrix 2.0" in text
+    assert "Fit Check Matrix 2.0" in text
     assert "AUD-EXPORT-001" in text
     assert "Recommended Action" in csv_text

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="pressure_air-title pressure_air-desc">
+  <title id="pressure_air-title">Pressure Air</title>
+  <desc id="pressure_air-desc">Chunky pressure nozzle pushing air outward.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(3.2 3.2) scale(0.9)" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="7" y="25" width="24" height="14" rx="5" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <polygon points="29,22 44,32 29,42" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="12" y="30" width="17" height="4" rx="2" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <polygon points="43,28.5 51.7,28.5 51.7,25 58,32 51.7,39 51.7,35.5 43,35.5" fill="#A6CE39" stroke="none" stroke-width="0" />
+  </g>
+</svg>

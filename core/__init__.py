@@ -1,1 +1,1 @@
-"""Shared core layer for EOAT Command Center."""
+"""Shared core layer for EOAT Atlas."""

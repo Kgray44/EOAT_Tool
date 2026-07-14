@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import shutil
 import threading
 import time
 from collections import OrderedDict
@@ -264,7 +265,11 @@ class PhotoService(QObject):
             self._start_task(request)
 
     def get_cached_thumbnail(self, photo_id: str, size: tuple[int, int]):
-        key = self._latest_thumbnail_key.get((str(photo_id or ""), (int(size[0]), int(size[1]))))
+        normalized_photo_id = str(photo_id or "")
+        requested_size = (int(size[0]), int(size[1]))
+        key = self._latest_thumbnail_key.get((normalized_photo_id, requested_size))
+        if not key:
+            key = self._larger_thumbnail_key(normalized_photo_id, requested_size)
         if not key:
             return None
         entry = self._get_cache_entry(key)
@@ -294,6 +299,19 @@ class PhotoService(QObject):
                 "disk_format": self._disk_format,
             }
 
+    def clear_cache(self, *, include_disk: bool = True) -> None:
+        with self._lock:
+            self._cache.clear()
+            self._latest_thumbnail_key.clear()
+            self._latest_full_key.clear()
+            self._cache_bytes = 0
+            self._cache_bytes_by_kind = {"thumbnail": 0, "full": 0}
+        if include_disk:
+            try:
+                shutil.rmtree(self.cache_dir, ignore_errors=True)
+            finally:
+                ensure_directory(self.cache_dir)
+
     def _start_or_pause(self, request: _PhotoRequest) -> None:
         with self._lock:
             if self._prefetch_paused and request.priority < 60:
@@ -322,6 +340,20 @@ class PhotoService(QObject):
             if entry is not None:
                 self._cache.move_to_end(key)
             return entry
+
+    def _larger_thumbnail_key(self, photo_id: str, requested_size: tuple[int, int]) -> str:
+        requested_width, requested_height = requested_size
+        with self._lock:
+            candidates: list[tuple[int, str]] = []
+            for (cached_photo_id, cached_size), cache_key in self._latest_thumbnail_key.items():
+                if cached_photo_id != photo_id:
+                    continue
+                width, height = cached_size
+                if width >= requested_width and height >= requested_height and cache_key in self._cache:
+                    candidates.append((width * height, cache_key))
+            if not candidates:
+                return ""
+            return sorted(candidates, key=lambda item: item[0])[0][1]
 
     def _emit_thumbnail_memory_hit(self, photo_id: str, image: QImage, context_id: str) -> None:
         log_perf_marker(
@@ -479,6 +511,21 @@ def _thumbnail_request_result(
         if is_cancelled(request.context_id, request.generation):
             return _cancelled_result(request, resolved)
         if not image.isNull():
+            if _is_eoat_hero_context(request.context_id):
+                log_perf_marker(
+                    request.project_root,
+                    "eoat.hero_photo.disk_cache_hit",
+                    details={
+                        "photo_id": request.photo_id,
+                        "context_id": request.context_id,
+                        "path": str(disk_path),
+                        "requested_width": request.size.width(),
+                        "requested_height": request.size.height(),
+                        "disk_cache_hit": True,
+                    },
+                    source="photo_service",
+                    page_tool="photos",
+                )
             return _PhotoTaskResult(
                 request_type=request.request_type,
                 photo_id=request.photo_id,
@@ -730,6 +777,11 @@ def _preferred_disk_thumbnail_format() -> tuple[str, str]:
     if "jpg" in formats or "jpeg" in formats:
         return "JPG", ".jpg"
     return "PNG", ".png"
+
+
+def _is_eoat_hero_context(context_id: str) -> bool:
+    text = str(context_id or "").casefold()
+    return "eoat" in text and ("hero" in text or "eoat_cards" in text)
 
 
 def _memory_cache_key(kind: str, photo_id: str, path: Path, stat: os.stat_result, size: QSize) -> str:

@@ -4,7 +4,9 @@ import os
 import sys
 from pathlib import Path
 
-APP_DATA_DIR_NAME = "EOAT Command Center"
+APP_DATA_DIR_NAME = "EOAT Atlas"
+DEV_APP_DATA_DIR_NAME = "EOAT_Atlas_Dev"
+PROD_APP_DATA_DIR_NAME = "EOAT_Atlas"
 
 
 def is_frozen() -> bool:
@@ -21,14 +23,25 @@ def app_base_path() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def packaged_executable_dir() -> Path:
+    """Return the frozen executable directory, or the source checkout root in dev."""
+    if is_frozen():
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[1]
+
+
 def resource_path(relative_path: str | Path) -> Path:
     """Return an absolute path to a bundled read-only resource."""
     return app_base_path() / Path(relative_path)
 
 
+def release_metadata_path() -> Path:
+    return resource_path("release_metadata.json")
+
+
 def user_data_dir() -> Path:
     """Return the per-user writable folder for packaged app settings and caches."""
-    override = os.environ.get("EOAT_COMMAND_CENTER_USER_DATA_DIR")
+    override = os.environ.get("EOAT_ATLAS_USER_DATA_DIR") or os.environ.get("EOAT_COMMAND_CENTER_USER_DATA_DIR")
     if override:
         return Path(override).expanduser()
     if os.name == "nt":
@@ -38,8 +51,8 @@ def user_data_dir() -> Path:
         return Path.home() / "AppData" / "Local" / APP_DATA_DIR_NAME
     root = os.environ.get("XDG_CONFIG_HOME")
     if root:
-        return Path(root) / "eoat-command-center"
-    return Path.home() / ".config" / "eoat-command-center"
+        return Path(root) / "eoat-atlas"
+    return Path.home() / ".config" / "eoat-atlas"
 
 
 def writable_config_path(filename: str) -> Path:

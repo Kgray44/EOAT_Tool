@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="warning-title warning-desc">
+  <title id="warning-title">Warning</title>
+  <desc id="warning-desc">Standard caution triangle with machine-base cue.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 12 L54 52 H10 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="32" y1="25" x2="32" y2="38" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="32" cy="45" r="1.8" fill="#A6CE39" stroke="#A6CE39" stroke-width="3" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

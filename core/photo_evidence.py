@@ -227,7 +227,7 @@ def build_photo_checklist_markdown(
             "## Intake Notes",
             "- Keep this folder local to the project.",
             "- Do not add real photos to source control.",
-            "- Rename or intake photos through the EOAT Command Center Photos page when ready.",
+            "- Rename or intake photos through the EOAT Atlas photo workflow when ready.",
         ]
     )
     return "\n".join(lines) + "\n"

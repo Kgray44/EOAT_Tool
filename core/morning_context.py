@@ -556,7 +556,7 @@ def _collect_app_state(ctx: MorningPlanningContext) -> None:
     audit_page = root / "app" / "pages" / "audit.py"
     theme_file = root / "app" / "theme.py"
     press_lookup = root / "core" / "press_lookup.py"
-    docs_dark = root / "docs" / "EOAT_Command_Center_Responsiveness_and_Dark_Mode_Report.md"
+    docs_dark = root / "docs" / "EOAT_Atlas_Responsiveness_and_Dark_Mode_Report.md"
 
     audit_text = _read_text(audit_page)
     theme_text = _read_text(theme_file)
@@ -578,7 +578,7 @@ def _collect_app_state(ctx: MorningPlanningContext) -> None:
     if "dark" in theme_text and "light" in theme_text:
         ctx.app_state.append("Light/dark theme support is implemented.")
     else:
-        ctx.app_pending.append("Dashboard dark mode/theme support is pending.")
+        ctx.app_pending.append("EOAT Atlas dark mode/theme support is pending.")
     if docs_dark.exists():
         ctx.app_state.append("Recent responsiveness/dark-mode work is documented.")
 

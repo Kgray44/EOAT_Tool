@@ -21,8 +21,41 @@ from .workbook_cache import invalidate_workbook_cache
 from .workbook_io import row_dicts, worksheet_headers
 
 EOAT_ASSEMBLY_ID_FIELD = "EOAT Assembly ID"
-EOAT_ASSEMBLY_ID_PATTERN = re.compile(r"^P4-EOAT-(\d{4})$")
+EOAT_PREFIX_PLANT4 = "P4"
+EOAT_PREFIX_CLEANROOM = "CL"
+EOAT_ID_PREFIXES = (EOAT_PREFIX_PLANT4, EOAT_PREFIX_CLEANROOM)
+EOAT_ASSEMBLY_ID_PATTERN = re.compile(r"^(P4|CL)-EOAT-(\d{4})$", re.IGNORECASE)
+EOAT_ID_SEARCH_PATTERN = re.compile(r"(?<![A-Za-z0-9])(?:P4|CL)-EOAT-\d{4}(?![A-Za-z0-9])", re.IGNORECASE)
+CANONICAL_AREA_CLEANROOM = "cleanroom"
+CANONICAL_AREA_PLANT4 = "plant4"
+CANONICAL_AREA_UNKNOWN = "unknown"
+PRIMARY_AREA_FIELDS = (
+    "Plant/Area",
+    "Plant Area",
+    "Area",
+    "Plant",
+    "Location",
+    "Production Area",
+)
+CLEANROOM_FLAG_FIELDS = (
+    "Cleanroom/Non-Cleanroom",
+    "Cleanroom",
+    "Clean Room",
+    "Cleanroom Status",
+    "Production Environment",
+    "Environment",
+)
 MACHINE_FIELDS = ("Press/Machine #", "Machine #", "Machine No.", "Machine Number", "Press")
+
+
+@dataclass(frozen=True)
+class ParsedEOATID:
+    prefix: str
+    number: int
+
+    @property
+    def value(self) -> str:
+        return format_eoat_id(self.prefix, self.number)
 
 
 @dataclass(frozen=True)
@@ -82,27 +115,184 @@ class EOATAssemblyContext:
 
 
 def normalize_eoat_assembly_id(value: Any) -> str:
-    return "" if value is None else str(value).strip()
+    text = "" if value is None else str(value).strip()
+    parsed = parse_eoat_id(text)
+    return parsed.value if parsed else text
 
 
 def is_valid_eoat_assembly_id(value: Any) -> bool:
-    return bool(EOAT_ASSEMBLY_ID_PATTERN.fullmatch(normalize_eoat_assembly_id(value)))
+    return parse_eoat_id(value) is not None
+
+
+def parse_eoat_id(value: Any) -> ParsedEOATID | None:
+    text = "" if value is None else str(value).strip()
+    match = EOAT_ASSEMBLY_ID_PATTERN.fullmatch(text)
+    if not match:
+        return None
+    return ParsedEOATID(match.group(1).upper(), int(match.group(2)))
+
+
+def find_eoat_ids(value: Any) -> list[str]:
+    text = "" if value is None else str(value)
+    return [normalize_eoat_assembly_id(match.group(0)) for match in EOAT_ID_SEARCH_PATTERN.finditer(text)]
+
+
+def get_eoat_prefix(value: Any) -> str:
+    parsed = parse_eoat_id(value)
+    return parsed.prefix if parsed else ""
+
+
+def get_eoat_number(value: Any) -> int | None:
+    parsed = parse_eoat_id(value)
+    return parsed.number if parsed else None
+
+
+def format_eoat_id(prefix: str, number: int | str) -> str:
+    clean_prefix = str(prefix or "").strip().upper()
+    if clean_prefix not in EOAT_ID_PREFIXES:
+        raise ValueError(f"Unsupported EOAT ID prefix: {prefix}")
+    try:
+        parsed_number = int(str(number).strip())
+    except ValueError as exc:
+        raise ValueError(f"Invalid EOAT ID number: {number}") from exc
+    if parsed_number < 0 or parsed_number > 9999:
+        raise ValueError(f"EOAT ID number must be between 0 and 9999: {number}")
+    return f"{clean_prefix}-EOAT-{parsed_number:04d}"
 
 
 def extract_eoat_id_number(value: Any) -> int | None:
-    match = EOAT_ASSEMBLY_ID_PATTERN.fullmatch(normalize_eoat_assembly_id(value))
-    if not match:
-        return None
-    return int(match.group(1))
+    return get_eoat_number(value)
 
 
-def generate_next_eoat_assembly_id(existing_ids: list[Any] | tuple[Any, ...] | set[Any]) -> str:
+def normalize_area(value: Any) -> str:
+    text = _area_text(value)
+    if not text or text in {"n/a", "na", "none", "unknown", "unknown not checked", "unknown unchecked"}:
+        return CANONICAL_AREA_UNKNOWN
+    compact = re.sub(r"[^a-z0-9]+", "", text)
+    if compact in {
+        "plant4",
+        "p4",
+        "whiteroom",
+        "noncleanroom",
+        "noncr",
+        "production",
+        "prod",
+    }:
+        return CANONICAL_AREA_PLANT4
+    if text in {"white room", "non cleanroom", "non clean room", "plant 4"}:
+        return CANONICAL_AREA_PLANT4
+    if "non clean" in text or "white room" in text or "whiteroom" in compact:
+        return CANONICAL_AREA_PLANT4
+    if compact in {"cleanroom", "cleanrm", "cleanroomarea", "cl", "cr"}:
+        return CANONICAL_AREA_CLEANROOM
+    if text in {"clean room", "c r", "c/r"}:
+        return CANONICAL_AREA_CLEANROOM
+    return CANONICAL_AREA_UNKNOWN
+
+
+def canonical_area(
+    row_data: dict[str, Any] | None = None,
+    *,
+    area: Any = None,
+    cleanroom_flag: Any = None,
+    machine: Any = None,
+) -> str:
+    row = row_data or {}
+    for field_name in PRIMARY_AREA_FIELDS:
+        area_value = normalize_area(row.get(field_name))
+        if area_value != CANONICAL_AREA_UNKNOWN:
+            return area_value
+    area_value = normalize_area(area)
+    if area_value != CANONICAL_AREA_UNKNOWN:
+        return area_value
+    for field_name in CLEANROOM_FLAG_FIELDS:
+        flag_value = normalize_area(row.get(field_name))
+        if flag_value != CANONICAL_AREA_UNKNOWN:
+            return flag_value
+    flag_value = normalize_area(cleanroom_flag)
+    if flag_value != CANONICAL_AREA_UNKNOWN:
+        return flag_value
+    return _canonical_area_from_machine(machine)
+
+
+def is_cleanroom_area(value: Any = None, **kwargs: Any) -> bool:
+    if isinstance(value, dict):
+        return canonical_area(value, **kwargs) == CANONICAL_AREA_CLEANROOM
+    return canonical_area(area=value, **kwargs) == CANONICAL_AREA_CLEANROOM
+
+
+def is_plant4_area(value: Any = None, **kwargs: Any) -> bool:
+    if isinstance(value, dict):
+        return canonical_area(value, **kwargs) == CANONICAL_AREA_PLANT4
+    return canonical_area(area=value, **kwargs) == CANONICAL_AREA_PLANT4
+
+
+def determine_eoat_prefix(
+    row_data: dict[str, Any] | None = None,
+    *,
+    area: Any = None,
+    cleanroom_flag: Any = None,
+    machine: Any = None,
+    default_prefix: str = EOAT_PREFIX_PLANT4,
+) -> str:
+    resolved_area = canonical_area(row_data, area=area, cleanroom_flag=cleanroom_flag, machine=machine)
+    if resolved_area == CANONICAL_AREA_CLEANROOM:
+        return EOAT_PREFIX_CLEANROOM
+    if resolved_area == CANONICAL_AREA_PLANT4:
+        return EOAT_PREFIX_PLANT4
+    return str(default_prefix or EOAT_PREFIX_PLANT4).strip().upper()
+
+
+def get_eoat_id_prefix(
+    area: Any = None,
+    cleanroom_flag: Any = None,
+    machine: Any = None,
+    row_data: dict[str, Any] | None = None,
+) -> str:
+    return determine_eoat_prefix(row_data, area=area, cleanroom_flag=cleanroom_flag, machine=machine)
+
+
+def expected_eoat_id_for_area(row_data: dict[str, Any], current_id: Any | None = None) -> str:
+    parsed = parse_eoat_id(current_id if current_id is not None else row_data.get(EOAT_ASSEMBLY_ID_FIELD))
+    if parsed is None:
+        return ""
+    return format_eoat_id(determine_eoat_prefix(row_data), parsed.number)
+
+
+def migrate_eoat_id(old_id: Any, expected_prefix: str) -> str:
+    parsed = parse_eoat_id(old_id)
+    if parsed is None:
+        return ""
+    return format_eoat_id(expected_prefix, parsed.number)
+
+
+def eoat_id_prefix_matches_area(row_data: dict[str, Any], value: Any | None = None) -> bool:
+    parsed = parse_eoat_id(value if value is not None else row_data.get(EOAT_ASSEMBLY_ID_FIELD))
+    if parsed is None:
+        return False
+    return parsed.prefix == determine_eoat_prefix(row_data)
+
+
+def generate_next_eoat_assembly_id(
+    existing_ids: list[Any] | tuple[Any, ...] | set[Any],
+    row_data: dict[str, Any] | None = None,
+    *,
+    prefix: str | None = None,
+    area: Any = None,
+    cleanroom_flag: Any = None,
+    machine: Any = None,
+) -> str:
+    target_prefix = (
+        str(prefix).strip().upper()
+        if prefix
+        else determine_eoat_prefix(row_data, area=area, cleanroom_flag=cleanroom_flag, machine=machine)
+    )
     highest = 0
     for value in existing_ids:
-        number = extract_eoat_id_number(value)
-        if number is not None:
-            highest = max(highest, number)
-    return f"P4-EOAT-{highest + 1:04d}"
+        parsed = parse_eoat_id(value)
+        if parsed is not None and parsed.prefix == target_prefix:
+            highest = max(highest, parsed.number)
+    return format_eoat_id(target_prefix, highest + 1)
 
 
 def assign_missing_eoat_assembly_ids(rows: list[dict[str, Any]]) -> EOATAssignmentSummary:
@@ -114,15 +304,22 @@ def assign_missing_eoat_assembly_ids(rows: list[dict[str, Any]]) -> EOATAssignme
             "Ignored invalid existing EOAT Assembly ID value(s) while finding the next number: "
             + ", ".join(invalid_existing)
         )
-    highest = max((extract_eoat_id_number(value) or 0 for value in existing_ids), default=0)
+    next_by_prefix = {
+        prefix: max(
+            (parsed.number for value in existing_ids if (parsed := parse_eoat_id(value)) and parsed.prefix == prefix),
+            default=0,
+        )
+        + 1
+        for prefix in EOAT_ID_PREFIXES
+    }
     ids_created: list[str] = []
     rows_updated: list[int] = []
-    next_number = highest + 1
     for index, row in enumerate(rows):
         if normalize_eoat_assembly_id(row.get(EOAT_ASSEMBLY_ID_FIELD)):
             continue
-        new_id = f"P4-EOAT-{next_number:04d}"
-        next_number += 1
+        prefix = determine_eoat_prefix(row)
+        new_id = format_eoat_id(prefix, next_by_prefix[prefix])
+        next_by_prefix[prefix] += 1
         row[EOAT_ASSEMBLY_ID_FIELD] = new_id
         ids_created.append(new_id)
         rows_updated.append(index)
@@ -533,22 +730,59 @@ def _text(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
+def _area_text(value: Any) -> str:
+    text = _text(value).casefold()
+    text = re.sub(r"[\\/]+", " ", text)
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _canonical_area_from_machine(machine: Any) -> str:
+    # Machine-to-area inference is intentionally disabled until a reliable site map
+    # is configured; Plant/Area and Cleanroom flags are the source of truth.
+    _ = machine
+    return CANONICAL_AREA_UNKNOWN
+
+
 __all__ = [
+    "CANONICAL_AREA_CLEANROOM",
+    "CANONICAL_AREA_PLANT4",
+    "CANONICAL_AREA_UNKNOWN",
     "EOAT_ASSEMBLY_ID_FIELD",
+    "EOAT_ASSEMBLY_ID_PATTERN",
+    "EOAT_ID_PREFIXES",
+    "EOAT_ID_SEARCH_PATTERN",
+    "EOAT_PREFIX_CLEANROOM",
+    "EOAT_PREFIX_PLANT4",
     "EOATAssignmentSummary",
     "EOATAssemblyContext",
+    "ParsedEOATID",
     "assign_missing_eoat_assembly_ids",
     "assign_missing_eoat_assembly_ids_in_workbook",
     "build_eoat_assembly_contexts",
+    "canonical_area",
+    "determine_eoat_prefix",
+    "eoat_id_prefix_matches_area",
     "eoat_context_for_id",
     "eoat_summary_metrics",
     "ensure_eoat_assembly_id_column",
     "ensure_photo_index_eoat_assembly_id_column",
+    "expected_eoat_id_for_area",
     "extract_eoat_id_number",
+    "find_eoat_ids",
+    "format_eoat_id",
     "generate_next_eoat_assembly_id",
+    "get_eoat_id_prefix",
+    "get_eoat_number",
+    "get_eoat_prefix",
     "infer_eoat_assembly_id_for_photo_row",
+    "is_cleanroom_area",
+    "is_plant4_area",
     "is_valid_eoat_assembly_id",
+    "migrate_eoat_id",
     "multi_tool_eoat_rows",
+    "normalize_area",
     "normalize_eoat_assembly_id",
+    "parse_eoat_id",
     "update_eoat_info_file",
 ]

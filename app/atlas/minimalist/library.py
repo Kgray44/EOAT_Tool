@@ -1,53 +1,117 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
-import hashlib
+import re
 import threading
+from collections.abc import Iterable
 from contextlib import nullcontext
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-from PySide6.QtCore import QEvent, QEasingCurve, QParallelAnimationGroup, QPoint, QPointF, Property, QRect, QRectF, QSize, Qt, QTimer, QPropertyAnimation, Signal, Slot
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QImageReader, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
+from PySide6.QtCore import (
+    Property,
+    QAbstractListModel,
+    QEasingCurve,
+    QEvent,
+    QModelIndex,
+    QParallelAnimationGroup,
+    QPoint,
+    QPointF,
+    QPropertyAnimation,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    QTimer,
+    QUrl,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QFont,
+    QFontMetrics,
+    QImage,
+    QImageReader,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QAbstractItemView,
+    QApplication,
     QButtonGroup,
+    QCheckBox,
     QComboBox,
+    QFileDialog,
     QFrame,
     QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
+    QMenu,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
+    QStyle,
+    QStyledItemDelegate,
     QVBoxLayout,
     QWidget,
 )
 
-from core.atlas_record_details import RecordDetailData, RecordField, RecordPhoto, RecordPhotoGroup, RecordSection, build_record_detail_data
 from core.atlas_models import AtlasDataBundle, EOATRecord, MachineRecord, ToolRecord
+from core.atlas_record_details import (
+    RecordDetailData,
+    RecordField,
+    RecordPhoto,
+    RecordPhotoGroup,
+    RecordSection,
+    build_record_detail_data,
+)
 from core.atlas_utils import normalized_eoat_key, normalized_machine_key, normalized_tool_key
+from core.eoat_history import (
+    EOATHistoryEvent,
+    EOATHistoryService,
+    EOATHistoryViewModel,
+    configured_eoat_history_repository,
+)
 from core.library_data_service import LibraryDataService
 from core.performance import log_perf_marker, perf_timer
 from core.photos.photo_service import PhotoService
+from core.reporting.pdf_preview_session import PdfPreviewSession
+from core.reporting.record_report_options import ReportOptions
 
 from .data import loaded_status_text, machine_label
+from .theme import active_minimalist_tokens, effective_minimalist_theme, minimalist_tokens, qss_rgba
 from .widgets import (
+    STATUS_ERROR,
+    STATUS_SUCCESS,
+    STATUS_UNKNOWN,
+    STATUS_WARNING,
+    TEXT_PLACEHOLDER,
     GlassPanel,
     MinimalistToast,
     SearchMiniIcon,
     StatusDot,
+    TitleAccentBar,
     clear_layout,
     glyph_icon,
     prefers_reduced_motion,
     set_placeholder_color,
 )
-
 
 ENTITY_EOAT = "eoat"
 ENTITY_TOOL = "tool"
@@ -69,6 +133,49 @@ TYPE_FROM_LABEL = {
     "EOATs": ENTITY_EOAT,
     "Tools": ENTITY_TOOL,
     "Machines": ENTITY_MACHINE,
+}
+
+PAGINATION_ELLIPSIS = "..."
+
+
+def get_pagination_items(current_page: int, total_pages: int) -> list[int | str]:
+    """Return 1-based page numbers and ellipses for the Library pager."""
+    total = max(0, int(total_pages))
+    if total == 0:
+        return []
+    current = max(1, min(int(current_page), total))
+    if total <= 7:
+        return list(range(1, total + 1))
+
+    if current <= 3:
+        window = list(range(1, min(4, total) + 1))
+    elif current >= total - 2:
+        window = list(range(max(1, total - 3), total + 1))
+    else:
+        window = [current - 1, current, current + 1]
+
+    items: list[int | str] = []
+    for page in (1, *window, total):
+        if page < 1 or page > total:
+            continue
+        if items and isinstance(items[-1], int):
+            gap = page - items[-1]
+            if gap == 0:
+                continue
+            if gap > 1:
+                items.append(PAGINATION_ELLIPSIS)
+        items.append(page)
+    return items
+
+RECORD_TYPE_TO_LIBRARY_CATEGORY = {
+    ENTITY_EOAT: "EOATs",
+    ENTITY_TOOL: "Tools",
+    ENTITY_MACHINE: "Machines",
+}
+
+RECORD_TYPE_TO_LIBRARY_SCOPE = {
+    record_type: TYPE_FROM_LABEL[label]
+    for record_type, label in RECORD_TYPE_TO_LIBRARY_CATEGORY.items()
 }
 
 STATUS_OPTIONS = (
@@ -104,6 +211,8 @@ SORT_OPTIONS = (
     "Missing Docs First",
 )
 
+LIBRARY_RECORD_TYPES = {ENTITY_EOAT, ENTITY_TOOL, ENTITY_MACHINE}
+
 ADVANCED_FILTERS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Documentation", ("Docs Good", "Missing Docs", "CAD Missing", "BOM Missing", "Revision Missing")),
     ("Photos", ("Has Photos", "Missing Photos", "Photo Folder Missing")),
@@ -111,7 +220,7 @@ ADVANCED_FILTERS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Air Architecture", ("Vacuum", "Pressure", "Mixed Air", "Robot Only", "External Peripheral Only")),
     ("EOAT Type", ("Mechanical / Gripper", "Vacuum", "Hybrid", "Specialty")),
     ("Current Condition", ("On Machine", "In Cabinet", "In Storage", "Off-Machine", "Not Indexed")),
-    ("Compatibility", ("High Reuse", "Single Machine", "Missing Compatibility")),
+    ("Fit Check", ("High Reuse", "Single Machine", "Missing Fit Check Data")),
     ("Counts", ("Has Tools", "Has Machines", "No Linked Tools", "No Linked Machines")),
 )
 
@@ -120,9 +229,17 @@ ANIMATION_MEDIUM = 220
 BROWSE_CARD_HEIGHT = 236
 BROWSE_CARD_WIDTH = 356
 LIST_CARD_HEIGHT = 118
+CARD_THUMBNAIL_SIZE = (220, 140)
+EOAT_CARD_THUMBNAIL_SIZE = (384, 256)
+EOAT_LIST_THUMBNAIL_SIZE = (320, 180)
+EOAT_HERO_PHOTO_SIZE = (512, 512)
 GRID_PAGE_SIZE = 8
 SEARCH_DEBOUNCE_MS = 125
 INTERACTION_IDLE_MS = 500
+_HERO_PHOTO_FAILURE_LOGGED: set[tuple[str, str, str]] = set()
+_QT_PDF_CLASSES: tuple[Any | None, Any | None] | None = None
+_QT_PRINT_CLASSES: tuple[Any | None, Any | None] | None = None
+_MALFORMED_EOAT_SORT_IDS_LOGGED: set[str] = set()
 
 
 def _controller_project_root(controller) -> str:
@@ -161,6 +278,66 @@ def _widget_project_root(widget: QWidget | None) -> str:
     return ""
 
 
+def _minimalist_setting(controller, dotted_path: str, default: Any = None) -> Any:
+    settings = getattr(controller, "minimalist_app_settings", None)
+    if not isinstance(settings, dict):
+        return default
+    node: Any = settings
+    for key in dotted_path.split("."):
+        if not isinstance(node, dict):
+            return default
+        node = node.get(key)
+    return default if node is None else node
+
+
+def _library_default_scope(controller) -> str:
+    value = str(_minimalist_setting(controller, "library.default_tab", "last_used") or "last_used")
+    remember_last = bool(_minimalist_setting(controller, "search.remember_last_library_tab", True))
+    if value == "last_used" and remember_last:
+        value = str(getattr(controller, "_minimalist_last_library_scope", "") or "eoats")
+    return {"eoats": ENTITY_EOAT, "tools": ENTITY_TOOL, "machines": ENTITY_MACHINE}.get(value, ENTITY_EOAT)
+
+
+def _library_grid_page_size(controller) -> int:
+    try:
+        value = int(_minimalist_setting(controller, "library.cards_per_page", GRID_PAGE_SIZE))
+    except (TypeError, ValueError):
+        value = GRID_PAGE_SIZE
+    return value if value in {12, 24, 48} else GRID_PAGE_SIZE
+
+
+def _library_bool(controller, dotted_path: str, default: bool = True) -> bool:
+    return bool(_minimalist_setting(controller, dotted_path, default))
+
+
+def _library_default_sort(controller, scope_type: str) -> str:
+    scope = _normalize_library_scope(scope_type) or ENTITY_EOAT
+    if scope == ENTITY_TOOL:
+        value = str(_minimalist_setting(controller, "library.tool_sort", "tool_number_ascending"))
+        return {
+            "tool_number_ascending": "Tool Number",
+            "tool_number_descending": "Tool Number",
+            "part_name": "Alphabetical (A-Z)",
+            "compatible_machines_count": "Machine Number",
+        }.get(value, "Tool Number")
+    if scope == ENTITY_MACHINE:
+        value = str(_minimalist_setting(controller, "library.machine_sort", "machine_number_ascending"))
+        return {
+            "machine_number_ascending": "Machine Number",
+            "machine_number_descending": "Machine Number",
+            "robot_type": "Alphabetical (A-Z)",
+            "current_eoat": "EOAT ID",
+        }.get(value, "Machine Number")
+    value = str(_minimalist_setting(controller, "library.eoat_sort", "eoat_id_ascending"))
+    return {
+        "eoat_id_ascending": "EOAT ID",
+        "eoat_id_descending": "EOAT ID",
+        "status": "Status",
+        "type": "Alphabetical (A-Z)",
+        "last_updated": "Recently Updated",
+    }.get(value, "EOAT ID")
+
+
 def _maybe_perf_timer(project_root: str, operation: str, *, details: dict[str, Any]):
     if not project_root:
         return nullcontext()
@@ -185,6 +362,33 @@ def _log_ui_marker(project_root: str, operation: str, *, details: dict[str, Any]
     )
 
 
+def _qt_pdf_classes() -> tuple[Any | None, Any | None]:
+    global _QT_PDF_CLASSES
+    if _QT_PDF_CLASSES is not None:
+        return _QT_PDF_CLASSES
+    try:  # pragma: no cover - depends on PySide build
+        from PySide6.QtPdf import QPdfDocument
+        from PySide6.QtPdfWidgets import QPdfView
+    except Exception:  # pragma: no cover
+        _QT_PDF_CLASSES = (None, None)
+    else:
+        _QT_PDF_CLASSES = (QPdfDocument, QPdfView)
+    return _QT_PDF_CLASSES
+
+
+def _qt_print_classes() -> tuple[Any | None, Any | None]:
+    global _QT_PRINT_CLASSES
+    if _QT_PRINT_CLASSES is not None:
+        return _QT_PRINT_CLASSES
+    try:  # pragma: no cover - depends on PySide build
+        from PySide6.QtPrintSupport import QPrintDialog, QPrinter
+    except Exception:  # pragma: no cover
+        _QT_PRINT_CLASSES = (None, None)
+    else:
+        _QT_PRINT_CLASSES = (QPrintDialog, QPrinter)
+    return _QT_PRINT_CLASSES
+
+
 def animation_duration(duration: int) -> int:
     return 1 if prefers_reduced_motion() else duration
 
@@ -205,8 +409,165 @@ def _natural_machine_key(value: str) -> tuple[int, int | str]:
     return (0, int(text)) if text.isdigit() else (1, text.casefold())
 
 
+def parse_eoat_id(value: str) -> dict[str, Any] | None:
+    text = str(value or "").strip()
+    match = re.match(r"^(P4|CL)-EOAT-(\d+)$", text, flags=re.IGNORECASE)
+    if not match:
+        if text and text not in _MALFORMED_EOAT_SORT_IDS_LOGGED:
+            LOGGER.warning("Malformed EOAT ID placed at end of Library sort: %s", text)
+            _MALFORMED_EOAT_SORT_IDS_LOGGED.add(text)
+        return None
+    return {
+        "prefix": match.group(1).upper(),
+        "number": int(match.group(2)),
+        "normalizedId": text,
+    }
+
+
+def _natural_eoat_key(value: str) -> tuple[int, int, int, str]:
+    parsed = parse_eoat_id(value)
+    text = str(value or "").strip()
+    if parsed is None:
+        return (1, 10**12, 99, text.casefold())
+    prefix = str(parsed["prefix"])
+    prefix_rank = {"P4": 0, "CL": 1}.get(prefix, 9)
+    return (0, int(parsed["number"]), prefix_rank, text.casefold())
+
+
+def _eoat_entity_sort_key(entity: "LibraryEntity") -> tuple[int, tuple[int, int, int, str] | str]:
+    if entity.entity_type == ENTITY_EOAT:
+        return (0, _natural_eoat_key(entity.key))
+    return (1, entity.key.casefold())
+
+
 def _truthy_text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _normalize_library_scope(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    folded = text.casefold()
+    for entity_type in LIBRARY_RECORD_TYPES:
+        if folded == entity_type.casefold():
+            return entity_type
+    for label, entity_type in TYPE_FROM_LABEL.items():
+        if entity_type == "all":
+            continue
+        if folded == label.casefold():
+            return entity_type
+    return ""
+
+
+def _library_scope_for_record_type(record_type: Any) -> str:
+    normalized = _normalize_library_scope(record_type)
+    return RECORD_TYPE_TO_LIBRARY_SCOPE.get(normalized, ENTITY_EOAT)
+
+
+def _normalized_photo_label(value: Any) -> str:
+    text = _truthy_text(value).casefold()
+    if not text:
+        return ""
+    for character in ("\\", "/", "_", "-"):
+        text = text.replace(character, " ")
+    pieces = []
+    for raw in text.split():
+        token = raw.strip(" .,:;()[]{}")
+        if token and not token.isdigit():
+            pieces.append(token)
+    return " ".join(pieces)
+
+
+def _photo_preview_kind_from_label(value: Any) -> str:
+    text = _normalized_photo_label(value)
+    if not text:
+        return ""
+    if text in {"front", "front view", "overall front", "overall front view", "main", "main view"}:
+        return "front"
+    if "front" in text and ("view" in text or "overall" in text):
+        return "front"
+    if text in {"overview", "overall"} or "overview" in text or text.startswith("overall"):
+        return "overview"
+    if "side" in text and ("view" in text or text == "side"):
+        return "side"
+    return ""
+
+
+def _photo_item_preview_kind(photo: Any) -> str:
+    metadata = " ".join(
+        _normalized_photo_label(getattr(photo, attr, ""))
+        for attr in ("photo_type", "area_shown", "category", "description")
+        if _normalized_photo_label(getattr(photo, attr, "")) not in {"", "other"}
+    )
+    kind = _photo_preview_kind_from_label(metadata)
+    if kind:
+        return kind
+    filename_text = " ".join(
+        _normalized_photo_label(getattr(photo, attr, ""))
+        for attr in ("stored_relative_path", "folder_path", "stored_filename", "photo_filename", "original_filename", "filename", "path")
+        if _normalized_photo_label(getattr(photo, attr, ""))
+    )
+    return _photo_preview_kind_from_label(filename_text)
+
+
+def _rank_eoat_photo_items(photos: Iterable[Any]) -> list[Any]:
+    ranked: list[tuple[tuple[int, str, int], Any]] = []
+    for index, photo in enumerate(photos):
+        kind = _photo_item_preview_kind(photo)
+        stage = {"front": 0, "overview": 1, "side": 2}.get(kind, 3)
+        date_text = _truthy_text(getattr(photo, "date_taken", "") or getattr(photo, "imported_at", ""))
+        ranked.append(((stage, date_text, index), photo))
+    return [photo for _key, photo in sorted(ranked, key=lambda item: item[0])]
+
+
+def _eoat_hero_photo_candidate(entity: "LibraryEntity", catalog: "LibraryCatalog | None") -> tuple[str, list[str]]:
+    if catalog is None or entity.entity_type != ENTITY_EOAT:
+        return "", []
+    candidates = catalog.photo_candidates(entity, limit=1)
+    if not candidates:
+        return "", []
+    photo_id, paths = candidates[0]
+    return photo_id or f"hero:{entity.key}", list(paths)
+
+
+def _request_eoat_hero_thumbnail(
+    entity: "LibraryEntity",
+    catalog: "LibraryCatalog | None",
+    *,
+    context_id: str,
+    priority: int,
+    operation: str,
+) -> bool:
+    if catalog is None or entity.entity_type != ENTITY_EOAT:
+        return False
+    service = getattr(catalog, "photo_service", None)
+    if service is None:
+        return False
+    photo_id, paths = _eoat_hero_photo_candidate(entity, catalog)
+    if not photo_id or not paths:
+        return False
+    project_root = _catalog_project_root(catalog)
+    use_cache = _library_bool(getattr(catalog, "controller", None), "library.use_cached_thumbnails", True)
+    cached = service.get_cached_thumbnail(photo_id, EOAT_HERO_PHOTO_SIZE) if use_cache else None
+    _log_ui_marker(
+        project_root,
+        operation,
+        details={
+            "eoat_id": entity.key,
+            "photo_id": photo_id,
+            "requested_size": list(EOAT_HERO_PHOTO_SIZE),
+            "priority": priority,
+            "context_id": context_id,
+            "memory_cache_hit": cached is not None and not cached.isNull(),
+            "cache_enabled": use_cache,
+        },
+        page_tool="library",
+    )
+    if cached is not None and not cached.isNull():
+        return False
+    service.request_thumbnail(photo_id, paths, EOAT_HERO_PHOTO_SIZE, priority, context_id)
+    return True
 
 
 def _photo_item_candidate_path(project_root: str | Path, photo: Any) -> str:
@@ -298,13 +659,26 @@ class MachineCurrentEoatDisplay:
     state: str
 
 
+def _semantic_tone_color(tone: str) -> QColor:
+    folded = str(tone or "").casefold()
+    if folded in {"good", "normal", "active", "success", "confirmed", "compatible", "supported", "match"}:
+        return QColor(STATUS_SUCCESS)
+    if folded in {"warning", "warn", "partial", "needs_review", "verify"}:
+        return QColor(STATUS_WARNING)
+    if folded in {"bad", "danger", "error", "conflict", "incompatible", "missing_required"}:
+        return QColor(STATUS_ERROR)
+    if folded in {"muted", "neutral", "unknown", "not_indexed", "insufficient_data", "missing_data"}:
+        return QColor(STATUS_UNKNOWN)
+    return QColor("#6ea7ff")
+
+
 def machine_current_eoat_display(record: MachineRecord) -> MachineCurrentEoatDisplay:
     current = _truthy_text(getattr(record, "current_eoat", ""))
     if current:
         return MachineCurrentEoatDisplay(current, "normal", _truthy_text(getattr(record, "current_eoat_status", "")) or "indexed")
     resolver_status = _truthy_text(getattr(record, "current_eoat_status", ""))
     if resolver_status == "explicit_none":
-        return MachineCurrentEoatDisplay("No Current EOAT", "warning", "explicit_none")
+        return MachineCurrentEoatDisplay("Not Installed", "warning", "explicit_none")
     blob = _source_text(record)
     explicit_no_current = any(
         phrase in blob
@@ -316,8 +690,8 @@ def machine_current_eoat_display(record: MachineRecord) -> MachineCurrentEoatDis
         )
     )
     if explicit_no_current:
-        return MachineCurrentEoatDisplay("No Current EOAT", "warning", "explicit_none")
-    return MachineCurrentEoatDisplay("Not Indexed", "muted", "unknown")
+        return MachineCurrentEoatDisplay("Not Installed", "warning", "explicit_none")
+    return MachineCurrentEoatDisplay("Not Assigned", "muted", "unknown")
 
 
 def record_status_display(entity: LibraryEntity) -> tuple[str, str]:
@@ -434,6 +808,16 @@ def atlas_card_metrics(entity: LibraryEntity, catalog: "LibraryCatalog | None", 
         AtlasCardMetric("eoat", str(len(getattr(record, "compatible_eoats", ()))), "EOATs" if compact else "EOAT COMPATIBLE"),
         AtlasCardMetric("library", str(parts) if parts else "--", "PICKS" if compact else "PARTS PICKED", "muted" if not parts else "normal"),
     )
+
+
+def profile_copy_label(entity_type: str) -> str:
+    if entity_type == ENTITY_EOAT:
+        return "EOAT ID"
+    if entity_type == ENTITY_TOOL:
+        return "Tool #"
+    if entity_type == ENTITY_MACHINE:
+        return "Machine #"
+    return "Record ID"
 
 
 class LibraryCatalog:
@@ -649,7 +1033,7 @@ class LibraryCatalog:
         if entity.entity_type == ENTITY_EOAT:
             photo_set = getattr(entity.record, "photos", None)
             photos = [*(getattr(photo_set, "indexed_photos", ()) or ()), *(getattr(photo_set, "photos", ()) or ())]
-            for index, photo in enumerate(photos[: max(1, limit)]):
+            for index, photo in enumerate(_rank_eoat_photo_items(photos)[: max(1, limit)]):
                 photo_id = _truthy_text(getattr(photo, "photo_id", "")) or f"{entity.entity_type}:{entity.key}:card:{index}"
                 paths = [
                     *[str(path) for path in getattr(photo, "path_candidates", ()) or () if str(path or "").strip()],
@@ -724,7 +1108,7 @@ class LibraryCatalog:
             return self._relationship_count(entity) >= 4
         if name == "single machine":
             return len(getattr(record, "machines", ()) or getattr(record, "compatible_machines", ())) == 1
-        if name == "missing compatibility":
+        if name in {"missing compatibility", "missing fit check data"}:
             if entity.entity_type == ENTITY_EOAT:
                 return not getattr(record, "tools", ()) or not getattr(record, "machines", ())
             if entity.entity_type == ENTITY_TOOL:
@@ -843,7 +1227,7 @@ class LibraryCatalog:
     def _tool_entity(self, record: ToolRecord) -> LibraryEntity:
         warnings = int(getattr(record, "warning_count", 0) or 0)
         badges = [
-            (f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Compatibility", "good" if record.compatible_eoats else "warn"),
+            (f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Fit Check Data", "good" if record.compatible_eoats else "warn"),
             (f"Machines {len(record.compatible_machines)}", "info"),
         ]
         if warnings:
@@ -870,10 +1254,10 @@ class LibraryCatalog:
         current = machine_current_eoat_display(record)
         doc_score = int(getattr(record, "documentation_score", 0) or 0)
         badges = [
-            (f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Compatibility", "good" if record.compatible_eoats else "warn"),
+            (f"EOATs {len(record.compatible_eoats)}" if record.compatible_eoats else "Missing Fit Check Data", "good" if record.compatible_eoats else "warn"),
             ("Docs Good" if doc_score >= 75 else "Missing Docs", "good" if doc_score >= 75 else "warn"),
         ]
-        subtitle = f"{record.robot_type or record.robot_model or 'Robot type unknown'} | {self._area_label(record)}"
+        subtitle = record.robot_type or record.robot_model or "Robot type unknown"
         meta = f"Current EOAT: {current.value} | {count_label(len(record.compatible_tools), 'tool')}"
         text = _join_record_text(
             record.machine,
@@ -893,10 +1277,6 @@ class LibraryCatalog:
             [row for row in getattr(record, "source_rows", ())],
         )
         return LibraryEntity(ENTITY_MACHINE, record.machine, machine_label(record.machine), subtitle, meta, record, tuple(badges), text)
-
-    def _area_label(self, record: MachineRecord) -> str:
-        blob = _join_record_text(record.robot_type, record.robot_model, record.controller, getattr(record, "source_rows", ()))
-        return "Cleanroom" if "cleanroom" in blob.casefold() else "Production"
 
     def _norm(self, entity_type: str, key: str) -> str:
         if entity_type == ENTITY_EOAT:
@@ -953,6 +1333,7 @@ class AnimatedGlassCard(GlassPanel):
         self._hover_animation.setDuration(animation_duration(160))
         self._hover_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def get_hover_progress(self) -> float:
         return self._hover_progress
@@ -985,6 +1366,21 @@ class AnimatedGlassCard(GlassPanel):
             return
         super().mouseDoubleClickEvent(event)
 
+    def keyPressEvent(self, event) -> None:
+        if event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event) -> None:
+        self.update()
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event) -> None:
+        self.update()
+        super().focusOutEvent(event)
+
     def _animate_hover(self, target: float) -> None:
         self._hover_animation.stop()
         self._hover_animation.setStartValue(self._hover_progress)
@@ -1002,6 +1398,102 @@ class AnimatedLibraryButton(QPushButton):
         self.style().unpolish(self)
         self.style().polish(self)
         self.update()
+
+
+class CopyIdButton(QPushButton):
+    def __init__(self, value_to_copy: str, label: str, parent=None):
+        super().__init__(parent)
+        self.value_to_copy = str(value_to_copy or "").strip()
+        self.copy_label = str(label or "identifier").strip()
+        accessible = f"Copy {self.copy_label}"
+        self.setObjectName("ProfileCopyButton")
+        self.setAccessibleName(accessible)
+        self.setToolTip(accessible)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFixedSize(28, 28)
+        self.setFlat(True)
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self.clicked.connect(self.copy_to_clipboard)
+
+    def sizeHint(self) -> QSize:
+        return QSize(28, 28)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(28, 28)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        hovered = self.underMouse()
+        pressed = self.isDown()
+        focused = self.hasFocus()
+        rect = QRectF(0.5, 0.5, self.width() - 1, self.height() - 1)
+        bg = QColor(7, 20, 42, 168)
+        border = QColor(104, 158, 220, 112)
+        icon = QColor("#dcecff")
+        if hovered:
+            bg = QColor(12, 48, 94, 190)
+            border = QColor(70, 166, 255, 206)
+            icon = QColor("#f2f9ff")
+        if pressed:
+            bg = QColor(14, 74, 148, 216)
+            border = QColor(122, 210, 255, 230)
+            icon = QColor("#ffffff")
+        painter.setBrush(bg)
+        painter.setPen(QPen(border, 1.0))
+        painter.drawRoundedRect(rect, 8.5, 8.5)
+        if focused:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor(122, 210, 255, 210), 1.2))
+            painter.drawRoundedRect(rect.adjusted(2, 2, -2, -2), 6.5, 6.5)
+        pen = QPen(icon, 1.8)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(QRectF(11.5, 6.5, 9.0, 12.0), 2.0, 2.0)
+        painter.drawRoundedRect(QRectF(7.5, 9.5, 9.0, 12.0), 2.0, 2.0)
+
+    def copy_to_clipboard(self) -> None:
+        if not self.value_to_copy:
+            self._show_toast("Could not copy to clipboard.")
+            return
+        try:
+            clipboard = QApplication.clipboard()
+            if clipboard is None:
+                raise RuntimeError("Clipboard is not available.")
+            clipboard.setText(self.value_to_copy)
+        except Exception:
+            LOGGER.exception("Could not copy %s to clipboard.", self.copy_label)
+            self._show_toast("Could not copy to clipboard.")
+            return
+        self._show_toast(f"Copied {self.value_to_copy} to clipboard")
+
+    def _show_toast(self, message: str) -> None:
+        widget = self.parentWidget()
+        while widget is not None:
+            catalog = getattr(widget, "catalog", None)
+            controller = getattr(catalog, "controller", None)
+            if (
+                str(message).startswith("Copied ")
+                and controller is not None
+                and not _library_bool(controller, "library.show_copy_to_clipboard_toast", True)
+            ):
+                return
+            notifier = getattr(widget, "show_toast", None)
+            if callable(notifier):
+                notifier(message)
+                return
+            widget = widget.parentWidget()
+        LOGGER.info(message)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() in {Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space}:
+            self.copy_to_clipboard()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class LibraryStatusLine(QWidget):
@@ -1062,19 +1554,28 @@ class AtlasMinimalistLibraryPage(QWidget):
             source="minimalist_library",
             page_tool="library",
         ):
-            self.shell.close_overlays()
+            self.shell.close_overlays(immediate=True)
+            self.library_content.close_search_overlays()
             self.shell.set_active_nav("library")
             self.library_content.set_bundle(self.bundle)
+            self._sync_topbar_back(self.library_content.state, animated=False)
             self.shell.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def open_search_overlay(self) -> None:
+        self.library_content.close_search_overlays()
         self.shell.open_search()
 
     def focus_library_search(self) -> None:
         self.library_content.focus_search()
 
+    def open_filtered_view(self, *, query: str = "", record_type: str = "all", location: str = "", lenses: set[str] | None = None) -> None:
+        self.library_content.open_filtered_view(query=query, record_type=record_type, location=location, lenses=lenses or set())
+
     def select_entity(self, entity_type: str, key: str) -> bool:
         return self.library_content.select_entity(entity_type, key)
+
+    def select_entity_from_fit_check(self, entity_type: str, key: str) -> bool:
+        return self.library_content.select_entity(entity_type, key, return_to="fit_check")
 
     def show_toast(self, message: str) -> None:
         self.library_content.show_toast(message)
@@ -1106,8 +1607,9 @@ class AtlasMinimalistLibraryPage(QWidget):
         self._shutdown_page_services()
         super().closeEvent(event)
 
-    def _sync_topbar_back(self, state: str) -> None:
-        self.shell.top_bar.set_back_visible(state == "record")
+    def _sync_topbar_back(self, state: str, *, animated: bool = True) -> None:
+        self.shell.top_bar.set_back_label(self.library_content.back_button_label())
+        self.shell.top_bar.set_back_visible(state == "record", animated=animated)
 
 
 class LibraryControlsShim:
@@ -1132,7 +1634,7 @@ class MinimalistLibraryContent(QWidget):
         self.photo_service = PhotoService(_controller_project_root(controller), self)
         self.catalog = LibraryCatalog(None, controller, self.data_service, self.photo_service)
         self.state = "hub"
-        self.scope_type = ENTITY_EOAT
+        self.scope_type = _library_default_scope(controller)
         self.browse_query = ""
         self.selected_entity: LibraryEntity | None = None
         self.active_lenses: set[str] = set()
@@ -1146,7 +1648,8 @@ class MinimalistLibraryContent(QWidget):
         self.controls = LibraryControlsShim(self)
         self.setObjectName("MinimalistLibraryContent")
         self.setMouseTracking(True)
-        self.setStyleSheet(LIBRARY_WIDGET_STYLES)
+        self._theme_preference = None
+        self.setStyleSheet(library_widget_styles(self._theme_preference))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(38, 26, 38, 32)
@@ -1188,6 +1691,14 @@ class MinimalistLibraryContent(QWidget):
                 self._set_status("Library index loaded from cache.", ready=True, indicator="idle")
         self.render_body()
 
+    def apply_theme_preference(self, preference: str | None) -> None:
+        self._theme_preference = preference
+        self.setStyleSheet(library_widget_styles(preference))
+        for card in self.findChildren(AtlasRecordCard):
+            card.update()
+        self.status.update()
+        self.update()
+
     def set_bundle(self, bundle) -> None:
         with perf_timer(
             str(getattr(bundle, "project_root", "") or _controller_project_root(self.controller)),
@@ -1196,12 +1707,16 @@ class MinimalistLibraryContent(QWidget):
             source="minimalist_library",
             page_tool="library",
         ):
+            same_loaded_bundle = bundle is not None and bundle is self.bundle and getattr(self.catalog, "bundle", None) is bundle
             self.bundle = bundle
-            if bundle is not None:
+            rebuilt_index = False
+            if bundle is not None and (not same_loaded_bundle or not self.data_service.is_index_ready()):
                 self.data_service.rebuild_index_from_bundle(bundle)
                 self._service_generation = self.data_service.generation
                 self.photo_service.set_project_root(getattr(bundle, "project_root", "") or _controller_project_root(self.controller))
-            self.catalog = LibraryCatalog(bundle, self.controller, self.data_service, self.photo_service)
+                rebuilt_index = True
+            if not same_loaded_bundle or rebuilt_index:
+                self.catalog = LibraryCatalog(bundle, self.controller, self.data_service, self.photo_service)
             if self.selected_entity is not None:
                 self.selected_entity = self.catalog.entity_for(self.selected_entity.entity_type, self.selected_entity.key)
                 if self.selected_entity is None and self.state == "record":
@@ -1319,6 +1834,21 @@ class MinimalistLibraryContent(QWidget):
             search_bar.set_query_text(text)
         self._refresh_current_view()
 
+    def open_filtered_view(self, *, query: str = "", record_type: str = "all", location: str = "", lenses: set[str] | None = None) -> None:
+        self.state = "browse"
+        self.browse_query = str(query or "")
+        self.scope_type = _normalize_library_scope(record_type) or "all"
+        self.active_lenses = set(lenses or set())
+        self.render_body()
+        view = self.current_view
+        if isinstance(view, LibraryBrowseStateView):
+            type_label = TYPE_LABELS.get(self.scope_type, "All")
+            view._set_combo_text(view.filter_bar.type_dropdown.combo, type_label)
+            if location:
+                view._set_combo_text(view.filter_bar.location_dropdown.combo, location)
+            view.set_lenses(self.active_lenses)
+            view.refresh(reset_page=True, interaction="command_palette")
+
     def handle_escape(self) -> bool:
         view = self.current_view
         if isinstance(view, LibraryBrowseStateView) and view.lenses_open:
@@ -1337,12 +1867,29 @@ class MinimalistLibraryContent(QWidget):
             return True
         return False
 
-    def select_entity(self, entity_type: str, key: str) -> bool:
+    def close_search_overlays(self) -> None:
+        view = self.current_view
+        if isinstance(view, LibraryBrowseStateView):
+            view.set_lenses_open(False)
+        for combo in self.findChildren(QComboBox):
+            combo.hidePopup()
+
+    def select_entity(self, entity_type: str, key: str, *, return_to: str = "") -> bool:
         entity = self.catalog.entity_for(entity_type, key)
         if entity is None:
             return False
+        if str(return_to or "").casefold() == "fit_check":
+            self._record_back_stack = [self._fit_check_return_context(entity)]
+            self._show_record(entity, push_context=False)
+            return True
         self._show_record(entity)
         return True
+
+    def back_button_label(self) -> str:
+        context = self._record_back_stack[-1] if self._record_back_stack else {}
+        if str(context.get("return_to") or "").casefold() == "fit_check":
+            return "Back to Fit Check"
+        return "Back to Library"
 
     def render_body(self) -> None:
         with perf_timer(
@@ -1360,7 +1907,7 @@ class MinimalistLibraryContent(QWidget):
                 self._show_skeleton_state(loading_message)
                 self.current_view = LibraryBrowseStateView(
                     self.catalog,
-                    self.scope_type,
+                self.scope_type,
                     self.browse_query,
                     self.active_lenses,
                     self._show_hub,
@@ -1476,7 +2023,7 @@ class MinimalistLibraryContent(QWidget):
         self._cancel_photo_contexts(prefixes=("library:", "record:", "photos:", "lightbox:"))
         self._record_back_stack.clear()
         self.state = "browse"
-        self.scope_type = entity_type if entity_type in {ENTITY_EOAT, ENTITY_TOOL, ENTITY_MACHINE} else ENTITY_EOAT
+        self.scope_type = _normalize_library_scope(entity_type) or ENTITY_EOAT
         if not preserve_lenses:
             self.active_lenses.clear()
             self.active_lens_tokens.clear()
@@ -1492,7 +2039,7 @@ class MinimalistLibraryContent(QWidget):
             page_tool="library_record",
         ):
             if push_context:
-                self._record_back_stack.append(self._snapshot_context())
+                self._record_back_stack.append(self._snapshot_context(entity))
             self._cancel_photo_contexts(prefixes=("library:", "record:", "photos:", "lightbox:"))
             self.state = "record"
             self.scope_type = entity.entity_type
@@ -1515,7 +2062,7 @@ class MinimalistLibraryContent(QWidget):
         except Exception:
             LOGGER.exception("Back to Library navigation failed")
 
-    def _snapshot_context(self) -> dict[str, Any]:
+    def _snapshot_context(self, target_entity: LibraryEntity | None = None) -> dict[str, Any]:
         view = self.current_view
         query = self.browse_query
         browse_view_state: dict[str, Any] = {}
@@ -1523,18 +2070,37 @@ class MinimalistLibraryContent(QWidget):
             query = view.query_text()
             browse_view_state = view.snapshot_state()
         state = "browse" if self.state == "hub" else self.state
+        source_scope = _normalize_library_scope(self.scope_type) or ENTITY_EOAT
         return {
             "state": state,
-            "scope_type": self.scope_type,
+            "scope_type": source_scope,
+            "source_category": TYPE_LABELS.get(source_scope, source_scope),
+            "record_type": getattr(target_entity, "entity_type", ""),
+            "record_id": getattr(target_entity, "key", ""),
             "browse_query": query,
             "active_lenses": set(self.active_lenses),
             "active_lens_tokens": dict(self.active_lens_tokens),
             "browse_view_state": browse_view_state,
         }
 
+    def _fit_check_return_context(self, target_entity: LibraryEntity) -> dict[str, Any]:
+        return {
+            "state": "fit_check",
+            "return_to": "fit_check",
+            "source_category": "Fit Check",
+            "record_type": target_entity.entity_type,
+            "record_id": target_entity.key,
+            "scope_type": _library_scope_for_record_type(target_entity.entity_type),
+            "browse_query": "",
+            "active_lenses": set(),
+            "active_lens_tokens": {},
+            "browse_view_state": {},
+        }
+
     def _restore_context(self, context: dict[str, Any]) -> None:
-        self.state = str(context.get("state") or "hub")
-        self.scope_type = str(context.get("scope_type") or ENTITY_EOAT)
+        state = str(context.get("state") or "browse")
+        self.state = state if state in {"hub", "browse"} else "browse"
+        self.scope_type = _normalize_library_scope(context.get("scope_type")) or ENTITY_EOAT
         self.browse_query = str(context.get("browse_query") or "")
         self.active_lenses = set(context.get("active_lenses") or ())
         self.active_lens_tokens = dict(context.get("active_lens_tokens") or {})
@@ -1544,33 +2110,67 @@ class MinimalistLibraryContent(QWidget):
         if isinstance(view, LibraryBrowseStateView):
             view.restore_view_state(dict(context.get("browse_view_state") or {}))
 
+    def _is_compatible_library_context(self, context: dict[str, Any], expected_scope: str) -> bool:
+        if str(context.get("state") or "") != "browse":
+            return False
+        return _normalize_library_scope(context.get("scope_type")) == expected_scope
+
+    def _fallback_context_for_record_type(self, record_type: str) -> dict[str, Any]:
+        scope = _library_scope_for_record_type(record_type)
+        return {
+            "state": "browse",
+            "scope_type": scope,
+            "source_category": TYPE_LABELS.get(scope, scope),
+            "record_type": record_type,
+            "record_id": getattr(self.selected_entity, "key", ""),
+            "browse_query": "",
+            "active_lenses": set(),
+            "active_lens_tokens": {},
+            "browse_view_state": {},
+        }
+
     def _go_back(self) -> None:
         root = str(getattr(self.bundle, "project_root", "") or _controller_project_root(self.controller))
+        record_type = getattr(self.selected_entity, "entity_type", "")
         previous_record = {
-            "record_type": getattr(self.selected_entity, "entity_type", ""),
+            "record_type": record_type,
             "record_id": getattr(self.selected_entity, "key", ""),
         }
         self._cancel_photo_contexts(prefixes=("record:", "photos:", "lightbox:"))
-        while self._record_back_stack:
-            context = self._record_back_stack.pop()
+        expected_scope = _library_scope_for_record_type(record_type)
+        context = self._record_back_stack.pop() if self._record_back_stack else None
+        self._record_back_stack.clear()
+        if context is not None:
             LOGGER.debug("Previous library state: %s", self._loggable_context(context))
-            LOGGER.debug("Navigating to Library page")
-            self._restore_context(context)
-            _log_ui_marker(
-                root,
-                "ui.page_transition.record_to_library",
-                details={**previous_record, "restored_state": self._loggable_context(context)},
-                page_tool="library",
+            if str(context.get("return_to") or "").casefold() == "fit_check":
+                LOGGER.debug("Navigating back to Fit Check")
+                self._restore_context(self._fallback_context_for_record_type(record_type))
+                navigator = getattr(self.controller, "show_page", None)
+                if callable(navigator):
+                    navigator("fit_check")
+                _log_ui_marker(
+                    root,
+                    "ui.page_transition.record_to_fit_check",
+                    details={**previous_record, "restored_state": self._loggable_context(context)},
+                    page_tool="fit_check",
+                )
+                return
+            if self._is_compatible_library_context(context, expected_scope):
+                LOGGER.debug("Navigating to Library page")
+                self._restore_context(context)
+                _log_ui_marker(
+                    root,
+                    "ui.page_transition.record_to_library",
+                    details={**previous_record, "restored_state": self._loggable_context(context)},
+                    page_tool="library",
+                )
+                return
+            LOGGER.debug(
+                "Ignoring mismatched Back to Library state for %s: %s",
+                record_type,
+                self._loggable_context(context),
             )
-            return
-        fallback = {
-            "state": "browse",
-            "scope_type": self.scope_type if self.scope_type in {ENTITY_EOAT, ENTITY_TOOL, ENTITY_MACHINE} else ENTITY_EOAT,
-            "browse_query": self.browse_query,
-            "active_lenses": set(self.active_lenses),
-            "active_lens_tokens": dict(self.active_lens_tokens),
-            "browse_view_state": {},
-        }
+        fallback = self._fallback_context_for_record_type(record_type)
         LOGGER.debug("Previous library state unavailable; using fallback: %s", self._loggable_context(fallback))
         LOGGER.debug("Navigating to Library page")
         self._restore_context(fallback)
@@ -1585,10 +2185,14 @@ class MinimalistLibraryContent(QWidget):
         return {
             "state": context.get("state"),
             "scope_type": context.get("scope_type"),
+            "source_category": context.get("source_category"),
+            "record_type": context.get("record_type"),
+            "record_id": context.get("record_id"),
             "browse_query": context.get("browse_query"),
             "active_lenses": sorted(context.get("active_lenses") or ()),
             "active_lens_tokens": dict(context.get("active_lens_tokens") or {}),
             "browse_view_state": dict(context.get("browse_view_state") or {}),
+            "return_to": context.get("return_to"),
         }
 
     def register_photo_context(self, context_id: str) -> None:
@@ -1764,7 +2368,7 @@ class LibraryRecordErrorPanel(GlassPanel):
     def __init__(self, record_type: str, record_id: str, parent=None):
         super().__init__(parent, radius=18, streaks=True)
         self.setObjectName("LibraryRecordErrorPanel")
-        self.set_glass(alpha=104, border_alpha=78, border_color=QColor("#ffb145"), fill_color=QColor("#061226"))
+        self.set_glass(alpha=104, border_alpha=78, border_color=STATUS_WARNING, fill_color=QColor("#061226"))
         self.setMinimumHeight(420)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(36, 120, 36, 36)
@@ -1797,6 +2401,7 @@ class LibraryBrowseStateView(QWidget):
     ):
         super().__init__(parent)
         self.catalog = catalog
+        self.controller = getattr(catalog, "controller", None)
         self.scope_type = scope_type if scope_type in {ENTITY_EOAT, ENTITY_TOOL, ENTITY_MACHINE} else ENTITY_EOAT
         self.record_callback = record_callback
         self.lens_callback = lens_callback
@@ -1813,8 +2418,10 @@ class LibraryBrowseStateView(QWidget):
         self._last_rendered_keys: tuple[tuple[str, str], ...] = ()
         self._last_page_count = 1
         self._last_filtered_count = 0
-        self._last_page_size = GRID_PAGE_SIZE
+        self._configured_grid_page_size = _library_grid_page_size(self.controller)
+        self._last_page_size = self._configured_grid_page_size
         self._thumbnail_context_id = ""
+        self._hero_prefetch_context_id = ""
         self._restoring_state = False
         self._search_debounce = QTimer(self)
         self._search_debounce.setSingleShot(True)
@@ -1827,15 +2434,20 @@ class LibraryBrowseStateView(QWidget):
         self.setObjectName("LibraryBrowseStateView")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 64, 4, 28)
+        layout.setContentsMargins(4, 88, 4, 28)
         layout.setSpacing(18)
 
-        title = QLabel("Library")
-        title.setObjectName("LibraryMainTitle")
-        subtitle = QLabel("Browse and manage all EOATs, Tools, and Machines in one place.")
-        subtitle.setObjectName("LibraryMainSubtitle")
-        layout.addWidget(title)
-        layout.addWidget(subtitle)
+        self.header_title = QLabel("Library")
+        self.header_title.setObjectName("LibraryMainTitle")
+        self.header_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.header_subtitle = QLabel("Browse and manage all EOATs, Tools, and Machines in one place.")
+        self.header_subtitle.setObjectName("LibraryMainSubtitle")
+        self.header_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.header_accent = TitleAccentBar()
+        self.header_accent.setObjectName("LibraryTitleAccent")
+        layout.addWidget(self.header_title)
+        layout.addWidget(self.header_accent, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self.header_subtitle)
 
         self.filter_bar = CatalogFilterBar(self)
         self.search_bar = self.filter_bar.search_bar
@@ -1870,8 +2482,9 @@ class LibraryBrowseStateView(QWidget):
         selector_row.addStretch(1)
 
         self.sort_dropdown = FilterDropdown("Sort by", SORT_OPTIONS, compact=True)
-        self.sort_dropdown.combo.currentTextChanged.connect(self._sort_changed)
         self.sort_dropdown.setFixedWidth(250)
+        self._set_combo_text(self.sort_dropdown.combo, _library_default_sort(self.controller, self.scope_type))
+        self.sort_dropdown.combo.currentTextChanged.connect(self._sort_changed)
         selector_row.addWidget(self.sort_dropdown)
         self.grid_button = IconToggleButton("grid", "Grid view")
         self.grid_button.setChecked(True)
@@ -1908,7 +2521,7 @@ class LibraryBrowseStateView(QWidget):
         self.prev_button.clicked.connect(lambda: self._change_page(-1))
         footer.addWidget(self.prev_button)
         self.page_buttons: list[PaginationButton] = []
-        for index in range(5):
+        for index in range(7):
             button = PaginationButton("")
             button.clicked.connect(lambda _checked=False, index=index: self._page_button_clicked(index))
             self.page_buttons.append(button)
@@ -2050,7 +2663,7 @@ class LibraryBrowseStateView(QWidget):
                     results = self._sort_results(results)
                 columns = self._column_count()
                 if self.view_mode == "grid":
-                    page_size = (GRID_PAGE_SIZE if columns >= 4 else columns * 4)
+                    page_size = self._configured_grid_page_size
                     if len(results) <= max(page_size, columns * 3):
                         page_size = max(1, len(results))
                 else:
@@ -2143,7 +2756,7 @@ class LibraryBrowseStateView(QWidget):
 
     def _render_loading_grid(self, root: str) -> None:
         columns = self._column_count()
-        visible_count = GRID_PAGE_SIZE if self.view_mode == "grid" else 6
+        visible_count = self._configured_grid_page_size if self.view_mode == "grid" else 6
         self.page_index = 0
         self._last_page_count = 1
         self._last_filtered_count = 0
@@ -2304,6 +2917,13 @@ class LibraryBrowseStateView(QWidget):
             page_tool="library",
         ):
             self.scope_type = entity_type
+            if self.controller is not None:
+                self.controller._minimalist_last_library_scope = entity_type
+            self._restoring_state = True
+            try:
+                self._set_combo_text(self.sort_dropdown.combo, _library_default_sort(self.controller, entity_type))
+            finally:
+                self._restoring_state = False
             self.page_index = 0
             self._sync_category_cards()
             self.refresh(reset_page=True, interaction="category_switch")
@@ -2337,11 +2957,27 @@ class LibraryBrowseStateView(QWidget):
         if selected == "Location":
             return sorted(results, key=lambda entity: (entity_location_line(entity, self.catalog), entity.title.casefold()))
         if selected == "Machine Number":
-            return sorted(results, key=lambda entity: _natural_machine_key(entity.key if entity.entity_type == ENTITY_MACHINE else entity.meta))
+            reverse = (
+                self.scope_type == ENTITY_MACHINE
+                and str(_minimalist_setting(self.controller, "library.machine_sort", "machine_number_ascending")) == "machine_number_descending"
+            )
+            return sorted(results, key=lambda entity: _natural_machine_key(entity.key if entity.entity_type == ENTITY_MACHINE else entity.meta), reverse=reverse)
         if selected == "Tool Number":
-            return sorted(results, key=lambda entity: (0 if entity.entity_type == ENTITY_TOOL else 1, entity.key.casefold()))
+            reverse = (
+                self.scope_type == ENTITY_TOOL
+                and str(_minimalist_setting(self.controller, "library.tool_sort", "tool_number_ascending")) == "tool_number_descending"
+            )
+            return sorted(results, key=lambda entity: (0 if entity.entity_type == ENTITY_TOOL else 1, entity.key.casefold()), reverse=reverse)
         if selected == "EOAT ID":
-            return sorted(results, key=lambda entity: (0 if entity.entity_type == ENTITY_EOAT else 1, entity.key.casefold()))
+            reverse = (
+                self.scope_type == ENTITY_EOAT
+                and str(_minimalist_setting(self.controller, "library.eoat_sort", "eoat_id_ascending")) == "eoat_id_descending"
+            )
+            if self.scope_type == ENTITY_MACHINE and str(_minimalist_setting(self.controller, "library.machine_sort", "")) == "current_eoat":
+                return sorted(results, key=lambda entity: (str(entity.meta or "").casefold(), entity.title.casefold()))
+            return sorted(results, key=_eoat_entity_sort_key, reverse=reverse)
+        if self.scope_type == ENTITY_EOAT:
+            return sorted(results, key=_eoat_entity_sort_key)
         return sorted(results, key=lambda entity: entity.title.casefold())
 
     def _has_active_filters(self) -> bool:
@@ -2398,7 +3034,11 @@ class LibraryBrowseStateView(QWidget):
                 if service is not None and self._thumbnail_context_id:
                     service.cancel_context(self._thumbnail_context_id)
                     cancelled_contexts = 1
+                if service is not None and self._hero_prefetch_context_id:
+                    service.cancel_context(self._hero_prefetch_context_id)
+                    cancelled_contexts += 1
                 self._thumbnail_context_id = context_id
+                self._hero_prefetch_context_id = f"{context_id}:hero"
                 if callable(self.photo_context_callback):
                     self.photo_context_callback(context_id)
                 log_perf_marker(
@@ -2424,6 +3064,7 @@ class LibraryBrowseStateView(QWidget):
                 self._last_rendered_keys = tuple((entity.entity_type, entity.key) for entity in entities)
                 created_widgets = 0
                 if not entities:
+                    self._hero_prefetch_context_id = ""
                     active_filters = self._has_active_filters()
                     _log_ui_marker(
                         root,
@@ -2474,15 +3115,33 @@ class LibraryBrowseStateView(QWidget):
                     self.grid_layout.setColumnStretch(column, 1)
                 self.grid_host.updateGeometry()
                 self.grid_layout.activate()
+                self._prefetch_visible_eoat_hero_photos(entities)
                 self._log_card_widget_count(created_widgets, details)
                 self._log_thumbnail_request_counts(queued_thumbnails, hidden_skipped, context_id)
+
+    def _prefetch_visible_eoat_hero_photos(self, entities: list[LibraryEntity]) -> int:
+        if not self._hero_prefetch_context_id:
+            return 0
+        queued = 0
+        for entity in entities:
+            if entity.entity_type != ENTITY_EOAT:
+                continue
+            if _request_eoat_hero_thumbnail(
+                entity,
+                self.catalog,
+                context_id=self._hero_prefetch_context_id,
+                priority=70,
+                operation="library.eoat_preview.prefetch_visible",
+            ):
+                queued += 1
+        return queued
 
     def _visible_thumbnail_request_count(self, entities: list[LibraryEntity]) -> int:
         if getattr(self.catalog, "photo_service", None) is None:
             return 0
         count = 0
         for entity in entities:
-            if entity.entity_type == ENTITY_MACHINE:
+            if entity.entity_type != ENTITY_EOAT:
                 continue
             if self.catalog.photo_count(entity) <= 0:
                 continue
@@ -2530,13 +3189,15 @@ class LibraryBrowseStateView(QWidget):
         service = getattr(self.catalog, "photo_service", None)
         if service is not None and self._thumbnail_context_id:
             service.cancel_context(self._thumbnail_context_id)
+            if self._hero_prefetch_context_id:
+                service.cancel_context(self._hero_prefetch_context_id)
             log_perf_marker(
                 _catalog_project_root(self.catalog),
                 "library.thumbnail_requests.cancel_old_context",
                 details={
                     "selected_category": self.scope_type,
                     "context_id": self._thumbnail_context_id,
-                    "stale_thumbnail_requests_cancelled": 1,
+                    "stale_thumbnail_requests_cancelled": 2 if self._hero_prefetch_context_id else 1,
                     "reason": "record_navigation",
                 },
                 source="minimalist_library",
@@ -2552,6 +3213,9 @@ class LibraryBrowseStateView(QWidget):
             self.page_label.setText(f"Showing 0 of 0 {label}")
         self.prev_button.setEnabled(self.page_index > 0)
         self.next_button.setEnabled(self.page_index < page_count - 1)
+        arrows_visible = _library_bool(self.controller, "library.show_previous_next_arrows", True)
+        self.prev_button.setVisible(arrows_visible)
+        self.next_button.setVisible(arrows_visible)
         pages = self._visible_page_numbers(page_count)
         for index, button in enumerate(self.page_buttons):
             if index >= len(pages):
@@ -2560,17 +3224,20 @@ class LibraryBrowseStateView(QWidget):
             number = pages[index]
             button.show()
             button.setText("..." if number < 0 else str(number + 1))
-            button.setEnabled(number >= 0)
+            button.setEnabled(number >= 0 and number != self.page_index)
             button.setProperty("active", number == self.page_index)
             button._apply_modern_style()
 
     def _visible_page_numbers(self, page_count: int) -> list[int]:
-        if page_count <= 5:
-            return list(range(page_count))
-        pages = [0, 1, 2, -1, page_count - 1]
-        if self.page_index > 2 and self.page_index < page_count - 2:
-            pages = [0, -1, self.page_index, -1, page_count - 1]
-        return pages
+        if not _library_bool(self.controller, "library.stable_pagination", True):
+            start = max(0, self.page_index - 3)
+            end = min(page_count, start + len(self.page_buttons))
+            start = max(0, end - len(self.page_buttons))
+            return list(range(start, end))
+        visible: list[int] = []
+        for item in get_pagination_items(self.page_index + 1, page_count):
+            visible.append(-1 if item == PAGINATION_ELLIPSIS else int(item) - 1)
+        return visible
 
     def _page_button_clicked(self, button_index: int) -> None:
         visible = self._visible_page_numbers(self._last_page_count)
@@ -2611,10 +3278,13 @@ class LibraryBrowseStateView(QWidget):
         width = min(widths) if widths else 1280
         if self.view_mode == "list":
             return 1
+        compact_small = _library_bool(self.controller, "library.compact_cards_on_small_screens", True)
         if width > 1340:
             return 4
         if width >= 970:
             return 3
+        if not compact_small:
+            return 1
         if width >= 650:
             return 2
         return 1
@@ -2713,7 +3383,7 @@ class LibrarySearchBar(GlassPanel):
         self.input = QLineEdit()
         self.input.setObjectName("LibrarySearchInput")
         self.input.setFrame(False)
-        set_placeholder_color(self.input, QColor("#9fb0c7"))
+        set_placeholder_color(self.input, QColor(TEXT_PLACEHOLDER))
         self.input.installEventFilter(self)
         layout.addWidget(self.input, 1)
 
@@ -2994,7 +3664,6 @@ class AtlasRecordCard(AnimatedGlassCard):
         self._thumbnail_photo_id = ""
         self._thumbnail_animation: QPropertyAnimation | None = None
         self._load_thumbnail()
-        self._action_pressed = False
         self.setObjectName("AtlasRecordCard")
         self.setToolTip(f"{entity.title}\n{entity.subtitle}")
         if self.variant == "compact":
@@ -3017,6 +3686,7 @@ class AtlasRecordCard(AnimatedGlassCard):
             self.setMinimumSize(320, 160)
         if not self.navigable:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+            self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     def get_thumbnail_opacity(self) -> float:
         return self._thumbnail_opacity
@@ -3045,6 +3715,7 @@ class AtlasRecordCard(AnimatedGlassCard):
             super().enterEvent(event)
         else:
             QWidget.enterEvent(self, event)
+        self._prefetch_hover_hero_photo()
 
     def leaveEvent(self, event) -> None:
         if self.interactive_effects:
@@ -3056,10 +3727,6 @@ class AtlasRecordCard(AnimatedGlassCard):
         if not self.navigable:
             event.ignore()
             return
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._action_pressed = True
-            self.update()
-            QTimer.singleShot(animation_duration(120), self._clear_action_press)
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:
@@ -3068,12 +3735,39 @@ class AtlasRecordCard(AnimatedGlassCard):
             return
         super().mouseDoubleClickEvent(event)
 
-    def _clear_action_press(self) -> None:
-        self._action_pressed = False
-        try:
-            self.update()
-        except RuntimeError:
+    def focusInEvent(self, event) -> None:
+        super().focusInEvent(event)
+        self._prefetch_hover_hero_photo()
+
+    def _interaction_progress(self) -> float:
+        hover = self._hover_progress if self.interactive_effects else 0.0
+        focus = 0.82 if self.navigable and self.hasFocus() else 0.0
+        return max(hover, focus)
+
+    def _card_location_line(self) -> str:
+        location = entity_location_line(self.entity, self.catalog)
+        if self.entity.entity_type in {ENTITY_EOAT, ENTITY_TOOL}:
+            if location == "Plant 4":
+                return "Plant 4 / Production"
+            if location == "Cleanroom":
+                return "Plant 4 / Cleanroom"
+        return location
+
+    def _bottom_left_icon(self) -> str:
+        if self.entity.entity_type == ENTITY_MACHINE:
+            return "eoat"
+        return "machine"
+
+    def _prefetch_hover_hero_photo(self) -> None:
+        if self.entity.entity_type != ENTITY_EOAT:
             return
+        _request_eoat_hero_thumbnail(
+            self.entity,
+            self.catalog,
+            context_id=f"library:eoat_card_hover:{self.entity.key}",
+            priority=85,
+            operation="library.eoat_preview.prefetch_hover",
+        )
 
     def paintEvent(self, event) -> None:
         if self.variant in {"node", "center_node"}:
@@ -3091,86 +3785,146 @@ class AtlasRecordCard(AnimatedGlassCard):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = QRectF(self.rect()).adjusted(0.8, 0.8, -0.8, -0.8)
-        hover = self._hover_progress if self.interactive_effects else 0.0
+        hover = self._interaction_progress()
+        tokens = active_minimalist_tokens()
+        light = effective_minimalist_theme() == "light"
         path = QPainterPath()
         path.addRoundedRect(rect, 10, 10)
         fill = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        fill.setColorAt(0.0, QColor(7, 20, 42, 218))
-        fill.setColorAt(0.55, QColor(5, 18, 38, 220))
-        fill.setColorAt(1.0, QColor(4, 14, 31, 232))
+        if light:
+            fill.setColorAt(0.0, QColor("#fbfdff"))
+            fill.setColorAt(0.55, QColor("#f1f6fb"))
+            fill.setColorAt(1.0, QColor("#e8f0f8"))
+        else:
+            fill.setColorAt(0.0, QColor(7, 20, 42, 218))
+            fill.setColorAt(0.55, QColor(5, 18, 38, 220))
+            fill.setColorAt(1.0, QColor(4, 14, 31, 232))
         painter.fillPath(path, fill)
         painter.save()
         painter.setClipPath(path)
         glow = QRadialGradient(rect.right() - rect.width() * 0.22, rect.top() + rect.height() * 0.30, rect.width() * 0.60)
-        glow.setColorAt(0.0, QColor(0, 122, 255, 38 + round(26 * hover)))
-        glow.setColorAt(0.58, QColor(0, 70, 160, 12))
+        if light:
+            accent = QColor(tokens.accent)
+            glow.setColorAt(0.0, QColor(accent.red(), accent.green(), accent.blue(), 20 + round(18 * hover)))
+            glow.setColorAt(0.58, QColor(accent.red(), accent.green(), accent.blue(), 7))
+        else:
+            glow.setColorAt(0.0, QColor(0, 122, 255, 38 + round(26 * hover)))
+            glow.setColorAt(0.58, QColor(0, 70, 160, 12))
         glow.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.fillRect(rect, glow)
         painter.restore()
-        border = QColor(76, 116, 157, 138 + round(70 * hover))
+        border = QColor("#b8c9dc") if light else QColor(76, 116, 157, 138 + round(70 * hover))
+        if light:
+            border.setAlpha(200 + round(32 * hover))
         if hover:
-            painter.setPen(QPen(QColor(28, 142, 255, round(62 * hover)), 4.0))
+            painter.setPen(QPen(QColor(28, 142, 255, round((34 if light else 62) * hover)), 4.0))
             painter.drawPath(path)
         painter.setPen(QPen(border, 1.1))
         painter.drawPath(path)
 
-        image_rect = QRectF(rect.left() + 24, rect.top() + 36, 112, 70)
-        self._draw_thumbnail(painter, image_rect, circular=False)
+        visual_column = QRectF(rect.left() + 18, rect.top() + 24, 144, 146)
+        if self.entity.entity_type == ENTITY_EOAT:
+            self._draw_thumbnail(painter, visual_column, circular=False)
+        else:
+            icon_rect = QRectF(visual_column.center().x() - 52, visual_column.center().y() - 52, 104, 104)
+            self._draw_thumbnail(painter, icon_rect, circular=True)
+        text_left = visual_column.right() + 18
+        text_right = rect.right() - 22
+        text_width = max(80.0, text_right - text_left)
         status, tone = card_status_display(self.entity, self.catalog)
-        self._draw_status(painter, QRectF(rect.left() + 150, rect.top() + 32, rect.width() - 172, 24), status, tone)
-        self._draw_text_fit(painter, self.entity.title, QRectF(rect.left() + 150, rect.top() + 70, rect.width() - 186, 34), QColor("#ffffff"), 19, 820, min_point_size=13)
-        self._draw_text(painter, clipped_text(self.entity.subtitle, 46), QRectF(rect.left() + 150, rect.top() + 105, rect.width() - 184, 28), QColor("#c9d4e4"), 12, 520)
-        divider_y = rect.top() + 148
-        painter.setPen(QPen(QColor(117, 151, 190, 76), 1))
+        self._draw_status(painter, QRectF(text_left, rect.top() + 30, text_width, 24), status, tone)
+        self._draw_text_fit(
+            painter,
+            self.entity.title,
+            QRectF(text_left, rect.top() + 67, text_width, 42),
+            QColor(tokens.text_primary if light else "#ffffff"),
+            19.5 if self.entity.entity_type == ENTITY_EOAT else 19,
+            830,
+            min_point_size=11.5,
+        )
+        self._draw_text(painter, clipped_text(self.entity.subtitle, 36), QRectF(text_left, rect.top() + 109, text_width, 30), QColor(tokens.text_secondary if light else "#c9d4e4"), 12, 520)
+        divider_y = rect.bottom() - 57
+        painter.setPen(QPen(QColor("#c9d8e8" if light else "#7597be"), 1))
         painter.drawLine(QPointF(rect.left() + 22, divider_y), QPointF(rect.right() - 22, divider_y))
 
         condition, condition_tone = entity_condition_line(self.entity, self.catalog)
-        self._draw_info_row(painter, "machine", condition, QRectF(rect.left() + 24, divider_y + 17, rect.width() - 98, 22), condition_tone)
-        self._draw_info_row(painter, "target", entity_location_line(self.entity, self.catalog), QRectF(rect.left() + 24, divider_y + 48, rect.width() - 98, 22), "normal")
-        self._draw_arrow_button(painter, QRectF(rect.right() - 66, rect.bottom() - 70, 42, 42), hover)
+        meta_gap = 12
+        meta_width = rect.width() - 48
+        half_width = (meta_width - meta_gap) / 2
+        meta_y = divider_y + 17
+        self._draw_info_row(painter, self._bottom_left_icon(), condition, QRectF(rect.left() + 24, meta_y, half_width, 24), condition_tone)
+        self._draw_info_row(
+            painter,
+            "target",
+            self._card_location_line(),
+            QRectF(rect.left() + 24 + half_width + meta_gap, meta_y, half_width, 24),
+            "normal",
+        )
 
     def _paint_list_card(self) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = QRectF(self.rect()).adjusted(0.8, 0.8, -0.8, -0.8)
-        hover = self._hover_progress
+        hover = self._interaction_progress()
+        tokens = active_minimalist_tokens()
+        light = effective_minimalist_theme() == "light"
         path = QPainterPath()
         path.addRoundedRect(rect, 10, 10)
-        painter.fillPath(path, QColor(6, 18, 38, 220))
-        painter.setPen(QPen(QColor(72, 112, 154, 132 + round(60 * hover)), 1.1))
+        painter.fillPath(path, QColor("#f6f9fd" if light else "#061226"))
+        if hover:
+            painter.setPen(QPen(QColor(28, 142, 255, round((32 if light else 48) * hover)), 3.0))
+            painter.drawPath(path)
+        border = QColor("#b8c9dc") if light else QColor(72, 112, 154, 132 + round(60 * hover))
+        if light:
+            border.setAlpha(200 + round(32 * hover))
+        painter.setPen(QPen(border, 1.1))
         painter.drawPath(path)
-        image_rect = QRectF(rect.left() + 18, rect.top() + 18, 82, 82)
-        self._draw_thumbnail(painter, image_rect, circular=False)
+        visual_column = QRectF(rect.left() + 18, rect.top() + 18, 136, 82)
+        if self.entity.entity_type == ENTITY_EOAT:
+            self._draw_thumbnail(painter, visual_column, circular=False)
+        else:
+            icon_rect = QRectF(visual_column.center().x() - 36, visual_column.center().y() - 36, 72, 72)
+            self._draw_thumbnail(painter, icon_rect, circular=True)
         status, tone = card_status_display(self.entity, self.catalog)
         self._draw_status(painter, QRectF(rect.right() - 168, rect.top() + 22, 140, 22), status, tone)
-        self._draw_text_fit(painter, self.entity.title, QRectF(rect.left() + 122, rect.top() + 22, rect.width() - 320, 34), QColor("#ffffff"), 18, 820, min_point_size=12)
-        self._draw_text(painter, clipped_text(self.entity.subtitle, 90), QRectF(rect.left() + 122, rect.top() + 58, rect.width() - 320, 24), QColor("#c9d4e4"), 12, 520)
+        text_left = visual_column.right() + 22
+        title_right = max(text_left + 130, rect.right() - 184)
+        self._draw_text_fit(painter, self.entity.title, QRectF(text_left, rect.top() + 22, title_right - text_left, 34), QColor(tokens.text_primary if light else "#ffffff"), 18, 820, min_point_size=12)
+        self._draw_text(painter, clipped_text(self.entity.subtitle, 90), QRectF(text_left, rect.top() + 58, rect.right() - text_left - 26, 24), QColor(tokens.text_secondary if light else "#c9d4e4"), 12, 520)
         condition, condition_tone = entity_condition_line(self.entity, self.catalog)
-        self._draw_info_row(painter, "machine", condition, QRectF(rect.left() + 122, rect.top() + 84, 240, 22), condition_tone)
-        self._draw_info_row(painter, "target", entity_location_line(self.entity, self.catalog), QRectF(rect.left() + 365, rect.top() + 84, 210, 22), "normal")
-        self._draw_arrow_button(painter, QRectF(rect.right() - 64, rect.center().y() - 21, 42, 42), hover)
+        meta_gap = 16
+        meta_width = max(120.0, rect.right() - text_left - 28)
+        left_width = min(250.0, (meta_width - meta_gap) * 0.54)
+        right_width = max(120.0, meta_width - left_width - meta_gap)
+        self._draw_info_row(painter, self._bottom_left_icon(), condition, QRectF(text_left, rect.top() + 84, left_width, 22), condition_tone)
+        self._draw_info_row(painter, "target", self._card_location_line(), QRectF(text_left + left_width + meta_gap, rect.top() + 84, right_width, 22), "normal")
 
     def _paint_relationship_card(self) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = QRectF(self.rect()).adjusted(0.7, 0.7, -0.7, -0.7)
-        hover = self._hover_progress if self.interactive_effects else 0.0
+        hover = self._interaction_progress()
+        tokens = active_minimalist_tokens()
+        light = effective_minimalist_theme() == "light"
         path = QPainterPath()
         path.addRoundedRect(rect, 8, 8)
-        painter.fillPath(path, QColor(7, 22, 45, 210))
-        painter.setPen(QPen(QColor(75, 116, 157, 128 + round(54 * hover)), 1.0))
+        painter.fillPath(path, QColor("#f6f9fd" if light else "#07162d"))
+        border = QColor("#b8c9dc") if light else QColor(75, 116, 157, 128 + round(54 * hover))
+        if light:
+            border.setAlpha(200 + round(28 * hover))
+        painter.setPen(QPen(border, 1.0))
         painter.drawPath(path)
         self._draw_thumbnail(painter, QRectF(rect.left() + 10, rect.top() + 11, 38, 38), circular=False)
         right_reserve = 58 if self.badge_label else 20
         title_rect = QRectF(rect.left() + 60, rect.top() + 9, rect.width() - 60 - right_reserve, 21)
-        self._draw_text_fit(painter, self.entity.title, title_rect, QColor("#ffffff"), 9.8, 760, min_point_size=7.8)
-        self._draw_text(painter, clipped_text(self.entity.subtitle, 26), QRectF(rect.left() + 60, rect.top() + 32, rect.width() - 76, 19), QColor("#b9c5d7"), 8.2, 500)
+        self._draw_text_fit(painter, self.entity.title, title_rect, QColor(tokens.text_primary if light else "#ffffff"), 9.8, 760, min_point_size=7.8)
+        self._draw_text(painter, clipped_text(self.entity.subtitle, 26), QRectF(rect.left() + 60, rect.top() + 32, rect.width() - 76, 19), QColor(tokens.text_secondary if light else "#c3d0e1"), 8.2, 500)
         if self.badge_label:
             badge_rect = QRectF(rect.right() - 58, rect.top() + 7, 48, 17)
             badge_path = QPainterPath()
             badge_path.addRoundedRect(badge_rect, 7, 7)
-            painter.fillPath(badge_path, QColor(0, 126, 255, 76))
-            self._draw_text(painter, self.badge_label, badge_rect, QColor("#9be4ff"), 6.2, 760, align=Qt.AlignmentFlag.AlignCenter)
+            painter.fillPath(badge_path, QColor(tokens.accent_soft if light else "#004f9f"))
+            self._draw_text(painter, self.badge_label, badge_rect, QColor(tokens.accent_hover if light else "#9be4ff"), 6.2, 760, align=Qt.AlignmentFlag.AlignCenter)
         if self.navigable:
             chevron_x = rect.right() - 17 + hover * 2
             chevron_y = rect.center().y()
@@ -3182,7 +3936,7 @@ class AtlasRecordCard(AnimatedGlassCard):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = QRectF(self.rect()).adjusted(2, 2, -2, -2)
-        hover = self._hover_progress if self.interactive_effects else 0.0
+        hover = self._interaction_progress()
         center = rect.center()
         radius = min(rect.width(), rect.height()) / 2
         painter.save()
@@ -3194,7 +3948,7 @@ class AtlasRecordCard(AnimatedGlassCard):
         painter.fillRect(rect.adjusted(-20, -20, 20, 20), halo)
         painter.restore()
         painter.setBrush(QColor(6, 19, 40, 212))
-        border_color = QColor("#04b76f") if self.variant == "center_node" else QColor("#247be8")
+        border_color = STATUS_SUCCESS if self.variant == "center_node" else QColor("#247be8")
         painter.setPen(QPen(border_color, 1.6))
         painter.drawEllipse(rect)
         self._draw_thumbnail(painter, QRectF(center.x() - 35, rect.top() + 33, 70, 54), circular=False)
@@ -3210,7 +3964,7 @@ class AtlasRecordCard(AnimatedGlassCard):
     def _load_thumbnail(self) -> None:
         if self.catalog is None:
             return
-        if self.entity.entity_type == ENTITY_MACHINE:
+        if self.entity.entity_type != ENTITY_EOAT:
             return
         try:
             service = getattr(self.catalog, "photo_service", None)
@@ -3221,7 +3975,9 @@ class AtlasRecordCard(AnimatedGlassCard):
                 return
             photo_id, paths = candidates[0]
             self._thumbnail_photo_id = photo_id
-            cached = service.get_cached_thumbnail(photo_id, (220, 140))
+            thumbnail_size = self._thumbnail_request_size()
+            use_cache = _library_bool(getattr(self.catalog, "controller", None), "library.use_cached_thumbnails", True)
+            cached = service.get_cached_thumbnail(photo_id, thumbnail_size) if use_cache else None
             if cached is not None and not cached.isNull():
                 log_perf_marker(
                     _catalog_project_root(self.catalog),
@@ -3235,9 +3991,18 @@ class AtlasRecordCard(AnimatedGlassCard):
                 return
             service.thumbnail_ready.connect(self._thumbnail_ready)
             service.photo_load_failed.connect(self._thumbnail_failed)
-            service.request_thumbnail(photo_id, paths, (220, 140), 60, self._thumbnail_context)
+            service.request_thumbnail(photo_id, paths, thumbnail_size, 60, self._thumbnail_context)
         except Exception:
             LOGGER.exception("Card thumbnail request failed for %s %s", self.entity.entity_type, self.entity.key)
+
+    def _thumbnail_request_size(self) -> tuple[int, int]:
+        if self.entity.entity_type != ENTITY_EOAT:
+            return CARD_THUMBNAIL_SIZE
+        if self.variant == "compact":
+            return EOAT_CARD_THUMBNAIL_SIZE
+        if self.variant == "list":
+            return EOAT_LIST_THUMBNAIL_SIZE
+        return CARD_THUMBNAIL_SIZE
 
     @Slot(str, object, str, str)
     def _thumbnail_ready(self, photo_id: str, image: QImage, _resolved_path: str, context_id: str) -> None:
@@ -3286,24 +4051,32 @@ class AtlasRecordCard(AnimatedGlassCard):
         animation.start()
 
     def _draw_thumbnail(self, painter: QPainter, rect: QRectF, *, circular: bool) -> None:
-        painter.save()
+        tokens = active_minimalist_tokens()
+        light = effective_minimalist_theme() == "light"
+        frame_path = QPainterPath()
         if circular:
-            path = QPainterPath()
-            path.addEllipse(rect)
-            painter.setClipPath(path)
+            frame_path.addEllipse(rect)
+        else:
+            frame_path.addRoundedRect(rect, 8, 8)
+        show_placeholder = _library_bool(getattr(self.catalog, "controller", None), "library.show_placeholder_while_loading_images", True)
+        if not show_placeholder and (self._thumbnail is None or self._thumbnail.isNull()):
+            return
+        painter.fillPath(frame_path, QColor("#e6eef6" if light else "#081c3a"))
+        painter.save()
+        painter.setClipPath(frame_path)
         if self._thumbnail is not None and not self._thumbnail.isNull():
             scaled = self._thumbnail.scaled(rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             painter.setOpacity(self._thumbnail_opacity)
             painter.drawPixmap(round(rect.center().x() - scaled.width() / 2), round(rect.center().y() - scaled.height() / 2), scaled)
         else:
             glyph = self._main_glyph()
-            painter.setPen(QPen(QColor(94, 146, 204, 105), 1.0))
-            painter.setBrush(QColor(8, 28, 58, 88))
-            painter.drawRoundedRect(rect, 8, 8)
             icon_side = round(min(rect.width(), rect.height()) * 0.58)
-            pix = glyph_icon(glyph, QColor("#d7e8ff"), icon_side).pixmap(icon_side, icon_side)
+            pix = glyph_icon(glyph, QColor(tokens.text_secondary if light else "#d7e8ff"), icon_side).pixmap(icon_side, icon_side)
             painter.drawPixmap(round(rect.center().x() - pix.width() / 2), round(rect.center().y() - pix.height() / 2), pix)
         painter.restore()
+        painter.setPen(QPen(QColor("#b6c8db" if light else "#5e92cc"), 1.0))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(frame_path)
 
     def _draw_status(self, painter: QPainter, rect: QRectF, text: str, tone: str, *, compact: bool = False) -> None:
         color = self._tone_color(tone)
@@ -3314,42 +4087,12 @@ class AtlasRecordCard(AnimatedGlassCard):
         self._draw_text(painter, text, rect.adjusted(dot_side + 7, -1, 0, 1), color, 9.2 if not compact else 7.8, 680)
 
     def _draw_info_row(self, painter: QPainter, glyph: str, text: str, rect: QRectF, tone: str) -> None:
-        color = self._tone_color(tone) if tone in {"warning", "muted"} else QColor("#d7dfec")
+        tokens = active_minimalist_tokens()
+        light = effective_minimalist_theme() == "light"
+        color = self._tone_color(tone) if tone in {"warning", "muted"} else QColor(tokens.text_secondary if light else "#d7dfec")
         icon = glyph_icon(glyph, color, 18).pixmap(18, 18)
         painter.drawPixmap(round(rect.left()), round(rect.center().y() - 9), icon)
         self._draw_text_fit(painter, text, rect.adjusted(30, -1, 0, 1), color, 10.5, 500, min_point_size=8.5)
-
-    def _draw_arrow_button(self, painter: QPainter, rect: QRectF, hover: float) -> None:
-        if not self.navigable:
-            return
-        pressed = bool(getattr(self, "_action_pressed", False))
-        path = QPainterPath()
-        path.addRoundedRect(rect, 8, 8)
-        if hover and not pressed:
-            painter.save()
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
-            glow = QRadialGradient(rect.center(), rect.width() * 0.86)
-            glow.setColorAt(0.0, QColor(43, 168, 232, round(24 + 28 * hover)))
-            glow.setColorAt(0.58, QColor(29, 141, 206, round(10 + 14 * hover)))
-            glow.setColorAt(1.0, QColor(0, 0, 0, 0))
-            painter.fillRect(rect.adjusted(-9, -9, 9, 9), glow)
-            painter.restore()
-        fill = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        start = "#0D2B4B" if pressed else ("#16507F" if hover >= 0.55 else "#123A63")
-        end = "#123F64" if pressed else ("#1D8DCE" if hover >= 0.55 else "#176C9A")
-        fill.setColorAt(0.0, QColor(start))
-        fill.setColorAt(1.0, QColor(end))
-        painter.fillPath(path, fill)
-        border_alpha = 86 if pressed else 90 + round(78 * hover)
-        painter.setPen(QPen(QColor(90, 190, 255, border_alpha), 1.0))
-        painter.drawPath(path)
-        color = QColor("#D8F4FF" if pressed else "#7EDCFF")
-        color.setAlpha(226 if pressed else 220 + round(25 * hover))
-        painter.setPen(QPen(color, 2.0))
-        center = rect.center()
-        painter.drawLine(QPointF(center.x() - 9, center.y()), QPointF(center.x() + 9, center.y()))
-        painter.drawLine(QPointF(center.x() + 2, center.y() - 8), QPointF(center.x() + 10, center.y()))
-        painter.drawLine(QPointF(center.x() + 2, center.y() + 8), QPointF(center.x() + 10, center.y()))
 
     def _draw_text(self, painter: QPainter, text: str, rect: QRectF, color: QColor, point_size: float, weight: int, *, align=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter) -> None:
         painter.setFont(_font(point_size, weight))
@@ -3385,20 +4128,14 @@ class AtlasRecordCard(AnimatedGlassCard):
         return {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(self.entity.entity_type, "library")
 
     def _tone_color(self, tone: str) -> QColor:
-        if tone in {"good", "normal"}:
-            return QColor("#20df72")
-        if tone == "warning" or tone == "warn":
-            return QColor("#ffb145")
-        if tone == "muted":
-            return QColor("#9aa9be")
-        return QColor("#6ea7ff")
+        return _semantic_tone_color(tone)
 
 
 LibraryBrowseCard = AtlasRecordCard
 
 
 class LibraryRecordStateView(QWidget):
-    pdf_export_complete = Signal(str)
+    pdf_export_complete = Signal(object)
     pdf_export_failed = Signal(str)
 
     def __init__(self, catalog: LibraryCatalog, entity: LibraryEntity, back_callback, record_callback, parent=None):
@@ -3418,6 +4155,9 @@ class LibraryRecordStateView(QWidget):
         self._tab_placeholders: dict[int, QWidget] = {}
         self._tab_widgets: dict[int, QWidget] = {}
         self._pdf_export_running = False
+        self._pdf_options_overlay: PDFOptionsOverlay | None = None
+        self._pdf_status_overlay: PDFGenerationStatusOverlay | None = None
+        self._pdf_preview_overlay: PDFPreviewOverlay | None = None
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 84, 0, 12)
         self._layout.setSpacing(14)
@@ -3584,7 +4324,24 @@ class LibraryRecordStateView(QWidget):
                 )
                 self.docs = widget
             elif index == 3:
-                widget = RecordHistoryTab(self.detail_data)
+                if self.detail_data.record_type != ENTITY_EOAT:
+                    widget = LegacyRecordHistoryTab(self.detail_data)
+                else:
+                    project_root = _catalog_project_root(self.catalog)
+                    data_service = self.catalog.data_service
+                    if data_service is not None:
+                        def history_loader():
+                            return data_service.get_eoat_history(self.detail_data.record_id)
+                    else:
+                        def history_loader():
+                            return EOATHistoryService(
+                                configured_eoat_history_repository(project_root)
+                            ).history_for(self.detail_data.record_id)
+                    widget = RecordHistoryTab(
+                        self.detail_data,
+                        project_root=project_root,
+                        history_loader=history_loader,
+                    )
                 self.history = widget
             else:
                 return None
@@ -3601,47 +4358,68 @@ class LibraryRecordStateView(QWidget):
             return
         if self._pdf_export_running:
             return
+        project_root = _catalog_project_root(self.catalog)
+        overlay = PDFOptionsOverlay.open_for(self, self.detail_data, project_root=project_root)
+        overlay.generate_requested.connect(self._begin_pdf_generation)
+        overlay.cancel_requested.connect(lambda: setattr(self, "_pdf_options_overlay", None))
+        overlay.destroyed.connect(lambda *_args: setattr(self, "_pdf_options_overlay", None))
+        self._pdf_options_overlay = overlay
+
+    @Slot(object)
+    def _begin_pdf_generation(self, options: ReportOptions) -> None:
+        if self.detail_data is None:
+            return
+        if self._pdf_export_running:
+            return
         detail_data = self.detail_data
         project_root = _catalog_project_root(self.catalog)
         self._pdf_export_running = True
         self._set_pdf_export_busy(True)
         _log_ui_marker(
             project_root,
-            "ui.pdf_export.start",
+            "pdf.generation.start",
             details={
                 "record_type": detail_data.record_type,
                 "record_id": detail_data.record_id,
                 "photo_count": detail_data.photo_count,
+                "format_mode": options.format_mode,
             },
             page_tool="library_record",
         )
-        self._notify("Exporting PDF...")
+        self._pdf_options_overlay = None
+        self._show_pdf_generation_status(detail_data, project_root)
 
         worker = threading.Thread(
             target=self._run_pdf_export_worker,
-            args=(detail_data, project_root),
+            args=(detail_data, project_root, options),
             name=f"RecordPdfExport-{detail_data.record_type}-{detail_data.record_id}",
             daemon=True,
         )
         worker.start()
 
-    def _run_pdf_export_worker(self, detail_data: RecordDetailData, project_root: str) -> None:
+    def _run_pdf_export_worker(self, detail_data: RecordDetailData, project_root: str, options: ReportOptions) -> None:
         try:
-            from core.reporting.pdf_record_report import export_record_pdf
+            from core.reporting.pdf_record_report import export_record_pdf, pdf_image_warnings_for
 
+            preview_path = _record_pdf_preview_path(project_root, detail_data)
+            default_save_path = Path(options.output_path) if options.output_path is not None else _record_pdf_output_dir(project_root) / _record_report_default_filename(detail_data)
             with perf_timer(
                 project_root,
-                "record.pdf_export",
+                "pdf.generation.worker",
                 details={
                     "record_type": detail_data.record_type,
                     "record_id": detail_data.record_id,
                     "photo_count": detail_data.photo_count,
                     "background": True,
+                    "format_mode": options.format_mode,
+                    "preview_path": str(preview_path),
+                    "default_save_path": str(default_save_path),
                 },
                 source="minimalist_library",
                 page_tool="library_record",
             ):
-                path = export_record_pdf(detail_data, project_root=project_root)
+                path = export_record_pdf(detail_data, output_path=preview_path, project_root=project_root, options=options)
+                skipped_photo_count = len(pdf_image_warnings_for(path))
         except Exception as exc:
             LOGGER.exception("PDF export failed for %s %s", detail_data.record_type, detail_data.record_id)
             try:
@@ -3650,29 +4428,69 @@ class LibraryRecordStateView(QWidget):
                 LOGGER.debug("Record view was destroyed before PDF export failure could be reported.")
             return
         try:
-            self.pdf_export_complete.emit(str(path))
+            self.pdf_export_complete.emit(
+                {
+                    "path": str(path),
+                    "default_save_path": str(default_save_path),
+                    "skipped_photo_count": skipped_photo_count,
+                    "options": options,
+                }
+            )
         except RuntimeError:
             LOGGER.debug("Record view was destroyed before PDF export completion could be reported.")
 
-    @Slot(str)
-    def _pdf_export_finished(self, path: str) -> None:
+    @Slot(object)
+    def _pdf_export_finished(self, result: object) -> None:
+        if isinstance(result, dict):
+            path = str(result.get("path") or "")
+            default_save_path = str(result.get("default_save_path") or "")
+            skipped_photo_count = int(result.get("skipped_photo_count") or 0)
+            options = result.get("options")
+        else:
+            path = str(result or "")
+            default_save_path = ""
+            skipped_photo_count = 0
+            options = None
         self._pdf_export_running = False
         self._set_pdf_export_busy(False)
+        self._hide_pdf_generation_status()
         _log_ui_marker(
             _catalog_project_root(self.catalog),
-            "ui.pdf_export.complete",
+            "pdf.generation.complete",
             details={"record_type": self.entity.entity_type, "record_id": self.entity.key, "output_path": path},
             page_tool="library_record",
         )
-        self._notify("PDF report exported.")
+        message = "PDF preview generated."
+        if skipped_photo_count:
+            noun = "photo" if skipped_photo_count == 1 else "photos"
+            message = f"PDF preview generated with {skipped_photo_count} skipped {noun}."
+        self._notify(message)
         notifier = getattr(self.catalog.controller, "show_status", None)
         if callable(notifier):
-            notifier(f"PDF report exported: {path}")
+            notifier(message)
+        if self.detail_data is not None:
+            session = PdfPreviewSession(
+                record_type=self.detail_data.record_type,
+                record_id=self.detail_data.record_id,
+                temp_pdf_path=Path(path),
+                default_save_path=Path(default_save_path) if default_save_path else _record_pdf_output_dir(_catalog_project_root(self.catalog)) / _record_report_default_filename(self.detail_data),
+                options=options,
+                temp_preview_dir=_record_pdf_preview_dir(_catalog_project_root(self.catalog)),
+            )
+            self._pdf_preview_overlay = PDFPreviewOverlay.open_for(
+                self,
+                session,
+                self.detail_data,
+                project_root=_catalog_project_root(self.catalog),
+                skipped_photo_count=skipped_photo_count,
+            )
+            self._pdf_preview_overlay.destroyed.connect(lambda *_args: setattr(self, "_pdf_preview_overlay", None))
 
     @Slot(str)
     def _pdf_export_failed(self, message: str) -> None:
         self._pdf_export_running = False
         self._set_pdf_export_busy(False)
+        self._hide_pdf_generation_status()
         _log_ui_marker(
             _catalog_project_root(self.catalog),
             "ui.pdf_export.fail",
@@ -3696,7 +4514,17 @@ class LibraryRecordStateView(QWidget):
         if button is None:
             return
         button.setEnabled(not busy)
-        button.setText("Exporting..." if busy else "Export PDF")
+        button.setText("Generating..." if busy else "Export PDF")
+
+    def _show_pdf_generation_status(self, detail_data: RecordDetailData, project_root: str) -> None:
+        self._hide_pdf_generation_status()
+        self._pdf_status_overlay = PDFGenerationStatusOverlay.show_for(self, detail_data, project_root=project_root)
+
+    def _hide_pdf_generation_status(self) -> None:
+        overlay = self._pdf_status_overlay
+        self._pdf_status_overlay = None
+        if overlay is not None:
+            overlay.stop()
 
     def _notify(self, message: str) -> None:
         widget = self.parentWidget()
@@ -3739,11 +4567,26 @@ class RecordHeroPanel(GlassPanel):
         label.setObjectName("RecordHeroType")
         title = QLabel(entity.title)
         title.setObjectName("RecordHeroTitle")
+        title.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(10)
+        title_row.addWidget(title, 0, Qt.AlignmentFlag.AlignTop)
+        if _library_bool(getattr(catalog, "controller", None), "library.show_copy_icon_on_profile_ids", True):
+            copy_button = CopyIdButton(entity.title, profile_copy_label(entity.entity_type))
+            copy_host = QWidget()
+            copy_host.setObjectName("ProfileCopyButtonHost")
+            copy_host_layout = QVBoxLayout(copy_host)
+            copy_host_layout.setContentsMargins(0, 5, 0, 0)
+            copy_host_layout.setSpacing(0)
+            copy_host_layout.addWidget(copy_button, 0, Qt.AlignmentFlag.AlignTop)
+            title_row.addWidget(copy_host, 0, Qt.AlignmentFlag.AlignTop)
+        title_row.addStretch(1)
         subtitle = QLabel(entity.subtitle)
         subtitle.setObjectName("RecordHeroSubtitle")
         subtitle.setWordWrap(True)
         identity.addWidget(label)
-        identity.addWidget(title)
+        identity.addLayout(title_row)
         identity.addWidget(subtitle)
         rule = QFrame()
         rule.setObjectName("RecordHeroRule")
@@ -3794,7 +4637,169 @@ class EntityPortrait(QWidget):
         super().__init__(parent)
         self.entity = entity
         self.catalog = catalog
-        self.pixmap = None
+        self.pixmap: QPixmap | None = None
+        self._hero_photo_id = ""
+        self._hero_photo_context = f"record:eoat:{entity.key}:hero"
+        self._photo_opacity = 1.0
+        self._photo_animation: QPropertyAnimation | None = None
+        self._request_eoat_hero_photo()
+
+    def get_photo_opacity(self) -> float:
+        return self._photo_opacity
+
+    def set_photo_opacity(self, value: float) -> None:
+        self._photo_opacity = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    photoOpacity = Property(float, get_photo_opacity, set_photo_opacity)
+
+    def _request_eoat_hero_photo(self) -> None:
+        if self.entity.entity_type != ENTITY_EOAT:
+            return
+        try:
+            service = getattr(self.catalog, "photo_service", None)
+            if service is None:
+                return
+            photo_id, paths = _eoat_hero_photo_candidate(self.entity, self.catalog)
+            if not paths:
+                return
+            self._hero_photo_id = photo_id or f"hero:{self.entity.key}"
+            project_root = _catalog_project_root(self.catalog)
+            _log_ui_marker(
+                project_root,
+                "eoat.hero_photo.cache_check",
+                details={
+                    "eoat_id": self.entity.key,
+                    "photo_id": self._hero_photo_id,
+                    "requested_size": list(EOAT_HERO_PHOTO_SIZE),
+                    "context_id": self._hero_photo_context,
+                },
+                page_tool="library_record",
+            )
+            use_cache = _library_bool(getattr(self.catalog, "controller", None), "library.use_cached_thumbnails", True)
+            cached = service.get_cached_thumbnail(self._hero_photo_id, EOAT_HERO_PHOTO_SIZE) if use_cache else None
+            if cached is not None and not cached.isNull():
+                _log_ui_marker(
+                    project_root,
+                    "eoat.hero_photo.memory_cache_hit",
+                    details={
+                        "eoat_id": self.entity.key,
+                        "photo_id": self._hero_photo_id,
+                        "requested_size": list(EOAT_HERO_PHOTO_SIZE),
+                        "memory_cache_hit": True,
+                        "cache_enabled": use_cache,
+                    },
+                    page_tool="library_record",
+                )
+                self._apply_hero_image(cached, from_cache=True)
+                return
+            _log_ui_marker(
+                project_root,
+                "eoat.hero_photo.memory_cache_hit",
+                details={
+                    "eoat_id": self.entity.key,
+                    "photo_id": self._hero_photo_id,
+                    "requested_size": list(EOAT_HERO_PHOTO_SIZE),
+                    "memory_cache_hit": False,
+                    "cache_enabled": use_cache,
+                },
+                page_tool="library_record",
+            )
+            service.thumbnail_ready.connect(self._hero_thumbnail_ready)
+            service.photo_load_failed.connect(self._hero_thumbnail_failed)
+            _log_ui_marker(
+                project_root,
+                "eoat.hero_photo.request",
+                details={
+                    "eoat_id": self.entity.key,
+                    "photo_id": self._hero_photo_id,
+                    "requested_size": list(EOAT_HERO_PHOTO_SIZE),
+                    "priority": 95,
+                    "context_id": self._hero_photo_context,
+                },
+                page_tool="library_record",
+            )
+            service.request_thumbnail(self._hero_photo_id, paths, EOAT_HERO_PHOTO_SIZE, 95, self._hero_photo_context)
+        except Exception:
+            LOGGER.exception("EOAT hero photo request failed for %s", self.entity.key)
+
+    @Slot(str, object, str, str)
+    def _hero_thumbnail_ready(self, photo_id: str, image: QImage, _resolved_path: str, context_id: str) -> None:
+        if context_id != self._hero_photo_context or photo_id != self._hero_photo_id:
+            return
+        if image.isNull():
+            return
+        _log_ui_marker(
+            _catalog_project_root(self.catalog),
+            "eoat.hero_photo.ready_to_ui",
+            details={
+                "eoat_id": self.entity.key,
+                "photo_id": photo_id,
+                "requested_size": list(EOAT_HERO_PHOTO_SIZE),
+                "resolved_path": _resolved_path,
+            },
+            page_tool="library_record",
+        )
+        self._apply_hero_image(image, from_cache=False)
+
+    def _apply_hero_image(self, image: QImage, *, from_cache: bool) -> None:
+        with _maybe_perf_timer(
+            _catalog_project_root(self.catalog),
+            "eoat.hero_photo.apply_to_circle",
+            details={
+                "eoat_id": self.entity.key,
+                "photo_id": self._hero_photo_id,
+                "requested_size": list(EOAT_HERO_PHOTO_SIZE),
+                "from_memory_cache": from_cache,
+            },
+        ):
+            pixmap = QPixmap.fromImage(image)
+        if pixmap.isNull():
+            return
+        self.pixmap = pixmap
+        if from_cache:
+            self._photo_opacity = 1.0
+            self.update()
+            return
+        self._start_photo_fade()
+
+    @Slot(str, str, str)
+    def _hero_thumbnail_failed(self, photo_id: str, reason: str, context_id: str) -> None:
+        if context_id != self._hero_photo_context or photo_id != self._hero_photo_id:
+            return
+        key = (self.entity.entity_type, self.entity.key, photo_id)
+        if key not in _HERO_PHOTO_FAILURE_LOGGED:
+            _HERO_PHOTO_FAILURE_LOGGED.add(key)
+            LOGGER.warning("EOAT hero photo unavailable for %s (%s): %s", self.entity.key, photo_id, reason)
+        self.update()
+
+    def _start_photo_fade(self) -> None:
+        _log_ui_marker(
+            _catalog_project_root(self.catalog),
+            "ui.hero_photo.fade_in",
+            details={
+                "record_type": self.entity.entity_type,
+                "record_id": self.entity.key,
+                "photo_id": self._hero_photo_id,
+                "duration_ms": 0 if prefers_reduced_motion() else 180,
+            },
+            page_tool="library_record",
+        )
+        self._photo_opacity = 0.0 if not prefers_reduced_motion() else 1.0
+        if prefers_reduced_motion():
+            self.update()
+            return
+        if self._photo_animation is not None:
+            self._photo_animation.stop()
+            self._photo_animation.deleteLater()
+        animation = QPropertyAnimation(self, b"photoOpacity", self)
+        animation.setDuration(180)
+        animation.setStartValue(0.0)
+        animation.setEndValue(1.0)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._photo_animation = animation
+        animation.finished.connect(lambda: setattr(self, "_photo_animation", None))
+        animation.start()
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -3809,17 +4814,26 @@ class EntityPortrait(QWidget):
         painter.fillRect(QRectF(self.rect()), halo)
         painter.restore()
         painter.setBrush(QColor(6, 24, 48, 116))
-        painter.setPen(QPen(QColor("#04b76f"), 1.1))
+        painter.setPen(QPen(STATUS_SUCCESS, 1.1))
         painter.drawEllipse(rect)
-        image_rect = rect.adjusted(24, 42, -24, -42)
         if self.pixmap is not None and not self.pixmap.isNull():
-            scaled = self.pixmap.scaled(image_rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            painter.drawPixmap(round(image_rect.center().x() - scaled.width() / 2), round(image_rect.center().y() - scaled.height() / 2), scaled)
+            photo_rect = rect.adjusted(2.0, 2.0, -2.0, -2.0)
+            photo_path = QPainterPath()
+            photo_path.addEllipse(photo_rect)
+            painter.save()
+            painter.setClipPath(photo_path)
+            scaled = self.pixmap.scaled(photo_rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+            painter.setOpacity(self._photo_opacity)
+            painter.drawPixmap(round(photo_rect.center().x() - scaled.width() / 2), round(photo_rect.center().y() - scaled.height() / 2), scaled)
+            painter.restore()
         else:
             glyph = {ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(self.entity.entity_type, "library")
             icon = glyph_icon(glyph, QColor("#d7e8ff"), 72).pixmap(72, 72)
             painter.drawPixmap(round(rect.center().x() - icon.width() / 2), round(rect.center().y() - icon.height() / 2), icon)
-        painter.setBrush(QColor("#20df72"))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(STATUS_SUCCESS, 1.1))
+        painter.drawEllipse(rect)
+        painter.setBrush(STATUS_SUCCESS)
         painter.setPen(QPen(QColor("#061226"), 1))
         painter.drawEllipse(QRectF(rect.right() - 34, rect.top() + 20, 8, 8))
 
@@ -3834,7 +4848,7 @@ class StatusLineLabel(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        color = QColor("#20df72") if self.tone == "good" else QColor("#ffb145")
+        color = _semantic_tone_color(self.tone)
         painter.setBrush(color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QRectF(0, 8, 8, 8))
@@ -3854,7 +4868,7 @@ class InfoPill(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        icon = glyph_icon(self.glyph, QColor("#aebbd0"), 18).pixmap(18, 18)
+        icon = glyph_icon(self.glyph, QColor("#b7c4d5"), 18).pixmap(18, 18)
         painter.drawPixmap(0, 4, icon)
         painter.setFont(_font(10, 520))
         painter.setPen(QColor("#c9d4e4"))
@@ -3874,6 +4888,865 @@ class MetadataBlock(QWidget):
         val.setWordWrap(True)
         layout.addWidget(key)
         layout.addWidget(val)
+
+
+class PDFOptionsOverlay(QWidget):
+    generate_requested = Signal(object)
+    cancel_requested = Signal()
+
+    def __init__(self, detail_data: RecordDetailData, *, project_root: str = "", parent=None):
+        super().__init__(parent)
+        self.detail_data = detail_data
+        self.project_root = project_root
+        self.output_folder = _record_pdf_output_dir(project_root)
+        self.setObjectName("PDFOptionsOverlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._effect = QGraphicsOpacityEffect(self)
+        self._effect.setOpacity(0.0)
+        self.setGraphicsEffect(self._effect)
+        self._opacity_animation = QPropertyAnimation(self._effect, b"opacity", self)
+        self._geometry_animation = QPropertyAnimation(self, b"geometry", self)
+        self._closing = False
+
+        self.panel = GlassPanel(self, radius=24, streaks=False)
+        self.panel.setObjectName("PDFOptionsPanel")
+        self.panel.set_glass(alpha=244, border_alpha=190, border_color=QColor("#73b7ff"), fill_color=QColor("#020b1d"), outer_glow_alpha=82)
+        self._build_panel()
+
+    @classmethod
+    def open_for(cls, source_widget: QWidget, detail_data: RecordDetailData, *, project_root: str = "") -> "PDFOptionsOverlay":
+        root = source_widget.window()
+        overlay = cls(detail_data, project_root=project_root, parent=root)
+        overlay.setGeometry(root.rect())
+        overlay.show()
+        overlay.raise_()
+        overlay.open_overlay()
+        return overlay
+
+    def open_overlay(self) -> None:
+        _log_ui_marker(
+            self.project_root,
+            "pdf.options_overlay.open",
+            details={"record_type": self.detail_data.record_type, "record_id": self.detail_data.record_id},
+            page_tool="library_record",
+        )
+        self.setFocus(Qt.FocusReason.PopupFocusReason)
+        target = self._panel_rect()
+        start = _scaled_rect(target, 0.96)
+        self.panel.setGeometry(start)
+        self._opacity_animation.stop()
+        self._geometry_animation.stop()
+        self._opacity_animation.setDuration(animation_duration(210))
+        self._opacity_animation.setStartValue(0.0)
+        self._opacity_animation.setEndValue(1.0)
+        self._opacity_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._geometry_animation = QPropertyAnimation(self.panel, b"geometry", self)
+        self._geometry_animation.setDuration(animation_duration(230))
+        self._geometry_animation.setStartValue(start)
+        self._geometry_animation.setEndValue(target)
+        self._geometry_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._opacity_animation.start()
+        self._geometry_animation.start()
+
+    def cancel_overlay(self) -> None:
+        self.cancel_requested.emit()
+        self._close()
+
+    def generate(self) -> None:
+        if not self._has_selected_report_content():
+            self.validation_label.setText("Select at least one report section.")
+            self.validation_label.show()
+            return
+        options = self.options()
+        _log_ui_marker(
+            self.project_root,
+            "pdf.options.selected",
+            details={
+                "record_type": self.detail_data.record_type,
+                "record_id": self.detail_data.record_id,
+                "include_summary": options.include_summary,
+                "include_details": options.include_details,
+                "include_relationships": options.include_relationships,
+                "include_documentation": options.include_documentation,
+                "include_photos": options.include_photos,
+                "include_photo_thumbnails": options.include_photo_thumbnails,
+                "include_photo_appendix": options.include_photo_appendix,
+                "include_missing_photo_status": options.include_missing_photo_status,
+                "include_history": options.include_history,
+                "include_notes": options.include_notes,
+                "format_mode": options.format_mode,
+                "preview_filename": Path(options.output_path).name if options.output_path else "",
+                "default_save_location": str(Path(options.output_path).parent) if options.output_path else "",
+            },
+            page_tool="library_record",
+        )
+        self.generate_requested.emit(options)
+        self._close()
+
+    def options(self) -> ReportOptions:
+        filename = self.filename_edit.text().strip() or _record_report_default_filename(self.detail_data)
+        if not filename.casefold().endswith(".pdf"):
+            filename = f"{filename}.pdf"
+        output_path = self.output_folder / filename
+        return ReportOptions(
+            include_summary=self.summary_check.isChecked(),
+            include_details=self.details_check.isChecked(),
+            include_relationships=self.relationships_check.isChecked(),
+            include_documentation=self.documentation_check.isChecked(),
+            include_photos=self.photos_check.isChecked(),
+            include_photo_thumbnails=self.photos_check.isChecked() and self.photo_thumbnail_check.isChecked(),
+            include_photo_appendix=self.photos_check.isChecked() and self.photo_appendix_check.isChecked(),
+            include_missing_photo_status=self.photos_check.isChecked() and self.missing_photo_check.isChecked(),
+            include_history=self.history_check.isChecked(),
+            include_notes=self.notes_check.isChecked(),
+            include_workbook_appendix=self.detailed_radio.isChecked(),
+            format_mode="detailed" if self.detailed_radio.isChecked() else "compact",
+            output_path=output_path,
+            auto_open_preview=True,
+        )
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self.isVisible() and not self._closing:
+            self.panel.setGeometry(self._panel_rect())
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.cancel_overlay()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def mousePressEvent(self, event) -> None:
+        point = event.position().toPoint() if hasattr(event, "position") else event.pos()
+        if not self.panel.geometry().contains(point):
+            self.cancel_overlay()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(0, 5, 14, 178))
+
+    def _close(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        current = self.panel.geometry()
+        end = _scaled_rect(current, 0.97)
+        self._opacity_animation.stop()
+        self._geometry_animation.stop()
+        self._opacity_animation.setDuration(animation_duration(185))
+        self._opacity_animation.setStartValue(self._effect.opacity())
+        self._opacity_animation.setEndValue(0.0)
+        self._opacity_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._geometry_animation = QPropertyAnimation(self.panel, b"geometry", self)
+        self._geometry_animation.setDuration(animation_duration(185))
+        self._geometry_animation.setStartValue(current)
+        self._geometry_animation.setEndValue(end)
+        self._geometry_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._opacity_animation.finished.connect(self.deleteLater)
+        self._opacity_animation.start()
+        self._geometry_animation.start()
+
+    def _panel_rect(self) -> QRect:
+        width = min(760, max(620, self.width() - 96))
+        height = min(680, max(560, self.height() - 120))
+        return QRect((self.width() - width) // 2, (self.height() - height) // 2, width, height)
+
+    def _build_panel(self) -> None:
+        self.panel.setStyleSheet(
+            """
+            QLabel#PDFOverlayTitle { color: #ffffff; font-size: 18pt; font-weight: 820; }
+            QLabel#PDFOverlaySubtitle { color: #b8c9dd; font-size: 10pt; }
+            QLabel#PDFOverlayRecord { color: #9be4ff; background: rgba(8, 35, 72, 178); border: 1px solid rgba(96, 169, 238, 120); border-radius: 10px; padding: 6px 10px; font-size: 9.4pt; font-weight: 720; }
+            QLabel#PDFSectionTitle { color: #e8f4ff; font-size: 9.4pt; font-weight: 820; padding-bottom: 4px; }
+            QLabel#PDFOutputHint { color: #c0ccdc; font-size: 8.6pt; }
+            QLabel#PDFFieldLabel { color: #c0ccdc; font-size: 8.4pt; font-weight: 720; }
+            QLabel#PDFValidationText { color: #ffcf73; font-size: 8.8pt; font-weight: 720; }
+            QFrame#PDFOptionSection { background: rgba(5, 18, 39, 132); border: 1px solid rgba(80, 132, 191, 94); border-radius: 12px; }
+            QCheckBox, QRadioButton { color: #dce9f7; spacing: 8px; font-size: 9.2pt; }
+            QLineEdit { color: #f4f9ff; background: rgba(8, 26, 54, 210); border: 1px solid rgba(86, 142, 206, 150); border-radius: 8px; padding: 7px 10px; }
+            QPushButton#PDFCancelButton, QPushButton#PDFGenerateButton, QPushButton#PDFFolderButton {
+                color: #ffffff; border-radius: 8px; min-height: 36px; font-weight: 680; padding: 6px 16px;
+            }
+            QPushButton#PDFCancelButton { background: rgba(7, 20, 42, 168); border: 1px solid rgba(91, 136, 184, 132); }
+            QPushButton#PDFFolderButton { background: rgba(9, 36, 76, 178); border: 1px solid rgba(91, 136, 184, 132); }
+            QPushButton#PDFGenerateButton { background: rgba(10, 96, 206, 232); border: 1px solid rgba(93, 190, 255, 232); }
+            """
+        )
+        layout = QVBoxLayout(self.panel)
+        layout.setContentsMargins(28, 24, 28, 22)
+        layout.setSpacing(14)
+
+        header = QHBoxLayout()
+        header.setSpacing(14)
+        title_col = QVBoxLayout()
+        title_col.setSpacing(3)
+        title = QLabel("Export PDF Report")
+        title.setObjectName("PDFOverlayTitle")
+        subtitle = QLabel("Choose what to include in this report.")
+        subtitle.setObjectName("PDFOverlaySubtitle")
+        record = QLabel(_record_display_label(self.detail_data))
+        record.setObjectName("PDFOverlayRecord")
+        title_col.addWidget(title)
+        title_col.addWidget(subtitle)
+        header.addLayout(title_col, 1)
+        header.addWidget(record, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(header)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 4, 0, 0)
+        body.setSpacing(18)
+        layout.addLayout(body, 1)
+
+        self.summary_check = self._check("Summary", True)
+        self.details_check = self._check("Details", True)
+        self.relationships_check = self._check("Fit Check / Relationships", True)
+        self.documentation_check = self._check("Documentation Status", True)
+        self.photos_check = self._check("Photos", self.detail_data.photo_count > 0)
+        self.notes_check = self._check("Known Issues / Notes", True)
+        has_history = _has_meaningful_history(self.detail_data)
+        self.history_check = self._check("History", has_history)
+        if not has_history:
+            self.history_check.setEnabled(False)
+            self.history_check.setToolTip("No history is available for this record.")
+        self.photo_appendix_check = self._check("Include full photo appendix", False)
+        self.missing_photo_check = self._check("Include missing-photo status", True)
+        self.photo_thumbnail_check = self._check("Include photo thumbnails", self.detail_data.photo_count > 0)
+        self.photos_check.toggled.connect(self._sync_photo_options)
+
+        left_section, left_layout = self._option_section("Report Content")
+        for widget in (
+            self.summary_check,
+            self.details_check,
+            self.relationships_check,
+            self.documentation_check,
+            self.photos_check,
+            self.notes_check,
+            self.history_check,
+        ):
+            left_layout.addWidget(widget)
+        left_layout.addStretch(1)
+
+        right_section, right_layout = self._option_section("Photo & Format Options")
+        for widget in (self.photo_thumbnail_check, self.photo_appendix_check, self.missing_photo_check):
+            right_layout.addWidget(widget)
+        right_layout.addSpacing(10)
+        format_title = QLabel("Format Options")
+        format_title.setObjectName("PDFSectionTitle")
+        right_layout.addWidget(format_title)
+        self.compact_radio = QRadioButton("Compact report")
+        self.detailed_radio = QRadioButton("Detailed report")
+        self.compact_radio.setChecked(True)
+        self.format_group = QButtonGroup(self)
+        self.format_group.setExclusive(True)
+        self.format_group.addButton(self.compact_radio)
+        self.format_group.addButton(self.detailed_radio)
+        right_layout.addWidget(self.compact_radio)
+        right_layout.addWidget(self.detailed_radio)
+        right_layout.addStretch(1)
+        body.addWidget(left_section, 1)
+        body.addWidget(right_section, 1)
+        self._sync_photo_options(self.photos_check.isChecked())
+
+        output_frame = QFrame()
+        output_frame.setObjectName("PDFOptionSection")
+        output_layout = QGridLayout(output_frame)
+        output_layout.setContentsMargins(16, 14, 16, 14)
+        output_layout.setHorizontalSpacing(12)
+        output_layout.setVerticalSpacing(7)
+        output_title = QLabel("Output Preview")
+        output_title.setObjectName("PDFSectionTitle")
+        output_layout.addWidget(output_title, 0, 0, 1, 3)
+        filename_label = QLabel("Preview filename")
+        filename_label.setObjectName("PDFFieldLabel")
+        output_layout.addWidget(filename_label, 1, 0)
+        self.filename_edit = QLineEdit(_record_report_default_filename(self.detail_data))
+        self.filename_edit.setObjectName("PDFFileNameEdit")
+        output_layout.addWidget(self.filename_edit, 1, 1, 1, 2)
+        folder_label = QLabel("Default save location")
+        folder_label.setObjectName("PDFFieldLabel")
+        output_layout.addWidget(folder_label, 2, 0)
+        self.folder_hint = QLabel(f"Reports folder ({_friendly_output_folder(self.output_folder)})")
+        self.folder_hint.setObjectName("PDFOutputHint")
+        output_layout.addWidget(self.folder_hint, 2, 1)
+        self.folder_button = AnimatedLibraryButton("Reports Folder")
+        self.folder_button.setObjectName("PDFFolderButton")
+        self.folder_button.setIcon(glyph_icon("folder", QColor("#ffffff"), 16))
+        self.folder_button.clicked.connect(self._open_reports_folder)
+        self.folder_button.setEnabled(self.output_folder.exists())
+        if not self.output_folder.exists():
+            self.folder_button.setToolTip("Reports folder will be created when the PDF is saved.")
+        output_layout.addWidget(self.folder_button, 2, 2)
+        preview_note = QLabel("Generate creates a temporary preview. Use Save in the preview to export permanently.")
+        preview_note.setObjectName("PDFOutputHint")
+        preview_note.setWordWrap(True)
+        output_layout.addWidget(preview_note, 3, 0, 1, 3)
+        layout.addWidget(output_frame)
+
+        self.validation_label = QLabel("")
+        self.validation_label.setObjectName("PDFValidationText")
+        self.validation_label.hide()
+        layout.addWidget(self.validation_label)
+
+        actions = QHBoxLayout()
+        actions.setContentsMargins(0, 2, 0, 0)
+        actions.addStretch(1)
+        self.cancel_button = AnimatedLibraryButton("Cancel")
+        self.cancel_button.setObjectName("PDFCancelButton")
+        self.cancel_button.clicked.connect(self.cancel_overlay)
+        self.generate_button = AnimatedLibraryButton("Generate PDF")
+        self.generate_button.setObjectName("PDFGenerateButton")
+        self.generate_button.setIcon(glyph_icon("doc", QColor("#ffffff"), 16))
+        self.generate_button.clicked.connect(self.generate)
+        actions.addWidget(self.cancel_button)
+        actions.addWidget(self.generate_button)
+        layout.addLayout(actions)
+
+    def _check(self, label: str, checked: bool) -> QCheckBox:
+        widget = QCheckBox(label)
+        widget.setChecked(bool(checked))
+        return widget
+
+    def _option_section(self, title: str) -> tuple[QFrame, QVBoxLayout]:
+        frame = QFrame()
+        frame.setObjectName("PDFOptionSection")
+        section_layout = QVBoxLayout(frame)
+        section_layout.setContentsMargins(16, 14, 16, 14)
+        section_layout.setSpacing(9)
+        label = QLabel(title)
+        label.setObjectName("PDFSectionTitle")
+        section_layout.addWidget(label)
+        return frame, section_layout
+
+    def _sync_photo_options(self, enabled: bool) -> None:
+        for widget in (self.photo_thumbnail_check, self.photo_appendix_check, self.missing_photo_check):
+            widget.setEnabled(bool(enabled))
+
+    def _has_selected_report_content(self) -> bool:
+        return any(
+            widget.isChecked()
+            for widget in (
+                self.summary_check,
+                self.details_check,
+                self.relationships_check,
+                self.documentation_check,
+                self.photos_check,
+                self.notes_check,
+                self.history_check,
+            )
+            if widget.isEnabled()
+        )
+
+    def _open_reports_folder(self) -> None:
+        if not self.output_folder.exists():
+            LOGGER.info("Reports folder does not exist yet: %s", self.output_folder)
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.output_folder)))
+
+
+class PDFGenerationStatusOverlay(QWidget):
+    def __init__(self, detail_data: RecordDetailData, *, project_root: str = "", parent=None):
+        super().__init__(parent)
+        self.detail_data = detail_data
+        self.project_root = project_root
+        self._angle = 0
+        self.setObjectName("PDFGenerationStatusOverlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.timer = QTimer(self)
+        self.timer.setInterval(80)
+        self.timer.timeout.connect(self._tick)
+
+    @classmethod
+    def show_for(cls, source_widget: QWidget, detail_data: RecordDetailData, *, project_root: str = "") -> "PDFGenerationStatusOverlay":
+        root = source_widget.window()
+        overlay = cls(detail_data, project_root=project_root, parent=root)
+        overlay.setGeometry(root.rect())
+        overlay.show()
+        overlay.raise_()
+        overlay.timer.start()
+        return overlay
+
+    def stop(self) -> None:
+        self.timer.stop()
+        self.hide()
+        self.deleteLater()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        text = f"Generating PDF...  {_record_short_label(self.detail_data)}"
+        font = _font(9.2, 720)
+        metrics = QFontMetrics(font)
+        width = max(230, metrics.horizontalAdvance(text) + 66)
+        height = 42
+        rect = QRectF((self.width() - width) / 2, self.height() - height - 28, width, height)
+        path = QPainterPath()
+        path.addRoundedRect(rect, 18, 18)
+        painter.fillPath(path, QColor(3, 12, 26, 226))
+        painter.setPen(QPen(QColor(71, 166, 255, 170), 1.0))
+        painter.drawPath(path)
+        spinner = QRectF(rect.left() + 18, rect.center().y() - 8, 16, 16)
+        painter.setPen(QPen(QColor("#8bdcff"), 2.0))
+        painter.drawArc(spinner, self._angle * 16, 250 * 16)
+        painter.setFont(font)
+        painter.setPen(QColor("#eaf6ff"))
+        painter.drawText(rect.adjusted(46, 0, -14, 0), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, text)
+
+    def _tick(self) -> None:
+        self._angle = (self._angle + 28) % 360
+        self.update()
+
+
+class PDFCloseButton(QPushButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Close preview")
+        self.setFixedSize(38, 38)
+        self.setObjectName("PDFCloseButton")
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        rect = QRectF(self.rect()).adjusted(1.2, 1.2, -1.2, -1.2)
+        hover = self.underMouse()
+        painter.setBrush(QColor(3, 12, 27, 235 if hover else 218))
+        painter.setPen(QPen(QColor("#6ec6ff" if hover else "#4278b8"), 1.2))
+        painter.drawEllipse(rect)
+        painter.setPen(QPen(QColor("#f5fbff"), 2.0))
+        painter.drawLine(QPointF(rect.center().x() - 5, rect.center().y() - 5), QPointF(rect.center().x() + 5, rect.center().y() + 5))
+        painter.drawLine(QPointF(rect.center().x() + 5, rect.center().y() - 5), QPointF(rect.center().x() - 5, rect.center().y() + 5))
+
+
+class PDFPreviewOverlay(QWidget):
+    def __init__(
+        self,
+        session: PdfPreviewSession | str | Path,
+        detail_data: RecordDetailData,
+        *,
+        project_root: str = "",
+        skipped_photo_count: int = 0,
+        parent=None,
+    ):
+        super().__init__(parent)
+        if isinstance(session, PdfPreviewSession):
+            self.session = session
+        else:
+            path = Path(session)
+            self.session = PdfPreviewSession(
+                record_type=detail_data.record_type,
+                record_id=detail_data.record_id,
+                temp_pdf_path=path,
+                default_save_path=_record_pdf_output_dir(project_root) / path.name,
+                temp_preview_dir=_record_pdf_preview_dir(project_root),
+            )
+        self.path = self.session.temp_pdf_path
+        self.detail_data = detail_data
+        self.project_root = project_root
+        self.skipped_photo_count = max(0, int(skipped_photo_count or 0))
+        self._effect = QGraphicsOpacityEffect(self)
+        self._effect.setOpacity(0.0)
+        self.setGraphicsEffect(self._effect)
+        self._opacity_animation = QPropertyAnimation(self._effect, b"opacity", self)
+        self._geometry_animation: QPropertyAnimation | None = None
+        self._closing = False
+        self._loaded = False
+        self.document = None
+        self.viewer = None
+        self._pdf_document_cls = None
+        self._pdf_view_cls = None
+        self._printer_cls = None
+        self.zoom_factor = 1.0
+        self.setObjectName("PDFPreviewOverlay")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+        self.panel = GlassPanel(self, radius=22, streaks=False)
+        self.panel.setObjectName("PDFPreviewPanel")
+        self.panel.set_glass(alpha=244, border_alpha=188, border_color=QColor("#73b7ff"), fill_color=QColor("#020b1d"), outer_glow_alpha=86)
+        self.close_button = PDFCloseButton(self)
+        self.close_button.clicked.connect(self.close_preview)
+        self._build_panel()
+
+    @classmethod
+    def open_for(
+        cls,
+        source_widget: QWidget,
+        session: PdfPreviewSession | str | Path,
+        detail_data: RecordDetailData,
+        *,
+        project_root: str = "",
+        skipped_photo_count: int = 0,
+    ) -> "PDFPreviewOverlay":
+        root = source_widget.window()
+        overlay = cls(session, detail_data, project_root=project_root, skipped_photo_count=skipped_photo_count, parent=root)
+        overlay.setGeometry(root.rect())
+        overlay.show()
+        overlay.raise_()
+        overlay.open_preview()
+        return overlay
+
+    def open_preview(self) -> None:
+        _log_ui_marker(
+            self.project_root,
+            "pdf.preview.open",
+            details={"record_type": self.detail_data.record_type, "record_id": self.detail_data.record_id, "path": str(self.path)},
+            page_tool="library_record",
+        )
+        self.setFocus(Qt.FocusReason.PopupFocusReason)
+        self._load_pdf()
+        target = self._panel_rect()
+        start = _scaled_rect(target, 0.965)
+        self.panel.setGeometry(start)
+        self._position_close()
+        self._opacity_animation.stop()
+        self._opacity_animation.setDuration(animation_duration(230))
+        self._opacity_animation.setStartValue(0.0)
+        self._opacity_animation.setEndValue(1.0)
+        self._opacity_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._geometry_animation = QPropertyAnimation(self.panel, b"geometry", self)
+        self._geometry_animation.setDuration(animation_duration(250))
+        self._geometry_animation.setStartValue(start)
+        self._geometry_animation.setEndValue(target)
+        self._geometry_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._opacity_animation.start()
+        self._geometry_animation.start()
+        QTimer.singleShot(0, self._log_first_page_render)
+
+    def close_preview(self) -> None:
+        if self._closing:
+            return
+        self._closing = True
+        self._release_pdf_resources()
+        close_result = self.session.close()
+        if close_result == "auto_saved":
+            self._show_message("PDF automatically saved.")
+        elif close_result == "closed_without_saving":
+            self._show_message("PDF preview closed without saving.")
+        elif close_result == "auto_save_failed":
+            self._show_message("PDF preview closed, but automatic save failed.")
+        _log_ui_marker(
+            self.project_root,
+            "pdf.preview.close",
+            details={
+                "record_type": self.detail_data.record_type,
+                "record_id": self.detail_data.record_id,
+                "close_result": close_result,
+                "saved": self.session.saved,
+                "auto_saved": self.session.auto_saved,
+                "age_seconds": round(self.session.age_seconds, 3),
+            },
+            page_tool="library_record",
+        )
+        current = self.panel.geometry()
+        end = _scaled_rect(current, 0.975)
+        self._opacity_animation.stop()
+        if self._geometry_animation is not None:
+            self._geometry_animation.stop()
+        self._opacity_animation.setDuration(animation_duration(190))
+        self._opacity_animation.setStartValue(self._effect.opacity())
+        self._opacity_animation.setEndValue(0.0)
+        self._opacity_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._geometry_animation = QPropertyAnimation(self.panel, b"geometry", self)
+        self._geometry_animation.setDuration(animation_duration(190))
+        self._geometry_animation.setStartValue(current)
+        self._geometry_animation.setEndValue(end)
+        self._geometry_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._opacity_animation.finished.connect(self.deleteLater)
+        self._opacity_animation.start()
+        self._geometry_animation.start()
+
+    def _release_pdf_resources(self) -> None:
+        """Detach Qt PDF objects before the session attempts Windows deletion."""
+        self._loaded = False
+        viewer = self.viewer
+        document = self.document
+        if viewer is not None:
+            try:
+                viewer.setDocument(None)
+            except (RuntimeError, TypeError):
+                LOGGER.debug("Could not detach PDF preview viewer", exc_info=True)
+        if document is not None:
+            try:
+                document.close()
+            except RuntimeError:
+                LOGGER.debug("Could not close PDF preview document", exc_info=True)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if self.isVisible() and not self._closing:
+            self.panel.setGeometry(self._panel_rect())
+            self._position_close()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.close_preview()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(0, 4, 12, 184))
+
+    def zoom_in(self) -> None:
+        self._set_zoom(min(3.0, self.zoom_factor + 0.15))
+
+    def zoom_out(self) -> None:
+        self._set_zoom(max(0.35, self.zoom_factor - 0.15))
+
+    def fit_width(self) -> None:
+        if self.viewer is not None and self._pdf_view_cls is not None:
+            self.viewer.setZoomMode(self._pdf_view_cls.ZoomMode.FitToWidth)
+        self.zoom_label.setText("Fit Width")
+        _log_ui_marker(
+            self.project_root,
+            "pdf.preview.zoom",
+            details={"record_type": self.detail_data.record_type, "record_id": self.detail_data.record_id, "mode": "fit_width"},
+            page_tool="library_record",
+        )
+
+    def save_pdf(self) -> None:
+        default_path = self.session.default_save_path
+        options = self.session.options if isinstance(self.session.options, dict) else {}
+        if options.get("ask_location_when_save_clicked", True):
+            target, _selected_filter = QFileDialog.getSaveFileName(self, "Save PDF report", str(default_path), "PDF files (*.pdf)")
+            if not target:
+                return
+        else:
+            target = str(default_path)
+        try:
+            target_path = Path(target)
+            self.session.save_as(target_path)
+            self._show_message("PDF saved.")
+        except Exception as exc:
+            LOGGER.exception("PDF save failed for %s", self.path)
+            self._show_message(f"Save failed: {type(exc).__name__}: {exc}")
+
+    def print_pdf(self) -> None:
+        print_dialog_cls, printer_cls = _qt_print_classes()
+        self._printer_cls = printer_cls
+        if print_dialog_cls is None or printer_cls is None or self.document is None or not self._loaded:
+            self._show_message("Print dialog is unavailable for this PDF preview.")
+            return
+        try:
+            printer = printer_cls(printer_cls.PrinterMode.HighResolution)
+            dialog = print_dialog_cls(printer, self)
+            if dialog.exec() != print_dialog_cls.DialogCode.Accepted:
+                return
+            self._print_document(printer)
+        except Exception as exc:
+            LOGGER.exception("PDF print failed for %s", self.path)
+            self._show_message(f"Print failed: {type(exc).__name__}: {exc}")
+
+    def open_folder(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.path.parent)))
+
+    def open_file(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.path)))
+
+    def _build_panel(self) -> None:
+        self.panel.setStyleSheet(
+            """
+            QLabel#PDFPreviewTitle { color: #ffffff; font-size: 16.5pt; font-weight: 820; }
+            QLabel#PDFPreviewRecord { color: #9be4ff; font-size: 9.2pt; font-weight: 680; }
+            QLabel#PDFPreviewMessage { color: #dce9f7; font-size: 10pt; }
+            QLabel#PDFWarningChip {
+                color: #ffe7a6; background: rgba(92, 61, 4, 190); border: 1px solid rgba(255, 198, 89, 150);
+                border-radius: 10px; padding: 5px 10px; font-size: 8.4pt; font-weight: 760;
+            }
+            QPushButton#PDFToolbarButton {
+                color: #ffffff; background: rgba(8, 29, 60, 188); border: 1px solid rgba(87, 143, 204, 145);
+                border-radius: 8px; min-height: 32px; padding: 5px 11px; font-weight: 680;
+            }
+            QLabel#PDFZoomLabel { color: #dce9f7; min-width: 64px; font-weight: 720; }
+            """
+        )
+        layout = QVBoxLayout(self.panel)
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(10)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 42, 0)
+        header_text = QVBoxLayout()
+        header_text.setSpacing(2)
+        title = QLabel("PDF Report Preview")
+        title.setObjectName("PDFPreviewTitle")
+        record = QLabel(_record_display_label(self.detail_data))
+        record.setObjectName("PDFPreviewRecord")
+        header_text.addWidget(title)
+        header_text.addWidget(record)
+        header.addLayout(header_text, 1)
+        if self.skipped_photo_count:
+            noun = "photo" if self.skipped_photo_count == 1 else "photos"
+            self.warning_chip = QLabel(f"{self.skipped_photo_count} {noun} skipped")
+            self.warning_chip.setObjectName("PDFWarningChip")
+            header.addWidget(self.warning_chip, 0, Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(header)
+
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+        self.save_button = self._toolbar_button("Save", "save", self.save_pdf)
+        self.print_button = self._toolbar_button("Print", "print", self.print_pdf)
+        self.zoom_out_button = self._toolbar_button("", "minus", self.zoom_out, tooltip="Zoom out")
+        self.zoom_label = QLabel("Fit Width")
+        self.zoom_label.setObjectName("PDFZoomLabel")
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.zoom_in_button = self._toolbar_button("", "plus", self.zoom_in, tooltip="Zoom in")
+        self.fit_width_button = self._toolbar_button("Fit Width", "target", self.fit_width)
+        self.open_file_button = self._toolbar_button("Open File", "doc", self.open_file)
+        self.open_folder_button = self._toolbar_button("Open Folder", "folder", self.open_folder)
+        for widget in (
+            self.save_button,
+            self.print_button,
+            self.zoom_out_button,
+            self.zoom_label,
+            self.zoom_in_button,
+            self.fit_width_button,
+            self.open_file_button,
+            self.open_folder_button,
+        ):
+            toolbar.addWidget(widget)
+        toolbar.addStretch(1)
+        layout.addLayout(toolbar)
+
+        self.viewer_host = QFrame()
+        self.viewer_host.setObjectName("PDFViewerHost")
+        self.viewer_host.setStyleSheet("QFrame#PDFViewerHost { background: rgba(1, 7, 16, 210); border: 1px solid rgba(78, 123, 175, 120); border-radius: 10px; }")
+        host_layout = QVBoxLayout(self.viewer_host)
+        host_layout.setContentsMargins(8, 8, 8, 8)
+        self._pdf_document_cls, self._pdf_view_cls = _qt_pdf_classes()
+        if self._pdf_document_cls is not None and self._pdf_view_cls is not None:
+            self.document = self._pdf_document_cls(self)
+            self.viewer = self._pdf_view_cls(self.viewer_host)
+            self.viewer.setObjectName("PDFPreviewView")
+            self.viewer.setPageMode(self._pdf_view_cls.PageMode.MultiPage)
+            self.viewer.setZoomMode(self._pdf_view_cls.ZoomMode.FitToWidth)
+            host_layout.addWidget(self.viewer, 1)
+        else:
+            self.message = QLabel("PDF generated, but preview could not be displayed.")
+            self.message.setObjectName("PDFPreviewMessage")
+            self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.message.setWordWrap(True)
+            host_layout.addWidget(self.message, 1)
+        layout.addWidget(self.viewer_host, 1)
+
+    def _toolbar_button(self, text: str, glyph: str, callback, *, tooltip: str = "") -> AnimatedLibraryButton:
+        button = AnimatedLibraryButton(text)
+        button.setObjectName("PDFToolbarButton")
+        button.setIcon(glyph_icon(glyph, QColor("#ffffff"), 15))
+        if tooltip:
+            button.setToolTip(tooltip)
+        button.clicked.connect(callback)
+        return button
+
+    def _load_pdf(self) -> None:
+        if self.document is None or self.viewer is None or self._pdf_document_cls is None or self._pdf_view_cls is None:
+            self._preview_unavailable()
+            return
+        if not self.path.exists():
+            self._preview_unavailable("PDF generated, but the file could not be found.")
+            return
+        status = self.document.load(str(self.path))
+        self.viewer.setDocument(self.document)
+        if self.document.pageCount() <= 0 and status != self._pdf_document_cls.Status.Ready:
+            self._preview_unavailable()
+            return
+        self._loaded = True
+        self.viewer.setZoomMode(self._pdf_view_cls.ZoomMode.FitToWidth)
+
+    def _preview_unavailable(self, message: str = "PDF generated, but preview could not be displayed.") -> None:
+        self._loaded = False
+        if self.viewer is not None:
+            self.viewer.hide()
+        if not hasattr(self, "message"):
+            self.message = QLabel(self.viewer_host)
+            self.message.setObjectName("PDFPreviewMessage")
+            self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.message.setWordWrap(True)
+            self.viewer_host.layout().addWidget(self.message, 1)
+        self.message.setText(message)
+        self.message.show()
+        self.print_button.setEnabled(False)
+        self.zoom_in_button.setEnabled(False)
+        self.zoom_out_button.setEnabled(False)
+        self.fit_width_button.setEnabled(False)
+
+    def _set_zoom(self, factor: float) -> None:
+        if self.viewer is None or self._pdf_view_cls is None:
+            return
+        self.zoom_factor = factor
+        self.viewer.setZoomMode(self._pdf_view_cls.ZoomMode.Custom)
+        self.viewer.setZoomFactor(factor)
+        self.zoom_label.setText(f"{round(factor * 100)}%")
+        _log_ui_marker(
+            self.project_root,
+            "pdf.preview.zoom",
+            details={"record_type": self.detail_data.record_type, "record_id": self.detail_data.record_id, "zoom": round(factor, 2)},
+            page_tool="library_record",
+        )
+
+    def _print_document(self, printer) -> None:
+        if self.document is None:
+            return
+        painter = QPainter(printer)
+        try:
+            page_count = self.document.pageCount()
+            for page in range(page_count):
+                if page:
+                    printer.newPage()
+                if self._printer_cls is not None and hasattr(self._printer_cls, "Unit"):
+                    page_rect = printer.pageRect(self._printer_cls.Unit.DevicePixel).toRect()
+                else:
+                    page_rect = printer.pageRect().toRect()
+                if page_rect.width() <= 0 or page_rect.height() <= 0:
+                    page_rect = QRect(0, 0, 1800, 2400)
+                image = self.document.render(page, page_rect.size())
+                if not image.isNull():
+                    painter.drawImage(page_rect, image)
+        finally:
+            painter.end()
+
+    def _panel_rect(self) -> QRect:
+        width = min(1160, max(760, self.width() - 90))
+        height = min(820, max(600, self.height() - 92))
+        return QRect((self.width() - width) // 2, (self.height() - height) // 2, width, height)
+
+    def _position_close(self) -> None:
+        rect = self.panel.geometry()
+        self.close_button.move(rect.right() - 18, rect.top() - 18)
+        self.close_button.raise_()
+
+    def _log_first_page_render(self) -> None:
+        _log_ui_marker(
+            self.project_root,
+            "pdf.preview.render_first_page",
+            details={
+                "record_type": self.detail_data.record_type,
+                "record_id": self.detail_data.record_id,
+                "path": str(self.path),
+                "loaded": self._loaded,
+            },
+            page_tool="library_record",
+        )
+
+    def _show_message(self, message: str) -> None:
+        widget = self.parentWidget()
+        while widget is not None:
+            notifier = getattr(widget, "show_toast", None)
+            if callable(notifier):
+                notifier(message)
+                return
+            widget = widget.parentWidget()
+        LOGGER.info(message)
 
 
 class RecordTabBar(QWidget):
@@ -4100,12 +5973,12 @@ class RelationshipOverviewPanel(GlassPanel):
         painter.drawText(QRectF(24, 54, 430, 25), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, relationship_subtitle(self.entity))
         if not self.relationships_loaded:
             painter.setFont(_font(11, 560))
-            painter.setPen(QColor("#9fb0c7"))
+            painter.setPen(QColor("#b8c7d9"))
             painter.drawText(QRectF(30, self.height() / 2 - 24, self.width() - 60, 48), Qt.AlignmentFlag.AlignCenter, "Loading relationships...")
             return
         if not self.left_zones and not self.right_zones:
             painter.setFont(_font(11, 560))
-            painter.setPen(QColor("#9fb0c7"))
+            painter.setPen(QColor("#b8c7d9"))
             painter.drawText(QRectF(30, self.height() / 2 - 36, self.width() - 60, 72), Qt.AlignmentFlag.AlignCenter, "No linked records are indexed for this record yet.")
             self._draw_center_node(painter)
             return
@@ -4277,7 +6150,7 @@ class RelationshipOverviewPanel(GlassPanel):
         painter.fillRect(rect.adjusted(-22, -22, 22, 22), halo)
         painter.restore()
         painter.setBrush(QColor(6, 19, 40, 212))
-        painter.setPen(QPen(QColor("#04b76f"), 1.6))
+        painter.setPen(QPen(STATUS_SUCCESS, 1.6))
         painter.drawEllipse(rect)
         icon_side = 50
         icon = glyph_icon({ENTITY_MACHINE: "machine", ENTITY_EOAT: "eoat", ENTITY_TOOL: "grid"}.get(self.entity.entity_type, "library"), QColor("#d7e8ff"), icon_side).pixmap(icon_side, icon_side)
@@ -4287,7 +6160,7 @@ class RelationshipOverviewPanel(GlassPanel):
         painter.setPen(QColor("#c2ccdc"))
         painter.drawText(rect.adjusted(12, 116, -12, -42), Qt.AlignmentFlag.AlignCenter, clipped_text(self.entity.subtitle, 28))
         status, tone = record_status_display(self.entity)
-        color = QColor("#20df72") if tone == "good" else QColor("#ffb145")
+        color = _semantic_tone_color(tone)
         painter.setPen(color)
         painter.setFont(_font(7.8, 680))
         painter.drawText(rect.adjusted(44, rect.height() - 35, -44, -12), Qt.AlignmentFlag.AlignCenter, status)
@@ -4312,7 +6185,7 @@ class RelationshipOverviewPanel(GlassPanel):
         right_reserve = 58 if zone.badge else 20
         self._draw_text_fit(painter, zone.entity.title, QRectF(rect.left() + 60, rect.top() + 9, rect.width() - 60 - right_reserve, 21), QColor("#ffffff"), 9.8, 760, min_point_size=7.8)
         painter.setFont(_font(8.2, 500))
-        painter.setPen(QColor("#b9c5d7"))
+        painter.setPen(QColor("#c3d0e1"))
         painter.drawText(QRectF(rect.left() + 60, rect.top() + 32, rect.width() - 76, 19), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, clipped_text(zone.entity.subtitle, 26))
         if zone.badge:
             badge_rect = QRectF(rect.right() - 58, rect.top() + 7, 48, 17)
@@ -4379,18 +6252,43 @@ class RelationshipOverviewPanel(GlassPanel):
         return [base + (1 if index < remainder else 0) for index in range(columns)]
 
 
+def _profile_metric_value(label: str, value: str | tuple[str, ...]) -> str:
+    text = _field_text(value)
+    if label.casefold() != "current eoat":
+        return text
+    normalized = text.strip().casefold()
+    if normalized in {"", "not indexed", "unknown", "not assigned"}:
+        return "Not Assigned"
+    if normalized in {"no current eoat", "no eoat installed", "eoat not installed", "not installed / bench audit", "not installed"}:
+        return "Not Installed"
+    return text
+
+
 class SummaryMetricsPanel(GlassPanel):
     def __init__(self, detail_data: RecordDetailData, parent=None):
         super().__init__(parent, radius=14, streaks=True)
         self.setObjectName("SummaryMetricsPanel")
         self.set_glass(alpha=78, border_alpha=62, border_color=QColor("#496f9d"), fill_color=QColor("#061226"))
         self.setFixedHeight(118)
+        has_current_eoat = any(field.label.casefold() == "current eoat" for field in detail_data.summary_fields)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(34, 18, 34, 18)
-        layout.setSpacing(34)
+        layout.setContentsMargins(26 if has_current_eoat else 34, 18, 26 if has_current_eoat else 34, 18)
+        layout.setSpacing(22 if has_current_eoat else 34)
         for field in detail_data.summary_fields:
-            layout.addWidget(MetricBlock(AtlasCardMetric(_metric_icon_for(field.label), _field_text(field.value), field.label)))
-        layout.addStretch(1)
+            block = MetricBlock(AtlasCardMetric(_metric_icon_for(field.label), _profile_metric_value(field.label, field.value), field.label))
+            if has_current_eoat and block.is_current_eoat_metric():
+                block.setMinimumWidth(320)
+                block.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+                layout.addWidget(block, 1)
+            elif has_current_eoat:
+                block.setMinimumWidth(160)
+                block.setMaximumWidth(210)
+                block.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+                layout.addWidget(block, 0)
+            else:
+                layout.addWidget(block)
+        if not has_current_eoat:
+            layout.addStretch(1)
 
 
 class RelationshipMoreLabel(QLabel):
@@ -4404,7 +6302,30 @@ class MetricBlock(QWidget):
     def __init__(self, metric: AtlasCardMetric, parent=None):
         super().__init__(parent)
         self._metric = metric
-        self.setMinimumWidth(230)
+        self._display_value = _profile_metric_value(metric.label, metric.value)
+        self._is_current_eoat = metric.label.casefold() == "current eoat"
+        self.setMinimumWidth(320 if self._is_current_eoat else 230)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding if self._is_current_eoat else QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self.setToolTip(self._display_value)
+
+    def is_current_eoat_metric(self) -> bool:
+        return self._is_current_eoat
+
+    def display_value(self) -> str:
+        return self._display_value
+
+    def sizeHint(self) -> QSize:
+        return QSize(320 if self._is_current_eoat else 230, 86)
+
+    def _value_font_for_width(self, width: float) -> QFont:
+        size = 24.0
+        minimum = 15.0 if self._is_current_eoat else 18.0
+        while size >= minimum:
+            font = _font(size, 820)
+            if QFontMetrics(font).horizontalAdvance(self._display_value) <= width:
+                return font
+            size -= 0.75
+        return _font(minimum, 820)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -4418,11 +6339,12 @@ class MetricBlock(QWidget):
         painter.setFont(_font(11, 520))
         painter.setPen(QColor("#c7d1df"))
         painter.drawText(QRectF(72, 12, self.width() - 72, 24), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._metric.label)
-        painter.setFont(_font(24, 820))
+        value_rect = QRectF(72, 40, max(10, self.width() - 76), 38)
+        painter.setFont(self._value_font_for_width(value_rect.width()))
         painter.setPen(QColor("#ffffff"))
-        painter.drawText(QRectF(72, 40, self.width() - 72, 38), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._metric.value)
+        painter.drawText(value_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._display_value)
         painter.setFont(_font(9, 500))
-        painter.setPen(QColor("#9fb0c7"))
+        painter.setPen(QColor("#b8c7d9"))
         painter.drawText(QRectF(72, 76, self.width() - 72, 22), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, metric_caption(self._metric))
 
 
@@ -4469,7 +6391,9 @@ class RecordDocsTab(QWidget):
         layout.setColumnStretch(1, 1)
 
 
-class RecordHistoryTab(QWidget):
+class LegacyRecordHistoryTab(QWidget):
+    """Existing compact history treatment retained for non-EOAT profiles."""
+
     def __init__(self, detail_data: RecordDetailData, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -4477,6 +6401,758 @@ class RecordHistoryTab(QWidget):
         layout.setSpacing(14)
         layout.addWidget(InfoSectionCard(RecordSection("Recent History", detail_data.history_fields)))
         layout.addStretch(1)
+
+
+class EOATHistoryListModel(QAbstractListModel):
+    EventRole = Qt.ItemDataRole.UserRole + 1
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.events: tuple[EOATHistoryEvent, ...] = ()
+
+    def rowCount(self, parent: QModelIndex | None = None) -> int:
+        return 0 if parent is not None and parent.isValid() else len(self.events)
+
+    def data(self, index: QModelIndex, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid() or not 0 <= index.row() < len(self.events):
+            return None
+        event = self.events[index.row()]
+        if role == self.EventRole:
+            return event
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
+            return f"{event.title}, {event.event_type}, {_history_datetime_text(event.effective_timestamp)}"
+        if role == Qt.ItemDataRole.ToolTipRole:
+            return _history_event_tooltip(event)
+        return None
+
+    def set_events(self, events: Iterable[EOATHistoryEvent]) -> None:
+        self.beginResetModel()
+        self.events = tuple(events)
+        self.endResetModel()
+
+
+class EOATHistoryItemDelegate(QStyledItemDelegate):
+    _TONES = {
+        "LOCATION": ("robot", "#218cff", "#123f7d"),
+        "AUDIT": ("doc", "#20c4d8", "#0a6678"),
+        "MAINTENANCE": ("gear", "#69bd49", "#315f29"),
+        "STATUS": ("status", "#ae86ff", "#4a3377"),
+        "TOOL": ("grid", "#ffb145", "#704817"),
+        "DOCUMENTATION": ("doc", "#6bb7ff", "#244e78"),
+        "INSPECTION": ("search", "#38d7a3", "#17634f"),
+        "IMPORT": ("library", "#9aaed0", "#3a4862"),
+        "ISSUE": ("status", "#ff6e7d", "#742e3a"),
+        "OTHER": ("library", "#a9b8cb", "#34465f"),
+    }
+
+    def sizeHint(self, option, index) -> QSize:
+        event = index.data(EOATHistoryListModel.EventRole)
+        available = max(220, option.rect.width() - 390)
+        wraps = isinstance(event, EOATHistoryEvent) and QFontMetrics(_font(10.8, 760)).horizontalAdvance(event.title) > available
+        return QSize(max(520, option.rect.width()), 116 if wraps else 99)
+
+    def paint(self, painter: QPainter, option, index: QModelIndex) -> None:
+        event = index.data(EOATHistoryListModel.EventRole)
+        if not isinstance(event, EOATHistoryEvent):
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        rect = QRectF(option.rect).adjusted(1, 3, -1, -3)
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        focused = bool(option.state & QStyle.StateFlag.State_HasFocus)
+        fill = QColor("#0a2343" if selected else "#071a31" if hovered else "#06162a")
+        fill.setAlpha(236 if selected else 210)
+        border = QColor("#2c95ff" if selected else "#29547c")
+        border.setAlpha(220 if selected else 150)
+        path = QPainterPath()
+        path.addRoundedRect(rect, 8, 8)
+        painter.fillPath(path, fill)
+        painter.setPen(QPen(border, 1.35 if selected else 0.85))
+        painter.drawPath(path)
+        if selected:
+            painter.fillRect(QRectF(rect.left(), rect.top() + 9, 3, rect.height() - 18), QColor("#1496ff"))
+        if focused:
+            focus_pen = QPen(QColor("#8bdcff"), 1.1, Qt.PenStyle.DashLine)
+            painter.setPen(focus_pen)
+            painter.drawRoundedRect(rect.adjusted(3, 3, -3, -3), 6, 6)
+
+        glyph, icon_color, badge_color = self._TONES.get(event.event_type, self._TONES["OTHER"])
+        line_x = rect.left() + 45
+        painter.setPen(QPen(QColor(icon_color), 2.4))
+        if index.row() > 0:
+            painter.drawLine(QPointF(line_x, rect.top() - 3), QPointF(line_x, rect.top() + 14))
+        model = index.model()
+        if index.row() < model.rowCount() - 1:
+            painter.drawLine(QPointF(line_x, rect.top() + 68), QPointF(line_x, rect.bottom() + 3))
+        painter.setBrush(QColor(badge_color))
+        painter.setPen(QPen(QColor(icon_color), 1.0))
+        painter.drawEllipse(QPointF(line_x, rect.top() + 42), 27, 27)
+        icon = glyph_icon(glyph, QColor("#f7fbff"), 26).pixmap(26, 26)
+        painter.drawPixmap(round(line_x - 13), round(rect.top() + 29), icon)
+
+        content_left = rect.left() + 100
+        right_width = 138
+        chevron_width = 25
+        content_right = rect.right() - right_width - chevron_width - 16
+        title_rect = QRectF(content_left, rect.top() + 10, max(80, content_right - content_left), 24)
+        title_font = _font(10.8, 760)
+        painter.setFont(title_font)
+        painter.setPen(QColor("#f8fbff"))
+        badge_font = _font(7.1, 760)
+        badge_width = QFontMetrics(badge_font).horizontalAdvance(event.event_type) + 14
+        title_available = max(80, title_rect.width() - badge_width - 14)
+        wraps = QFontMetrics(title_font).horizontalAdvance(event.title) > title_available
+        if wraps:
+            title_rect.setWidth(title_available)
+            title_rect.setHeight(38)
+            painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap, event.title)
+            badge_rect = QRectF(content_right - badge_width, rect.top() + 13, badge_width, 18)
+        else:
+            title = QFontMetrics(title_font).elidedText(event.title, Qt.TextElideMode.ElideRight, round(title_available))
+            painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, title)
+            title_width = min(title_available, QFontMetrics(title_font).horizontalAdvance(title))
+            badge_rect = QRectF(content_left + title_width + 10, rect.top() + 13, badge_width, 18)
+        painter.setBrush(QColor(badge_color))
+        painter.setPen(QPen(QColor(icon_color), 0.7))
+        painter.drawRoundedRect(badge_rect, 4, 4)
+        painter.setFont(badge_font)
+        painter.setPen(QColor("#f4faff"))
+        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, event.event_type)
+
+        primary, secondary = _history_event_summaries(event)
+        body_font = _font(9.3, 520)
+        muted_font = _font(8.8, 500)
+        body_top = rect.top() + (51 if wraps else 38)
+        muted_top = rect.top() + (76 if wraps else 60)
+        body_rect = QRectF(content_left, body_top, max(80, content_right - content_left), 20)
+        muted_rect = QRectF(content_left, muted_top, max(80, content_right - content_left), 18)
+        painter.setFont(body_font)
+        painter.setPen(QColor("#d9e5f4"))
+        painter.drawText(body_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, QFontMetrics(body_font).elidedText(primary, Qt.TextElideMode.ElideRight, round(body_rect.width())))
+        painter.setFont(muted_font)
+        painter.setPen(QColor("#b7c4d5"))
+        painter.drawText(muted_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, QFontMetrics(muted_font).elidedText(secondary, Qt.TextElideMode.ElideRight, round(muted_rect.width())))
+
+        timestamp = event.effective_timestamp
+        date_text = "Date not documented"
+        time_text = ""
+        if timestamp is not None:
+            local = timestamp.astimezone()
+            date_text = local.strftime("%b %d, %Y")
+            time_text = local.strftime("%I:%M %p").lstrip("0")
+            if event.is_approximate_date:
+                date_text = f"Approx. {date_text}"
+        date_rect = QRectF(rect.right() - right_width - chevron_width, rect.top() + 24, right_width - 36, 20)
+        time_rect = QRectF(rect.right() - right_width - chevron_width, rect.top() + 46, right_width - 36, 18)
+        painter.setFont(_font(9.0, 520))
+        painter.setPen(QColor("#dce7f4"))
+        painter.drawText(date_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, date_text)
+        painter.setFont(_font(8.5, 500))
+        painter.setPen(QColor("#b8c8da"))
+        painter.drawText(time_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, time_text)
+
+        chevron_rect = QRectF(rect.right() - 26, rect.center().y() - 8, 16, 16)
+        painter.setPen(QPen(QColor("#eaf3ff"), 1.8))
+        painter.drawLine(chevron_rect.left() + 2, chevron_rect.top() + 5, chevron_rect.center().x(), chevron_rect.bottom() - 3)
+        painter.drawLine(chevron_rect.center().x(), chevron_rect.bottom() - 3, chevron_rect.right() - 2, chevron_rect.top() + 5)
+        painter.restore()
+
+
+class EOATHistoryDetailsPanel(GlassPanel):
+    def __init__(self, parent=None):
+        super().__init__(parent, radius=9, streaks=False)
+        self.setObjectName("EOATHistoryDetailsPanel")
+        self.set_glass(alpha=178, border_alpha=92, border_color=QColor("#315f8d"), fill_color=QColor("#06162a"))
+        self.setMinimumWidth(310)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(22, 16, 22, 20)
+        self._layout.setSpacing(10)
+        title = QLabel("Event Details")
+        title.setObjectName("EOATHistorySectionHeading")
+        self._layout.addWidget(title)
+        self._fields = QWidget()
+        self._fields.setObjectName("EOATHistoryDetailsFields")
+        self._grid = QGridLayout(self._fields)
+        self._grid.setContentsMargins(0, 2, 0, 0)
+        self._grid.setHorizontalSpacing(22)
+        self._grid.setVerticalSpacing(11)
+        self._layout.addWidget(self._fields)
+        self._layout.addStretch(1)
+        self.show_event(None)
+
+    def show_event(self, event: EOATHistoryEvent | None) -> None:
+        clear_layout(self._grid)
+        if event is None:
+            empty = QLabel("Select a history event")
+            empty.setObjectName("EOATHistoryEmptyDetails")
+            empty.setWordWrap(True)
+            self._grid.addWidget(empty, 0, 0, 1, 2)
+            return
+        fields = _history_detail_fields(event)
+        for index, (label, value) in enumerate(fields):
+            host = QWidget()
+            cell = QVBoxLayout(host)
+            cell.setContentsMargins(0, 0, 0, 0)
+            cell.setSpacing(3)
+            key = QLabel(label)
+            key.setObjectName("EOATHistoryDetailLabel")
+            val = QLabel(value)
+            val.setObjectName("EOATHistoryDetailValue")
+            val.setWordWrap(True)
+            val.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
+            cell.addWidget(key)
+            cell.addWidget(val)
+            row = index // 2
+            column = index % 2
+            self._grid.addWidget(host, row, column)
+        self._grid.setColumnStretch(0, 1)
+        self._grid.setColumnStretch(1, 1)
+
+
+class RecordHistoryTab(GlassPanel):
+    history_loaded = Signal(object)
+    history_failed = Signal(str)
+    export_complete = Signal(str)
+    export_failed = Signal(str)
+
+    def __init__(
+        self,
+        detail_data: RecordDetailData,
+        *,
+        project_root: str = "",
+        history_loader=None,
+        initial_view_model: EOATHistoryViewModel | None = None,
+        parent=None,
+    ):
+        super().__init__(parent, radius=12, streaks=False)
+        self.setObjectName("EOATHistoryCard")
+        self.set_glass(alpha=116, border_alpha=72, border_color=QColor("#356492"), fill_color=QColor("#061226"))
+        self.detail_data = detail_data
+        self.project_root = str(project_root or "")
+        self.history_loader = history_loader
+        self.view_model = EOATHistoryViewModel(detail_data.record_id, (), (), ())
+        self.service = EOATHistoryService(configured_eoat_history_repository(self.project_root or Path.cwd()))
+        self.filtered_events: tuple[EOATHistoryEvent, ...] = ()
+        self.selected_event_id = ""
+        self._loading = False
+        self._exporting = False
+        self._stacked = False
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 16, 22, 18)
+        root.setSpacing(7)
+        title = QLabel("EOAT Lifecycle History")
+        title.setObjectName("EOATHistoryTitle")
+        root.addWidget(title)
+        subtitle = QLabel("Machine assignments, production runs, audits, maintenance, and record changes for this EOAT.")
+        subtitle.setObjectName("EOATHistorySubtitle")
+        subtitle.setWordWrap(True)
+        root.addWidget(subtitle)
+        root.addSpacing(11)
+        heading = QLabel("Activity History")
+        heading.setObjectName("EOATHistorySectionHeading")
+        root.addWidget(heading)
+
+        self.toolbar = QWidget()
+        self.toolbar.setObjectName("EOATHistoryToolbar")
+        self.toolbar_layout = QGridLayout(self.toolbar)
+        self.toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        self.toolbar_layout.setHorizontalSpacing(10)
+        self.toolbar_layout.setVerticalSpacing(8)
+        self.search_edit = QLineEdit()
+        self.search_edit.setObjectName("EOATHistorySearch")
+        self.search_edit.setPlaceholderText("Search history...")
+        self.search_edit.setAccessibleName("Search lifecycle history")
+        self.search_edit.setToolTip("Search titles, machines, tools, reasons, notes, IDs, people, and sources")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.addAction(
+            glyph_icon("search", QColor("#a9b8cb"), 18),
+            QLineEdit.ActionPosition.LeadingPosition,
+        )
+        self.search_edit.setMinimumWidth(280)
+        self.search_edit.setMaximumWidth(340)
+        self.event_type_combo = self._combo("Event Type", "Filter history by event type")
+        self.machine_combo = self._combo("Machine", "Filter history by machine")
+        self.date_combo = self._combo("Date Range", "Filter history by date range")
+        self.event_type_combo.setMinimumWidth(200)
+        self.machine_combo.setMinimumWidth(180)
+        self.date_combo.setMinimumWidth(200)
+        for value in ("All", "Last 30 Days", "Last 90 Days", "This Year", "Previous Year"):
+            self.date_combo.addItem(f"Date Range: {value}", value)
+        self.export_button = QPushButton("Export")
+        self.export_button.setObjectName("EOATHistoryExportButton")
+        self.export_button.setIcon(glyph_icon("doc", QColor("#eef6ff"), 16))
+        self.export_button.setIconSize(QSize(16, 16))
+        self.export_button.setAccessibleName("Export lifecycle history PDF")
+        self.export_button.setToolTip("Export complete history or the currently filtered results")
+        self.export_menu = QMenu(self.export_button)
+        self.export_menu.addAction("Export Complete History", lambda: self.export_history(filtered=False))
+        self.export_menu.addAction("Export Filtered Results", lambda: self.export_history(filtered=True))
+        self.export_button.setMenu(self.export_menu)
+        self._layout_toolbar(False)
+        root.addWidget(self.toolbar)
+
+        self.content_host = QWidget()
+        self.content_host.setObjectName("EOATHistoryContent")
+        self.content_layout = QGridLayout(self.content_host)
+        self.content_layout.setContentsMargins(0, 2, 0, 0)
+        self.content_layout.setHorizontalSpacing(12)
+        self.content_layout.setVerticalSpacing(12)
+        self.model = EOATHistoryListModel(self)
+        self.list_view = QListView()
+        self.list_view.setObjectName("EOATHistoryList")
+        self.list_view.setModel(self.model)
+        self.list_view.setItemDelegate(EOATHistoryItemDelegate(self.list_view))
+        self.list_view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.list_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.list_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.list_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list_view.setMouseTracking(True)
+        self.list_view.setUniformItemSizes(False)
+        self.list_view.setMinimumHeight(320)
+        self.list_view.setAccessibleName("Documented EOAT lifecycle events")
+        self.details_panel = EOATHistoryDetailsPanel()
+        self.content_layout.addWidget(self.list_view, 0, 0)
+        self.content_layout.addWidget(self.details_panel, 0, 1)
+        self.content_layout.setColumnStretch(0, 2)
+        self.content_layout.setColumnStretch(1, 1)
+        self.content_layout.setRowStretch(0, 1)
+        root.addWidget(self.content_host, 1)
+
+        self.empty_overlay = QWidget(self.list_view.viewport())
+        self.empty_overlay.setObjectName("EOATHistoryEmptyState")
+        empty_layout = QVBoxLayout(self.empty_overlay)
+        empty_layout.setContentsMargins(34, 34, 34, 34)
+        empty_layout.addStretch(1)
+        self.empty_title = QLabel("No documented history")
+        self.empty_title.setObjectName("EOATHistoryEmptyTitle")
+        self.empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(self.empty_title)
+        self.empty_message = QLabel("No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT.")
+        self.empty_message.setObjectName("EOATHistoryEmptyMessage")
+        self.empty_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_message.setWordWrap(True)
+        empty_layout.addWidget(self.empty_message)
+        self.empty_note = QLabel("History will appear here when supported records become available.")
+        self.empty_note.setObjectName("EOATHistoryEmptyNote")
+        self.empty_note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_note.setWordWrap(True)
+        empty_layout.addWidget(self.empty_note)
+        self.retry_button = QPushButton("Retry")
+        self.retry_button.setObjectName("EOATHistoryRetry")
+        self.retry_button.clicked.connect(self.load_history)
+        empty_layout.addWidget(self.retry_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        empty_layout.addStretch(1)
+
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(160)
+        self._search_timer.timeout.connect(self.apply_filters)
+        self.search_edit.textChanged.connect(lambda _text: self._search_timer.start())
+        self.event_type_combo.currentIndexChanged.connect(self.apply_filters)
+        self.machine_combo.currentIndexChanged.connect(self.apply_filters)
+        self.date_combo.currentIndexChanged.connect(self.apply_filters)
+        self.list_view.selectionModel().currentChanged.connect(self._selection_changed)
+        self.history_loaded.connect(self._history_loaded)
+        self.history_failed.connect(self._history_failed)
+        self.export_complete.connect(self._export_finished)
+        self.export_failed.connect(self._export_failed)
+
+        self.setStyleSheet(self.styleSheet() + EOAT_HISTORY_STYLES)
+        if initial_view_model is not None:
+            QTimer.singleShot(0, lambda: self._history_loaded(initial_view_model))
+        else:
+            QTimer.singleShot(0, self.load_history)
+
+    def _combo(self, accessible_name: str, tooltip: str) -> QComboBox:
+        combo = QComboBox()
+        combo.setObjectName("EOATHistoryFilter")
+        combo.setAccessibleName(accessible_name)
+        combo.setToolTip(tooltip)
+        combo.setMinimumWidth(150)
+        return combo
+
+    def _layout_toolbar(self, narrow: bool) -> None:
+        for widget in (self.search_edit, self.event_type_combo, self.machine_combo, self.date_combo, self.export_button):
+            self.toolbar_layout.removeWidget(widget)
+        if narrow:
+            self.toolbar_layout.addWidget(self.search_edit, 0, 0, 1, 2)
+            self.toolbar_layout.addWidget(self.export_button, 0, 2)
+            self.toolbar_layout.addWidget(self.event_type_combo, 1, 0)
+            self.toolbar_layout.addWidget(self.machine_combo, 1, 1)
+            self.toolbar_layout.addWidget(self.date_combo, 1, 2)
+            self.toolbar_layout.setColumnStretch(0, 1)
+            self.toolbar_layout.setColumnStretch(1, 1)
+            self.toolbar_layout.setColumnStretch(2, 1)
+        else:
+            self.toolbar_layout.addWidget(self.search_edit, 0, 0)
+            self.toolbar_layout.addWidget(self.event_type_combo, 0, 1)
+            self.toolbar_layout.addWidget(self.machine_combo, 0, 2)
+            self.toolbar_layout.addWidget(self.date_combo, 0, 3)
+            self.toolbar_layout.addWidget(self.export_button, 0, 5)
+            self.toolbar_layout.setColumnStretch(0, 2)
+            self.toolbar_layout.setColumnStretch(4, 2)
+
+    def load_history(self) -> None:
+        if self._loading:
+            return
+        self._loading = True
+        self.retry_button.hide()
+        self.empty_title.setText("Loading documented historyâ€¦")
+        self.empty_message.setText("Retrieving lifecycle events for this EOAT.")
+        self.empty_note.clear()
+        self.empty_overlay.show()
+        loader = self.history_loader
+        if loader is None:
+            self._history_loaded(EOATHistoryViewModel(self.detail_data.record_id, (), (), ()))
+            return
+
+        def worker() -> None:
+            try:
+                result = loader()
+                if not isinstance(result, EOATHistoryViewModel):
+                    raise TypeError("History provider returned an unsupported result.")
+                self.history_loaded.emit(result)
+            except Exception as exc:
+                LOGGER.exception("EOAT history could not be loaded for %s", self.detail_data.record_id)
+                try:
+                    self.history_failed.emit(f"{type(exc).__name__}: {exc}")
+                except RuntimeError:
+                    pass
+
+        threading.Thread(target=worker, name=f"EOATHistory-{self.detail_data.record_id}", daemon=True).start()
+
+    @Slot(object)
+    def _history_loaded(self, result: object) -> None:
+        if not isinstance(result, EOATHistoryViewModel):
+            self._history_failed("History provider returned an unsupported result.")
+            return
+        self._loading = False
+        self.view_model = result
+        self.event_type_combo.blockSignals(True)
+        self.machine_combo.blockSignals(True)
+        self.event_type_combo.clear()
+        self.event_type_combo.addItem("Event Type: All", "All")
+        for event_type in result.event_types:
+            self.event_type_combo.addItem(f"Event Type: {event_type.title()}", event_type)
+        self.machine_combo.clear()
+        self.machine_combo.addItem("Machine: All", "All")
+        for machine in result.machines:
+            self.machine_combo.addItem(f"Machine: {machine}", machine)
+        self.event_type_combo.blockSignals(False)
+        self.machine_combo.blockSignals(False)
+        self.retry_button.hide()
+        self.apply_filters()
+
+    @Slot(str)
+    def _history_failed(self, message: str) -> None:
+        self._loading = False
+        self.view_model = EOATHistoryViewModel(self.detail_data.record_id, (), (), ())
+        self.model.set_events(())
+        self.details_panel.show_event(None)
+        self.empty_title.setText("History could not be loaded.")
+        self.empty_message.setText("The documented history source is unavailable right now.")
+        self.empty_note.setText("Retry the request. Existing EOAT profile data remains available.")
+        self.retry_button.show()
+        self.empty_overlay.show()
+        LOGGER.warning("EOAT history inline error for %s: %s", self.detail_data.record_id, message)
+
+    @Slot()
+    def apply_filters(self) -> None:
+        previous = self.selected_event_id
+        self.filtered_events = self.service.filter_events(
+            self.view_model.events,
+            search=self.search_edit.text(),
+            event_type=str(self.event_type_combo.currentData() or "All"),
+            machine=str(self.machine_combo.currentData() or "All"),
+            date_range=str(self.date_combo.currentData() or "All"),
+        )
+        self.model.set_events(self.filtered_events)
+        selected_row = next((index for index, event in enumerate(self.filtered_events) if event.event_id == previous), 0)
+        if self.filtered_events:
+            target = self.model.index(selected_row, 0)
+            self.list_view.setCurrentIndex(target)
+            self._show_empty(False)
+        else:
+            self.selected_event_id = ""
+            self.details_panel.show_event(None)
+            if self.view_model.events:
+                self.empty_title.setText("No matching history")
+                self.empty_message.setText("No documented events match the active filters.")
+                self.empty_note.setText("Clear or adjust the filters to restore the activity list.")
+            else:
+                self.empty_title.setText("No documented history")
+                self.empty_message.setText("No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT.")
+                self.empty_note.setText("History will appear here when supported records become available.")
+            self.retry_button.hide()
+            self._show_empty(True)
+
+    def _selection_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        event = current.data(EOATHistoryListModel.EventRole) if current.isValid() else None
+        if isinstance(event, EOATHistoryEvent):
+            self.selected_event_id = event.event_id
+            self.details_panel.show_event(event)
+        else:
+            self.selected_event_id = ""
+            self.details_panel.show_event(None)
+
+    def _show_empty(self, visible: bool) -> None:
+        self.empty_overlay.setVisible(visible)
+        if visible:
+            self.empty_overlay.raise_()
+
+    def export_history(self, *, filtered: bool) -> None:
+        if self._exporting:
+            return
+        events = self.filtered_events if filtered else self.view_model.events
+        model = self.service.export_model(self.detail_data.record_id, events)
+        scope = "Filtered results" if filtered else "Complete documented history"
+        self._exporting = True
+        self.export_button.setEnabled(False)
+        self.export_button.setText("Generatingâ€¦")
+        project_root = Path(self.project_root) if self.project_root else Path.cwd()
+
+        def worker() -> None:
+            try:
+                from core.reporting.eoat_history_pdf import eoat_history_filename, export_eoat_history_pdf
+
+                output = project_root / "output" / "pdf" / eoat_history_filename(self.detail_data.record_id)
+                output = _unique_history_export_path(output)
+                result = export_eoat_history_pdf(self.detail_data, model, output, scope_label=scope)
+                self.export_complete.emit(str(result))
+            except Exception as exc:
+                LOGGER.exception("EOAT history PDF export failed for %s", self.detail_data.record_id)
+                try:
+                    self.export_failed.emit(f"{type(exc).__name__}: {exc}")
+                except RuntimeError:
+                    pass
+
+        threading.Thread(target=worker, name=f"EOATHistoryPdf-{self.detail_data.record_id}", daemon=True).start()
+
+    @Slot(str)
+    def _export_finished(self, path: str) -> None:
+        self._exporting = False
+        self.export_button.setEnabled(True)
+        self.export_button.setText("Export")
+        self._notify(f"History PDF exported: {path}")
+
+    @Slot(str)
+    def _export_failed(self, message: str) -> None:
+        self._exporting = False
+        self.export_button.setEnabled(True)
+        self.export_button.setText("Export")
+        self._notify(f"History PDF export failed: {message}")
+
+    def _notify(self, message: str) -> None:
+        current = self.parentWidget()
+        while current is not None:
+            notifier = getattr(current, "show_toast", None)
+            if callable(notifier):
+                notifier(message)
+                return
+            current = current.parentWidget()
+        LOGGER.info(message)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.empty_overlay.setGeometry(self.list_view.viewport().rect())
+        narrow_toolbar = self.width() < 1120
+        self._layout_toolbar(narrow_toolbar)
+        should_stack = self.width() < 850
+        if should_stack != self._stacked:
+            self._stacked = should_stack
+            self.content_layout.removeWidget(self.list_view)
+            self.content_layout.removeWidget(self.details_panel)
+            if should_stack:
+                self.content_layout.addWidget(self.list_view, 0, 0)
+                self.content_layout.addWidget(self.details_panel, 1, 0)
+                self.details_panel.setMinimumHeight(260)
+            else:
+                self.content_layout.addWidget(self.list_view, 0, 0)
+                self.content_layout.addWidget(self.details_panel, 0, 1)
+                self.details_panel.setMinimumHeight(0)
+                self.content_layout.setColumnStretch(0, 2)
+                self.content_layout.setColumnStretch(1, 1)
+
+
+def _history_event_summaries(event: EOATHistoryEvent) -> tuple[str, str]:
+    primary = []
+    if event.previous_machine_label and event.machine_label:
+        primary.append(f"{event.previous_machine_label}  â†’  {event.machine_label}")
+    elif event.machine_label:
+        primary.append(event.machine_label)
+    if event.tool_number:
+        primary.append(f"Tool: {event.tool_number}")
+    if event.reason:
+        primary.append(f"Reason: {event.reason}")
+    if not primary and event.audit_id:
+        primary.append(f"Audit ID: {event.audit_id}")
+    secondary = []
+    if event.recorded_by:
+        secondary.append(f"Logged by: {event.recorded_by}")
+    if event.source_type:
+        secondary.append(f"Source: {event.source_type}")
+    if event.notes and not primary:
+        secondary.append(event.notes)
+    return "   â€¢   ".join(primary) or "Documented lifecycle event", "   â€¢   ".join(secondary) or "No additional documentation"
+
+
+def _history_detail_fields(event: EOATHistoryEvent) -> tuple[tuple[str, str], ...]:
+    values = [
+        ("Event Type", event.event_type.title()),
+        ("Logged By", event.recorded_by),
+        ("From", event.previous_machine_label or event.previous_status),
+        ("To", event.machine_label or event.new_status),
+        ("Machine", event.machine_label),
+        ("Previous Machine", event.previous_machine_label),
+        ("Tool #", event.tool_number),
+        ("Previous Tool #", event.previous_tool_number),
+        ("Status", event.new_status),
+        ("Previous Status", event.previous_status),
+        ("Source", event.source_type),
+        ("Logged At", _history_datetime_text(event.event_timestamp)),
+        ("Effective From", _history_datetime_text(event.effective_from, approximate=event.is_approximate_date)),
+        ("Effective Until", _history_datetime_text(event.effective_until) if event.effective_until else "Present"),
+        ("Audit ID", event.audit_id),
+        ("Maintenance ID", event.maintenance_id),
+        ("Reason", event.reason),
+        ("Notes", event.notes),
+        ("Verification Status", "Verified" if event.is_verified is True else "Unverified" if event.is_verified is False else ""),
+    ]
+    return tuple((label, value) for label, value in values if str(value or "").strip() and value != "Not documented")
+
+
+def _history_datetime_text(value: datetime | None, *, approximate: bool = False) -> str:
+    if value is None:
+        return "Not documented"
+    text = value.astimezone().strftime("%b %d, %Y %I:%M %p").replace(" 0", " ")
+    return f"Approx. {text}" if approximate else text
+
+
+def _history_event_tooltip(event: EOATHistoryEvent) -> str:
+    primary, secondary = _history_event_summaries(event)
+    return f"{event.title}\n{event.event_type} Â· {_history_datetime_text(event.effective_timestamp)}\n{primary}\n{secondary}"
+
+
+def _unique_history_export_path(path: Path) -> Path:
+    if not path.exists():
+        return path
+    for index in range(2, 1000):
+        candidate = path.with_name(f"{path.stem}_{index}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+    return path.with_name(f"{path.stem}_{datetime.now().strftime('%S%f')}{path.suffix}")
+
+
+EOAT_HISTORY_STYLES = """
+QFrame#EOATHistoryCard,
+QWidget#EOATHistoryToolbar,
+QWidget#EOATHistoryContent,
+QWidget#EOATHistoryDetailsFields {
+    background: transparent;
+}
+QLabel#EOATHistoryTitle {
+    color: #f8fbff;
+    font-size: 16.5pt;
+    font-weight: 820;
+}
+QLabel#EOATHistorySubtitle {
+    color: #c4d0df;
+    font-size: 9.5pt;
+    font-weight: 500;
+}
+QLabel#EOATHistorySectionHeading {
+    color: #f8fbff;
+    font-size: 12pt;
+    font-weight: 790;
+}
+QLineEdit#EOATHistorySearch,
+QComboBox#EOATHistoryFilter,
+QPushButton#EOATHistoryExportButton {
+    min-height: 38px;
+    max-height: 38px;
+    color: #eef6ff;
+    background: rgba(5, 17, 34, 196);
+    border: 1px solid rgba(59, 102, 148, 175);
+    border-radius: 6px;
+    padding: 0 12px;
+    font-size: 9.4pt;
+}
+QLineEdit#EOATHistorySearch:focus,
+QComboBox#EOATHistoryFilter:focus,
+QPushButton#EOATHistoryExportButton:focus {
+    border: 2px solid #48b8ff;
+}
+QLineEdit#EOATHistorySearch:hover,
+QComboBox#EOATHistoryFilter:hover,
+QPushButton#EOATHistoryExportButton:hover {
+    background: rgba(10, 35, 67, 225);
+    border-color: rgba(72, 171, 255, 220);
+}
+QComboBox#EOATHistoryFilter::drop-down {
+    width: 24px;
+    border: 0;
+}
+QComboBox#EOATHistoryFilter QAbstractItemView,
+QMenu {
+    color: #eef6ff;
+    background: #07182c;
+    border: 1px solid #315f8d;
+    selection-background-color: #135da8;
+    padding: 5px;
+}
+QPushButton#EOATHistoryExportButton {
+    min-width: 120px;
+    font-weight: 680;
+}
+QListView#EOATHistoryList {
+    background: transparent;
+    border: 0;
+    outline: 0;
+}
+QListView#EOATHistoryList::item {
+    background: transparent;
+}
+QWidget#EOATHistoryEmptyState {
+    background: rgba(6, 22, 42, 246);
+    border: 1px solid rgba(49, 95, 141, 150);
+    border-radius: 8px;
+}
+QLabel#EOATHistoryEmptyTitle {
+    color: #f8fbff;
+    font-size: 14pt;
+    font-weight: 760;
+}
+QLabel#EOATHistoryEmptyMessage {
+    color: #c4d0df;
+    font-size: 9.5pt;
+}
+QLabel#EOATHistoryEmptyNote,
+QLabel#EOATHistoryEmptyDetails {
+    color: #91a5bd;
+    font-size: 8.8pt;
+}
+QPushButton#EOATHistoryRetry {
+    color: #ffffff;
+    background: rgba(10, 82, 185, 220);
+    border: 1px solid #2996ff;
+    border-radius: 7px;
+    padding: 7px 18px;
+    font-weight: 700;
+}
+QLabel#EOATHistoryDetailLabel {
+    color: #8fc9ff;
+    font-size: 8.2pt;
+    font-weight: 620;
+}
+QLabel#EOATHistoryDetailValue {
+    color: #f1f6fc;
+    font-size: 9pt;
+    font-weight: 510;
+}
+"""
 
 
 class InfoSectionCard(GlassPanel):
@@ -4968,7 +7644,7 @@ class PhotoTile(QWidget):
             painter.drawPixmap(round(thumb_rect.center().x() - icon.width() / 2), round(thumb_rect.center().y() - icon.height() / 2), icon)
             if self.load_error:
                 painter.setFont(_font(7.4, 620))
-                painter.setPen(QColor("#ffb145"))
+                painter.setPen(STATUS_WARNING)
                 painter.drawText(thumb_rect.adjusted(8, 56, -8, -8), Qt.AlignmentFlag.AlignCenter, "Missing")
             painter.setClipPath(path)
         painter.setClipping(False)
@@ -4978,7 +7654,7 @@ class PhotoTile(QWidget):
         painter.setPen(QColor("#ffffff"))
         painter.drawText(QRectF(rect.left() + 10, rect.top() + 101, rect.width() - 20, 18), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, clipped_text(self.photo.category or self.photo.filename, 24))
         painter.setFont(_font(7.6, 520))
-        painter.setPen(QColor("#aebbd0"))
+        painter.setPen(QColor("#b7c4d5"))
         meta = self.photo.date_taken or self.photo.association or self.photo.filename
         painter.drawText(QRectF(rect.left() + 10, rect.top() + 119, rect.width() - 20, 16), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, clipped_text(meta, 28))
 
@@ -5425,6 +8101,69 @@ def _point_between(start: QPointF, end: QPointF, ratio: float) -> QPointF:
     return QPointF(start.x() + (end.x() - start.x()) * ratio, start.y() + (end.y() - start.y()) * ratio)
 
 
+def _scaled_rect(rect: QRect, scale: float) -> QRect:
+    width = max(1, round(rect.width() * scale))
+    height = max(1, round(rect.height() * scale))
+    return QRect(rect.center().x() - width // 2, rect.center().y() - height // 2, width, height)
+
+
+def _record_pdf_output_dir(project_root: str | Path) -> Path:
+    root = Path(project_root) if str(project_root or "").strip() else Path.cwd()
+    return root / "output" / "pdf"
+
+
+def _record_pdf_preview_dir(project_root: str | Path) -> Path:
+    root = Path(project_root) if str(project_root or "").strip() else Path.cwd()
+    return root / "00_Project_Admin" / "cache" / "pdf_previews"
+
+
+def _record_pdf_preview_path(project_root: str | Path, detail_data: RecordDetailData) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    type_label = {"eoat": "EOAT", "tool": "Tool", "machine": "Machine"}.get(detail_data.record_type, "Record")
+    filename = f"preview_{type_label}_{_safe_filename_component(detail_data.record_id)}_{timestamp}.pdf"
+    return _record_pdf_preview_dir(project_root) / filename
+
+
+def _record_report_default_filename(detail_data: RecordDetailData) -> str:
+    stamp = datetime.now().strftime("%Y-%m-%d")
+    type_label = {"eoat": "EOAT", "tool": "Tool", "machine": "Machine"}.get(detail_data.record_type, "Record")
+    return f"{type_label}_Report_{_safe_filename_component(detail_data.record_id)}_{stamp}.pdf"
+
+
+def _safe_filename_component(value: str) -> str:
+    text = "".join(character if character.isalnum() or character in "._-" else "_" for character in str(value or "record").strip())
+    return text.strip("_") or "record"
+
+
+def _record_short_label(detail_data: RecordDetailData) -> str:
+    if detail_data.record_type == ENTITY_TOOL:
+        return f"Tool {detail_data.record_id}"
+    if detail_data.record_type == ENTITY_MACHINE:
+        return f"Machine {detail_data.record_id}"
+    return detail_data.record_id
+
+
+def _record_display_label(detail_data: RecordDetailData) -> str:
+    return f"{detail_data.record_type.upper()}: {_record_short_label(detail_data)}"
+
+
+def _friendly_output_folder(path: Path) -> str:
+    text = str(path)
+    parts = path.parts
+    if "output" in parts:
+        index = parts.index("output")
+        return str(Path(*parts[index:]))
+    return text
+
+
+def _has_meaningful_history(detail_data: RecordDetailData) -> bool:
+    for field in detail_data.history_fields:
+        value = _field_text(field.value)
+        if value and "no history indexed" not in value.casefold() and value != "Not Indexed":
+            return True
+    return False
+
+
 def _font(point_size: float, weight: int) -> QFont:
     font = QFont("Segoe UI")
     font.setPointSizeF(point_size)
@@ -5528,11 +8267,13 @@ def _field_should_render_as_chip(label: str, value: str) -> bool:
 
 def _chip_tone_for(value: str) -> str:
     folded = str(value or "").casefold()
-    if folded in {"indexed", "good", "complete"}:
+    if folded in {"indexed", "good", "complete", "active", "confirmed", "compatible", "installed", "supported", "match"}:
         return "good"
-    if folded in {"missing", "needs review"}:
+    if folded in {"warning", "partial", "needs review", "verify"}:
         return "warn"
-    if folded in {"not indexed", "none indexed", "unknown"}:
+    if folded in {"error", "conflict", "incompatible", "missing required", "invalid"}:
+        return "bad"
+    if folded in {"not indexed", "none indexed", "unknown", "insufficient data", "not available", "missing"}:
         return "muted"
     return "normal"
 
@@ -5561,14 +8302,20 @@ QWidget#LibraryRecordStack {
     background: transparent;
 }
 QLabel#LibraryMainTitle {
-    color: #ffffff;
-    font-size: 38pt;
-    font-weight: 850;
+    color: #f8fbff;
+    font-size: 31pt;
+    font-weight: 820;
 }
 QLabel#LibraryMainSubtitle {
-    color: #c6d0df;
-    font-size: 14.5pt;
-    font-weight: 420;
+    color: #d7e2f0;
+    font-size: 10.5pt;
+    font-weight: 500;
+}
+QFrame#LibraryTitleAccent {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 89, 200, 0), stop:.52 #047aff, stop:1 rgba(0, 89, 200, 0));
+    border: 0;
+    min-height: 3px;
+    max-height: 3px;
 }
 QLabel#LibraryPanelHeading {
     color: #f8fbff;
@@ -5578,7 +8325,7 @@ QLabel#LibraryPanelHeading {
 QLabel#LibraryMutedText,
 QLabel#LibraryEmptySubtitle,
 QLabel#RelationshipSubtitle {
-    color: #aebbd0;
+    color: #b7c4d5;
     font-size: 10pt;
 }
 QLabel#LibraryEmptyTitle {
@@ -5595,7 +8342,7 @@ QLineEdit#LibrarySearchInput {
 }
 QLabel#LibraryDropdownLabel,
 QLabel#RecordMetaLabel {
-    color: #7fb8d8;
+    color: #95d4ff;
     font-size: 8.3pt;
     font-weight: 760;
 }
@@ -5642,7 +8389,7 @@ QPushButton#LibraryActiveFilterPill {
 }
 QPushButton#LibraryFilterCategory {
     background: transparent;
-    color: #cbd8ea;
+    color: #d3deed;
     border: 1px solid transparent;
     border-radius: 8px;
     padding: 8px 10px;
@@ -5658,7 +8405,7 @@ QPushButton#LibraryFilterCategory[active="true"] {
 }
 QPushButton#LibraryFilterValue {
     background: rgba(7, 22, 45, 180);
-    color: #dce8f8;
+    color: #e0ebf8;
     border: 1px solid rgba(73, 111, 157, 120);
     border-radius: 8px;
     padding: 8px 12px;
@@ -5696,7 +8443,7 @@ QPushButton#LibraryPaginationButton:disabled {
     border-color: rgba(73, 111, 157, 70);
 }
 QLabel#LibraryPaginationText {
-    color: #b9c5d7;
+    color: #c5d1e1;
     font-size: 10pt;
     padding-right: 24px;
 }
@@ -5724,7 +8471,7 @@ QLabel#RecordHeroTitle {
     font-weight: 850;
 }
 QLabel#RecordHeroSubtitle {
-    color: #d6e0ef;
+    color: #d8e4f2;
     font-size: 12pt;
 }
 QFrame#RecordHeroRule {
@@ -5739,7 +8486,7 @@ QLabel#RecordMetaValue {
     font-weight: 540;
 }
 QLabel#RecordMetaValue[tone="muted"] {
-    color: #8191a8;
+    color: #a5b5ca;
     font-style: italic;
 }
 QLabel#RecordMetaValue[importance="high"] {
@@ -5769,6 +8516,13 @@ QLabel#RecordChip[tone="warn"] {
     color: #ffe7b7;
     background: rgba(114, 69, 16, 136);
     border-color: rgba(245, 177, 69, 154);
+}
+QLabel#RecordChip[tone="bad"],
+QLabel#RecordChip[tone="error"],
+QLabel#RecordChip[tone="danger"] {
+    color: #ffd4d9;
+    background: rgba(116, 24, 44, 136);
+    border-color: rgba(255, 92, 108, 154);
 }
 QLabel#RecordChip[tone="muted"] {
     color: #b6c2d2;
@@ -5846,15 +8600,146 @@ QScrollArea#PhotoGalleryScroll QWidget {
 """
 
 
+def library_widget_styles(preference: str | None = None) -> str:
+    t = minimalist_tokens(preference)
+    light = effective_minimalist_theme(preference) == "light"
+    chip_bg = t.card_background if light else "rgba(7, 20, 42, 150)"
+    chip_hover = t.card_background_hover if light else "rgba(10, 47, 102, 220)"
+    chip_text = t.text_primary if light else "#ffffff"
+    muted_bg = qss_rgba(t.panel_background_alt, 242 if light else 145)
+    border = qss_rgba(t.border, 190 if light else 150)
+    return (
+        LIBRARY_WIDGET_STYLES
+        + f"""
+QLabel#LibraryMainTitle,
+QLabel#LibraryPanelHeading,
+QLabel#LibraryEmptyTitle,
+QLabel#LibraryCategoryTitle,
+QLabel#LibraryGroupTitle,
+QLabel#LibraryDrawerTitle,
+QLabel#RecordHeroTitle,
+QLabel#RelationshipTitle,
+QLabel#InfoSectionTitle {{
+    color: {t.text_primary};
+}}
+QLabel#LibraryMainSubtitle,
+QLabel#LibraryMutedText,
+QLabel#LibraryEmptySubtitle,
+QLabel#RelationshipSubtitle,
+QLabel#LibraryDrawerSubtitle,
+QLabel#RecordHeroSubtitle,
+QLabel#RecordMetaValue {{
+    color: {t.text_secondary};
+}}
+QLabel#LibraryDropdownLabel,
+QLabel#RecordMetaLabel,
+QLabel#LibraryHeroSectionTitle,
+QLabel#LibraryHeroType,
+QLabel#LibraryPopoverTitle,
+QLabel#RelationshipGroupLabel,
+QLabel#LibraryGroupTitle {{
+    color: {t.accent_hover if light else t.accent};
+}}
+QLineEdit#LibrarySearchInput,
+QComboBox#LibraryDropdownCombo {{
+    color: {t.text_primary};
+    selection-background-color: {t.accent};
+}}
+QComboBox QAbstractItemView {{
+    background: {t.panel_background};
+    color: {t.text_primary};
+    border: 1px solid {border};
+    selection-background-color: {t.accent_soft};
+}}
+QPushButton#LibrarySecondaryButton,
+QPushButton#LibraryPaginationButton,
+QPushButton#LibraryFilterValue,
+QPushButton#LibraryActiveFilterPill {{
+    color: {chip_text};
+    background: {chip_bg};
+    border-color: {border};
+}}
+QPushButton#LibrarySecondaryButton:hover,
+QPushButton#LibrarySecondaryButton[active="true"],
+QPushButton#LibraryPaginationButton:hover,
+QPushButton#LibraryPaginationButton[active="true"],
+QPushButton#LibraryFilterValue:hover,
+QPushButton#LibraryFilterValue[active="true"],
+QPushButton#LibraryActiveFilterPill:hover {{
+    color: {chip_text};
+    background: {chip_hover};
+    border-color: {qss_rgba(t.accent, 205)};
+}}
+QPushButton#LibraryFilterCategory {{
+    color: {t.text_secondary};
+}}
+QPushButton#LibraryFilterCategory:hover,
+QPushButton#LibraryFilterCategory[active="true"] {{
+    color: {t.text_primary};
+    background: {t.accent_soft if light else qss_rgba(t.accent_soft, 145)};
+    border-color: {qss_rgba(t.accent, 170)};
+}}
+QPushButton#LibraryPaginationButton:disabled {{
+    color: {t.disabled_button_text};
+    border-color: {t.disabled_border};
+    background: {t.disabled_button_background};
+}}
+QLabel#LibraryPaginationText {{
+    color: {t.text_secondary};
+}}
+QPushButton#LibraryBackButton {{
+    color: {t.text_secondary};
+}}
+QPushButton#LibraryBackButton:hover {{
+    color: {t.text_primary};
+    border-color: {qss_rgba(t.accent, 140)};
+}}
+QLabel#RecordChip {{
+    color: {t.text_secondary};
+    background: {muted_bg};
+    border-color: {border};
+}}
+QFrame#RecordHeroRule,
+QFrame#RecordHeroVerticalRule {{
+    background: {qss_rgba(t.border, 120 if light else 58)};
+}}
+QPushButton#RecordPrimaryAction {{
+    color: {t.primary_button_text};
+    background: {t.primary_button_background};
+    border-color: {qss_rgba(t.accent_hover, 220)};
+}}
+QPushButton#RecordSecondaryAction {{
+    color: {t.text_primary};
+    background: {chip_bg};
+    border-color: {border};
+}}
+QPushButton#LibraryTabButton {{
+    color: {t.text_secondary};
+}}
+QPushButton#LibraryTabButton[active="true"] {{
+    color: {t.accent_hover};
+    border-bottom-color: {t.accent_hover};
+}}
+QScrollArea#LibraryBodyScroll,
+QScrollArea#PhotoGalleryScroll {{
+    background: transparent;
+    border: 0;
+}}
+"""
+    )
+
+
 __all__ = [
     "AtlasMinimalistLibraryPage",
     "AtlasRecordCard",
+    "CopyIdButton",
     "LibraryBrowseCard",
     "LibraryCatalog",
     "LibraryEntity",
     "MinimalistLibraryContent",
     "atlas_card_metrics",
     "card_status_display",
+    "get_pagination_items",
     "machine_current_eoat_display",
     "record_status_display",
     "ENTITY_EOAT",

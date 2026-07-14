@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SPEC_PATH = ROOT / "EOAT_Atlas.spec"
 
 
 def main() -> int:
@@ -21,7 +22,7 @@ def main() -> int:
         "PyInstaller",
         "--noconfirm",
         "--clean",
-        str(ROOT / "EOAT_Command_Center.spec"),
+        str(SPEC_PATH),
     ]
     print("Running:", " ".join(cmd))
     return subprocess.run(cmd, cwd=ROOT, shell=False).returncode

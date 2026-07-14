@@ -1,5 +1,25 @@
 # Release Notes
 
+## Phase 2.6 Pre-Onedir Readiness Gate
+
+- Added package-safe resource helpers for source and frozen modes.
+- Made release metadata load from bundled resources in packaged mode and included `release_metadata.json` in `EOAT_Atlas.spec`.
+- Added frozen-mode runtime folder selection for future `%LOCALAPPDATA%\EOAT_Atlas` production runtime.
+- Added smoke-runtime initialization for metadata, identity, SQLite schema, pending update, and event probes.
+- Added `scripts/preflight_onedir_readiness.py` for source preflight gates before PyInstaller.
+- Rebuilt `scripts/smoke_test_package.py` for the future post-onedir package smoke.
+- Added Phase 2.6 tests for metadata, LocalAppData runtime enforcement, spec readiness, preflight, package smoke failure behavior, and sync/lock identity metadata.
+
+## Phase 2.5 Pre-Onedir Cleanup
+
+- Centralized EOAT Atlas release metadata in `release_metadata.json` and `core/globalization/app_metadata.py`.
+- Added stable LocalAppData install identity support for dev fallback and future installer-provided identity.
+- Split Refresh from Deep Refresh: Refresh is local SQLite/UI reload only; Deep Refresh rebuilds the SQLite cache from staged workbook data.
+- Hardened pending updates, effective-record overlays, conflict detection, sandbox workbook sync, backups, and audit-quality event JSON.
+- Kept production workbook writes disabled by default.
+- Removed active Command Center/classic Atlas naming from release-scope app paths.
+- Fixed Settings startup/open freeze by deferring Settings creation, caching source defaults/metadata, avoiding eager network validation, and guarding delayed search focus callbacks.
+
 ## Phase 6 Release Candidate
 
 - Added full system audit.

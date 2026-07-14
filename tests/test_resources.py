@@ -17,7 +17,7 @@ def test_frozen_mode_uses_bundle_resources_and_user_data(monkeypatch, tmp_path):
     user_root = tmp_path / "user-data"
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "_MEIPASS", str(bundle_root), raising=False)
-    monkeypatch.setenv("EOAT_COMMAND_CENTER_USER_DATA_DIR", str(user_root))
+    monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(user_root))
 
     assert resources.app_base_path() == bundle_root
     assert resources.resource_path("data_templates/workbook_schema.json") == (

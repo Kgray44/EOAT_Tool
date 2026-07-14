@@ -1,1 +1,1 @@
-"""EOAT Command Center desktop application package."""
+"""EOAT Atlas desktop application package."""
