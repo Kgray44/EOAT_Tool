@@ -18,8 +18,8 @@ from .database import models as db
 from .repositories import AtlasRepository
 from .security import ActorContext
 
-API_VERSION = "1.2.0"
-EXPECTED_SCHEMA_REVISION = "20260714_0003"
+API_VERSION = "1.3.0"
+EXPECTED_SCHEMA_REVISION = "20260714_0004"
 SERVER_REVISION = "mysql-cutover-rehearsal-rc1"
 
 
@@ -230,4 +230,5 @@ class AtlasService:
             tools=tool_profiles,
             documents=self.repository.documents(),
             photos=self.repository.documents(photos_only=True),
+            eoat_history=self.repository.eoat_history_snapshot(),
         )

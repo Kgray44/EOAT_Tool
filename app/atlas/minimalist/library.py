@@ -1696,6 +1696,8 @@ class MinimalistLibraryContent(QWidget):
         self.setStyleSheet(library_widget_styles(preference))
         for card in self.findChildren(AtlasRecordCard):
             card.update()
+        for history in self.findChildren(RecordHistoryTab):
+            history.apply_theme_preference(preference)
         self.status.update()
         self.update()
 
@@ -6414,6 +6416,12 @@ class EOATHistoryListModel(QAbstractListModel):
 
 class EOATHistoryItemDelegate(QStyledItemDelegate):
     _TONES = {
+        "INSTALLATIONS": ("robot", "#218cff", "#123f7d"),
+        "AUDITS": ("doc", "#20c4d8", "#0a6678"),
+        "ENGINEERING_CHANGES": ("gear", "#ae86ff", "#4a3377"),
+        "DOCUMENTS_AND_PHOTOS": ("doc", "#6bb7ff", "#244e78"),
+        "TAGS_AND_ANNOTATIONS": ("status", "#38d7a3", "#17634f"),
+        "ARCHIVE_ACTIVITY": ("library", "#ffb145", "#704817"),
         "LOCATION": ("robot", "#218cff", "#123f7d"),
         "AUDIT": ("doc", "#20c4d8", "#0a6678"),
         "MAINTENANCE": ("gear", "#69bd49", "#315f29"),
@@ -6442,9 +6450,13 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
         focused = bool(option.state & QStyle.StateFlag.State_HasFocus)
-        fill = QColor("#0a2343" if selected else "#071a31" if hovered else "#06162a")
+        light = effective_minimalist_theme() == "light"
+        fill = QColor(
+            "#dcecff" if selected and light else "#f1f7fd" if hovered and light else "#ffffff" if light
+            else "#0a2343" if selected else "#071a31" if hovered else "#06162a"
+        )
         fill.setAlpha(236 if selected else 210)
-        border = QColor("#2c95ff" if selected else "#29547c")
+        border = QColor("#1685d8" if selected else "#a8bfd4" if light else "#29547c")
         border.setAlpha(220 if selected else 150)
         path = QPainterPath()
         path.addRoundedRect(rect, 8, 8)
@@ -6458,7 +6470,7 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
             painter.setPen(focus_pen)
             painter.drawRoundedRect(rect.adjusted(3, 3, -3, -3), 6, 6)
 
-        glyph, icon_color, badge_color = self._TONES.get(event.event_type, self._TONES["OTHER"])
+        glyph, icon_color, badge_color = self._TONES.get(event.event_category, self._TONES.get(event.event_type, self._TONES["OTHER"]))
         line_x = rect.left() + 45
         painter.setPen(QPen(QColor(icon_color), 2.4))
         if index.row() > 0:
@@ -6479,7 +6491,7 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
         title_rect = QRectF(content_left, rect.top() + 10, max(80, content_right - content_left), 24)
         title_font = _font(10.8, 760)
         painter.setFont(title_font)
-        painter.setPen(QColor("#f8fbff"))
+        painter.setPen(QColor("#13263a" if light else "#f8fbff"))
         badge_font = _font(7.1, 760)
         badge_width = QFontMetrics(badge_font).horizontalAdvance(event.event_type) + 14
         title_available = max(80, title_rect.width() - badge_width - 14)
@@ -6498,7 +6510,7 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
         painter.setPen(QPen(QColor(icon_color), 0.7))
         painter.drawRoundedRect(badge_rect, 4, 4)
         painter.setFont(badge_font)
-        painter.setPen(QColor("#f4faff"))
+        painter.setPen(QColor("#ffffff" if not light else "#f8fbff"))
         painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, event.event_type)
 
         primary, secondary = _history_event_summaries(event)
@@ -6509,10 +6521,10 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
         body_rect = QRectF(content_left, body_top, max(80, content_right - content_left), 20)
         muted_rect = QRectF(content_left, muted_top, max(80, content_right - content_left), 18)
         painter.setFont(body_font)
-        painter.setPen(QColor("#d9e5f4"))
+        painter.setPen(QColor("#243d55" if light else "#d9e5f4"))
         painter.drawText(body_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, QFontMetrics(body_font).elidedText(primary, Qt.TextElideMode.ElideRight, round(body_rect.width())))
         painter.setFont(muted_font)
-        painter.setPen(QColor("#b7c4d5"))
+        painter.setPen(QColor("#536b80" if light else "#b7c4d5"))
         painter.drawText(muted_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, QFontMetrics(muted_font).elidedText(secondary, Qt.TextElideMode.ElideRight, round(muted_rect.width())))
 
         timestamp = event.effective_timestamp
@@ -6527,14 +6539,14 @@ class EOATHistoryItemDelegate(QStyledItemDelegate):
         date_rect = QRectF(rect.right() - right_width - chevron_width, rect.top() + 24, right_width - 36, 20)
         time_rect = QRectF(rect.right() - right_width - chevron_width, rect.top() + 46, right_width - 36, 18)
         painter.setFont(_font(9.0, 520))
-        painter.setPen(QColor("#dce7f4"))
+        painter.setPen(QColor("#2c4358" if light else "#dce7f4"))
         painter.drawText(date_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, date_text)
         painter.setFont(_font(8.5, 500))
-        painter.setPen(QColor("#b8c8da"))
+        painter.setPen(QColor("#5d7387" if light else "#b8c8da"))
         painter.drawText(time_rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, time_text)
 
         chevron_rect = QRectF(rect.right() - 26, rect.center().y() - 8, 16, 16)
-        painter.setPen(QPen(QColor("#eaf3ff"), 1.8))
+        painter.setPen(QPen(QColor("#41637f" if light else "#eaf3ff"), 1.8))
         painter.drawLine(chevron_rect.left() + 2, chevron_rect.top() + 5, chevron_rect.center().x(), chevron_rect.bottom() - 3)
         painter.drawLine(chevron_rect.center().x(), chevron_rect.bottom() - 3, chevron_rect.right() - 2, chevron_rect.top() + 5)
         painter.restore()
@@ -6620,6 +6632,7 @@ class RecordHistoryTab(GlassPanel):
         self._loading = False
         self._exporting = False
         self._stacked = False
+        self._theme_preference = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 16, 22, 18)
@@ -6631,6 +6644,11 @@ class RecordHistoryTab(GlassPanel):
         subtitle.setObjectName("EOATHistorySubtitle")
         subtitle.setWordWrap(True)
         root.addWidget(subtitle)
+        self.source_status = QLabel("")
+        self.source_status.setObjectName("EOATHistorySourceStatus")
+        self.source_status.setWordWrap(True)
+        self.source_status.hide()
+        root.addWidget(self.source_status)
         root.addSpacing(11)
         heading = QLabel("Activity History")
         heading.setObjectName("EOATHistorySectionHeading")
@@ -6711,7 +6729,7 @@ class RecordHistoryTab(GlassPanel):
         self.empty_title.setObjectName("EOATHistoryEmptyTitle")
         self.empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(self.empty_title)
-        self.empty_message = QLabel("No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT.")
+        self.empty_message = QLabel("No history has been recorded for this EOAT yet.")
         self.empty_message.setObjectName("EOATHistoryEmptyMessage")
         self.empty_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_message.setWordWrap(True)
@@ -6741,7 +6759,7 @@ class RecordHistoryTab(GlassPanel):
         self.export_complete.connect(self._export_finished)
         self.export_failed.connect(self._export_failed)
 
-        self.setStyleSheet(self.styleSheet() + EOAT_HISTORY_STYLES)
+        self.apply_theme_preference(None)
         if initial_view_model is not None:
             QTimer.singleShot(0, lambda: self._history_loaded(initial_view_model))
         else:
@@ -6754,6 +6772,24 @@ class RecordHistoryTab(GlassPanel):
         combo.setToolTip(tooltip)
         combo.setMinimumWidth(150)
         return combo
+
+    def apply_theme_preference(self, preference: str | None) -> None:
+        self._theme_preference = preference
+        light = effective_minimalist_theme(preference) == "light"
+        self.setStyleSheet(eoat_history_styles(preference))
+        self.set_glass(
+            alpha=238 if light else 116,
+            border_alpha=130 if light else 72,
+            border_color=QColor("#9bb8d1" if light else "#356492"),
+            fill_color=QColor("#f5f9fd" if light else "#061226"),
+        )
+        self.details_panel.set_glass(
+            alpha=246 if light else 178,
+            border_alpha=140 if light else 92,
+            border_color=QColor("#aac1d6" if light else "#315f8d"),
+            fill_color=QColor("#ffffff" if light else "#06162a"),
+        )
+        self.list_view.viewport().update()
 
     def _layout_toolbar(self, narrow: bool) -> None:
         for widget in (self.search_edit, self.event_type_combo, self.machine_combo, self.date_combo, self.export_button):
@@ -6812,6 +6848,12 @@ class RecordHistoryTab(GlassPanel):
             return
         self._loading = False
         self.view_model = result
+        if result.delivery_mode == "offline_cache":
+            timestamp = f" (cache updated {result.cache_timestamp})" if result.cache_timestamp else ""
+            self.source_status.setText(f"Offline read-only — showing cached MySQL history{timestamp}.")
+            self.source_status.show()
+        else:
+            self.source_status.hide()
         self.event_type_combo.blockSignals(True)
         self.machine_combo.blockSignals(True)
         self.event_type_combo.clear()
@@ -6833,9 +6875,18 @@ class RecordHistoryTab(GlassPanel):
         self.view_model = EOATHistoryViewModel(self.detail_data.record_id, (), (), ())
         self.model.set_events(())
         self.details_panel.show_event(None)
-        self.empty_title.setText("History could not be loaded.")
-        self.empty_message.setText("The documented history source is unavailable right now.")
-        self.empty_note.setText("Retry the request. Existing EOAT profile data remains available.")
+        if "IncompatibleServer" in message:
+            self.empty_title.setText("History requires a compatible server.")
+            self.empty_message.setText("The connected EOAT Atlas API is not compatible with this client.")
+            self.empty_note.setText("Update the client or server before retrying.")
+        elif "CacheUnavailable" in message:
+            self.empty_title.setText("History is unavailable offline.")
+            self.empty_message.setText("No cached MySQL history is available for this EOAT.")
+            self.empty_note.setText("Reconnect to the API and retry. Excel is not used as a fallback.")
+        else:
+            self.empty_title.setText("History could not be loaded.")
+            self.empty_message.setText("The MySQL-backed history service is unavailable right now.")
+            self.empty_note.setText("Retry the request. Existing EOAT profile data remains available.")
         self.retry_button.show()
         self.empty_overlay.show()
         LOGGER.warning("EOAT history inline error for %s: %s", self.detail_data.record_id, message)
@@ -6865,8 +6916,8 @@ class RecordHistoryTab(GlassPanel):
                 self.empty_note.setText("Clear or adjust the filters to restore the activity list.")
             else:
                 self.empty_title.setText("No documented history")
-                self.empty_message.setText("No machine assignments, audits, maintenance events, or record changes have been documented for this EOAT.")
-                self.empty_note.setText("History will appear here when supported records become available.")
+                self.empty_message.setText("No history has been recorded for this EOAT yet.")
+                self.empty_note.setText("Future installations, maintenance, audits, document changes, and other recorded activity will appear here.")
             self.retry_button.hide()
             self._show_empty(True)
 
@@ -6968,6 +7019,10 @@ def _history_event_summaries(event: EOATHistoryEvent) -> tuple[str, str]:
         primary.append(f"Tool: {event.tool_number}")
     if event.reason:
         primary.append(f"Reason: {event.reason}")
+    if event.storage_location:
+        primary.append(f"Storage: {event.storage_location}")
+    if event.description and not primary:
+        primary.append(event.description)
     if not primary and event.audit_id:
         primary.append(f"Audit ID: {event.audit_id}")
     secondary = []
@@ -6982,17 +7037,25 @@ def _history_event_summaries(event: EOATHistoryEvent) -> tuple[str, str]:
 
 def _history_detail_fields(event: EOATHistoryEvent) -> tuple[tuple[str, str], ...]:
     values = [
-        ("Event Type", event.event_type.title()),
-        ("Logged By", event.recorded_by),
+        ("Event Summary", event.title),
+        ("Description", event.description),
+        ("Event Type", event.event_type.replace("_", " ").title()),
+        ("Category", event.event_category.replace("_", " ").title()),
+        ("Performed By", event.recorded_by),
         ("From", event.previous_machine_label or event.previous_status),
         ("To", event.machine_label or event.new_status),
         ("Machine", event.machine_label),
         ("Previous Machine", event.previous_machine_label),
         ("Tool #", event.tool_number),
         ("Previous Tool #", event.previous_tool_number),
+        ("Robot", event.robot_number),
+        ("Storage Location", event.storage_location),
+        ("Related Document", event.document_reference),
+        ("Related Photo", event.photo_reference),
         ("Status", event.new_status),
         ("Previous Status", event.previous_status),
-        ("Source", event.source_type),
+        ("Source Record", " / ".join(value for value in (event.source_type, event.source_record_id) if value)),
+        ("Application Instance", event.app_instance_id),
         ("Logged At", _history_datetime_text(event.event_timestamp)),
         ("Effective From", _history_datetime_text(event.effective_from, approximate=event.is_approximate_date)),
         ("Effective Until", _history_datetime_text(event.effective_until) if event.effective_until else "Present"),
@@ -7002,6 +7065,18 @@ def _history_detail_fields(event: EOATHistoryEvent) -> tuple[tuple[str, str], ..
         ("Notes", event.notes),
         ("Verification Status", "Verified" if event.is_verified is True else "Unverified" if event.is_verified is False else ""),
     ]
+    changed_keys = sorted(set(event.previous_values) | set(event.new_values), key=str.casefold)
+    for key in changed_keys:
+        before = event.previous_values.get(key)
+        after = event.new_values.get(key)
+        if before == after:
+            continue
+        if isinstance(before, dict | list | tuple) or isinstance(after, dict | list | tuple):
+            values.append((str(key).replace("_", " ").title(), "Structured value changed"))
+            continue
+        before_text = "Unknown" if before is None else str(before)
+        after_text = "Unknown" if after is None else str(after)
+        values.append((str(key).replace("_", " ").title(), f"Before: {before_text}\nAfter: {after_text}"))
     return tuple((label, value) for label, value in values if str(value or "").strip() and value != "Not documented")
 
 
@@ -7043,6 +7118,14 @@ QLabel#EOATHistorySubtitle {
     color: #c4d0df;
     font-size: 9.5pt;
     font-weight: 500;
+}
+QLabel#EOATHistorySourceStatus {
+    color: #ffd28b;
+    background: rgba(94, 58, 12, 150);
+    border: 1px solid rgba(255, 190, 86, 150);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 8.8pt;
 }
 QLabel#EOATHistorySectionHeading {
     color: #f8fbff;
@@ -7134,6 +7217,33 @@ QLabel#EOATHistoryDetailValue {
     font-weight: 510;
 }
 """
+
+
+def eoat_history_styles(preference: str | None = None) -> str:
+    if effective_minimalist_theme(preference) != "light":
+        return EOAT_HISTORY_STYLES
+    tokens = minimalist_tokens(preference)
+    replacements = {
+        "#f8fbff": tokens.text_primary,
+        "#c4d0df": tokens.text_secondary,
+        "#eef6ff": tokens.text_primary,
+        "rgba(5, 17, 34, 196)": qss_rgba(tokens.card_background, 248),
+        "rgba(59, 102, 148, 175)": qss_rgba(tokens.border, 210),
+        "rgba(10, 35, 67, 225)": qss_rgba(tokens.card_background_hover, 250),
+        "rgba(72, 171, 255, 220)": qss_rgba(tokens.accent, 220),
+        "#07182c": tokens.panel_background,
+        "#315f8d": tokens.border,
+        "#135da8": tokens.accent,
+        "rgba(6, 22, 42, 246)": qss_rgba(tokens.panel_background, 250),
+        "rgba(49, 95, 141, 150)": qss_rgba(tokens.border, 190),
+        "#91a5bd": tokens.text_muted,
+        "#8fc9ff": tokens.accent_hover,
+        "#f1f6fc": tokens.text_primary,
+    }
+    style = EOAT_HISTORY_STYLES
+    for source, target in replacements.items():
+        style = style.replace(source, target)
+    return style
 
 
 class InfoSectionCard(GlassPanel):

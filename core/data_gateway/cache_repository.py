@@ -11,7 +11,7 @@ from typing import Any
 from .exceptions import CacheUnavailableError
 from .models import CacheStatus
 
-CACHE_SCHEMA_VERSION = "2"
+CACHE_SCHEMA_VERSION = "3"
 ENTITY_TABLES = {
     "eoats": "business_identifier",
     "machines": "machine_number",
@@ -40,6 +40,15 @@ class CacheRepository:
                 CREATE TABLE IF NOT EXISTS cached_entities (entity_type TEXT NOT NULL, identifier TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(entity_type, identifier));
                 CREATE TABLE IF NOT EXISTS cached_lookups (lookup_type TEXT NOT NULL, code TEXT NOT NULL, payload_json TEXT NOT NULL, PRIMARY KEY(lookup_type, code));
                 CREATE TABLE IF NOT EXISTS cached_changes (cursor INTEGER PRIMARY KEY, payload_json TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS cached_eoat_history (
+                    eoat_identifier TEXT NOT NULL,
+                    event_id TEXT NOT NULL,
+                    occurred_at TEXT,
+                    payload_json TEXT NOT NULL,
+                    PRIMARY KEY(eoat_identifier, event_id)
+                );
+                CREATE INDEX IF NOT EXISTS ix_cached_eoat_history_timeline
+                    ON cached_eoat_history(eoat_identifier, occurred_at DESC, event_id DESC);
                 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(entity_type, identifier, text_content);
             """)
             created = datetime.now(timezone.utc).isoformat()
@@ -101,6 +110,15 @@ class CacheRepository:
                         "INSERT INTO cached_lookups(lookup_type,code,payload_json) VALUES(?,?,?)",
                         (lookup_type, payload["code"], json.dumps(payload, ensure_ascii=False)),
                     )
+            for payload in snapshot.get("eoat_history", []):
+                identifier = str(payload.get("eoat_identifier") or "").strip()
+                event_id = str(payload.get("event_id") or "").strip()
+                if not identifier or not event_id:
+                    raise CacheUnavailableError("Snapshot history record has no EOAT identifier or event ID.")
+                connection.execute(
+                    "INSERT INTO cached_eoat_history(eoat_identifier,event_id,occurred_at,payload_json) VALUES(?,?,?,?)",
+                    (identifier, event_id, payload.get("occurred_at"), json.dumps(payload, ensure_ascii=False)),
+                )
             now = datetime.now(timezone.utc).isoformat()
             self._put_metadata(
                 connection,
@@ -149,6 +167,7 @@ class CacheRepository:
             }
             if not counts.get("eoats") or not counts.get("machines") or not counts.get("tools"):
                 raise CacheUnavailableError("Replacement cache is missing required entity sets.")
+            counts["eoat_history"] = int(connection.execute("SELECT COUNT(*) FROM cached_eoat_history").fetchone()[0])
             return counts
 
     def get(self, entity_type: str, identifier: str) -> dict[str, Any] | None:
@@ -171,6 +190,35 @@ class CacheRepository:
                     "SELECT payload_json FROM cached_entities WHERE entity_type=? ORDER BY identifier", (entity_type,)
                 )
             ]
+
+    def get_eoat_history(self, identifier: str) -> list[dict[str, Any]]:
+        if not self.path.exists():
+            return []
+        with closing(self._connect()) as connection:
+            return [
+                json.loads(row[0])
+                for row in connection.execute(
+                    "SELECT payload_json FROM cached_eoat_history WHERE lower(eoat_identifier)=lower(?) "
+                    "ORDER BY occurred_at DESC, event_id DESC",
+                    (identifier,),
+                )
+            ]
+
+    def replace_eoat_history(self, identifier: str, events: list[dict[str, Any]]) -> None:
+        self.initialize()
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("DELETE FROM cached_eoat_history WHERE lower(eoat_identifier)=lower(?)", (identifier,))
+            for payload in events:
+                event_id = str(payload.get("event_id") or "").strip()
+                if not event_id:
+                    raise CacheUnavailableError("History response contains an event without an event ID.")
+                connection.execute(
+                    "INSERT INTO cached_eoat_history(eoat_identifier,event_id,occurred_at,payload_json) VALUES(?,?,?,?)",
+                    (identifier, event_id, payload.get("occurred_at"), json.dumps(payload, ensure_ascii=False)),
+                )
+            self._put_metadata(connection, {"last_history_sync_at": datetime.now(timezone.utc).isoformat()})
+            connection.commit()
 
     def search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
         if not self.path.exists():

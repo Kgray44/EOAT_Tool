@@ -21,7 +21,6 @@ try:  # pragma: no cover - dependency availability is environment-specific
     from reportlab.platypus import (
         Image,
         KeepTogether,
-        PageBreak,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
@@ -35,6 +34,7 @@ else:
 
 
 NO_HISTORY_MESSAGE = "No documented lifecycle history is currently available for this EOAT."
+HISTORY_LIMITATION = "Pre-MySQL history may be incomplete; no installation or location events have been inferred from ambiguous legacy rows."
 
 
 def eoat_history_filename(eoat_id: str, *, generated_at: datetime | None = None) -> str:
@@ -84,20 +84,25 @@ def export_eoat_history_pdf(
 
     story.append(Paragraph("Lifecycle History Summary", styles["section"]))
     summary = [
+        ("Report generated", generated.strftime("%b %d, %Y %I:%M %p")),
+        ("Applied scope / filters", scope_label),
+        ("Data source", "Offline cached API history" if history.delivery_mode == "offline_cache" else "EOAT Atlas API / MySQL"),
         ("Total documented events", str(history.total_events)),
         ("Covered date range", _date_range(history)),
         ("Event types", ", ".join(f"{kind}: {count}" for kind, count in history.event_type_counts) or "Cannot be calculated from available data"),
         ("Machines represented", ", ".join(history.machines) or "Cannot be calculated from available data"),
+        ("Known data limitation", HISTORY_LIMITATION),
     ]
+    if history.delivery_mode == "offline_cache" and history.cache_timestamp:
+        summary.insert(3, ("Cache timestamp", history.cache_timestamp))
     story.append(_key_value_table(summary, styles))
 
     if not history.events:
         story.append(Paragraph("Complete Documented History", styles["section"]))
         story.append(Paragraph(NO_HISTORY_MESSAGE, styles["empty"]))
     else:
-        story.append(PageBreak())
         story.append(Paragraph("Complete Documented History", styles["section"]))
-        story.append(_history_table(history.events, styles))
+        story.extend(_history_flowables(history.events, styles))
 
     doc = SimpleDocTemplate(
         str(path),
@@ -123,44 +128,35 @@ def export_eoat_history_pdf(
     return path
 
 
-def _history_table(events: tuple[EOATHistoryEvent, ...], styles: dict[str, ParagraphStyle]):
-    rows = [[Paragraph("Date / Type", styles["table_header"]), Paragraph("Documented event", styles["table_header"])]]
+def _history_flowables(events: tuple[EOATHistoryEvent, ...], styles: dict[str, ParagraphStyle]) -> list:
+    flowables: list = []
     for event in events:
         stamp = _format_datetime(event.effective_timestamp)
         if event.is_approximate_date and stamp != "Not documented":
             stamp = f"Approx. {stamp}"
-        left = Paragraph(f"<b>{_xml(event.event_type)}</b><br/>{_xml(stamp)}", styles["small"])
+        heading = Paragraph(f"<b>{_xml(event.event_type)}</b> &nbsp;&nbsp; {_xml(stamp)}", styles["event_heading"])
         lines = [f"<b>{_xml(event.title)}</b>"]
         for label, value in _event_fields(event):
             lines.append(f"<font color='#52677D'><b>{_xml(label)}:</b></font> {_xml(value)}")
-        right = Paragraph("<br/>".join(lines), styles["event"])
-        rows.append([left, right])
-    table = Table(rows, colWidths=(1.25 * inch, 5.55 * inch), repeatRows=1, hAlign="LEFT")
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0A3158")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#B8CBE0")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#D7E1EC")),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), (colors.white, colors.HexColor("#F6F9FC"))),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 7),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ]
-        )
-    )
-    return table
+        detail = Paragraph("<br/>".join(lines), styles["event"])
+        # Paragraphs can split across pages, unlike a single oversized table row.
+        # Keep the heading with at least the start of the event when space permits.
+        flowables.extend((heading, detail, Spacer(1, 0.08 * inch)))
+    return flowables
 
 
 def _event_fields(event: EOATHistoryEvent) -> list[tuple[str, str]]:
     fields = [
+        ("Description", event.description),
+        ("Category", event.event_category.replace("_", " ").title()),
         ("Machine", event.machine_label),
         ("Previous machine", event.previous_machine_label),
         ("Tool #", event.tool_number),
         ("Previous tool #", event.previous_tool_number),
+        ("Robot", event.robot_number),
+        ("Storage location", event.storage_location),
+        ("Related document", event.document_reference),
+        ("Related photo", event.photo_reference),
         ("From", event.previous_status),
         ("To", event.new_status),
         ("Reason", event.reason),
@@ -168,9 +164,15 @@ def _event_fields(event: EOATHistoryEvent) -> list[tuple[str, str]]:
         ("Audit ID", event.audit_id),
         ("Maintenance ID", event.maintenance_id),
         ("Recorded by", event.recorded_by),
-        ("Source", event.source_type),
         ("Verification", "Verified" if event.is_verified is True else "Unverified" if event.is_verified is False else ""),
     ]
+    for key in sorted(set(event.previous_values) | set(event.new_values), key=str.casefold):
+        before = event.previous_values.get(key)
+        after = event.new_values.get(key)
+        if before != after and not isinstance(before, dict | list | tuple) and not isinstance(
+            after, dict | list | tuple
+        ):
+            fields.append((str(key).replace("_", " ").title(), f"Before: {before if before is not None else 'Unknown'}; After: {after if after is not None else 'Unknown'}"))
     return [(label, str(value).strip()) for label, value in fields if str(value or "").strip()]
 
 
@@ -251,11 +253,12 @@ def _styles() -> dict[str, ParagraphStyle]:
         "key": ParagraphStyle("history_key", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=7.5, leading=9, textColor=colors.HexColor("#52677D")),
         "value": ParagraphStyle("history_value", parent=base["Normal"], fontName="Helvetica", fontSize=8.5, leading=10.5, textColor=colors.HexColor("#1F2937")),
         "small": ParagraphStyle("history_small", parent=base["Normal"], fontName="Helvetica", fontSize=7.5, leading=10, textColor=colors.HexColor("#334155")),
-        "event": ParagraphStyle("history_event", parent=base["Normal"], fontName="Helvetica", fontSize=8, leading=10.5, textColor=colors.HexColor("#1F2937")),
+        "event_heading": ParagraphStyle("history_event_heading", parent=base["Normal"], fontName="Helvetica", fontSize=7.5, leading=10, textColor=colors.white, backColor=colors.HexColor("#0A3158"), borderPadding=(5, 7, 5, 7), spaceBefore=3),
+        "event": ParagraphStyle("history_event", parent=base["Normal"], fontName="Helvetica", fontSize=8, leading=10.5, leftIndent=7, rightIndent=7, spaceBefore=6, spaceAfter=6, textColor=colors.HexColor("#1F2937")),
         "table_header": ParagraphStyle("history_table_header", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=8, leading=10, textColor=colors.white, alignment=TA_LEFT),
         "muted": ParagraphStyle("history_muted", parent=base["Normal"], fontName="Helvetica", fontSize=8, leading=10, textColor=colors.HexColor("#718096")),
         "empty": ParagraphStyle("history_empty", parent=base["Normal"], fontName="Helvetica", fontSize=10, leading=14, textColor=colors.HexColor("#334155"), borderColor=colors.HexColor("#B8CBE0"), borderWidth=0.5, borderPadding=12, backColor=colors.HexColor("#F7FAFC")),
     }
 
 
-__all__ = ["NO_HISTORY_MESSAGE", "eoat_history_filename", "export_eoat_history_pdf"]
+__all__ = ["HISTORY_LIMITATION", "NO_HISTORY_MESSAGE", "eoat_history_filename", "export_eoat_history_pdf"]

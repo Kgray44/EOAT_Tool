@@ -16,6 +16,7 @@ from .contracts import (
     FitCheckRequest,
     HealthResult,
     PaginatedEOATs,
+    PaginatedHistory,
     PaginatedMachines,
     PaginatedTools,
 )
@@ -214,14 +215,37 @@ def eoat_relationships(identifier: str, repo: AtlasRepository = Depends(reposito
     return repo.eoat_relationships(identifier)
 
 
-@app.get("/api/v1/eoats/{identifier}/history")
-def eoat_history(identifier: str, repo: AtlasRepository = Depends(repository)):
+@app.get("/api/v1/eoats/{identifier}/history", response_model=PaginatedHistory)
+def eoat_history(
+    identifier: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    event_category: str | None = None,
+    event_type: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    search: str = Query("", max_length=200),
+    repo: AtlasRepository = Depends(repository),
+):
     entity = repo.session.scalar(
         __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
     )
     if entity is None:
         raise not_found("EOAT", identifier)
-    return repo.history("eoat", entity.id)
+    return repo.history_page(
+        "eoat",
+        entity.id,
+        eoat_identifier=entity.business_identifier,
+        page=page,
+        page_size=page_size,
+        sort_order=sort_order,
+        event_category=event_category,
+        event_type=event_type,
+        date_from=date_from,
+        date_to=date_to,
+        search=search,
+    )
 
 
 @app.get("/api/v1/eoats/{identifier}/documents")

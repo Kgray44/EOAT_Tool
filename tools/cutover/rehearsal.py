@@ -27,7 +27,7 @@ SOURCE_WORKBOOK = REPO / "EOAT_Standardization_Project/01_EOAT_Audit/EOAT_Audit_
 SOURCE_ROBOT = REPO / "EOAT_Standardization_Project/01_EOAT_Audit/EOAT_Audit_Database/Robot_Info.xlsx"
 SOURCE_SQLITE = REPO / "EOAT_Standardization_Project/project_data/annotations.sqlite"
 REPORT_ROOT = REPO / "reports/cutover_rehearsal"
-EXPECTED_REVISION = "20260714_0003"
+EXPECTED_REVISION = "20260714_0004"
 
 
 def utcnow() -> str:
@@ -290,7 +290,7 @@ def create_session(manifest: Path, status: str) -> dict[str, object]:
             "INSERT INTO cutover_sessions "
             "(cutover_uuid,environment,source_checksum,source_snapshot_timestamp,database_schema_revision,"
             "api_version,client_version,started_at,status,rollback_deadline,source_system) "
-            "VALUES (%s,'staging_local',%s,UTC_TIMESTAMP(6),%s,'1.2.0','rehearsal-rc1',UTC_TIMESTAMP(6),%s,"
+            "VALUES (%s,'staging_local',%s,UTC_TIMESTAMP(6),%s,'1.3.0','rehearsal-rc1',UTC_TIMESTAMP(6),%s,"
             "DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 24 HOUR),'eoat_atlas_cutover_rehearsal') "
             "ON DUPLICATE KEY UPDATE status=VALUES(status), "
             "authority_enabled_at=IF(VALUES(status) IN ('AUTHORITY_ENABLED','MONITORING','COMPLETED'),"

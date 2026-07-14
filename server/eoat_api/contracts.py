@@ -115,11 +115,28 @@ class ToolProfile(ToolSummary):
 
 
 class HistoryEvent(BaseModel):
+    event_id: str
+    eoat_identifier: str | None = None
     event_type: str
+    event_category: str
     occurred_at: datetime | None = None
     summary: str
-    details: dict[str, Any] | str | None = None
-    source: str | None = None
+    description: str | None = None
+    actor: str | None = None
+    application_instance: str | None = None
+    source_record_type: str | None = None
+    source_record_id: str | None = None
+    related_machine: str | None = None
+    related_tool: str | None = None
+    related_robot: str | None = None
+    related_storage_location: str | None = None
+    related_document: str | None = None
+    related_photo: str | None = None
+    reason: str | None = None
+    notes: str | None = None
+    previous_values: dict[str, Any] | None = None
+    new_values: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class DocumentMetadata(BaseModel):
@@ -209,6 +226,7 @@ class SyncSnapshot(BaseModel):
     tools: list[ToolProfile]
     documents: list[DocumentMetadata]
     photos: list[PhotoMetadata]
+    eoat_history: list[HistoryEvent] = Field(default_factory=list)
 
 
 class PaginatedEOATs(BaseModel):
@@ -223,4 +241,9 @@ class PaginatedMachines(BaseModel):
 
 class PaginatedTools(BaseModel):
     items: list[ToolSummary]
+    pagination: PaginationMetadata
+
+
+class PaginatedHistory(BaseModel):
+    items: list[HistoryEvent]
     pagination: PaginationMetadata

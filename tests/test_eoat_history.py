@@ -15,7 +15,12 @@ from core.eoat_history import (
     LegacyAuditHistoryRepository,
     normalize_event_type,
 )
-from core.reporting.eoat_history_pdf import NO_HISTORY_MESSAGE, eoat_history_filename, export_eoat_history_pdf
+from core.reporting.eoat_history_pdf import (
+    HISTORY_LIMITATION,
+    NO_HISTORY_MESSAGE,
+    eoat_history_filename,
+    export_eoat_history_pdf,
+)
 from tests.fixtures.eoat_history import edge_case_history, history_event, mixed_history
 
 
@@ -110,7 +115,19 @@ def test_history_pdf_complete_and_no_history(tmp_path: Path) -> None:
     assert result.name == "EOAT_History__TEST-EOAT-0001__20260713_1430.pdf"
     assert "EOAT Lifecycle History" in text
     assert "Physical Audit Completed" in text
+    assert "EOAT Atlas API / MySQL" in text
+    assert " ".join(HISTORY_LIMITATION.split()) in " ".join(text.split())
+    assert "password" not in text.casefold()
     assert len(pypdf.PdfReader(str(result)).pages) > 1
+
+    long_output = tmp_path / "long-notes.pdf"
+    long_view = edge_case_history()
+    export_eoat_history_pdf(detail, service.export_model(detail.record_id, long_view.events), long_output)
+    long_reader = pypdf.PdfReader(str(long_output))
+    long_text = "\n".join(page.extract_text() or "" for page in long_reader.pages)
+    assert "Very long reason" in long_text
+    assert "Second paragraph" in long_text
+    assert len(long_reader.pages) > 1
 
     empty = tmp_path / "empty.pdf"
     export_eoat_history_pdf(detail, service.export_model(detail.record_id, ()), empty)
