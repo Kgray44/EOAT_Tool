@@ -267,6 +267,9 @@ def test_audit_maintenance_fit_check_and_instance_writes(api):
 
 
 def test_document_tag_and_annotation_writes(api, tmp_path):
+    with create_session_factory(migration=True)() as session:
+        write_eoat_id = session.scalar(select(db.EOAT.id).where(db.EOAT.business_identifier == "WRITE-EOAT"))
+    assert write_eoat_id is not None
     source = tmp_path / "controlled.txt"
     source.write_text("controlled test document", encoding="utf-8")
     document = post(
@@ -277,7 +280,7 @@ def test_document_tag_and_annotation_writes(api, tmp_path):
             "title": "Controlled",
             "storage_path": str(source),
             "entity_type": "eoat",
-            "entity_id": api.get("/api/v1/eoats/WRITE-EOAT").json().get("id"),
+            "entity_id": write_eoat_id,
         },
         ENGINEER,
         "document-create-1",
@@ -288,11 +291,24 @@ def test_document_tag_and_annotation_writes(api, tmp_path):
     photo = post(
         api,
         "/api/v1/photos",
-        {"title": "Metadata photo", "storage_path": str(photo_source), "caption": "Test"},
+        {
+            "title": "Metadata photo",
+            "storage_path": str(photo_source),
+            "caption": "Test",
+            "entity_type": "eoat",
+            "entity_id": write_eoat_id,
+        },
         ENGINEER,
         "photo-create-1",
     )
     assert photo.status_code == 200 and photo.json()["photo"]["caption"] == "Test"
+    selected = post(
+        api,
+        f"/api/v1/photos/{photo.json()['photo']['id']}/set-profile",
+        {"expected_row_version": photo.json()["row_version"], "reason": "Profile selection test"},
+        ENGINEER,
+    )
+    assert selected.status_code == 200 and selected.json()["photo"]["is_profile_photo"] is True
     missing = post(
         api,
         "/api/v1/documents",
@@ -462,14 +478,14 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     config_a = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-a.db",
-        expected_schema_revision="20260713_0002",
+        expected_schema_revision="20260714_0003",
         writes_enabled=True,
         environment="development",
     )
     config_b = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-b.db",
-        expected_schema_revision="20260713_0002",
+        expected_schema_revision="20260714_0003",
         writes_enabled=True,
         environment="development",
     )
@@ -496,7 +512,7 @@ def test_gateway_blocks_offline_writes_without_queueing(tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "offline.db",
-        expected_schema_revision="20260713_0002",
+        expected_schema_revision="20260714_0003",
         writes_enabled=True,
         environment="development",
     )
@@ -510,7 +526,7 @@ def test_server_success_survives_local_cache_refresh_failure(api, tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "fail-cache.db",
-        expected_schema_revision="20260713_0002",
+        expected_schema_revision="20260714_0003",
         writes_enabled=True,
         environment="development",
     )

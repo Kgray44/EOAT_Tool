@@ -22,6 +22,7 @@ ENV/
 .env
 .env.*
 !.env.example
+!.env.staging.example
 config/local_config.json
 config/user_config.json
 config/config.json
@@ -98,6 +99,8 @@ local_data/
 
 # Logs, snapshots, backups, exports
 output/
+Migration_Dry_Run_Logs/
+tmp/
 *.log
 *.tmp
 *.bak
@@ -107,6 +110,12 @@ output/
 *.rar
 *_backup_*
 *_Backup_*
+
+# Local cutover rehearsal state and database artifacts
+.env.staging
+*.sql.gz
+*.dump.sql
+staging_artifacts/
 
 # Editor/OS junk
 .DS_Store
@@ -128,6 +137,12 @@ desktop.ini
 !tests/**
 !docs/
 !docs/**
+!reports/
+reports/*
+!reports/cutover_preparation/
+!reports/cutover_preparation/**
+!reports/cutover_rehearsal/
+!reports/cutover_rehearsal/**
 
 # Never re-include generated Python bytecode after allowlist exceptions
 __pycache__/

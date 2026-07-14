@@ -440,6 +440,13 @@ class AtlasDataGateway:
             {"expected_row_version": expected_version, "reason": reason},
         )
 
+    def set_profile_photo(self, photo_id, expected_version, reason=None):
+        return self._server_first_write(
+            "POST",
+            f"/api/v1/photos/{photo_id}/set-profile",
+            {"expected_row_version": expected_version, "reason": reason},
+        )
+
     def create_tag(self, request):
         return self._server_first_write("POST", "/api/v1/tags", request)
 

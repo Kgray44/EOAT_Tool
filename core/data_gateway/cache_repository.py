@@ -11,7 +11,7 @@ from typing import Any
 from .exceptions import CacheUnavailableError
 from .models import CacheStatus
 
-CACHE_SCHEMA_VERSION = "1"
+CACHE_SCHEMA_VERSION = "2"
 ENTITY_TABLES = {
     "eoats": "business_identifier",
     "machines": "machine_number",

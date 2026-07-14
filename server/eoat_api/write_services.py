@@ -1020,6 +1020,59 @@ def update_photo(
     return {"document": public_record(document), "photo": public_record(photo), "row_version": document.row_version}
 
 
+def set_profile_photo(
+    session: Session,
+    actor: ActorContext,
+    photo_id: int,
+    expected_row_version: int,
+    reason: str | None,
+):
+    photo = session.scalar(select(db.Photo).where(db.Photo.id == photo_id).with_for_update())
+    if photo is None:
+        raise not_found("photo", photo_id)
+    document = session.scalar(select(db.Document).where(db.Document.id == photo.document_id).with_for_update())
+    check_version(document, expected_row_version)
+    link = session.scalar(
+        select(db.DocumentLink).where(db.DocumentLink.document_id == document.id).order_by(db.DocumentLink.id)
+    )
+    if link is None:
+        raise APIError(422, "PHOTO_ENTITY_LINK_REQUIRED", "A profile photo must be linked to an entity.")
+    related_photo_ids = session.scalars(
+        select(db.Photo.id)
+        .join(db.Document, db.Document.id == db.Photo.document_id)
+        .join(db.DocumentLink, db.DocumentLink.document_id == db.Document.id)
+        .where(
+            db.DocumentLink.entity_type == link.entity_type,
+            db.DocumentLink.entity_id == link.entity_id,
+            db.Document.is_active.is_(True),
+        )
+        .with_for_update()
+    ).all()
+    previous = {"document": record_dict(document), "photo": record_dict(photo)}
+    if related_photo_ids:
+        for related in session.scalars(select(db.Photo).where(db.Photo.id.in_(related_photo_ids))).all():
+            related.is_profile_photo = related.id == photo.id
+    photo.is_profile_photo = True
+    document.row_version += 1
+    document.updated_by_user_id = actor.user_id
+    audit_change(
+        session,
+        actor,
+        entity_type="photo",
+        entity_id=photo.id,
+        action="set_profile",
+        previous=previous,
+        current={"document": record_dict(document), "photo": record_dict(photo)},
+        row_version=document.row_version,
+        reason=reason,
+        history_code="record_edited",
+        history_summary=f"Profile photo selected for {link.entity_type} {link.entity_id}",
+        related_entity_type=link.entity_type,
+        related_entity_id=link.entity_id,
+    )
+    return {"document": public_record(document), "photo": public_record(photo), "row_version": document.row_version}
+
+
 def update_document(
     session: Session, actor: ActorContext, document_id: int, payload: dict[str, Any], *, archive: bool = False
 ):

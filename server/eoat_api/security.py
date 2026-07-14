@@ -53,6 +53,13 @@ DEFAULT_DEVELOPMENT_IDENTITIES = {
     "dev.admin": "ADMINISTRATOR",
 }
 
+DEFAULT_STAGING_IDENTITIES = {
+    "staging.viewer": "VIEWER",
+    "staging.technician": "TECHNICIAN",
+    "staging.engineer": "ENGINEER",
+    "staging.admin": "ADMINISTRATOR",
+}
+
 
 @dataclass(frozen=True)
 class ActorContext:
@@ -69,27 +76,30 @@ class ActorContext:
         return "*" in permissions or permission in permissions
 
 
-def _configured_identities() -> dict[str, str]:
-    raw = os.getenv("EOAT_API_DEV_IDENTITIES", "").strip()
+def _configured_identities(environment: str) -> dict[str, str]:
+    staging = environment == "staging_local"
+    variable = "EOAT_API_STAGING_IDENTITIES" if staging else "EOAT_API_DEV_IDENTITIES"
+    defaults = DEFAULT_STAGING_IDENTITIES if staging else DEFAULT_DEVELOPMENT_IDENTITIES
+    raw = os.getenv(variable, "").strip()
     if not raw:
-        return DEFAULT_DEVELOPMENT_IDENTITIES.copy()
+        return defaults.copy()
     try:
         values = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise RuntimeError("EOAT_API_DEV_IDENTITIES must be a JSON identity-to-role object") from exc
+        raise RuntimeError(f"{variable} must be a JSON identity-to-role object") from exc
     return {str(key): str(value).upper() for key, value in values.items()}
 
 
-def _ensure_development_user(session: Session, identity: str, role_code: str) -> db.User:
+def _ensure_local_rehearsal_user(session: Session, identity: str, role_code: str, environment: str) -> db.User:
     user = session.scalar(select(db.User).where(db.User.external_identity == identity))
     if user is None:
         user = db.User(
             external_identity=identity,
             username=identity,
             display_name=identity.replace(".", " ").title(),
-            authentication_provider="explicit_development",
+            authentication_provider=f"explicit_{environment}",
             last_login_at=datetime.now(timezone.utc),
-            source_system="development_auth",
+            source_system=f"{environment}_auth",
         )
         session.add(user)
         session.flush()
@@ -117,14 +127,15 @@ def actor_context(
 ) -> ActorContext:
     if os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() not in {"1", "true", "yes", "on"}:
         raise APIError(403, "WRITES_DISABLED", "Permanent writes are disabled for this API environment.")
-    if os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold() != "development":
-        raise APIError(403, "DEVELOPMENT_AUTH_FORBIDDEN", "Development authentication is unavailable here.")
+    environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
+    if environment not in {"development", "staging_local"}:
+        raise APIError(403, "LOCAL_AUTH_FORBIDDEN", "Local rehearsal authentication is unavailable here.")
     identity = request.headers.get("X-EOAT-Identity", "").strip()
-    configured = _configured_identities()
+    configured = _configured_identities(environment)
     role_code = configured.get(identity)
     if not identity or role_code not in ROLE_PERMISSIONS:
-        raise APIError(401, "UNKNOWN_IDENTITY", "A configured development identity is required.")
-    user = _ensure_development_user(session, identity, role_code)
+        raise APIError(401, "UNKNOWN_IDENTITY", "A configured local identity is required.")
+    user = _ensure_local_rehearsal_user(session, identity, role_code, environment)
     instance_id = None
     instance_uuid = request.headers.get("X-EOAT-Application-Instance", "").strip()
     if instance_uuid:

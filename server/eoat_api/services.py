@@ -18,9 +18,9 @@ from .database import models as db
 from .repositories import AtlasRepository
 from .security import ActorContext
 
-API_VERSION = "1.1.0"
-EXPECTED_SCHEMA_REVISION = "20260713_0002"
-SERVER_REVISION = "mysql-write-checkpoint-7"
+API_VERSION = "1.2.0"
+EXPECTED_SCHEMA_REVISION = "20260714_0003"
+SERVER_REVISION = "mysql-cutover-rehearsal-rc1"
 
 
 class AtlasService:

@@ -67,6 +67,7 @@ from .write_services import (
     remove_tag,
     resolve_target,
     set_asset_archived,
+    set_profile_photo,
     supersede_document,
     unlink_annotation_target,
     update_annotation,
@@ -614,6 +615,22 @@ def archive_photo_route(
     actor: ActorContext = Depends(require("document.write")),
 ):
     return update_photo(session, actor, photo_id, body(payload), archive=True)
+
+
+@router.post("/photos/{photo_id}/set-profile")
+def set_profile_photo_route(
+    photo_id: int,
+    payload: ExpectedVersion,
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require("document.write")),
+):
+    return set_profile_photo(
+        session,
+        actor,
+        photo_id,
+        payload.expected_row_version,
+        payload.reason,
+    )
 
 
 @router.get("/tags")
