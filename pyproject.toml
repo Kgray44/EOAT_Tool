@@ -29,3 +29,6 @@ ignore = [
 "tools/*.py" = ["E402"]
 "scripts/ci_smoke_check.py" = ["E402"]
 "scripts/migrate_air_circuit_architecture.py" = ["E402"]
+"server/eoat_api/app.py" = ["B008"]
+"core/library_data_service.py" = ["E731", "UP038"]
+"app/atlas/minimalist/settings_page.py" = ["F401", "I001"]

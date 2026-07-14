@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="peripherals-title peripherals-desc">
+  <title id="peripherals-title">Peripherals</title>
+  <desc id="peripherals-desc">Connected external IO or peripheral modules.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 32 H46 M32 20 V44" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <rect x="12" y="24" width="14" height="16" rx="3" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <rect x="25" y="12" width="14" height="16" rx="3" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <rect x="38" y="36" width="14" height="16" rx="3" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="32" cy="32" r="3" fill="none" stroke="#A6CE39" stroke-width="3" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

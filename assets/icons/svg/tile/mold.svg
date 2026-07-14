@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="mold-title mold-desc">
+  <title id="mold-title">Mold</title>
+  <desc id="mold-desc">Two bold mold halves with center parting line and active lime center detail.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(2.6 2.6) scale(0.92)" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="7" y="11" width="23" height="42" rx="5" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="34" y="11" width="23" height="42" rx="5" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="30" y="8" width="4" height="48" rx="2" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <circle cx="19" cy="25" r="5" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <circle cx="19" cy="39" r="5" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <circle cx="45" cy="25" r="5" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <circle cx="45" cy="39" r="5" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <rect x="27" y="23" width="4" height="18" rx="2" fill="#A6CE39" stroke="none" stroke-width="0" />
+    <rect x="33" y="23" width="4" height="18" rx="2" fill="#A6CE39" stroke="none" stroke-width="0" />
+  </g>
+</svg>

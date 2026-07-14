@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import os
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,8 @@ def save_audit_with_side_effects(
     create_followup_action: bool,
     sync_linked_compatibility: bool | None = None,
 ):
+    if os.getenv("EOAT_ATLAS_DATA_BACKEND", "legacy").strip().casefold() == "mysql_api":
+        return _save_audit_via_api(config, entry, allow_update=allow_update)
     started = time.perf_counter()
     compatibility_preview_seconds = 0.0
     if sync_linked_compatibility is None:
@@ -190,7 +193,7 @@ def save_audit_with_side_effects(
             f"Row write/update: {timing['row_write_update_seconds']}s",
             f"Workbook save: {timing['workbook_save_seconds']}s",
             f"Master workbook: {timing['write_master_seconds']}s",
-            f"Compatibility: {timing['compatibility_status']}",
+            f"Fit Check: {timing['compatibility_status']}",
             f"Robot Info: {timing['robot_info_status']}",
             "Annotation sync: deferred",
             f"History: {timing['history_seconds']}s",
@@ -237,6 +240,87 @@ def save_audit_with_side_effects(
     return result
 
 
+def _save_audit_via_api(config: Any, entry: dict[str, str], *, allow_update: bool) -> ToolResult:
+    """Persist a development audit server-first without touching Excel or legacy queues."""
+    from core.data_gateway.exceptions import DataGatewayError
+    from core.data_gateway.gateway import AtlasDataGateway
+
+    started = time.perf_counter()
+    audit_identifier = str(entry.get("Audit ID") or "").strip()
+    if not audit_identifier:
+        return ToolResult.fail("audit_save", "Audit Save", "Audit ID is required.", errors=["Audit ID is required."])
+    gateway = AtlasDataGateway()
+    try:
+        try:
+            existing = gateway.client._request("GET", f"/api/v1/audits/by-identifier/{audit_identifier}")
+        except DataGatewayError:
+            existing = None
+        if existing:
+            if not allow_update:
+                return ToolResult.fail(
+                    "audit_save",
+                    "Audit Save",
+                    f"Audit {audit_identifier} already exists.",
+                    errors=["Enable update mode to revise the authoritative audit."],
+                )
+            authoritative = gateway.update_audit(
+                existing["id"],
+                {"details": dict(entry), "notes": str(entry.get("Notes") or "") or None},
+                existing["row_version"],
+            )
+            action = "updated"
+        else:
+            request: dict[str, Any] = {
+                "audit_identifier": audit_identifier,
+                "details": dict(entry),
+                "notes": str(entry.get("Notes") or "") or None,
+            }
+            candidates = (
+                ("eoat_identifier", str(entry.get("EOAT Assembly ID") or "").strip(), gateway.client.get_eoat),
+                ("machine_number", str(entry.get("Press/Machine #") or "").strip(), gateway.client.get_machine),
+                ("tool_identifier", str(entry.get("Tool #") or "").strip(), gateway.client.get_tool),
+            )
+            for field_name, identifier, lookup in candidates:
+                if not identifier:
+                    continue
+                try:
+                    lookup(identifier)
+                except DataGatewayError:
+                    continue
+                request[field_name] = identifier
+            authoritative = gateway.create_audit(request)
+            action = "created"
+        duration = time.perf_counter() - started
+        return ToolResult.ok(
+            "audit_save",
+            "Audit Save",
+            f"Audit {audit_identifier} {action} in authoritative MySQL.",
+            details=[
+                "Server commit completed before local cache refresh.",
+                "Excel, Robot_Info.xlsx, legacy annotation SQLite, and legacy write queues were not modified.",
+            ],
+            metrics={
+                "backend": "mysql_api",
+                "server_first": True,
+                "row_version": authoritative.get("row_version"),
+                "cache_refresh_required": bool(authoritative.get("cache_refresh_required")),
+            },
+            structured_data=authoritative,
+            duration_seconds=duration,
+        )
+    except Exception as exc:
+        return ToolResult.fail(
+            "audit_save",
+            "Audit Save",
+            "The server did not confirm the audit save.",
+            errors=[str(exc)],
+            metrics={"backend": "mysql_api", "server_first": True},
+            duration_seconds=time.perf_counter() - started,
+        )
+    finally:
+        gateway.close()
+
+
 def should_update_robot_info(project_root: str | Path, entry: dict[str, Any]) -> tuple[bool, str]:
     if air_architecture_hides_robot_fields(entry.get(AIR_CIRCUIT_ARCHITECTURE_FIELD)):
         return False, "air architecture is External Peripheral Only"
@@ -277,14 +361,14 @@ def should_queue_robot_info_update(project_root: str | Path, entry: dict[str, An
 
 
 def insert_compatibility_summary(summary: str, sync_linked_compatibility: bool) -> str:
-    if "Compatibility Entry Summary" in summary:
+    if "Fit Check Entry Summary" in summary:
         return summary
     status = (
-        "Linked compatibility rows update queued after the fast audit save."
+        "Linked Fit Check rows update queued after the fast audit save."
         if sync_linked_compatibility
-        else "Normal audit save updated only the physical audit row. Use the Compatibility Entry tab or explicit linked-row action when compatible rows need review."
+        else "Normal audit save updated only the physical audit row. Use the Fit Check Entry tab or explicit linked-row action when compatible rows need review."
     )
-    return summary.rstrip() + "\n\nCompatibility Entry Summary\n---------------------------\n" + status
+    return summary.rstrip() + "\n\nFit Check Entry Summary\n-----------------------\n" + status
 
 
 def ensure_audit_save_summary(summary: str) -> str:
@@ -309,7 +393,7 @@ def insert_robot_info_summary(summary: str, robot_result) -> str:
     elif robot_result.warnings:
         robot_lines.append("; ".join(robot_result.warnings))
 
-    compatibility_header = "Compatibility Entry Summary"
+    compatibility_header = "Fit Check Entry Summary"
     if compatibility_header in summary:
         before, after = summary.split(compatibility_header, 1)
         return before.rstrip() + "\n\n" + "\n".join(robot_lines) + "\n\n" + compatibility_header + after

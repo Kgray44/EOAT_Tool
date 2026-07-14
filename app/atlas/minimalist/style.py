@@ -5,7 +5,15 @@ QWidget#MinimalistAtlasShell,
 QWidget#MinimalistContentHost,
 QWidget#MinimalistHomeContent,
 QWidget#MinimalistTopBar,
-QWidget#MinimalistPillContainer {
+QWidget#MinimalistPillContainer,
+QWidget#EntitySearchDropdownBody {
+    background: transparent;
+}
+QScrollArea#EntitySearchScroll {
+    background: transparent;
+    border: 0;
+}
+QScrollArea#EntitySearchScroll QWidget {
     background: transparent;
 }
 QLabel#MinimalistLogoEOAT {
@@ -20,12 +28,14 @@ QLabel#MinimalistLogoAtlas {
 }
 QLabel#MinimalistPageTitle {
     color: #f8fbff;
-    font-size: 38pt;
-    font-weight: 760;
+    font-size: 31pt;
+    font-weight: 820;
 }
 QFrame#MinimalistTitleAccent {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(0, 89, 200, 0), stop:.52 #047aff, stop:1 rgba(0, 89, 200, 0));
     border: 0;
+    min-height: 3px;
+    max-height: 3px;
 }
 QLabel#MinimalistCardHeading {
     color: #f8fbff;
@@ -33,7 +43,7 @@ QLabel#MinimalistCardHeading {
     font-weight: 760;
 }
 QLabel#MinimalistCardSubtitle {
-    color: #d3dbe7;
+    color: #d7e2f0;
     font-size: 15pt;
     font-weight: 420;
 }
@@ -43,7 +53,7 @@ QLabel#MinimalistRecentLabel {
     font-weight: 520;
 }
 QLabel#MinimalistRecentEmpty {
-    color: rgba(206, 216, 231, 156);
+    color: #b7c4d5;
     font-size: 11pt;
     font-weight: 450;
     padding: 3px 0 8px 0;
@@ -81,7 +91,7 @@ QPushButton#MinimalistPill:disabled {
     border-color: rgba(139, 171, 216, 44);
 }
 QLabel#MinimalistStatusText {
-    color: #cdd5e0;
+    color: #d6e1ef;
     font-size: 11pt;
 }
 QFrame#MinimalistDivider {
@@ -135,6 +145,13 @@ QLabel#MinimalistSectionLabel {
     padding-top: 2px;
     padding-bottom: 6px;
 }
+QLabel#FitCheckDropdownGroup {
+    color: #62c7ff;
+    font-size: 7.6pt;
+    font-weight: 780;
+    letter-spacing: 0;
+    padding: 3px 6px 0 6px;
+}
 QPushButton#MinimalistSearchRow,
 QPushButton#MinimalistSuggestionRow {
     background: rgba(4, 16, 34, 126);
@@ -142,6 +159,7 @@ QPushButton#MinimalistSuggestionRow {
     border-radius: 8px;
     color: #f8fbff;
     text-align: left;
+    padding: 0;
 }
 QPushButton#MinimalistSearchRow:hover,
 QPushButton#MinimalistSuggestionRow:hover {
@@ -152,21 +170,22 @@ QPushButton#MinimalistSuggestionRow {
     padding-left: 34px;
     font-size: 10pt;
     font-weight: 520;
+    min-height: 44px;
 }
 QLabel#MinimalistRowTitle {
     color: #f8fbff;
     font-size: 10pt;
 }
 QLabel#MinimalistRowKind {
-    color: #c4cee0;
+    color: #cbd7e6;
     font-size: 9pt;
 }
 QLabel#MinimalistRowSubtitle {
-    color: #98a8bd;
+    color: #b3c1d3;
     font-size: 8pt;
 }
 QLabel#MinimalistPanelEmpty {
-    color: #aebbd0;
+    color: #b7c4d5;
     font-size: 9pt;
 }
 QLabel#MinimalistToastText {
@@ -180,7 +199,7 @@ QWidget#MinimalistSearchFooter {
     background: rgba(2, 9, 20, 138);
 }
 QLabel#MinimalistFooterText {
-    color: #b8c3d4;
+    color: #c6d3e3;
     font-size: 9pt;
 }
 QWidget#AtlasMinimalistLibraryPage,
@@ -333,7 +352,7 @@ QLabel#LibraryComposerLabel {
     font-weight: 780;
 }
 QLabel#LibraryComposerEmpty {
-    color: #8ea4bd;
+    color: #b0bfd2;
     font-size: 8.5pt;
     font-weight: 620;
 }
@@ -353,7 +372,7 @@ QLabel#LibraryRecordMeta,
 QLabel#LibraryHeroMeta,
 QLabel#LibraryEmptySubtitle,
 QLabel#LibraryEmptyMini {
-    color: #9fb1c9;
+    color: #b7c4d5;
     font-size: 9pt;
 }
 QLabel#LibraryCategoryTitle,
@@ -368,7 +387,7 @@ QLabel#LibraryDrawerTitle {
     font-weight: 820;
 }
 QLabel#LibraryDrawerSubtitle {
-    color: #aebfd4;
+    color: #c0ccdc;
     font-size: 10.5pt;
     font-weight: 560;
 }
@@ -400,7 +419,7 @@ QLabel#LibraryRecordTitle {
 }
 QLabel#LibraryRecordSubtitle,
 QLabel#LibraryDetailValue {
-    color: #c8d6e8;
+    color: #d2deec;
     font-size: 10pt;
 }
 QLabel#LibraryDetailLabel {
@@ -429,18 +448,25 @@ QLabel#LibraryStatusBadge {
 }
 QLabel#LibraryStatusBadge[tone="good"] {
     color: #d8fff0;
-    background: rgba(21, 110, 90, 94);
-    border-color: rgba(70, 216, 153, 120);
+    background: rgba(20, 111, 80, 96);
+    border-color: rgba(54, 216, 106, 132);
 }
 QLabel#LibraryStatusBadge[tone="warn"] {
     color: #ffe8c0;
-    background: rgba(126, 74, 20, 84);
-    border-color: rgba(245, 179, 66, 112);
+    background: rgba(126, 79, 24, 92);
+    border-color: rgba(255, 177, 69, 128);
+}
+QLabel#LibraryStatusBadge[tone="bad"],
+QLabel#LibraryStatusBadge[tone="error"],
+QLabel#LibraryStatusBadge[tone="danger"] {
+    color: #ffd4d9;
+    background: rgba(116, 24, 44, 96);
+    border-color: rgba(255, 92, 108, 132);
 }
 QLabel#LibraryStatusBadge[tone="neutral"] {
-    color: #d4e4f7;
-    background: rgba(55, 75, 105, 84);
-    border-color: rgba(132, 165, 210, 92);
+    color: #d8e4f3;
+    background: rgba(58, 75, 101, 92);
+    border-color: rgba(159, 176, 199, 104);
 }
 QPushButton#LibraryOrbitItem {
     background: rgba(8, 22, 42, 224);

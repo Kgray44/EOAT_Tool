@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="tubing-title tubing-desc">
+  <title id="tubing-title">Tubing</title>
+  <desc id="tubing-desc">Smooth routed tubing with two connector ends.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(4.8 4.8) scale(0.85)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 46 V30 C14 20 30 20 30 32 V34 C30 44 50 44 50 34 V18" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="14" cy="46" r="4" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="50" cy="18" r="4" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

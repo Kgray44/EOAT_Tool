@@ -1273,10 +1273,10 @@ class MatrixPage(BaseAtlasPage):
         super().__init__(controller, parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
-        layout.addWidget(page_title("Compatibility Data Table", "Advanced table view of compatibility rows."))
+        layout.addWidget(page_title("Fit Check", "Advanced table view of Fit Check rows."))
         explanation = InfoPanel(
             "Advanced table view",
-            "Advanced table view of compatibility rows. Use this for filtering, auditing, and export. For normal lookup, use EOAT Profiles, Machine Profiles, Tool/Mold/Part, or What Do I Need?",
+            "Advanced table view of Fit Check rows. Use this for filtering, auditing, and export. For normal lookup, use EOAT Profiles, Machine Profiles, Tool/Mold/Part, or What Do I Need?",
         )
         layout.addWidget(explanation)
         controls = QHBoxLayout()
@@ -1308,7 +1308,7 @@ class MatrixPage(BaseAtlasPage):
         controls.addWidget(self.quick_filter)
         controls.addWidget(self.filter, 1)
         controls.addWidget(export_button)
-        panel = DenseDataPanel("Compatibility Rows", "Dense matrix view for sorting, filtering, and export.")
+        panel = DenseDataPanel("Fit Check Rows", "Dense matrix view for sorting, filtering, and export.")
         panel.layout.addLayout(controls)
         self.table = QTableWidget(self)
         panel.layout.addWidget(self.table, 1)
@@ -2370,7 +2370,7 @@ class SetupPacketPage(BaseAtlasPage):
         selector_card.layout.addWidget(self.selection_status)
         workflow_layout.addWidget(selector_card)
 
-        self.review_card = PrimaryCard("2. Compatibility Review", "Review the selected setup before generating.")
+        self.review_card = PrimaryCard("2. Fit Check Review", "Review the selected setup before generating.")
         self.review_layout = QVBoxLayout()
         self.review_layout.setContentsMargins(0, 0, 0, 0)
         self.review_layout.setSpacing(8)
@@ -2494,7 +2494,7 @@ class SetupPacketPage(BaseAtlasPage):
         latest_chip_row.setContentsMargins(0, 0, 0, 0)
         latest_chip_row.setSpacing(6)
         self.latest_type_chip = badge("Changeover Packet", "info")
-        self.latest_compat_chip = badge("Compatibility", "info")
+        self.latest_compat_chip = badge("Fit Check", "info")
         latest_chip_row.addWidget(self.latest_type_chip)
         latest_chip_row.addWidget(self.latest_compat_chip)
         latest_chip_row.addStretch(1)
@@ -2749,7 +2749,7 @@ class SetupPacketPage(BaseAtlasPage):
         message = (
             "This combination is not confirmed by Atlas compatibility data.\n\n"
             "Generate this packet only if you have verified the setup through another approved source. "
-            "The PDF will be marked Compatibility Not Confirmed."
+            "The PDF will be marked Fit Check Not Confirmed."
         )
         result = QMessageBox.warning(
             self,
@@ -2792,7 +2792,7 @@ class SetupPacketPage(BaseAtlasPage):
             ("Selected Machine", context.machine_id),
             ("Selected Tool", context.tool_id),
             ("Selected EOAT", context.eoat_id),
-            ("Compatibility status", validation.status),
+            ("Fit Check status", validation.status),
             ("Manual override", "Yes" if validation.manual_override_used else "No"),
             ("Robot info", "Available" if context.robot_info else "Missing / partial"),
             ("Missing data", _compact_packet_missing(context.missing_key_data)),
@@ -2834,7 +2834,7 @@ class SetupPacketPage(BaseAtlasPage):
         if not self._generation_allowed(validation.status):
             QMessageBox.warning(
                 self,
-                "Compatibility not confirmed",
+                "Fit Check not confirmed",
                 "Atlas cannot confirm this Machine + Tool + EOAT combination. Enable manual override and confirm the warning before generating.",
             )
             return
@@ -2984,7 +2984,11 @@ class SetupPacketPage(BaseAtlasPage):
             item.setSizeHint(QSize(0, 52))
             self.packet_list.addItem(item)
             return
-        paths = sorted(folder.glob("Setup_Packet*.pdf"), key=lambda path: path.stat().st_mtime, reverse=True)
+        paths = sorted(
+            {*folder.glob("Setup_Packet*.pdf"), *folder.glob("EOAT_Setup_Packet*.pdf")},
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
         if self.last_packet_path is not None:
             latest_resolved = self.last_packet_path.resolve(strict=False)
             paths = [path for path in paths if path.resolve(strict=False) != latest_resolved]
@@ -3198,7 +3202,7 @@ class DiagnosticsPage(BaseAtlasPage):
                 "EOAT Profiles",
                 "Machine Profiles",
                 "Tool / Mold / Part",
-                "Compatibility Data Table",
+                "Fit Check",
                 "Analytics Dashboard",
                 "Photos",
                 "Standards & Work Instructions",
@@ -5014,7 +5018,7 @@ def _setup_packet_pdf_info(path: Path, *, context=None) -> str:
             f"Setup: Machine {machine} | Tool {tool} | EOAT {eoat}",
             f"Packet type: {packet_type}",
             f"Photo inclusion: {photo_mode}",
-            f"Compatibility: {status} | Manual override: {'Yes' if override else 'No'}",
+            f"Fit Check: {status} | Manual override: {'Yes' if override else 'No'}",
             f"File size: {_format_file_size(path)}",
         ]
     )
@@ -5081,7 +5085,7 @@ def _setup_packet_pdf_metadata_rows(path: Path) -> list[tuple[str, str]]:
         ("EOAT", metadata.get("eoat", "-")),
         ("Packet type", metadata.get("packet_type", "Changeover Packet")),
         ("Photo inclusion", metadata.get("photo_inclusion", "-")),
-        ("Compatibility", metadata.get("compatibility_status", "-")),
+        ("Fit Check", metadata.get("compatibility_status", "-")),
         ("Manual override", "Yes" if metadata.get("manual_override_used") else "No"),
         ("File size", _format_file_size(path)),
     ]
@@ -5131,6 +5135,12 @@ def _write_setup_packet_sidecar(path: Path, context) -> None:
 
 def _parse_setup_packet_filename(path: Path) -> dict[str, str]:
     match = re.match(
+        r"^EOAT_Setup_Packet__Tool_(?P<tool>.+?)__Machine_(?P<machine>.+?)__EOAT_(?P<eoat>.+?)__(?P<stamp>\d{8}_\d{4,6})\.pdf$",
+        path.name,
+    )
+    if match:
+        return match.groupdict()
+    match = re.match(
         r"^Setup_Packet_Machine_(?P<machine>.+?)_Tool_(?P<tool>.+?)_EOAT_(?P<eoat>.+?)_(?P<stamp>\d{8}_\d{6})\.pdf$",
         path.name,
     )
@@ -5143,10 +5153,13 @@ def _setup_packet_generated_time(path: Path, parsed: dict[str, object] | None = 
     if generated and not stamp:
         stamp = generated
     if stamp:
-        try:
-            return datetime.strptime(stamp, "%Y%m%d_%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            pass
+        time_part = stamp.split("_", 1)[1] if "_" in stamp else ""
+        formats = ("%Y%m%d_%H%M",) if len(time_part) == 4 else ("%Y%m%d_%H%M%S", "%Y%m%d_%H%M")
+        for fmt in formats:
+            try:
+                return datetime.strptime(stamp, fmt).strftime("%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                pass
     try:
         return datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
     except OSError:
@@ -5399,7 +5412,7 @@ class CompareDialog(QDialog):
                 ("Same fields", stats["same"], "good"),
                 ("Different fields", stats["different"], "warn" if stats["different"] else "good"),
                 ("Warning differences", stats["warnings"], "warn" if stats["warnings"] else "good"),
-                ("Compatibility differences", stats["compatibility"], "warn" if stats["compatibility"] else "good"),
+                ("Fit Check differences", stats["compatibility"], "warn" if stats["compatibility"] else "good"),
             ]
         ):
             summary_layout.addWidget(CompactStatCard(label, str(value), kind=kind), 0, index)
@@ -5573,7 +5586,7 @@ PAGE_KEY_LABELS = {
     "eoats": "EOAT Profiles",
     "machines": "Machine Profiles",
     "tools": "Tool / Mold / Part",
-    "matrix": "Compatibility Data Table",
+    "matrix": "Fit Check",
     "overview": "Analytics Dashboard",
     "photos": "Photos",
     "standards": "Standards & Work Instructions",
@@ -5950,7 +5963,7 @@ def build_analytics_snapshot(bundle: AtlasDataBundle) -> dict[str, object]:
         for key, values in sorted(photo_by_type.items(), key=lambda item: item[0])
     }
     warnings_by_category = Counter(_warning_category(warning) for warning in _all_atlas_warnings(bundle))
-    for category in ("Compatibility", "EOAT Inventory", "Machine / Robot", "Press Capacity", "Photos", "Documentation"):
+    for category in ("Fit Check", "EOAT Inventory", "Machine / Robot", "Press Capacity", "Photos", "Documentation"):
         warnings_by_category.setdefault(category, 0)
     top_warning_machines = {
         f"Machine {machine.machine}": machine.warning_count
@@ -6174,7 +6187,7 @@ def _warning_category(warning: WarningItem) -> str:
     if "machine" in text or "robot" in text:
         return "Machine / Robot"
     if "tool" in text or "compat" in text:
-        return "Compatibility"
+        return "Fit Check"
     return "Documentation"
 
 
@@ -6321,9 +6334,9 @@ def _eoat_compare_rows(records: list[EOATRecord]) -> list[dict[str, str]]:
         ("Identity", "EOAT ID", lambda item: item.eoat_id),
         ("Identity", "Type", lambda item: item.eoat_type),
         ("Identity", "Status", lambda item: item.status),
-        ("Compatibility", "Compatible tools", lambda item: _join_values(item.tools)),
-        ("Compatibility", "Compatible machines", lambda item: _join_values(item.machines)),
-        ("Compatibility", "Robot / machine compatibility", lambda item: _join_values((*item.robot_types, *item.robot_models))),
+        ("Fit Check", "Compatible tools", lambda item: _join_values(item.tools)),
+        ("Fit Check", "Compatible machines", lambda item: _join_values(item.machines)),
+        ("Fit Check", "Robot / machine compatibility", lambda item: _join_values((*item.robot_types, *item.robot_models))),
         ("Readiness", "Documentation score", lambda item: f"{item.documentation.score}%"),
         ("Readiness", "Photo count", lambda item: str(item.photo_count)),
         ("Readiness", "Missing photo categories", lambda item: _join_values(item.photos.missing_categories)),
@@ -6343,8 +6356,8 @@ def _machine_compare_rows(records: list[MachineRecord]) -> list[dict[str, str]]:
         ("Identity", "Machine number", lambda item: item.machine),
         ("Robot", "Robot type", lambda item: item.robot_type),
         ("Robot", "Robot model / controller", lambda item: _first_present(item.robot_model, item.controller)),
-        ("Compatibility", "Compatible EOATs", lambda item: _join_values(item.compatible_eoats)),
-        ("Compatibility", "Compatible tools", lambda item: _join_values(item.compatible_tools)),
+        ("Fit Check", "Compatible EOATs", lambda item: _join_values(item.compatible_eoats)),
+        ("Fit Check", "Compatible tools", lambda item: _join_values(item.compatible_tools)),
         ("Readiness", "Documentation score", lambda item: f"{item.documentation_score}%"),
         ("Warnings", "Warnings", lambda item: str(item.warning_count)),
         ("Context", "Current EOAT", lambda item: item.current_eoat),
@@ -6356,8 +6369,8 @@ def _tool_compare_rows(records: list[ToolRecord]) -> list[dict[str, str]]:
     specs = [
         ("Identity", "Tool number", lambda item: item.tool),
         ("Identity", "Part description", lambda item: _first_present(item.part_description, item.part_family)),
-        ("Compatibility", "Compatible EOATs", lambda item: _join_values(item.compatible_eoats)),
-        ("Compatibility", "Compatible machines", lambda item: _join_values(item.compatible_machines)),
+        ("Fit Check", "Compatible EOATs", lambda item: _join_values(item.compatible_eoats)),
+        ("Fit Check", "Compatible machines", lambda item: _join_values(item.compatible_machines)),
         ("Source", "Source", lambda item: item.source),
         ("Warnings", "Warnings", lambda item: str(item.warning_count)),
     ]
@@ -7116,8 +7129,8 @@ def _static_information_entries() -> list[InformationLibraryEntry]:
             ("tool", "mold", "part"),
         ),
         (
-            ("Atlas App Help", "Compatibility Data Table"),
-            "Compatibility Data Table",
+            ("Atlas App Help", "Fit Check"),
+            "Fit Check",
             "The matrix is the dense sortable view for EOAT-machine-tool relationships.",
             "Use it when you need comparison or export-friendly rows. The matrix is intentionally denser than profile pages and is wrapped in a dedicated data panel so it does not compete visually with dashboard profiles.",
             ("matrix", "export", "dense data"),
@@ -7242,36 +7255,36 @@ def _static_information_entries() -> list[InformationLibraryEntry]:
             ("documentation", "score", "gaps"),
         ),
         (
-            ("Compatibility Logic", "Tool-to-Machine Compatibility"),
+            ("Fit Check Logic", "Tool-to-Machine Fit Check"),
             "Tool-to-machine compatibility",
             "Atlas uses Press Capacity/tool-machine rows and normalized tool keys to connect tools to machines.",
             "Tool lookups should use cached dictionaries, not workbook rescans. Missing tool-machine links usually point to Press Capacity source gaps or normalization mismatches.",
             ("tool", "machine", "press capacity"),
         ),
         (
-            ("Compatibility Logic", "EOAT-to-Tool Compatibility"),
+            ("Fit Check Logic", "EOAT-to-Tool Fit Check"),
             "EOAT-to-tool compatibility",
             "EOAT-to-tool links come from EOAT inventory/audit rows and normalized tool numbers.",
             "If an EOAT appears compatible with a tool but not a machine, check whether the tool exists in Press Capacity and whether the machine source data is available.",
             ("eoat", "tool", "indexes"),
         ),
         (
-            ("Compatibility Logic", "Off-Machine EOAT Audits"),
+            ("Fit Check Logic", "Off-Machine EOAT Audits"),
             "Off-machine EOAT audits",
             "Off-machine audits may provide EOAT identity, condition, photos, and documentation context even before full compatibility is known.",
             "Use warnings and detail metadata to distinguish documented off-machine evidence from confirmed machine/tool compatibility.",
             ("audit", "off-machine", "photos"),
         ),
         (
-            ("Compatibility Logic", "Compatibility Rows"),
-            "Compatibility rows",
+            ("Fit Check Logic", "Fit Check Rows"),
+            "Fit Check rows",
             "Dense compatibility rows are generated from cached Atlas bundle data for matrix and export workflows.",
             "The matrix is best for auditing many relationships at once; profile cards are best for answering a specific install question quickly.",
             ("matrix", "rows", "export"),
         ),
         (
-            ("Compatibility Logic", "Confidence / Warnings"),
-            "Compatibility confidence / warnings",
+            ("Fit Check Logic", "Confidence / Warnings"),
+            "Fit Check confidence / warnings",
             "High confidence usually means tool, EOAT, and machine links exist with useful robot/documentation context.",
             "Partial compatibility is still useful, but warning chips tell the user what is missing and where to look before staging.",
             ("confidence", "warnings", "compatibility"),
@@ -7389,8 +7402,8 @@ def _static_information_entries() -> list[InformationLibraryEntry]:
             ("performance", "cache", "diagnostics"),
         ),
         (
-            ("Troubleshooting", "No Compatibility Found"),
-            "No compatibility found",
+            ("Troubleshooting", "No Fit Check Match Found"),
+            "No Fit Check match found",
             "No compatibility usually means an identifier was missing, normalized differently, or absent from the source relationship tables.",
             "Check Tool #, EOAT ID, machine number, Press Capacity rows, Robot Info, and source EOAT Inventory fields.",
             ("compatibility", "missing data", "tool"),
@@ -7506,7 +7519,7 @@ def _standard_information_entries(standard: StandardReference) -> list[Informati
         source_section=standard.category or category,
         tags=tags,
         tree_path=tree_path,
-        related=("Documentation requirements", "Compatibility confidence", "Photo documentation rules"),
+        related=("Documentation requirements", "Fit Check confidence", "Photo documentation rules"),
         modified=_file_mtime(path),
         indexed_at=time.time(),
     )
@@ -7681,8 +7694,8 @@ def _warning_information_entry(warning, *, title_prefix: str = "") -> Informatio
         body=body,
         source=warning.source or "Atlas data checks",
         tags=tags,
-        tree_path=("Troubleshooting", "Missing Source Files" if "missing" in summary.casefold() else "No Compatibility Found"),
-        related=("Documentation requirements", "Compatibility confidence", "Source status"),
+        tree_path=("Troubleshooting", "Missing Source Files" if "missing" in summary.casefold() else "No Fit Check Match Found"),
+        related=("Documentation requirements", "Fit Check confidence", "Source status"),
         indexed_at=time.time(),
     )
 
@@ -7804,7 +7817,7 @@ def _warning_detail_sections(entry: InformationLibraryEntry) -> list[tuple[str, 
         ("Issue", entry.summary),
         ("Why it matters", _extract_body_value(entry.body, "Why it matters") or "This can affect search, compatibility confidence, install readiness, or standards cleanup."),
         ("Suggested fix", _extract_body_value(entry.body, "Suggested fix") or "Review the source workbook, standards reference, photo folder, or Atlas warning context."),
-        ("Related standard", "Documentation Requirements and Compatibility Confidence are the usual first standards to review."),
+        ("Related standard", "Documentation Requirements and Fit Check Confidence are the usual first standards to review."),
         ("Related source workbook/report", entry.path or entry.source.document_name or "Atlas data checks"),
         ("Related Atlas page", _related_pages_text(entry, "Information Library, EOAT Profiles, Machine Profiles, Settings / Diagnostics")),
     ]
@@ -8058,7 +8071,7 @@ def _machine_hero_section(machine: MachineRecord) -> QWidget:
 
 
 def _machine_compatibility_section(machine: MachineRecord) -> QWidget:
-    section = CompatibilityCard("Compatibility", "Machine relationships from Atlas cached indexes.")
+    section = CompatibilityCard("Fit Check", "Machine relationships from Atlas cached indexes.")
     section.layout.addWidget(_labeled_chips("Compatible EOATs", machine.compatible_eoats, empty="No linked EOATs", per_row=6))
     section.layout.addWidget(_labeled_chips("Compatible Tools", machine.compatible_tools, empty="No linked tools", per_row=6))
     section.layout.addWidget(_labeled_chips("Compatible Parts", machine.compatible_parts[:24], empty="No linked parts", per_row=4))
@@ -8117,7 +8130,7 @@ def _tool_hero_section(tool: ToolRecord) -> QWidget:
 
 
 def _tool_compatibility_section(tool: ToolRecord) -> QWidget:
-    section = CompatibilityCard("Compatibility", "Cached Tool -> EOAT -> Machine relationships.")
+    section = CompatibilityCard("Fit Check", "Cached Tool -> EOAT -> Machine relationships.")
     section.layout.addWidget(_labeled_chips("Compatible EOATs", tool.compatible_eoats, empty="Missing EOAT link", per_row=6))
     section.layout.addWidget(_labeled_chips("Compatible Machines", tool.compatible_machines, empty="No linked machines", per_row=6))
     section.layout.addWidget(_labeled_chips("Parts / molds", (*tool.parts[:12], *tool.molds[:8]), empty="No part or mold metadata", per_row=4))
@@ -8245,7 +8258,7 @@ def _profile_metric(label: str, value: str, note: str) -> QWidget:
 
 
 def _eoat_compatibility_section(eoat: EOATRecord) -> QWidget:
-    section = CompatibilityCard("Compatibility", "Tool -> EOAT -> Machine relationships.")
+    section = CompatibilityCard("Fit Check", "Tool -> EOAT -> Machine relationships.")
     status_text, status_kind = _compatibility_status(eoat)
     section.layout.addWidget(_chip_group([status_text], kind=status_kind, per_row=3))
     if not eoat.tools:
@@ -8673,7 +8686,7 @@ def _compatibility_status(eoat: EOATRecord) -> tuple[str, str]:
         return "High-confidence compatibility", "good"
     if eoat.tools or eoat.machines:
         return "Partial compatibility", "warn"
-    return "Compatibility missing", "bad"
+    return "Fit Check missing", "bad"
 
 
 def _score_kind(score: int) -> str:

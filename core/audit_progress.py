@@ -101,7 +101,7 @@ class AuditProgressSummary:
                 self.missing_relationships,
             )
         )
-        lines.extend(["", "## Compatibility Opportunities"])
+        lines.extend(["", "## Fit Check Opportunities"])
         lines.extend(
             _table_from_rows(
                 [
@@ -144,7 +144,7 @@ class AuditProgressSummary:
                 self.multi_tool_eoats,
             )
         )
-        lines.extend(["", "## EOAT Machine Compatibility"])
+        lines.extend(["", "## EOAT Machine Fit Check"])
         lines.extend(
             _table_from_rows(
                 [
@@ -227,7 +227,7 @@ METRIC_LABELS = {
     "machines_with_no_coverage": "Machines With No Coverage",
     "parts_with_at_least_one_physical_audit": "Parts/Tools With At Least One Physical Audit",
     "parts_still_needing_first_physical_audit": "Parts/Tools Still Needing First Physical Audit",
-    "compatibility_opportunities_available": "Compatibility Opportunities Available",
+    "compatibility_opportunities_available": "Fit Check Opportunities Available",
     "total_eoat_inventory_rows": "Total EOAT Inventory Rows",
     "photos_indexed_count": "Photos Indexed",
     "multi_tool_eoat_count": "Shared EOAT Assembly IDs",
@@ -414,7 +414,7 @@ def calculate_audit_progress_from_rows(
         "parts_with_at_least_one_physical_audit": len(audited_parts),
         "parts_still_needing_first_physical_audit": len(required_parts - audited_parts),
         "compatibility_opportunities_available": len(
-            [row for row in missing_relationships if row["Suggested Next Action"] == "Use Compatibility Entry"]
+            [row for row in missing_relationships if row["Suggested Next Action"] == "Use Fit Check Entry"]
         ),
         "total_eoat_inventory_rows": len(inventory),
         "audited_eoat_count": len(audited_keys) if required_keys else physical_audit_rows,
@@ -536,7 +536,7 @@ def _missing_relationship_rows(
                 "NGW Part Number": relationship.part_number,
                 "NGW Part Description": relationship.part_description,
                 "Reason Missing": "No master audit relationship row found.",
-                "Suggested Next Action": "Use Compatibility Entry" if has_source else "Needs Physical Audit",
+                "Suggested Next Action": "Use Fit Check Entry" if has_source else "Needs Physical Audit",
             }
         )
     return rows
@@ -559,7 +559,7 @@ def _compatibility_opportunity_rows(
                 "NGW Part Description": relationship.part_description,
                 "Source Audited Machine": ", ".join(sort_machine_tokens(audited_part_sources[part])),
                 "Compatible Missing Machines": [],
-                "Suggested Action": "Use Compatibility Entry",
+                "Suggested Action": "Use Fit Check Entry",
             },
         )
         grouped[part]["Compatible Missing Machines"].append(machine)

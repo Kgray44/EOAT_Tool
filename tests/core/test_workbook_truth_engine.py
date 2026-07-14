@@ -95,8 +95,8 @@ def test_truth_engine_flags_compatibility_rows_without_source_metadata(fake_proj
     assert result.metrics["compatible_row_count"] >= 1
     assert result.metrics["compatibility_missing_source_audit_id_count"] == 1
     assert result.metrics["compatibility_missing_source_count"] == 1
-    assert "Compatibility row is missing Source Audit ID" in messages
-    assert "Compatibility row is missing Compatibility Source" in messages
+    assert "Fit Check row is missing Source Audit ID" in messages
+    assert "Fit Check row is missing Compatibility Source" in messages
 
 
 def test_truth_engine_flags_duplicate_audit_ids(fake_project):

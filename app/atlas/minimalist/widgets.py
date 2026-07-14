@@ -8,12 +8,12 @@ from PySide6.QtCore import (
     QAbstractAnimation,
     QEasingCurve,
     QPointF,
+    QPropertyAnimation,
     QRect,
     QRectF,
+    QSequentialAnimationGroup,
     QSize,
     Qt,
-    QPropertyAnimation,
-    QSequentialAnimationGroup,
     QTimer,
     Signal,
 )
@@ -40,9 +40,23 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .theme import active_minimalist_tokens, apply_glass_theme, effective_minimalist_theme
+
+TEXT_PRIMARY = "#f8fbff"
+TEXT_SECONDARY = "#d7e2f0"
+TEXT_MUTED = "#b7c4d5"
+TEXT_META = "#a9b8cb"
+TEXT_DISABLED = "#7f90a7"
+TEXT_PLACEHOLDER = "#b2c1d4"
+
 ACCENT = QColor("#1f87ff")
 ACCENT_BRIGHT = QColor("#00c9ff")
-GREEN = QColor("#36d86a")
+STATUS_SELECTED = QColor("#1f87ff")
+STATUS_SUCCESS = QColor("#36d86a")
+STATUS_WARNING = QColor("#ffb145")
+STATUS_ERROR = QColor("#ff5c6c")
+STATUS_UNKNOWN = QColor("#9fb0c7")
+GREEN = STATUS_SUCCESS
 
 
 def paint_soft_ribbon(
@@ -75,6 +89,14 @@ def prefers_reduced_motion() -> bool:
         value = os.environ.get(name, "").strip().casefold()
         if value in {"1", "true", "yes", "on"}:
             return True
+    try:
+        from .settings_store import load_settings
+
+        settings = load_settings()
+        if bool(settings.get("app", {}).get("reduce_motion", False)):
+            return True
+    except Exception:
+        pass
     app = QApplication.instance()
     if app is not None:
         hints = app.styleHints()
@@ -381,14 +403,17 @@ class HamburgerButton(InteractiveTopIconButton):
         painter.translate(self.width() / 2, self.height() / 2)
         painter.scale(self._icon_scale, self._icon_scale)
         painter.rotate(self._angle)
+        tokens = active_minimalist_tokens()
         glow_alpha = self._glow_alpha()
         if glow_alpha:
-            glow = QPen(QColor(31, 135, 255, glow_alpha), 7.5)
+            glow_color = QColor(tokens.accent)
+            glow_color.setAlpha(glow_alpha)
+            glow = QPen(glow_color, 7.5)
             glow.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(glow)
             for y in (-10, 0, 10):
                 painter.drawLine(-16, y, 16, y)
-        pen = QPen(QColor("#f7f8fb"), 3.2)
+        pen = QPen(QColor(tokens.text_primary), 3.2)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
         for y in (-10, 0, 10):
@@ -405,15 +430,18 @@ class SearchIconButton(InteractiveTopIconButton):
         painter.translate(self.width() / 2, self.height() / 2)
         painter.scale(self._icon_scale, self._icon_scale)
         painter.translate(-self.width() / 2, -self.height() / 2)
+        tokens = active_minimalist_tokens()
         glow_alpha = self._glow_alpha()
         if glow_alpha:
-            glow = QPen(QColor(31, 135, 255, glow_alpha), 7.0)
+            glow_color = QColor(tokens.accent)
+            glow_color.setAlpha(glow_alpha)
+            glow = QPen(glow_color, 7.0)
             glow.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(glow)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawEllipse(QRectF(13, 12, 24, 24))
             painter.drawLine(32, 32, 45, 45)
-        pen = QPen(QColor("#ffffff"), 3.1)
+        pen = QPen(QColor(tokens.text_primary), 3.1)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -431,7 +459,7 @@ class CloseIconButton(QAbstractButton):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        pen = QPen(QColor("#ffffff"), 2.1)
+        pen = QPen(QColor(active_minimalist_tokens().text_primary), 2.1)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
         pad = self._size * 0.30
@@ -455,6 +483,7 @@ class ArrowButton(InteractiveTopIconButton):
         painter.translate(self.width() / 2, self.height() / 2)
         painter.scale(self._icon_scale, self._icon_scale)
         painter.translate(-self.width() / 2, -self.height() / 2)
+        tokens = active_minimalist_tokens()
         side = 64.0
         rect = QRectF((self.width() - side) / 2, (self.height() - side) / 2, side, side).adjusted(0.5, 0.5, -0.5, -0.5)
         glow_alpha = self._glow_alpha()
@@ -462,18 +491,21 @@ class ArrowButton(InteractiveTopIconButton):
             painter.save()
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
             glow = QRadialGradient(rect.center(), rect.width() * 0.72)
-            glow.setColorAt(0.0, QColor(45, 128, 255, min(135, glow_alpha)))
-            glow.setColorAt(0.48, QColor(26, 101, 255, min(72, glow_alpha // 2)))
+            accent = QColor(tokens.accent)
+            glow.setColorAt(0.0, QColor(accent.red(), accent.green(), accent.blue(), min(135, glow_alpha)))
+            glow.setColorAt(0.48, QColor(accent.red(), accent.green(), accent.blue(), min(72, glow_alpha // 2)))
             glow.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.fillRect(QRectF(self.rect()), glow)
             painter.restore()
         fill = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        fill.setColorAt(0.0, QColor("#2c68ff"))
-        fill.setColorAt(1.0, QColor("#1165f4"))
+        fill.setColorAt(0.0, QColor(tokens.accent))
+        fill.setColorAt(1.0, QColor(tokens.accent_hover))
         path = QPainterPath()
         path.addRoundedRect(rect, 10, 10)
         painter.fillPath(path, fill)
-        painter.setPen(QPen(QColor(83, 158, 255, 180), 1.0))
+        border = QColor(tokens.accent_hover)
+        border.setAlpha(180)
+        painter.setPen(QPen(border, 1.0))
         painter.drawPath(path)
         painter.setPen(QPen(QColor("#ffffff"), 2.6))
         center = rect.center()
@@ -490,7 +522,7 @@ class SearchMiniIcon(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(QPen(QColor("#d7e6ff"), 1.6))
+        painter.setPen(QPen(QColor(active_minimalist_tokens().text_secondary), 1.6))
         painter.drawEllipse(QRectF(2.5, 2.5, 12, 12))
         painter.drawLine(13, 13, 20, 20)
 
@@ -500,11 +532,15 @@ class MinimalistLogoMark(QWidget):
         return QSize(40, 40)
 
     def paintEvent(self, event) -> None:
+        tokens = active_minimalist_tokens()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = QRectF(3, 3, self.width() - 6, self.height() - 6)
-        painter.setPen(QPen(ACCENT_BRIGHT, 1.4))
-        painter.setBrush(QColor(0, 170, 255, 20))
+        accent = QColor(tokens.accent)
+        accent_soft = QColor(tokens.accent_soft)
+        accent_soft.setAlpha(70 if effective_minimalist_theme() == "light" else 20)
+        painter.setPen(QPen(QColor(tokens.accent_hover), 1.4))
+        painter.setBrush(accent_soft)
         painter.drawEllipse(rect)
         path = QPainterPath()
         cx = rect.center().x()
@@ -512,8 +548,8 @@ class MinimalistLogoMark(QWidget):
         path.lineTo(rect.right() - 8, rect.bottom() - 7)
         path.cubicTo(cx + 3, rect.bottom() - 2, cx - 3, rect.bottom() - 2, rect.left() + 8, rect.bottom() - 7)
         path.closeSubpath()
-        painter.setPen(QPen(QColor("#6fe7ff"), 1.1))
-        painter.setBrush(QColor("#008dff"))
+        painter.setPen(QPen(QColor(tokens.accent_hover), 1.1))
+        painter.setBrush(accent)
         painter.drawPath(path)
         inner = QPainterPath()
         inner.moveTo(cx, rect.top() + 12)
@@ -521,9 +557,45 @@ class MinimalistLogoMark(QWidget):
         inner.lineTo(cx, rect.bottom() - 15)
         inner.lineTo(cx - 5, rect.bottom() - 11)
         inner.closeSubpath()
-        painter.setBrush(QColor("#07182b"))
+        painter.setBrush(QColor(tokens.panel_background))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawPath(inner)
+
+
+class TitleAccentBar(QWidget):
+    def __init__(self, parent=None, *, width: int = 78):
+        super().__init__(parent)
+        self._accent_width = int(width)
+        self.setFixedSize(self._accent_width, 9)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+
+    def sizeHint(self) -> QSize:
+        return QSize(self._accent_width, 9)
+
+    def paintEvent(self, event) -> None:
+        tokens = active_minimalist_tokens()
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
+
+        glow = QLinearGradient(0, 0, self.width(), 0)
+        glow.setColorAt(0.0, QColor(0, 89, 200, 0))
+        accent = QColor(tokens.accent)
+        glow.setColorAt(0.5, QColor(accent.red(), accent.green(), accent.blue(), 80))
+        glow.setColorAt(1.0, QColor(0, 89, 200, 0))
+        painter.fillRect(QRectF(0, 1, self.width(), 7), glow)
+
+        core = QLinearGradient(0, 0, self.width(), 0)
+        core.setColorAt(0.0, QColor(0, 89, 200, 0))
+        core.setColorAt(0.2, QColor(accent.red(), accent.green(), accent.blue(), 120))
+        hover = QColor(tokens.accent_hover)
+        core.setColorAt(0.52, QColor(hover.red(), hover.green(), hover.blue(), 245))
+        core.setColorAt(0.8, QColor(accent.red(), accent.green(), accent.blue(), 120))
+        core.setColorAt(1.0, QColor(0, 89, 200, 0))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(core)
+        painter.drawRoundedRect(QRectF(0, 3, self.width(), 3), 1.5, 1.5)
 
 
 class StatusDot(QWidget):
@@ -538,7 +610,8 @@ class StatusDot(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        color = GREEN if self._ready else QColor("#f5b342")
+        tokens = active_minimalist_tokens()
+        color = QColor(tokens.success if self._ready else tokens.warning)
         painter.setBrush(color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QRectF(2, 2, 10, 10))
@@ -578,7 +651,10 @@ class MinimalistClickCatcher(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(0, 5, 13, round(255 * self._scrim_opacity)))
+        if effective_minimalist_theme() == "light":
+            painter.fillRect(self.rect(), QColor(18, 38, 62, round(130 * self._scrim_opacity)))
+        else:
+            painter.fillRect(self.rect(), QColor(0, 5, 13, round(255 * self._scrim_opacity)))
 
     def mousePressEvent(self, event) -> None:
         self.clicked.emit()
@@ -638,26 +714,33 @@ class TopChromeFade(QWidget):
         self._scroll_animation.start()
 
     def paintEvent(self, event) -> None:
+        tokens = active_minimalist_tokens()
+        light = effective_minimalist_theme() == "light"
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         progress = self._scroll_progress
         gradient = QLinearGradient(0, 0, 0, self.height())
-        gradient.setColorAt(0.0, QColor(2, 10, 24, round(240 + 10 * progress)))
-        gradient.setColorAt(0.36, QColor(2, 10, 24, round(198 + 18 * progress)))
-        gradient.setColorAt(0.74, QColor(2, 10, 24, round(96 + 18 * progress)))
-        gradient.setColorAt(0.92, QColor(2, 10, 24, round(22 + 8 * progress)))
-        gradient.setColorAt(1.0, QColor(2, 10, 24, 0))
+        base = QColor(tokens.app_background if light else "#020a18")
+        gradient.setColorAt(0.0, QColor(base.red(), base.green(), base.blue(), round((228 if light else 240) + 10 * progress)))
+        gradient.setColorAt(0.36, QColor(base.red(), base.green(), base.blue(), round((174 if light else 198) + 18 * progress)))
+        gradient.setColorAt(0.74, QColor(base.red(), base.green(), base.blue(), round((76 if light else 96) + 18 * progress)))
+        gradient.setColorAt(0.92, QColor(base.red(), base.green(), base.blue(), round((16 if light else 22) + 8 * progress)))
+        gradient.setColorAt(1.0, QColor(base.red(), base.green(), base.blue(), 0))
         painter.fillRect(self.rect(), gradient)
 
         separator_alpha = round(14 + 20 * progress)
-        painter.setPen(QPen(QColor(66, 142, 255, separator_alpha), 1))
+        accent = QColor(tokens.accent)
+        painter.setPen(QPen(QColor(accent.red(), accent.green(), accent.blue(), separator_alpha), 1))
         painter.drawLine(0, min(self.height() - 1, 108), self.width(), min(self.height() - 1, 108))
+
+    def apply_theme_preference(self, _preference: str | None) -> None:
+        self.update()
 
 
 class MinimalistToast(GlassPanel):
     def __init__(self, parent=None):
         super().__init__(parent, radius=12)
-        self.set_glass(alpha=186, border_alpha=100)
+        apply_glass_theme(self, "toast")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 10, 18, 10)
         self.label = QLabel("")
@@ -667,6 +750,9 @@ class MinimalistToast(GlassPanel):
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self.hide)
+
+    def apply_theme_preference(self, preference: str | None) -> None:
+        apply_glass_theme(self, "toast", preference)
 
     def show_message(self, message: str) -> None:
         text = str(message or "").strip()
@@ -770,6 +856,49 @@ def draw_glyph(painter: QPainter, rect: QRectF, glyph: str, color: QColor) -> No
         painter.drawLine(rect.left() + 4, rect.bottom() - 7, cx - 2, cy + 1)
         painter.drawLine(cx - 2, cy + 1, cx + 4, rect.bottom() - 10)
         painter.drawLine(cx + 4, rect.bottom() - 10, rect.right() - 4, rect.bottom() - 6)
+    elif glyph == "folder":
+        body = rect.adjusted(2, rect.height() * 0.30, -2, -4)
+        tab = QRectF(rect.left() + 4, rect.top() + rect.height() * 0.20, rect.width() * 0.38, rect.height() * 0.22)
+        painter.drawRoundedRect(tab, 2, 2)
+        painter.drawRoundedRect(body, 2, 2)
+    elif glyph == "save":
+        body = rect.adjusted(4, 3, -4, -4)
+        painter.drawRoundedRect(body, 2, 2)
+        painter.drawLine(body.left() + 4, body.top() + 2, body.right() - 4, body.top() + 2)
+        painter.drawRoundedRect(QRectF(body.left() + 5, body.bottom() - rect.height() * 0.32, body.width() - 10, rect.height() * 0.20), 1.5, 1.5)
+    elif glyph == "copy":
+        back = QRectF(rect.left() + rect.width() * 0.30, rect.top() + rect.height() * 0.10, rect.width() * 0.52, rect.height() * 0.62)
+        front = QRectF(rect.left() + rect.width() * 0.16, rect.top() + rect.height() * 0.28, rect.width() * 0.52, rect.height() * 0.62)
+        painter.drawRoundedRect(back, 2, 2)
+        painter.drawRoundedRect(front, 2, 2)
+    elif glyph == "swap":
+        top_y = rect.top() + rect.height() * 0.34
+        bottom_y = rect.top() + rect.height() * 0.66
+        painter.drawLine(rect.left() + 5, top_y, rect.right() - 7, top_y)
+        painter.drawLine(rect.right() - 12, top_y - 5, rect.right() - 6, top_y)
+        painter.drawLine(rect.right() - 12, top_y + 5, rect.right() - 6, top_y)
+        painter.drawLine(rect.right() - 5, bottom_y, rect.left() + 7, bottom_y)
+        painter.drawLine(rect.left() + 12, bottom_y - 5, rect.left() + 6, bottom_y)
+        painter.drawLine(rect.left() + 12, bottom_y + 5, rect.left() + 6, bottom_y)
+    elif glyph == "external":
+        box = rect.adjusted(4, rect.height() * 0.26, -rect.width() * 0.22, -4)
+        painter.drawRoundedRect(box, 2, 2)
+        painter.drawLine(cx, rect.top() + 5, rect.right() - 5, rect.top() + 5)
+        painter.drawLine(rect.right() - 5, rect.top() + 5, rect.right() - 5, cy)
+        painter.drawLine(cx, cy, rect.right() - 5, rect.top() + 5)
+    elif glyph == "print":
+        paper = QRectF(rect.left() + 6, rect.top() + 2, rect.width() - 12, rect.height() * 0.35)
+        tray = QRectF(rect.left() + 3, rect.top() + rect.height() * 0.34, rect.width() - 6, rect.height() * 0.34)
+        out = QRectF(rect.left() + 7, rect.top() + rect.height() * 0.58, rect.width() - 14, rect.height() * 0.30)
+        painter.drawRoundedRect(paper, 1.5, 1.5)
+        painter.drawRoundedRect(tray, 2, 2)
+        painter.drawRoundedRect(out, 1.5, 1.5)
+        painter.drawEllipse(QRectF(tray.right() - 7, tray.top() + 5, 2.8, 2.8))
+    elif glyph == "plus":
+        painter.drawLine(cx, rect.top() + 5, cx, rect.bottom() - 5)
+        painter.drawLine(rect.left() + 5, cy, rect.right() - 5, cy)
+    elif glyph == "minus":
+        painter.drawLine(rect.left() + 5, cy, rect.right() - 5, cy)
     elif glyph == "book":
         painter.drawRoundedRect(QRectF(rect.left() + 2, rect.top() + 3, rect.width() * 0.42, rect.height() - 6), 2, 2)
         painter.drawRoundedRect(QRectF(cx + 1, rect.top() + 3, rect.width() * 0.42, rect.height() - 6), 2, 2)
@@ -844,6 +973,18 @@ __all__ = [
     "SearchIconButton",
     "SearchMiniIcon",
     "StatusDot",
+    "STATUS_ERROR",
+    "STATUS_SELECTED",
+    "STATUS_SUCCESS",
+    "STATUS_UNKNOWN",
+    "STATUS_WARNING",
+    "TEXT_DISABLED",
+    "TEXT_META",
+    "TEXT_MUTED",
+    "TEXT_PLACEHOLDER",
+    "TEXT_PRIMARY",
+    "TEXT_SECONDARY",
+    "TitleAccentBar",
     "clear_layout",
     "glyph_icon",
     "set_placeholder_color",

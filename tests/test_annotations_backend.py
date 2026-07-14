@@ -167,7 +167,7 @@ def test_open_items_summary_counts_and_suggestions(fake_project):
     target = service.create_or_get_target(
         "audit_field", audit_id="AUD-OPEN-001", field_key="Sensor Type", field_label="Sensor Type"
     )
-    for tag_name in ["Needs Review", "Data Conflict", "Missing Evidence", "Compatibility Concern", "Documentation Gap"]:
+    for tag_name in ["Needs Review", "Data Conflict", "Missing Evidence", "Fit Check Concern", "Documentation Gap"]:
         service.assign_tag_to_target(service.get_tag_by_name(tag_name).id, target.id, sync_workbook=False)
 
     summary = service.get_open_items_summary(today=date(2026, 5, 26))

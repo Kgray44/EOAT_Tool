@@ -188,7 +188,7 @@ class AnnotationTargetNavigator:
             self._navigate_to_page("audit")
             self._page_message(
                 "audit",
-                f"Opened EOAT Audit. Compatibility target: {data.get('target_label') or data.get('object_ref') or 'entry'}.",
+                f"Opened EOAT Audit. Fit Check target: {data.get('target_label') or data.get('object_ref') or 'entry'}.",
             )
             return True
         if target_type == "photo":

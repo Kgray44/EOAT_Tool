@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="maintenance-title maintenance-desc">
+  <title id="maintenance-title">Maintenance</title>
+  <desc id="maintenance-desc">Clean wrench over a compact machine/EOAT block.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(4.8 4.8) scale(0.85)" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="38" width="24" height="10" rx="2" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <path d="M18 43 H30" fill="none" stroke="#00A6C8" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <path d="M22 34 L43 13 L51 21 L30 42" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="22" cy="34" r="4" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

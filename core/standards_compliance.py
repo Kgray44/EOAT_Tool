@@ -207,7 +207,7 @@ class StandardsComplianceSummary:
             f"- True standards failures: {self.metrics.get('true_standard_failure_count', 0)}",
             f"- EOAT documentation gaps: {self.metrics.get('documentation_gap_count', 0)}",
             f"- Installation follow-up items: {self.metrics.get('installation_follow_up_count', 0)}",
-            f"- Compatibility/data issues: {self.metrics.get('compatibility_data_issue_count', 0)}",
+            f"- Fit Check/data issues: {self.metrics.get('compatibility_data_issue_count', 0)}",
             f"- Unknown / needs review: {self.metrics.get('unknown_standard_count', 0)}",
             f"- Not observable due to audit context: {self.metrics.get('not_observable_count', 0)}",
             "",
@@ -413,7 +413,7 @@ def generate_standards_compliance_report(project_root: str | Path, *, log_activi
             "Installation Follow-Up Items": "; ".join(
                 result.label for result in audit.category_results if result.issue_group == ISSUE_INSTALLATION_FOLLOW_UP
             ),
-            "Compatibility/Data Issues": "; ".join(
+            "Fit Check/Data Issues": "; ".join(
                 result.label for result in audit.category_results if result.issue_group == ISSUE_COMPATIBILITY_DATA
             ),
             "Unknown / Needs Review": "; ".join(
@@ -914,7 +914,7 @@ def _installed_cell_validation_context(row: dict[str, Any], *, audit_context: st
             "installed_cell_validation_context",
             "Installed-cell validation",
             STATUS_FOLLOW_UP_REQUIRED,
-            "Compatibility row is not a physical installed-cell validation.",
+            "Fit Check row is not a physical installed-cell validation.",
             "Physically install and validate the EOAT on this machine before treating it as installed-cell verified.",
             fields,
             ISSUE_INSTALLATION_FOLLOW_UP,
@@ -934,7 +934,7 @@ def _installed_cell_validation_context(row: dict[str, Any], *, audit_context: st
         "Installed-cell validation",
         STATUS_UNKNOWN,
         "Audit context needs review before installed-cell validation can be interpreted.",
-        "Set Audit Context to Installed on Machine, Not Installed / Bench Audit, Compatibility row, or Historical/imported.",
+        "Set Audit Context to Installed on Machine, Not Installed / Bench Audit, Fit Check row, or Historical/imported.",
         fields,
         ISSUE_UNKNOWN_REVIEW,
     )
@@ -945,9 +945,9 @@ def _compatibility_context(row: dict[str, Any], *, audit_context: str) -> Compli
     if audit_context != AUDIT_CONTEXT_COMPATIBILITY:
         return _result(
             "compatibility_context",
-            "Compatibility/data context",
+            "Fit Check/data context",
             STATUS_NOT_APPLICABLE,
-            "This row is not a compatibility relationship row.",
+            "This row is not a Fit Check relationship row.",
             "",
             fields,
             ISSUE_COMPATIBILITY_DATA,
@@ -956,16 +956,16 @@ def _compatibility_context(row: dict[str, Any], *, audit_context: str) -> Compli
     if missing:
         return _result(
             "compatibility_context",
-            "Compatibility/data context",
+            "Fit Check/data context",
             STATUS_WARNING,
-            f"Compatibility row is missing relationship data: {', '.join(missing)}.",
+            f"Fit Check row is missing relationship data: {', '.join(missing)}.",
             "Complete the EOAT/tool/machine relationship or mark the row Needs review.",
             fields,
             ISSUE_COMPATIBILITY_DATA,
         )
     return _result(
         "compatibility_context",
-        "Compatibility/data context",
+            "Fit Check/data context",
         STATUS_WARNING,
         "Compatible based on EOAT/tool data; not yet physically verified on this machine.",
         "Use this row for relationship coverage only until an installed-cell audit is completed.",
@@ -1062,7 +1062,7 @@ def _recommended_action_note(audit_context: str) -> str:
             "for future installed-cell validation."
         )
     if audit_context == AUDIT_CONTEXT_COMPATIBILITY:
-        return "Compatibility row only; use for EOAT-to-machine relationship coverage until physically verified."
+        return "Fit Check row only; use for EOAT-to-machine relationship coverage until physically verified."
     return "Review grouped findings and complete any documented follow-up."
 
 

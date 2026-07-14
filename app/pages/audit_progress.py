@@ -58,7 +58,7 @@ class AuditProgressPage(QWidget):
                 "Compatible Relationships",
                 "Total Covered Relationships",
                 "Remaining Relationships",
-                "Compatibility Opportunities",
+                "Fit Check Opportunities",
                 "Open Actions",
                 "Issues Logged",
                 "Multi-Tool EOATs",
@@ -77,13 +77,13 @@ class AuditProgressPage(QWidget):
         self.missing_table = QTableWidget()
         tables.addTab(self.missing_table, "Missing Relationships")
         self.opportunities_table = QTableWidget()
-        tables.addTab(self.opportunities_table, "Compatibility Opportunities")
+        tables.addTab(self.opportunities_table, "Fit Check Opportunities")
         self.machine_table = QTableWidget()
         tables.addTab(self.machine_table, "Machine Coverage")
         self.multi_tool_table = QTableWidget()
         tables.addTab(self.multi_tool_table, "Multi-Tool EOATs")
         self.eoat_machine_table = QTableWidget()
-        tables.addTab(self.eoat_machine_table, "EOAT Machine Compatibility")
+        tables.addTab(self.eoat_machine_table, "EOAT Machine Fit Check")
         self.entry_type_table = QTableWidget()
         tables.addTab(self.entry_type_table, "Existing Entries by Type")
         self.audit_context_table = QTableWidget()
@@ -109,7 +109,7 @@ class AuditProgressPage(QWidget):
         self.cards["Compatible Relationships"].set_value(str(metrics.get("compatible_relationships", 0)))
         self.cards["Total Covered Relationships"].set_value(str(metrics.get("total_covered_relationships", 0)))
         self.cards["Remaining Relationships"].set_value(str(metrics.get("remaining_relationships", 0)))
-        self.cards["Compatibility Opportunities"].set_value(
+        self.cards["Fit Check Opportunities"].set_value(
             str(metrics.get("compatibility_opportunities_available", 0))
         )
         self.cards["Open Actions"].set_value(str(metrics.get("open_action_items_count", 0)))

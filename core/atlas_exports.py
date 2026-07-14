@@ -77,7 +77,7 @@ def atlas_qr_label_dir(project_root: str | Path) -> Path:
 
 def export_compatibility_matrix(bundle: AtlasDataBundle, *, mode: str = "eoat_machine") -> Path:
     rows = compatibility_matrix_rows(bundle, mode=mode)
-    return write_timestamped_csv(atlas_export_dir(bundle.project_root), f"Atlas_Compatibility_{mode}", rows)
+    return write_timestamped_csv(atlas_export_dir(bundle.project_root), f"Atlas_Fit_Check_{mode}", rows)
 
 
 def export_documentation_gap_report(bundle: AtlasDataBundle) -> Path:
@@ -193,7 +193,7 @@ def build_install_packet(
             ),
         ),
         InstallPacketSection(
-            "Compatibility",
+            "Fit Check",
             _rows(
                 ("Compatible machine(s)", _join(eoat.machines if eoat else (tool.compatible_machines if tool else ()))),
                 ("Selected machine", machine_id),

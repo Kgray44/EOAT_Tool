@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="documentation-title documentation-desc">
+  <title id="documentation-title">Documentation</title>
+  <desc id="documentation-desc">Stacked documents with consistent line details.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(4.8 4.8) scale(0.85)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 20 H40 V50 H16 Z M22 14 H48 V44 H40" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="28" y1="25" x2="41" y2="25" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="28" y1="33" x2="41" y2="33" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="28" y1="41" x2="36" y2="41" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

@@ -339,7 +339,7 @@ def non_applicable_reason(entry: dict[str, Any], field_name: str) -> str:
     if field_applies(entry, field_name):
         return ""
     if _entry_type(entry) == ENTRY_TYPE_COMPATIBLE.casefold() and field_name in {"Audit Date", "Auditor"}:
-        return "Compatibility rows are not physical audit observations."
+        return "Fit Check rows are not physical audit observations."
     if field_name in VACUUM_TOOLING_FIELDS:
         return "Vacuum tooling fields do not apply to the selected EOAT type."
     if field_name in GRIPPER_TOOLING_FIELDS:

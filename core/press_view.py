@@ -320,10 +320,10 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
         f"# {group.display_name} Summary",
         "",
         f"- EOAT documentation rows: {len(group.physical_audits)}",
-        f"- Compatibility rows assigned to this machine: {len(group.compatible_entries)}",
+        f"- Fit Check rows assigned to this machine: {len(group.compatible_entries)}",
         f"- Compatible machine links from this machine's source audits: {len(group.linked_compatible_entries)}",
-        "- Relationship rule: compatibility rows do not count as installed-cell physical verification.",
-        f"- Total machines in compatibility family: {group.compatibility_family_machine_count}",
+        "- Relationship rule: Fit Check rows do not count as installed-cell physical verification.",
+        f"- Total machines in Fit Check family: {group.compatibility_family_machine_count}",
         f"- Tools: {', '.join(group.tools) if group.tools else 'None listed'}",
         f"- Open items: {group.open_item_count}",
         f"- Validation warnings: {group.validation_warning_count}",
@@ -337,9 +337,9 @@ def export_press_summary(project_root: str | Path, machine: str) -> ToolResult:
         "## EOAT Documentation Rows",
     ]
     lines.extend(_entry_lines(group.physical_audits))
-    lines.extend(["", "## Compatibility Rows Assigned To This Machine"])
+    lines.extend(["", "## Fit Check Rows Assigned To This Machine"])
     lines.extend(_entry_lines(group.compatible_entries))
-    lines.extend(["", "## Compatibility Rows Created From This Machine's Source Audits"])
+    lines.extend(["", "## Fit Check Rows Created From This Machine's Source Audits"])
     lines.extend(_entry_lines(group.linked_compatible_entries))
     paths = resolve_project_paths(project_root)
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")

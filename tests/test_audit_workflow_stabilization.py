@@ -349,7 +349,7 @@ def test_completed_audit_update_checkbox_choice_checked_runs_compatibility(
     page.save_audit()
 
     assert seen["sync_linked_compatibility"] is True
-    assert "Compatibility update for completed audit was requested." in page.result_panel.viewer.toPlainText()
+    assert "Fit Check update for completed audit was requested." in page.result_panel.viewer.toPlainText()
 
 
 def test_completed_audit_update_checkbox_choice_unchecked_skips_compatibility(
@@ -380,7 +380,7 @@ def test_completed_audit_update_checkbox_choice_unchecked_skips_compatibility(
     page.save_audit()
 
     assert seen["sync_linked_compatibility"] is False
-    assert "Compatibility update skipped by user choice." in page.result_panel.viewer.toPlainText()
+    assert "Fit Check update skipped by user choice." in page.result_panel.viewer.toPlainText()
 
 
 def test_completed_audit_update_cancel_performs_no_save(qapp, fake_config, fake_project, monkeypatch):

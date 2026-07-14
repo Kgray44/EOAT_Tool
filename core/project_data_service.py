@@ -1010,7 +1010,7 @@ def _summary_sections(context: Machine360Context) -> list[tuple[str, dict[str, A
     return [
         ("Machine Identity", context.machine_identity),
         ("Physical Audit Summary", context.physical_audit_summary),
-        ("Compatibility Summary", context.compatibility_summary),
+        ("Fit Check Summary", context.compatibility_summary),
         ("EOAT Tooling Summary", context.tooling_summary),
         ("Pneumatic Circuits", context.pneumatic_circuits),
         ("Sensors and Detection", context.sensors_detection),

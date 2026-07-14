@@ -33,7 +33,7 @@ class NoteEditor(QWidget):
         ("Linked Machine", "linked_machine"),
         ("Linked EOAT / Tool", "linked_eoat_tool"),
         ("Linked Audit Field", "linked_audit_field"),
-        ("Linked Compatibility Entry", "linked_compatibility_entry"),
+        ("Linked Fit Check Entry", "linked_compatibility_entry"),
         ("Linked Photo / Attachment", "attachment"),
         ("Linked Workbook Health Warning", "linked_workbook_warning"),
         ("Linked Pilot Candidate", "linked_pilot_candidate"),

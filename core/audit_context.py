@@ -441,7 +441,7 @@ def _backfill_report_markdown(
         f"- Headers added: {', '.join(added_headers) if added_headers else '(none)'}",
         "",
         "## Inference Rules",
-        "- Compatibility rows: Entry Type or compatibility source marks the row as Compatibility row.",
+        "- Fit Check rows: Entry Type or compatibility source marks the row as Fit Check row.",
         "- Bench rows: Machine value is blank, N/A, Not Installed, or equivalent.",
         "- Installed rows: Machine value is populated and no compatibility/historical marker is present.",
         "- Uncertain rows: Needs review.",

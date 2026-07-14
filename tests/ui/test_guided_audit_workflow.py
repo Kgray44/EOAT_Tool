@@ -47,7 +47,7 @@ def test_guided_final_review_shows_save_impact_categories(qapp, fake_config):
     assert "Unknown / Not Checked" in rows
     assert "Defaults" in rows
     assert "Robot info updates" in rows
-    assert "Compatibility impact" in rows
+    assert "Fit Check impact" in rows
     assert "Photo warnings" in rows
 
 

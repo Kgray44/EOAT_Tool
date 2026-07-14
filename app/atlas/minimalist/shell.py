@@ -7,7 +7,7 @@ from PySide6.QtGui import QColor, QKeySequence, QLinearGradient, QPainter, QPain
 from PySide6.QtWidgets import QApplication, QAbstractSpinBox, QComboBox, QLineEdit, QPlainTextEdit, QTextEdit, QWidget
 
 from .overlays import MinimalistMenuOverlay, MinimalistSearchOverlay
-from .style import MINIMALIST_STYLES
+from .theme import effective_minimalist_theme, minimalist_styles, minimalist_tokens, normalize_theme_preference, set_active_minimalist_theme
 from .topbar import MinimalistTopBar
 from .widgets import MinimalistClickCatcher, TopChromeFade, paint_soft_ribbon
 
@@ -17,10 +17,11 @@ class AtlasMinimalistShell(QWidget):
         super().__init__(parent)
         self.controller = controller
         self.bundle = None
+        self._theme_preference = self._controller_theme_preference()
         self.setObjectName("MinimalistAtlasShell")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
-        self.setStyleSheet(MINIMALIST_STYLES)
+        self.setStyleSheet(minimalist_styles(self._theme_preference))
 
         self.content_host = QWidget(self)
         self.content_host.setObjectName("MinimalistContentHost")
@@ -59,10 +60,29 @@ class AtlasMinimalistShell(QWidget):
         if self._event_filter_app is not None:
             self._event_filter_app.installEventFilter(self)
         self._connect_scroll_fade()
+        self.set_theme_preference(self._theme_preference)
 
     def set_bundle(self, bundle) -> None:
         self.bundle = bundle
         self.search_overlay.set_bundle(bundle)
+
+    def set_theme_preference(self, preference: str | None) -> None:
+        self._theme_preference = normalize_theme_preference(preference)
+        set_active_minimalist_theme(self._theme_preference)
+        self.setStyleSheet(minimalist_styles(self._theme_preference))
+        for child in (self.top_bar, self.menu_overlay, self.search_overlay, self.top_fade, self.click_catcher):
+            apply_theme = getattr(child, "apply_theme_preference", None)
+            if callable(apply_theme):
+                apply_theme(self._theme_preference)
+        self.update()
+
+    def _controller_theme_preference(self) -> str:
+        direct = getattr(self.controller, "_minimalist_theme_preference", None)
+        if direct:
+            return normalize_theme_preference(direct)
+        settings = getattr(self.controller, "minimalist_app_settings", {}) or {}
+        app_settings = settings.get("app", {}) if isinstance(settings, dict) else {}
+        return normalize_theme_preference(app_settings.get("theme"))
 
     def set_active_nav(self, key: str) -> None:
         self.menu_overlay.set_active_key(key)
@@ -80,6 +100,7 @@ class AtlasMinimalistShell(QWidget):
         self.open_search()
 
     def open_menu(self) -> None:
+        self._close_content_search_overlays()
         self.search_overlay.animate_close(self._last_search_rect)
         self._open_overlay = "menu"
         self._show_catcher()
@@ -92,6 +113,7 @@ class AtlasMinimalistShell(QWidget):
         self.menu_overlay.animate_open(rect)
 
     def open_search(self, initial_text: str = "", *, select_all: bool = True) -> None:
+        self._close_content_search_overlays()
         self.menu_overlay.animate_close(self._last_menu_rect)
         self._open_overlay = "search"
         self._show_catcher()
@@ -106,7 +128,15 @@ class AtlasMinimalistShell(QWidget):
         self.search_overlay.animate_open(rect)
         QTimer.singleShot(80, lambda: self.search_overlay.focus_search(select_all=select_all))
 
-    def close_overlays(self) -> None:
+    def close_overlays(self, *, immediate: bool = False) -> None:
+        if immediate:
+            self._open_overlay = ""
+            self.top_bar.set_menu_open(False)
+            self.top_bar.set_search_open(False)
+            self._hide_overlay_now(self.menu_overlay)
+            self._hide_overlay_now(self.search_overlay)
+            self.click_catcher.hide()
+            return
         closing = self._open_overlay
         if not closing:
             if self.search_overlay.isVisible():
@@ -128,6 +158,25 @@ class AtlasMinimalistShell(QWidget):
         elif closing == "search":
             self.search_overlay.animate_close(self._last_search_rect)
         self.click_catcher.fade_out()
+
+    def _hide_overlay_now(self, overlay: QWidget) -> None:
+        geometry_animation = getattr(overlay, "_geometry_animation", None)
+        opacity_animation = getattr(overlay, "_opacity_animation", None)
+        if geometry_animation is not None:
+            geometry_animation.stop()
+        if opacity_animation is not None:
+            opacity_animation.stop()
+        opacity = getattr(overlay, "_opacity", None)
+        if opacity is not None:
+            opacity.setOpacity(0.0)
+        if hasattr(overlay, "_closing"):
+            overlay._closing = False
+        overlay.hide()
+
+    def _close_content_search_overlays(self) -> None:
+        closer = getattr(self.content, "close_search_overlays", None)
+        if callable(closer):
+            closer()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -178,18 +227,25 @@ class AtlasMinimalistShell(QWidget):
         super().hideEvent(event)
 
     def remove_app_event_filter(self) -> None:
-        if self._event_filter_app is not None:
-            self._event_filter_app.removeEventFilter(self)
+        event_filter_app = getattr(self, "_event_filter_app", None)
+        if event_filter_app is not None:
+            event_filter_app.removeEventFilter(self)
             self._event_filter_app = None
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         rect = QRectF(self.rect())
+        tokens = minimalist_tokens(self._theme_preference)
         gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        gradient.setColorAt(0.0, QColor("#020812"))
-        gradient.setColorAt(0.48, QColor("#061222"))
-        gradient.setColorAt(1.0, QColor("#01040a"))
+        if effective_minimalist_theme(self._theme_preference) == "light":
+            gradient.setColorAt(0.0, QColor(tokens.app_background))
+            gradient.setColorAt(0.50, QColor(tokens.page_background))
+            gradient.setColorAt(1.0, QColor("#e7eef6"))
+        else:
+            gradient.setColorAt(0.0, QColor(tokens.app_background))
+            gradient.setColorAt(0.48, QColor(tokens.page_background))
+            gradient.setColorAt(1.0, QColor("#01040a"))
         painter.fillRect(rect, gradient)
         self._paint_ambient_light(painter, rect)
         self._paint_streaks(painter, rect)
@@ -261,7 +317,7 @@ class AtlasMinimalistShell(QWidget):
     def _start_type_search(self, text: str) -> None:
         current_page = getattr(self.controller, "current_page_key", "minimalist_home")
         focus_search = getattr(self.content, "focus_search_text", None)
-        if current_page in {"home", "minimalist_home", "library"} and callable(focus_search):
+        if current_page in {"home", "minimalist_home"} and callable(focus_search):
             if self._open_overlay:
                 self.close_overlays()
                 self.click_catcher.hide()
@@ -271,7 +327,13 @@ class AtlasMinimalistShell(QWidget):
 
     def _menu_rect(self) -> QRect:
         panel_width = min(280, max(252, self.width() - 40))
-        panel_height = min(748, max(520, self.height() - 172))
+        item_count = max(1, len(getattr(self.menu_overlay, "buttons_by_key", {}) or {}))
+        close_height = 32
+        margins = 18 + 22
+        spacing = max(0, item_count) * 8
+        item_height = 55
+        panel_height = margins + close_height + spacing + item_count * item_height
+        panel_height = min(max(300, panel_height), max(300, self.height() - 132))
         return QRect(12, 102, panel_width, panel_height)
 
     def _search_rect(self) -> QRect:
@@ -280,6 +342,19 @@ class AtlasMinimalistShell(QWidget):
         return QRect(self.width() - panel_width - 8, 138, panel_width, panel_height)
 
     def _paint_ambient_light(self, painter: QPainter, rect: QRectF) -> None:
+        light = effective_minimalist_theme(self._theme_preference) == "light"
+        accent = QColor(minimalist_tokens(self._theme_preference).accent)
+        if light:
+            for center_x, center_y, radius, alpha in (
+                (rect.width() * 0.50, rect.height() * 0.08, rect.width() * 0.55, 18),
+                (rect.width() * 0.88, rect.height() * 0.36, rect.width() * 0.34, 14),
+            ):
+                glow = QRadialGradient(center_x, center_y, radius)
+                glow.setColorAt(0.0, QColor(accent.red(), accent.green(), accent.blue(), alpha))
+                glow.setColorAt(0.70, QColor(accent.red(), accent.green(), accent.blue(), max(2, alpha // 5)))
+                glow.setColorAt(1.0, QColor(0, 0, 0, 0))
+                painter.fillRect(rect, glow)
+            return
         for center_x, center_y, radius, alpha in (
             (rect.width() * 0.50, rect.height() * 0.10, rect.width() * 0.45, 14),
             (rect.width() * 0.80, rect.height() * 0.48, rect.width() * 0.36, 22),
@@ -292,6 +367,22 @@ class AtlasMinimalistShell(QWidget):
             painter.fillRect(rect, glow)
 
     def _paint_streaks(self, painter: QPainter, rect: QRectF) -> None:
+        if effective_minimalist_theme(self._theme_preference) == "light":
+            painter.save()
+            accent = QColor(minimalist_tokens(self._theme_preference).accent)
+            sweep = QPainterPath()
+            sweep.moveTo(-80, rect.height() * 0.90)
+            sweep.cubicTo(
+                rect.width() * 0.20,
+                rect.height() * 0.82,
+                rect.width() * 0.42,
+                rect.height() * 0.68,
+                rect.width() * 0.70,
+                rect.height() * 0.56,
+            )
+            paint_soft_ribbon(painter, sweep, accent, alpha_scale=0.16, width_scale=0.42, core=False)
+            painter.restore()
+            return
         painter.save()
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
         glows = (

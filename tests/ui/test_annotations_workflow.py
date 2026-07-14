@@ -413,7 +413,7 @@ def test_notes_add_field_options_include_expanded_annotation_links():
         "Linked Machine",
         "Linked EOAT / Tool",
         "Linked Audit Field",
-        "Linked Compatibility Entry",
+        "Linked Fit Check Entry",
         "Linked Photo / Attachment",
         "Linked Workbook Health Warning",
         "Linked Pilot Candidate",
@@ -712,7 +712,7 @@ def test_save_audit_preserves_form_and_combined_summary(qapp, fake_config, fake_
     text = page.result_panel.viewer.toPlainText()
     assert "Audit Save Summary" in text
     assert "Robot Info Summary" in text
-    assert "Compatibility Entry Summary" in text
+    assert "Fit Check Entry Summary" in text
     assert f"Saved audit entry {audit_id}" in text
     assert page.audit_fields["Press/Machine #"].text() == "12"
     assert page.audit_fields["Audit ID"].text() == audit_id

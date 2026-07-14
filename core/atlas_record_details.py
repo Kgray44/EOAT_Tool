@@ -279,7 +279,7 @@ def _tool_detail(bundle: AtlasDataBundle, record: ToolRecord) -> RecordDetailDat
             ),
         ),
         RecordSection(
-            "Compatibility",
+            "Fit Check",
             _fields(
                 ("Compatible EOATs", related_eoats or "Not Indexed"),
                 ("Compatible Machines", related_machines or "Not Indexed"),
@@ -378,7 +378,7 @@ def _machine_detail(bundle: AtlasDataBundle, record: MachineRecord) -> RecordDet
             ),
         ),
         RecordSection(
-            "Compatibility",
+            "Fit Check",
             _fields(
                 ("Compatible EOATs", tuple(getattr(record, "compatible_eoats", ()) or ()) or "Not Indexed"),
                 ("Compatible Tools", tuple(getattr(record, "compatible_tools", ()) or ()) or "Not Indexed"),
@@ -987,11 +987,11 @@ def _current_machine_for_eoat(bundle: AtlasDataBundle, eoat_id: str) -> str:
 def _machine_current_fallback(record: MachineRecord) -> str:
     status = display_value(getattr(record, "current_eoat_status", ""))
     if status == "explicit_none":
-        return "No Current EOAT"
+        return "Not Installed"
     blob = _rows_blob(tuple(getattr(record, "source_rows", ()) or ())).casefold()
     if "no current eoat" in blob or "eoat not installed" in blob or "no eoat installed" in blob:
-        return "No Current EOAT"
-    return "Not Indexed"
+        return "Not Installed"
+    return "Not Assigned"
 
 
 def _current_tools_for_machine(bundle: AtlasDataBundle, record: MachineRecord) -> tuple[str, ...]:

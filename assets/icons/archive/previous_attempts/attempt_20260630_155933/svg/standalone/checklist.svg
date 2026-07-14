@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="checklist-title checklist-desc">
+  <title id="checklist-title">Checklist</title>
+  <desc id="checklist-desc">Clipboard with three checked rows.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <rect x="16" y="14" width="32" height="40" rx="3" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <rect x="24" y="10" width="16" height="8" rx="3" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <rect x="22" y="23" width="6" height="6" rx="1.5" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="34" y1="26" x2="42" y2="26" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <rect x="22" y="33" width="6" height="6" rx="1.5" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="34" y1="36" x2="42" y2="36" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <rect x="22" y="43" width="6" height="6" rx="1.5" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="34" y1="46" x2="42" y2="46" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <polyline points="21,22.8 22.8,24.6 26.4,21" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <polyline points="21,32.8 22.8,34.6 26.4,31" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <polyline points="21,42.8 22.8,44.6 26.4,41" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

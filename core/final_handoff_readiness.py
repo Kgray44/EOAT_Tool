@@ -214,7 +214,7 @@ def build_machine_summary_report_markdown(project_root: str | Path) -> str:
         "",
         "## Source And Confidence Labels",
         "- Physical audit counts are audit-observed workbook data.",
-        "- Compatibility counts are workbook-derived rows and do not count as physical verification.",
+        "- Fit Check counts are workbook-derived rows and do not count as physical verification.",
         "- KPI rows are source-labeled in KPI reports; missing KPI rows remain missing here.",
         "- Missing photo evidence remains listed as missing and is not treated as complete.",
         "- Recommended actions are generated from available evidence and should be reviewed by the project owner.",
@@ -342,8 +342,8 @@ def build_technical_appendix_markdown(project_root: str | Path) -> str:
             ["Source", "Severity", "Category", "Title", "Status", "Audit ID", "Machine", "Recommended Action"],
         ),
         "",
-        "## Compatibility Health Summary",
-        f"- Compatibility findings: {len(compatibility)}",
+        "## Fit Check Health Summary",
+        f"- Fit Check findings: {len(compatibility)}",
         *table_from_rows(
             [
                 {

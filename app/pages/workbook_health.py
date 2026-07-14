@@ -40,7 +40,12 @@ from core.validation_findings import (
     findings_from_result,
     repair_suggestions_from_findings,
 )
-from core.workbook_repairs import SAFE_FIX_IDS, apply_safe_fix, preview_safe_fix_action
+from core.workbook_repairs import (
+    FIX_REPAIR_EOAT_ID_PREFIXES,
+    SAFE_FIX_IDS,
+    apply_safe_fix,
+    preview_safe_fix_action,
+)
 
 
 class WorkbookHealthPage(QWidget):
@@ -60,6 +65,7 @@ class WorkbookHealthPage(QWidget):
             ("Run Foundation Validation", self.run_validation),
             ("Repair Workbook Schema", self.repair_workbook_schema),
             ("Assign Missing EOAT IDs", self.assign_missing_eoat_ids),
+            ("Repair EOAT ID Prefixes", self.preview_eoat_id_prefix_repair),
             ("Backfill Audit Context", self.backfill_audit_context),
             (REFRESH_ACTION_NAME, self.refresh_audit_by_press_view),
             ("Open Validation Reports Folder", self.open_validation_reports),
@@ -191,6 +197,15 @@ class WorkbookHealthPage(QWidget):
             self._eoat_assignment_finished,
             modifies_files=True,
             workbook_lock=True,
+        )
+
+    def preview_eoat_id_prefix_repair(self) -> None:
+        run_tool_background(
+            self.result_panel,
+            "workbook_repair_preview_eoat_id_prefixes",
+            "Repair EOAT ID Prefixes Preview",
+            lambda: preview_safe_fix_action(self.config.project_root, FIX_REPAIR_EOAT_ID_PREFIXES),
+            modifies_files=False,
         )
 
     def backfill_audit_context(self) -> None:

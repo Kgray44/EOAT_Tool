@@ -1,0 +1,13 @@
+{
+  "notes": "Copy this file to crop_boxes.json and edit the entries. Coordinates are pixels in the source image: left, top, right, bottom.",
+  "source_root": "assets/icon_design_reference/source_images",
+  "output_root": "assets/icon_design_reference/cropped_reference_icons",
+  "crops": [
+    {
+      "source": "example_screenshot.png",
+      "name": "robot_reference_01",
+      "box": [0, 0, 64, 64],
+      "label": "Robot reference 01"
+    }
+  ]
+}

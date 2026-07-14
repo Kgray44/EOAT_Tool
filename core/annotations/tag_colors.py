@@ -41,7 +41,7 @@ DEFAULT_TAG_DEFINITIONS: tuple[dict[str, object], ...] = (
         "color_key": "teal",
         "description": "Maintenance reliability or serviceability concern.",
     },
-    {"name": "Compatibility Concern", "color_key": "blue", "description": "Machine/tool compatibility needs review."},
+    {"name": "Fit Check Concern", "color_key": "blue", "description": "Machine/tool Fit Check needs review."},
     {"name": "Documentation Gap", "color_key": "orange", "description": "Missing or incomplete documentation."},
     {"name": "Safety Concern", "color_key": "red", "description": "Safety concern requiring priority attention."},
     {"name": "Critical Issue", "color_key": "red", "description": "Critical issue requiring urgent review."},

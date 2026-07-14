@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="pressure_air-title pressure_air-desc">
+  <title id="pressure_air-title">Pressure Air</title>
+  <desc id="pressure_air-desc">Pressure nozzle with one bold outward airflow arrow.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <rect x="6" y="25" width="25" height="14" rx="6" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <polygon points="29,21 45,32 29,43" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="12" y="30" width="17" height="4" rx="2" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <polygon points="43,28.92 51.7,28.92 51.7,25 58,32 51.7,39 51.7,35.08 43,35.08" fill="#A6CE39" stroke="none" stroke-width="0" />
+  </g>
+</svg>

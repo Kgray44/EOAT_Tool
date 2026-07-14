@@ -112,7 +112,7 @@ def test_report_catalog_registers_required_handoff_cards(tmp_path: Path) -> None
 
     assert {
         "Generate Changeover Packet PDF",
-        "Export Compatibility Data Table CSV",
+        "Export Fit Check Data Table CSV",
         "Missing Validated EOAT Report",
         "Documentation Gap Report",
         "Photo Coverage Report",
@@ -121,7 +121,7 @@ def test_report_catalog_registers_required_handoff_cards(tmp_path: Path) -> None
     }.issubset(names)
     assert {
         "Setup / Changeover",
-        "Compatibility",
+        "Fit Check",
         "Documentation",
         "Photos",
         "PM / Inspection",
@@ -155,7 +155,7 @@ def test_command_registry_contains_required_navigation_and_actions(tmp_path: Pat
         "Generate Changeover Packet",
         "Generate Documentation Gap Report",
         "Generate Photo Coverage Report",
-        "Generate Compatibility CSV",
+        "Generate Fit Check CSV",
         "Generate PM Checklist Package",
         "Build Final Handoff Package",
     }.issubset(titles)
@@ -288,7 +288,7 @@ def test_analytics_snapshot_is_chart_ready(tmp_path: Path) -> None:
 
     assert set(snapshot["documentation_bins"]) == {"0-49%", "50-74%", "75-89%", "90-100%"}
     assert snapshot["eoat_type_counts"]["Vacuum"] == 1
-    assert snapshot["warnings_by_category"]["Compatibility"] >= 0
+    assert snapshot["warnings_by_category"]["Fit Check"] >= 0
     assert snapshot["coverage_metrics"]["tools_missing_validated_eoat"] == 2
     assert snapshot["machine_health_tiles"]
 

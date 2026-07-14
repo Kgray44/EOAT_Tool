@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="injection_unit-title injection_unit-desc">
+  <title id="injection_unit-title">Injection Unit</title>
+  <desc id="injection_unit-desc">Injection barrel and nozzle pointing toward a mold face.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 28 H38 L48 32 L38 36 H10 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="17" y1="32" x2="36" y2="32" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="22" y1="28" x2="28" y2="36" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <rect x="51" y="18" width="5" height="28" rx="2" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

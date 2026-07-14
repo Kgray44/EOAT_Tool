@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import replace
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
@@ -24,6 +25,7 @@ from core.performance import perf_timer
 
 from .assets import ATLAS_LOGO_PATH
 from .command_palette import AtlasCommandPalette
+from .page_transition import PageTransitionController
 from .pages import (
     DiagnosticsPage,
     EOATBrowserPage,
@@ -59,12 +61,27 @@ class AtlasLoadWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            self.progress.emit("Loading workbooks and indexes...")
-            bundle = load_atlas_data(
-                self.project_root,
-                force_refresh=self.force_refresh,
-                exclude_unaudited_tools=self.exclude_unaudited_tools,
-            )
+            backend = os.getenv("EOAT_ATLAS_DATA_BACKEND", "legacy").strip().casefold()
+            if backend == "mysql_api":
+                from core.data_gateway import AtlasDataGateway
+
+                self.progress.emit("Loading read-only data from the EOAT Atlas API...")
+                gateway = AtlasDataGateway()
+                try:
+                    if self.force_refresh or not gateway.cache.path.exists():
+                        gateway.deep_refresh()
+                    else:
+                        gateway.refresh()
+                    bundle = gateway.load_bundle(self.project_root)
+                finally:
+                    gateway.close()
+            else:
+                self.progress.emit("Loading workbooks and indexes...")
+                bundle = load_atlas_data(
+                    self.project_root,
+                    force_refresh=self.force_refresh,
+                    exclude_unaudited_tools=self.exclude_unaudited_tools,
+                )
             self.finished.emit(bundle)
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
@@ -148,6 +165,10 @@ class AtlasWindow(QMainWindow):
         nav_scroll.setWidget(nav_content)
         sidebar_layout.addWidget(nav_scroll, 1)
         self.stack = QStackedWidget()
+        self.stack.setObjectName("AtlasPageStack")
+        self.page_transition = PageTransitionController(self.stack, parent=self)
+        self.page_transition.transition_started.connect(lambda: self._set_navigation_locked(True))
+        self.page_transition.transition_finished.connect(lambda: self._set_navigation_locked(False))
         self.pages = self._create_pages()
         for key, label in PAGE_LABELS:
             self.stack.addWidget(self.pages[key])
@@ -184,24 +205,37 @@ class AtlasWindow(QMainWindow):
             "diagnostics": DiagnosticsPage(self),
         }
 
-    def show_page(self, key: str) -> None:
+    def show_page(self, key: str) -> bool:
         with perf_timer(
             self.config.project_root,
             f"navigation.show_page.{key}",
-            details={"target_page": key, "current_page": self.current_page_key, "bundle_loaded": self.bundle is not None},
+            details={
+                "target_page": key,
+                "current_page": self.current_page_key,
+                "bundle_loaded": self.bundle is not None,
+            },
             source="atlas_window",
             page_tool="navigation",
         ):
             keys = [item_key for item_key, _label in PAGE_LABELS]
             if key in keys:
                 self.photo_loader.mark_user_activity()
+                page = self.pages.get(key)
+                if page is None:
+                    return False
+                if not self.page_transition.switch_to_index(keys.index(key), animated=bool(self.current_page_key)):
+                    return False
                 self.current_page_key = key
-                self.stack.setCurrentIndex(keys.index(key))
                 for item_key, button in self.nav_items.items():
                     button.setChecked(item_key == key)
-                page = self.pages.get(key)
                 if hasattr(page, "page_shown"):
                     page.page_shown()
+                return True
+        return False
+
+    def _set_navigation_locked(self, locked: bool) -> None:
+        for button in self.nav_items.values():
+            button.setEnabled(not locked)
 
     def open_recommendation(self, query: str) -> None:
         self.show_page("what")
@@ -495,7 +529,7 @@ PAGE_LABELS = [
     ("eoats", "EOAT Profiles"),
     ("machines", "Machine Profiles"),
     ("tools", "Tool / Mold / Part"),
-    ("matrix", "Compatibility Data Table"),
+    ("matrix", "Fit Check"),
     ("overview", "Analytics Dashboard"),
     ("photos", "Photos"),
     ("standards", "Standards & Work Instructions"),
@@ -541,7 +575,7 @@ NAV_SECTIONS = [
     (
         "Advanced",
         [
-            ("matrix", "Compatibility Data Table"),
+            ("matrix", "Fit Check"),
         ],
     ),
 ]

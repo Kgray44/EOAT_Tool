@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="eoat-title eoat-desc">
+  <title id="eoat-title">EOAT</title>
+  <desc id="eoat-desc">Tool plate with suction cups and active pickup highlight.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(2.6 2.6) scale(0.92)" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="10" y="11" width="44" height="13" rx="5" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="15" y="26" width="34" height="10" rx="4" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="18" y="35" width="8" height="9" rx="3" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <rect x="38" y="35" width="8" height="9" rx="3" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <polygon points="17.88,42 26.12,42 30.25,51 13.75,51" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="13" y="52.5" width="18" height="3.38" rx="1.65" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <polygon points="37.88,42 46.12,42 50.25,51 33.75,51" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="33" y="52.5" width="18" height="3.38" rx="1.65" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <rect x="25" y="16" width="14" height="5" rx="2.5" fill="#A6CE39" stroke="none" stroke-width="0" />
+  </g>
+</svg>
