@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 import time
 import uuid
 from collections.abc import Iterable
@@ -64,6 +65,13 @@ ASSIGNMENT_SORTS = {
 
 
 class AnnotationService:
+    def __new__(cls, project_root: str | Path, *args, **kwargs):
+        if cls is AnnotationService and os.getenv("EOAT_ATLAS_DATA_BACKEND", "legacy").strip().casefold() == "mysql_api":
+            from .api_service import ApiAnnotationService
+
+            return ApiAnnotationService(project_root, *args, **kwargs)
+        return super().__new__(cls)
+
     def __init__(self, project_root: str | Path, db_path: str | Path | None = None, *, initialize: bool = True):
         self.project_root = Path(project_root)
         self.db_path = Path(db_path) if db_path else annotation_database_path(self.project_root)

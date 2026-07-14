@@ -1,7 +1,47 @@
 # -*- mode: python ; coding: utf-8 -*-
+
 from pathlib import Path
 
-ROOT = Path(SPECPATH).resolve()
-a = Analysis(["launcher/eoat_atlas_launcher.py"], pathex=[str(ROOT)], datas=[], hiddenimports=["release_tools.launcher", "release_tools.manifest", "release_tools.versioning"], noarchive=False)
+ROOT = Path.cwd()
+
+datas = [
+    (str(ROOT / "launcher" / "default_config.json"), "launcher"),
+    (str(ROOT / "app" / "atlas" / "version.json"), "app/atlas"),
+]
+
+a = Analysis(
+    ["packaging/eoat_atlas_launcher_entry.py"],
+    pathex=[str(ROOT)],
+    binaries=[],
+    datas=datas,
+    hiddenimports=[],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name="EOAT Atlas Launcher", console=True, debug=False, strip=False, upx=True)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name="EOAT Atlas Launcher",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)

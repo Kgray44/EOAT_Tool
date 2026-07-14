@@ -48,7 +48,7 @@ The first visible event is selected automatically. Selection is retained by stab
 
 ## Empty and error states
 
-No matching production records produces â€œNo documented historyâ€ and never sample data. Active filters with no results produce â€œNo matching history.â€ Provider failures produce â€œHistory could not be loadedâ€ with Retry; technical exceptions are logged and are not exposed as tracebacks.
+No matching production records produces “No documented history” and never sample data. Active filters with no results produce “No matching history.” Provider failures produce “History could not be loaded” with Retry; technical exceptions are logged and are not exposed as tracebacks.
 
 ## Export
 
@@ -68,4 +68,3 @@ Filename format is `EOAT_History__<safe EOAT ID>__YYYYMMDD_HHMM.pdf`. Existing f
 `tests/fixtures/eoat_history.py` provides empty, mixed, randomly ordered, long-text, approximate-date, missing-field, and scalable histories for automated tests and local visual preview only. The feature tests cover repository isolation, empty results, deterministic sorting, duplicate suppression, partial/unknown rows, filters, export models, PDF output/no-history text/multipage behavior, read-only UI controls, selection, and a 500-event model.
 
 Visual comparison captures are generated under `tmp/history_visuals`; PDF render checks use `tmp/pdfs`. These are temporary QA outputs, not production data.
-

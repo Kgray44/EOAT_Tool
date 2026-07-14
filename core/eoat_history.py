@@ -38,6 +38,8 @@ class EOATHistoryEvent:
     eoat_id: str
     event_type: str
     title: str
+    event_category: str = "OTHER"
+    description: str = ""
     event_timestamp: datetime | None = None
     effective_from: datetime | None = None
     effective_until: datetime | None = None
@@ -47,6 +49,10 @@ class EOATHistoryEvent:
     previous_machine_display_name: str = ""
     tool_number: str = ""
     previous_tool_number: str = ""
+    robot_number: str = ""
+    storage_location: str = ""
+    document_reference: str = ""
+    photo_reference: str = ""
     previous_status: str = ""
     new_status: str = ""
     reason: str = ""
@@ -60,6 +66,8 @@ class EOATHistoryEvent:
     transaction_id: str = ""
     is_verified: bool | None = None
     is_approximate_date: bool = False
+    previous_values: Mapping[str, Any] = field(default_factory=dict)
+    new_values: Mapping[str, Any] = field(default_factory=dict)
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     @property
@@ -81,6 +89,8 @@ class EOATHistoryViewModel:
     events: tuple[EOATHistoryEvent, ...]
     event_types: tuple[str, ...]
     machines: tuple[str, ...]
+    delivery_mode: str = "online"
+    cache_timestamp: str = ""
 
 
 @dataclass(frozen=True)
@@ -92,6 +102,8 @@ class EOATHistoryExportModel:
     last_event_at: datetime | None
     event_type_counts: tuple[tuple[str, int], ...]
     machines: tuple[str, ...]
+    delivery_mode: str = "online"
+    cache_timestamp: str = ""
 
 
 class EOATHistoryRepository(Protocol):
@@ -164,7 +176,17 @@ class EOATHistoryService:
         events = tuple(sorted(normalized, key=_event_sort_key))
         event_types = tuple(sorted({event.event_type for event in events}))
         machines = tuple(sorted({value for event in events for value in _event_machines(event)}, key=str.casefold))
-        return EOATHistoryViewModel(eoat_id=_text(eoat_id), events=events, event_types=event_types, machines=machines)
+        modes = {_text(event.metadata.get("delivery_mode")) for event in events if event.metadata.get("delivery_mode")}
+        delivery_mode = "offline_cache" if "offline_cache" in modes else "online"
+        cache_timestamp = next((_text(event.metadata.get("cache_timestamp")) for event in events if event.metadata.get("cache_timestamp")), "")
+        return EOATHistoryViewModel(
+            eoat_id=_text(eoat_id),
+            events=events,
+            event_types=event_types,
+            machines=machines,
+            delivery_mode=delivery_mode,
+            cache_timestamp=cache_timestamp,
+        )
 
     def filter_events(
         self,
@@ -182,7 +204,7 @@ class EOATHistoryService:
         reference = now or datetime.now(timezone.utc)
         output = []
         for event in events:
-            if kind not in {"", "ALL"} and event.event_type != kind:
+            if kind not in {"", "ALL"} and event.event_type != kind and event.event_category != kind:
                 continue
             if machine_key not in {"", "all"} and machine_key not in {item.casefold() for item in _event_machines(event)}:
                 continue
@@ -205,6 +227,8 @@ class EOATHistoryService:
             last_event_at=max(dated) if dated else None,
             event_type_counts=tuple(sorted(counts.items())),
             machines=tuple(sorted({item for event in ordered for item in _event_machines(event)}, key=str.casefold)),
+            delivery_mode="offline_cache" if any(event.metadata.get("delivery_mode") == "offline_cache" for event in ordered) else "online",
+            cache_timestamp=next((_text(event.metadata.get("cache_timestamp")) for event in ordered if event.metadata.get("cache_timestamp")), ""),
         )
 
     def _normalize(self, eoat_id: str, source: EOATHistorySourceRecord) -> EOATHistoryEvent:
@@ -214,39 +238,48 @@ class EOATHistoryService:
         details = _mapping(payload.get("details"))
         merged = {**details, **payload}
         raw_type = _text(merged.get("event_type") or merged.get("type"))
-        category = normalize_event_type(raw_type)
+        explicit_category = _text(merged.get("event_category"))
+        category = explicit_category or normalize_event_type(raw_type)
         timestamp, approximate = _parse_timestamp(merged.get("effective_from") or merged.get("occurred_at") or merged.get("event_timestamp"))
         logged_at, logged_approximate = _parse_timestamp(merged.get("logged_at") or merged.get("created_at"))
-        event_id = _stable_event_id(source.source_type, source.source_record_id, eoat_id, raw_type, timestamp or logged_at)
+        event_id = _text(merged.get("event_id")) or _stable_event_id(source.source_type, source.source_record_id, eoat_id, raw_type, timestamp or logged_at)
         title = _text(merged.get("title") or merged.get("summary")) or display_title(category, merged)
         return EOATHistoryEvent(
             event_id=event_id,
             eoat_id=_text(eoat_id),
-            event_type=category,
+            event_type=(raw_type.upper() if explicit_category else category.upper()) or "OTHER",
             title=title,
+            event_category=category.upper(),
+            description=_text(merged.get("description")),
             event_timestamp=logged_at or timestamp,
             effective_from=timestamp,
             effective_until=_parse_timestamp(merged.get("effective_until"))[0],
-            machine_id=_text(merged.get("machine_id") or merged.get("machine")),
+            machine_id=_text(merged.get("related_machine") or merged.get("machine_id") or merged.get("machine")),
             machine_display_name=_text(merged.get("machine_display_name")),
             previous_machine_id=_text(merged.get("previous_machine_id") or merged.get("previous_machine")),
             previous_machine_display_name=_text(merged.get("previous_machine_display_name")),
-            tool_number=_text(merged.get("tool_number") or merged.get("tool")),
+            tool_number=_text(merged.get("related_tool") or merged.get("tool_number") or merged.get("tool")),
             previous_tool_number=_text(merged.get("previous_tool_number")),
+            robot_number=_text(merged.get("related_robot") or merged.get("robot_number")),
+            storage_location=_text(merged.get("related_storage_location") or merged.get("storage_location")),
+            document_reference=_text(merged.get("related_document") or merged.get("document_uuid")),
+            photo_reference=_text(merged.get("related_photo") or merged.get("photo_id")),
             previous_status=_text(merged.get("previous_status")),
             new_status=_text(merged.get("new_status") or merged.get("status")),
             reason=_text(merged.get("reason")),
             notes=_text(merged.get("notes")),
             audit_id=_text(merged.get("audit_id")),
             maintenance_id=_text(merged.get("maintenance_id")),
-            recorded_by=_text(merged.get("recorded_by") or merged.get("logged_by")),
-            app_instance_id=_text(merged.get("app_instance_id")),
-            source_type=_text(merged.get("source") or source.source_type),
+            recorded_by=_text(merged.get("actor") or merged.get("recorded_by") or merged.get("logged_by")),
+            app_instance_id=_text(merged.get("application_instance") or merged.get("app_instance_id")),
+            source_type=_text(merged.get("source_record_type") or merged.get("source") or source.source_type),
             source_record_id=source.source_record_id,
             transaction_id=_text(merged.get("transaction_id")),
             is_verified=_optional_bool(merged.get("is_verified")),
             is_approximate_date=approximate or logged_approximate,
-            metadata=details,
+            previous_values=_mapping(merged.get("previous_values")),
+            new_values=_mapping(merged.get("new_values")),
+            metadata={**details, **_mapping(merged.get("metadata"))},
         )
 
 
@@ -287,7 +320,7 @@ def display_title(category: str, values: Mapping[str, Any]) -> str:
         "OTHER": "History Event",
     }
     if category == "LOCATION":
-        return f"Machine Assignment Updated{f' â€” {machine}' if machine else ''}"
+        return f"Machine Assignment Updated{f' — {machine}' if machine else ''}"
     return titles.get(category, "History Event")
 
 
@@ -310,6 +343,7 @@ def _legacy_audit_event(eoat_id: str, source: EOATHistorySourceRecord) -> EOATHi
         eoat_id=_text(eoat_id),
         event_type="AUDIT",
         title=title,
+        event_category="AUDITS",
         event_timestamp=timestamp,
         effective_from=audit_date or timestamp,
         machine_id=machine,
@@ -461,4 +495,3 @@ __all__ = [
     "display_title",
     "normalize_event_type",
 ]
-

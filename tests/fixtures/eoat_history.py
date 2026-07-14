@@ -74,4 +74,3 @@ def edge_case_history() -> EOATHistoryViewModel:
 
 
 __all__ = ["edge_case_history", "history_event", "mixed_history"]
-

@@ -1,0 +1,21 @@
+{
+  "appInstallPath": "",
+  "appExecutableName": "EOAT Atlas.exe",
+  "appEntryPoint": "",
+  "channel": "stable",
+  "updateManifestPath": "",
+  "updateManifestUrl": "",
+  "networkRequiredPaths": [],
+  "logLevel": "INFO",
+  "lastKnownGoodVersion": "",
+  "allowOfflineLaunch": true,
+  "singleInstance": {
+    "enabled": true,
+    "appProcessNames": [
+      "EOAT Atlas.exe"
+    ],
+    "lockName": "EOATAtlasLauncher"
+  },
+  "startupWaitSeconds": 2.0,
+  "launchArguments": []
+}

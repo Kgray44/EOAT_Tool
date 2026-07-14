@@ -10,3 +10,10 @@ pillow-heif
 qrcode
 opencv-python-headless
 pytest
+SQLAlchemy>=2.0,<2.1
+alembic>=1.14,<2
+PyMySQL>=1.1,<2
+pydantic>=2.10,<3
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+httpx>=0.28,<1

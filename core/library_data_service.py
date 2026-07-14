@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from hashlib import sha1
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .atlas_data_loader import load_atlas_data
 from .atlas_models import (
@@ -35,7 +37,6 @@ from .eoat_history import EOATHistoryService, EOATHistoryViewModel, configured_e
 from .paths import get_press_capacity_file, resolve_project_paths
 from .performance import log_perf_marker, perf_timer
 from .safe_files import ensure_directory
-
 
 CACHE_VERSION = 3
 INDEX_FILENAME = "library_index.json"
@@ -65,6 +66,7 @@ class LibraryDataService:
 
     def __init__(self, project_root: str | Path | None = None, *, exclude_unaudited_tools: bool = True):
         self.exclude_unaudited_tools = exclude_unaudited_tools
+        self._api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "legacy").strip().casefold() == "mysql_api"
         self._lock = threading.RLock()
         self._rebuild_thread: threading.Thread | None = None
         self._index: dict[str, Any] | None = None
@@ -124,7 +126,8 @@ class LibraryDataService:
                     source="library_data_service",
                     page_tool="library",
                 )
-                self.rebuild_index_in_background()
+                if not self._api_mode:
+                    self.rebuild_index_in_background()
                 return
             try:
                 with self.cache_path.open("r", encoding="utf-8") as handle:
@@ -172,15 +175,27 @@ class LibraryDataService:
             with perf_timer(
                 root,
                 "library.index.parse_master_tracker",
-                details={"ui_sensitive": "excel_read", "background_rebuild": threading.current_thread() is not threading.main_thread()},
+                details={
+                    "ui_sensitive": "excel_read",
+                    "background_rebuild": threading.current_thread() is not threading.main_thread(),
+                },
                 source="library_data_service",
                 page_tool="library_index",
             ):
-                bundle = load_atlas_data(
-                    root,
-                    force_refresh=True,
-                    exclude_unaudited_tools=self.exclude_unaudited_tools,
-                )
+                if self._api_mode:
+                    from .data_gateway import AtlasDataGateway
+
+                    gateway = AtlasDataGateway()
+                    try:
+                        bundle = gateway.load_bundle(str(root))
+                    finally:
+                        gateway.close()
+                else:
+                    bundle = load_atlas_data(
+                        root,
+                        force_refresh=True,
+                        exclude_unaudited_tools=self.exclude_unaudited_tools,
+                    )
             self.rebuild_index_from_bundle(bundle)
 
     def rebuild_index_in_background(self) -> None:
@@ -413,7 +428,11 @@ class LibraryDataService:
             type_filter = str((filters or {}).get("type", "all") or "all").casefold()
             if folded:
                 tokens = folded.split()
-                records = [record for record in records if all(token in str(record.get("search_text", "")).casefold() for token in tokens)]
+                records = [
+                    record
+                    for record in records
+                    if all(token in str(record.get("search_text", "")).casefold() for token in tokens)
+                ]
             if type_filter not in {"", "all"}:
                 records = [record for record in records if str(record.get("record_type", "")).casefold() == type_filter]
             records = self._sort_records(records, sort)
@@ -547,6 +566,8 @@ class LibraryDataService:
             json.dump(metadata, handle, ensure_ascii=True, indent=2, sort_keys=True)
 
     def _source_signature(self) -> dict[str, Any]:
+        if self._api_mode:
+            return {"backend": "mysql_api"}
         root = self._root()
         if root is None:
             return {}
@@ -619,7 +640,9 @@ class LibraryDataService:
             "machine_to_tools": machine_to_tools,
             "machine_current_eoat": machine_current_eoat,
             "eoat_current_location": eoat_current_location,
-            "eoat_current_machines": {key: list(_sort_machines(values)) for key, values in eoat_current_machines.items()},
+            "eoat_current_machines": {
+                key: list(_sort_machines(values)) for key, values in eoat_current_machines.items()
+            },
         }
 
     def _build_photo_maps(self, bundle: AtlasDataBundle) -> dict[str, Any]:
@@ -653,7 +676,9 @@ class LibraryDataService:
             photo_set = getattr(eoat, "photos", None)
             source_photos = ()
             if photo_set is not None:
-                source_photos = tuple(getattr(photo_set, "photos", ()) or ()) + tuple(getattr(photo_set, "indexed_photos", ()) or ())
+                source_photos = tuple(getattr(photo_set, "photos", ()) or ()) + tuple(
+                    getattr(photo_set, "indexed_photos", ()) or ()
+                )
             for item in source_photos:
                 photo = _photo_record(item, root=self._root(), owner_eoat=eoat.eoat_id)
                 add("eoat", by_eoat, eoat_key, photo)
@@ -666,10 +691,17 @@ class LibraryDataService:
 
         for tool_key, paths in getattr(getattr(bundle, "indexes", None), "photos_by_tool", {}).items():
             for path in paths or ():
-                photo = _photo_record(PhotoItem(path=path, filename=Path(path).name, tool=tool_key, source="tool photo index"), root=self._root())
+                photo = _photo_record(
+                    PhotoItem(path=path, filename=Path(path).name, tool=tool_key, source="tool photo index"),
+                    root=self._root(),
+                )
                 add("tool", by_tool, normalized_tool_key(tool_key), photo)
 
-        sort_key = lambda item: (_text(item.get("date_taken")), _text(item.get("photo_id")), _text(item.get("filename")))
+        sort_key = lambda item: (
+            _text(item.get("date_taken")),
+            _text(item.get("photo_id")),
+            _text(item.get("filename")),
+        )
         return {
             "by_eoat": {key: sorted(values, key=sort_key) for key, values in by_eoat.items()},
             "by_tool": {key: sorted(values, key=sort_key) for key, values in by_tool.items()},
@@ -697,7 +729,9 @@ class LibraryDataService:
             score = int(getattr(record, "documentation_score", 0) or 0)
             missing = ("Machine documentation incomplete",) if score < 75 else ()
             photo_count = len(photos.get("by_machine", {}).get(key, ()))
-            machine_docs[key] = _documentation_record(score, missing, photo_count, "Needs Review" if missing else "Good")
+            machine_docs[key] = _documentation_record(
+                score, missing, photo_count, "Needs Review" if missing else "Good"
+            )
         return {ENTITY_EOAT: eoat_docs, ENTITY_TOOL: tool_docs, ENTITY_MACHINE: machine_docs}
 
     def _build_record_maps(
@@ -714,7 +748,9 @@ class LibraryDataService:
             doc = documentation[ENTITY_EOAT].get(key, _documentation_record(0, (), 0, "Unknown"))
             eoat_photos = photos.get("by_eoat", {}).get(key, ())
             photo_count = len(eoat_photos)
-            preview = _preview_cache_fields(_select_preview_photo(eoat_photos, record_type=ENTITY_EOAT, record_id=record.eoat_id))
+            preview = _preview_cache_fields(
+                _select_preview_photo(eoat_photos, record_type=ENTITY_EOAT, record_id=record.eoat_id)
+            )
             row_values = tuple(getattr(record, "source_rows", ()) or ())
             current_machines = relationships.get("eoat_current_machines", {}).get(key, ())
             current_machine = current_machines[0] if current_machines else NOT_INDEXED
@@ -736,7 +772,9 @@ class LibraryDataService:
                 "connection_type": _text(record.connection_type) or NOT_INDEXED,
                 "parts_picked": _first_row(row_values, "Number of Parts Picked", "# Parts Picked") or NOT_INDEXED,
                 "air_architecture": _first_row(row_values, "Air Circuit Architecture") or _air_summary(record),
-                "sensors_summary": _text(record.sensor_info) or _first_row(row_values, "Sensor Type", "Sensors?") or NOT_INDEXED,
+                "sensors_summary": _text(record.sensor_info)
+                or _first_row(row_values, "Sensor Type", "Sensors?")
+                or NOT_INDEXED,
                 "photo_count": photo_count,
                 **preview,
                 "last_audit_date": _last_audit(row_values),
@@ -810,7 +848,8 @@ class LibraryDataService:
                 "robot_type": _text(record.robot_type) or NOT_INDEXED,
                 "robot_model_controller": _text(record.robot_model or record.controller) or NOT_INDEXED,
                 "controller": _text(record.controller),
-                "area": _first_row(row_values, "Cleanroom/Non-Cleanroom", "Area") or ("Cleanroom" if "cleanroom" in _rows_blob(row_values) else "Production"),
+                "area": _first_row(row_values, "Cleanroom/Non-Cleanroom", "Area")
+                or ("Cleanroom" if "cleanroom" in _rows_blob(row_values) else "Production"),
                 "plant_area": _first_row(row_values, "Plant/Area", "Plant", "Area") or _area_from_rows(row_values),
                 "current_eoat_id": current_id,
                 "current_eoat_status": _text(record.current_eoat_status),
@@ -823,7 +862,9 @@ class LibraryDataService:
                 "air_architecture": _first_row(row_values, "Air Circuit Architecture") or NOT_INDEXED,
                 "external_pressure_circuits": _first_row(row_values, "External Pressure Circuits") or NOT_INDEXED,
                 "external_vacuum_circuits": _first_row(row_values, "External Vacuum Circuits") or NOT_INDEXED,
-                "status_lifecycle": "In Service" if current_display not in {NOT_INDEXED, NO_CURRENT_EOAT} else current_display,
+                "status_lifecycle": "In Service"
+                if current_display not in {NOT_INDEXED, NO_CURRENT_EOAT}
+                else current_display,
                 "last_audit_date": _last_audit(row_values),
                 "documentation_score": doc["documentation_score"],
                 "documentation": doc,
@@ -843,7 +884,9 @@ class LibraryDataService:
         record_id = _text(record.get("eoat_id") or record.get("tool_number") or record.get("machine_number"))
         return self.peek_photos(record_type, record_id)
 
-    def _photo_groups(self, photos: list[dict[str, Any]], default_association: str, record_type: str, record_id: str) -> tuple[RecordPhotoGroup, ...]:
+    def _photo_groups(
+        self, photos: list[dict[str, Any]], default_association: str, record_type: str, record_id: str
+    ) -> tuple[RecordPhotoGroup, ...]:
         groups: dict[str, list[RecordPhoto]] = defaultdict(list)
         for photo in _dedupe_photo_records(photos, record_type=record_type, record_id=record_id):
             category = _text(photo.get("photo_type") or photo.get("area_shown") or photo.get("category")) or "Other"
@@ -853,7 +896,12 @@ class LibraryDataService:
             groups[title].append(
                 RecordPhoto(
                     path=path,
-                    filename=_text(photo.get("photo_filename") or photo.get("stored_filename") or photo.get("filename") or Path(path).name),
+                    filename=_text(
+                        photo.get("photo_filename")
+                        or photo.get("stored_filename")
+                        or photo.get("filename")
+                        or Path(path).name
+                    ),
                     category=category,
                     photo_id=_text(photo.get("photo_id")),
                     date_taken=_text(photo.get("date_taken")),
@@ -871,10 +919,23 @@ class LibraryDataService:
                     path_candidates=candidates,
                 )
             )
-        return tuple(RecordPhotoGroup(title, tuple(items)) for title, items in sorted(groups.items(), key=lambda item: (PHOTO_GROUP_ORDER.get(item[0], 99), item[0].casefold())))
+        return tuple(
+            RecordPhotoGroup(title, tuple(items))
+            for title, items in sorted(
+                groups.items(), key=lambda item: (PHOTO_GROUP_ORDER.get(item[0], 99), item[0].casefold())
+            )
+        )
 
-    def _eoat_detail(self, record: dict[str, Any], relationships: dict[str, Any], photos: list[dict[str, Any]], documentation: dict[str, Any]) -> RecordDetailData:
-        photo_groups = self._photo_groups(photos, _text(record.get("eoat_id")), ENTITY_EOAT, _text(record.get("eoat_id")))
+    def _eoat_detail(
+        self,
+        record: dict[str, Any],
+        relationships: dict[str, Any],
+        photos: list[dict[str, Any]],
+        documentation: dict[str, Any],
+    ) -> RecordDetailData:
+        photo_groups = self._photo_groups(
+            photos, _text(record.get("eoat_id")), ENTITY_EOAT, _text(record.get("eoat_id"))
+        )
         unique_photo_count = sum(len(group.photos) for group in photo_groups)
         hero = _fields(
             ("Type", record.get("eoat_type")),
@@ -937,16 +998,30 @@ class LibraryDataService:
             detail_sections=details,
             documentation_fields=docs,
             photo_groups=photo_groups,
-            history_fields=_fields(("Last Audit", record.get("last_audit_date")), ("Audit IDs", record.get("audit_ids"))),
-            summary_fields=_fields(("Machines", str(len(relationships.get("machines", ())))), ("Tools", str(len(relationships.get("tools", ())))), ("Documentation", f"{documentation.get('documentation_score', 0)}%")),
+            history_fields=_fields(
+                ("Last Audit", record.get("last_audit_date")), ("Audit IDs", record.get("audit_ids"))
+            ),
+            summary_fields=_fields(
+                ("Machines", str(len(relationships.get("machines", ())))),
+                ("Tools", str(len(relationships.get("tools", ())))),
+                ("Documentation", f"{documentation.get('documentation_score', 0)}%"),
+            ),
             report_sections=details,
             workbook_sections=(),
             warnings=tuple(_warning_from_cache(item) for item in record.get("warnings", ()) or ()),
             source_rows=(),
         )
 
-    def _tool_detail(self, record: dict[str, Any], relationships: dict[str, Any], photos: list[dict[str, Any]], documentation: dict[str, Any]) -> RecordDetailData:
-        photo_groups = self._photo_groups(photos, f"Tool {_text(record.get('tool_number'))}", ENTITY_TOOL, _text(record.get("tool_number")))
+    def _tool_detail(
+        self,
+        record: dict[str, Any],
+        relationships: dict[str, Any],
+        photos: list[dict[str, Any]],
+        documentation: dict[str, Any],
+    ) -> RecordDetailData:
+        photo_groups = self._photo_groups(
+            photos, f"Tool {_text(record.get('tool_number'))}", ENTITY_TOOL, _text(record.get("tool_number"))
+        )
         unique_photo_count = sum(len(group.photos) for group in photo_groups)
         details = (
             RecordSection(
@@ -1003,15 +1078,30 @@ class LibraryDataService:
             documentation_fields=_documentation_fields(documentation, unique_photo_count),
             photo_groups=photo_groups,
             history_fields=_fields(("Last Audit", record.get("last_audit_date"))),
-            summary_fields=_fields(("EOATs", str(len(relationships.get("eoats", ())))), ("Machines", str(len(relationships.get("machines", ())))), ("Parts Picked", record.get("parts_picked"))),
+            summary_fields=_fields(
+                ("EOATs", str(len(relationships.get("eoats", ())))),
+                ("Machines", str(len(relationships.get("machines", ())))),
+                ("Parts Picked", record.get("parts_picked")),
+            ),
             report_sections=details,
             workbook_sections=(),
             warnings=tuple(_warning_from_cache(item) for item in record.get("warnings", ()) or ()),
             source_rows=(),
         )
 
-    def _machine_detail(self, record: dict[str, Any], relationships: dict[str, Any], photos: list[dict[str, Any]], documentation: dict[str, Any]) -> RecordDetailData:
-        photo_groups = self._photo_groups(photos, f"Machine {_text(record.get('machine_number'))}", ENTITY_MACHINE, _text(record.get("machine_number")))
+    def _machine_detail(
+        self,
+        record: dict[str, Any],
+        relationships: dict[str, Any],
+        photos: list[dict[str, Any]],
+        documentation: dict[str, Any],
+    ) -> RecordDetailData:
+        photo_groups = self._photo_groups(
+            photos,
+            f"Machine {_text(record.get('machine_number'))}",
+            ENTITY_MACHINE,
+            _text(record.get("machine_number")),
+        )
         unique_photo_count = sum(len(group.photos) for group in photo_groups)
         current = _text(relationships.get("current_eoat") or record.get("current_eoat_id") or NOT_INDEXED)
         details = (
@@ -1072,7 +1162,11 @@ class LibraryDataService:
             documentation_fields=_documentation_fields(documentation, unique_photo_count),
             photo_groups=photo_groups,
             history_fields=_fields(("Last Audit", record.get("last_audit_date"))),
-            summary_fields=_fields(("EOATs", str(len(relationships.get("eoats", ())))), ("Tools", str(len(relationships.get("tools", ())))), ("Current EOAT", current)),
+            summary_fields=_fields(
+                ("EOATs", str(len(relationships.get("eoats", ())))),
+                ("Tools", str(len(relationships.get("tools", ())))),
+                ("Current EOAT", current),
+            ),
             report_sections=details,
             workbook_sections=(),
             warnings=tuple(_warning_from_cache(item) for item in record.get("warnings", ()) or ()),
@@ -1082,14 +1176,26 @@ class LibraryDataService:
     def _sort_records(self, records: list[dict[str, Any]], sort: str) -> list[dict[str, Any]]:
         name = str(sort or "").casefold()
         if "machine" in name:
-            return sorted(records, key=lambda item: _machine_sort_key(item.get("machine_number") or item.get("current_machine") or item.get("display_name")))
+            return sorted(
+                records,
+                key=lambda item: _machine_sort_key(
+                    item.get("machine_number") or item.get("current_machine") or item.get("display_name")
+                ),
+            )
         if "tool" in name:
-            return sorted(records, key=lambda item: _text(item.get("tool_number") or item.get("display_name")).casefold())
+            return sorted(
+                records, key=lambda item: _text(item.get("tool_number") or item.get("display_name")).casefold()
+            )
         if "eoat" in name:
             return sorted(records, key=lambda item: _text(item.get("eoat_id") or item.get("display_name")).casefold())
         if "missing docs" in name:
             return sorted(records, key=lambda item: int(item.get("documentation_score") or 0))
-        return sorted(records, key=lambda item: _text(item.get("display_name") or item.get("eoat_id") or item.get("tool_number") or item.get("machine_number")).casefold())
+        return sorted(
+            records,
+            key=lambda item: _text(
+                item.get("display_name") or item.get("eoat_id") or item.get("tool_number") or item.get("machine_number")
+            ).casefold(),
+        )
 
 
 def _file_signature(path: Path) -> dict[str, Any]:
@@ -1144,7 +1250,11 @@ def _first_row(rows: Iterable[dict[str, Any]], *names: str) -> str:
 
 
 def _last_audit(rows: Iterable[dict[str, Any]]) -> str:
-    values = [display_value(row.get("Audit Date")) for row in rows if isinstance(row, dict) and display_value(row.get("Audit Date"))]
+    values = [
+        display_value(row.get("Audit Date"))
+        for row in rows
+        if isinstance(row, dict) and display_value(row.get("Audit Date"))
+    ]
     return values[-1] if values else NOT_INDEXED
 
 
@@ -1160,7 +1270,9 @@ def _area_from_rows(rows: Iterable[dict[str, Any]]) -> str:
 
 
 def _rows_blob(rows: Iterable[dict[str, Any]]) -> str:
-    return " ".join(str(value) for row in rows if isinstance(row, dict) for value in row.values() if display_value(value)).casefold()
+    return " ".join(
+        str(value) for row in rows if isinstance(row, dict) for value in row.values() if display_value(value)
+    ).casefold()
 
 
 def _eoat_condition_from_rows(record: EOATRecord) -> str:
@@ -1183,17 +1295,23 @@ def _eoat_condition_from_rows(record: EOATRecord) -> str:
 
 
 def _air_summary(record: EOATRecord) -> str:
-    pieces = tuple(value for value in (record.vacuum_info, record.pressure_info, record.gripper_info) if display_value(value))
+    pieces = tuple(
+        value for value in (record.vacuum_info, record.pressure_info, record.gripper_info) if display_value(value)
+    )
     return " | ".join(display_value(value) for value in pieces) or NOT_INDEXED
 
 
 def _external_circuits(record: dict[str, Any]) -> str:
     values = [record.get("external_pressure_circuits"), record.get("external_vacuum_circuits")]
-    text = " | ".join(display_value(value) for value in values if display_value(value) and display_value(value) != NOT_INDEXED)
+    text = " | ".join(
+        display_value(value) for value in values if display_value(value) and display_value(value) != NOT_INDEXED
+    )
     return text or NOT_INDEXED
 
 
-def _documentation_record(score: int, missing: Iterable[str], photo_count: int, status_label: str = "") -> dict[str, Any]:
+def _documentation_record(
+    score: int, missing: Iterable[str], photo_count: int, status_label: str = ""
+) -> dict[str, Any]:
     missing_items = _tuple(missing)
     return {
         "documentation_score": int(score or 0),
@@ -1211,7 +1329,10 @@ def _documentation_record(score: int, missing: Iterable[str], photo_count: int, 
 def _documentation_fields(documentation: dict[str, Any], photo_count: int) -> tuple[RecordField, ...]:
     return _fields(
         ("Documentation Score", f"{int(documentation.get('documentation_score') or 0)}%"),
-        ("Photo Folder / Link", documentation.get("photo_folder_link_status") or ("Indexed" if photo_count else NOT_INDEXED)),
+        (
+            "Photo Folder / Link",
+            documentation.get("photo_folder_link_status") or ("Indexed" if photo_count else NOT_INDEXED),
+        ),
         ("CAD Status", documentation.get("cad_status")),
         ("BOM Status", documentation.get("bom_status")),
         ("Revision Status", documentation.get("revision_status")),
@@ -1262,7 +1383,9 @@ def _warning_from_cache(data: dict[str, Any]) -> WarningItem:
 
 def _photo_record(photo: PhotoItem, *, root: Path | None, owner_eoat: str = "") -> dict[str, Any]:
     candidates = _photo_candidates(photo, root=root)
-    filename = _text(photo.photo_filename or photo.stored_filename or photo.filename or (Path(photo.path).name if photo.path else ""))
+    filename = _text(
+        photo.photo_filename or photo.stored_filename or photo.filename or (Path(photo.path).name if photo.path else "")
+    )
     return {
         "photo_id": _text(photo.photo_id),
         "photo_type": _text(photo.photo_type or photo.category or photo.area_shown) or "Other",
@@ -1341,7 +1464,13 @@ def _photo_candidates(photo: PhotoItem, *, root: Path | None) -> tuple[str, ...]
     folder_text = display_value(photo.folder_path)
     filenames = tuple(
         name
-        for name in (photo.stored_filename, photo.photo_filename, photo.filename, photo.original_filename, Path(photo.path).name if photo.path else "")
+        for name in (
+            photo.stored_filename,
+            photo.photo_filename,
+            photo.filename,
+            photo.original_filename,
+            Path(photo.path).name if photo.path else "",
+        )
         if display_value(name)
     )
     if folder_text:
@@ -1360,7 +1489,12 @@ def _photo_candidates(photo: PhotoItem, *, root: Path | None) -> tuple[str, ...]
 
 
 def _photo_association(photo: dict[str, Any]) -> str:
-    for label, key in (("EOAT", "eoat_id"), ("Tool", "tool_number"), ("Machine", "machine_number"), ("Audit", "audit_id")):
+    for label, key in (
+        ("EOAT", "eoat_id"),
+        ("Tool", "tool_number"),
+        ("Machine", "machine_number"),
+        ("Audit", "audit_id"),
+    ):
         value = _text(photo.get(key))
         if value:
             return f"{label} {value}"
@@ -1381,7 +1515,10 @@ def _friendly_photo_group(value: str) -> str:
         return "Tool Number"
     if "mount" in normalized or "hardware" in normalized or "bracket" in normalized:
         return "Mounting Hardware"
-    if any(token in normalized for token in ("tubing", "tube", "hose", "air routing", "pneumatic", "vacuum line", "air line")):
+    if any(
+        token in normalized
+        for token in ("tubing", "tube", "hose", "air routing", "pneumatic", "vacuum line", "air line")
+    ):
         return "Tubing / Air Routing"
     if "sensor" in normalized or "electrical" in normalized:
         return "Sensors"
@@ -1420,7 +1557,15 @@ def _photo_match_text(photo: dict[str, Any], *, include_filename_fallback: bool 
         return metadata
     return " ".join(
         _normalize_photo_label(photo.get(key))
-        for key in ("stored_relative_path", "folder_path", "stored_filename", "photo_filename", "original_filename", "filename", "path")
+        for key in (
+            "stored_relative_path",
+            "folder_path",
+            "stored_filename",
+            "photo_filename",
+            "original_filename",
+            "filename",
+            "path",
+        )
         if _normalize_photo_label(photo.get(key))
     )
 
@@ -1447,7 +1592,12 @@ def _photo_preview_kind(value: Any) -> str:
 
 
 def _photo_has_path_candidate(photo: dict[str, Any]) -> bool:
-    return bool(_tuple(photo.get("resolved_path_candidates")) or _text(photo.get("path")) or _text(photo.get("stored_filename")) or _text(photo.get("photo_filename")))
+    return bool(
+        _tuple(photo.get("resolved_path_candidates"))
+        or _text(photo.get("path"))
+        or _text(photo.get("stored_filename"))
+        or _text(photo.get("photo_filename"))
+    )
 
 
 def _select_preview_photo(
@@ -1462,7 +1612,9 @@ def _select_preview_photo(
     for index, photo in enumerate(photos):
         if not _photo_has_path_candidate(photo):
             continue
-        kind = _photo_preview_kind(_photo_match_text(photo)) or _photo_preview_kind(_photo_match_text(photo, include_filename_fallback=True))
+        kind = _photo_preview_kind(_photo_match_text(photo)) or _photo_preview_kind(
+            _photo_match_text(photo, include_filename_fallback=True)
+        )
         if record_type == ENTITY_EOAT:
             if kind == "front":
                 stage = 0
@@ -1512,7 +1664,9 @@ def _preview_cache_fields(photo: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def _dedupe_photo_records(photos: Iterable[dict[str, Any]], *, record_type: str, record_id: str) -> list[dict[str, Any]]:
+def _dedupe_photo_records(
+    photos: Iterable[dict[str, Any]], *, record_type: str, record_id: str
+) -> list[dict[str, Any]]:
     deduped: dict[str, dict[str, Any]] = {}
     for raw_photo in photos:
         photo = dict(raw_photo)
@@ -1525,7 +1679,11 @@ def _dedupe_photo_records(photos: Iterable[dict[str, Any]], *, record_type: str,
             continue
         LOGGER.debug("Duplicate photo skipped: %s", key)
         deduped[key] = _preferred_photo_record(existing, photo, record_type=record_type, record_id=record_id)
-    sort_key = lambda item: (_text(item.get("date_taken") or item.get("imported_at")), _text(item.get("photo_id")), _text(item.get("filename")))
+    sort_key = lambda item: (
+        _text(item.get("date_taken") or item.get("imported_at")),
+        _text(item.get("photo_id")),
+        _text(item.get("filename")),
+    )
     return sorted(deduped.values(), key=sort_key)
 
 
@@ -1543,7 +1701,9 @@ def _photo_dedup_key(photo: dict[str, Any]) -> str:
     stored = _compound_key(photo.get("stored_relative_path"), photo.get("stored_filename"))
     if stored:
         return f"stored:{stored}"
-    folder = _compound_key(photo.get("folder_path"), photo.get("photo_filename") or photo.get("stored_filename") or photo.get("filename"))
+    folder = _compound_key(
+        photo.get("folder_path"), photo.get("photo_filename") or photo.get("stored_filename") or photo.get("filename")
+    )
     if folder:
         return f"folder:{folder}"
     original = _compound_key(photo.get("original_filename"), photo.get("audit_id"), photo.get("photo_type"))
@@ -1570,7 +1730,9 @@ def _compound_key(*values: Any) -> str:
     return "|".join(pieces)
 
 
-def _preferred_photo_record(existing: dict[str, Any], incoming: dict[str, Any], *, record_type: str, record_id: str) -> dict[str, Any]:
+def _preferred_photo_record(
+    existing: dict[str, Any], incoming: dict[str, Any], *, record_type: str, record_id: str
+) -> dict[str, Any]:
     existing_score = _photo_metadata_score(existing, record_type=record_type, record_id=record_id)
     incoming_score = _photo_metadata_score(incoming, record_type=record_type, record_id=record_id)
     if incoming_score > existing_score:
@@ -1586,14 +1748,14 @@ def _preferred_photo_record(existing: dict[str, Any], incoming: dict[str, Any], 
 
 def _photo_metadata_score(photo: dict[str, Any], *, record_type: str, record_id: str) -> tuple[int, int, str]:
     direct = 0
-    if record_type == ENTITY_EOAT and normalized_eoat_key(photo.get("eoat_id")) == normalized_eoat_key(record_id):
-        direct = 1
-    elif record_type == ENTITY_TOOL and normalized_tool_key(photo.get("tool_number")) == normalized_tool_key(record_id):
-        direct = 1
-    elif record_type == ENTITY_MACHINE and normalized_machine_key(photo.get("machine_number")) == normalized_machine_key(record_id):
+    if record_type == ENTITY_EOAT and normalized_eoat_key(photo.get("eoat_id")) == normalized_eoat_key(record_id) or record_type == ENTITY_TOOL and normalized_tool_key(photo.get("tool_number")) == normalized_tool_key(record_id) or record_type == ENTITY_MACHINE and normalized_machine_key(
+        photo.get("machine_number")
+    ) == normalized_machine_key(record_id):
         direct = 1
     label = _text(photo.get("photo_type") or photo.get("area_shown") or photo.get("category"))
-    specificity = 0 if not label or label.casefold() in {"other", "unknown"} else min(len(_normalize_photo_label(label)), 80)
+    specificity = (
+        0 if not label or label.casefold() in {"other", "unknown"} else min(len(_normalize_photo_label(label)), 80)
+    )
     recency = _text(photo.get("imported_at") or photo.get("date_taken"))
     return (direct, specificity, recency)
 
@@ -1613,7 +1775,10 @@ def _search_text(record: dict[str, Any]) -> str:
         if isinstance(value, dict):
             pieces.extend(_text(item) for item in value.values())
         elif isinstance(value, list):
-            pieces.extend(_text(item) if not isinstance(item, dict) else " ".join(_text(v) for v in item.values()) for item in value)
+            pieces.extend(
+                _text(item) if not isinstance(item, dict) else " ".join(_text(v) for v in item.values())
+                for item in value
+            )
         else:
             pieces.append(_text(value))
     return " ".join(piece for piece in pieces if piece)
