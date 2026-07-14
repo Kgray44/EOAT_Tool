@@ -86,6 +86,92 @@ def _history_type_id(session: Session, code: str) -> int:
     return value
 
 
+def history_event_category(code: str) -> str:
+    value = code.casefold()
+    if any(token in value for token in ("installed", "removed", "moved_", "location_")):
+        return "INSTALLATIONS"
+    if "maintenance" in value or value == "pm_completed":
+        return "MAINTENANCE"
+    if "audit" in value:
+        return "AUDITS"
+    if "compatibility" in value or value in {"record_created", "record_edited"}:
+        return "ENGINEERING_CHANGES"
+    if "document" in value or "photo" in value:
+        return "DOCUMENTS_AND_PHOTOS"
+    if "tag" in value or "annotation" in value:
+        return "TAGS_AND_ANNOTATIONS"
+    if "archived" in value or "restored" in value:
+        return "ARCHIVE_ACTIVITY"
+    return "OTHER"
+
+
+def history_relationship_metadata(session: Session, record: Any) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    machine_id = getattr(record, "machine_id", None)
+    tool_id = getattr(record, "tool_id", None)
+    robot_id = getattr(record, "robot_id", None)
+    if machine_id:
+        metadata["related_machine"] = session.scalar(
+            select(db.Machine.machine_number).where(db.Machine.id == machine_id)
+        )
+    if tool_id:
+        metadata["related_tool"] = session.scalar(
+            select(db.Tool.business_identifier).where(db.Tool.id == tool_id)
+        )
+    if robot_id:
+        metadata["related_robot"] = session.scalar(
+            select(db.Robot.robot_number).where(db.Robot.id == robot_id)
+        )
+    return metadata
+
+
+def add_history_event(
+    session: Session,
+    actor: ActorContext,
+    *,
+    entity_type: str,
+    entity_id: int,
+    history_code: str,
+    summary: str,
+    occurred_at: datetime | None = None,
+    description: str | None = None,
+    reason: str | None = None,
+    notes: str | None = None,
+    previous: dict[str, Any] | None = None,
+    current: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+    related_entity_type: str | None = None,
+    related_entity_id: int | None = None,
+    source_table: str | None = None,
+    source_record_id: int | None = None,
+) -> None:
+    session.add(
+        db.EntityHistoryEvent(
+            event_uuid=str(uuid4()),
+            entity_type=entity_type,
+            entity_id=entity_id,
+            event_type_id=_history_type_id(session, history_code),
+            occurred_at=occurred_at or utcnow(),
+            actor_user_id=actor.user_id,
+            application_instance_id=actor.application_instance_id,
+            request_id=actor.request_id,
+            event_category=history_event_category(history_code),
+            summary=summary,
+            description=description,
+            details=description,
+            reason=reason,
+            notes=notes,
+            previous_values_json=previous or None,
+            new_values_json=current or None,
+            metadata_json=metadata or None,
+            related_entity_type=related_entity_type,
+            related_entity_id=related_entity_id,
+            source_table=source_table,
+            source_record_id=source_record_id,
+        )
+    )
+
+
 def audit_change(
     session: Session,
     actor: ActorContext,
@@ -99,8 +185,15 @@ def audit_change(
     reason: str | None = None,
     history_code: str | None = None,
     history_summary: str | None = None,
+    history_entity_type: str | None = None,
+    history_entity_id: int | None = None,
+    history_description: str | None = None,
+    history_notes: str | None = None,
+    history_metadata: dict[str, Any] | None = None,
     related_entity_type: str | None = None,
     related_entity_id: int | None = None,
+    source_table: str | None = None,
+    source_record_id: int | None = None,
 ) -> None:
     previous = previous or {}
     current = current or {}
@@ -121,7 +214,7 @@ def audit_change(
             reason=reason,
             source="eoat_api",
             success=True,
-            api_version="1.1.0",
+            api_version="1.3.0",
             client_version=actor.client_version,
         )
     )
@@ -137,20 +230,37 @@ def audit_change(
             )
         )
     if history_code:
-        session.add(
-            db.EntityHistoryEvent(
-                entity_type=entity_type,
-                entity_id=entity_id,
-                event_type_id=_history_type_id(session, history_code),
-                occurred_at=utcnow(),
-                actor_user_id=actor.user_id,
-                application_instance_id=actor.application_instance_id,
-                summary=history_summary or action.replace("_", " ").title(),
-                details=reason,
-                related_entity_type=related_entity_type,
-                related_entity_id=related_entity_id,
-            )
+        target_type = history_entity_type or entity_type
+        target_id = history_entity_id or entity_id
+        add_history_event(
+            session,
+            actor,
+            entity_type=target_type,
+            entity_id=target_id,
+            history_code=history_code,
+            summary=history_summary or action.replace("_", " ").title(),
+            description=history_description,
+            reason=reason,
+            notes=history_notes,
+            previous=previous,
+            current=current,
+            metadata=history_metadata,
+            related_entity_type=related_entity_type,
+            related_entity_id=related_entity_id,
+            source_table=source_table,
+            source_record_id=source_record_id,
         )
+        if target_type in CACHED_ENTITY_TYPES and (target_type, target_id) != (entity_type, entity_id):
+            session.add(
+                db.ChangeFeed(
+                    entity_type=target_type,
+                    entity_id=target_id,
+                    operation="history",
+                    entity_row_version=max(1, row_version),
+                    changed_by_user_id=actor.user_id,
+                    request_id=actor.request_id,
+                )
+            )
 
 
 def _entity_by_identifier(session: Session, entity_type: str, identifier: str, *, lock: bool = False):
@@ -293,6 +403,8 @@ def create_asset(session: Session, actor: ActorContext, entity_type: str, payloa
         row_version=record.row_version,
         history_code="record_created",
         history_summary=f"{entity_type.title()} {identifier} created",
+        source_table=config["model"].__tablename__,
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -322,6 +434,8 @@ def update_asset(session: Session, actor: ActorContext, entity_type: str, identi
         reason=reason,
         history_code="record_edited",
         history_summary=f"{entity_type.title()} {identifier} edited",
+        source_table=ASSET_CONFIG[entity_type]["model"].__tablename__,
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -365,6 +479,8 @@ def set_asset_archived(
         reason=reason,
         history_code=f"record_{'archived' if archived else 'restored'}",
         history_summary=f"{entity_type.title()} {identifier} {action}d",
+        source_table=ASSET_CONFIG[entity_type]["model"].__tablename__,
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -454,8 +570,13 @@ def write_compatibility(
         previous=previous,
         current=record_dict(record),
         row_version=record.row_version,
-        history_code="compatibility_verified",
+        history_code="compatibility_created" if relationship_id is None else "compatibility_updated",
         history_summary=f"{relationship_type} compatibility verified",
+        history_entity_type="eoat" if getattr(record, "eoat_id", None) else None,
+        history_entity_id=getattr(record, "eoat_id", None),
+        history_metadata={**history_relationship_metadata(session, record), "relationship_type": relationship_type},
+        source_table=model.__tablename__,
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -489,6 +610,13 @@ def archive_compatibility(
         current=record_dict(record),
         row_version=record.row_version,
         reason=reason,
+        history_code="compatibility_archived" if getattr(record, "eoat_id", None) else None,
+        history_summary=f"{relationship_type} compatibility archived",
+        history_entity_type="eoat" if getattr(record, "eoat_id", None) else None,
+        history_entity_id=getattr(record, "eoat_id", None),
+        history_metadata={**history_relationship_metadata(session, record), "relationship_type": relationship_type},
+        source_table=model.__tablename__,
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -518,6 +646,13 @@ def _close_active_locations(
             current=record_dict(installation),
             row_version=installation.row_version,
             reason=reason,
+            history_code="removed",
+            history_summary="EOAT removed from machine",
+            history_entity_type="eoat",
+            history_entity_id=eoat_id,
+            history_metadata=history_relationship_metadata(session, installation),
+            source_table="eoat_installations",
+            source_record_id=installation.id,
         )
     storage = session.scalar(
         select(db.EOATStorageAssignment)
@@ -571,7 +706,7 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
     if compatibility and not payload.get("override_reason"):
         raise APIError(409, "INCOMPATIBLE_INSTALLATION", "An override reason is required for this installation.")
     when = payload.get("installed_at") or utcnow()
-    _close_active_locations(session, actor, eoat.id, when, payload.get("reason"))
+    closed_locations = _close_active_locations(session, actor, eoat.id, when, payload.get("reason"))
     installation = db.EOATInstallation(
         eoat_id=eoat.id,
         machine_id=machine.id,
@@ -603,6 +738,17 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
         history_summary=f"{eoat.business_identifier} installed on {machine.machine_number}",
         related_entity_type="machine",
         related_entity_id=machine.id,
+        history_entity_type="eoat",
+        history_entity_id=eoat.id,
+        history_notes=payload.get("notes"),
+        history_metadata={
+            "related_machine": machine.machine_number,
+            "related_tool": tool.business_identifier if tool else None,
+            "related_robot": robot.robot_number if robot else None,
+            "movement_kind": "moved_to_machine" if closed_locations else "installed",
+        },
+        source_table="eoat_installations",
+        source_record_id=installation.id,
     )
     audit_change(
         session,
@@ -651,6 +797,11 @@ def close_installation(session: Session, actor: ActorContext, installation_id: i
         reason=payload.get("reason"),
         history_code="removed",
         history_summary="EOAT removed from machine",
+        history_entity_type="eoat",
+        history_entity_id=record.eoat_id,
+        history_metadata=history_relationship_metadata(session, record),
+        source_table="eoat_installations",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -695,6 +846,12 @@ def move_to_storage(session: Session, actor: ActorContext, eoat_identifier: str,
         history_summary=f"{eoat.business_identifier} moved to {location.location_code}",
         related_entity_type="storage_location",
         related_entity_id=location.id,
+        history_entity_type="eoat",
+        history_entity_id=eoat.id,
+        history_notes=payload.get("notes"),
+        history_metadata={"related_storage_location": location.location_code},
+        source_table="eoat_storage_assignments",
+        source_record_id=assignment.id,
     )
     audit_change(
         session,
@@ -730,6 +887,8 @@ def mark_location_unknown(
         reason=reason,
         history_code="location_unknown",
         history_summary=f"{eoat.business_identifier} location marked unknown",
+        source_table="eoats",
+        source_record_id=eoat.id,
     )
     return {
         "eoat_identifier": eoat_identifier,
@@ -771,8 +930,14 @@ def create_audit(session: Session, actor: ActorContext, payload: dict[str, Any])
         previous=None,
         current=record_dict(record),
         row_version=record.row_version,
-        history_code="record_created",
+        history_code="audit_started",
         history_summary=f"Audit {record.audit_identifier} created",
+        history_entity_type="eoat" if record.eoat_id else None,
+        history_entity_id=record.eoat_id,
+        history_notes=record.notes,
+        history_metadata={"audit_id": record.audit_identifier, **history_relationship_metadata(session, record)},
+        source_table="audit_records",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -822,6 +987,12 @@ def update_audit(
         reason=reason,
         history_code="audit_completed" if complete else "record_archived" if archive else "record_edited",
         history_summary=f"Audit {record.audit_identifier} {action}d",
+        history_entity_type="eoat" if record.eoat_id else None,
+        history_entity_id=record.eoat_id,
+        history_notes=record.notes,
+        history_metadata={"audit_id": record.audit_identifier, **history_relationship_metadata(session, record)},
+        source_table="audit_records",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -858,8 +1029,14 @@ def create_maintenance(session: Session, actor: ActorContext, payload: dict[str,
         previous=None,
         current=record_dict(record),
         row_version=record.row_version,
-        history_code="record_created",
+        history_code="maintenance_started",
         history_summary=record.summary,
+        history_entity_type="eoat" if record.eoat_id else None,
+        history_entity_id=record.eoat_id,
+        history_description=str(record.details_json) if record.details_json else None,
+        history_metadata={"maintenance_id": record.event_uuid, **history_relationship_metadata(session, record)},
+        source_table="maintenance_events",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -898,6 +1075,12 @@ def update_maintenance(
         reason=reason,
         history_code="maintenance_completed" if complete else "record_edited",
         history_summary=f"Maintenance {'completed' if complete else 'updated'}: {record.summary}",
+        history_entity_type="eoat" if record.eoat_id else None,
+        history_entity_id=record.eoat_id,
+        history_description=str(record.details_json) if record.details_json else None,
+        history_metadata={"maintenance_id": record.event_uuid, **history_relationship_metadata(session, record)},
+        source_table="maintenance_events",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -914,7 +1097,24 @@ def _validate_document_path(storage_path: str) -> Path:
     return path
 
 
-def create_document(session: Session, actor: ActorContext, payload: dict[str, Any]):
+def _eoat_ids_for_document(session: Session, document_id: int) -> list[int]:
+    return list(
+        session.scalars(
+            select(db.DocumentLink.entity_id).where(
+                db.DocumentLink.document_id == document_id,
+                db.DocumentLink.entity_type == "eoat",
+            )
+        ).all()
+    )
+
+
+def create_document(
+    session: Session,
+    actor: ActorContext,
+    payload: dict[str, Any],
+    *,
+    emit_history: bool = True,
+):
     path = _validate_document_path(payload["storage_path"])
     document_type = lookup_id(session, db.DocumentType, payload["document_type"], "document_type", required=True)
     record = db.Document(
@@ -935,13 +1135,17 @@ def create_document(session: Session, actor: ActorContext, payload: dict[str, An
     )
     session.add(record)
     session.flush()
+    history_target_id = None
+    history_target_type = None
     if payload.get("entity_type") and payload.get("entity_id"):
-        resolve_target(session, payload["entity_type"], payload["entity_id"])
+        target = resolve_target(session, payload["entity_type"], payload["entity_id"])
+        history_target_type = payload["entity_type"]
+        history_target_id = target.id
         session.add(
             db.DocumentLink(
                 document_id=record.id,
                 entity_type=payload["entity_type"],
-                entity_id=payload["entity_id"],
+                entity_id=target.id,
                 relationship_type=payload.get("relationship_type", "attachment"),
                 created_by_user_id=actor.user_id,
             )
@@ -955,15 +1159,20 @@ def create_document(session: Session, actor: ActorContext, payload: dict[str, An
         previous=None,
         current=record_dict(record),
         row_version=record.row_version,
-        history_code="document_added",
+        history_code="document_added" if emit_history else None,
         history_summary=f"Document added: {record.title}",
+        history_entity_type="eoat" if history_target_type == "eoat" else None,
+        history_entity_id=history_target_id if history_target_type == "eoat" else None,
+        history_metadata={"related_document": record.document_uuid, "file_name": record.file_name},
+        source_table="documents",
+        source_record_id=record.id,
     )
     return public_record(record)
 
 
 def create_photo(session: Session, actor: ActorContext, payload: dict[str, Any]):
     photo_values = {key: payload.pop(key, None) for key in ("photo_view_type", "captured_at", "caption")}
-    document = create_document(session, actor, payload)
+    document = create_document(session, actor, payload, emit_history=False)
     photo = db.Photo(document_id=document["id"], captured_by_user_id=actor.user_id, **photo_values)
     session.add(photo)
     session.flush()
@@ -976,8 +1185,13 @@ def create_photo(session: Session, actor: ActorContext, payload: dict[str, Any])
         previous=None,
         current=record_dict(photo),
         row_version=document["row_version"],
-        history_code="document_added",
+        history_code="photo_added",
         history_summary=f"Photo added: {document['title']}",
+        history_entity_type="eoat" if payload.get("entity_type") == "eoat" else None,
+        history_entity_id=int(payload["entity_id"]) if payload.get("entity_type") == "eoat" else None,
+        history_metadata={"related_document": document["document_uuid"], "related_photo": photo.id},
+        source_table="photos",
+        source_record_id=photo.id,
     )
     return {"document": document, "photo": public_record(photo), "row_version": document["row_version"]}
 
@@ -1006,6 +1220,7 @@ def update_photo(
     document.row_version += 1
     document.updated_by_user_id = actor.user_id
     current = {"document": record_dict(document), "photo": record_dict(photo)}
+    eoat_ids = _eoat_ids_for_document(session, document.id)
     audit_change(
         session,
         actor,
@@ -1016,6 +1231,13 @@ def update_photo(
         current=current,
         row_version=document.row_version,
         reason=reason,
+        history_code="photo_archived" if archive else "photo_updated" if eoat_ids else None,
+        history_summary=f"Photo {'archived' if archive else 'updated'}: {document.title}",
+        history_entity_type="eoat" if eoat_ids else None,
+        history_entity_id=eoat_ids[0] if eoat_ids else None,
+        history_metadata={"related_document": document.document_uuid, "related_photo": photo.id},
+        source_table="photos",
+        source_record_id=photo.id,
     )
     return {"document": public_record(document), "photo": public_record(photo), "row_version": document.row_version}
 
@@ -1065,10 +1287,15 @@ def set_profile_photo(
         current={"document": record_dict(document), "photo": record_dict(photo)},
         row_version=document.row_version,
         reason=reason,
-        history_code="record_edited",
+        history_code="profile_photo_selected",
         history_summary=f"Profile photo selected for {link.entity_type} {link.entity_id}",
         related_entity_type=link.entity_type,
         related_entity_id=link.entity_id,
+        history_entity_type="eoat" if link.entity_type == "eoat" else None,
+        history_entity_id=link.entity_id if link.entity_type == "eoat" else None,
+        history_metadata={"related_document": document.document_uuid, "related_photo": photo.id},
+        source_table="photos",
+        source_record_id=photo.id,
     )
     return {"document": public_record(document), "photo": public_record(photo), "row_version": document.row_version}
 
@@ -1097,6 +1324,7 @@ def update_document(
             setattr(record, key, value)
     record.row_version += 1
     record.updated_by_user_id = actor.user_id
+    eoat_ids = _eoat_ids_for_document(session, record.id)
     audit_change(
         session,
         actor,
@@ -1107,8 +1335,13 @@ def update_document(
         current=record_dict(record),
         row_version=record.row_version,
         reason=reason,
-        history_code="record_archived" if archive else "record_edited",
+        history_code="document_archived" if archive else "document_updated" if eoat_ids else None,
         history_summary=f"Document {record.title} {'archived' if archive else 'updated'}",
+        history_entity_type="eoat" if eoat_ids else None,
+        history_entity_id=eoat_ids[0] if eoat_ids else None,
+        history_metadata={"related_document": record.document_uuid, "file_name": record.file_name},
+        source_table="documents",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -1130,6 +1363,7 @@ def supersede_document(
     old.superseded_at = utcnow()
     old.row_version += 1
     old.updated_by_user_id = actor.user_id
+    eoat_ids = _eoat_ids_for_document(session, old.id)
     audit_change(
         session,
         actor,
@@ -1142,6 +1376,11 @@ def supersede_document(
         reason=reason,
         history_code="document_superseded",
         history_summary=f"Document {old.title} superseded",
+        history_entity_type="eoat" if eoat_ids else None,
+        history_entity_id=eoat_ids[0] if eoat_ids else None,
+        history_metadata={"related_document": old.document_uuid, "replacement_document_id": new["id"]},
+        source_table="documents",
+        source_record_id=old.id,
     )
     return {"superseded": public_record(old), "replacement": new}
 
@@ -1242,6 +1481,12 @@ def assign_tag(
         history_summary=f"Tag {tag.display_name} assigned",
         related_entity_type=entity_type,
         related_entity_id=target.id,
+        history_entity_type="eoat" if entity_type == "eoat" else None,
+        history_entity_id=target.id if entity_type == "eoat" else None,
+        history_notes=comment,
+        history_metadata={"tag_id": tag.id, "tag_code": tag.tag_code, "tag_name": tag.display_name},
+        source_table="entity_tags",
+        source_record_id=assignment.id,
     )
     return public_record(assignment)
 
@@ -1279,6 +1524,13 @@ def remove_tag(
         row_version=record.row_version,
         related_entity_type=entity_type,
         related_entity_id=target.id,
+        history_code="tag_removed" if entity_type == "eoat" else None,
+        history_summary="Tag removed",
+        history_entity_type="eoat" if entity_type == "eoat" else None,
+        history_entity_id=target.id if entity_type == "eoat" else None,
+        history_metadata={"tag_id": tag_id},
+        source_table="entity_tags",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -1351,6 +1603,12 @@ def create_annotation(
         history_summary=f"Annotation added: {record.subject}",
         related_entity_type=entity_type,
         related_entity_id=target.id,
+        history_entity_type="eoat" if entity_type == "eoat" else None,
+        history_entity_id=target.id if entity_type == "eoat" else None,
+        history_description=record.body,
+        history_metadata={"annotation_uuid": record.annotation_uuid, "annotation_type": record.annotation_type},
+        source_table="annotations",
+        source_record_id=record.id,
     )
     return public_record(record)
 
@@ -1513,6 +1771,8 @@ def update_annotation(
             setattr(record, k, v)
     record.row_version += 1
     record.updated_by_user_id = actor.user_id
+    history_target_type = record.entity_type
+    history_target_id = record.entity_id
     audit_change(
         session,
         actor,
@@ -1523,6 +1783,14 @@ def update_annotation(
         current=record_dict(record),
         row_version=record.row_version,
         reason=reason,
+        history_code="annotation_archived" if archive else "annotation_updated" if history_target_type == "eoat" else None,
+        history_summary=f"Annotation {'archived' if archive else 'updated'}: {record.subject}",
+        history_entity_type="eoat" if history_target_type == "eoat" else None,
+        history_entity_id=history_target_id if history_target_type == "eoat" else None,
+        history_description=record.body,
+        history_metadata={"annotation_uuid": record.annotation_uuid, "annotation_type": record.annotation_type},
+        source_table="annotations",
+        source_record_id=record.id,
     )
     return public_record(record)
 

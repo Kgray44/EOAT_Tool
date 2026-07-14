@@ -1159,7 +1159,7 @@ class MinimalistSettingsContent(QWidget):
                     self._setting_row("Authenticated identity", "Development identity; secrets are never displayed.", value_label(str(gateway_metrics.get("identity") or os.getenv("EOAT_ATLAS_DEV_IDENTITY", "Not configured")))),
                     self._setting_row("Role", "Server authorization role for the current development identity.", value_label(str(gateway_metrics.get("role") or "Not reported"))),
                     self._setting_row("API version", "Reported by the compatible API/cache snapshot.", value_label(str(getattr(self.bundle, "metrics", {}).get("api_version") or "1.1.0"))),
-                    self._setting_row("Schema revision", "Required for write compatibility.", value_label(str(getattr(self.bundle, "metrics", {}).get("schema_revision") or "20260714_0003"))),
+                    self._setting_row("Schema revision", "Required for write compatibility.", value_label(str(getattr(self.bundle, "metrics", {}).get("schema_revision") or "20260714_0004"))),
                     self._setting_row("Application instance", "Stable client UUID; not the computer name.", value_label(str(gateway_metrics.get("application_instance_id") or os.getenv("EOAT_ATLAS_INSTANCE_ID", "Not configured")))),
                     self._setting_row("Last successful write", "Server-confirmed write timestamp.", value_label(str(gateway_metrics.get("last_successful_write") or "Not recorded"))),
                     self._setting_row("Last write request ID", "Correlation identifier only; no credentials are displayed.", value_label(str(gateway_metrics.get("last_write_request_id") or "Not recorded"))),

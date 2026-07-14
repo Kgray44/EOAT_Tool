@@ -102,7 +102,33 @@ class AtlasDataGateway:
         )
 
     def get_eoat_history(self, identifier):
-        return self._online_or_cache(lambda: self.client.get_eoat_history(identifier), lambda: [])
+        return self._online_or_cache(
+            lambda: self._fetch_and_cache_eoat_history(identifier),
+            lambda: self._cached_eoat_history(identifier),
+        )
+
+    def _fetch_and_cache_eoat_history(self, identifier: str) -> list[dict]:
+        page = 1
+        events: list[dict] = []
+        while True:
+            response = self.client.get_eoat_history(identifier, page=page, page_size=200, sort_order="desc")
+            items = list(response.get("items", []))
+            events.extend(items)
+            pagination = response.get("pagination", {})
+            if page >= int(pagination.get("pages") or 0):
+                break
+            page += 1
+        self.cache.replace_eoat_history(identifier, events)
+        return events
+
+    def _cached_eoat_history(self, identifier: str) -> list[dict]:
+        timestamp = self.cache.metadata().get("last_history_sync_at") or self.cache.metadata().get("last_full_refresh_at", "")
+        events = []
+        for payload in self.cache.get_eoat_history(identifier):
+            metadata = dict(payload.get("metadata") or {})
+            metadata.update({"delivery_mode": "offline_cache", "cache_timestamp": timestamp})
+            events.append({**payload, "metadata": metadata})
+        return events
 
     def get_eoat_documents(self, identifier):
         return self._online_or_cache(

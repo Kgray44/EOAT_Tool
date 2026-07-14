@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 from math import ceil
+from typing import Any
 
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, aliased
@@ -14,6 +16,7 @@ from .contracts import (
     LookupValue,
     MachineProfile,
     MachineSummary,
+    PaginatedHistory,
     PaginationMetadata,
     PhotoMetadata,
     RelationshipSummary,
@@ -33,6 +36,11 @@ LOOKUP_MODELS = {
     "document_types": db.DocumentType,
     "history_event_types": db.HistoryEventType,
 }
+
+
+def _optional_text(value: Any) -> str | None:
+    text_value = str(value).strip() if value is not None else ""
+    return text_value or None
 
 
 class AtlasRepository:
@@ -411,37 +419,171 @@ class AtlasRepository:
             ],
         )
 
-    def history(self, entity_type: str, entity_id: int) -> list[HistoryEvent]:
-        events = [
-            HistoryEvent(
-                event_type="history",
-                occurred_at=e.occurred_at,
-                summary=e.summary,
-                details=e.details,
-                source=e.source_table,
-            )
-            for e in self.session.scalars(
-                select(db.EntityHistoryEvent)
-                .where(db.EntityHistoryEvent.entity_type == entity_type, db.EntityHistoryEvent.entity_id == entity_id)
-                .order_by(db.EntityHistoryEvent.occurred_at.desc())
-            )
-        ]
-        if entity_type == "eoat":
-            for audit in self.session.scalars(
-                select(db.AuditRecord)
-                .where(db.AuditRecord.eoat_id == entity_id)
-                .order_by(db.AuditRecord.audit_date.desc())
-            ):
-                events.append(
-                    HistoryEvent(
-                        event_type="audit",
-                        occurred_at=audit.audit_date,
-                        summary=f"Audit {audit.audit_identifier}",
-                        details=audit.details_json,
-                        source=audit.source_sheet,
+    def history_page(
+        self,
+        entity_type: str,
+        entity_id: int,
+        *,
+        eoat_identifier: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+        sort_order: str = "desc",
+        event_category: str | None = None,
+        event_type: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        search: str = "",
+    ) -> PaginatedHistory:
+        stmt = (
+            select(db.EntityHistoryEvent, db.HistoryEventType, db.User, db.ApplicationInstance)
+            .join(db.HistoryEventType, db.HistoryEventType.id == db.EntityHistoryEvent.event_type_id)
+            .outerjoin(db.User, db.User.id == db.EntityHistoryEvent.actor_user_id)
+            .outerjoin(db.ApplicationInstance, db.ApplicationInstance.id == db.EntityHistoryEvent.application_instance_id)
+            .where(db.EntityHistoryEvent.entity_type == entity_type, db.EntityHistoryEvent.entity_id == entity_id)
+        )
+        if event_category:
+            stmt = stmt.where(func.upper(db.EntityHistoryEvent.event_category) == event_category.upper())
+        if event_type:
+            requested_type = event_type.upper()
+            persisted_type = {
+                "EOAT_CREATED": "RECORD_CREATED",
+                "EOAT_UPDATED": "RECORD_EDITED",
+                "EOAT_ARCHIVED": "RECORD_ARCHIVED",
+                "EOAT_RESTORED": "RECORD_RESTORED",
+                "EOAT_INSTALLED_ON_MACHINE": "INSTALLED",
+                "EOAT_MOVED_TO_MACHINE": "INSTALLED",
+                "EOAT_REMOVED_FROM_MACHINE": "REMOVED",
+                "EOAT_MOVED_TO_STORAGE": "MOVED_TO_STORAGE",
+                "EOAT_LOCATION_MARKED_UNKNOWN": "LOCATION_UNKNOWN",
+            }.get(requested_type, requested_type)
+            stmt = stmt.where(func.upper(db.HistoryEventType.code) == persisted_type)
+            if requested_type == "EOAT_MOVED_TO_MACHINE":
+                stmt = stmt.where(
+                    cast(db.EntityHistoryEvent.metadata_json, String).ilike('%"movement_kind": "moved_to_machine"%')
+                )
+            elif requested_type == "EOAT_INSTALLED_ON_MACHINE":
+                stmt = stmt.where(
+                    or_(
+                        db.EntityHistoryEvent.metadata_json.is_(None),
+                        cast(db.EntityHistoryEvent.metadata_json, String).not_ilike('%"movement_kind": "moved_to_machine"%'),
                     )
                 )
-        return sorted(events, key=lambda event: event.occurred_at or __import__("datetime").datetime.min, reverse=True)
+        if date_from:
+            stmt = stmt.where(db.EntityHistoryEvent.occurred_at >= date_from)
+        if date_to:
+            stmt = stmt.where(db.EntityHistoryEvent.occurred_at <= date_to)
+        query = search.strip()
+        if query:
+            pattern = f"%{query}%"
+            stmt = stmt.where(
+                or_(
+                    db.EntityHistoryEvent.summary.ilike(pattern),
+                    db.EntityHistoryEvent.description.ilike(pattern),
+                    db.EntityHistoryEvent.reason.ilike(pattern),
+                    db.EntityHistoryEvent.notes.ilike(pattern),
+                    db.HistoryEventType.display_name.ilike(pattern),
+                    db.User.display_name.ilike(pattern),
+                    cast(db.EntityHistoryEvent.metadata_json, String).ilike(pattern),
+                )
+            )
+        count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
+        total = int(self.session.scalar(count_stmt) or 0)
+        direction = db.EntityHistoryEvent.occurred_at.asc() if sort_order.casefold() == "asc" else db.EntityHistoryEvent.occurred_at.desc()
+        tie_direction = (
+            db.EntityHistoryEvent.event_uuid.asc()
+            if sort_order.casefold() == "asc"
+            else db.EntityHistoryEvent.event_uuid.desc()
+        )
+        rows = self.session.execute(
+            stmt.order_by(direction, tie_direction).offset((page - 1) * page_size).limit(page_size)
+        ).all()
+        items = [
+            self._history_event(event, kind, actor, instance, eoat_identifier=eoat_identifier)
+            for event, kind, actor, instance in rows
+        ]
+        return PaginatedHistory(
+            items=items,
+            pagination=PaginationMetadata(
+                page=page,
+                page_size=page_size,
+                total=total,
+                pages=ceil(total / page_size) if total else 0,
+            ),
+        )
+
+    def history(self, entity_type: str, entity_id: int) -> list[HistoryEvent]:
+        return self.history_page(entity_type, entity_id, page_size=200).items
+
+    def eoat_history_snapshot(self) -> list[HistoryEvent]:
+        rows = self.session.execute(
+            select(db.EntityHistoryEvent, db.HistoryEventType, db.User, db.ApplicationInstance, db.EOAT)
+            .join(db.HistoryEventType, db.HistoryEventType.id == db.EntityHistoryEvent.event_type_id)
+            .join(db.EOAT, db.EOAT.id == db.EntityHistoryEvent.entity_id)
+            .outerjoin(db.User, db.User.id == db.EntityHistoryEvent.actor_user_id)
+            .outerjoin(db.ApplicationInstance, db.ApplicationInstance.id == db.EntityHistoryEvent.application_instance_id)
+            .where(db.EntityHistoryEvent.entity_type == "eoat")
+            .order_by(
+                db.EOAT.business_identifier,
+                db.EntityHistoryEvent.occurred_at.desc(),
+                db.EntityHistoryEvent.event_uuid.desc(),
+            )
+        ).all()
+        return [
+            self._history_event(event, kind, actor, instance, eoat_identifier=eoat.business_identifier)
+            for event, kind, actor, instance, eoat in rows
+        ]
+
+    @staticmethod
+    def _history_event(
+        event: db.EntityHistoryEvent,
+        kind: db.HistoryEventType,
+        actor: db.User | None,
+        instance: db.ApplicationInstance | None,
+        *,
+        eoat_identifier: str | None,
+    ) -> HistoryEvent:
+        metadata: dict[str, Any] = dict(event.metadata_json or {})
+        application_instance = None
+        if instance is not None:
+            application_instance = instance.installation_name or instance.computer_name or instance.instance_uuid
+        event_type = kind.code.upper()
+        if event.entity_type == "eoat":
+            event_type = {
+                "RECORD_CREATED": "EOAT_CREATED",
+                "RECORD_EDITED": "EOAT_UPDATED",
+                "RECORD_ARCHIVED": "EOAT_ARCHIVED",
+                "RECORD_RESTORED": "EOAT_RESTORED",
+                "INSTALLED": "EOAT_INSTALLED_ON_MACHINE",
+                "REMOVED": "EOAT_REMOVED_FROM_MACHINE",
+                "MOVED_TO_STORAGE": "EOAT_MOVED_TO_STORAGE",
+                "LOCATION_UNKNOWN": "EOAT_LOCATION_MARKED_UNKNOWN",
+            }.get(event_type, event_type)
+            if event_type == "EOAT_INSTALLED_ON_MACHINE" and metadata.get("movement_kind") == "moved_to_machine":
+                event_type = "EOAT_MOVED_TO_MACHINE"
+        return HistoryEvent(
+            event_id=event.event_uuid,
+            eoat_identifier=eoat_identifier,
+            event_type=event_type,
+            event_category=event.event_category,
+            occurred_at=event.occurred_at,
+            summary=event.summary,
+            description=event.description or event.details,
+            actor=actor.display_name if actor is not None else None,
+            application_instance=application_instance,
+            source_record_type=event.source_table,
+            source_record_id=str(event.source_record_id) if event.source_record_id is not None else None,
+            related_machine=_optional_text(metadata.get("related_machine") or metadata.get("machine_number")),
+            related_tool=_optional_text(metadata.get("related_tool") or metadata.get("tool_number")),
+            related_robot=_optional_text(metadata.get("related_robot") or metadata.get("robot_number")),
+            related_storage_location=_optional_text(metadata.get("related_storage_location") or metadata.get("storage_location")),
+            related_document=_optional_text(metadata.get("related_document") or metadata.get("document_uuid")),
+            related_photo=_optional_text(metadata.get("related_photo") or metadata.get("photo_id")),
+            reason=event.reason,
+            notes=event.notes,
+            previous_values=event.previous_values_json,
+            new_values=event.new_values_json,
+            metadata=metadata or None,
+        )
 
     def documents(
         self, entity_type: str | None = None, entity_id: int | None = None, *, photos_only: bool = False

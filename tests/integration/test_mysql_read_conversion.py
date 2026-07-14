@@ -53,8 +53,8 @@ class ApiClientAdapter:
     def get_eoat(self, value):
         return self._get(f"/api/v1/eoats/{value}")
 
-    def get_eoat_history(self, value):
-        return self._get(f"/api/v1/eoats/{value}/history")
+    def get_eoat_history(self, value, **params):
+        return self._get(f"/api/v1/eoats/{value}/history", **params)
 
     def get_eoat_documents(self, value):
         return self._get(f"/api/v1/eoats/{value}/documents")
@@ -109,8 +109,8 @@ def test_health_version_and_schema(api):
     payload = health.json()
     assert payload["database_reachable"] is True
     assert payload["compatible"] is True
-    assert payload["current_schema_revision"] == "20260714_0003"
-    assert api.get("/api/v1/version").json()["api_version"] == "1.2.0"
+    assert payload["current_schema_revision"] == "20260714_0004"
+    assert api.get("/api/v1/version").json()["api_version"] == "1.3.0"
     assert api.get("/api/v1/schema-status").json()["compatible"] is True
 
 
@@ -138,7 +138,11 @@ def test_profiles_relationships_history_documents_and_photos(api):
     assert eoat.status_code == 200
     assert eoat.json()["audit_evidence"]
     assert api.get("/api/v1/eoats/P4-EOAT-0001/relationships").status_code == 200
-    assert api.get("/api/v1/eoats/P4-EOAT-0001/history").status_code == 200
+    history = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page_size": 5}).json()
+    assert history["pagination"]["total"] >= 1
+    assert len(history["items"]) <= 5
+    assert history["items"][0]["event_id"]
+    assert history["items"][0]["event_category"]
     assert api.get("/api/v1/eoats/P4-EOAT-0001/documents").status_code == 200
     assert api.get("/api/v1/eoats/P4-EOAT-0001/photos").status_code == 200
     machine_number = eoat.json()["relationships"][0]["identifier"]
@@ -146,6 +150,27 @@ def test_profiles_relationships_history_documents_and_photos(api):
     tool = next(item["identifier"] for item in eoat.json()["relationships"] if item["relationship_type"] == "tool")
     assert api.get(f"/api/v1/tools/{tool}").status_code == 200
     assert api.get("/api/v1/eoats/DOES-NOT-EXIST").status_code == 404
+
+
+def test_history_contract_pagination_sort_filter_search_and_empty_states(api):
+    first = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page": 1, "page_size": 2}).json()
+    second = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page": 2, "page_size": 2}).json()
+    assert first["pagination"]["pages"] >= 2
+    assert {item["event_id"] for item in first["items"]}.isdisjoint(
+        {item["event_id"] for item in second["items"]}
+    )
+    ordering = [(item["occurred_at"], item["event_id"]) for item in first["items"]]
+    assert ordering == sorted(ordering, reverse=True)
+    filtered = api.get(
+        "/api/v1/eoats/P4-EOAT-0001/history",
+        params={"event_category": "AUDITS", "event_type": "AUDIT_COMPLETED"},
+    ).json()
+    assert filtered["items"]
+    assert all(item["event_category"] == "AUDITS" for item in filtered["items"])
+    audit_id = filtered["items"][0]["metadata"]["audit_id"]
+    searched = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"search": audit_id}).json()
+    assert searched["pagination"]["total"] == 1
+    assert api.get("/api/v1/eoats/DOES-NOT-EXIST/history").status_code == 404
 
 
 def test_search_fit_check_and_setup_packet(api):
@@ -180,6 +205,7 @@ def test_snapshot_cache_refresh_and_offline_read_only(api, tmp_path):
     assert deep["counts"]["eoats"] == 57
     assert gateway.refresh()["changes_applied"] == 0
     assert gateway.get_cache_status().entity_counts["photos"] == 158
+    assert gateway.get_cache_status().entity_counts["eoat_history"] >= 1
 
     class Offline(ApiClientAdapter):
         def health(self):
@@ -191,6 +217,14 @@ def test_snapshot_cache_refresh_and_offline_read_only(api, tmp_path):
     assert offline.get_connection_status().mode == ConnectivityMode.OFFLINE_READ_ONLY
     assert offline.get_home_summary()["eoats"] == 57
     assert offline.search("P4-EOAT")
+    cached_history = offline.get_eoat_history("P4-EOAT-0001")
+    assert cached_history
+    assert cached_history[0]["metadata"]["delivery_mode"] == "offline_cache"
+
+    expected_ids = [item["event_id"] for item in cached_history]
+    cache.path.unlink()
+    gateway.deep_refresh()
+    assert [item["event_id"] for item in cache.get_eoat_history("P4-EOAT-0001")] == expected_ids
 
 
 def test_version_incompatibility_blocks_refresh(api, tmp_path):

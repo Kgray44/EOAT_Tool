@@ -19,7 +19,7 @@ from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
 from tools.migration.excel_to_mysql import MISSING_TOKENS, _checksum, _rows, _text
 
-SCHEMA_REVISION = "20260714_0003"
+SCHEMA_REVISION = "20260714_0004"
 MACHINE_PATTERN = re.compile(r"^\d+$")
 RESOLUTION_STATUSES = {"UNRESOLVED", "DEFERRED", "RESOLVED", "NOT_APPLICABLE", "REJECTED_WITH_REASON"}
 
@@ -397,6 +397,7 @@ def _lookup(session: Session, model: type, value: Any, *, display: str | None = 
 def _reset_imported_data(session: Session) -> None:
     ordered = [
         db.ChangeFeed,
+        db.EntityHistoryEvent,
         db.DocumentLink,
         db.Photo,
         db.Document,
@@ -584,6 +585,12 @@ def execute_import(
                 et_pairs: set[tuple[int, int]] = set()
                 tm_pairs: set[tuple[int, int]] = set()
                 import_rows: dict[tuple[str, int], db.ImportRow] = {}
+                audit_completed_type_id = session.scalar(
+                    select(db.HistoryEventType.id).where(db.HistoryEventType.code == "audit_completed")
+                )
+                if audit_completed_type_id is None:
+                    raise RuntimeError("Required history event type 'audit_completed' is unavailable.")
+                history_event_count = 0
                 for number, row in rows["EOAT Inventory"]:
                     eoat_id = _text(row.get("EOAT Assembly ID"))
                     machine_number = _text(row.get("Press/Machine #"))
@@ -608,6 +615,32 @@ def execute_import(
                     )
                     session.add(audit)
                     session.flush()
+                    if eoat is not None:
+                        session.add(
+                            db.EntityHistoryEvent(
+                                event_uuid=str(
+                                    uuid5(NAMESPACE_URL, f"{before_checksum}|audit-history|{audit.id}|{audit_id}")
+                                ),
+                                entity_type="eoat",
+                                entity_id=eoat.id,
+                                event_type_id=audit_completed_type_id,
+                                occurred_at=audit.audit_date or started,
+                                event_category="AUDITS",
+                                summary=f"Audit {audit_id}",
+                                description="Documented legacy audit imported into EOAT Atlas.",
+                                notes=audit.notes,
+                                source_table="audit_records",
+                                source_record_id=audit.id,
+                                metadata_json={
+                                    "audit_id": audit_id,
+                                    "import_batch_uuid": result.import_batch_uuid,
+                                    "source_sheet": "EOAT Inventory",
+                                    "source_row": number,
+                                    "import_provenance": "structured_audit_record",
+                                },
+                            )
+                        )
+                        history_event_count += 1
                     import_row = db.ImportRow(
                         import_batch_id=batch.id,
                         source_sheet="EOAT Inventory",
@@ -782,6 +815,7 @@ def execute_import(
                     "eoat_tool_compatibility": len(et_pairs),
                     "tool_machine_compatibility": len(tm_pairs),
                     "audit_records": len(rows["EOAT Inventory"]),
+                    "entity_history_events": history_event_count,
                     "documents": valid_photo_count,
                     "photos": valid_photo_count,
                     "import_rows": sum(result.rows_discovered_by_sheet.values()),

@@ -73,6 +73,20 @@ def test_authorization_boundary_and_unknown_identity(api):
     assert technician.status_code == 403
 
 
+def test_history_endpoint_honestly_returns_empty_for_eoat_without_events(api):
+    with create_session_factory(migration=True)() as session, session.begin():
+        record = db.EOAT(
+            business_identifier="NO-HISTORY-EOAT",
+            display_name="No History Scenario",
+            source_system="integration_test",
+        )
+        session.add(record)
+    response = api.get("/api/v1/eoats/NO-HISTORY-EOAT/history")
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert response.json()["pagination"]["total"] == 0
+
+
 def test_asset_writes_idempotency_and_optimistic_concurrency(api):
     create = post(
         api, "/api/v1/eoats", {"business_identifier": "WRITE-EOAT", "display_name": "Original"}, key="eoat-create-1"
@@ -282,7 +296,7 @@ def test_document_tag_and_annotation_writes(api, tmp_path):
             "entity_type": "eoat",
             "entity_id": write_eoat_id,
         },
-        ENGINEER,
+        ADMIN,
         "document-create-1",
     )
     assert document.status_code == 200
@@ -298,7 +312,7 @@ def test_document_tag_and_annotation_writes(api, tmp_path):
             "entity_type": "eoat",
             "entity_id": write_eoat_id,
         },
-        ENGINEER,
+        ADMIN,
         "photo-create-1",
     )
     assert photo.status_code == 200 and photo.json()["photo"]["caption"] == "Test"
@@ -404,12 +418,103 @@ def test_document_tag_and_annotation_writes(api, tmp_path):
     assert unlinked.status_code == 200 and unlinked.json()["row_version"] == 4
 
 
+def test_eoat_history_event_coverage_idempotency_and_archive_restore(api):
+    with create_session_factory(migration=True)() as session:
+        eoat_id = session.scalar(select(db.EOAT.id).where(db.EOAT.business_identifier == "WRITE-EOAT"))
+        tag = session.scalar(select(db.Tag).where(db.Tag.tag_code == "write_review"))
+    assignment = post(
+        api,
+        f"/api/v1/entities/eoat/{eoat_id}/tags/{tag.id}",
+        {"comment": "EOAT history coverage"},
+        TECHNICIAN,
+        "eoat-tag-history-1",
+    )
+    assert assignment.status_code == 200
+    removed = api.request(
+        "DELETE",
+        f"/api/v1/entities/eoat/{eoat_id}/tags/{tag.id}",
+        headers=TECHNICIAN,
+        json={"expected_row_version": assignment.json()["row_version"]},
+    )
+    assert removed.status_code == 200
+    annotation = post(
+        api,
+        f"/api/v1/entities/eoat/{eoat_id}/annotations",
+        {"subject": "EOAT note", "body": "Structured EOAT history"},
+        TECHNICIAN,
+        "eoat-annotation-history-1",
+    )
+    assert annotation.status_code == 200
+    unknown = post(
+        api,
+        "/api/v1/eoats/WRITE-EOAT/mark-location-unknown",
+        {
+            "expected_row_version": api.get("/api/v1/eoats/WRITE-EOAT").json()["row_version"],
+            "reason": "Archive test",
+            "confirm": True,
+        },
+        TECHNICIAN,
+        "eoat-unknown-history-1",
+    )
+    assert unknown.status_code == 200
+    archived = post(
+        api,
+        "/api/v1/eoats/WRITE-EOAT/archive",
+        {"expected_row_version": unknown.json()["row_version"], "reason": "Archive coverage"},
+        ADMIN,
+        "eoat-archive-history-1",
+    )
+    assert archived.status_code == 200
+    restored = post(
+        api,
+        "/api/v1/eoats/WRITE-EOAT/restore",
+        {"expected_row_version": archived.json()["row_version"], "reason": "Restore coverage"},
+        ADMIN,
+        "eoat-restore-history-1",
+    )
+    assert restored.status_code == 200
+
+    history = api.get("/api/v1/eoats/WRITE-EOAT/history", params={"page_size": 200}).json()["items"]
+    types = {item["event_type"] for item in history}
+    assert {
+        "EOAT_CREATED",
+        "EOAT_UPDATED",
+        "EOAT_ARCHIVED",
+        "EOAT_RESTORED",
+        "EOAT_INSTALLED_ON_MACHINE",
+        "EOAT_MOVED_TO_STORAGE",
+        "EOAT_LOCATION_MARKED_UNKNOWN",
+        "COMPATIBILITY_CREATED",
+        "AUDIT_STARTED",
+        "AUDIT_COMPLETED",
+        "MAINTENANCE_STARTED",
+        "MAINTENANCE_COMPLETED",
+        "DOCUMENT_ADDED",
+        "PHOTO_ADDED",
+        "PROFILE_PHOTO_SELECTED",
+        "TAG_ASSIGNED",
+        "TAG_REMOVED",
+        "ANNOTATION_ADDED",
+    }.issubset(types)
+    assert all(item["source_record_type"] for item in history if item["event_type"] not in {"EOAT_CREATED", "EOAT_UPDATED", "EOAT_ARCHIVED", "EOAT_RESTORED"})
+    with create_session_factory(migration=True)() as session:
+        created_type = session.scalar(select(db.HistoryEventType.id).where(db.HistoryEventType.code == "record_created"))
+        assert session.scalar(
+            select(func.count(db.EntityHistoryEvent.id)).where(
+                db.EntityHistoryEvent.entity_type == "eoat",
+                db.EntityHistoryEvent.entity_id == eoat_id,
+                db.EntityHistoryEvent.event_type_id == created_type,
+            )
+        ) == 1
+
+
 def test_failed_business_write_rolls_back_audit_and_change_feed(api):
     factory = create_session_factory(migration=True)
     with factory() as session:
         before_relations = session.scalar(select(func.count(db.EOATToolCompatibility.id)))
         before_audits = session.scalar(select(func.count(db.ChangeAuditLog.id)))
         before_changes = session.scalar(select(func.count(db.ChangeFeed.change_id)))
+        before_history = session.scalar(select(func.count(db.EntityHistoryEvent.id)))
     response = post(
         api,
         "/api/v1/compatibility/eoat-tool",
@@ -425,6 +530,7 @@ def test_failed_business_write_rolls_back_audit_and_change_feed(api):
         assert session.scalar(select(func.count(db.EOATToolCompatibility.id))) == before_relations
         assert session.scalar(select(func.count(db.ChangeAuditLog.id))) == before_audits
         assert session.scalar(select(func.count(db.ChangeFeed.change_id))) == before_changes
+        assert session.scalar(select(func.count(db.EntityHistoryEvent.id))) == before_history
 
 
 class ApiTestAdapter:
@@ -478,14 +584,14 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     config_a = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-a.db",
-        expected_schema_revision="20260714_0003",
+        expected_schema_revision="20260714_0004",
         writes_enabled=True,
         environment="development",
     )
     config_b = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-b.db",
-        expected_schema_revision="20260714_0003",
+        expected_schema_revision="20260714_0004",
         writes_enabled=True,
         environment="development",
     )
@@ -503,16 +609,25 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     assert b.cache.get("machines", "WRITE-M1")["machine_name"] != "Client B stale"
     b.refresh()
     assert b.cache.get("machines", "WRITE-M1")["machine_name"] == "Client A"
+    before_history_ids = {item["event_id"] for item in b.cache.get_eoat_history("WRITE-EOAT")}
+    current_eoat = a.cache.get("eoats", "WRITE-EOAT")
+    a.update_eoat("WRITE-EOAT", {"display_name": "Client A History"}, current_eoat["row_version"])
+    b.refresh()
+    refreshed_history = b.cache.get_eoat_history("WRITE-EOAT")
+    assert {item["event_id"] for item in refreshed_history} > before_history_ids
+    assert refreshed_history[0]["event_type"] == "EOAT_UPDATED"
+    rebuilt_history_ids = [item["event_id"] for item in refreshed_history]
     b.cache.path.unlink()
     b.deep_refresh()
     assert b.cache.get("machines", "WRITE-M1")["machine_name"] == "Client A"
+    assert [item["event_id"] for item in b.cache.get_eoat_history("WRITE-EOAT")] == rebuilt_history_ids
 
 
 def test_gateway_blocks_offline_writes_without_queueing(tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "offline.db",
-        expected_schema_revision="20260714_0003",
+        expected_schema_revision="20260714_0004",
         writes_enabled=True,
         environment="development",
     )
@@ -526,7 +641,7 @@ def test_server_success_survives_local_cache_refresh_failure(api, tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "fail-cache.db",
-        expected_schema_revision="20260714_0003",
+        expected_schema_revision="20260714_0004",
         writes_enabled=True,
         environment="development",
     )

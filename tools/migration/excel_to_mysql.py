@@ -38,7 +38,7 @@ class MigrationReport:
     started_at: str
     completed_at: str = ""
     dry_run: bool = True
-    schema_revision: str = "20260714_0003"
+    schema_revision: str = "20260714_0004"
     workbook_schema_version: str = ""
     source_rows: dict[str, int] = field(default_factory=dict)
     staged_counts: dict[str, int] = field(default_factory=dict)

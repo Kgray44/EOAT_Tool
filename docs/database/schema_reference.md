@@ -1,6 +1,6 @@
 # EOAT Atlas MySQL Schema Reference
 
-Alembic authority: revision `20260714_0003` (`cutover_session_traceability`) over `20260713_0002`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. There are 48 application tables plus `alembic_version`. The cutover session table provides a durable source-checksum, release-version, authority-window, and rollback audit anchor.
+Alembic authority: revision `20260714_0004` (`structured_eoat_history`) over `20260714_0003`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. There are 48 application tables plus `alembic_version`. Verified totals are 180 foreign keys, 249 indexes, 50 unique constraints, and 21 check constraints.
 
 ## Implemented tables
 
@@ -32,6 +32,7 @@ Alembic authority: revision `20260714_0003` (`cutover_session_traceability`) ove
 - `audit_records.details_json` preserves current workbook fields that do not yet have an approved normalized Phase A destination. It is not a replacement for future audit template/response tables.
 - `change_feed` uses unsigned auto-increment `change_id` as the server-issued synchronization cursor.
 - `change_audit_log` and history/import tables are intended to be append-only under application policy.
+- `entity_history_events.event_uuid` is the stable public identity. `event_category`, `request_id`, structured description/reason/notes, before/after JSON, metadata JSON, category/timeline/request indexes, and a unique UUID constraint support the MySQL-backed History subpage.
 
 ## Deferred by scope
 

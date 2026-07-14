@@ -99,8 +99,12 @@ class AtlasApiClient:
     def get_eoat(self, identifier: str) -> dict[str, Any]:
         return self._request("GET", f"/api/v1/eoats/{quote(identifier, safe='')}")
 
-    def get_eoat_history(self, identifier: str) -> list[dict[str, Any]]:
-        return self._request("GET", f"/api/v1/eoats/{identifier}/history")
+    def get_eoat_history(self, identifier: str, **params: Any) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            f"/api/v1/eoats/{quote(identifier, safe='')}/history",
+            params=params,
+        )
 
     def get_eoat_documents(self, identifier: str) -> list[dict[str, Any]]:
         return self._request("GET", f"/api/v1/eoats/{identifier}/documents")

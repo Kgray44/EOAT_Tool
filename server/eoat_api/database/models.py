@@ -610,8 +610,13 @@ class AuditRecord(VersionMixin, Base):
 
 class EntityHistoryEvent(Base):
     __tablename__ = "entity_history_events"
-    __table_args__ = (Index("ix_entity_history_timeline", "entity_type", "entity_id", "occurred_at"),)
+    __table_args__ = (
+        Index("ix_entity_history_timeline", "entity_type", "entity_id", "occurred_at"),
+        Index("ix_entity_history_category", "entity_type", "entity_id", "event_category", "occurred_at"),
+        Index("ix_entity_history_request", "request_id"),
+    )
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    event_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_id: Mapped[int] = mapped_column(PK, nullable=False)
     event_type_id: Mapped[int] = mapped_column(
@@ -622,8 +627,16 @@ class EntityHistoryEvent(Base):
     application_instance_id: Mapped[int | None] = mapped_column(
         PK, ForeignKey("application_instances.id", ondelete="SET NULL")
     )
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    event_category: Mapped[str] = mapped_column(String(64), nullable=False)
     summary: Mapped[str] = mapped_column(String(512), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
     details: Mapped[str | None] = mapped_column(Text)
+    reason: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    previous_values_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    new_values_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     related_entity_type: Mapped[str | None] = mapped_column(String(64))
     related_entity_id: Mapped[int | None] = mapped_column(PK)
     source_table: Mapped[str | None] = mapped_column(String(64))
