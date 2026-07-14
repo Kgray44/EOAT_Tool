@@ -44,6 +44,8 @@ python -m app.atlas.main
 
 The equivalent convenience launcher is `python run_atlas.py`.
 
+For installed Windows deployments, start Atlas through the EOAT Atlas Launcher. The launcher checks the app install path, version metadata, optional shared resources, duplicate launches, and writes diagnostics under the user's local app data folder. Details are in `docs/EOAT_ATLAS_LAUNCHER.md`.
+
 Use EOAT Command Center for audit/admin/editing/schema repair/photo intake/report generation. Use EOAT Atlas when you want to answer “What EOAT do I need?” quickly from the existing project data. Details are in `docs/EOAT_ATLAS.md`; Information Library entry maintenance is covered in `docs/INFORMATION_LIBRARY.md`.
 
 ## Demo Data

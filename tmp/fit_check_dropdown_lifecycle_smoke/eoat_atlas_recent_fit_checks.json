@@ -1,0 +1,36 @@
+{
+  "eoat_atlas_recent_fit_checks": [
+    {
+      "id": "5116950010|71|P4-EOAT-0002|manual",
+      "timestamp": "2026-07-06T18:24:38.920781",
+      "selectedItems": [
+        {
+          "id": "5116950010",
+          "type": "tool",
+          "label": "5116950010",
+          "subtitle": "WASHER, 29MM"
+        },
+        {
+          "id": "71",
+          "type": "machine",
+          "label": "Machine 71",
+          "subtitle": "Wittmann W701"
+        },
+        {
+          "id": "P4-EOAT-0002",
+          "type": "eoat",
+          "label": "P4-EOAT-0002",
+          "subtitle": "Mechanical / Gripper"
+        }
+      ],
+      "selectedToolId": "5116950010",
+      "selectedMachineId": "71",
+      "selectedEOATId": "P4-EOAT-0002",
+      "eoatMode": "manual",
+      "resultStatus": "compatible",
+      "confidence": "medium",
+      "summaryText": "This setup is compatible and ready to run.",
+      "headline": "5116950010 -> P4-EOAT-0002 -> Machine 71"
+    }
+  ]
+}

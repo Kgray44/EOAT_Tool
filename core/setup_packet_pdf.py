@@ -34,6 +34,7 @@ from .audit_constants import (
     EXTERNAL_AIR_CONTROL_NOTE,
     MIXED_AIR_CONTROL_BADGE,
 )
+from .reporting.pdf_footer import draw_standard_pdf_footer, pdf_page_size
 
 LOGGER = logging.getLogger(__name__)
 
@@ -100,11 +101,11 @@ def export_setup_packet_pdf(
 
 
 def setup_packet_filename(context: SetupPacketContext, *, timestamp: str | None = None) -> str:
-    stamp = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = timestamp or datetime.now().strftime("%Y%m%d_%H%M")
     return (
-        f"Setup_Packet_Machine_{_safe_component(context.machine_id)}"
-        f"_Tool_{_safe_component(context.tool_id)}"
-        f"_EOAT_{_safe_component(context.eoat_id)}_{stamp}.pdf"
+        f"EOAT_Setup_Packet__Tool_{_safe_component(context.tool_id)}"
+        f"__Machine_{_safe_component(context.machine_id)}"
+        f"__EOAT_{_safe_component(context.eoat_id)}__{stamp}.pdf"
     )
 
 
@@ -112,15 +113,29 @@ def _build_story(context: SetupPacketContext) -> list:
     styles = _styles()
     story: list = []
     _cover_page(story, styles, context)
-    packet_type = context.options.packet_type
+    options = context.options.normalized()
+    packet_type = options.packet_type
     if packet_type == PACKET_TYPE_SETUP_VERIFICATION:
-        _compatibility_summary(story, styles, context)
-        _ids_summary(story, styles, context)
-        _robot_information(story, styles, context)
-        _eoat_information(story, styles, context, key_only=True)
-        _checklist_section(story, styles, "Setup Verification Checklist", build_verification_checklist())
-        _warnings_section(story, styles, context)
-        _source_summary(story, styles, context)
+        if options.include_compatibility_result:
+            _compatibility_summary(story, styles, context, include_related=options.include_alternatives or options.include_related_records)
+        if options.include_setup_summary:
+            _ids_summary(story, styles, context)
+        if options.include_requirements_check:
+            _requirements_check_section(story, styles, context)
+        if options.include_detailed_record_information:
+            _machine_information(story, styles, context, compact=True)
+            _tool_information(story, styles, context)
+            _eoat_information(story, styles, context)
+        else:
+            _eoat_information(story, styles, context, key_only=True)
+        if options.include_setup_checklist:
+            _checklist_section(story, styles, "Setup Verification Checklist", build_verification_checklist())
+        if options.include_warnings:
+            _warnings_section(story, styles, context)
+        if options.include_eoat_photo:
+            _photos_section(story, styles, context)
+        if options.include_extra_notes:
+            _source_summary(story, styles, context)
     elif packet_type == PACKET_TYPE_MAINTENANCE_PM:
         _eoat_information(story, styles, context)
         _machine_information(story, styles, context, compact=True)
@@ -180,7 +195,7 @@ def _cover_page(story: list, styles: dict[str, ParagraphStyle], context: SetupPa
         ("Tool / Mold / Part", context.tool_id),
         ("EOAT ID", context.eoat_id),
         ("Part name / description", _part_description(context)),
-        ("Compatibility status", context.validation.status),
+        ("Fit Check status", context.validation.status),
         ("Manual override", "Yes" if context.validation.manual_override_used else "No"),
         ("Generated", context.generated_at),
         ("Documentation score", f"{context.documentation_score}%"),
@@ -196,14 +211,20 @@ def _cover_page(story: list, styles: dict[str, ParagraphStyle], context: SetupPa
     story.append(PageBreak())
 
 
-def _compatibility_summary(story: list, styles: dict[str, ParagraphStyle], context: SetupPacketContext) -> None:
-    _section_title(story, styles, "Compatibility Summary")
+def _compatibility_summary(
+    story: list,
+    styles: dict[str, ParagraphStyle],
+    context: SetupPacketContext,
+    *,
+    include_related: bool = True,
+) -> None:
+    _section_title(story, styles, "Fit Check Summary")
     story.append(
         _kv_table(
             [
                 ("Relationship", f"Machine {context.machine_id} -> Tool {context.tool_id} -> EOAT {context.eoat_id}"),
-                ("Compatibility status", context.validation.status),
-                ("Compatibility source", _join(context.validation.sources) or "Not confirmed by available indexes"),
+                ("Fit Check status", context.validation.status),
+                ("Fit Check source", _join(context.validation.sources) or "Not confirmed by available indexes"),
                 ("Manual override used", "Yes" if context.validation.manual_override_used else "No"),
             ],
             styles,
@@ -215,21 +236,22 @@ def _compatibility_summary(story: list, styles: dict[str, ParagraphStyle], conte
     if context.validation.status in {COMPATIBILITY_MANUAL_OVERRIDE, COMPATIBILITY_NOT_CONFIRMED}:
         story.append(Spacer(1, 0.12 * inch))
         story.append(_warning_box(_compatibility_warning_text(context), styles))
-    story.append(Spacer(1, 0.12 * inch))
-    story.append(
-        _kv_table(
-            [
-                ("Compatible machines for selected tool", _join(compatible_machines_for_tool(_bundle_proxy(context), context.tool_id))),
-                ("Compatible machines for selected EOAT", _join(compatible_machines_for_eoat(_bundle_proxy(context), context.eoat_id))),
-                ("Compatible EOATs for selected machine", _join(compatible_eoats_for_machine(_bundle_proxy(context), context.machine_id))),
-                ("Compatible EOATs for selected tool", _join(compatible_eoats_for_tool(_bundle_proxy(context), context.tool_id))),
-                ("Compatible tools for selected machine", _join(compatible_tools_for_machine(_bundle_proxy(context), context.machine_id))),
-                ("Compatible tools for selected EOAT", _join(compatible_tools_for_eoat(_bundle_proxy(context), context.eoat_id))),
-                ("Missing / uncertain notes", _join(context.validation.missing_data) or "No missing compatibility notes found."),
-            ],
-            styles,
+    if include_related:
+        story.append(Spacer(1, 0.12 * inch))
+        story.append(
+            _kv_table(
+                [
+                    ("Compatible machines for selected tool", _join(compatible_machines_for_tool(_bundle_proxy(context), context.tool_id))),
+                    ("Compatible machines for selected EOAT", _join(compatible_machines_for_eoat(_bundle_proxy(context), context.eoat_id))),
+                    ("Compatible EOATs for selected machine", _join(compatible_eoats_for_machine(_bundle_proxy(context), context.machine_id))),
+                    ("Compatible EOATs for selected tool", _join(compatible_eoats_for_tool(_bundle_proxy(context), context.tool_id))),
+                    ("Compatible tools for selected machine", _join(compatible_tools_for_machine(_bundle_proxy(context), context.machine_id))),
+                    ("Compatible tools for selected EOAT", _join(compatible_tools_for_eoat(_bundle_proxy(context), context.eoat_id))),
+                    ("Missing / uncertain notes", _join(context.validation.missing_data) or "No missing compatibility notes found."),
+                ],
+                styles,
+            )
         )
-    )
     story.append(PageBreak())
 
 
@@ -242,7 +264,7 @@ def _ids_summary(story: list, styles: dict[str, ParagraphStyle], context: SetupP
                 ("Tool / Mold / Part", context.tool_id),
                 ("EOAT", context.eoat_id),
                 ("Part description", _part_description(context)),
-                ("Compatibility status", context.validation.status),
+                ("Fit Check status", context.validation.status),
                 ("Documentation score", f"{context.documentation_score}%"),
                 ("Warnings", str(context.warning_count)),
             ],
@@ -250,6 +272,28 @@ def _ids_summary(story: list, styles: dict[str, ParagraphStyle], context: SetupP
         )
     )
     story.append(Spacer(1, 0.16 * inch))
+
+
+def _requirements_check_section(story: list, styles: dict[str, ParagraphStyle], context: SetupPacketContext) -> None:
+    _section_title(story, styles, "Requirements Check")
+    check_lookup = {check.relationship: check for check in context.validation.checks}
+    machine_tool = check_lookup.get("Machine -> Tool")
+    tool_eoat = check_lookup.get("Tool -> EOAT")
+    machine_eoat = check_lookup.get("Machine -> EOAT")
+    eoat = context.eoat
+    tool = context.tool
+    robot = context.robot_info
+    rows = [
+        ("Machine Fit Check", _check_status_text(machine_tool)),
+        ("EOAT Fit Check", _check_status_text(machine_eoat or tool_eoat)),
+        ("Robot Type", _first(robot.get("Robot Type"), getattr(context.machine, "robot_type", ""), "Verify manually")),
+        ("Air Architecture", _first(row_first(eoat, "Air Circuit Architecture") if eoat else "", "Verify manually")),
+        ("Pneumatic Quick Disconnect", _first(_quick_disconnect_text(eoat), "Verify manually")),
+        ("Part Count", _first(row_first(eoat, "Part Count") if eoat else "", row_first(tool, "Part Count") if tool else "", str(len(getattr(tool, "parts", ()) or ())) if tool else "", "Verify manually")),
+        ("Sensor Requirements", _first(row_first(eoat, "Sensor Type") if eoat else "", row_first(eoat, "Part-Present Detection Present?") if eoat else "", "Verify manually")),
+    ]
+    story.append(_kv_table(rows, styles))
+    story.append(Spacer(1, 0.18 * inch))
 
 
 def _machine_information(story: list, styles: dict[str, ParagraphStyle], context: SetupPacketContext, *, compact: bool = False) -> None:
@@ -606,19 +650,20 @@ def _bullet_list(items, styles: dict[str, ParagraphStyle]):
 def _page_decorator(context: SetupPacketContext):
     def _draw(canvas, doc):
         canvas.saveState()
-        width, height = letter
+        width, height = pdf_page_size(canvas, doc)
         header = f"EOAT Atlas Setup Packet | Machine {context.machine_id} | Tool {context.tool_id} | EOAT {context.eoat_id}"
-        footer = f"Generated {context.generated_at} | {context.validation.status} | Page {doc.page}"
         canvas.setStrokeColor(colors.HexColor("#d7dee8"))
         canvas.setFillColor(colors.HexColor("#102033"))
         canvas.setFont("Helvetica-Bold", 8.5)
         canvas.drawString(0.62 * inch, height - 0.45 * inch, header[:118])
         canvas.line(0.62 * inch, height - 0.55 * inch, width - 0.62 * inch, height - 0.55 * inch)
-        canvas.setFillColor(colors.HexColor("#627d98"))
-        canvas.setFont("Helvetica", 8)
-        canvas.line(0.62 * inch, 0.48 * inch, width - 0.62 * inch, 0.48 * inch)
-        canvas.drawString(0.62 * inch, 0.31 * inch, footer[:128])
         canvas.restoreState()
+        draw_standard_pdf_footer(
+            canvas,
+            doc,
+            left_text=f"Generated {context.generated_at} | {context.validation.status}",
+            right_text=f"Page {doc.page}",
+        )
 
     return _draw
 
@@ -712,7 +757,7 @@ def _styles() -> dict[str, ParagraphStyle]:
 
 
 def _unique_packet_path(output_dir: Path, context: SetupPacketContext) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
     path = output_dir / setup_packet_filename(context, timestamp=stamp)
     if not path.exists():
         return path
@@ -762,6 +807,13 @@ def _machine_name(machine) -> str:
     return _first(machine.label, machine.robot_type, machine.robot_model)
 
 
+def _check_status_text(check) -> str:
+    if check is None:
+        return "Verify manually"
+    note = check.source or _join(check.notes)
+    return f"{check.status} - {note}" if note else check.status
+
+
 def _warning_titles(warnings) -> str:
     return "; ".join(f"{warning.title}: {warning.message}" for warning in warnings) if warnings else ""
 
@@ -800,7 +852,7 @@ def _compatibility_warning_text(context: SetupPacketContext) -> str:
             "packet only if the setup has been verified through another approved source."
         )
     return (
-        "Compatibility Not Confirmed. Atlas does not find full compatibility for the selected Machine + Tool + EOAT "
+        "Fit Check Not Confirmed. Atlas does not find full compatibility for the selected Machine + Tool + EOAT "
         "combination in the loaded source data."
     )
 

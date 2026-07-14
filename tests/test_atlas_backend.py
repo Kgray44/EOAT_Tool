@@ -15,14 +15,18 @@ from core.atlas_exports import (
     validate_eoat_qr_payload,
 )
 from core.atlas_models import DocumentationStatus, EOATRecord
-from core.atlas_record_details import build_record_detail_data
+from core.atlas_record_details import RecordDetailData, RecordField, RecordPhoto, RecordPhotoGroup, RecordSection, build_record_detail_data
 from core.atlas_recommendations import recommend_for_query
 from core.atlas_search import search_atlas
 from core.atlas_utils import row_value
 from core.compatibility_engine import compatibility_matrix_rows, machine_to_eoats, tool_to_eoats
 from core.documentation_score import calculate_documentation_status
 from core.paths import resolve_project_paths
+from core.reporting.pdf_footer import LEGAL_FOOTER_TEXT
+from core.reporting.pdf_image_utils import PdfImageResult, prepare_image_for_pdf
 from core.reporting.pdf_record_report import export_record_pdf
+from core.reporting.record_report_options import ReportOptions
+from tests.fixtures.fake_images import create_fake_images
 from tests.fixtures.fake_project import create_fake_eoat_project
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 
@@ -117,6 +121,219 @@ def test_record_pdf_includes_press_capacity_appendix_fields(tmp_path: Path) -> N
     assert "Press Capacity Rows" in text
     assert "Demo Customer A" in text
     assert "Cycle Time (S)" in text
+
+
+def test_record_pdf_legal_footer_for_eoat_tool_and_machine_reports(tmp_path: Path) -> None:
+    from pypdf import PdfReader
+
+    for record_type, record_id in (("eoat", "P4-EOAT-0002"), ("tool", "6200360010"), ("machine", "36")):
+        detail_data = _simple_record_detail(record_type, record_id)
+        pdf_path = export_record_pdf(
+            detail_data,
+            tmp_path / f"{record_type}_{record_id}.pdf",
+            project_root=tmp_path,
+            options=ReportOptions(include_photos=False),
+        )
+        text = "\n".join(page.extract_text() or "" for page in PdfReader(str(pdf_path)).pages)
+
+        assert LEGAL_FOOTER_TEXT in text
+        assert f"EOAT Atlas - {record_id}" in text
+        assert "Page 1" in text
+
+
+def test_record_pdf_legal_footer_appears_on_every_page(tmp_path: Path) -> None:
+    from pypdf import PdfReader
+
+    sections = tuple(
+        RecordSection(
+            f"Long Section {index + 1}",
+            tuple(RecordField(f"Field {index + 1}.{field + 1}", "Reference information " * 5) for field in range(4)),
+        )
+        for index in range(36)
+    )
+    detail_data = _simple_record_detail("eoat", "P4-EOAT-MULTI", report_sections=sections)
+    pdf_path = export_record_pdf(
+        detail_data,
+        tmp_path / "EOAT_Report_Multipage_Footer.pdf",
+        project_root=tmp_path,
+        options=ReportOptions(include_photos=False),
+    )
+    pages = PdfReader(str(pdf_path)).pages
+
+    assert len(pages) > 1
+    assert all(LEGAL_FOOTER_TEXT in (page.extract_text() or "") for page in pages)
+
+
+def test_record_pdf_resolves_photo_candidates_and_lists_missing_images(tmp_path: Path) -> None:
+    from pypdf import PdfReader
+
+    image_path = create_fake_images(tmp_path / "photos")[1]
+    missing_path = tmp_path / "photos" / "missing_front.jpg"
+    detail_data = RecordDetailData(
+        record_type="eoat",
+        record_id="P4-EOAT-0005",
+        title="P4-EOAT-0005",
+        subtitle="Vacuum EOAT",
+        condition="In Service",
+        plant_area="Plant 4",
+        hero_fields=(RecordField("Type", "Vacuum"),),
+        detail_sections=(),
+        documentation_fields=(),
+        photo_groups=(
+            RecordPhotoGroup(
+                "Overall / Front View",
+                (
+                    RecordPhoto(
+                        path=str(tmp_path / "photos" / "stale_front.png"),
+                        filename=image_path.name,
+                        category="Front View",
+                        photo_id="front",
+                        path_candidates=(str(tmp_path / "photos" / "stale_front.png"), str(image_path)),
+                    ),
+                    RecordPhoto(
+                        path=str(missing_path),
+                        filename=missing_path.name,
+                        category="Side View",
+                        photo_id="missing",
+                        path_candidates=(str(missing_path),),
+                    ),
+                ),
+            ),
+        ),
+        history_fields=(),
+        summary_fields=(),
+        report_sections=(),
+    )
+
+    pdf_path = export_record_pdf(
+        detail_data,
+        tmp_path / "EOAT_Report_Image_Handling.pdf",
+        project_root=tmp_path,
+        options=ReportOptions(include_photo_appendix=True, include_missing_photo_status=True),
+    )
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(pdf_path)).pages)
+
+    assert pdf_path.exists()
+    assert "Front View" in text
+    assert "Missing photo status" in text
+    assert "missing_front.jpg" in text
+
+
+def test_record_pdf_skips_invalid_heic_without_crashing(tmp_path: Path) -> None:
+    from pypdf import PdfReader
+
+    heic_path = tmp_path / "photos" / "P4-EOAT-0002_2026-06-10_Front_View_001.HEIC"
+    heic_path.parent.mkdir(parents=True, exist_ok=True)
+    heic_path.write_bytes(b"not a heic image")
+    detail_data = _photo_report_detail(
+        tmp_path,
+        (
+            RecordPhoto(
+                path=str(heic_path),
+                filename=heic_path.name,
+                category="Front View",
+                photo_id="heic-front",
+                path_candidates=(str(heic_path),),
+            ),
+        ),
+    )
+
+    pdf_path = export_record_pdf(
+        detail_data,
+        tmp_path / "EOAT_Report_Invalid_HEIC.pdf",
+        project_root=tmp_path,
+        options=ReportOptions(include_photo_appendix=True, include_missing_photo_status=True),
+    )
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(pdf_path)).pages)
+
+    assert pdf_path.exists()
+    assert "Image unavailable" in text
+    assert "Photos skipped or unavailable" in text
+    assert heic_path.name in text
+
+
+def test_record_pdf_contact_sheet_keeps_valid_image_when_one_photo_is_bad(tmp_path: Path) -> None:
+    from pypdf import PdfReader
+
+    valid_path = create_fake_images(tmp_path / "photos")[0]
+    bad_path = tmp_path / "photos" / "bad_side.HEIC"
+    bad_path.write_bytes(b"bad image data")
+    detail_data = _photo_report_detail(
+        tmp_path,
+        (
+            RecordPhoto(path=str(valid_path), filename=valid_path.name, category="Front View", photo_id="front", path_candidates=(str(valid_path),)),
+            RecordPhoto(path=str(bad_path), filename=bad_path.name, category="Side View", photo_id="bad", path_candidates=(str(bad_path),)),
+        ),
+    )
+
+    pdf_path = export_record_pdf(
+        detail_data,
+        tmp_path / "EOAT_Report_Mixed_Photos.pdf",
+        project_root=tmp_path,
+        options=ReportOptions(include_photo_appendix=True, include_missing_photo_status=True),
+    )
+    text = "\n".join(page.extract_text() or "" for page in PdfReader(str(pdf_path)).pages)
+
+    assert pdf_path.exists()
+    assert "Front View" in text
+    assert "Side View" in text
+    assert "Image unavailable" in text
+    assert "Photos skipped or unavailable" in text
+
+
+def test_pdf_image_conversion_cache_reuses_prepared_image(tmp_path: Path) -> None:
+    from PIL import Image
+
+    image_path = tmp_path / "photos" / "valid.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (80, 60), (24, 141, 255)).save(image_path)
+
+    first = prepare_image_for_pdf(image_path, tmp_path, max_size=(320, 240))
+    second = prepare_image_for_pdf(image_path, tmp_path, max_size=(320, 240))
+
+    assert first.ok
+    assert second.ok
+    assert first.pdf_safe_path == second.pdf_safe_path
+    assert second.cache_hit
+    assert Path(second.pdf_safe_path or "").exists()
+
+
+def test_reportlab_image_receives_converted_path_not_raw_heic(tmp_path: Path, monkeypatch) -> None:
+    from core.reporting import pdf_record_report
+
+    raw_heic = tmp_path / "photos" / "front.HEIC"
+    safe_jpg = tmp_path / "00_Project_Admin" / "cache" / "pdf_images" / "front.jpg"
+    raw_heic.parent.mkdir(parents=True, exist_ok=True)
+    safe_jpg.parent.mkdir(parents=True, exist_ok=True)
+    raw_heic.write_bytes(b"fake heic payload")
+    safe_jpg.write_bytes(b"fake prepared jpeg")
+    captured_paths: list[str] = []
+    detail_data = _photo_report_detail(
+        tmp_path,
+        (
+            RecordPhoto(path=str(raw_heic), filename=raw_heic.name, category="Front View", photo_id="front", path_candidates=(str(raw_heic),)),
+        ),
+    )
+
+    def fake_prepare(path, project_root, max_size=(1200, 900), prefer_format="JPEG"):
+        return PdfImageResult(ok=True, pdf_safe_path=str(safe_jpg), original_path=str(path), converted=True)
+
+    def fake_image(path, *_args, **_kwargs):
+        captured_paths.append(str(path))
+        return pdf_record_report.Paragraph("prepared image", pdf_record_report._styles()["body"])
+
+    monkeypatch.setattr(pdf_record_report, "prepare_image_for_pdf", fake_prepare)
+    monkeypatch.setattr(pdf_record_report, "Image", fake_image)
+
+    export_record_pdf(
+        detail_data,
+        tmp_path / "EOAT_Report_No_Raw_HEIC.pdf",
+        project_root=tmp_path,
+        options=ReportOptions(include_photo_appendix=True),
+    )
+
+    assert str(safe_jpg) in captured_paths
+    assert str(raw_heic) not in captured_paths
 
 
 def test_atlas_indexes_photo_folder_by_eoat_id(tmp_path: Path) -> None:
@@ -266,7 +483,7 @@ def test_install_packet_exports_timestamped_markdown(tmp_path: Path) -> None:
     assert "Install_Packets" in str(path)
     assert path.name.startswith("Atlas_Install_Packet_")
     assert eoat.eoat_id in text
-    assert "## Compatibility" in text
+    assert "## Fit Check" in text
 
 
 def test_documentation_score_flags_missing_critical_fields() -> None:
@@ -275,6 +492,42 @@ def test_documentation_score_flags_missing_critical_fields() -> None:
     assert status.score < 75
     assert "EOAT Assembly ID" in status.critical_missing_fields
     assert status.status_label in {"Critical gaps", "Missing important info"}
+
+
+def _photo_report_detail(tmp_path: Path, photos: tuple[RecordPhoto, ...]) -> RecordDetailData:
+    return RecordDetailData(
+        record_type="eoat",
+        record_id="P4-EOAT-0002",
+        title="P4-EOAT-0002",
+        subtitle="Vacuum EOAT",
+        condition="In Service",
+        plant_area="Plant 4",
+        hero_fields=(RecordField("Type", "Vacuum"),),
+        detail_sections=(),
+        documentation_fields=(),
+        photo_groups=(RecordPhotoGroup("Overall / Front View", photos),),
+        history_fields=(),
+        summary_fields=(),
+        report_sections=(),
+    )
+
+
+def _simple_record_detail(record_type: str, record_id: str, *, report_sections: tuple[RecordSection, ...] = ()) -> RecordDetailData:
+    return RecordDetailData(
+        record_type=record_type,
+        record_id=record_id,
+        title=record_id,
+        subtitle=f"{record_type.title()} report",
+        condition="In Service",
+        plant_area="Plant 4",
+        hero_fields=(RecordField("Record Type", record_type), RecordField("Record ID", record_id)),
+        detail_sections=(),
+        documentation_fields=(RecordField("Documentation Status", "Indexed"),),
+        photo_groups=(),
+        history_fields=(),
+        summary_fields=(),
+        report_sections=report_sections,
+    )
 
 
 def _set_first_inventory_eoat_id(workbook_path: Path, eoat_id: str) -> None:

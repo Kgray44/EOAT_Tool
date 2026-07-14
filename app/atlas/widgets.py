@@ -284,7 +284,7 @@ class ProfileHeaderCard(HeroPanel):
 
 
 class CompatibilityCard(PrimaryCard):
-    def __init__(self, title: str = "Compatibility", subtitle: str = "", *, parent=None):
+    def __init__(self, title: str = "Fit Check", subtitle: str = "", *, parent=None):
         super().__init__(title, subtitle, eyebrow="Flow", parent=parent)
         self.setObjectName("CompatibilityCard")
 
@@ -328,7 +328,7 @@ class MachineProfileCard(SecondaryCard):
 
 class ToolCompatibilityCard(CompatibilityCard):
     def __init__(self, title: str = "", subtitle: str = "", *, parent=None):
-        super().__init__(title or "Tool Compatibility", subtitle, parent=parent)
+        super().__init__(title or "Tool Fit Check", subtitle, parent=parent)
 
 
 class ModernSearchBar(QLineEdit):

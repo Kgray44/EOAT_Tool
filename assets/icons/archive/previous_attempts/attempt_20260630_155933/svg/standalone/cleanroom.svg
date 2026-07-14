@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="cleanroom-title cleanroom-desc">
+  <title id="cleanroom-title">Cleanroom</title>
+  <desc id="cleanroom-desc">Simple room/window outline with a small sterility sparkle.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="14" width="40" height="36" rx="3" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="12" y1="26" x2="52" y2="26" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="32" y1="26" x2="32" y2="50" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <polyline points="38,19.2 40.2,21.4 44.6,17" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

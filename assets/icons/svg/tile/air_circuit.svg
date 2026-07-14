@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="air_circuit-title air_circuit-desc">
+  <title id="air_circuit-title">Air Circuit</title>
+  <desc id="air_circuit-desc">Chunky routed tubing with connector endpoints and one airflow arrow.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(2.6 2.6) scale(0.92)" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="13" y1="47" x2="13" y2="29" stroke="#00A6C8" stroke-width="8" />
+    <line x1="13" y1="29" x2="26" y2="29" stroke="#00A6C8" stroke-width="8" />
+    <line x1="26" y1="29" x2="26" y2="41" stroke="#00A6C8" stroke-width="8" />
+    <line x1="26" y1="41" x2="44" y2="41" stroke="#00A6C8" stroke-width="8" />
+    <line x1="44" y1="41" x2="44" y2="21" stroke="#00A6C8" stroke-width="8" />
+    <circle cx="13" cy="47" r="5" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <circle cx="44" cy="21" r="5" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <polygon points="28,37.36 36.12,37.36 36.12,34 42,40 36.12,46 36.12,42.64 28,42.64" fill="#A6CE39" stroke="none" stroke-width="0" />
+  </g>
+</svg>

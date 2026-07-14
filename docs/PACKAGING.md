@@ -127,4 +127,22 @@ A one-file executable can be tested later by changing the PyInstaller build to `
 
 ## Future Installer
 
-An installer such as Inno Setup can wrap the onedir output later and add Start Menu and desktop shortcuts.
+An installer such as Inno Setup can wrap the onedir output later and add Start Menu entries if desired.
+
+## EOAT Atlas Launcher
+
+EOAT Atlas now has a separate lightweight launcher package. Build it with:
+
+```powershell
+.\build_tools\build_atlas_launcher.ps1
+```
+
+The launcher executable is created at:
+
+```text
+dist/EOAT Atlas Launcher.exe
+```
+
+The launcher reads per-user config from `%APPDATA%\EOAT Atlas Launcher\launcher_config.json`, writes logs under `%LOCALAPPDATA%\EOAT Atlas\Logs\`, and starts the installed `EOAT Atlas.exe` after checking install path, optional resource paths, version metadata, and duplicate-launch guards.
+
+Installer integration details are in `docs/EOAT_ATLAS_LAUNCHER.md`.

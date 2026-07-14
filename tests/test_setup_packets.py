@@ -37,6 +37,7 @@ from core.atlas_setup_packets import (
 )
 from core.config import UserConfig
 from core.paths import resolve_project_paths
+from core.reporting.pdf_footer import LEGAL_FOOTER_TEXT
 from core.setup_packet_pdf import export_setup_packet_pdf, setup_packet_filename
 from tests.fixtures.fake_project import create_fake_eoat_project
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
@@ -106,7 +107,7 @@ def test_output_filename_is_timestamped_and_safe(tmp_path: Path) -> None:
 
     name = setup_packet_filename(context, timestamp="20260618_143022")
 
-    assert name == "Setup_Packet_Machine_101_Tool_TOOL-A_EOAT_AUD-20260518-001_20260618_143022.pdf"
+    assert name == "EOAT_Setup_Packet__Tool_TOOL-A__Machine_101__EOAT_AUD-20260518-001__20260618_143022.pdf"
 
 
 def test_pdf_export_creates_file(tmp_path: Path) -> None:
@@ -163,6 +164,26 @@ def test_pdf_export_packet_types_and_all_photos_get_pages(tmp_path: Path) -> Non
     assert len(reader.pages) >= len(all_photo_context.selected_photos) + 8
 
 
+def test_setup_packet_pdf_legal_footer_appears_on_every_page(tmp_path: Path) -> None:
+    pytest.importorskip("reportlab")
+    from pypdf import PdfReader
+
+    bundle = _bundle(tmp_path)
+    context = build_setup_packet_context(
+        bundle,
+        "101",
+        "TOOL-A",
+        "AUD-20260518-001",
+        SetupPacketOptions(packet_type=PACKET_TYPE_STANDARD, photo_inclusion=PHOTO_NONE),
+    )
+
+    result = export_setup_packet_pdf(context, tmp_path / "exports")
+    pages = PdfReader(str(result.path)).pages
+
+    assert len(pages) > 1
+    assert all(LEGAL_FOOTER_TEXT in (page.extract_text() or "") for page in pages)
+
+
 def test_photo_inclusion_modes_select_expected_photos(tmp_path: Path) -> None:
     bundle = _bundle_with_photos(tmp_path)
     eoat = bundle.eoats[0]
@@ -179,7 +200,7 @@ def test_packet_type_options_are_available() -> None:
         PACKET_TYPE_MAINTENANCE_PM,
         PACKET_TYPE_DOCUMENTATION_REVIEW,
     )
-    assert "Compatibility Summary" in packet_section_names(SetupPacketOptions(packet_type=PACKET_TYPE_STANDARD))
+    assert "Fit Check Summary" in packet_section_names(SetupPacketOptions(packet_type=PACKET_TYPE_STANDARD))
     assert "Maintenance / PM Checklist" in packet_section_names(SetupPacketOptions(packet_type=PACKET_TYPE_MAINTENANCE_PM))
     assert "Documentation Score And Missing Fields" in packet_section_names(
         SetupPacketOptions(packet_type=PACKET_TYPE_DOCUMENTATION_REVIEW)
@@ -255,7 +276,7 @@ def test_setup_packet_page_removes_order_dependency_and_renumbers_steps(qapp, tm
     assert "Opened from" not in text
     assert "1. Start anywhere" in text
     assert "Start anywhere. Choose a Machine, Tool/Mold/Part, or EOAT." in text
-    assert "2. Compatibility Review" in text
+    assert "2. Fit Check Review" in text
     assert "3. Packet Options" in text
     assert "4. Generate / View PDF" in text
     assert "Reset Selection" in text
@@ -395,7 +416,7 @@ def test_generated_packet_becomes_latest_and_writes_sidecar(qapp, tmp_path: Path
 
 
 def test_packet_library_parses_sidecar_and_filename_metadata(tmp_path: Path) -> None:
-    pdf = tmp_path / "Setup_Packet_Machine_101_Tool_TOOL-A_EOAT_AUD-20260518-001_20260618_143022.pdf"
+    pdf = tmp_path / "EOAT_Setup_Packet__Tool_TOOL-A__Machine_101__EOAT_AUD-20260518-001__20260618_143022.pdf"
     pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
     pdf.with_suffix(".json").write_text(
         '{"machine":"999","tool":"SIDE","eoat":"EOAT-SIDE","packet_type":"Documentation Review Packet",'
@@ -418,8 +439,8 @@ def test_previous_packets_list_uses_cards_and_skips_latest(qapp, tmp_path: Path)
     page.set_bundle(bundle)
     folder = Path(bundle.project_root) / "06_Final_Handoff" / "Atlas_Exports" / "Setup_Packets"
     folder.mkdir(parents=True, exist_ok=True)
-    latest = folder / "Setup_Packet_Machine_101_Tool_TOOL-A_EOAT_AUD-20260518-001_20260618_143022.pdf"
-    previous = folder / "Setup_Packet_Machine_102_Tool_TOOL-B_EOAT_AUD-20260518-002_20260618_133022.pdf"
+    latest = folder / "EOAT_Setup_Packet__Tool_A__Machine_101__EOAT_E1__20260618_1430.pdf"
+    previous = folder / "EOAT_Setup_Packet__Tool_B__Machine_102__EOAT_E2__20260618_1330.pdf"
     latest.write_bytes(b"%PDF-1.4\n%%EOF\n")
     previous.write_bytes(b"%PDF-1.4\n%%EOF\n")
     page._set_latest_packet(latest)
@@ -429,13 +450,13 @@ def test_previous_packets_list_uses_cards_and_skips_latest(qapp, tmp_path: Path)
     assert page.packet_list.count() == 1
     row = page.packet_list.itemWidget(page.packet_list.item(0))
     assert row is not None
-    assert "Machine 102 | Tool TOOL-B | EOAT AUD-20260518-002" in _widget_text(row)
-    assert "TOOL-B" in _widget_text(row)
+    assert "Machine 102 | Tool B | EOAT E2" in _widget_text(row)
+    assert "Tool B" in _widget_text(row)
     assert "TOOL-A" not in _list_text(page.packet_list)
 
 
 def test_view_in_app_action_uses_modal_for_previous_packets(qapp, tmp_path: Path, monkeypatch) -> None:
-    pdf = tmp_path / "Setup_Packet_Machine_101_Tool_TOOL-A_EOAT_AUD-20260518-001_20260618_143022.pdf"
+    pdf = tmp_path / "EOAT_Setup_Packet__Tool_TOOL-A__Machine_101__EOAT_AUD-20260518-001__20260618_143022.pdf"
     pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
     page = SetupPacketPage(_PacketControllerStub())
     opened = []
@@ -460,7 +481,7 @@ def test_view_in_app_action_uses_modal_for_previous_packets(qapp, tmp_path: Path
 
 
 def test_pdf_viewer_dialog_prioritizes_pdf_with_metadata_sidebar(qapp, tmp_path: Path) -> None:
-    pdf = tmp_path / "Setup_Packet_Machine_101_Tool_TOOL-A_EOAT_AUD-20260518-001_20260618_143022.pdf"
+    pdf = tmp_path / "EOAT_Setup_Packet__Tool_TOOL-A__Machine_101__EOAT_AUD-20260518-001__20260618_143022.pdf"
     pdf.write_bytes(b"%PDF-1.4\n%%EOF\n")
 
     dialog = atlas_pages._SetupPacketPdfViewerDialog(pdf)

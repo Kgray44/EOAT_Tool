@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -38,7 +39,7 @@ from .audit_compatibility import (
     part_number_from_row,
 )
 from .documentation_score import calculate_documentation_status
-from .eoat_ids import normalize_eoat_assembly_id
+from .eoat_ids import is_valid_eoat_assembly_id, normalize_eoat_assembly_id
 from .paths import get_press_capacity_file, resolve_project_paths
 from .performance import log_perf_marker, perf_timer
 from .photo_index import build_photo_index
@@ -68,6 +69,7 @@ def load_atlas_data(
     *,
     force_refresh: bool = False,
     exclude_unaudited_tools: bool = True,
+    source_paths: dict[str, str] | None = None,
 ) -> AtlasDataBundle:
     root = Path(project_root)
     with perf_timer(
@@ -77,8 +79,8 @@ def load_atlas_data(
         source="atlas_data_loader",
         page_tool="atlas_backend",
     ):
-        signature = _cache_signature(root)
-    cache_key = _cache_key(root, exclude_unaudited_tools=exclude_unaudited_tools)
+        signature = _cache_signature(root, source_paths=source_paths)
+    cache_key = _cache_key(root, exclude_unaudited_tools=exclude_unaudited_tools, source_paths=source_paths)
     if not force_refresh:
         with perf_timer(
             root,
@@ -118,7 +120,7 @@ def load_atlas_data(
         source="atlas_data_loader",
         page_tool="atlas_backend",
     ):
-        bundle = _load_atlas_data_uncached(root, exclude_unaudited_tools=exclude_unaudited_tools)
+        bundle = _load_atlas_data_uncached(root, exclude_unaudited_tools=exclude_unaudited_tools, source_paths=source_paths)
     with _CACHE_LOCK:
         _CACHE[cache_key] = (signature, bundle)
     return bundle
@@ -135,10 +137,15 @@ def invalidate_atlas_data_cache(project_root: str | Path | None = None) -> None:
                 _CACHE.pop(cache_key, None)
 
 
-def _load_atlas_data_uncached(project_root: Path, *, exclude_unaudited_tools: bool) -> AtlasDataBundle:
+def _load_atlas_data_uncached(
+    project_root: Path,
+    *,
+    exclude_unaudited_tools: bool,
+    source_paths: dict[str, str] | None = None,
+) -> AtlasDataBundle:
     diagnostics = AtlasDiagnostics()
-    paths = resolve_project_paths(project_root)
-    source_statuses = _source_statuses(project_root)
+    paths = _source_path_overrides(project_root, source_paths)
+    source_statuses = _source_statuses(project_root, source_paths=source_paths)
     warnings: list[WarningItem] = []
     excluded_unaudited_tool_count = 0
 
@@ -150,9 +157,9 @@ def _load_atlas_data_uncached(project_root: Path, *, exclude_unaudited_tools: bo
             source="atlas_data_loader",
             page_tool="atlas_backend",
         ):
-            inventory_rows, inventory_warnings = _safe_rows(paths.master_workbook, "EOAT Inventory", "EOAT Master Tracker")
-            photo_rows, photo_warnings = _safe_rows(paths.master_workbook, "Photo Index", "EOAT Photo Index")
-            robot_rows, robot_warnings = _safe_rows(paths.robot_info_workbook, "Robot Info", "Robot Info", optional=True)
+            inventory_rows, inventory_warnings = _safe_rows(paths["eoat_master_tracker"], "EOAT Inventory", "EOAT Master Tracker")
+            photo_rows, photo_warnings = _safe_rows(paths["eoat_master_tracker"], "Photo Index", "EOAT Photo Index")
+            robot_rows, robot_warnings = _safe_rows(paths["robot_workbook"], "Robot Info", "Robot Info", optional=True)
     warnings.extend(inventory_warnings)
     warnings.extend(photo_warnings)
     warnings.extend(robot_warnings)
@@ -165,7 +172,7 @@ def _load_atlas_data_uncached(project_root: Path, *, exclude_unaudited_tools: bo
             source="atlas_data_loader",
             page_tool="atlas_backend",
         ):
-            press_relationships, press_warnings = load_required_relationships(get_press_capacity_file(project_root))
+            press_relationships, press_warnings = load_required_relationships(paths["press_capacity_workbook"])
             if exclude_unaudited_tools:
                 audited_tool_keys = _audited_tool_keys(inventory_rows)
                 before_count = len(press_relationships)
@@ -185,7 +192,7 @@ def _load_atlas_data_uncached(project_root: Path, *, exclude_unaudited_tools: bo
             source="atlas_data_loader",
             page_tool="atlas_backend",
         ):
-            standards, standards_warnings = build_standards_index(project_root)
+            standards, standards_warnings = build_standards_index(project_root, standards_root=paths["reference_docs_folder"])
     warnings.extend(_warning("info", "Standards", warning, source="Standards") for warning in standards_warnings)
 
     with timed_step(diagnostics, "photo_index"):
@@ -196,7 +203,12 @@ def _load_atlas_data_uncached(project_root: Path, *, exclude_unaudited_tools: bo
             source="atlas_data_loader",
             page_tool="atlas_backend",
         ):
-            photo_sets, photos_by_tool, photo_warnings = build_photo_index(project_root, inventory_rows, photo_rows)
+            photo_sets, photos_by_tool, photo_warnings = build_photo_index(
+                project_root,
+                inventory_rows,
+                photo_rows,
+                photos_root=paths["photos_root"],
+            )
     warnings.extend(_warning("warning", "Photos", warning, source="Photos") for warning in photo_warnings)
 
     robot_by_machine = _robot_rows_by_machine(robot_rows)
@@ -255,8 +267,13 @@ def _cache_key_root(root: Path) -> str:
     return str(root.resolve(strict=False)).casefold()
 
 
-def _cache_key(root: Path, *, exclude_unaudited_tools: bool) -> str:
-    return f"{_cache_key_root(root)}::exclude_unaudited_tools={int(bool(exclude_unaudited_tools))}"
+def _cache_key(root: Path, *, exclude_unaudited_tools: bool, source_paths: dict[str, str] | None = None) -> str:
+    override_key = "|".join(
+        f"{key}={Path(value).expanduser().resolve(strict=False)}"
+        for key, value in sorted((source_paths or {}).items())
+        if str(value or "").strip()
+    )
+    return f"{_cache_key_root(root)}::exclude_unaudited_tools={int(bool(exclude_unaudited_tools))}::sources={override_key}"
 
 
 def _audited_tool_keys(inventory_rows: list[dict[str, Any]]) -> set[str]:
@@ -533,15 +550,31 @@ def _build_indexes(eoats, machines, tools, photos_by_tool, robot_by_machine) -> 
     )
 
 
-def _source_statuses(project_root: Path) -> list[AtlasSourceStatus]:
+def _source_path_overrides(project_root: Path, source_paths: dict[str, str] | None = None) -> dict[str, Path]:
     paths = resolve_project_paths(project_root)
-    press = get_press_capacity_file(project_root)
+    resolved = {
+        "eoat_master_tracker": paths.master_workbook,
+        "press_capacity_workbook": get_press_capacity_file(project_root),
+        "robot_workbook": paths.robot_info_workbook,
+        "photos_root": paths.cell_photos,
+        "output_folder": paths.final_handoff / "Atlas_Exports",
+        "reference_docs_folder": paths.standards,
+    }
+    for key, value in (source_paths or {}).items():
+        text = str(value or "").strip()
+        if key in resolved and text:
+            resolved[key] = Path(text).expanduser()
+    return resolved
+
+
+def _source_statuses(project_root: Path, *, source_paths: dict[str, str] | None = None) -> list[AtlasSourceStatus]:
+    paths = _source_path_overrides(project_root, source_paths)
     sources = [
-        ("EOAT Master Tracker", paths.master_workbook, "Required for Atlas inventory/search data."),
-        ("Press Capacity", press, "Optional, but needed for capacity-derived tool/machine compatibility."),
-        ("Robot Info", paths.robot_info_workbook, "Optional robot-side circuit details."),
-        ("EOAT Photos", paths.cell_photos, "Optional visual/photo profile support."),
-        ("Standards", paths.standards, "Optional standards/documentation navigation."),
+        ("EOAT Master Tracker", paths["eoat_master_tracker"], "Required for Atlas inventory/search data."),
+        ("Press Capacity", paths["press_capacity_workbook"], "Optional, but needed for capacity-derived tool/machine compatibility."),
+        ("Robot Info", paths["robot_workbook"], "Optional robot-side circuit details."),
+        ("EOAT Photos", paths["photos_root"], "Optional visual/photo profile support."),
+        ("Standards", paths["reference_docs_folder"], "Optional standards/documentation navigation."),
     ]
     statuses = []
     for label, path, hint in sources:
@@ -576,17 +609,18 @@ def _safe_rows(path: Path, sheet_name: str, label: str, *, optional: bool = Fals
         return [], [_warning(severity, f"{label} could not be read", str(exc), source=label)]
 
 
-def _cache_signature(project_root: Path) -> tuple[tuple[str, bool, int, int], ...]:
-    paths = resolve_project_paths(project_root)
+def _cache_signature(project_root: Path, *, source_paths: dict[str, str] | None = None) -> tuple[tuple[str, bool, int, int], ...]:
+    paths = _source_path_overrides(project_root, source_paths)
+    project_paths = resolve_project_paths(project_root)
     candidates = [
-        paths.master_workbook,
-        get_press_capacity_file(project_root),
-        paths.robot_info_workbook,
-        paths.cell_photos,
-        paths.standards,
+        paths["eoat_master_tracker"],
+        paths["press_capacity_workbook"],
+        paths["robot_workbook"],
+        paths["photos_root"],
+        paths["reference_docs_folder"],
     ]
     candidates.extend(_root_standardization_candidates(project_root))
-    candidates.extend(_standards_document_candidates(project_root, paths))
+    candidates.extend(_standards_document_candidates(project_root, project_paths, standards_root=paths["reference_docs_folder"]))
     signature = []
     seen: set[str] = set()
     for path in candidates:
@@ -599,9 +633,9 @@ def _cache_signature(project_root: Path) -> tuple[tuple[str, bool, int, int], ..
     return tuple(signature)
 
 
-def _standards_document_candidates(project_root: Path, paths) -> list[Path]:
+def _standards_document_candidates(project_root: Path, paths, *, standards_root: Path | None = None) -> list[Path]:
     folders = [
-        paths.standards,
+        standards_root or paths.standards,
         paths.work_instructions,
         project_root / "Project_Help_Documents",
         project_root / "output" / "documents",
@@ -756,7 +790,7 @@ def _warnings_for_eoat(primary, eoat_id, tools, machines, photo_set, documentati
             )
         )
     known_issues = first_present(primary, "Known Issues", "Drop/Mis-Pick History")
-    if known_issues and known_issues.casefold() not in {"none", "no", "no issues observed"}:
+    if _has_real_known_issue(known_issues):
         warnings.append(
             _warning(
                 "info",
@@ -767,6 +801,28 @@ def _warnings_for_eoat(primary, eoat_id, tools, machines, photo_set, documentati
             )
         )
     return warnings
+
+
+def _has_real_known_issue(value: str) -> bool:
+    text = display_value(value).casefold()
+    normalized = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    return bool(
+        normalized
+        and normalized
+        not in {
+            "no",
+            "none",
+            "n a",
+            "na",
+            "unknown",
+            "not checked",
+            "unknown not checked",
+            "unchecked",
+            "not indexed",
+            "not available",
+            "no issues observed",
+        }
+    )
 
 
 def _warnings_for_machine(machine, rows, robot, eoat_ids):
@@ -929,7 +985,7 @@ def _eoat_id_for_current_row(row: dict[str, Any]) -> str:
         if eoat_id:
             return eoat_id
     audit_id = normalize_eoat_assembly_id(row.get("Audit ID"))
-    return audit_id if audit_id.startswith("P4-EOAT-") else ""
+    return audit_id if is_valid_eoat_assembly_id(audit_id) else ""
 
 
 def _current_context_text(row: dict[str, Any]) -> str:

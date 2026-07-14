@@ -43,6 +43,7 @@ REPAIR_SAFETY_BY_FIX_ID = {
     "repair_legacy_headers": REPAIR_SAFETY_CONFIRMATION,
     "assign_missing_eoat_ids": REPAIR_SAFETY_CONFIRMATION,
     "repair_photo_eoat_links": REPAIR_SAFETY_CONFIRMATION,
+    "repair_eoat_id_prefixes": REPAIR_SAFETY_CONFIRMATION,
 }
 
 REPAIR_TITLE_BY_FIX_ID = {
@@ -55,6 +56,7 @@ REPAIR_TITLE_BY_FIX_ID = {
     "repair_legacy_headers": "Repair Workbook Schema",
     "assign_missing_eoat_ids": "Assign Missing EOAT IDs",
     "repair_photo_eoat_links": "Repair Photo EOAT Links",
+    "repair_eoat_id_prefixes": "Repair EOAT ID Prefixes",
 }
 
 

@@ -663,7 +663,7 @@ class AuditPage(QWidget):
         tabs.addTab(self._build_audit_tab(), "Audit Entry")
         self._record_startup_timing("build_audit_tab", audit_tab_started)
         compatibility_tab_started = time.perf_counter()
-        tabs.addTab(self._build_compatibility_tab(), "Compatibility Entry")
+        tabs.addTab(self._build_compatibility_tab(), "Fit Check Entry")
         self._record_startup_timing("build_compatibility_tab", compatibility_tab_started)
         interview_tab_started = time.perf_counter()
         tabs.addTab(self._build_interview_tab(), "Interview Notes")
@@ -1026,19 +1026,19 @@ class AuditPage(QWidget):
             "Robot-side fields save to Robot_Info.xlsx when meaningful changes exist.",
         )
         compatibility_text = "Unknown until checked."
-        compatibility_reason = "Linked compatibility impact has not been checked for this preview."
+        compatibility_reason = "Linked Fit Check impact has not been checked for this preview."
         if include_io_preview:
             compatibility_preview = self._safe_compatibility_preview(entry)
             if compatibility_preview is not None:
                 compatibility_text = f"{compatibility_preview.compatible_row_count} linked row(s)"
                 compatibility_reason = (
-                    "Linked compatibility rows may be updated."
+                    "Linked Fit Check rows may be updated."
                     if compatibility_preview.has_impact
-                    else "No linked compatibility row update is expected from the current saved source."
+                    else "No linked Fit Check row update is expected from the current saved source."
                 )
         self._append_guided_row(
             table,
-            "Compatibility impact",
+            "Fit Check impact",
             compatibility_text,
             ", ".join(preview.compatibility_impact_fields[:8]),
             compatibility_reason,
@@ -2210,7 +2210,7 @@ class AuditPage(QWidget):
                 self._populate_compatibility_source_options(list(payload.get("source_options") or []))
         else:
             self._set_audit_selector_loading("Audit list failed to load.")
-            self._set_compatibility_sources_loading("Compatibility sources failed to load.")
+            self._set_compatibility_sources_loading("Fit Check sources failed to load.")
             if hasattr(self, "compatibility_note_label"):
                 self.compatibility_note_label.setText(task_result.error or task_result.message)
         self._log_startup_event(
@@ -2404,7 +2404,10 @@ class AuditPage(QWidget):
         widget = self.audit_fields.get(EOAT_ASSEMBLY_ID_FIELD) if hasattr(self, "audit_fields") else None
         if widget is None:
             return ""
-        new_id = generate_next_eoat_assembly_id(self._existing_eoat_assembly_ids())
+        new_id = generate_next_eoat_assembly_id(
+            self._existing_eoat_assembly_ids(),
+            self._current_audit_form_values(),
+        )
         self._set_field_value(widget, new_id)
         self._update_eoat_context_summary()
         return new_id
@@ -3577,17 +3580,17 @@ class AuditPage(QWidget):
         if len(preview.fields_likely_to_propagate) > 12:
             fields += ", ..."
         box = QMessageBox(self)
-        box.setWindowTitle("Compatibility Impact Preview")
-        box.setText("Saving this physical audit will update linked compatibility rows.")
+        box.setWindowTitle("Fit Check Impact Preview")
+        box.setText("Saving this physical audit will update linked Fit Check rows.")
         box.setInformativeText(
             f"Source audit ID: {preview.source_audit_id}\n"
             f"Linked compatible rows: {preview.compatible_row_count}\n"
-            f"Compatibility auto-run: {'Yes' if preview.will_run_autorun else 'No'}\n"
+            f"Fit Check auto-run: {'Yes' if preview.will_run_autorun else 'No'}\n"
             f"Press view refresh: {'Yes' if preview.will_refresh_press_view else 'No'}\n"
             f"Fields likely to propagate: {fields or '(none)'}\n\n"
-            "This app currently saves source audit changes and updates linked compatibility rows together."
+            "This app currently saves source audit changes and updates linked Fit Check rows together."
         )
-        save_button = box.addButton("Save and Update Compatibility", QMessageBox.ButtonRole.AcceptRole)
+        save_button = box.addButton("Save and Update Fit Check", QMessageBox.ButtonRole.AcceptRole)
         cancel_button = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         box.exec()
         return box.clickedButton() == save_button and box.clickedButton() != cancel_button
@@ -3602,13 +3605,13 @@ class AuditPage(QWidget):
         box.setText("This audit has already been completed. Saving will update the existing audit record.")
         box.setInformativeText(
             f"Audit ID: {audit_id}\n\n"
-            "The audit row saves first. Linked compatibility rows can be queued for review/update afterward."
+            "The audit row saves first. Linked Fit Check rows can be queued for review/update afterward."
         )
-        checkbox = QCheckBox("Queue linked compatibility update after save")
+        checkbox = QCheckBox("Queue linked Fit Check update after save")
         checkbox.setChecked(bool(allow_compatibility_update))
         checkbox.setEnabled(bool(allow_compatibility_update))
         if not allow_compatibility_update:
-            checkbox.setText("Compatibility update skipped for uninstalled EOAT audit")
+            checkbox.setText("Fit Check update skipped for uninstalled EOAT audit")
         box.setCheckBox(checkbox)
         save_button = box.addButton("Save Update", QMessageBox.ButtonRole.AcceptRole)
         cancel_button = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
@@ -3879,11 +3882,11 @@ class AuditPage(QWidget):
             )
             if result.success:
                 if completed_update_context.get("update_compatibility"):
-                    result.details.append("Compatibility update for completed audit was requested.")
+                    result.details.append("Fit Check update for completed audit was requested.")
                 else:
-                    result.details.append("Compatibility update skipped by user choice.")
-                    if "Compatibility update skipped by user choice." not in result.summary:
-                        result.summary = result.summary.rstrip() + "\n\nCompatibility update skipped by user choice."
+                    result.details.append("Fit Check update skipped by user choice.")
+                    if "Fit Check update skipped by user choice." not in result.summary:
+                        result.summary = result.summary.rstrip() + "\n\nFit Check update skipped by user choice."
         if result.success and saved_audit_id:
             if "Audit ID" in self.audit_fields:
                 self._set_field_value(self.audit_fields["Audit ID"], saved_audit_id)
@@ -4034,7 +4037,7 @@ class AuditPage(QWidget):
     def _run_off_machine_compatibility_prompt(self, audit_id: str, entry: dict[str, str]) -> None:
         preview = build_off_machine_compatibility_preview(self.config.project_root, audit_id, entry)
         if preview.errors:
-            message = "Compatibility lookup could not be completed. The off-machine audit was saved normally."
+            message = "Fit Check lookup could not be completed. The off-machine audit was saved normally."
             self.result_panel.show_text(message + "\n\n" + "\n".join(preview.errors))
             return
         if not preview.matches:
@@ -4056,7 +4059,7 @@ class AuditPage(QWidget):
         run_tool_background(
             self.result_panel,
             "off_machine_compatibility",
-            "Off-Machine Compatibility",
+            "Off-Machine Fit Check",
             lambda: apply_off_machine_compatibility_choice(self.config.project_root, audit_id, choice),
             on_tool_result=lambda compatibility_result: self._after_off_machine_compatibility(
                 compatibility_result, audit_id
@@ -4093,8 +4096,8 @@ class AuditPage(QWidget):
         if preview.warnings:
             detailed_text += "\n\nWarnings:\n" + "\n".join(preview.warnings)
         box.setDetailedText(detailed_text)
-        update_button = box.addButton("Update + Add Compatibility Rows", QMessageBox.ButtonRole.AcceptRole)
-        add_only_button = box.addButton("Add Compatibility Rows Only", QMessageBox.ButtonRole.ActionRole)
+        update_button = box.addButton("Update + Add Fit Check Rows", QMessageBox.ButtonRole.AcceptRole)
+        add_only_button = box.addButton("Add Fit Check Rows Only", QMessageBox.ButtonRole.ActionRole)
         leave_button = box.addButton("Leave As Off-Machine Audit", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(update_button)
         box.exec()
@@ -4141,7 +4144,7 @@ class AuditPage(QWidget):
                 source="audit",
             )
         except Exception as exc:
-            result.warnings.append(f"Compatibility event listeners did not complete: {exc}")
+            result.warnings.append(f"Fit Check event listeners did not complete: {exc}")
         if result.metrics.get("current_row_updated") and not self.has_unsaved_changes():
             self.load_existing_audit(
                 audit_id,
@@ -4218,14 +4221,14 @@ class AuditPage(QWidget):
         run_tool_background(
             self.result_panel,
             "linked_compatibility_update",
-            "Update Linked Compatibility Rows",
+            "Update Linked Fit Check Rows",
             lambda: self._run_deferred_compatibility_update(audit_id),
             on_tool_result=lambda compatibility_result: self._after_deferred_compatibility(
                 compatibility_result, audit_id
             ),
             modifies_files=True,
             workbook_lock=True,
-            progress_text="Audit row saved. Updating linked compatibility rows in the background...",
+            progress_text="Audit row saved. Updating linked Fit Check rows in the background...",
         )
 
     def _run_deferred_robot_info_update(self, entry: dict[str, str]):
@@ -4275,17 +4278,17 @@ class AuditPage(QWidget):
             warning_count=len(sync_result.warning_messages),
         )
         summary = (
-            f"Updated {sync_result.updated_count} linked compatibility entrie(s)."
+            f"Updated {sync_result.updated_count} linked Fit Check entrie(s)."
             if sync_result.updated_count
-            else "No linked compatibility entries needed updates."
+            else "No linked Fit Check entries needed updates."
         )
         return ToolResult.ok(
             "linked_compatibility_update",
-            "Update Linked Compatibility Rows",
+            "Update Linked Fit Check Rows",
             summary,
             details=[
                 f"Source audit ID: {audit_id}",
-                f"Updated linked compatibility rows: {sync_result.updated_count}",
+                f"Updated linked Fit Check rows: {sync_result.updated_count}",
                 f"Skipped non-compatible linked rows: {sync_result.skipped_count}",
             ],
             warnings=sync_result.warning_messages,
@@ -4327,11 +4330,11 @@ class AuditPage(QWidget):
         self.compatibility_source_combo.blockSignals(False)
         if options:
             self.compatibility_note_label.setText(
-                f"{len(options)} audited source record(s) available for compatibility entry."
+                f"{len(options)} audited source record(s) available for Fit Check entry."
             )
         else:
             self.compatibility_note_label.setText(
-                "No audited source records found. Save a physical audit before creating compatibility entries."
+                "No audited source records found. Save a physical audit before creating Fit Check entries."
             )
 
     def refresh_compatible_machines(self) -> None:
@@ -4407,7 +4410,7 @@ class AuditPage(QWidget):
         run_tool_background(
             self.result_panel,
             "compatibility_create_entries",
-            "Create Compatibility Entries",
+            "Create Fit Check Entries",
             lambda: create_compatibility_entries(self.config.project_root, str(audit_id), machines),
             on_tool_result=lambda _result: (self.refresh_compatibility_sources(), self.refresh_compatible_machines()),
             modifies_files=True,

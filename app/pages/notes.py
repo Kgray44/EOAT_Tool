@@ -353,7 +353,7 @@ class NotesPage(QWidget):
             )
         mappings = [
             ("linked_eoat_tool", "project_item", "EOAT / Tool"),
-            ("linked_compatibility_entry", "compatibility_entry", "Compatibility Entry"),
+            ("linked_compatibility_entry", "compatibility_entry", "Fit Check Entry"),
             ("linked_workbook_warning", "workbook_warning", "Workbook Warning"),
             ("linked_pilot_candidate", "pilot_candidate", "Pilot Candidate"),
             ("related_report", "project_item", "Report"),

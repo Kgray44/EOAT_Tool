@@ -217,7 +217,7 @@ class SetupPacketDialog(QDialog):
         self.override_notice = WarningCard("Manual Override", severity="warn")
         self.override_notice.layout.addWidget(
             QLabel(
-                "Manual Override Used. The generated PDF will be marked Compatibility Not Confirmed."
+                "Manual Override Used. The generated PDF will be marked Fit Check Not Confirmed."
             )
         )
         self.override_notice.setVisible(False)
@@ -501,7 +501,7 @@ class SetupPacketDialog(QDialog):
         message = (
             "This combination is not confirmed by Atlas compatibility data.\n\n"
             "Generate this packet only if you have verified the setup through another approved source. "
-            "The PDF will be marked Compatibility Not Confirmed."
+            "The PDF will be marked Fit Check Not Confirmed."
         )
         result = QMessageBox.warning(
             self,

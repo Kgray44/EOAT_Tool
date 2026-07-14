@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="machine-title machine-desc">
+  <title id="machine-title">Machine</title>
+  <desc id="machine-desc">Simplified injection molding machine silhouette with base, clamp area, and injection unit.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(2.6 2.6) scale(0.92)" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="38" width="54" height="13" rx="5" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="9" y="24" width="16" height="18" rx="4" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <rect x="29" y="20" width="10" height="22" rx="4" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="41" y="26" width="15" height="8" rx="4" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <polygon points="39,28 46,32 39,36" fill="#00A6C8" stroke="none" stroke-width="0" />
+    <rect x="9" y="53" width="48" height="5" rx="2.5" fill="#9AA6AD" stroke="none" stroke-width="0" />
+    <circle cx="16" cy="44" r="3" fill="#A6CE39" stroke="none" stroke-width="0" />
+    <circle cx="50" cy="44" r="3" fill="#A6CE39" stroke="none" stroke-width="0" />
+  </g>
+</svg>

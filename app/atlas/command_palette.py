@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -25,6 +26,22 @@ from core.atlas_exports import (
 from core.atlas_health import RelationshipHealth, machine_relationship_health
 from core.atlas_reports import generate_atlas_report
 from core.atlas_utils import normalized_eoat_key, normalized_machine_key, normalized_tool_key
+from core.logging import log_activity_event
+
+LOGGER = logging.getLogger(__name__)
+
+ITEM_ENTITY_SEARCH = "entity_search"
+ITEM_COMMAND = "command"
+ITEM_NAVIGATION = "navigation"
+ITEM_RECENT_SEARCH = "recent_search"
+ITEM_RECENT_ACTION = "recent_action"
+VALID_PALETTE_ITEM_TYPES = {
+    ITEM_ENTITY_SEARCH,
+    ITEM_COMMAND,
+    ITEM_NAVIGATION,
+    ITEM_RECENT_SEARCH,
+    ITEM_RECENT_ACTION,
+}
 
 
 @dataclass(frozen=True)
@@ -36,9 +53,33 @@ class AtlasCommand:
     handler: Callable[[], None]
     aliases: tuple[str, ...] = ()
     result_text: str = ""
+    item_type: str = ITEM_COMMAND
+    route: str = ""
+    action: str = ""
+    search_query: str = ""
+    entity_type: str = ""
+    entity_id: str = ""
+    route_target: dict[str, str] | None = None
 
     def searchable_text(self) -> str:
-        return " ".join((self.command_id, self.category, self.title, self.subtitle, self.result_text, *self.aliases)).casefold()
+        return " ".join(
+            (
+                self.command_id,
+                self.category,
+                self.title,
+                self.subtitle,
+                self.result_text,
+                self.route,
+                self.action,
+                self.search_query,
+                self.entity_type,
+                self.entity_id,
+                *self.aliases,
+            )
+        ).casefold()
+
+    def selection_type(self) -> str:
+        return self.item_type if self.item_type in VALID_PALETTE_ITEM_TYPES else ""
 
 
 class AtlasCommandPalette(QDialog):
@@ -124,13 +165,14 @@ class AtlasCommandPalette(QDialog):
         grouped: dict[str, list[AtlasCommand]] = {}
         for command in self.commands:
             grouped.setdefault(command.category, []).append(command)
-        for category in ["Navigation", "Lookup", "Actions", "Reports", "Questions", "Recent", "Pinned", "Settings"]:
+        for category in ["Pages", "Records", "Actions", "Reports", "Filters / Views", "Questions", "Recent", "Pinned", "Settings"]:
             rows = grouped.get(category, [])
             if not rows:
                 continue
             header = QListWidgetItem(category.upper())
             header.setFlags(Qt.ItemFlag.NoItemFlags)
             header.setData(Qt.ItemDataRole.UserRole, None)
+            header.setSizeHint(QSize(0, 28))
             self.results.addItem(header)
             for command in rows:
                 item = QListWidgetItem(command.title)
@@ -139,6 +181,7 @@ class AtlasCommandPalette(QDialog):
                 detail = command.result_text or command.subtitle
                 if detail:
                     item.setText(f"{command.title}\n{detail}")
+                item.setSizeHint(QSize(0, 56 if detail else 42))
                 self.results.addItem(item)
         self.results.blockSignals(False)
         self._select_first_command()
@@ -152,7 +195,21 @@ class AtlasCommandPalette(QDialog):
         command = item.data(Qt.ItemDataRole.UserRole)
         if not isinstance(command, AtlasCommand):
             return
-        command.handler()
+        _log_palette_selection(self.window, command, query=self.search.text().strip())
+        if not command.selection_type():
+            _show_status(self.window, f"Command Palette item type is not supported: {command.item_type or 'unknown'}.")
+            LOGGER.warning("Unknown command palette item type: id=%s type=%s", command.command_id, command.item_type)
+            return
+        try:
+            navigator = getattr(self.window, "navigate_to_profile", None)
+            if command.item_type in {ITEM_ENTITY_SEARCH, ITEM_RECENT_SEARCH} and command.entity_type and callable(navigator):
+                navigator(command, source="global-search", raw_query=self.search.text().strip() or command.search_query)
+            else:
+                command.handler()
+        except Exception as exc:
+            LOGGER.exception("Command Palette selection failed: id=%s type=%s", command.command_id, command.item_type)
+            _show_status(self.window, f"Command Palette action failed: {type(exc).__name__}: {exc}")
+            return
         self.accept()
 
     def _move_selection(self, delta: int) -> None:
@@ -174,48 +231,50 @@ class AtlasCommandPalette(QDialog):
                 return
 
 
-def resolve_atlas_commands(window, query: str = "", *, limit: int = 80) -> list[AtlasCommand]:
+def resolve_atlas_commands(window, query: str = "", *, limit: int = 80, include_entity_records: bool = True) -> list[AtlasCommand]:
     query = str(query or "").strip()
-    commands = [*build_atlas_commands(window), *_dynamic_query_commands(window, query)]
-    scored = [(score, command) for command in commands if (score := _command_score(command, query, window)) > 0]
+    commands = [*build_atlas_commands(window, include_entity_records=include_entity_records)]
+    if include_entity_records:
+        commands.extend(_dynamic_query_commands(window, query))
+    scored = [
+        (score, command)
+        for command in commands
+        if (score := _command_score(command, query, window, include_entity_records=include_entity_records)) > 0
+    ]
     scored.sort(key=lambda item: (-item[0], item[1].category, item[1].title.casefold()))
     return [command for _score, command in scored[:limit]]
 
 
-def build_atlas_commands(window) -> list[AtlasCommand]:
+def build_atlas_commands(window, *, include_entity_records: bool = True) -> list[AtlasCommand]:
     bundle = getattr(window, "bundle", None)
     commands: list[AtlasCommand] = []
     page_labels = {
-        "home": "Home / Command Deck",
-        "what": "What Do I Need?",
-        "setup_packet": "Changeover Packet Builder",
-        "eoats": "EOAT Profiles",
-        "machines": "Machine Profiles",
-        "tools": "Tool/Mold/Part",
-        "photos": "Photos",
-        "standards": "Standards & Work Instructions",
-        "overview": "Analytics Dashboard",
-        "reports": "Reports & Handoff",
-        "diagnostics": "Settings / Diagnostics",
-        "matrix": "Compatibility Data Table",
-        "pm": "PM / Inspection",
+        "home": "Home",
+        "fit_check": "Fit Check",
+        "library": "Library",
+        "settings": "Settings",
     }
     for key, label in page_labels.items():
+        command_id = "open_library" if key == "library" else f"nav.{key}"
+        title = "Library" if key == "library" else f"Open {label}"
         commands.append(
             AtlasCommand(
-                f"nav.{key}",
-                "Navigation",
-                f"Open {label}",
+                command_id,
+                "Pages",
+                title,
                 "Navigate to Atlas page.",
                 lambda key=key: window.show_page(key),
                 (key, label, label.replace("/", " ")),
+                item_type=ITEM_NAVIGATION,
+                route=key,
             )
         )
     commands.extend(_action_commands(window))
     commands.extend(_recent_and_pinned_commands(window))
-    if bundle is None:
+    if bundle is None or not include_entity_records:
         return commands
     commands.extend(_entity_commands(window, bundle))
+    commands.extend(_filter_view_commands(window, bundle))
     commands.extend(_question_commands(window, bundle))
     return commands
 
@@ -232,9 +291,11 @@ def _dynamic_query_commands(window, query: str) -> list[AtlasCommand]:
                 f"dynamic.build_packet.machine.{machine}",
                 "Actions",
                 f"Build packet for Machine {machine}",
-                "Open Changeover Packet Builder with machine prefilled.",
+                "Open setup packet flow with machine prefilled.",
                 lambda machine=machine: window.open_setup_packet(machine=machine, context_label="Command Palette"),
                 (query,),
+                item_type=ITEM_COMMAND,
+                action="build_packet",
             )
         )
     photo_match = re.search(r"photos?\s+([a-z0-9\-\s]+)$", folded)
@@ -244,12 +305,15 @@ def _dynamic_query_commands(window, query: str) -> list[AtlasCommand]:
         if eoat:
             commands.append(
                 AtlasCommand(
-                    f"dynamic.photos.{normalized_eoat_key(eoat.eoat_id)}",
-                    "Lookup",
+                    f"photos.{normalized_eoat_key(eoat.eoat_id)}",
+                    "Records",
                     f"Open photos for {eoat.eoat_id}",
                     f"{eoat.photo_count} linked photo(s)",
                     lambda eoat_id=eoat.eoat_id: window.open_photos(eoat_id),
                     (query,),
+                    item_type=ITEM_NAVIGATION,
+                    route="photos",
+                    search_query=eoat.eoat_id,
                 )
             )
     warning_match = re.search(r"why\s+warning\s+([a-z0-9\-\s]+)$", folded)
@@ -337,20 +401,49 @@ def _dynamic_query_commands(window, query: str) -> list[AtlasCommand]:
 
 
 def _action_commands(window) -> list[AtlasCommand]:
-    return [
-        AtlasCommand("action.refresh", "Actions", "Refresh data", "Refresh cached Atlas data in the background.", lambda: window.refresh_data(force=True), ("refresh", "reload")),
-        AtlasCommand("action.changeover_packet", "Actions", "Generate Changeover Packet", "Open the builder for a selected Machine + Tool/Mold/Part + EOAT packet.", window.generate_install_packet_current_context, ("build packet", "setup packet", "changeover")),
-        AtlasCommand("action.clear_selection", "Actions", "Clear current selection", "Clear the Changeover Packet Builder selection if it is open.", lambda: _clear_current_selection(window), ("reset selection",)),
+    commands = [
+        AtlasCommand(
+            "action.refresh",
+            "Actions",
+            "Refresh data",
+            "Refresh cached Atlas data in the background.",
+            lambda: window.refresh_data(force=True),
+            ("refresh", "reload"),
+            item_type=ITEM_COMMAND,
+            action="refresh",
+        ),
         AtlasCommand("action.copy_eoat_id", "Actions", "Copy EOAT ID", "Copy the current EOAT profile ID.", lambda: _copy_current_eoat(window), ("copy current eoat",)),
         AtlasCommand("action.export_profile", "Actions", "Export current profile summary", "Run the export action for the current EOAT, machine, or tool profile.", lambda: _export_current_profile(window), ("export summary",)),
         AtlasCommand("report.documentation_gaps", "Reports", "Generate Documentation Gap Report", "Export missing data and warning rows.", lambda: _run_export(window, export_documentation_gap_report), ("export documentation gaps", "documentation gaps")),
         AtlasCommand("report.photo_coverage", "Reports", "Generate Photo Coverage Report", "Export photo counts and missing categories.", lambda: _run_export(window, export_photo_coverage_report), ("missing photos", "photo coverage")),
-        AtlasCommand("report.compatibility_csv", "Reports", "Generate Compatibility CSV", "Export compatibility data table rows.", lambda: _run_export(window, export_compatibility_matrix), ("compatibility csv", "export compatibility")),
+        AtlasCommand("report.compatibility_csv", "Reports", "Generate Fit Check CSV", "Export Fit Check data table rows.", lambda: _run_export(window, export_compatibility_matrix), ("fit check csv", "fit check table", "export fit check")),
         AtlasCommand("report.pm_package", "Reports", "Generate PM Checklist Package", "Generate the PM checklist package report.", lambda: _run_catalog_report(window, "pm.package"), ("pm checklist",)),
         AtlasCommand("report.final_handoff", "Reports", "Build Final Handoff Package", "Generate a final handoff package index/report.", lambda: _run_catalog_report(window, "handoff.package"), ("final handoff",)),
-        AtlasCommand("settings.open", "Settings", "Open Settings", "Open Settings / Diagnostics.", lambda: window.show_page("diagnostics"), ("settings", "diagnostics")),
+        AtlasCommand(
+            "settings.open",
+            "Settings",
+            "Open Settings",
+            "Open app settings and basic diagnostics.",
+            lambda: window.show_page("settings"),
+            ("settings", "diagnostics"),
+            item_type=ITEM_NAVIGATION,
+            route="settings",
+        ),
         AtlasCommand("settings.dark_mode", "Settings", "Toggle Dark Mode", "Switch between light and dark theme.", window.toggle_dark_mode, ("theme", "dark")),
     ]
+    current_fit_setup = getattr(window, "current_fit_check_setup", lambda: None)()
+    if current_fit_setup is not None:
+        commands.append(
+            AtlasCommand(
+                "action.current_fit_packet",
+                "Actions",
+                "Create setup packet from current Fit Check",
+                "Use the current valid Fit Check setup.",
+                window.generate_install_packet_current_context,
+                ("create packet", "setup packet", "create setup packet", "packet from fit check", "current fit check packet", "fit to packet", "create setup packet from current fit check"),
+            )
+        )
+    return commands
 
 
 def _entity_commands(window, bundle) -> list[AtlasCommand]:
@@ -359,44 +452,48 @@ def _entity_commands(window, bundle) -> list[AtlasCommand]:
         commands.append(
             AtlasCommand(
                 f"eoat.{normalized_eoat_key(eoat.eoat_id)}",
-                "Lookup",
+                "Records",
                 f"Open EOAT {eoat.eoat_id}",
                 f"{eoat.eoat_type or 'EOAT'} | Tools: {', '.join(eoat.tools[:2]) or 'No tool'}",
                 lambda eoat_id=eoat.eoat_id: window.open_eoat(eoat_id),
                 (eoat.eoat_id, eoat.eoat_id.split("-")[-1], eoat.status, eoat.part_description, "why warning", "applicable standards"),
+                item_type=ITEM_ENTITY_SEARCH,
+                search_query=eoat.eoat_id,
+                entity_type="eoat",
+                entity_id=eoat.eoat_id,
+                route_target=_entity_route_target("eoat", eoat.eoat_id),
             )
         )
-        if eoat.photo_count:
-            commands.append(
-                AtlasCommand(
-                    f"photos.{normalized_eoat_key(eoat.eoat_id)}",
-                    "Lookup",
-                    f"Open photos for {eoat.eoat_id}",
-                    f"{eoat.photo_count} linked photo(s)",
-                    lambda eoat_id=eoat.eoat_id: window.open_photos(eoat_id),
-                    ("photos", eoat.eoat_id, eoat.eoat_id.split("-")[-1]),
-                )
-            )
     for machine in bundle.machines[:300]:
         commands.append(
             AtlasCommand(
                 f"machine.{normalized_machine_key(machine.machine)}",
-                "Lookup",
+                "Records",
                 f"Open Machine {machine.machine}",
                 machine.robot_type or machine.robot_model or "Robot info missing",
                 lambda machine_id=machine.machine: window.open_machine(machine_id),
                 (f"machine {machine.machine}", f"open machine {machine.machine}", *machine.compatible_eoats[:8], *machine.compatible_tools[:8]),
+                item_type=ITEM_ENTITY_SEARCH,
+                search_query=machine.machine,
+                entity_type="machine",
+                entity_id=machine.machine,
+                route_target=_entity_route_target("machine", machine.machine),
             )
         )
     for tool in bundle.tools[:350]:
         commands.append(
             AtlasCommand(
                 f"tool.{normalized_tool_key(tool.tool)}",
-                "Lookup",
+                "Records",
                 f"Open Tool {tool.tool}",
-                tool.part_description or tool.part_family or "Tool compatibility profile",
+                tool.part_description or tool.part_family or "Tool Fit Check profile",
                 lambda tool_id=tool.tool: window.open_tool(tool_id),
                 (f"tool {tool.tool}", f"mold {tool.tool}", *tool.compatible_eoats[:8], *tool.compatible_machines[:8]),
+                item_type=ITEM_ENTITY_SEARCH,
+                search_query=tool.tool,
+                entity_type="tool",
+                entity_id=tool.tool,
+                route_target=_entity_route_target("tool", tool.tool),
             )
         )
     return commands
@@ -416,6 +513,64 @@ def _question_commands(window, bundle) -> list[AtlasCommand]:
     ]
 
 
+def _filter_view_commands(window, bundle) -> list[AtlasCommand]:
+    missing_photos = sum(1 for eoat in bundle.eoats if eoat.photo_count <= 0)
+    machines_missing_current = sum(1 for machine in bundle.machines if not str(getattr(machine, "current_eoat", "") or "").strip())
+    tools_without_eoat = sum(1 for tool in bundle.tools if not getattr(tool, "compatible_eoats", ()))
+    return [
+        AtlasCommand(
+            "filter.cleanroom_eoats",
+            "Filters / Views",
+            "Show cleanroom EOATs",
+            "Open Library filtered to Cleanroom EOAT profiles.",
+            lambda: _open_library_filtered(window, record_type="eoat", location="Cleanroom"),
+            ("cleanroom eoats", "cl eoats", "cleanroom"),
+            item_type=ITEM_NAVIGATION,
+            route="library",
+        ),
+        AtlasCommand(
+            "filter.plant4_eoats",
+            "Filters / Views",
+            "Show Plant 4 EOATs",
+            "Open Library filtered to Plant 4 EOAT profiles.",
+            lambda: _open_library_filtered(window, record_type="eoat", location="Plant 4"),
+            ("plant 4 eoats", "p4 eoats", "plant4"),
+            item_type=ITEM_NAVIGATION,
+            route="library",
+        ),
+        AtlasCommand(
+            "filter.missing_photos",
+            "Filters / Views",
+            "Show EOATs missing photos",
+            f"{missing_photos} EOAT record(s) currently have no linked photo.",
+            lambda: _open_library_filtered(window, record_type="eoat", lenses={"Missing Photos"}),
+            ("eoats missing photos", "zero photos"),
+            item_type=ITEM_NAVIGATION,
+            route="library",
+        ),
+        AtlasCommand(
+            "filter.machines_missing_current_eoat",
+            "Filters / Views",
+            "Show machines missing current EOAT",
+            f"{machines_missing_current} machine record(s) may need current EOAT review.",
+            lambda: _open_library_filtered(window, record_type="machine"),
+            ("machines missing current eoat", "machines without current eoat"),
+            item_type=ITEM_NAVIGATION,
+            route="library",
+        ),
+        AtlasCommand(
+            "filter.tools_without_eoat",
+            "Filters / Views",
+            "Show tools without assigned EOAT",
+            f"{tools_without_eoat} tool record(s) have no validated EOAT link.",
+            lambda: _open_library_filtered(window, record_type="tool"),
+            ("tools without assigned eoat", "no validated eoat"),
+            item_type=ITEM_NAVIGATION,
+            route="library",
+        ),
+    ]
+
+
 def _question(window, command_id: str, title: str, values: list[str], aliases: tuple[str, ...]) -> AtlasCommand:
     result = ", ".join(values[:12]) + (f" (+{len(values) - 12} more)" if len(values) > 12 else "")
     result = result or "No matching records."
@@ -430,37 +585,85 @@ def _recent_and_pinned_commands(window) -> list[AtlasCommand]:
         ("Pinned Machine", settings.pinned_machines, window.open_machine),
         ("Pinned Tool", settings.pinned_tools, window.open_tool),
     ]:
+        entity_type = _label_entity_type(label)
         for key in keys:
-            commands.append(AtlasCommand(f"pinned.{label}.{key}", "Pinned", f"Open {label} {key}", "Pinned Atlas item.", lambda key=key, opener=opener: opener(key), (key,)))
+            commands.append(
+                AtlasCommand(
+                    f"pinned.{label}.{key}",
+                    "Pinned",
+                    f"Open {label} {key}",
+                    "Pinned Atlas item.",
+                    lambda key=key, opener=opener: opener(key),
+                    (key,),
+                    item_type=ITEM_ENTITY_SEARCH,
+                    search_query=key,
+                    entity_type=entity_type,
+                    entity_id=key,
+                    route_target=_entity_route_target(entity_type, key),
+                )
+            )
     for label, keys, opener in [
         ("Recent EOAT", settings.recent_eoats, window.open_eoat),
         ("Recent Machine", settings.recent_machines, window.open_machine),
         ("Recent Tool", settings.recent_tools, window.open_tool),
     ]:
+        entity_type = _label_entity_type(label)
         for key in keys:
-            commands.append(AtlasCommand(f"recent.{label}.{key}", "Recent", f"Open {label} {key}", "Recently viewed Atlas item.", lambda key=key, opener=opener: opener(key), (key,)))
+            commands.append(
+                AtlasCommand(
+                    f"recent.{label}.{key}",
+                    "Recent",
+                    f"Open {label} {key}",
+                    "Recently viewed Atlas item.",
+                    lambda key=key, opener=opener: opener(key),
+                    (key,),
+                    item_type=ITEM_RECENT_SEARCH,
+                    search_query=key,
+                    entity_type=entity_type,
+                    entity_id=key,
+                    route_target=_entity_route_target(entity_type, key),
+                )
+            )
     return commands
 
 
-def _command_score(command: AtlasCommand, query: str, window) -> int:
+def _label_entity_type(label: str) -> str:
+    folded = str(label or "").casefold()
+    if "eoat" in folded:
+        return "eoat"
+    if "machine" in folded:
+        return "machine"
+    if "tool" in folded:
+        return "tool"
+    return ""
+
+
+def _entity_route_target(entity_type: str, entity_id: str) -> dict[str, str]:
+    return {"page": "library", "entity_type": str(entity_type or ""), "entity_id": str(entity_id or "")}
+
+
+def _command_score(command: AtlasCommand, query: str, window, *, include_entity_records: bool = True) -> int:
     if not query:
         return 10
     text = command.searchable_text()
     folded = query.casefold().strip().rstrip("?")
-    machine_key = _machine_query_key(folded)
-    if machine_key and command.command_id == f"machine.{machine_key}":
-        return 1000
-    photo_key = _photo_query_key(folded, window)
-    if photo_key and command.command_id in {f"photos.{photo_key}", f"dynamic.photos.{photo_key}"}:
-        return 980
-    tool_key = _tool_query_key(folded)
-    if tool_key and command.command_id == f"tool.{tool_key}":
-        return 940
-    eoat_key = _eoat_query_key(folded, window)
-    if eoat_key and command.command_id == f"eoat.{eoat_key}":
-        return 960
+    if include_entity_records:
+        machine_key = _machine_query_key(folded)
+        if machine_key and command.command_id == f"machine.{machine_key}":
+            return 1000
+        photo_key = _photo_query_key(folded, window)
+        if photo_key and command.command_id in {f"photos.{photo_key}", f"dynamic.photos.{photo_key}"}:
+            return 980
+        tool_key = _tool_query_key(folded) or _exact_tool_query_key(folded, window)
+        if tool_key and command.command_id == f"tool.{tool_key}":
+            return 940
+        eoat_key = _eoat_query_key(folded, window)
+        if eoat_key and command.command_id == f"eoat.{eoat_key}":
+            return 960
     if folded == command.title.casefold():
         return 900
+    if folded in {str(alias or "").casefold() for alias in command.aliases}:
+        return 880
     if folded in text:
         return 650
     terms = [term for term in re.split(r"\s+", folded) if term]
@@ -476,6 +679,22 @@ def _machine_query_key(query: str) -> str:
 def _tool_query_key(query: str) -> str:
     match = re.fullmatch(r"(?:open\s+)?(?:tool|mold|part)\s*[-#:]*\s*(\S+)", query)
     return normalized_tool_key(match.group(1)) if match else ""
+
+
+def _exact_tool_query_key(query: str, window) -> str:
+    if not re.fullmatch(r"\S+", query):
+        return ""
+    query_key = normalized_tool_key(query)
+    if not query_key:
+        return ""
+    bundle = getattr(window, "bundle", None)
+    if bundle is None:
+        return ""
+    for tool in bundle.tools:
+        identifiers = (tool.tool, *getattr(tool, "molds", ()), *getattr(tool, "parts", ()))
+        if any(normalized_tool_key(value) == query_key for value in identifiers):
+            return query_key
+    return ""
 
 
 def _eoat_query_key(query: str, window) -> str:
@@ -558,11 +777,12 @@ def _run_catalog_report(window, report_id: str) -> None:
     window.show_status(f"Generated: {path}")
 
 
-def _clear_current_selection(window) -> None:
-    page = getattr(window, "pages", {}).get("setup_packet")
-    if hasattr(page, "reset_selection"):
-        page.reset_selection()
-        window.show_page("setup_packet")
+def _open_library_filtered(window, *, record_type: str = "all", location: str = "", lenses: set[str] | None = None) -> None:
+    window.show_page("library")
+    page = getattr(window, "library_page", None)
+    opener = getattr(page, "open_filtered_view", None)
+    if callable(opener):
+        opener(record_type=record_type, location=location, lenses=lenses or set())
 
 
 def _copy_current_eoat(window) -> None:
@@ -586,7 +806,33 @@ def _export_current_profile(window) -> None:
 
 
 def _show_result(window, text: str) -> None:
-    window.show_status(text)
+    _show_status(window, text)
+
+
+def _show_status(window, text: str) -> None:
+    handler = getattr(window, "show_status", None)
+    if callable(handler):
+        handler(text)
+
+
+def _log_palette_selection(window, command: AtlasCommand, *, query: str = "") -> None:
+    payload = {
+        "selected_item_id": command.command_id,
+        "selected_item_label": command.title,
+        "selected_item_type": command.item_type,
+        "selected_route": command.route,
+        "selected_action": command.action,
+        "selected_search_query": command.search_query,
+        "typed_query": str(query or ""),
+        "category": command.category,
+    }
+    LOGGER.info("Command Palette selection: %s", payload)
+    config = getattr(window, "config", None)
+    project_root = str(getattr(config, "project_root", "") or "")
+    if project_root:
+        warning = log_activity_event(project_root, "command_palette_selection", payload)
+        if warning:
+            LOGGER.warning(warning)
 
 
 def _top_warning_labels(bundle) -> list[str]:
@@ -597,4 +843,16 @@ def _top_warning_labels(bundle) -> list[str]:
     return [label for _count, label in sorted(rows, key=lambda item: (-item[0], item[1].casefold()))[:12]]
 
 
-__all__ = ["AtlasCommand", "AtlasCommandPalette", "build_atlas_commands", "resolve_atlas_commands"]
+__all__ = [
+    "ITEM_COMMAND",
+    "ITEM_ENTITY_SEARCH",
+    "ITEM_NAVIGATION",
+    "ITEM_RECENT_ACTION",
+    "ITEM_RECENT_SEARCH",
+    "VALID_PALETTE_ITEM_TYPES",
+    "AtlasCommand",
+    "AtlasCommandPalette",
+    "build_atlas_commands",
+    "resolve_atlas_commands",
+    "_log_palette_selection",
+]

@@ -12,7 +12,7 @@ class AnnotationTargetPicker(QWidget):
         ("Audit Field", "audit_field"),
         ("Machine", "machine"),
         ("Note", "note"),
-        ("Compatibility Entry", "compatibility_entry"),
+        ("Fit Check Entry", "compatibility_entry"),
         ("Photo / Documentation Item", "photo"),
         ("Workbook Health Warning", "workbook_warning"),
         ("Pilot Candidate", "pilot_candidate"),

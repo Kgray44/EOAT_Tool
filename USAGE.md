@@ -14,6 +14,14 @@ EOAT Atlas launches separately as a fast, mostly read-only search and install-su
 python -m app.atlas.main
 ```
 
+When installed on Windows, start Atlas through the EOAT Atlas Launcher. For troubleshooting:
+
+```powershell
+EOAT Atlas Launcher.exe --check-only
+EOAT Atlas Launcher.exe --diagnostics
+EOAT Atlas Launcher.exe --open-logs
+```
+
 Atlas uses the same active project root and source data as EOAT Command Center. See `docs/EOAT_ATLAS.md` for data source, refresh, warning, export, and performance details.
 
 CLI tools can also run directly against the demo root:

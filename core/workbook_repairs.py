@@ -25,6 +25,7 @@ from .audit_entries import (
     repair_workbook_schema,
 )
 from .eoat_ids import assign_missing_eoat_assembly_ids_in_workbook
+from .eoat_id_migration import FIX_REPAIR_EOAT_ID_PREFIXES, run_eoat_id_prefix_migration
 from .logging import log_tool_run
 from .paths import resolve_project_paths
 from .photo_indexing import repair_photo_eoat_links
@@ -58,6 +59,7 @@ SAFE_FIX_IDS = {
     FIX_CREATE_MISSING_REPORT_FOLDERS,
     FIX_ASSIGN_MISSING_EOAT_IDS,
     FIX_REPAIR_PHOTO_EOAT_LINKS,
+    FIX_REPAIR_EOAT_ID_PREFIXES,
 }
 
 
@@ -136,6 +138,8 @@ def preview_safe_fix(project_root: str | Path, fix_id: str) -> SafeFixPreview:
             "Only blank EOAT Assembly ID cells in Photo Index will be updated.",
             project_root,
         )
+    if fix_id == FIX_REPAIR_EOAT_ID_PREFIXES:
+        return _preview_repair_eoat_id_prefixes(project_root)
     if fix_id == FIX_REAPPLY_FORMATTING:
         return _generic_preview(
             fix_id,
@@ -276,6 +280,9 @@ def apply_safe_fix(
         result.summary = "Applied safe fix: repair photo EOAT links. " + result.summary
         result.metrics["fix_id"] = preview.fix_id
         result.metrics["applied_change_count"] = result.metrics.get("rows_repaired", len(preview.changes))
+        _append_workbook_repair_history(project_root, preview, result.files_modified)
+    elif preview.fix_id == FIX_REPAIR_EOAT_ID_PREFIXES:
+        result = _apply_repair_eoat_id_prefixes(project_root, preview, started)
         _append_workbook_repair_history(project_root, preview, result.files_modified)
     else:
         result = repair_workbook_schema(project_root, log_activity=False)
@@ -563,6 +570,73 @@ def _preview_create_missing_report_folders(project_root: str | Path) -> SafeFixP
     )
 
 
+def _preview_repair_eoat_id_prefixes(project_root: str | Path) -> SafeFixPreview:
+    paths = resolve_project_paths(project_root)
+    if not paths.master_workbook.exists():
+        return SafeFixPreview(
+            fix_id=FIX_REPAIR_EOAT_ID_PREFIXES,
+            title="Repair EOAT ID Prefixes",
+            description="Migrate Cleanroom EOAT IDs from P4-EOAT-#### to CL-EOAT-#### and update workbook/photo/cache references.",
+            warnings=[f"Master workbook is missing: {paths.master_workbook}"],
+            can_apply=False,
+        )
+    migration = run_eoat_id_prefix_migration(
+        workbook_path=paths.master_workbook,
+        photo_root=paths.cell_photos,
+        project_root=paths.project_root,
+        apply=False,
+        rebuild_indexes=False,
+    )
+    changes: list[RepairChange] = []
+    for mapping in migration.mappings:
+        changes.append(
+            RepairChange(
+                sheet_name=mapping.source_sheet,
+                row_number=mapping.source_row,
+                column_name="EOAT Assembly ID",
+                audit_id=mapping.audit_id,
+                machine_number=mapping.machine_number,
+                current_value=mapping.old_id,
+                new_value=mapping.new_id,
+                reason=mapping.reason,
+            )
+        )
+    for update in migration.workbook_updates[:100]:
+        changes.append(
+            RepairChange(
+                sheet_name=update.sheet,
+                row_number=update.row,
+                column_name=update.column,
+                current_value=update.old_value,
+                new_value=update.new_value,
+                reason=update.reason,
+            )
+        )
+    for update in [*migration.photo_updates[:100], *migration.cache_updates[:100]]:
+        changes.append(
+            RepairChange(
+                sheet_name="Filesystem",
+                column_name=update.kind,
+                current_value=update.source,
+                new_value=update.target,
+                reason=f"{update.status}: {update.reason}",
+            )
+        )
+    warnings = list(migration.warnings)
+    warnings.extend(migration.conflicts)
+    warnings.extend(migration.errors)
+    if migration.migration_report_md:
+        warnings.append(f"Dry-run migration report: {migration.migration_report_md}")
+    return SafeFixPreview(
+        fix_id=FIX_REPAIR_EOAT_ID_PREFIXES,
+        title="Repair EOAT ID Prefixes",
+        description="Preview Cleanroom P4-to-CL ID migration across workbook references, photo storage, and generated cache/index files.",
+        changes=changes,
+        warnings=warnings,
+        can_apply=bool(migration.mappings) and not migration.errors,
+    )
+
+
 def _generic_preview(
     fix_id: str, title: str, description: str, change_text: str, project_root: str | Path
 ) -> SafeFixPreview:
@@ -765,6 +839,66 @@ def _apply_create_missing_report_folders(
     )
 
 
+def _apply_repair_eoat_id_prefixes(
+    project_root: str | Path, preview: SafeFixPreview, started: float
+) -> ToolResult:
+    paths = resolve_project_paths(project_root)
+    migration = run_eoat_id_prefix_migration(
+        workbook_path=paths.master_workbook,
+        photo_root=paths.cell_photos,
+        project_root=paths.project_root,
+        apply=True,
+        rebuild_indexes=True,
+    )
+    details = [
+        f"IDs migrated: {len(migration.mappings)}",
+        f"Workbook references updated: {len(migration.workbook_updates)}",
+        f"Photo operations: {len(migration.photo_updates)}",
+        f"Generated cache/index files updated: {len(migration.cache_updates)}",
+        f"Migration report: {migration.migration_report_md}",
+        f"Validation report: {migration.validation_report_md}",
+        f"Backup folder: {migration.backup_dir}",
+    ]
+    files_modified = [str(paths.master_workbook)]
+    files_modified.extend(update.target for update in migration.photo_updates if update.status in {"renamed", "merged"})
+    files_modified.extend(update.target for update in migration.cache_updates if update.status == "updated")
+    files_created = list(migration.backups)
+    files_created.extend(path for path in [migration.migration_report_md, migration.migration_report_csv, migration.validation_report_md, migration.validation_report_json] if path)
+    result_factory = ToolResult.ok if migration.success else ToolResult.fail
+    return result_factory(
+        "workbook_repair",
+        "Workbook Repair",
+        "Applied safe fix: repair EOAT ID prefixes." if migration.success else "EOAT ID prefix repair completed with errors.",
+        details=details,
+        warnings=[*migration.warnings, *migration.conflicts],
+        errors=list(migration.errors),
+        files_created=sorted(set(files_created)),
+        files_modified=sorted(set(files_modified)),
+        output_reports=[
+            path
+            for path in [
+                migration.migration_report_md,
+                migration.migration_report_csv,
+                migration.validation_report_md,
+                migration.validation_report_json,
+            ]
+            if path
+        ],
+        metrics={
+            "fix_id": preview.fix_id,
+            "applied_change_count": len(migration.workbook_updates) + len(migration.photo_updates) + len(migration.cache_updates),
+            "migrated_id_count": len(migration.mappings),
+            "validation_issue_count": len(migration.validation_issues),
+            "conflict_count": len(migration.conflicts),
+        },
+        structured_data={
+            "safe_fix_preview": _preview_dict(preview),
+            "eoat_id_prefix_migration": migration.to_dict(),
+        },
+        duration_seconds=time.perf_counter() - started,
+    )
+
+
 def _append_workbook_repair_history(
     project_root: str | Path, preview: SafeFixPreview, files_modified: list[str]
 ) -> None:
@@ -832,6 +966,7 @@ __all__ = [
     "FIX_REBUILD_DROPDOWN_VALIDATION",
     "FIX_REFRESH_GENERATED_VIEWS",
     "FIX_REPAIR_LEGACY_HEADERS",
+    "FIX_REPAIR_EOAT_ID_PREFIXES",
     "SAFE_FIX_IDS",
     "RepairChange",
     "SafeFixPreview",

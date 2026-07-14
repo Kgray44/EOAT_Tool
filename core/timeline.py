@@ -89,7 +89,7 @@ def _audit_history_events(project_root: str | Path) -> list[TimelineEvent]:
                 TimelineEvent(
                     timestamp,
                     "compatibility_rows_updated",
-                    f"Compatibility rows updated for {audit_id}",
+                    f"Fit Check rows updated for {audit_id}",
                     "audit_history",
                     audit_id=audit_id,
                     detail=", ".join(changed_fields),

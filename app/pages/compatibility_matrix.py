@@ -46,7 +46,7 @@ class CompatibilityMatrixPage(QWidget):
         self.navigator = AnnotationTargetNavigator(self)
 
         layout = QVBoxLayout(self)
-        heading = QLabel("Compatibility Data Table")
+        heading = QLabel("Fit Check")
         heading.setStyleSheet("font-size: 18pt; font-weight: 600;")
         layout.addWidget(heading)
 
@@ -72,7 +72,7 @@ class CompatibilityMatrixPage(QWidget):
         splitter = QSplitter()
         left = QWidget()
         left_layout = QVBoxLayout(left)
-        left_layout.addWidget(QLabel("Machines x compatibility columns"))
+        left_layout.addWidget(QLabel("Machines x Fit Check columns"))
         self.matrix_table = QTableWidget()
         self.matrix_table.setAlternatingRowColors(True)
         self.matrix_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)
@@ -110,7 +110,7 @@ class CompatibilityMatrixPage(QWidget):
         run_tool_background(
             self.result_panel,
             "compatibility_matrix_export",
-            "Compatibility Data Table Export",
+            "Fit Check Data Table Export",
             lambda: export_compatibility_matrix(self.config.project_root, column_mode=mode),
             lambda _result: None,
             modifies_files=True,
@@ -145,7 +145,7 @@ class CompatibilityMatrixPage(QWidget):
     def open_selected_audit(self) -> None:
         cell = self.selected_cell()
         if cell is None:
-            self.result_panel.show_text("Select a compatibility cell first.")
+            self.result_panel.show_text("Select a Fit Check cell first.")
             return
         audit_id = next(iter([*cell.physical_audit_ids, *cell.compatibility_audit_ids, cell.source_audit_id]), "")
         if not audit_id:

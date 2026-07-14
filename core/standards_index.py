@@ -29,11 +29,16 @@ STANDARDIZATION_KEYWORDS = (
 )
 
 
-def build_standards_index(project_root: str | Path) -> tuple[list[StandardReference], list[str]]:
+def build_standards_index(
+    project_root: str | Path,
+    *,
+    standards_root: str | Path | None = None,
+) -> tuple[list[StandardReference], list[str]]:
     paths = resolve_project_paths(project_root)
-    import_warnings = _import_root_standardization_documents(Path(project_root), paths.standards)
+    standards_folder = Path(standards_root).expanduser() if standards_root else paths.standards
+    import_warnings = _import_root_standardization_documents(Path(project_root), standards_folder)
     folders = [
-        paths.standards,
+        standards_folder,
         paths.work_instructions,
         Path(project_root) / "Project_Help_Documents",
         Path(project_root) / "output" / "documents",

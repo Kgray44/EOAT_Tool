@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import threading
@@ -15,8 +16,14 @@ from .assets import ATLAS_LOGO_PATH
 from .settings import AtlasSettings, load_atlas_settings
 from .styles import atlas_stylesheet
 
+LOGGER = logging.getLogger(__name__)
+
 
 def main() -> int:
+    backend = os.getenv("EOAT_ATLAS_DATA_BACKEND", "legacy").strip().casefold()
+    if backend not in {"legacy", "mysql_api"}:
+        raise SystemExit(f"Invalid EOAT_ATLAS_DATA_BACKEND: {backend}")
+    LOGGER.info("EOAT Atlas data backend selected: %s", backend)
     ui_mode = _extract_ui_mode(sys.argv)
     smoke_test_arg = "--smoke-test" in sys.argv
     if smoke_test_arg:
@@ -28,6 +35,7 @@ def main() -> int:
         watchdog.start()
     app = QApplication(sys.argv)
     app.setApplicationName("EOAT Atlas")
+    app.setApplicationDisplayName(f"EOAT Atlas [{backend}]")
     app.setFont(QFont("Segoe UI", 10))
     if ATLAS_LOGO_PATH.exists():
         app.setWindowIcon(QIcon(str(ATLAS_LOGO_PATH)))
@@ -36,14 +44,25 @@ def main() -> int:
     config = UserConfig(project_root=str(DEFAULT_PROJECT_ROOT)) if smoke_test else load_config()
     if ui_mode == "minimalist":
         from .minimalist import MinimalistAtlasWindow
+        from .minimalist.settings_store import load_settings as load_minimalist_settings
+        from .minimalist.settings_store import save_settings as save_minimalist_settings
 
+        minimalist_settings = load_minimalist_settings()
+        if not smoke_test:
+            from datetime import datetime
+
+            minimalist_settings.setdefault("diagnostics", {})["last_app_launch"] = datetime.now().isoformat(
+                timespec="seconds"
+            )
+            save_minimalist_settings(minimalist_settings)
+        refresh_on_launch = bool(minimalist_settings.get("data_loading", {}).get("refresh_on_launch", True))
         window = MinimalistAtlasWindow(
             config,
-            auto_refresh=(not smoke_test and settings.auto_refresh_on_startup),
+            auto_refresh=(not smoke_test and settings.auto_refresh_on_startup and refresh_on_launch),
             settings=settings,
         )
         window.show()
-        if not settings.auto_refresh_on_startup and not smoke_test:
+        if (not settings.auto_refresh_on_startup or not refresh_on_launch) and not smoke_test:
             window.show_status("Auto-refresh is off. Minimalist Atlas opened without rebuilding cached data.")
         if smoke_test:
             QTimer.singleShot(700, window.close)

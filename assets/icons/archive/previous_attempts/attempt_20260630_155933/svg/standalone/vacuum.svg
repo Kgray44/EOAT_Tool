@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="vacuum-title vacuum-desc">
+  <title id="vacuum-title">Vacuum</title>
+  <desc id="vacuum-desc">Suction cup pulling toward a surface with one accent arrow.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <line x1="32" y1="12" x2="32" y2="24" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <path d="M25 26 H39 L42 36 H22 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="24" y1="40" x2="40" y2="40" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="20" y1="52" x2="44" y2="52" fill="none" stroke="#9AA6AD" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="32" y1="38" x2="32" y2="48" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="32" y1="48" x2="29" y2="42.8" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="32" y1="48" x2="35" y2="42.8" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

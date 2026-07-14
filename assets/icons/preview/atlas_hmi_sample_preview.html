@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EOAT Atlas HMI Sample Icons</title>
+  <style>
+    :root {
+      --cyan: #00A6C8;
+      --lime: #A6CE39;
+      --gray: #9AA6AD;
+      --dark: #1E2A32;
+      --page: #F6F8FA;
+      --border: #D6DEE4;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--dark); font-family: "Segoe UI", Arial, sans-serif; }
+    header { padding: 28px 32px 18px; background: #fff; border-bottom: 1px solid var(--border); }
+    h1 { margin: 0; font-size: 24px; letter-spacing: 0; }
+    main { padding: 24px 32px 36px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+    .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-height: 184px; }
+    .icons { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 12px; min-height: 96px; }
+    img { width: 78px; height: 78px; justify-self: center; }
+    .tile { width: 88px; height: 88px; }
+    .checker { display: grid; place-items: center; height: 94px; border-radius: 8px; background:
+      linear-gradient(45deg, #eef2f5 25%, transparent 25%),
+      linear-gradient(-45deg, #eef2f5 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #eef2f5 75%),
+      linear-gradient(-45deg, transparent 75%, #eef2f5 75%);
+      background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
+    h2 { margin: 12px 0 3px; font-size: 16px; letter-spacing: 0; }
+    p { margin: 0 0 8px; color: var(--gray); font-size: 12px; }
+    code { color: var(--cyan); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header><h1>EOAT Atlas HMI Sample Icons</h1></header>
+  <main><section class="grid">
+
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/robot.svg" alt="Robot standalone"></div>
+          <img class="tile" src="../svg/tile/robot.svg" alt="Robot tile">
+        </div>
+        <h2>Robot</h2>
+        <p>Machine Components</p>
+        <code>robot</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/mold.svg" alt="Mold standalone"></div>
+          <img class="tile" src="../svg/tile/mold.svg" alt="Mold tile">
+        </div>
+        <h2>Mold</h2>
+        <p>Machine Components</p>
+        <code>mold</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/eoat.svg" alt="EOAT standalone"></div>
+          <img class="tile" src="../svg/tile/eoat.svg" alt="EOAT tile">
+        </div>
+        <h2>EOAT</h2>
+        <p>EOAT Hardware</p>
+        <code>eoat</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/injection_unit.svg" alt="Injection Unit standalone"></div>
+          <img class="tile" src="../svg/tile/injection_unit.svg" alt="Injection Unit tile">
+        </div>
+        <h2>Injection Unit</h2>
+        <p>Machine Components</p>
+        <code>injection_unit</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/ejector.svg" alt="Ejector standalone"></div>
+          <img class="tile" src="../svg/tile/ejector.svg" alt="Ejector tile">
+        </div>
+        <h2>Ejector</h2>
+        <p>Machine Components</p>
+        <code>ejector</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/vacuum.svg" alt="Vacuum standalone"></div>
+          <img class="tile" src="../svg/tile/vacuum.svg" alt="Vacuum tile">
+        </div>
+        <h2>Vacuum</h2>
+        <p>Pneumatics</p>
+        <code>vacuum</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/pressure_air.svg" alt="Pressure Air standalone"></div>
+          <img class="tile" src="../svg/tile/pressure_air.svg" alt="Pressure Air tile">
+        </div>
+        <h2>Pressure Air</h2>
+        <p>Pneumatics</p>
+        <code>pressure_air</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/air_circuit.svg" alt="Air Circuit standalone"></div>
+          <img class="tile" src="../svg/tile/air_circuit.svg" alt="Air Circuit tile">
+        </div>
+        <h2>Air Circuit</h2>
+        <p>Pneumatics</p>
+        <code>air_circuit</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/compatibility.svg" alt="Compatibility standalone"></div>
+          <img class="tile" src="../svg/tile/compatibility.svg" alt="Compatibility tile">
+        </div>
+        <h2>Compatibility</h2>
+        <p>App Navigation</p>
+        <code>compatibility</code>
+      </article>
+      <article class="card">
+        <div class="icons">
+          <div class="checker"><img src="../svg/standalone/machine.svg" alt="Machine standalone"></div>
+          <img class="tile" src="../svg/tile/machine.svg" alt="Machine tile">
+        </div>
+        <h2>Machine</h2>
+        <p>Machine Components</p>
+        <code>machine</code>
+      </article>
+  </section></main>
+</body>
+</html>

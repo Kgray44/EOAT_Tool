@@ -430,7 +430,7 @@ def classify_completion_field(
             applies=False,
             counted=False,
             verified=False,
-            reason="Compatibility rows use compatibility completion rules, not physical audit completion rules.",
+            reason="Fit Check rows use Fit Check completion rules, not physical audit completion rules.",
         )
 
     if (

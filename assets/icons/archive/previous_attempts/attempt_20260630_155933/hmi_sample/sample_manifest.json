@@ -1,0 +1,85 @@
+{
+  "name": "chunky_industrial_hmi_sample_icons",
+  "status": "sample_for_review",
+  "scope": "8 icons only; full 30-icon pack not rebuilt",
+  "colors": {
+    "PRIMARY": "#00A6C8",
+    "ACCENT": "#A6CE39",
+    "MACHINE": "#9AA6AD",
+    "DARK": "#1E2A32"
+  },
+  "icons": [
+    {
+      "name": "robot",
+      "display_name": "Robot",
+      "description": "Chunky gantry robot with rail, carriage, and vertical arm.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/robot.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/robot.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/robot.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/robot_tile.png"
+    },
+    {
+      "name": "mold",
+      "display_name": "Mold",
+      "description": "Bold paired mold blocks with center parting strip and cavity marks.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/mold.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/mold.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/mold.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/mold_tile.png"
+    },
+    {
+      "name": "eoat",
+      "display_name": "EOAT",
+      "description": "Filled EOAT tooling plate with suction cup tooling.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/eoat.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/eoat.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/eoat.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/eoat_tile.png"
+    },
+    {
+      "name": "injection_unit",
+      "display_name": "Injection Unit",
+      "description": "Heavy barrel and nozzle shape aimed at a mold plate.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/injection_unit.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/injection_unit.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/injection_unit.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/injection_unit_tile.png"
+    },
+    {
+      "name": "vacuum",
+      "display_name": "Vacuum",
+      "description": "Large suction cup pulling onto a surface.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/vacuum.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/vacuum.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/vacuum.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/vacuum_tile.png"
+    },
+    {
+      "name": "pressure_air",
+      "display_name": "Pressure Air",
+      "description": "Chunky pressure nozzle pushing air outward.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/pressure_air.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/pressure_air.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/pressure_air.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/pressure_air_tile.png"
+    },
+    {
+      "name": "compatibility",
+      "display_name": "Compatibility",
+      "description": "Machine and EOAT blocks connected by a fit/check symbol.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/compatibility.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/compatibility.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/compatibility.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/compatibility_tile.png"
+    },
+    {
+      "name": "machine",
+      "display_name": "Machine",
+      "description": "Simplified injection molding machine silhouette.",
+      "svg_standalone": "assets/icons/hmi_sample/svg/standalone/machine.svg",
+      "svg_tile": "assets/icons/hmi_sample/svg/tile/machine.svg",
+      "png_preview": "assets/icons/hmi_sample/png/256/machine.png",
+      "png_tile_preview": "assets/icons/hmi_sample/png/256/machine_tile.png"
+    }
+  ]
+}

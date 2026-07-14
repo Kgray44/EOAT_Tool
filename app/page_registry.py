@@ -60,7 +60,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         "Capture",
         "app.pages.audit:AuditPage",
         listens_to=(EVENT_PROJECT_ROOT_CHANGED,),
-        description="Audit entry, interview notes, annotations, and compatibility tools.",
+        description="Audit entry, interview notes, annotations, and Fit Check tools.",
     ),
     PageSpec(
         "press_view",
@@ -74,7 +74,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
             EVENT_OPEN_ITEMS_CHANGED,
             EVENT_WORKBOOK_VALIDATED,
         ),
-        description="EOAT documentation grouped by press/machine relationship, compatibility, and follow-ups.",
+        description="EOAT documentation grouped by press/machine relationship, Fit Check, and follow-ups.",
     ),
     PageSpec(
         "machine_360",
@@ -88,7 +88,7 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
             EVENT_OPEN_ITEMS_CHANGED,
             EVENT_WORKBOOK_VALIDATED,
         ),
-        description="Installed-cell relationship view for EOAT compatibility, evidence, and open-item context.",
+        description="Installed-cell relationship view for EOAT Fit Check, evidence, and open-item context.",
     ),
     PageSpec(
         "notes",
@@ -146,16 +146,16 @@ PAGE_SPECS: tuple[PageSpec, ...] = (
         "app.pages.audit_progress:AuditProgressPage",
         refresh_on_show=True,
         listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED),
-        description="EOAT documentation, compatibility, and installed-cell progress metrics.",
+        description="EOAT documentation, Fit Check, and installed-cell progress metrics.",
     ),
     PageSpec(
         "compatibility_matrix",
-        "Compatibility Data Table",
+        "Fit Check",
         "Analysis",
         "app.pages.compatibility_matrix:CompatibilityMatrixPage",
         refresh_on_show=True,
         listens_to=(EVENT_AUDIT_SAVED, EVENT_COMPATIBILITY_REGENERATED, EVENT_WORKBOOK_VALIDATED),
-        description="EOAT-to-machine compatibility matrix with source audit and review details.",
+        description="EOAT-to-machine Fit Check table with source audit and review details.",
     ),
     PageSpec(
         "issue_analysis",

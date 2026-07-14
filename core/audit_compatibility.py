@@ -685,24 +685,24 @@ def create_compatibility_entries(
     master_path = paths.master_workbook
     if not master_path.exists():
         return ToolResult.fail(
-            "compatibility_entry", "Compatibility Entry", "Master workbook is missing.", errors=[str(master_path)]
+            "compatibility_entry", "Fit Check Entry", "Master workbook is missing.", errors=[str(master_path)]
         )
 
     selected = set(parse_machine_tokens(",".join(str(machine) for machine in machine_numbers)))
     if not selected:
-        return ToolResult.fail("compatibility_entry", "Compatibility Entry", "No compatible machines were selected.")
+        return ToolResult.fail("compatibility_entry", "Fit Check Entry", "No compatible machines were selected.")
 
     candidate_result = build_compatibility_candidates(project_root, source_audit_id, press_capacity_path)
     if candidate_result.errors:
         return ToolResult.fail(
             "compatibility_entry",
-            "Compatibility Entry",
+            "Fit Check Entry",
             "Could not build compatibility candidates.",
             errors=candidate_result.errors,
         )
     source = candidate_result.source
     if source is None:
-        return ToolResult.fail("compatibility_entry", "Compatibility Entry", "Source audit row is missing.")
+        return ToolResult.fail("compatibility_entry", "Fit Check Entry", "Source audit row is missing.")
 
     selected_candidates = [candidate for candidate in candidate_result.candidates if candidate.machine_no in selected]
     create_candidates = [candidate for candidate in selected_candidates if candidate.can_create]
@@ -716,8 +716,8 @@ def create_compatibility_entries(
     if not create_candidates:
         return ToolResult.ok(
             "compatibility_entry",
-            "Compatibility Entry",
-            "No compatibility entries were created.",
+            "Fit Check Entry",
+            "No Fit Check entries were created.",
             details=_creation_summary(0, skipped_audited, skipped_compatible, conflicts),
             warnings=candidate_result.warnings,
             metrics={
@@ -779,8 +779,8 @@ def create_compatibility_entries(
                 pass
         return ToolResult.fail(
             "compatibility_entry",
-            "Compatibility Entry",
-            "Could not create compatibility entries.",
+            "Fit Check Entry",
+            "Could not create Fit Check entries.",
             errors=[str(exc)],
             warnings=candidate_result.warnings,
             duration_seconds=time.perf_counter() - started,
@@ -788,8 +788,8 @@ def create_compatibility_entries(
 
     return ToolResult.ok(
         "compatibility_entry",
-        "Compatibility Entry",
-        f"Created {created} compatibility entries.",
+        "Fit Check Entry",
+        f"Created {created} Fit Check entries.",
         details=[
             *_creation_summary(created, skipped_audited, skipped_compatible, conflicts),
             f"Workbook backup: {backup}",
@@ -993,7 +993,7 @@ def apply_off_machine_compatibility_choice(
     if clean_choice not in OFF_MACHINE_COMPATIBILITY_CHOICES:
         return ToolResult.fail(
             "off_machine_compatibility",
-            "Off-Machine Compatibility",
+            "Off-Machine Fit Check",
             "Off-machine compatibility choice was not recognized.",
             errors=[f"Unknown choice: {choice}"],
             duration_seconds=time.perf_counter() - started,
@@ -1007,7 +1007,7 @@ def apply_off_machine_compatibility_choice(
     if clean_choice == OFF_MACHINE_COMPATIBILITY_LEAVE:
         result = ToolResult.ok(
             "off_machine_compatibility",
-            "Off-Machine Compatibility",
+            "Off-Machine Fit Check",
             "Left the audit as an off-machine audit. No compatibility rows were created.",
             details=["User chose to leave the saved audit unchanged."],
             metrics={
@@ -1036,7 +1036,7 @@ def apply_off_machine_compatibility_choice(
 
     preview = build_off_machine_compatibility_preview(project_root, clean_audit_id, press_capacity_path=press_capacity_path)
     if preview.errors:
-        warning = "Compatibility lookup could not be completed. The saved audit was left unchanged."
+        warning = "Fit Check lookup could not be completed. The saved audit was left unchanged."
         log_activity_event(
             project_root,
             "off_machine_compatibility_warning",
@@ -1044,7 +1044,7 @@ def apply_off_machine_compatibility_choice(
         )
         return ToolResult.ok(
             "off_machine_compatibility",
-            "Off-Machine Compatibility",
+            "Off-Machine Fit Check",
             warning,
             details=preview.errors,
             warnings=[warning, *preview.errors, *preview.warnings],
@@ -1066,7 +1066,7 @@ def apply_off_machine_compatibility_choice(
         )
         return ToolResult.ok(
             "off_machine_compatibility",
-            "Off-Machine Compatibility",
+            "Off-Machine Fit Check",
             message,
             details=[message],
             warnings=preview.warnings,
@@ -1178,7 +1178,7 @@ def apply_off_machine_compatibility_choice(
         )
         return ToolResult.fail(
             "off_machine_compatibility",
-            "Off-Machine Compatibility",
+            "Off-Machine Fit Check",
             "Could not apply off-machine compatibility updates.",
             errors=[str(exc)],
             warnings=preview.warnings,
@@ -1197,7 +1197,7 @@ def apply_off_machine_compatibility_choice(
         f"Compatible machines found: {len(preview.matches)}",
         f"Current row updated: {'Yes' if current_row_updated else 'No'}",
         f"Current row fields filled: {', '.join(current_row_fields) if current_row_fields else '(none)'}",
-        f"Compatibility rows created: {created}",
+        f"Fit Check rows created: {created}",
         f"Existing equivalent rows updated: {existing_rows_updated}",
         f"Duplicates skipped: {duplicates_skipped}",
         *duplicate_details,
@@ -1228,7 +1228,7 @@ def apply_off_machine_compatibility_choice(
     )
     return ToolResult.ok(
         "off_machine_compatibility",
-        "Off-Machine Compatibility",
+        "Off-Machine Fit Check",
         summary,
         details=details,
         warnings=preview.warnings,

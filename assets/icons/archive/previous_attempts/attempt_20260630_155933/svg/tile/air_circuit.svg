@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="air_circuit-title air_circuit-desc">
+  <title id="air_circuit-title">Air Circuit</title>
+  <desc id="air_circuit-desc">Routed pneumatic tubing with one airflow arrow.</desc>
+  <rect x="4" y="4" width="56" height="56" rx="12" fill="#FFFFFF" stroke="#D6DEE4" stroke-width="1.5" />
+  <g transform="translate(4.8 4.8) scale(0.85)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 44 V28 C14 20 24 20 24 28 V36 C24 44 38 44 38 36 V24 H50" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <circle cx="14" cy="44" r="3" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <circle cx="50" cy="24" r="3" fill="none" stroke="#9AA6AD" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <line x1="28" y1="40" x2="38" y2="40" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="38" y1="40" x2="32.8" y2="43" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="38" y1="40" x2="32.8" y2="37" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

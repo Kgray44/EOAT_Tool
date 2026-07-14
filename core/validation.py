@@ -66,7 +66,18 @@ from .audit_field_rules import (
 )
 from .compatibility_health import validate_compatibility_health
 from .constants import TOOLKIT_ROOT
-from .eoat_ids import EOAT_ASSEMBLY_ID_FIELD, is_valid_eoat_assembly_id, normalize_eoat_assembly_id
+from .eoat_ids import (
+    CANONICAL_AREA_CLEANROOM,
+    CANONICAL_AREA_PLANT4,
+    CANONICAL_AREA_UNKNOWN,
+    EOAT_ASSEMBLY_ID_FIELD,
+    canonical_area,
+    determine_eoat_prefix,
+    expected_eoat_id_for_area,
+    get_eoat_prefix,
+    is_valid_eoat_assembly_id,
+    normalize_eoat_assembly_id,
+)
 from .git_activity import is_git_repo
 from .gripper_fields import CUP_COUNT_FIELD, GRIPPER_COUNT_FIELD, GRIPPER_TYPE_FIELD, GRIPPER_TYPE_VALUES
 from .logging import log_tool_run
@@ -692,6 +703,9 @@ def _validate_inventory_rows(
         "invalid_numeric_value_count": 0,
         "missing_eoat_assembly_id_count": 0,
         "invalid_eoat_assembly_id_count": 0,
+        "eoat_id_prefix_mismatch_count": 0,
+        "eoat_id_unknown_area_count": 0,
+        "compatibility_eoat_id_mismatch_count": 0,
         "audit_row_count": 0,
         "installed_audit_context_count": 0,
         "bench_audit_context_count": 0,
@@ -717,6 +731,9 @@ def _validate_inventory_rows(
     invalid_numeric_examples: list[str] = []
     missing_eoat_id_examples: list[str] = []
     invalid_eoat_id_examples: list[str] = []
+    eoat_prefix_mismatch_examples: list[str] = []
+    eoat_unknown_area_examples: list[str] = []
+    compatibility_eoat_mismatch_examples: list[str] = []
     missing_eoat_moves_examples: list[str] = []
     duplicate_physical_examples: list[str] = []
     compatibility_warning_examples: list[str] = []
@@ -725,6 +742,7 @@ def _validate_inventory_rows(
     physical_identity_rows: dict[tuple[str, str, str], int] = {}
     inventory_rows_for_truth: list[dict[str, object]] = []
     source_eoat_moves_by_audit_id: dict[str, str] = {}
+    source_eoat_id_by_audit_id: dict[str, str] = {}
     major_na_seen: set[tuple[int, str]] = set()
     indexed_photo_audit_ids, indexed_photo_machines = _indexed_photo_reference_sets(project_root)
 
@@ -756,6 +774,9 @@ def _validate_inventory_rows(
             audit_id = _cell_text(row_data.get("Audit ID"))
             if audit_id:
                 source_eoat_moves_by_audit_id[audit_id] = _cell_text(row_data.get(EOAT_MOVES_FIELD))
+                source_eoat_id_by_audit_id[audit_id] = normalize_eoat_assembly_id(
+                    row_data.get(EOAT_ASSEMBLY_ID_FIELD)
+                )
 
     for row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         row_data = {header: row[index] for header, index in header_positions.items() if index < len(row)}
@@ -807,8 +828,9 @@ def _validate_inventory_rows(
         elif "Audit ID" in headers:
             add_major_na(row_number, "Audit ID", row_data)
 
+        row_eoat_id = normalize_eoat_assembly_id(row_data.get(EOAT_ASSEMBLY_ID_FIELD))
         if EOAT_ASSEMBLY_ID_FIELD in header_positions:
-            eoat_id = normalize_eoat_assembly_id(row_data.get(EOAT_ASSEMBLY_ID_FIELD))
+            eoat_id = row_eoat_id
             if not eoat_id:
                 metrics["missing_eoat_assembly_id_count"] += 1
                 missing_eoat_id_examples.append(f"row {row_number}")
@@ -844,11 +866,67 @@ def _validate_inventory_rows(
                         audit_id=audit_id,
                         machine_number=_cell_text(row_data.get("Press/Machine #")),
                         current_value=eoat_id,
-                        expected_behavior="EOAT Assembly ID should use format P4-EOAT-0001.",
+                        expected_behavior="EOAT Assembly ID should use format P4-EOAT-0001 or CL-EOAT-0001.",
                         recommended_action="Correct the EOAT Assembly ID after confirming the physical EOAT.",
                         source_validator="inventory_rows",
                     )
                 )
+            else:
+                area = canonical_area(row_data)
+                if area == CANONICAL_AREA_UNKNOWN:
+                    metrics["eoat_id_unknown_area_count"] += 1
+                    eoat_unknown_area_examples.append(f"row {row_number} {eoat_id}")
+                    findings.append(
+                        make_finding(
+                            ValidationSeverity.WARNING,
+                            "eoat_identity",
+                            f"EOAT Assembly ID prefix cannot be verified because area is unknown on EOAT Inventory row {row_number}: {eoat_id}.",
+                            sheet_name="EOAT Inventory",
+                            row_number=row_number,
+                            column_name=EOAT_ASSEMBLY_ID_FIELD,
+                            audit_id=audit_id,
+                            machine_number=_cell_text(row_data.get("Press/Machine #")),
+                            current_value=eoat_id,
+                            expected_behavior="Plant/Area or Cleanroom/Non-Cleanroom should identify Cleanroom or Plant 4 before assigning EOAT IDs.",
+                            recommended_action="Set Plant/Area or Cleanroom/Non-Cleanroom, then rerun EOAT ID prefix validation.",
+                            source_validator="eoat_id_prefixes",
+                        )
+                    )
+                else:
+                    expected_prefix = determine_eoat_prefix(row_data)
+                    actual_prefix = get_eoat_prefix(eoat_id)
+                    if actual_prefix != expected_prefix:
+                        metrics["eoat_id_prefix_mismatch_count"] += 1
+                        expected_id = expected_eoat_id_for_area(row_data, eoat_id)
+                        area_label = "Cleanroom" if area == CANONICAL_AREA_CLEANROOM else "Plant 4"
+                        expected_behavior = (
+                            "Cleanroom EOAT rows must use CL-EOAT-####."
+                            if area == CANONICAL_AREA_CLEANROOM
+                            else "Plant 4 / non-Cleanroom EOAT rows must use P4-EOAT-####."
+                        )
+                        message = (
+                            f"{area_label} EOAT row has incorrect EOAT Assembly ID prefix on row {row_number}: "
+                            f"{eoat_id} should be {expected_id}."
+                        )
+                        eoat_prefix_mismatch_examples.append(f"row {row_number} {eoat_id}->{expected_id}")
+                        findings.append(
+                            make_finding(
+                                ValidationSeverity.ERROR,
+                                "eoat_identity",
+                                message,
+                                sheet_name="EOAT Inventory",
+                                row_number=row_number,
+                                column_name=EOAT_ASSEMBLY_ID_FIELD,
+                                audit_id=audit_id,
+                                machine_number=_cell_text(row_data.get("Press/Machine #")),
+                                current_value=eoat_id,
+                                expected_behavior=expected_behavior,
+                                recommended_action="Run Repair EOAT ID Prefixes to migrate the ID and update linked rows/photos.",
+                                fix_available=True,
+                                fix_id="repair_eoat_id_prefixes",
+                                source_validator="eoat_id_prefixes",
+                            )
+                        )
 
         if is_physical_audit_row(row_data):
             source_id = _cell_text(row_data.get(SOURCE_AUDIT_ID_FIELD))
@@ -900,7 +978,7 @@ def _validate_inventory_rows(
             compatibility_source = _cell_text(row_data.get(COMPATIBILITY_SOURCE_FIELD))
             if not source_id:
                 metrics["compatibility_missing_source_audit_id_count"] += 1
-                message = f"Compatibility row is missing Source Audit ID: row {row_number}"
+                message = f"Fit Check row is missing Source Audit ID: row {row_number}"
                 compatibility_warning_examples.append(message)
                 findings.append(
                     make_finding(
@@ -913,14 +991,14 @@ def _validate_inventory_rows(
                         audit_id=audit_id,
                         machine_number=_cell_text(row_data.get("Press/Machine #")),
                         current_value=row_data.get(SOURCE_AUDIT_ID_FIELD),
-                        expected_behavior="Compatibility rows should link back to the physical source audit they were derived from.",
-                        recommended_action="Repair compatibility metadata only after confirming the source audit.",
+                        expected_behavior="Fit Check rows should link back to the physical source audit they were derived from.",
+                        recommended_action="Repair Fit Check metadata only after confirming the source audit.",
                         source_validator="inventory_relationships",
                     )
                 )
             if not compatibility_source:
                 metrics["compatibility_missing_source_count"] += 1
-                message = f"Compatibility row is missing Compatibility Source: row {row_number}"
+                message = f"Fit Check row is missing Compatibility Source: row {row_number}"
                 compatibility_warning_examples.append(message)
                 findings.append(
                     make_finding(
@@ -933,8 +1011,8 @@ def _validate_inventory_rows(
                         audit_id=audit_id,
                         machine_number=_cell_text(row_data.get("Press/Machine #")),
                         current_value=row_data.get(COMPATIBILITY_SOURCE_FIELD),
-                        expected_behavior="Compatibility rows should record the local data source used to derive them.",
-                        recommended_action="Repair compatibility metadata only after confirming the source list or source audit.",
+                        expected_behavior="Fit Check rows should record the local data source used to derive them.",
+                        recommended_action="Repair Fit Check metadata only after confirming the source list or source audit.",
                         source_validator="inventory_relationships",
                     )
                 )
@@ -953,9 +1031,35 @@ def _validate_inventory_rows(
                         row_number=row_number,
                         audit_id=audit_id,
                         machine_number=_cell_text(row_data.get("Press/Machine #")),
-                        expected_behavior="Compatibility rows are derived rows, not physical verification rows.",
+                        expected_behavior="Fit Check rows are derived rows, not physical verification rows.",
                         recommended_action="Review whether the row is a physical audit incorrectly marked compatible.",
                         source_validator="inventory_relationships",
+                    )
+                )
+            source_eoat_id = source_eoat_id_by_audit_id.get(source_id, "") if source_id else ""
+            if source_id and source_eoat_id and row_eoat_id and row_eoat_id != source_eoat_id:
+                metrics["compatibility_eoat_id_mismatch_count"] += 1
+                message = (
+                    f"Fit Check row EOAT Assembly ID disagrees with source audit on row {row_number}: "
+                    f"{row_eoat_id} should be {source_eoat_id}."
+                )
+                compatibility_eoat_mismatch_examples.append(f"row {row_number} {row_eoat_id}->{source_eoat_id}")
+                findings.append(
+                    make_finding(
+                        ValidationSeverity.ERROR,
+                        "relationship_truth",
+                        message,
+                        sheet_name="EOAT Inventory",
+                        row_number=row_number,
+                        column_name=EOAT_ASSEMBLY_ID_FIELD,
+                        audit_id=audit_id,
+                        machine_number=_cell_text(row_data.get("Press/Machine #")),
+                        current_value=row_eoat_id,
+                        expected_behavior="Fit Check rows should inherit EOAT Assembly ID from their source physical audit row.",
+                        recommended_action="Refresh or repair generated Fit Check rows from the source audit.",
+                        fix_available=True,
+                        fix_id="repair_eoat_id_prefixes",
+                        source_validator="eoat_id_prefixes",
                     )
                 )
 
@@ -1176,7 +1280,7 @@ def _validate_inventory_rows(
                     audit_id=_cell_text(row.get("Audit ID")),
                     machine_number=_cell_text(row.get("Press/Machine #")),
                     current_value=row.get(SOURCE_AUDIT_ID_FIELD),
-                    expected_behavior="Compatibility rows should resolve to an existing physical source audit.",
+                    expected_behavior="Fit Check rows should resolve to an existing physical source audit.",
                     recommended_action="Repair compatibility metadata only after confirming the source audit.",
                     source_validator="inventory_relationships",
                 )
@@ -1211,6 +1315,9 @@ def _validate_inventory_rows(
     metrics["missing_eoat_moves_count"] = len(missing_eoat_moves_examples)
     metrics["missing_eoat_assembly_id_count"] = len(missing_eoat_id_examples)
     metrics["invalid_eoat_assembly_id_count"] = len(invalid_eoat_id_examples)
+    metrics["eoat_id_prefix_mismatch_count"] = len(eoat_prefix_mismatch_examples)
+    metrics["eoat_id_unknown_area_count"] = len(eoat_unknown_area_examples)
+    metrics["compatibility_eoat_id_mismatch_count"] = len(compatibility_eoat_mismatch_examples)
 
     if duplicate_ids:
         warnings.append(f"Duplicate Audit ID value(s): {', '.join(sorted(duplicate_ids))}")
@@ -1258,6 +1365,18 @@ def _validate_inventory_rows(
     if invalid_eoat_id_examples:
         warnings.append(
             f"{len(invalid_eoat_id_examples)} invalid EOAT Assembly ID value(s): {', '.join(invalid_eoat_id_examples[:5])}"
+        )
+    if eoat_prefix_mismatch_examples:
+        warnings.append(
+            f"{len(eoat_prefix_mismatch_examples)} EOAT Assembly ID prefix mismatch(es): {', '.join(eoat_prefix_mismatch_examples[:5])}"
+        )
+    if eoat_unknown_area_examples:
+        warnings.append(
+            f"{len(eoat_unknown_area_examples)} EOAT row(s) have IDs but unknown area: {', '.join(eoat_unknown_area_examples[:5])}"
+        )
+    if compatibility_eoat_mismatch_examples:
+        warnings.append(
+            f"{len(compatibility_eoat_mismatch_examples)} Fit Check row EOAT ID mismatch(es): {', '.join(compatibility_eoat_mismatch_examples[:5])}"
         )
     if dropdown_casing_examples:
         warnings.append(

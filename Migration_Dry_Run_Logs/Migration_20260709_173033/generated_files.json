@@ -1,0 +1,42 @@
+﻿[
+    {
+        "timestamp":  "2026-07-09T17:33:48.1183635-04:00",
+        "description":  "Latest release manifest",
+        "requested_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\01_App\\Releases\\latest.json",
+        "actual_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\01_App\\Releases\\latest.json",
+        "status":  "dry_run_would_write",
+        "backup_path":  ""
+    },
+    {
+        "timestamp":  "2026-07-09T17:33:48.1193606-04:00",
+        "description":  "Release placeholder README",
+        "requested_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\01_App\\Releases\\EOAT_Atlas_0.1.0\\README_RELEASE_PLACEHOLDER.md",
+        "actual_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\01_App\\Releases\\EOAT_Atlas_0.1.0\\README_RELEASE_PLACEHOLDER.md",
+        "status":  "dry_run_would_write",
+        "backup_path":  ""
+    },
+    {
+        "timestamp":  "2026-07-09T17:33:48.1343610-04:00",
+        "description":  "EOAT Atlas network config",
+        "requested_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\00_Admin\\Config\\eoat_atlas_network_config.json",
+        "actual_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\00_Admin\\Config\\eoat_atlas_network_config.json",
+        "status":  "dry_run_would_write",
+        "backup_path":  ""
+    },
+    {
+        "timestamp":  "2026-07-09T17:33:48.1433614-04:00",
+        "description":  "Network folder README",
+        "requested_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\README_EOAT_ATLAS_NETWORK_FOLDER.md",
+        "actual_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\README_EOAT_ATLAS_NETWORK_FOLDER.md",
+        "status":  "dry_run_would_write",
+        "backup_path":  ""
+    },
+    {
+        "timestamp":  "2026-07-09T17:33:48.1453618-04:00",
+        "description":  "Admin README",
+        "requested_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\00_Admin\\README\\README_ADMIN.md",
+        "actual_path":  "\\\\gwplastics.com\\VT\\Plant4\\Maintenance \u0026 Manufacturing Engineering\\EOAT Atlas\\00_Admin\\README\\README_ADMIN.md",
+        "status":  "dry_run_would_write",
+        "backup_path":  ""
+    }
+]

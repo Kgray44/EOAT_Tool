@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="pressure_air-title pressure_air-desc">
+  <title id="pressure_air-title">Pressure Air</title>
+  <desc id="pressure_air-desc">Air nozzle with one outward airflow arrow.</desc>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 28 H28 L38 32 L28 36 H10 Z" fill="none" stroke="#00A6C8" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="38" y1="32" x2="54" y2="32" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="54" y1="32" x2="48.8" y2="35" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+    <line x1="54" y1="32" x2="48.8" y2="29" fill="none" stroke="#A6CE39" stroke-width="4" vector-effect="non-scaling-stroke" />
+  </g>
+</svg>

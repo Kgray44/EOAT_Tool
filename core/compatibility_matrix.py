@@ -37,7 +37,7 @@ STATE_UNKNOWN = "Unknown"
 STATE_CONFLICT = "Conflict"
 STATE_NEEDS_REVIEW = "Needs Review"
 
-# Compatibility alias retained for older callers/tests. Physical audit IDs are still
+# Fit Check alias retained for older callers/tests. Physical audit IDs are still
 # exposed separately on each cell, so "Compatible" does not erase provenance.
 STATE_AUDITED = STATE_COMPATIBLE
 STATE_MISSING = STATE_UNKNOWN
@@ -48,7 +48,7 @@ COLUMN_MODE_SOURCE_AUDIT = "source_audit"
 COLUMN_MODES = (COLUMN_MODE_TOOL, COLUMN_MODE_PART_FAMILY, COLUMN_MODE_SOURCE_AUDIT)
 
 TOOL_ID = "compatibility_matrix"
-TOOL_NAME = "Compatibility Matrix 2.0"
+TOOL_NAME = "Fit Check Matrix 2.0"
 
 CONFLICT_FIELDS = ("EOAT Type", "Part Family", "Part Name/Description", "Connection Type")
 EXPLICIT_NOT_COMPATIBLE_FIELDS = ("Compatibility Status", "Compatible?", "Status")
@@ -230,19 +230,19 @@ def export_compatibility_matrix(
 ) -> ToolResult:
     started = time.perf_counter()
     paths = resolve_project_paths(project_root)
-    output_dir = ensure_directory(paths.audit_progress_reports / "Compatibility_Matrix")
+    output_dir = ensure_directory(paths.audit_progress_reports / "Fit_Check_Matrix")
     summary = build_compatibility_matrix(project_root, column_mode=column_mode)
     markdown = compatibility_matrix_markdown(summary)
-    md_path = write_timestamped_report(output_dir, f"Compatibility_Matrix_{summary.column_mode}", markdown)
+    md_path = write_timestamped_report(output_dir, f"Fit_Check_Matrix_{summary.column_mode}", markdown)
     csv_rows = compatibility_matrix_csv_rows(summary)
     csv_path = (
-        write_timestamped_csv(output_dir, f"Compatibility_Matrix_{summary.column_mode}", csv_rows) if csv_rows else None
+        write_timestamped_csv(output_dir, f"Fit_Check_Matrix_{summary.column_mode}", csv_rows) if csv_rows else None
     )
     files = [str(md_path), *(str(csv_path) for csv_path in [csv_path] if csv_path is not None)]
     result = ToolResult.ok(
         TOOL_ID,
         TOOL_NAME,
-        "Exported compatibility matrix.",
+        "Exported Fit Check matrix.",
         details=[
             f"Column mode: {summary.column_mode}",
             f"Machines: {len(summary.machines)}",
@@ -290,7 +290,7 @@ def compatibility_matrix_csv_rows(summary: CompatibilityMatrixSummary) -> list[d
 
 def compatibility_matrix_markdown(summary: CompatibilityMatrixSummary) -> str:
     lines = [
-        "# Compatibility Matrix 2.0",
+        "# Fit Check Matrix 2.0",
         "",
         "## Summary",
         f"- Column mode: {summary.column_mode}",
