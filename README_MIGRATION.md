@@ -15,13 +15,13 @@ The tool is intentionally copy-only. It does not delete, move, rename, or modify
 Source:
 
 ```powershell
-\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026\EOAT_Standardization_Project
+C:\Sanitized\LegacySource
 ```
 
 Destination:
 
 ```powershell
-\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas
+C:\Sanitized\EOATAtlasDestination
 ```
 
 The script uses quoted/literal-safe PowerShell operations so the ampersand in `Maintenance & Manufacturing Engineering` is handled correctly.
@@ -37,7 +37,7 @@ Run this first:
 If PowerShell blocks script execution on this PC, use the one-time process bypass form:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026\migrate_eoat_atlas_to_network.ps1" -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\migrate_eoat_atlas_to_network.ps1" -DryRun
 ```
 
 Dry-run mode does not create the destination folder structure and does not copy files. It builds the same inventory and proposed copy manifest, then writes review logs under:
@@ -53,7 +53,7 @@ Use `-LogRoot` to place dry-run logs somewhere else.
 If the first migration produced `Thumbs.db` errors or `System.IO.DirectoryNotFoundException` errors for nested photo paths, run the patched script again. Run dry-run first and review the new reports before running the real migration:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026\migrate_eoat_atlas_to_network.ps1" -DryRun
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\migrate_eoat_atlas_to_network.ps1" -DryRun
 ```
 
 It is safe to rerun because the script checks existing files and avoids overwriting unless `-Force` is used.
@@ -79,7 +79,7 @@ To rerun verification against the latest real migration log:
 To verify a specific log folder:
 
 ```powershell
-.\migrate_eoat_atlas_to_network.ps1 -VerifyOnly -LogRoot "\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas\00_Admin\Migration_Logs\Migration_YYYYMMDD_HHMMSS"
+.\migrate_eoat_atlas_to_network.ps1 -VerifyOnly -LogRoot "C:\Sanitized\Migration_Logs\Migration_YYYYMMDD_HHMMSS"
 ```
 
 ## Optional switches

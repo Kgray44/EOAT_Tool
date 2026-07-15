@@ -23,8 +23,8 @@ provided.
 
 [CmdletBinding()]
 param(
-    [string]$SourceRoot = '\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026\EOAT_Standardization_Project',
-    [string]$DestinationRoot = '\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas',
+    [string]$SourceRoot = $env:EOAT_ATLAS_MIGRATION_SOURCE_ROOT,
+    [string]$DestinationRoot = $env:EOAT_ATLAS_MIGRATION_DESTINATION_ROOT,
     [switch]$DryRun,
     [switch]$VerifyOnly,
     [switch]$IncludeAppSource,
@@ -61,8 +61,8 @@ function Join-PathMany {
 
 function Get-DefaultMigrationConfig {
     return [pscustomobject]@{
-        default_source_root = '\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026\EOAT_Standardization_Project'
-        default_destination_root = '\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas'
+        default_source_root = 'C:\Sanitized\LegacySource'
+        default_destination_root = 'C:\Sanitized\EOATAtlasDestination'
         include_app_source_by_default = $true
         hash_large_files = $false
         max_hash_file_mb = 512

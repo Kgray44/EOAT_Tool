@@ -19,6 +19,26 @@ def test_safety_audit_flags_private_paths(tmp_path: Path):
     assert any("UNC path" in message or "shared-drive" in message for message in _messages(findings))
 
 
+def test_safety_audit_flags_personal_local_path(tmp_path: Path):
+    risky = tmp_path / "notes.md"
+    risky.write_text("Workbook: C:\\Users\\someone\\Production\\Master.xlsx\n", encoding="utf-8")
+    assert any(finding.severity == "BLOCKER" for finding in audit_repo(tmp_path))
+
+
+def test_safety_audit_blocks_operational_report_csv(tmp_path: Path):
+    report = tmp_path / "reports" / "cutover" / "assignments.csv"
+    report.parent.mkdir(parents=True)
+    report.write_text("eoat,machine\nEOAT-0043,71\n", encoding="utf-8")
+    assert any("Operational report" in message for message in _messages(audit_repo(tmp_path)))
+
+
+def test_safety_audit_blocks_credentials_and_private_keys(tmp_path: Path):
+    (tmp_path / ".env").write_text("PASSWORD=not-a-real-password\n", encoding="utf-8")
+    (tmp_path / "device.key").write_text("synthetic-key-material\n", encoding="utf-8")
+    findings = audit_repo(tmp_path)
+    assert sum(finding.severity == "BLOCKER" for finding in findings) >= 2
+
+
 def test_safety_audit_flags_local_config_files(tmp_path: Path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()

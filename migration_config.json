@@ -1,6 +1,6 @@
 {
-  "default_source_root": "\\\\example.invalid\\VT\\Users\\kgray\\My Documents\\KG_Nolato_Summer_2026\\EOAT_Standardization_Project",
-  "default_destination_root": "\\\\example.invalid\\VT\\Plant4\\Maintenance & Manufacturing Engineering\\EOAT Atlas",
+  "default_source_root": "C:\\Sanitized\\LegacySource",
+  "default_destination_root": "C:\\Sanitized\\EOATAtlasDestination",
   "include_app_source_by_default": true,
   "hash_large_files": false,
   "max_hash_file_mb": 512,

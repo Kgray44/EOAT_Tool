@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
 from release_tools.manifest import atomic_write_json, read_manifest, sha256_file, validate_manifest
 from release_tools.versioning import Version, build_identifier
 
-DEFAULT_DEPLOYMENT_ROOT = Path(r"\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas")
+DEFAULT_DEPLOYMENT_ROOT = Path(os.getenv("EOAT_ATLAS_DEPLOYMENT_ROOT", r"C:\Sanitized\ConfigureDeploymentRoot"))
 
 
 class PublishError(RuntimeError):
@@ -80,12 +80,10 @@ def _read_source_metadata() -> dict[str, Any]:
 
 def _target_metadata(original: dict[str, Any], version: Version) -> dict[str, Any]:
     now = datetime.now(timezone.utc).replace(microsecond=0)
-    commit = str(original.get("git_commit") or "").strip()
+    completed = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False)
+    commit = (os.getenv("GITHUB_SHA") or completed.stdout.strip()) if completed.returncode == 0 else ""
     if not commit:
-        completed = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
-        )
-        commit = completed.stdout.strip() if completed.returncode == 0 else ""
+        raise PublishError("Exact source commit is unavailable; publication is blocked.")
     result = dict(original)
     result.update({
         "app_version": str(version),

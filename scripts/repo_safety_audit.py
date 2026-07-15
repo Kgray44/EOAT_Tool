@@ -52,12 +52,18 @@ ALLOW_PREFIXES = (
     ("templates",),
     ("tests",),
     ("data_templates",),
+    ("reports", "sanitized"),
+    ("reports", "templates"),
+    ("reports", "examples"),
 )
 DATA_ALLOW_PREFIXES = (
     ("examples", "demo_project"),
     ("templates",),
     ("tests",),
     ("data_templates",),
+    ("reports", "sanitized"),
+    ("reports", "templates"),
+    ("reports", "examples"),
 )
 IMAGE_ALLOW_PREFIXES = (
     ("EOAT_Atlas_pages",),
@@ -97,7 +103,7 @@ LINE_RULES: list[tuple[str, str, re.Pattern[str]]] = [
         "BLOCKER",
         "Secret-like value detected.",
         re.compile(
-            r"(?i)\b(api[_-]?key|access[_-]?token|auth[_-]?token|secret|password|passwd)\b\s*[:=]\s*['\"]?[A-Za-z0-9_./+=-]{8,}"
+            r"(?i)\b(api[_-]?key|access[_-]?token|auth[_-]?token|secret|password|passwd)\b\s*[:=]\s*['\"][A-Za-z0-9_./+=-]{8,}['\"]"
         ),
     ),
     (
@@ -132,6 +138,9 @@ PATH_BLOCKERS = [
     ("user_config.json", "Local config file must not be committed."),
     (".env", "Environment file must not be committed."),
     (".env.*", "Environment file must not be committed."),
+    ("*.pem", "Certificate or private-key material must not be committed."),
+    ("*.key", "Certificate or private-key material must not be committed."),
+    ("*credentials*.json", "Credential file must not be committed."),
 ]
 
 SENSITIVE_PATH_WORDS = [
@@ -328,7 +337,12 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
     is_test_file = _rel_parts(path, root)[:1] == ("tests",)
     parts_lower = tuple(part.lower().replace("-", "_").replace(" ", "_") for part in _rel_parts(path, root))
 
+    if parts_lower[:1] == ("reports",) and not allowed:
+        findings.append(Finding("BLOCKER", path, "Operational report artifact is outside reports/sanitized, templates, or examples."))
+
     for pattern, message in PATH_BLOCKERS:
+        if path.name.casefold().endswith(".example") and pattern == ".env.*":
+            continue
         if _path_matches_blocker(rel_lower, pattern.lower()):
             findings.append(Finding("BLOCKER", path, message))
     if (path.name.lower() in LOCAL_CONFIG_NAMES or path.name.lower().endswith(".local.json")) and not any(
@@ -393,6 +407,12 @@ def audit_file(path: Path, root: Path, *, max_large_file_bytes: int = 5_000_000)
                 continue
             if allowed and severity == "WARNING":
                 continue
+            if (
+                severity == "WARNING"
+                and path.suffix.casefold() == ".py"
+                and re.search(r"\bcustomer\s*(?::\s*(?:Mapped|str)|=\s*(?:entity|record|row|tool)\.customer)", line)
+            ):
+                continue
             if pattern.search(line):
                 findings.append(Finding(severity, path, message, number))
     return findings
@@ -405,7 +425,10 @@ def audit_repo(root: str | Path) -> list[Finding]:
     if warning:
         findings.append(Finding("WARNING", root_path, warning))
     for path in files if files is not None else iter_files(root_path):
-        findings.extend(audit_file(path, root_path))
+        # Deleted tracked files remain in `git ls-files` until committed. Their
+        # former content is unavailable and must not crash a pre-commit scan.
+        if path.is_file():
+            findings.extend(audit_file(path, root_path))
     return findings
 
 

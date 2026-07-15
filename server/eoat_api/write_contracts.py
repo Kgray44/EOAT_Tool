@@ -186,9 +186,10 @@ class CompatibilityWrite(WriteModel):
 
 
 class MoveToMachine(WriteModel):
+    plant_code: str | None = None
     machine_number: str
     expected_row_version: int = Field(ge=1)
-    tool_identifier: str | None = None
+    tool_identifier: str
     robot_identifier: str | None = None
     installed_at: datetime | None = None
     reason: str | None = None

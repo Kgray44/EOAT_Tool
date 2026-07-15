@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from core.versioning import get_version_info
 from core.versioning.compatibility import EXPECTED_API_VERSION, EXPECTED_SCHEMA_REVISION
 
+from .compatibility import COMPATIBLE_STATUS_CODES, classify_status
 from .contracts import (
     FitCheckRequest,
     FitCheckResult,
@@ -37,7 +38,34 @@ class AtlasService:
         return str(self.session.scalar(text("SELECT VERSION()")) or "")
 
     def fit_check(self, request: FitCheckRequest) -> FitCheckResult:
-        machine = self.session.scalar(select(db.Machine).where(db.Machine.machine_number == request.machine_number))
+        evaluated_at = datetime.now(timezone.utc)
+        machine_query = select(db.Machine).where(
+            db.Machine.machine_number == request.machine_number,
+            db.Machine.is_active.is_(True),
+        )
+        if request.plant_code:
+            machine_query = machine_query.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
+                db.Plant.plant_code == request.plant_code,
+                db.Plant.is_active.is_(True),
+            )
+        machines = list(self.session.scalars(machine_query.order_by(db.Machine.id)).all())
+        if len(machines) > 1:
+            unknown = PairCompatibility(
+                pair="unresolved_input",
+                result="NOT_EVALUATED",
+                reason="Machine number is ambiguous across plants; plant_code is required.",
+            )
+            return FitCheckResult(
+                overall_result="INVALID_INPUT",
+                machine_tool_result=unknown,
+                machine_eoat_result=unknown,
+                tool_eoat_result=unknown,
+                reasons=["Ambiguous machine number: specify plant_code."],
+                warnings=[],
+                unknown_relationships=["machine"],
+                alternative_compatible_eoats=[],
+            )
+        machine = machines[0] if machines else None
         tool = self.session.scalar(
             select(db.Tool).where(
                 (db.Tool.business_identifier == request.tool_number) | (db.Tool.tool_number == request.tool_number)
@@ -65,8 +93,33 @@ class AtlasService:
                 alternative_compatible_eoats=[],
             )
 
+        inactive = [name for name, value in (("tool", tool), ("eoat", eoat)) if not value.is_active]
+        if inactive:
+            unknown = PairCompatibility(
+                pair="inactive_input", result="NOT_EVALUATED", reason="Archived or inactive assets cannot be approved."
+            )
+            return FitCheckResult(
+                overall_result="INVALID_INPUT",
+                machine_tool_result=unknown,
+                machine_eoat_result=unknown,
+                tool_eoat_result=unknown,
+                reasons=[f"Inactive input: {', '.join(inactive)}"],
+                warnings=[],
+                unknown_relationships=inactive,
+                alternative_compatible_eoats=[],
+            )
+
         def pair_result(model: type, *criteria) -> PairCompatibility:
-            record = self.session.scalar(select(model).where(*criteria, model.is_active.is_(True)))
+            record = self.session.scalar(
+                select(model)
+                .where(
+                    *criteria,
+                    model.is_active.is_(True),
+                    model.effective_from <= evaluated_at,
+                    (model.effective_to.is_(None) | (model.effective_to >= evaluated_at)),
+                )
+                .order_by(model.effective_from.desc(), model.id.desc())
+            )
             pair_name = model.__tablename__
             if record is None:
                 return PairCompatibility(
@@ -74,24 +127,30 @@ class AtlasService:
                     result="UNKNOWN",
                     reason="No verified relationship is recorded; absence is not incompatibility.",
                 )
-            status = (
-                self.session.scalar(
-                    select(db.CompatibilityStatus.code).where(
-                        db.CompatibilityStatus.id == record.compatibility_status_id
-                    )
-                )
-                or "unknown"
+            status = self.session.scalar(
+                select(db.CompatibilityStatus.code).where(db.CompatibilityStatus.id == record.compatibility_status_id)
             )
-            if status in {"incompatible", "failed", "not_compatible"}:
-                return PairCompatibility(
-                    pair=pair_name,
-                    result="INCOMPATIBLE",
-                    reason=record.reason or "Relationship is explicitly incompatible.",
+            source = None
+            if record.verification_source_id:
+                source = self.session.scalar(
+                    select(db.CompatibilitySource.code).where(db.CompatibilitySource.id == record.verification_source_id)
                 )
+            result = classify_status(status)
+            default_reasons = {
+                "COMPATIBLE": "Relationship has an explicitly compatible status and is currently effective.",
+                "INCOMPATIBLE": "Relationship is explicitly incompatible.",
+                "NEEDS_REVIEW": "Relationship explicitly requires review.",
+                "UNKNOWN": "Relationship status is missing or unrecognized; compatibility was not inferred.",
+            }
             return PairCompatibility(
                 pair=pair_name,
-                result="COMPATIBLE",
-                reason=record.reason or "Relationship is recorded in the authoritative data.",
+                result=result,
+                reason=record.reason or default_reasons[result],
+                status_code=status or "unknown",
+                verification_source=source,
+                is_active=record.is_active,
+                effective_from=record.effective_from,
+                effective_to=record.effective_to,
             )
 
         machine_tool = pair_result(
@@ -114,20 +173,39 @@ class AtlasService:
             overall = "INCOMPATIBLE"
         elif all(pair.result == "COMPATIBLE" for pair in pairs):
             overall = "COMPATIBLE"
+        elif any(pair.result == "NEEDS_REVIEW" for pair in pairs):
+            overall = "NEEDS_REVIEW"
         else:
             overall = "NEEDS_REVIEW"
-        unknowns = [pair.pair for pair in pairs if pair.result == "UNKNOWN"]
-        alternative_ids = self.session.scalars(
-            select(db.EOAT.business_identifier)
-            .join(db.EOATMachineCompatibility, db.EOATMachineCompatibility.eoat_id == db.EOAT.id)
-            .join(db.EOATToolCompatibility, db.EOATToolCompatibility.eoat_id == db.EOAT.id)
-            .where(
-                db.EOATMachineCompatibility.machine_id == machine.id,
-                db.EOATToolCompatibility.tool_id == tool.id,
-                db.EOAT.is_active.is_(True),
+        unknowns = [pair.pair for pair in pairs if pair.result in {"UNKNOWN", "NEEDS_REVIEW"}]
+        alternative_ids: list[str] = []
+        if machine_tool.result == "COMPATIBLE":
+            alternative_ids = list(
+                self.session.scalars(
+                    select(db.EOAT.business_identifier)
+                    .join(db.EOATMachineCompatibility, db.EOATMachineCompatibility.eoat_id == db.EOAT.id)
+                    .join(db.EOATToolCompatibility, db.EOATToolCompatibility.eoat_id == db.EOAT.id)
+                    .where(
+                        db.EOATMachineCompatibility.machine_id == machine.id,
+                        db.EOATToolCompatibility.tool_id == tool.id,
+                        db.EOAT.is_active.is_(True),
+                        db.EOATMachineCompatibility.is_active.is_(True),
+                        db.EOATToolCompatibility.is_active.is_(True),
+                        db.EOATMachineCompatibility.effective_from <= evaluated_at,
+                        (db.EOATMachineCompatibility.effective_to.is_(None) | (db.EOATMachineCompatibility.effective_to >= evaluated_at)),
+                        db.EOATToolCompatibility.effective_from <= evaluated_at,
+                        (db.EOATToolCompatibility.effective_to.is_(None) | (db.EOATToolCompatibility.effective_to >= evaluated_at)),
+                        db.EOATMachineCompatibility.compatibility_status_id.in_(
+                            select(db.CompatibilityStatus.id).where(db.CompatibilityStatus.code.in_(COMPATIBLE_STATUS_CODES))
+                        ),
+                        db.EOATToolCompatibility.compatibility_status_id.in_(
+                            select(db.CompatibilityStatus.id).where(db.CompatibilityStatus.code.in_(COMPATIBLE_STATUS_CODES))
+                        ),
+                    )
+                    .distinct()
+                    .order_by(db.EOAT.business_identifier)
+                ).all()
             )
-            .order_by(db.EOAT.business_identifier)
-        ).all()
         return FitCheckResult(
             overall_result=overall,
             machine_tool_result=machine_tool,
@@ -144,7 +222,12 @@ class AtlasService:
     ) -> FitCheckResult:
         if result.overall_result == "INVALID_INPUT":
             return result
-        machine = self.session.scalar(select(db.Machine).where(db.Machine.machine_number == request.machine_number))
+        machine_query = select(db.Machine).where(db.Machine.machine_number == request.machine_number)
+        if request.plant_code:
+            machine_query = machine_query.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
+                db.Plant.plant_code == request.plant_code
+            )
+        machine = self.session.scalar(machine_query)
         tool = self.session.scalar(
             select(db.Tool).where(
                 or_(db.Tool.business_identifier == request.tool_number, db.Tool.tool_number == request.tool_number)

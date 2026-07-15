@@ -1,31 +1,97 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "EOAT_Atlas.spec"
 
 
+def _git(*args: str) -> str:
+    completed = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False)
+    if completed.returncode:
+        raise RuntimeError(completed.stderr.strip() or "Git provenance command failed")
+    return completed.stdout.strip()
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _generated_build_metadata() -> Path:
+    dirty = _git("status", "--porcelain")
+    if dirty and os.getenv("EOAT_ATLAS_ALLOW_DIRTY_BUILD") != "1":
+        raise RuntimeError("Refusing to package a dirty tracked tree; exact source provenance would be ambiguous.")
+    payload = json.loads((ROOT / "release_metadata.json").read_text(encoding="utf-8"))
+    commit = os.getenv("GITHUB_SHA") or _git("rev-parse", "HEAD")
+    branch = os.getenv("GITHUB_REF_NAME") or _git("branch", "--show-current")
+    timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+    run_id = os.getenv("GITHUB_RUN_ID") or f"local-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
+    payload.update(
+        {
+            "git_commit": commit,
+            "branch_name": branch,
+            "build_timestamp": timestamp.isoformat().replace("+00:00", "Z"),
+            "build_date": timestamp.date().isoformat(),
+            "build_id": f"eoat-atlas-{payload['app_version']}-{commit[:7]}-{run_id}",
+            "ci_run_id": run_id,
+            "build_identity_generated": True,
+        }
+    )
+    destination = ROOT / "build" / "generated_build_metadata.json"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return destination
+
+
+def _write_package_manifest(metadata_path: Path) -> None:
+    package = ROOT / "dist" / "EOAT Atlas"
+    files = [path for path in sorted(package.rglob("*")) if path.is_file()]
+    payload = {
+        "manifest_schema_version": 1,
+        "build": json.loads(metadata_path.read_text(encoding="utf-8")),
+        "files": [
+            {"path": path.relative_to(package).as_posix(), "size": path.stat().st_size, "sha256": _sha256(path)}
+            for path in files
+        ],
+    }
+    (package / "package_manifest.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
 def main() -> int:
     pyinstaller = shutil.which("pyinstaller")
     if not pyinstaller:
-        print("PyInstaller is not installed. Install it with:")
-        print("python -m pip install pyinstaller")
-        print("Then rerun: python scripts/build_package.py")
+        print("PyInstaller is not installed. Install it with: python -m pip install pyinstaller")
         return 1
-    cmd = [
-        sys.executable,
-        "-m",
-        "PyInstaller",
-        "--noconfirm",
-        "--clean",
-        str(SPEC_PATH),
-    ]
-    print("Running:", " ".join(cmd))
-    return subprocess.run(cmd, cwd=ROOT, shell=False).returncode
+    try:
+        metadata = _generated_build_metadata()
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"ERROR: package provenance generation failed: {exc}", file=sys.stderr)
+        return 1
+    env = os.environ.copy()
+    env["EOAT_ATLAS_BUILD_METADATA"] = str(metadata)
+    completed = subprocess.run(
+        [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", str(SPEC_PATH)],
+        cwd=ROOT,
+        env=env,
+        shell=False,
+    )
+    if completed.returncode:
+        return completed.returncode
+    _write_package_manifest(metadata)
+    return 0
 
 
 if __name__ == "__main__":

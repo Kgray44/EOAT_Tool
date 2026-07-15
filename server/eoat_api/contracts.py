@@ -174,8 +174,13 @@ class SearchResult(BaseModel):
 
 class PairCompatibility(BaseModel):
     pair: str
-    result: Literal["COMPATIBLE", "INCOMPATIBLE", "UNKNOWN", "NOT_EVALUATED"]
+    result: Literal["COMPATIBLE", "INCOMPATIBLE", "NEEDS_REVIEW", "UNKNOWN", "NOT_EVALUATED"]
     reason: str
+    status_code: str | None = None
+    verification_source: str | None = None
+    is_active: bool | None = None
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
 
 
 class FitCheckResult(BaseModel):
@@ -192,6 +197,7 @@ class FitCheckResult(BaseModel):
 
 
 class FitCheckRequest(BaseModel):
+    plant_code: str | None = None
     machine_number: str
     tool_number: str
     eoat_identifier: str

@@ -32,8 +32,11 @@ def _is_within(path: str, root: Path) -> bool:
 
 
 def _is_project_copy(path: str) -> bool:
-    normalized = str(path).replace("/", "\\").casefold()
-    return "kg_nolato_summer_2026" in normalized
+    try:
+        candidate = Path(path).resolve()
+    except (OSError, ValueError):
+        return False
+    return candidate.is_dir() and (candidate / "EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT").exists()
 
 
 def _isolate_import_path() -> None:

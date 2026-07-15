@@ -20,7 +20,7 @@ from .versioning import Version
 
 APP_EXE = "EOAT Atlas.exe"
 METADATA = "release_metadata.json"
-DEFAULT_DEPLOYMENT_ROOT = Path(r"\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas")
+DEFAULT_DEPLOYMENT_ROOT = Path(os.getenv("EOAT_ATLAS_DEPLOYMENT_ROOT", r"C:\Sanitized\ConfigureDeploymentRoot"))
 
 
 class LauncherError(RuntimeError):

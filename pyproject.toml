@@ -27,7 +27,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E501"]
 "tools/*.py" = ["E402"]
-"scripts/ci_smoke_check.py" = ["E402"]
+"scripts/ci_atlas_smoke_check.py" = ["E402"]
 "scripts/migrate_air_circuit_architecture.py" = ["E402"]
 "scripts/publish_release.py" = ["E402"]
 "scripts/validate_launcher_update.py" = ["E402"]

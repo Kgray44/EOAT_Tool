@@ -46,6 +46,15 @@
       "state": "finalized",
       "task_id": "codex-mysql-migration-e2e-validation-20260715",
       "finalized_at_utc": "2026-07-15T16:20:09Z"
+    },
+    {
+      "application_version": "0.14.0",
+      "release_id": "eoat-atlas-0.14.0",
+      "build_id": "eoat-atlas-0.14.0-6c5b65b-20260715T185824Z",
+      "commit_sha": "6c5b65b83c0410810da2b11937cc1944a30d72f1",
+      "state": "finalized",
+      "task_id": "codex-full-stabilization-20260715",
+      "finalized_at_utc": "2026-07-15T18:58:24Z"
     }
   ]
 }

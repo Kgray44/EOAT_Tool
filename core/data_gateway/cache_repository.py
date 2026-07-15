@@ -11,7 +11,7 @@ from typing import Any
 from .exceptions import CacheUnavailableError
 from .models import CacheStatus
 
-CACHE_SCHEMA_VERSION = "3"
+CACHE_SCHEMA_VERSION = "4"
 ENTITY_TABLES = {
     "eoats": "business_identifier",
     "machines": "machine_number",
@@ -47,6 +47,17 @@ class CacheRepository:
                     payload_json TEXT NOT NULL,
                     PRIMARY KEY(eoat_identifier, event_id)
                 );
+                CREATE TABLE IF NOT EXISTS cached_document_links (
+                    document_identifier TEXT NOT NULL,
+                    entity_type TEXT NOT NULL,
+                    entity_identifier TEXT NOT NULL,
+                    relationship_type TEXT NOT NULL,
+                    is_photo INTEGER NOT NULL DEFAULT 0,
+                    is_profile_photo INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(document_identifier, entity_type, entity_identifier, relationship_type)
+                );
+                CREATE INDEX IF NOT EXISTS ix_cached_document_links_entity
+                    ON cached_document_links(entity_type, entity_identifier, is_photo);
                 CREATE INDEX IF NOT EXISTS ix_cached_eoat_history_timeline
                     ON cached_eoat_history(eoat_identifier, occurred_at DESC, event_id DESC);
                 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(entity_type, identifier, text_content);
@@ -99,6 +110,23 @@ class CacheRepository:
                         "INSERT INTO cached_entities(entity_type,identifier,payload_json) VALUES(?,?,?)",
                         (entity_type, identifier, json.dumps(payload, ensure_ascii=False)),
                     )
+                    if entity_type in {"documents", "photos"}:
+                        for relationship in payload.get("related_entities", []):
+                            linked_type = str(relationship.get("relationship_type") or "").strip().casefold()
+                            linked_identifier = str(relationship.get("identifier") or "").strip()
+                            if not linked_type or not linked_identifier:
+                                continue
+                            connection.execute(
+                                "INSERT OR REPLACE INTO cached_document_links(document_identifier,entity_type,entity_identifier,relationship_type,is_photo,is_profile_photo) VALUES(?,?,?,?,?,?)",
+                                (
+                                    identifier,
+                                    linked_type,
+                                    linked_identifier,
+                                    linked_type,
+                                    int(entity_type == "photos"),
+                                    int(bool(payload.get("is_profile_photo"))),
+                                ),
+                            )
                     content = " ".join(str(value) for value in payload.values() if isinstance(value, str))
                     connection.execute(
                         "INSERT INTO search_index(entity_type,identifier,text_content) VALUES(?,?,?)",
@@ -203,6 +231,21 @@ class CacheRepository:
                     (identifier,),
                 )
             ]
+
+    def linked_documents(self, entity_type: str, identifier: str, *, photos_only: bool = False) -> list[dict[str, Any]]:
+        """Return only documents explicitly linked to the requested stable entity identifier."""
+        if not self.path.exists():
+            return []
+        cached_type = "photos" if photos_only else "documents"
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                "SELECT e.payload_json FROM cached_document_links l "
+                "JOIN cached_entities e ON e.identifier=l.document_identifier AND e.entity_type=? "
+                "WHERE lower(l.entity_type)=lower(?) AND lower(l.entity_identifier)=lower(?) "
+                "ORDER BY e.identifier",
+                (cached_type, entity_type, identifier),
+            ).fetchall()
+            return [json.loads(row[0]) for row in rows]
 
     def replace_eoat_history(self, identifier: str, events: list[dict[str, Any]]) -> None:
         self.initialize()

@@ -16,10 +16,12 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .contracts import FitCheckRequest
 from .database import models as db
 from .errors import APIError, conflict, not_found
 from .release_provenance import ensure_application_release, release_id_for_instance
 from .security import ActorContext
+from .services import AtlasService
 
 CACHED_ENTITY_TYPES = {
     "eoat",
@@ -506,6 +508,18 @@ COMPATIBILITY_CONFIG = {
     ),
 }
 
+COMPATIBILITY_WRITABLE_FIELDS = {
+    "eoat-machine": frozenset(
+        {"verified_at", "effective_from", "effective_to", "reason", "conditions", "notes", "connection_compatible", "payload_compatible", "reach_compatible", "cleanroom_compatible", "robot_interface_compatible", "utilities_compatible"}
+    ),
+    "eoat-tool": frozenset(
+        {"verified_at", "effective_from", "effective_to", "reason", "conditions", "notes", "part_geometry_compatible", "number_of_parts_compatible", "vacuum_or_gripper_compatible", "sensor_compatible", "cycle_requirement_compatible"}
+    ),
+    "tool-machine": frozenset(
+        {"verified_at", "effective_from", "effective_to", "reason", "conditions", "notes", "tonnage_compatible", "physical_size_compatible", "utilities_compatible", "process_compatible"}
+    ),
+}
+
 
 def write_compatibility(
     session: Session,
@@ -549,7 +563,7 @@ def write_compatibility(
     if source is not None:
         record.verification_source_id = lookup_id(session, db.CompatibilitySource, source, "verification_source")
     attributes = payload.pop("attributes", {})
-    allowed_attributes = {column.key for column in sa_inspect(model).columns}
+    allowed_attributes = COMPATIBILITY_WRITABLE_FIELDS[relationship_type]
     for key, value in {**payload, **attributes}.items():
         if key in {left[1], right[1]}:
             continue
@@ -685,39 +699,54 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
     check_version(eoat, payload["expected_row_version"])
     if not eoat.is_active:
         raise APIError(409, "ARCHIVED_EOAT", "An archived EOAT cannot be installed.")
-    machine = _entity_by_identifier(session, "machine", payload["machine_number"], lock=True)
-    if not machine.is_active:
-        raise APIError(409, "ARCHIVED_MACHINE", "An archived machine cannot receive an EOAT.")
-    tool = (
-        _entity_by_identifier(session, "tool", payload["tool_identifier"]) if payload.get("tool_identifier") else None
+    machine_query = select(db.Machine).where(
+        db.Machine.machine_number == payload["machine_number"], db.Machine.is_active.is_(True)
     )
+    if payload.get("plant_code"):
+        machine_query = machine_query.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
+            db.Plant.plant_code == payload["plant_code"]
+        )
+    machines = list(session.scalars(machine_query.with_for_update()).all())
+    if not machines:
+        exists = session.scalar(select(db.Machine.id).where(db.Machine.machine_number == payload["machine_number"]))
+        if exists:
+            raise APIError(409, "ARCHIVED_MACHINE", "An archived machine cannot receive an EOAT.")
+        raise not_found("machine", payload["machine_number"])
+    if len(machines) != 1:
+        raise APIError(409, "AMBIGUOUS_MACHINE", "plant_code is required when a machine number exists in multiple plants.")
+    machine = machines[0]
+    tool = _entity_by_identifier(session, "tool", payload["tool_identifier"])
+    if not tool.is_active:
+        raise APIError(409, "ARCHIVED_TOOL", "An archived tool cannot be installed.")
     robot = (
         _entity_by_identifier(session, "robot", payload["robot_identifier"])
         if payload.get("robot_identifier")
         else None
     )
-    compatibility = session.scalar(
-        select(db.EOATMachineCompatibility)
-        .join(db.CompatibilityStatus, db.CompatibilityStatus.id == db.EOATMachineCompatibility.compatibility_status_id)
-        .where(
-            db.EOATMachineCompatibility.eoat_id == eoat.id,
-            db.EOATMachineCompatibility.machine_id == machine.id,
-            db.EOATMachineCompatibility.is_active.is_(True),
-            db.CompatibilityStatus.code == "incompatible",
+    fit_check = AtlasService(session).fit_check(
+        FitCheckRequest(
+            plant_code=payload.get("plant_code"),
+            machine_number=machine.machine_number,
+            tool_number=tool.business_identifier,
+            eoat_identifier=eoat.business_identifier,
         )
     )
-    if compatibility and not payload.get("override_reason"):
-        raise APIError(409, "INCOMPATIBLE_INSTALLATION", "An override reason is required for this installation.")
+    override_reason = str(payload.get("override_reason") or "").strip()
+    overridden = fit_check.overall_result != "COMPATIBLE"
+    if overridden and not override_reason:
+        raise APIError(409, "INSTALLATION_COMPATIBILITY_BLOCKED", "Installation requires a COMPATIBLE Fit Check result.", {"fit_check": fit_check.model_dump(mode="json")})
+    if overridden and not actor.permits("installation.override_compatibility"):
+        raise APIError(403, "COMPATIBILITY_OVERRIDE_FORBIDDEN", "This identity cannot override compatibility.")
     when = payload.get("installed_at") or utcnow()
     closed_locations = _close_active_locations(session, actor, eoat.id, when, payload.get("reason"))
     installation = db.EOATInstallation(
         eoat_id=eoat.id,
         machine_id=machine.id,
-        tool_id=tool.id if tool else None,
+        tool_id=tool.id,
         robot_id=robot.id if robot else None,
         installed_at=when,
         installed_by_user_id=actor.user_id,
-        installation_reason=payload.get("reason") or payload.get("override_reason"),
+        installation_reason=payload.get("reason") or override_reason,
         installation_notes=payload.get("notes"),
         application_instance_id=actor.application_instance_id,
         source="eoat_api",
@@ -732,7 +761,7 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
         actor,
         entity_type="installation",
         entity_id=installation.id,
-        action="create",
+        action="installation_compatibility_override" if overridden else "create",
         previous=None,
         current=current,
         row_version=installation.row_version,
@@ -746,9 +775,16 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
         history_notes=payload.get("notes"),
         history_metadata={
             "related_machine": machine.machine_number,
-            "related_tool": tool.business_identifier if tool else None,
+            "related_tool": tool.business_identifier,
             "related_robot": robot.robot_number if robot else None,
             "movement_kind": "moved_to_machine" if closed_locations else "installed",
+            "compatibility_override": overridden,
+            "override_reason": override_reason or None,
+            "fit_check": fit_check.model_dump(mode="json"),
+            "actor_identity": actor.identity,
+            "request_id": actor.request_id,
+            "application_instance_id": actor.application_instance_id,
+            "application_release_id": release_id_for_instance(session, actor.application_instance_id),
         },
         source_table="eoat_installations",
         source_record_id=installation.id,

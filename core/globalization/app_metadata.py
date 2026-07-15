@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from core.data_gateway.cache_repository import CACHE_SCHEMA_VERSION as API_CACHE_SCHEMA_VERSION
 from core.resources import app_base_path, release_metadata_path
 from core.versioning import get_app_version, get_release_info
 
@@ -36,6 +37,8 @@ class AppMetadata:
     build_timestamp: str = BUILD_TIMESTAMP
     build_id: str = BUILD_ID
     git_commit: str = ""
+    globalization_sqlite_schema_version: int = SCHEMA_VERSION
+    api_cache_schema_version: int = int(API_CACHE_SCHEMA_VERSION)
     cache_schema_version: int = SCHEMA_VERSION
     event_schema_version: int = EVENT_SCHEMA_VERSION
     config_schema_version: int = CONFIG_SCHEMA_VERSION
@@ -79,7 +82,13 @@ def _load_app_metadata_cached(metadata_path_text: str, git_root_text: str) -> Ap
         build_timestamp=str(payload.get("build_timestamp") or BUILD_TIMESTAMP),
         build_id=release.build_id,
         git_commit=str(release.commit_sha or os.environ.get("EOAT_ATLAS_GIT_COMMIT") or _git_commit(git_root)),
-        cache_schema_version=int(payload.get("cache_schema_version") or SCHEMA_VERSION),
+        globalization_sqlite_schema_version=int(
+            payload.get("globalization_sqlite_schema_version") or payload.get("cache_schema_version") or SCHEMA_VERSION
+        ),
+        api_cache_schema_version=int(payload.get("api_cache_schema_version") or API_CACHE_SCHEMA_VERSION),
+        cache_schema_version=int(
+            payload.get("globalization_sqlite_schema_version") or payload.get("cache_schema_version") or SCHEMA_VERSION
+        ),
         event_schema_version=int(payload.get("event_schema_version") or EVENT_SCHEMA_VERSION),
         config_schema_version=int(payload.get("config_schema_version") or CONFIG_SCHEMA_VERSION),
         minimum_supported_launcher_version=str(

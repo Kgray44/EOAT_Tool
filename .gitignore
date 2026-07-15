@@ -147,12 +147,12 @@ desktop.ini
 !docs/**
 !reports/
 reports/*
-!reports/cutover_preparation/
-!reports/cutover_preparation/**
-!reports/cutover_rehearsal/
-!reports/cutover_rehearsal/**
-!reports/security/
-!reports/security/**
+!reports/sanitized/
+!reports/sanitized/**
+!reports/templates/
+!reports/templates/**
+!reports/examples/
+!reports/examples/**
 
 # Never re-include generated Python bytecode after allowlist exceptions
 __pycache__/

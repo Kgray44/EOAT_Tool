@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
 
-import server.eoat_api.database.models  # noqa: F401
-from server.eoat_api.database.base import Base
-from server.eoat_api.database.config import migration_database_url
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import server.eoat_api.database.models  # noqa: E402, F401
+from server.eoat_api.database.base import Base  # noqa: E402
+from server.eoat_api.database.config import migration_database_url  # noqa: E402
 
 
 def verify() -> dict:

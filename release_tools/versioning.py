@@ -327,6 +327,15 @@ def _bump_repository_version_locked(
         ("branch_name", branch_name),
     ):
         canonical_text = _replace_json_string(canonical_text, field, value, source=str(canonical_path))
+    canonical_payload = read_json_object(canonical_text, source=str(canonical_path))
+    # Name each independent local schema. cache_schema_version remains only as a
+    # backward-compatible alias for the globalization SQLite schema.
+    canonical_payload["globalization_sqlite_schema_version"] = int(canonical_payload.get("cache_schema_version") or 1)
+    canonical_payload["api_cache_schema_version"] = 4
+    canonical_payload.setdefault("config_schema_version", 1)
+    canonical_payload.setdefault("event_schema_version", 1)
+    canonical_payload.setdefault("metadata_schema_version", 1)
+    canonical_text = json.dumps(canonical_payload, indent=2) + "\n"
     derived_text = _replace_json_string(original_derived, "version", str(target), source=str(derived_path))
     derived_text = _replace_json_string(derived_text, "buildId", build_id, source=str(derived_path))
     derived_text = _replace_json_string(

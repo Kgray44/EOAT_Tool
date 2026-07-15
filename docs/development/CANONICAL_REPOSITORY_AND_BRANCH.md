@@ -6,7 +6,7 @@ Canonical repository:
 
 Absolute path:
 
-`\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development`
+The authorized clone containing `EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT`.
 
 Canonical active development branch:
 
@@ -15,7 +15,7 @@ Canonical active development branch:
 Normal startup:
 
 ```powershell
-Set-Location "\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development"
+Set-Location $env:EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT
 python run_atlas.py
 ```
 

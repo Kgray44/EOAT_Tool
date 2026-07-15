@@ -41,6 +41,7 @@ ROLE_PERMISSIONS = {
             "tag.manage",
             "tag.assign",
             "installation.write",
+            "installation.override_compatibility",
             "audit.write",
             "maintenance.write",
             "fit_check.write",
@@ -77,7 +78,7 @@ class ActorContext:
 
     def permits(self, permission: str) -> bool:
         if self.role == "APPLICATION_USER":
-            return not permission.startswith("settings.")
+            return not permission.startswith("settings.") and permission != "installation.override_compatibility"
         permissions = ROLE_PERMISSIONS.get(self.role, frozenset())
         return "*" in permissions or permission in permissions
 

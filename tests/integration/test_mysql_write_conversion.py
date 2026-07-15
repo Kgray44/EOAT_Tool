@@ -158,6 +158,22 @@ def test_machine_tool_robot_and_compatibility_writes(api):
         },
     )
     assert relation.status_code == 200
+    for relationship_type, identifiers in (
+        ("eoat-tool", {"eoat_identifier": "WRITE-EOAT", "tool_identifier": "WRITE-T1"}),
+        ("tool-machine", {"tool_identifier": "WRITE-T1", "machine_number": "WRITE-M1"}),
+    ):
+        related = post(
+            api,
+            f"/api/v1/compatibility/{relationship_type}",
+            {
+                **identifiers,
+                "compatibility_status": "compatible",
+                "verification_source": "user_verified",
+                "effective_from": datetime.now(timezone.utc).isoformat(),
+                "reason": "Integration verified",
+            },
+        )
+        assert related.status_code == 200
     duplicate = post(
         api,
         "/api/v1/compatibility/eoat-machine",
@@ -173,14 +189,28 @@ def test_machine_tool_robot_and_compatibility_writes(api):
 
 def test_transactional_location_moves_and_stale_race(api):
     eoat = api.get("/api/v1/eoats/WRITE-EOAT").json()
+    missing_tool = post(
+        api,
+        "/api/v1/eoats/WRITE-EOAT/move-to-machine",
+        {"machine_number": "WRITE-M1", "expected_row_version": eoat["row_version"], "reason": "Unsafe omission"},
+        TECHNICIAN,
+        "move-machine-missing-tool",
+    )
+    assert missing_tool.status_code == 422
     move = post(
         api,
         "/api/v1/eoats/WRITE-EOAT/move-to-machine",
-        {"machine_number": "WRITE-M1", "expected_row_version": eoat["row_version"], "reason": "Install test"},
+        {
+            "plant_code": "TEST",
+            "machine_number": "WRITE-M1",
+            "tool_identifier": "WRITE-T1",
+            "expected_row_version": eoat["row_version"],
+            "reason": "Install test",
+        },
         TECHNICIAN,
         "move-machine-1",
     )
-    assert move.status_code == 200
+    assert move.status_code == 200, move.text
     stale_race = post(
         api,
         "/api/v1/eoats/WRITE-EOAT/move-to-storage",
@@ -528,14 +558,14 @@ def test_failed_business_write_rolls_back_audit_and_change_feed(api):
         before_audits = session.scalar(select(func.count(db.ChangeAuditLog.id)))
         before_changes = session.scalar(select(func.count(db.ChangeFeed.change_id)))
         before_history = session.scalar(select(func.count(db.EntityHistoryEvent.id)))
-    response = post(
-        api,
-        "/api/v1/compatibility/eoat-tool",
-        {
-            "eoat_identifier": "WRITE-EOAT",
-            "tool_identifier": "WRITE-T1",
+        relation = session.scalar(select(db.EOATToolCompatibility).where(db.EOATToolCompatibility.is_active.is_(True)))
+    response = api.patch(
+        f"/api/v1/compatibility/eoat-tool/{relation.id}",
+        headers=ENGINEER,
+        json={
             "compatibility_status": "not-a-status",
             "effective_from": datetime.now(timezone.utc).isoformat(),
+            "expected_row_version": relation.row_version,
         },
     )
     assert response.status_code == 422

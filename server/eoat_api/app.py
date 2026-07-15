@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -27,7 +28,7 @@ from .contracts import (
     PaginatedTools,
 )
 from .database import models as db
-from .database.session import create_session_factory, get_runtime_session, get_write_session
+from .database.session import create_session_factory, dispose_database_engines, get_runtime_session, get_write_session
 from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
@@ -55,14 +56,24 @@ if RELEASE_INFO.database_schema_revision != EXPECTED_SCHEMA_REVISION:
 async def lifespan(_app: FastAPI):
     """Reject development authentication in production without contacting an IdP."""
     AuthenticationConfiguration.from_environment()
-    yield
+    try:
+        yield
+    finally:
+        dispose_database_engines()
+
+
+def _api_documentation_path(path: str) -> str | None:
+    environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
+    enabled_default = environment in {"development", "staging_local"}
+    enabled = os.getenv("EOAT_API_DOCS_ENABLED", str(enabled_default)).strip().casefold() in {"1", "true", "yes", "on"}
+    return path if enabled else None
 
 
 app = FastAPI(
     title="EOAT Atlas API",
     version=API_VERSION,
-    docs_url="/api/docs",
-    openapi_url="/api/openapi.json",
+    docs_url=_api_documentation_path("/api/docs"),
+    openapi_url=_api_documentation_path("/api/openapi.json"),
     lifespan=lifespan,
 )
 app.include_router(authentication_router)
@@ -72,13 +83,47 @@ app.include_router(authentication_router)
 async def request_logging(request: Request, call_next):
     started = datetime.now(timezone.utc)
     request.state.request_id = request.headers.get("X-Request-ID") or str(uuid4())
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request.state.request_id
-    elapsed = (datetime.now(timezone.utc) - started).total_seconds() * 1000
-    LOGGER.info(
-        "method=%s path=%s status=%s elapsed_ms=%.2f", request.method, request.url.path, response.status_code, elapsed
-    )
-    return response
+    status: int | str = "UNHANDLED_EXCEPTION"
+    try:
+        environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
+        protected = request.url.path.startswith("/api/v1/") and request.url.path not in {
+            "/api/v1/health",
+            "/api/v1/version",
+        }
+        if environment == "production" and protected:
+            configured_token = os.getenv("EOAT_API_DEVICE_TOKEN", "")
+            supplied_token = request.headers.get("X-EOAT-Device-Token", "")
+            if not configured_token:
+                status = 503
+                return JSONResponse(
+                    status_code=503,
+                    content={"error_code": "DEVICE_AUTH_NOT_CONFIGURED", "message": "Production read authentication is not configured.", "request_id": request.state.request_id},
+                    headers={"X-Request-ID": request.state.request_id},
+                )
+            if not supplied_token or not secrets.compare_digest(supplied_token, configured_token):
+                status = 401
+                return JSONResponse(
+                    status_code=401,
+                    content={"error_code": "DEVICE_AUTH_REQUIRED", "message": "An approved device credential is required.", "request_id": request.state.request_id},
+                    headers={"X-Request-ID": request.state.request_id},
+                )
+        response = await call_next(request)
+        status = response.status_code
+        response.headers["X-Request-ID"] = request.state.request_id
+        return response
+    except Exception:
+        LOGGER.exception("request_failed request_id=%s", request.state.request_id)
+        raise
+    finally:
+        elapsed = (datetime.now(timezone.utc) - started).total_seconds() * 1000
+        LOGGER.info(
+            "request_id=%s method=%s path=%s status=%s elapsed_ms=%.2f",
+            request.state.request_id,
+            request.method,
+            request.url.path,
+            status,
+            elapsed,
+        )
 
 
 @app.exception_handler(APIError)
@@ -479,9 +524,20 @@ def recent_fit_checks(limit: int = Query(25, ge=1, le=250), repo: AtlasRepositor
 
 
 @app.get("/api/v1/compatibility/alternatives")
-def alternatives(machine_number: str, tool_number: str, eoat_identifier: str, svc: AtlasService = Depends(service)):
+def alternatives(
+    machine_number: str,
+    tool_number: str,
+    eoat_identifier: str,
+    plant_code: str | None = None,
+    svc: AtlasService = Depends(service),
+):
     result = svc.fit_check(
-        FitCheckRequest(machine_number=machine_number, tool_number=tool_number, eoat_identifier=eoat_identifier)
+        FitCheckRequest(
+            plant_code=plant_code,
+            machine_number=machine_number,
+            tool_number=tool_number,
+            eoat_identifier=eoat_identifier,
+        )
     )
     return {
         "alternatives": result.alternative_compatible_eoats,
@@ -494,6 +550,7 @@ def setup_packet_data(
     machine_number: str,
     tool_number: str,
     eoat_identifier: str,
+    plant_code: str | None = None,
     repo: AtlasRepository = Depends(repository),
     svc: AtlasService = Depends(service),
 ):
@@ -510,7 +567,12 @@ def setup_packet_data(
         "tool": tool_value,
         "eoat": eoat_value,
         "fit_check": svc.fit_check(
-            FitCheckRequest(machine_number=machine_number, tool_number=tool_number, eoat_identifier=eoat_identifier)
+            FitCheckRequest(
+                plant_code=plant_code,
+                machine_number=machine_number,
+                tool_number=tool_number,
+                eoat_identifier=eoat_identifier,
+            )
         ),
         "generated_at": datetime.now(timezone.utc),
         "source": "mysql_api",

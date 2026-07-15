@@ -180,11 +180,15 @@ class AtlasDataGateway:
 
     def get_eoat_documents(self, identifier):
         return self._online_or_cache(
-            lambda: self.client.get_eoat_documents(identifier), lambda: self.cache.list("documents")
+            lambda: self.client.get_eoat_documents(identifier),
+            lambda: self.cache.linked_documents("eoat", identifier),
         )
 
     def get_eoat_photos(self, identifier):
-        return self._online_or_cache(lambda: self.client.get_eoat_photos(identifier), lambda: self.cache.list("photos"))
+        return self._online_or_cache(
+            lambda: self.client.get_eoat_photos(identifier),
+            lambda: self.cache.linked_documents("eoat", identifier, photos_only=True),
+        )
 
     def list_machines(self, filters=None, page=None, page_size=None, sort=None):
         return self._online_or_cache(
@@ -222,14 +226,15 @@ class AtlasDataGateway:
         )
 
     def get_setup_packet_data(self, machine_number, tool_number, eoat_identifier):
+        def unavailable_offline_packet():
+            raise CacheUnavailableError(
+                "Offline setup packet generation is blocked because compatibility cannot be revalidated. "
+                "Reconnect to the authoritative MySQL/API service."
+            )
+
         return self._online_or_cache(
             lambda: self.client.setup_packet_data(machine_number, tool_number, eoat_identifier),
-            lambda: {
-                "machine": self.cache.get("machines", machine_number),
-                "tool": self.cache.get("tools", tool_number),
-                "eoat": self.cache.get("eoats", eoat_identifier),
-                "source": "offline_cache",
-            },
+            unavailable_offline_packet,
         )
 
     def refresh(self):

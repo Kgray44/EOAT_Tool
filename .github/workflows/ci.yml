@@ -1,51 +1,165 @@
-name: EOAT Command Center CI
+name: EOAT Atlas CI
 
 on:
   pull_request:
   push:
-    branches:
-      - main
-      - feature/**
-      - codex/**
-      - development/**
+    branches: [main, "feature/**", "codex/**", "development/**"]
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  QT_QPA_PLATFORM: offscreen
 
 jobs:
-  test-and-safety:
+  repository-safety:
     runs-on: windows-latest
-    timeout-minutes: 45
-    env:
-      QT_QPA_PLATFORM: offscreen
-      PYTHONUTF8: "1"
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python scripts/repo_safety_audit.py --root . | Tee-Object -FilePath safety-report.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: repository-safety-report, path: safety-report.txt, if-no-files-found: warn}
+
+  ruff:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m ruff check .
+      - run: python -m compileall -q app core server scripts
+
+  version-validation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: python scripts/check_version_bump.py | Tee-Object -FilePath version-validation.txt
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: version-validation, path: version-validation.txt, if-no-files-found: warn}
+
+  unit-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest tests --ignore=tests/integration --junitxml=pytest-unit.xml
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: pytest-unit, path: pytest-unit.xml, if-no-files-found: warn}
+
+  api-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest tests/test_enterprise_authentication.py tests/test_eoat_history_gateway.py --junitxml=pytest-api.xml
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: pytest-api, path: pytest-api.xml, if-no-files-found: warn}
+
+  migration-tests:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-root-password
+          MYSQL_DATABASE: eoat_atlas_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -ptest-root-password"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      EOAT_DB_HOST: 127.0.0.1
+      EOAT_DB_NAME: eoat_atlas_test
+      EOAT_DB_MIGRATION_USER: root
+      EOAT_DB_MIGRATION_PASSWORD: test-root-password
+      EOAT_MYSQL_TEST_URL: mysql+pymysql://root:test-root-password@127.0.0.1:3306/eoat_atlas_test?charset=utf8mb4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m alembic -c server/alembic.ini upgrade head
+      - run: python -m pytest tests/integration/test_mysql_foundation.py --junitxml=pytest-migration.xml
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: mysql-migration-results, path: pytest-migration.xml, if-no-files-found: warn}
+
+  atlas-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/ci_atlas_smoke_check.py --root . --timeout 45 --log atlas-smoke.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: atlas-smoke-log, path: atlas-smoke.log, if-no-files-found: warn}
+
+  package-build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt pyinstaller
+      - run: python scripts/build_package.py
+      - run: Get-ChildItem dist -Recurse | Select-Object FullName,Length | Out-File package-manifest.txt
+      - uses: actions/upload-artifact@v4
+        with: {name: eoat-atlas-onedir, path: "dist/EOAT Atlas", if-no-files-found: error}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: package-manifest, path: package-manifest.txt, if-no-files-found: warn}
+
+  package-smoke:
+    needs: package-build
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: actions/download-artifact@v4
+        with: {name: eoat-atlas-onedir, path: "dist/EOAT Atlas"}
+      - run: python scripts/smoke_test_package.py "dist/EOAT Atlas/EOAT Atlas.exe" | Tee-Object -FilePath package-smoke.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: package-smoke-log, path: package-smoke.log, if-no-files-found: warn}
+
+  dependency-audit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt pip-audit
+      - run: python -m pip check
+      - run: python -m pip_audit -r requirements.txt --format json --output dependency-audit.json
+      - run: python -m pip_audit -r requirements.txt --format cyclonedx-json --output sbom.cdx.json
+      - if: always()
+        uses: actions/upload-artifact@v4
         with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements-dev.txt
-
-      - name: Ruff lint
-        run: python -m ruff check .
-
-      - name: Enforce application version increment
-        run: python scripts/check_version_bump.py
-
-      - name: Verify registries, demo mode, and dashboard launch
-        run: python scripts/ci_smoke_check.py --root . --dashboard-smoke
-
-      - name: Run pytest
-        run: python -m pytest
-
-      - name: Repository safety audit
-        run: python scripts/repo_safety_audit.py --root .
+          name: dependency-audit
+          path: |
+            dependency-audit.json
+            sbom.cdx.json
+          if-no-files-found: warn

@@ -9,7 +9,6 @@ Pillow>=12.3.0
 pillow-heif
 qrcode
 opencv-python-headless
-pytest
 SQLAlchemy>=2.0,<2.1
 alembic>=1.14,<2
 PyMySQL>=1.1,<2

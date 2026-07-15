@@ -663,7 +663,10 @@ function Update-InstallIdentity {
 }
 
 function Get-DefaultSourcePaths {
-    $networkRoot = "\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas"
+    $networkRoot = $env:EOAT_ATLAS_NETWORK_ROOT
+    if ([string]::IsNullOrWhiteSpace($networkRoot)) {
+        $networkRoot = "C:\Sanitized\ConfigureNetworkRoot"
+    }
     return [ordered]@{
         eoat_master_tracker = (Join-Path $networkRoot "02_Data\Workbooks\Master_Tracker\01_EOAT_Audit\EOAT_Audit_Database\EOAT_Master_Tracker.xlsx")
         press_capacity_workbook = (Join-Path $networkRoot "02_Data\Workbooks\Press_Capacity\00_Project_Admin\reference_data\press_capacity.xlsx")
@@ -696,7 +699,10 @@ function Update-GlobalConfig {
         $payload["created_at"] = $now
     }
 
-    $networkRoot = "\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas"
+    $networkRoot = $env:EOAT_ATLAS_NETWORK_ROOT
+    if ([string]::IsNullOrWhiteSpace($networkRoot)) {
+        $networkRoot = "C:\Sanitized\ConfigureNetworkRoot"
+    }
     $sourcePaths = Get-DefaultSourcePaths
     $existingSourcePaths = Get-ConfigValue $existing "source_path_values" $null
     if ($null -eq $existingSourcePaths) {

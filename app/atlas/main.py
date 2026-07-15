@@ -33,7 +33,7 @@ def main() -> int:
     if smoke_test and backend == "legacy":
         _initialize_smoke_runtime()
     if smoke_test:
-        watchdog = threading.Timer(15.0, lambda: os._exit(0))
+        watchdog = threading.Timer(15.0, lambda: os._exit(124))
         watchdog.daemon = True
         watchdog.start()
     app = QApplication(sys.argv)
@@ -70,7 +70,7 @@ def main() -> int:
     if smoke_test:
         QTimer.singleShot(700, window.close)
         QTimer.singleShot(900, app.quit)
-        QTimer.singleShot(6000, lambda: os._exit(0))
+        QTimer.singleShot(6000, lambda: os._exit(124))
     return app.exec()
 
 

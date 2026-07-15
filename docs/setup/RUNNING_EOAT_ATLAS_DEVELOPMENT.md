@@ -3,7 +3,7 @@
 From PowerShell:
 
 ```powershell
-Set-Location "\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development"
+Set-Location $env:EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT
 python run_atlas.py
 ```
 

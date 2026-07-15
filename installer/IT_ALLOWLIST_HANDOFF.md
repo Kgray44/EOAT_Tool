@@ -12,13 +12,13 @@
 
 ## Source And Install Paths
 
-- Source release path: `\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development\dist\EOAT Atlas`
+- Source release path: `<approved-release-root>\dist\EOAT Atlas`
 - Intended local install root: `%LOCALAPPDATA%\EOAT_Atlas`
 - Intended runtime root: `%LOCALAPPDATA%\EOAT_Atlas`
 - Main app exe after install: `%LOCALAPPDATA%\EOAT_Atlas\App\eoat-atlas-0.9.0-dev-phase-2.6\EOAT Atlas.exe`
-- Script installer path: `\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development\installer\Install_EOAT_Atlas.cmd`
-- PowerShell implementation: `\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development\installer\Install_EOAT_Atlas.ps1`
-- Optional installer exe: `\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development\installer\dist\Install EOAT Atlas.exe`
+- Script installer path: `<approved-release-root>\installer\Install_EOAT_Atlas.cmd`
+- PowerShell implementation: `<approved-release-root>\installer\Install_EOAT_Atlas.ps1`
+- Optional installer exe: `<approved-release-root>\installer\dist\Install EOAT Atlas.exe`
 - Future launcher path placeholder: `%LOCALAPPDATA%\EOAT_Atlas\Launcher\EOAT Atlas Launcher.exe`
 
 ## SHA-256 Hashes

@@ -1,4 +1,3 @@
-EOAT Atlas canonical development repository
-Path: \\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026_Globalized_Development
-Branch: development/mysql-api-consolidated
-Normal startup: python run_atlas.py
+EOAT Atlas canonical development repository marker.
+Expected branch: development/mysql-api-consolidated
+Override validation path locally with EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT.
