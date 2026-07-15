@@ -117,7 +117,11 @@ class MySQLManager:
             raise BootstrapError(
                 "EOAT Atlas cannot start writable development mode.\n\n"
                 f"Expected schema: {EXPECTED_SCHEMA_REVISION}\nDetected schema: {current.schema_revision or 'unavailable'}",
-                hint="Run .\\scripts\\database\\upgrade_database.ps1 after reviewing the migration.",
+                hint=(
+                    "An authorized migrator must run "
+                    ".\\scripts\\database\\upgrade_database.ps1 -DatabaseName eoat_atlas_dev "
+                    "after reviewing the migration; runtime credentials never migrate schemas."
+                ),
             )
         return current
 

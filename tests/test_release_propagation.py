@@ -59,6 +59,23 @@ def test_mysql_models_preserve_ids_and_attach_release_provenance() -> None:
     assert "application_release_id" not in db.EOAT.__table__.primary_key.columns
     assert "application_release_id" not in db.Tool.__table__.primary_key.columns
     assert "application_release_id" not in db.Machine.__table__.primary_key.columns
+    expected_indexes = {
+        "ix_application_instances_application_release",
+        "ix_import_batches_application_release",
+        "ix_entity_history_events_application_release",
+        "ix_change_audit_log_application_release",
+    }
+    actual_indexes = {
+        index.name
+        for table in (
+            db.ApplicationInstance.__table__,
+            db.ImportBatch.__table__,
+            db.EntityHistoryEvent.__table__,
+            db.ChangeAuditLog.__table__,
+        )
+        for index in table.indexes
+    }
+    assert expected_indexes <= actual_indexes
 
 
 def test_mysql_release_registration_stores_canonical_release_snapshot() -> None:

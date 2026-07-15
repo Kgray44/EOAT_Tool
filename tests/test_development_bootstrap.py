@@ -82,7 +82,8 @@ def test_version_sources_agree() -> None:
 
     assert canonical.application_version == metadata.app_version == atlas_version["version"]
     assert re.fullmatch(r"\d+\.\d+\.\d+", canonical.application_version)
-    assert canonical.build_id == metadata.build_id == atlas_version["buildId"] == "mysql-api-development"
+    assert canonical.build_id == metadata.build_id == atlas_version["buildId"]
+    assert canonical.build_id.startswith(f"eoat-atlas-{canonical.application_version}-")
     assert canonical.release_id == metadata.release_id == f"eoat-atlas-{canonical.application_version}"
 
 
@@ -97,6 +98,29 @@ def test_wrong_process_on_mysql_port_is_never_stopped(monkeypatch) -> None:
 
     with pytest.raises(BootstrapError, match="unexpected process"):
         manager.status()
+
+
+def test_stale_schema_fails_closed_with_authorized_migrator_guidance() -> None:
+    manager = MySQLManager()
+    stale = mysql_module.MySQLStatus(
+        running=True,
+        connected=True,
+        pid=42,
+        version="8.4.9",
+        database="eoat_atlas_dev",
+        schema_revision="20260714_0005",
+        table_count=52,
+        log_path="mysql.log",
+    )
+
+    with pytest.raises(BootstrapError) as captured:
+        manager.verify(stale)
+
+    rendered = captured.value.render()
+    assert "Expected schema: 20260715_0006" in rendered
+    assert "Detected schema: 20260714_0005" in rendered
+    assert "authorized migrator" in rendered
+    assert "runtime credentials never migrate schemas" in rendered
 
 
 def test_desktop_runtime_modules_do_not_import_mysql_driver() -> None:

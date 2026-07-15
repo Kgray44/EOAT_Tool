@@ -90,6 +90,7 @@ class HistoryEventType(LookupMixin, Base):
 
 class ImportBatch(Base):
     __tablename__ = "import_batches"
+    __table_args__ = (Index("ix_import_batches_application_release", "application_release_id"),)
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     batch_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     batch_name: Mapped[str] = mapped_column(String(160), nullable=False)
@@ -193,6 +194,7 @@ class ApplicationRelease(Base):
 
 class ApplicationInstance(TimestampMixin, Base):
     __tablename__ = "application_instances"
+    __table_args__ = (Index("ix_application_instances_application_release", "application_release_id"),)
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     instance_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     computer_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -705,6 +707,7 @@ class EntityHistoryEvent(Base):
         Index("ix_entity_history_timeline", "entity_type", "entity_id", "occurred_at"),
         Index("ix_entity_history_category", "entity_type", "entity_id", "event_category", "occurred_at"),
         Index("ix_entity_history_request", "request_id"),
+        Index("ix_entity_history_events_application_release", "application_release_id"),
     )
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     event_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
@@ -744,6 +747,7 @@ class ChangeAuditLog(Base):
         Index("ix_change_audit_entity", "entity_type", "entity_id", "occurred_at"),
         Index("ix_change_audit_actor", "actor_user_id", "occurred_at"),
         Index("ix_change_audit_request", "request_id"),
+        Index("ix_change_audit_log_application_release", "application_release_id"),
     )
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     event_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
