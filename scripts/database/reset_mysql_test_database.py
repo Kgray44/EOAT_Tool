@@ -18,7 +18,13 @@ def main() -> int:
         parser.error(f"Refusing destructive reset for unapproved database '{args.database}'.")
     environment = os.environ.copy()
     environment["EOAT_DB_NAME"] = args.database
-    required = ("EOAT_DB_ROOT_PASSWORD", "EOAT_DB_USER", "EOAT_DB_MIGRATION_USER")
+    required = (
+        "EOAT_DB_ROOT_PASSWORD",
+        "EOAT_DB_USER",
+        "EOAT_DB_PASSWORD",
+        "EOAT_DB_MIGRATION_USER",
+        "EOAT_DB_MIGRATION_PASSWORD",
+    )
     missing = [name for name in required if not environment.get(name)]
     if missing:
         parser.error(f"Missing required reset environment: {', '.join(missing)}")
@@ -31,14 +37,24 @@ def main() -> int:
     )
     try:
         with connection.cursor() as cursor:
+            for user_name, password_name in (
+                (environment["EOAT_DB_USER"], "EOAT_DB_PASSWORD"),
+                (environment["EOAT_DB_MIGRATION_USER"], "EOAT_DB_MIGRATION_PASSWORD"),
+            ):
+                if user_name != "root":
+                    cursor.execute(
+                        "CREATE USER IF NOT EXISTS %s@'%%' IDENTIFIED BY %s",
+                        (user_name, environment[password_name]),
+                    )
             cursor.execute(f"DROP DATABASE IF EXISTS `{args.database}`")
             cursor.execute(f"CREATE DATABASE `{args.database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci")
+            if environment["EOAT_DB_MIGRATION_USER"] != "root":
+                cursor.execute(
+                    f"GRANT ALL PRIVILEGES ON `{args.database}`.* TO %s@'%%'",
+                    (environment["EOAT_DB_MIGRATION_USER"],),
+                )
             cursor.execute(
-                f"GRANT ALL PRIVILEGES ON `{args.database}`.* TO %s@'127.0.0.1'",
-                (environment["EOAT_DB_MIGRATION_USER"],),
-            )
-            cursor.execute(
-                f"GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{args.database}`.* TO %s@'127.0.0.1'",
+                f"GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{args.database}`.* TO %s@'%%'",
                 (environment["EOAT_DB_USER"],),
             )
     finally:

@@ -85,6 +85,16 @@ def test_safety_audit_allows_template_workbooks(tmp_path: Path):
     assert findings == []
 
 
+def test_safety_audit_allows_application_branding_images(tmp_path: Path):
+    logo = tmp_path / "app" / "atlas" / "logo" / "EOAT Atlas Logo Rounded.png"
+    logo.parent.mkdir(parents=True)
+    logo.write_bytes(b"synthetic application logo")
+
+    findings = audit_repo(tmp_path)
+
+    assert findings == []
+
+
 def test_staged_scanner_helper_flags_generated_outputs(tmp_path: Path):
     report = tmp_path / "reports" / "generated" / "daily.md"
     report.parent.mkdir(parents=True)

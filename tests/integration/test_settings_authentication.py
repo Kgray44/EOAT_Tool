@@ -12,11 +12,32 @@ from server.eoat_api.authentication.identity_models import ProviderHealth
 from server.eoat_api.authentication.providers.development import DevelopmentAuthenticationProvider
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
+from tests.fixtures.mysql_sanctioned import reset_and_load_sanctioned_fixture
 
 pytestmark = pytest.mark.skipif(
     os.getenv("EOAT_DB_NAME") != "eoat_atlas_test",
     reason="Settings authentication integration tests require EOAT_DB_NAME=eoat_atlas_test",
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def sanctioned_database():
+    reset_and_load_sanctioned_fixture()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def explicit_development_write_environment():
+    values = {"EOAT_API_ENVIRONMENT": "development", "EOAT_API_WRITES_ENABLED": "true"}
+    previous = {name: os.environ.get(name) for name in values}
+    os.environ.update(values)
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 @pytest.fixture(scope="module")

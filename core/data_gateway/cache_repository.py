@@ -104,6 +104,8 @@ class CacheRepository:
             for entity_type, identifier_field in ENTITY_TABLES.items():
                 for payload in snapshot.get(entity_type, []):
                     identifier = str(payload.get(identifier_field, ""))
+                    if entity_type == "machines" and identifier:
+                        identifier = f"{payload.get('plant_code', '')}::{identifier}"
                     if not identifier:
                         raise CacheUnavailableError(f"Snapshot {entity_type} record has no {identifier_field}.")
                     connection.execute(
@@ -246,6 +248,17 @@ class CacheRepository:
                 (cached_type, entity_type, identifier),
             ).fetchall()
             return [json.loads(row[0]) for row in rows]
+
+    def get_machine(self, number: str, *, plant_code: str | None = None) -> dict[str, Any] | None:
+        matches = [
+            value
+            for value in self.list("machines")
+            if str(value.get("machine_number")) == str(number)
+            and (plant_code is None or str(value.get("plant_code")) == str(plant_code))
+        ]
+        if len(matches) > 1:
+            raise CacheUnavailableError("Machine number is ambiguous in the offline cache; plant_code is required.")
+        return matches[0] if matches else None
 
     def replace_eoat_history(self, identifier: str, events: list[dict[str, Any]]) -> None:
         self.initialize()

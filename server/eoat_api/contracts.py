@@ -78,6 +78,7 @@ class EOATProfile(EOATSummary):
 
 
 class MachineSummary(BaseModel):
+    plant_code: str
     machine_number: str
     machine_name: str | None = None
     area: str | None = None

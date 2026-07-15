@@ -395,24 +395,24 @@ def machines(
 
 
 @app.get("/api/v1/machines/{number}")
-def machine(number: str, repo: AtlasRepository = Depends(repository)):
-    value = repo.machine(number)
+def machine(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
+    value = repo.machine(number, plant_code=plant_code)
     if value is None:
         raise not_found("Machine", number)
     return value
 
 
 @app.get("/api/v1/machines/{number}/relationships")
-def machine_relationships(number: str, repo: AtlasRepository = Depends(repository)):
-    value = repo.machine(number)
+def machine_relationships(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
+    value = repo.machine(number, plant_code=plant_code)
     if value is None:
         raise not_found("Machine", number)
     return value.relationships + value.robots
 
 
 @app.get("/api/v1/machines/{number}/current-setup")
-def machine_current_setup(number: str, repo: AtlasRepository = Depends(repository)):
-    value = repo.machine(number)
+def machine_current_setup(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
+    value = repo.machine(number, plant_code=plant_code)
     if value is None:
         raise not_found("Machine", number)
     return {
@@ -424,10 +424,13 @@ def machine_current_setup(number: str, repo: AtlasRepository = Depends(repositor
 
 
 @app.get("/api/v1/machines/{number}/history")
-def machine_history(number: str, repo: AtlasRepository = Depends(repository)):
-    entity = repo.session.scalar(__import__("sqlalchemy").select(db.Machine).where(db.Machine.machine_number == number))
-    if entity is None:
+def machine_history(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
+    profile = repo.machine(number, plant_code=plant_code)
+    if profile is None:
         raise not_found("Machine", number)
+    statement = __import__("sqlalchemy").select(db.Machine).where(db.Machine.machine_number == number)
+    statement = statement.join(db.Plant).where(db.Plant.plant_code == profile.plant_code)
+    entity = repo.session.scalar(statement)
     return repo.history("machine", entity.id)
 
 
@@ -554,7 +557,7 @@ def setup_packet_data(
     repo: AtlasRepository = Depends(repository),
     svc: AtlasService = Depends(service),
 ):
-    machine_value = repo.machine(machine_number)
+    machine_value = repo.machine(machine_number, plant_code=plant_code)
     tool_value = repo.tool(tool_number)
     eoat_value = repo.eoat(eoat_identifier)
     if not all((machine_value, tool_value, eoat_value)):

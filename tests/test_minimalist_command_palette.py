@@ -425,6 +425,16 @@ def test_repeated_preview_settings_refresh_and_palette_stress_in_one_session(qap
     window.show()
     window.show_page("settings")
     settings = window.settings_page.settings_content
+    monkeypatch.setattr(
+        settings.authentication_gateway,
+        "begin_login",
+        lambda _identity="dev.admin": {
+            "provider": "development",
+            "identity": {"username": "dev.admin", "display_name": "Development Administrator"},
+            "roles": ["ADMINISTRATOR"],
+            "permissions": ["settings.edit", "settings.set_default"],
+        },
+    )
     deep_refresh_calls: list[int] = []
     window.deep_refresh_data = lambda: deep_refresh_calls.append(len(deep_refresh_calls))
     detail = RecordDetailData(

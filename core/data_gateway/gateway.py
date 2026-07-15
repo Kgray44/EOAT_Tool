@@ -196,9 +196,10 @@ class AtlasDataGateway:
             lambda: {"items": self.cache.list("machines")},
         )
 
-    def get_machine(self, number):
+    def get_machine(self, number, plant_code=None):
         return self._online_or_cache(
-            lambda: self.client.get_machine(number), lambda: self.cache.get("machines", number)
+            lambda: self.client.get_machine(number, plant_code=plant_code),
+            lambda: self.cache.get_machine(number, plant_code=plant_code),
         )
 
     def list_tools(self, filters=None, page=None, page_size=None, sort=None):

@@ -21,7 +21,7 @@ def test_domain_model_enforces_identifiers_counts_and_timezone():
 
 
 def test_sqlalchemy_foundation_has_concrete_tables_and_constraints():
-    assert len(Base.metadata.tables) == 51
+    assert len(Base.metadata.tables) == 52
     assert "eoat_installations" in Base.metadata.tables
     table = Base.metadata.tables["eoat_installations"]
     names = {constraint.name for constraint in table.constraints}

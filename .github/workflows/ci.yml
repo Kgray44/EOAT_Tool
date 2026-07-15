@@ -42,7 +42,7 @@ jobs:
         with: {fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - run: python scripts/check_version_bump.py | Tee-Object -FilePath version-validation.txt
+      - run: python scripts/check_version_bump.py --base HEAD~1 | Tee-Object -FilePath version-validation.txt
       - if: always()
         uses: actions/upload-artifact@v4
         with: {name: version-validation, path: version-validation.txt, if-no-files-found: warn}
@@ -54,10 +54,51 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - run: python -m pip install -r requirements.txt -r requirements-dev.txt
-      - run: python -m pytest tests --ignore=tests/integration --junitxml=pytest-unit.xml
+      - name: Run non-Qt unit tests
+        run: >-
+          python -m pytest tests --ignore=tests/integration
+          --ignore=tests/test_atlas_page_transition.py
+          --ignore=tests/test_development_bootstrap.py
+          --ignore=tests/test_eoat_history.py
+          --ignore=tests/test_eoat_id_prefix_migration.py
+          --ignore=tests/test_globalization_phase2.py
+          --ignore=tests/test_minimalist_command_palette.py
+          --ignore=tests/test_minimalist_dropdown_lifecycle.py
+          --ignore=tests/test_photo_service.py
+          --ignore=tests/test_minimalist_library.py
+          --ignore=tests/test_minimalist_settings_page.py
+          --junitxml=pytest-unit.xml
+      - name: Run Atlas transition tests in a fresh process
+        run: python -m pytest tests/test_atlas_page_transition.py --junitxml=pytest-atlas-transition.xml
+      - name: Run development bootstrap tests in a fresh process
+        run: python -m pytest tests/test_development_bootstrap.py --junitxml=pytest-development-bootstrap.xml
+      - name: Run EOAT history tests in a fresh process
+        run: python -m pytest tests/test_eoat_history.py --junitxml=pytest-eoat-history.xml
+      - name: Run ID migration tests in a fresh process
+        run: python -m pytest tests/test_eoat_id_prefix_migration.py --junitxml=pytest-id-migration.xml
+      - name: Run globalization UI tests in a fresh process
+        run: python -m pytest tests/test_globalization_phase2.py --junitxml=pytest-globalization-ui.xml
+      - name: Run command palette tests in a fresh process
+        run: >-
+          python -m pytest tests/test_minimalist_command_palette.py
+          -k "not repeated_preview_settings_refresh_and_palette_stress_in_one_session"
+          --junitxml=pytest-command-palette.xml
+      - name: Run command palette stress test in a fresh process
+        run: >-
+          python -m pytest
+          tests/test_minimalist_command_palette.py::test_repeated_preview_settings_refresh_and_palette_stress_in_one_session
+          --junitxml=pytest-command-palette-stress.xml
+      - name: Run dropdown lifecycle tests in a fresh process
+        run: python -m pytest tests/test_minimalist_dropdown_lifecycle.py --junitxml=pytest-dropdown-lifecycle.xml
+      - name: Run photo service tests in a fresh process
+        run: python -m pytest tests/test_photo_service.py --junitxml=pytest-photo-service.xml
+      - name: Run Library UI tests in a fresh process
+        run: python -m pytest tests/test_minimalist_library.py --junitxml=pytest-library-ui.xml
+      - name: Run Settings UI tests in a fresh process
+        run: python -m pytest tests/test_minimalist_settings_page.py --junitxml=pytest-settings-ui.xml
       - if: always()
         uses: actions/upload-artifact@v4
-        with: {name: pytest-unit, path: pytest-unit.xml, if-no-files-found: warn}
+        with: {name: pytest-unit, path: "pytest-*.xml", if-no-files-found: warn}
 
   api-tests:
     runs-on: windows-latest
@@ -86,16 +127,23 @@ jobs:
     env:
       EOAT_DB_HOST: 127.0.0.1
       EOAT_DB_NAME: eoat_atlas_test
+      EOAT_DB_USER: eoat_atlas_app
+      EOAT_DB_PASSWORD: test-app-password
       EOAT_DB_MIGRATION_USER: root
       EOAT_DB_MIGRATION_PASSWORD: test-root-password
+      EOAT_DB_ROOT_PASSWORD: test-root-password
       EOAT_MYSQL_TEST_URL: mysql+pymysql://root:test-root-password@127.0.0.1:3306/eoat_atlas_test?charset=utf8mb4
+      EOAT_MYSQL_RUNTIME_URL: mysql+pymysql://eoat_atlas_app:test-app-password@127.0.0.1:3306/eoat_atlas_test?charset=utf8mb4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
+      - name: Install Qt runtime library
+        run: sudo apt-get update && sudo apt-get install -y libegl1
       - run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - run: python -m alembic -c server/alembic.ini upgrade head
-      - run: python -m pytest tests/integration/test_mysql_foundation.py --junitxml=pytest-migration.xml
+      - run: python scripts/database/load_sanctioned_test_fixture.py
+      - run: python -m pytest tests/integration --junitxml=pytest-migration.xml
       - if: always()
         uses: actions/upload-artifact@v4
         with: {name: mysql-migration-results, path: pytest-migration.xml, if-no-files-found: warn}
@@ -121,7 +169,7 @@ jobs:
         with: {fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
-      - run: python -m pip install -r requirements.txt pyinstaller
+      - run: python -m pip install -r requirements-build.lock
       - run: python scripts/build_package.py
       - run: Get-ChildItem dist -Recurse | Select-Object FullName,Length | Out-File package-manifest.txt
       - uses: actions/upload-artifact@v4
@@ -151,10 +199,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
-      - run: python -m pip install -r requirements.txt pip-audit
+      - run: python -m pip install -r requirements-dev.lock
       - run: python -m pip check
-      - run: python -m pip_audit -r requirements.txt --format json --output dependency-audit.json
-      - run: python -m pip_audit -r requirements.txt --format cyclonedx-json --output sbom.cdx.json
+      - run: python -m pip_audit -r requirements.lock --format json --output dependency-audit.json
+      - run: python -m pip_audit -r requirements.lock --format cyclonedx-json --output sbom.cdx.json
       - if: always()
         uses: actions/upload-artifact@v4
         with:

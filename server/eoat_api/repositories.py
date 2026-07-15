@@ -25,6 +25,7 @@ from .contracts import (
     ToolSummary,
 )
 from .database import models as db
+from .errors import APIError
 
 LOOKUP_MODELS = {
     "eoat_types": db.EOATType,
@@ -211,7 +212,8 @@ class AtlasRepository:
         clean_l = aliased(db.CleanroomClassification)
         status_l = aliased(db.AssetStatus)
         stmt = (
-            select(db.Machine, area_l.area_name, clean_l.display_name, status_l.display_name)
+            select(db.Machine, db.Plant.plant_code, area_l.area_name, clean_l.display_name, status_l.display_name)
+            .join(db.Plant, db.Machine.plant_id == db.Plant.id)
             .outerjoin(area_l, db.Machine.area_id == area_l.id)
             .outerjoin(clean_l, db.Machine.cleanroom_classification_id == clean_l.id)
             .outerjoin(status_l, db.Machine.status_id == status_l.id)
@@ -232,6 +234,7 @@ class AtlasRepository:
         ).all()
         return [
             MachineSummary(
+                plant_code=plant_code,
                 machine_number=m.machine_number,
                 machine_name=m.machine_name,
                 area=a,
@@ -242,20 +245,30 @@ class AtlasRepository:
                 is_active=m.is_active,
                 row_version=m.row_version,
             )
-            for m, a, c, s in rows
+            for m, plant_code, a, c, s in rows
         ], PaginationMetadata(
             page=page, page_size=page_size, total=total, pages=ceil(total / page_size) if total else 0
         )
 
-    def machine(self, number: str) -> MachineProfile | None:
-        entity = self.session.scalar(select(db.Machine).where(db.Machine.machine_number == number))
-        if entity is None:
+    def machine(self, number: str, *, plant_code: str | None = None) -> MachineProfile | None:
+        statement = select(db.Machine).where(db.Machine.machine_number == number)
+        if plant_code:
+            statement = statement.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
+                db.Plant.plant_code == plant_code
+            )
+        entities = list(self.session.scalars(statement.order_by(db.Machine.id)).all())
+        if len(entities) > 1:
+            raise APIError(409, "AMBIGUOUS_MACHINE", "plant_code is required for this machine number.")
+        if not entities:
             return None
+        entity = entities[0]
         summary = next(
             (
                 item
                 for item in self.list_machines(search=number, active=None, page_size=100)[0]
-                if item.machine_number == number
+                if item.machine_number == number and item.plant_code == self.session.scalar(
+                    select(db.Plant.plant_code).where(db.Plant.id == entity.plant_id)
+                )
             ),
             None,
         )

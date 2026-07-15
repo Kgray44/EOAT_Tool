@@ -30,6 +30,12 @@ python run_atlas.py
 The bootstrap validates the canonical marker and source layout, selects `mysql_api`, and verifies or starts the local
 development MySQL/API stack. To compare legacy inputs deliberately, use `python run_atlas.py --backend legacy`.
 
+### Legacy demo data
+
+Demo mode remains available only for explicit legacy comparison with the synthetic `examples/demo_project` data. It is
+never selected as a fallback from MySQL/API operation. In that legacy mode, use **Choose Real Project Folder** to point
+the comparison workflow at an authorized private project root; see [USAGE.md](USAGE.md) for the isolated-file rules.
+
 ## Database and API
 
 Default development database: `eoat_atlas_dev`. Test migrations and destructive database exercises belong only in

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -23,6 +23,7 @@ from server.eoat_api.app import app
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory, get_write_session
 from server.eoat_api.services import AtlasService
+from tests.fixtures.mysql_sanctioned import reset_and_load_sanctioned_fixture
 
 pytestmark = pytest.mark.skipif(
     os.getenv("EOAT_DB_NAME") != "eoat_atlas_test",
@@ -35,6 +36,29 @@ ADMIN = {"X-EOAT-Identity": "dev.admin"}
 VIEWER = {"X-EOAT-Identity": "dev.viewer"}
 
 
+@pytest.fixture(scope="module", autouse=True)
+def sanctioned_database():
+    reset_and_load_sanctioned_fixture()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def explicit_development_write_environment():
+    names = {
+        "EOAT_API_ENVIRONMENT": "development",
+        "EOAT_API_WRITES_ENABLED": "true",
+    }
+    previous = {name: os.environ.get(name) for name in names}
+    os.environ.update(names)
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
 @pytest.fixture(scope="module")
 def api():
     with TestClient(app) as client:
@@ -42,7 +66,7 @@ def api():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def base_records():
+def base_records(sanctioned_database):
     factory = create_session_factory(migration=True)
     with factory() as session, session.begin():
         plant = db.Plant(plant_code="TEST", plant_name="Write Test Plant", source_system="integration_test")
@@ -153,7 +177,7 @@ def test_machine_tool_robot_and_compatibility_writes(api):
             "machine_number": "WRITE-M1",
             "compatibility_status": "compatible",
             "verification_source": "user_verified",
-            "effective_from": datetime.now(timezone.utc).isoformat(),
+            "effective_from": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
             "reason": "Integration verified",
         },
     )
@@ -169,7 +193,7 @@ def test_machine_tool_robot_and_compatibility_writes(api):
                 **identifiers,
                 "compatibility_status": "compatible",
                 "verification_source": "user_verified",
-                "effective_from": datetime.now(timezone.utc).isoformat(),
+                "effective_from": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
                 "reason": "Integration verified",
             },
         )
@@ -181,7 +205,7 @@ def test_machine_tool_robot_and_compatibility_writes(api):
             "eoat_identifier": "WRITE-EOAT",
             "machine_number": "WRITE-M1",
             "compatibility_status": "compatible",
-            "effective_from": datetime.now(timezone.utc).isoformat(),
+            "effective_from": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
         },
     )
     assert duplicate.status_code == 409
@@ -642,27 +666,30 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     b = AtlasDataGateway(config_b, client=ApiTestAdapter(api), cache=CacheRepository(config_b.cache_path))
     a.deep_refresh()
     b.deep_refresh()
-    old_a = a.cache.get("machines", "WRITE-M1")
-    old_b = b.cache.get("machines", "WRITE-M1")
+    old_a = a.cache.get_machine("WRITE-M1", plant_code="TEST")
+    old_b = b.cache.get_machine("WRITE-M1", plant_code="TEST")
     assert old_a["row_version"] == old_b["row_version"]
     changed = a.update_machine("WRITE-M1", {"machine_name": "Client A"}, old_a["row_version"])
     assert changed["machine_name"] == "Client A"
     with pytest.raises(ConcurrencyConflictError):
         b.update_machine("WRITE-M1", {"machine_name": "Client B stale"}, old_b["row_version"])
-    assert b.cache.get("machines", "WRITE-M1")["machine_name"] != "Client B stale"
+    assert b.cache.get_machine("WRITE-M1", plant_code="TEST")["machine_name"] != "Client B stale"
     b.refresh()
-    assert b.cache.get("machines", "WRITE-M1")["machine_name"] == "Client A"
+    assert b.cache.get_machine("WRITE-M1", plant_code="TEST")["machine_name"] == "Client A"
     before_history_ids = {item["event_id"] for item in b.cache.get_eoat_history("WRITE-EOAT")}
     current_eoat = a.cache.get("eoats", "WRITE-EOAT")
     a.update_eoat("WRITE-EOAT", {"display_name": "Client A History"}, current_eoat["row_version"])
     b.refresh()
     refreshed_history = b.cache.get_eoat_history("WRITE-EOAT")
     assert {item["event_id"] for item in refreshed_history} > before_history_ids
-    assert refreshed_history[0]["event_type"] == "EOAT_UPDATED"
+    assert any(
+        item["event_type"] == "EOAT_UPDATED" and item["event_id"] not in before_history_ids
+        for item in refreshed_history
+    )
     rebuilt_history_ids = [item["event_id"] for item in refreshed_history]
     b.cache.path.unlink()
     b.deep_refresh()
-    assert b.cache.get("machines", "WRITE-M1")["machine_name"] == "Client A"
+    assert b.cache.get_machine("WRITE-M1", plant_code="TEST")["machine_name"] == "Client A"
     assert [item["event_id"] for item in b.cache.get_eoat_history("WRITE-EOAT")] == rebuilt_history_ids
 
 

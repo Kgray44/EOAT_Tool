@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
-import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -45,13 +45,31 @@ def _generated_build_metadata() -> Path:
             "build_date": timestamp.date().isoformat(),
             "build_id": f"eoat-atlas-{payload['app_version']}-{commit[:7]}-{run_id}",
             "ci_run_id": run_id,
+            "build_run_id": run_id,
+            "dirty_tree": bool(dirty),
+            "artifact_sha256": None,
             "build_identity_generated": True,
         }
     )
-    destination = ROOT / "build" / "generated_build_metadata.json"
+    destination = ROOT / "build" / "release_metadata.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return destination
+
+
+def _finalize_build_metadata(metadata_path: Path) -> None:
+    package = ROOT / "dist" / "EOAT Atlas"
+    executable = package / "EOAT Atlas.exe"
+    if not executable.is_file():
+        raise RuntimeError(f"Packaged executable is missing: {executable}")
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    payload["artifact_sha256"] = _sha256(executable)
+    serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    metadata_path.write_text(serialized, encoding="utf-8")
+    packaged = list(package.rglob("release_metadata.json"))
+    if len(packaged) != 1:
+        raise RuntimeError(f"Expected one packaged release_metadata.json, found {len(packaged)}")
+    packaged[0].write_text(serialized, encoding="utf-8")
 
 
 def _write_package_manifest(metadata_path: Path) -> None:
@@ -71,8 +89,7 @@ def _write_package_manifest(metadata_path: Path) -> None:
 
 
 def main() -> int:
-    pyinstaller = shutil.which("pyinstaller")
-    if not pyinstaller:
+    if importlib.util.find_spec("PyInstaller") is None:
         print("PyInstaller is not installed. Install it with: python -m pip install pyinstaller")
         return 1
     try:
@@ -90,6 +107,11 @@ def main() -> int:
     )
     if completed.returncode:
         return completed.returncode
+    try:
+        _finalize_build_metadata(metadata)
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"ERROR: package provenance finalization failed: {exc}", file=sys.stderr)
+        return 1
     _write_package_manifest(metadata)
     return 0
 

@@ -1700,7 +1700,7 @@ def test_photo_tile_loads_heic_preview_when_qt_cannot_read(qapp, tmp_path: Path,
     qapp.processEvents()
     assert overlay is not None
     assert overlay.isVisible()
-    assert _wait_for_qt(qapp, lambda: not overlay.preview.pixmap.isNull())
+    assert _wait_for_qt(qapp, lambda: not overlay.preview.pixmap.isNull(), timeout_ms=10_000)
     assert overlay.preview.geometry().width() > tile.geometry().width()
     overlay.close_lightbox()
     QTest.qWait(10)

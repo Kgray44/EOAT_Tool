@@ -23,6 +23,6 @@
   "require_admin": false,
   "allow_elevated_run": false,
   "validate_manifest": true,
-  "manifest_path": "",
+  "manifest_path": "..\\dist\\EOAT Atlas\\package_manifest.json",
   "log_level": "INFO"
 }

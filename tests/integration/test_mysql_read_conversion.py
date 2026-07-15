@@ -16,8 +16,14 @@ from core.data_gateway.models import ConnectivityMode
 from server.eoat_api.app import app, database_error
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
+from tests.fixtures.mysql_sanctioned import reset_and_load_sanctioned_fixture
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(scope="module", autouse=True)
+def sanctioned_database():
+    reset_and_load_sanctioned_fixture()
 
 
 @pytest.fixture(scope="module")
@@ -62,8 +68,8 @@ class ApiClientAdapter:
     def list_machines(self, **params):
         return self._get("/api/v1/machines", **params)
 
-    def get_machine(self, value):
-        return self._get(f"/api/v1/machines/{value}")
+    def get_machine(self, value, *, plant_code=None):
+        return self._get(f"/api/v1/machines/{value}", plant_code=plant_code)
 
     def list_tools(self, **params):
         return self._get("/api/v1/tools", **params)
@@ -121,27 +127,27 @@ def test_paginated_filtered_entity_contracts(api):
     eoats = api.get("/api/v1/eoats", params={"page": 1, "page_size": 5})
     assert eoats.status_code == 200
     assert len(eoats.json()["items"]) == 5
-    assert eoats.json()["pagination"]["total"] == 57
+    assert eoats.json()["pagination"]["total"] == 56
     machines = api.get("/api/v1/machines", params={"page_size": 250}).json()
-    assert machines["pagination"]["total"] == 56
+    assert machines["pagination"]["total"] == 11
     tools = api.get("/api/v1/tools", params={"page_size": 250}).json()
-    assert tools["pagination"]["total"] == 65
-    filtered = api.get("/api/v1/eoats", params={"search": "CL-EOAT"}).json()
+    assert tools["pagination"]["total"] == 11
+    filtered = api.get("/api/v1/eoats", params={"search": "DEMO-P4-EOAT"}).json()
     assert filtered["pagination"]["total"] > 0
 
 
 def test_profiles_relationships_history_documents_and_photos(api):
-    eoat = api.get("/api/v1/eoats/P4-EOAT-0001")
+    eoat = api.get("/api/v1/eoats/DEMO-P4-EOAT-0002")
     assert eoat.status_code == 200
     assert eoat.json()["audit_evidence"]
-    assert api.get("/api/v1/eoats/P4-EOAT-0001/relationships").status_code == 200
-    history = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page_size": 5}).json()
+    assert api.get("/api/v1/eoats/DEMO-P4-EOAT-0002/relationships").status_code == 200
+    history = api.get("/api/v1/eoats/DEMO-P4-EOAT-0001/history", params={"page_size": 5}).json()
     assert history["pagination"]["total"] >= 1
     assert len(history["items"]) <= 5
     assert history["items"][0]["event_id"]
     assert history["items"][0]["event_category"]
-    assert api.get("/api/v1/eoats/P4-EOAT-0001/documents").status_code == 200
-    assert api.get("/api/v1/eoats/P4-EOAT-0001/photos").status_code == 200
+    assert api.get("/api/v1/eoats/DEMO-P4-EOAT-0002/documents").status_code == 200
+    assert api.get("/api/v1/eoats/DEMO-P4-EOAT-0002/photos").status_code == 200
     machine_number = eoat.json()["relationships"][0]["identifier"]
     assert api.get(f"/api/v1/machines/{machine_number}").status_code == 200
     tool = next(item["identifier"] for item in eoat.json()["relationships"] if item["relationship_type"] == "tool")
@@ -150,8 +156,8 @@ def test_profiles_relationships_history_documents_and_photos(api):
 
 
 def test_history_contract_pagination_sort_filter_search_and_empty_states(api):
-    first = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page": 1, "page_size": 2}).json()
-    second = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page": 2, "page_size": 2}).json()
+    first = api.get("/api/v1/eoats/DEMO-P4-EOAT-0001/history", params={"page": 1, "page_size": 2}).json()
+    second = api.get("/api/v1/eoats/DEMO-P4-EOAT-0001/history", params={"page": 2, "page_size": 2}).json()
     assert first["pagination"]["pages"] >= 2
     assert {item["event_id"] for item in first["items"]}.isdisjoint(
         {item["event_id"] for item in second["items"]}
@@ -159,34 +165,34 @@ def test_history_contract_pagination_sort_filter_search_and_empty_states(api):
     ordering = [(item["occurred_at"], item["event_id"]) for item in first["items"]]
     assert ordering == sorted(ordering, reverse=True)
     filtered = api.get(
-        "/api/v1/eoats/P4-EOAT-0001/history",
+        "/api/v1/eoats/DEMO-P4-EOAT-0001/history",
         params={"event_category": "AUDITS", "event_type": "AUDIT_COMPLETED"},
     ).json()
     assert filtered["items"]
     assert all(item["event_category"] == "AUDITS" for item in filtered["items"])
     audit_id = filtered["items"][0]["metadata"]["audit_id"]
-    searched = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"search": audit_id}).json()
+    searched = api.get("/api/v1/eoats/DEMO-P4-EOAT-0001/history", params={"search": audit_id}).json()
     assert searched["pagination"]["total"] == 1
     assert api.get("/api/v1/eoats/DOES-NOT-EXIST/history").status_code == 404
 
 
 def test_search_fit_check_and_setup_packet(api):
-    result = api.get("/api/v1/search", params={"q": "P4-EOAT-0001"})
+    result = api.get("/api/v1/search", params={"q": "DEMO-P4-EOAT-0002"})
     assert result.status_code == 200
     assert any(item["category"] == "eoat" for item in result.json())
-    profile = api.get("/api/v1/eoats/P4-EOAT-0001").json()
+    profile = api.get("/api/v1/eoats/DEMO-P4-EOAT-0002").json()
     machine = next(item["identifier"] for item in profile["relationships"] if item["relationship_type"] == "machine")
     tool = next(item["identifier"] for item in profile["relationships"] if item["relationship_type"] == "tool")
     fit = api.post(
         "/api/v1/fit-checks/evaluate",
-        json={"machine_number": machine, "tool_number": tool, "eoat_identifier": "P4-EOAT-0001"},
+        json={"machine_number": machine, "tool_number": tool, "eoat_identifier": "DEMO-P4-EOAT-0002"},
     )
     assert fit.status_code == 200
     assert fit.json()["overall_result"] in {"COMPATIBLE", "NEEDS_REVIEW"}
     assert fit.json()["stored"] is False
     packet = api.get(
         "/api/v1/setup-packets/data",
-        params={"machine_number": machine, "tool_number": tool, "eoat_identifier": "P4-EOAT-0001"},
+        params={"machine_number": machine, "tool_number": tool, "eoat_identifier": "DEMO-P4-EOAT-0002"},
     )
     assert packet.status_code == 200
     assert packet.json()["source"] == "mysql_api"
@@ -201,7 +207,7 @@ def test_snapshot_cache_refresh_and_offline_read_only(api, tmp_path):
     deep = gateway.deep_refresh()
     assert deep["counts"]["eoats"] == 57
     assert gateway.refresh()["changes_applied"] == 0
-    assert gateway.get_cache_status().entity_counts["photos"] == 158
+    assert gateway.get_cache_status().entity_counts["photos"] == 2
     assert gateway.get_cache_status().entity_counts["eoat_history"] >= 1
 
     class Offline(ApiClientAdapter):
@@ -213,15 +219,15 @@ def test_snapshot_cache_refresh_and_offline_read_only(api, tmp_path):
     )
     assert offline.get_connection_status().mode == ConnectivityMode.OFFLINE_READ_ONLY
     assert offline.get_home_summary()["eoats"] == 57
-    assert offline.search("P4-EOAT")
-    cached_history = offline.get_eoat_history("P4-EOAT-0001")
+    assert offline.search("DEMO-P4-EOAT")
+    cached_history = offline.get_eoat_history("DEMO-P4-EOAT-0001")
     assert cached_history
     assert cached_history[0]["metadata"]["delivery_mode"] == "offline_cache"
 
     expected_ids = [item["event_id"] for item in cached_history]
     cache.path.unlink()
     gateway.deep_refresh()
-    assert [item["event_id"] for item in cache.get_eoat_history("P4-EOAT-0001")] == expected_ids
+    assert [item["event_id"] for item in cache.get_eoat_history("DEMO-P4-EOAT-0001")] == expected_ids
 
 
 def test_version_incompatibility_blocks_refresh(api, tmp_path):
@@ -265,34 +271,25 @@ def test_import_traceability_and_safety():
         )
         assert batch is not None
         assert (
-            session.scalar(select(func.count(db.ImportRow.id)).where(db.ImportRow.import_batch_id == batch.id)) == 261
+            session.scalar(select(func.count(db.ImportRow.id)).where(db.ImportRow.import_batch_id == batch.id)) == 0
         )
         assert (
             session.scalar(select(func.count(db.ImportIssue.id)).where(db.ImportIssue.import_batch_id == batch.id))
-            == 202
+            == 1
         )
         assert session.scalar(select(func.count(db.Part.id))) == 0
         assert session.scalar(select(func.count(db.ToolPart.id))) == 0
-        assert session.scalar(select(func.count(db.EOATInstallation.id))) == 0
-        assert batch.source_file_name.endswith("EOAT_Master_Tracker.xlsx")
+        assert session.scalar(select(func.count(db.EOATInstallation.id))) == 1
+        assert batch.source_file_name == "sanctioned_fixture.json"
         assert len(batch.source_file_checksum) == 64
         assert (
             session.scalar(
                 select(func.count(db.ImportIssue.id)).where(
                     db.ImportIssue.import_batch_id == batch.id,
-                    db.ImportIssue.issue_code == "POSSIBLE_PART_NOT_CONFIRMED",
+                    db.ImportIssue.issue_code == "SYNTHETIC_AMBIGUITY",
                 )
             )
-            == 67
-        )
-        assert (
-            session.scalar(
-                select(func.count(db.ImportIssue.id)).where(
-                    db.ImportIssue.import_batch_id == batch.id,
-                    db.ImportIssue.issue_code == "CONFLICTING_EOAT_ATTRIBUTE",
-                )
-            )
-            == 2
+            == 1
         )
 
 

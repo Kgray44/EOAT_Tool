@@ -47,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         env["EOAT_ATLAS_SMOKE_TEST"] = "1"
         env["EOAT_ATLAS_SMOKE_RUNTIME_PROBE"] = "1"
         env["EOAT_ATLAS_LOCALAPPDATA"] = str(runtime_base)
+        env["EOAT_ATLAS_DATA_BACKEND"] = "legacy"
         env.setdefault("QT_QPA_PLATFORM", "offscreen")
         try:
             completed = subprocess.run([str(exe), "--smoke-test"], cwd=Path.home(), env=env, timeout=args.timeout)
@@ -67,8 +68,21 @@ def main(argv: list[str] | None = None) -> int:
 
 def _check_package_folder(package_dir: Path, failures: list[str]) -> None:
     metadata_files = list(package_dir.rglob("release_metadata.json"))
-    if not metadata_files:
-        failures.append("release_metadata.json is missing from package folder")
+    if len(metadata_files) != 1:
+        failures.append(f"expected exactly one release_metadata.json, found {len(metadata_files)}")
+    elif (package_dir / "EOAT Atlas.exe").is_file():
+        try:
+            metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            failures.append("release_metadata.json is unreadable or invalid")
+        else:
+            executable_hash = _sha256(package_dir / "EOAT Atlas.exe")
+            if metadata.get("artifact_sha256") != executable_hash:
+                failures.append("release metadata artifact SHA-256 does not match the executable")
+            if metadata.get("dirty_tree") is not False:
+                failures.append("production-candidate metadata does not declare a clean tree")
+            if len(str(metadata.get("git_commit") or "")) != 40:
+                failures.append("release metadata does not contain an exact Git commit")
     for path in package_dir.rglob("*"):
         name = path.name
         if any(token.casefold() in name.casefold() for token in FORBIDDEN_PACKAGE_NAMES):
@@ -77,6 +91,16 @@ def _check_package_folder(package_dir: Path, failures: list[str]) -> None:
             failures.append(f"runtime artifact present in package folder: {path}")
         if path.is_dir() and name in {"pending", "events", "logs", "staging", "backups", "thumbnails"}:
             failures.append(f"runtime directory present in package folder: {path}")
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def _check_runtime_probe(runtime_base: Path, failures: list[str]) -> None:

@@ -1,6 +1,6 @@
 # EOAT Atlas Installer
 
-Use `Install_EOAT_Atlas.cmd` first. It is the primary supported installer path for this phase because endpoint security may block PyInstaller-built executables until IT allowlists them.
+Use the qualified `dist\Install EOAT Atlas.exe` bundle when endpoint policy permits it. `Install_EOAT_Atlas.cmd` remains the auditable script fallback when an unsigned PyInstaller wrapper is awaiting IT allowlisting.
 
 ## What It Installs
 
@@ -32,16 +32,7 @@ No admin rights are required. The installer does not install to Program Files, d
 
 The installer always creates or updates the current user's Desktop shortcut. There is no prompt and no checkbox.
 
-Current phase:
-
-- Launcher is not installed yet.
-- Shortcut points directly to the installed `EOAT Atlas.exe`.
-
-Future launcher phase:
-
-- Configure `launcher_source_path`.
-- Set `install_launcher` to `auto_if_available` or `required`.
-- When the launcher installs successfully, the same shortcut points to `EOAT Atlas Launcher.exe`.
+Current configuration requires the launcher and points the shortcut to `EOAT Atlas Launcher.exe`. Installation fails closed if the launcher payload or its identity is invalid.
 
 ## Preserved Runtime Data
 
@@ -93,13 +84,19 @@ The installer does not attempt to bypass, disable, trick, or work around Sentine
 
 If SentinelOne blocks EOAT Atlas or the optional installer exe, report it to IT with `IT_ALLOWLIST_HANDOFF.md` and the listed SHA-256 hashes. Use the `.cmd` installer path while the exe path is pending allowlisting.
 
-## Optional Exe Wrapper
+## Exe Wrapper
 
 `Build_Installer_Exe.ps1` builds:
 
 `dist\Install EOAT Atlas.exe`
 
-The exe wrapper uses the same PowerShell installer logic and an `asInvoker` manifest. It does not request elevation and does not bundle stale app versions. Keep the exe with the installer folder so it can find `Install_EOAT_Atlas.ps1` and `installer_config.json`.
+The exe wrapper uses the same PowerShell installer logic and an `asInvoker` manifest. It does not request elevation. The generated `dist` folder is self-contained and includes the exact application and launcher payloads qualified with the installer.
+
+## Uninstall
+
+Run `Uninstall_EOAT_Atlas.ps1` as the current user. It removes the versioned application, launcher, current-version
+pointers, receipt, and EOAT Atlas shortcut. It deliberately retains per-user identity, configuration, cache, pending
+changes, events, backups, thumbnails, and logs for support and reinstallation.
 
 ## Do Not Delete
 

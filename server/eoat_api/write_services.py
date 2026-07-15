@@ -198,6 +198,8 @@ def audit_change(
     related_entity_id: int | None = None,
     source_table: str | None = None,
     source_record_id: int | None = None,
+    change_feed_operation: str | None = None,
+    fault_injector: Callable[[str], None] | None = None,
 ) -> None:
     previous = previous or {}
     current = current or {}
@@ -223,12 +225,15 @@ def audit_change(
             client_version=actor.client_version,
         )
     )
+    if fault_injector:
+        session.flush()
+        fault_injector("audit_creation")
     if entity_type in CACHED_ENTITY_TYPES:
         session.add(
             db.ChangeFeed(
                 entity_type=entity_type,
                 entity_id=entity_id,
-                operation=action,
+                operation=change_feed_operation or action,
                 entity_row_version=max(1, row_version),
                 changed_by_user_id=actor.user_id,
                 request_id=actor.request_id,
@@ -255,6 +260,9 @@ def audit_change(
             source_table=source_table,
             source_record_id=source_record_id,
         )
+        if fault_injector:
+            session.flush()
+            fault_injector("history_creation")
         if target_type in CACHED_ENTITY_TYPES and (target_type, target_id) != (entity_type, entity_id):
             session.add(
                 db.ChangeFeed(
@@ -694,10 +702,25 @@ def _close_active_locations(
     return closed
 
 
-def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str, payload: dict[str, Any]):
+def move_to_machine(
+    session: Session,
+    actor: ActorContext,
+    eoat_identifier: str,
+    payload: dict[str, Any],
+    *,
+    fault_injector: Callable[[str], None] | None = None,
+):
+    def asset_is_archived(value) -> bool:
+        if not value.is_active:
+            return True
+        if value.status_id is None:
+            return False
+        status = session.scalar(select(db.AssetStatus.code).where(db.AssetStatus.id == value.status_id))
+        return (status or "").strip().casefold() == "archived"
+
     eoat = _entity_by_identifier(session, "eoat", eoat_identifier, lock=True)
     check_version(eoat, payload["expected_row_version"])
-    if not eoat.is_active:
+    if asset_is_archived(eoat):
         raise APIError(409, "ARCHIVED_EOAT", "An archived EOAT cannot be installed.")
     machine_query = select(db.Machine).where(
         db.Machine.machine_number == payload["machine_number"], db.Machine.is_active.is_(True)
@@ -715,14 +738,28 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
     if len(machines) != 1:
         raise APIError(409, "AMBIGUOUS_MACHINE", "plant_code is required when a machine number exists in multiple plants.")
     machine = machines[0]
+    if asset_is_archived(machine):
+        raise APIError(409, "ARCHIVED_MACHINE", "An archived machine cannot receive an EOAT.")
     tool = _entity_by_identifier(session, "tool", payload["tool_identifier"])
-    if not tool.is_active:
+    if asset_is_archived(tool):
         raise APIError(409, "ARCHIVED_TOOL", "An archived tool cannot be installed.")
     robot = (
         _entity_by_identifier(session, "robot", payload["robot_identifier"])
         if payload.get("robot_identifier")
         else None
     )
+    if robot is not None:
+        if asset_is_archived(robot):
+            raise APIError(409, "ARCHIVED_ROBOT", "An archived robot cannot be used for an installation.")
+        assignment = session.scalar(
+            select(db.MachineRobotAssignment.id).where(
+                db.MachineRobotAssignment.machine_id == machine.id,
+                db.MachineRobotAssignment.robot_id == robot.id,
+                db.MachineRobotAssignment.removed_at.is_(None),
+            )
+        )
+        if assignment is None:
+            raise APIError(409, "ROBOT_MACHINE_MISMATCH", "The robot is not actively assigned to this machine.")
     fit_check = AtlasService(session).fit_check(
         FitCheckRequest(
             plant_code=payload.get("plant_code"),
@@ -733,10 +770,15 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
     )
     override_reason = str(payload.get("override_reason") or "").strip()
     overridden = fit_check.overall_result != "COMPATIBLE"
-    if overridden and not override_reason:
-        raise APIError(409, "INSTALLATION_COMPATIBILITY_BLOCKED", "Installation requires a COMPATIBLE Fit Check result.", {"fit_check": fit_check.model_dump(mode="json")})
     if overridden and not actor.permits("installation.override_compatibility"):
         raise APIError(403, "COMPATIBILITY_OVERRIDE_FORBIDDEN", "This identity cannot override compatibility.")
+    if overridden and not override_reason:
+        raise APIError(
+            409,
+            "INSTALLATION_COMPATIBILITY_BLOCKED",
+            "Installation requires a COMPATIBLE Fit Check result.",
+            {"fit_check": fit_check.model_dump(mode="json")},
+        )
     when = payload.get("installed_at") or utcnow()
     closed_locations = _close_active_locations(session, actor, eoat.id, when, payload.get("reason"))
     installation = db.EOATInstallation(
@@ -752,10 +794,18 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
         source="eoat_api",
     )
     session.add(installation)
+    session.flush()
+    if fault_injector:
+        fault_injector("installation_creation")
     eoat.row_version += 1
     eoat.updated_by_user_id = actor.user_id
     session.flush()
+    if fault_injector:
+        fault_injector("eoat_version_update")
     current = record_dict(installation)
+    application_release_id = release_id_for_instance(session, actor.application_instance_id)
+    if fault_injector:
+        fault_injector("release_provenance_lookup")
     audit_change(
         session,
         actor,
@@ -784,10 +834,12 @@ def move_to_machine(session: Session, actor: ActorContext, eoat_identifier: str,
             "actor_identity": actor.identity,
             "request_id": actor.request_id,
             "application_instance_id": actor.application_instance_id,
-            "application_release_id": release_id_for_instance(session, actor.application_instance_id),
+            "application_release_id": application_release_id,
         },
         source_table="eoat_installations",
         source_record_id=installation.id,
+        change_feed_operation="compatibility_override" if overridden else "create",
+        fault_injector=fault_injector,
     )
     audit_change(
         session,

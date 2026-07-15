@@ -135,8 +135,8 @@ class AtlasApiClient:
     def list_machines(self, **params: Any) -> dict[str, Any]:
         return self._request("GET", "/api/v1/machines", params=params)
 
-    def get_machine(self, number: str) -> dict[str, Any]:
-        return self._request("GET", f"/api/v1/machines/{number}")
+    def get_machine(self, number: str, *, plant_code: str | None = None) -> dict[str, Any]:
+        return self._request("GET", f"/api/v1/machines/{number}", params={"plant_code": plant_code})
 
     def list_tools(self, **params: Any) -> dict[str, Any]:
         return self._request("GET", "/api/v1/tools", params=params)

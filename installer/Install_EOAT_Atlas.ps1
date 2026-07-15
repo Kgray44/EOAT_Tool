@@ -336,6 +336,9 @@ function Test-SourceRelease {
     $expectedMetadata = [string](Get-ConfigValue $Config "expected_metadata_file" "release_metadata.json")
     $appExe = Join-Path $SourceRoot $expectedExe
     $metadataPath = Join-Path $SourceRoot $expectedMetadata
+    if (!(Test-Path -LiteralPath $metadataPath -PathType Leaf)) {
+        $metadataPath = Join-Path (Join-Path $SourceRoot "_internal") $expectedMetadata
+    }
     if (!(Test-Path -LiteralPath $appExe -PathType Leaf)) {
         Stop-WithError "Expected app executable is missing from source release: $appExe"
     }
@@ -483,10 +486,14 @@ function Install-AppRelease {
         $stagingStats = Get-DirectoryStats $stagingPath
         $expectedExe = [string](Get-ConfigValue $Config "expected_app_exe_name" "EOAT Atlas.exe")
         $expectedMetadata = [string](Get-ConfigValue $Config "expected_metadata_file" "release_metadata.json")
+        $metadataRelativePath = $expectedMetadata
+        if (!(Test-Path -LiteralPath (Join-Path $SourceRoot $metadataRelativePath) -PathType Leaf)) {
+            $metadataRelativePath = Join-Path "_internal" $expectedMetadata
+        }
         if (!(Test-Path -LiteralPath (Join-Path $stagingPath $expectedExe))) {
             Stop-WithError "Staging verification failed: app exe missing."
         }
-        if (!(Test-Path -LiteralPath (Join-Path $stagingPath $expectedMetadata))) {
+        if (!(Test-Path -LiteralPath (Join-Path $stagingPath $metadataRelativePath))) {
             Stop-WithError "Staging verification failed: release metadata missing."
         }
         if ($stagingStats.file_count -ne $SourceSummary.file_count -or $stagingStats.total_bytes -ne $SourceSummary.total_bytes) {
@@ -510,7 +517,7 @@ function Install-AppRelease {
     return [ordered]@{
         app_install_path = $targetPath
         app_exe_path = (Join-Path $targetPath $expectedExe)
-        metadata_path = (Join-Path $targetPath $expectedMetadata)
+        metadata_path = (Join-Path $targetPath $metadataRelativePath)
         release_segment = $releaseSegment
         staging_path = $stagingPath
     }

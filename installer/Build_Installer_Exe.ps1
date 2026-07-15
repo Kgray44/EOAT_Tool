@@ -8,7 +8,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$workDir = Join-Path $scriptDir "build_exe_work"
+$workDir = Join-Path (Split-Path -Parent $scriptDir) "build\installer"
 $distDir = Join-Path $scriptDir "dist"
 $wrapperPath = Join-Path $workDir "install_eoat_atlas_entry.py"
 $manifestPath = Join-Path $workDir "installer_asInvoker.manifest"
@@ -117,6 +117,23 @@ if (!(Test-Path -LiteralPath $exePath)) {
     Write-Host "PyInstaller completed but the expected exe was not found: $exePath"
     exit 1
 }
+
+# The no-elevation exe is intentionally a thin launcher. Keep its two audited
+# runtime inputs beside it so the public installer folder is self-contained.
+Copy-Item -LiteralPath (Join-Path $scriptDir "Install_EOAT_Atlas.ps1") -Destination $distDir -Force
+Copy-Item -LiteralPath (Join-Path $scriptDir "Uninstall_EOAT_Atlas.ps1") -Destination $distDir -Force
+Copy-Item -LiteralPath (Join-Path $scriptDir "installer_config.json") -Destination $distDir -Force
+$repositoryRoot = Split-Path -Parent $scriptDir
+$appSource = Join-Path $repositoryRoot "dist\EOAT Atlas"
+$launcherSource = Join-Path $repositoryRoot "dist\launcher"
+if (!(Test-Path -LiteralPath (Join-Path $appSource "EOAT Atlas.exe"))) {
+    throw "Build the EOAT Atlas onedir package before building the distributable installer."
+}
+if (!(Test-Path -LiteralPath (Join-Path $launcherSource "EOAT Atlas Launcher.exe"))) {
+    throw "Build the EOAT Atlas launcher before building the distributable installer."
+}
+Copy-Item -LiteralPath $appSource -Destination $distDir -Recurse -Force
+Copy-Item -LiteralPath $launcherSource -Destination $distDir -Recurse -Force
 
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exePath).Hash
 Write-Host "Built installer exe: $exePath"

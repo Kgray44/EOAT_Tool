@@ -37,77 +37,77 @@ class AtlasService:
     def database_server_version(self) -> str:
         return str(self.session.scalar(text("SELECT VERSION()")) or "")
 
-    def fit_check(self, request: FitCheckRequest) -> FitCheckResult:
-        evaluated_at = datetime.now(timezone.utc)
-        machine_query = select(db.Machine).where(
-            db.Machine.machine_number == request.machine_number,
-            db.Machine.is_active.is_(True),
-        )
-        if request.plant_code:
-            machine_query = machine_query.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
-                db.Plant.plant_code == request.plant_code,
-                db.Plant.is_active.is_(True),
+    def fit_check(self, request: FitCheckRequest, *, evaluated_at: datetime | None = None) -> FitCheckResult:
+        evaluated_at = evaluated_at or datetime.now(timezone.utc)
+
+        def asset_is_available(value) -> bool:
+            if value is None or not value.is_active:
+                return False
+            if value.status_id is None:
+                return True
+            status_code = self.session.scalar(
+                select(db.AssetStatus.code).where(db.AssetStatus.id == value.status_id)
             )
-        machines = list(self.session.scalars(machine_query.order_by(db.Machine.id)).all())
-        if len(machines) > 1:
-            unknown = PairCompatibility(
-                pair="unresolved_input",
-                result="NOT_EVALUATED",
-                reason="Machine number is ambiguous across plants; plant_code is required.",
-            )
+            return (status_code or "").strip().casefold() != "archived"
+
+        def invalid_input(reason: str, unknown_relationship: str) -> FitCheckResult:
+            unknown = PairCompatibility(pair="unresolved_input", result="NOT_EVALUATED", reason=reason)
             return FitCheckResult(
                 overall_result="INVALID_INPUT",
                 machine_tool_result=unknown,
                 machine_eoat_result=unknown,
                 tool_eoat_result=unknown,
-                reasons=["Ambiguous machine number: specify plant_code."],
+                reasons=[reason],
                 warnings=[],
-                unknown_relationships=["machine"],
+                unknown_relationships=[unknown_relationship],
                 alternative_compatible_eoats=[],
             )
+
+        machine_query = select(db.Machine).where(db.Machine.machine_number == request.machine_number)
+        if request.plant_code:
+            machine_query = machine_query.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
+                db.Plant.plant_code == request.plant_code,
+                db.Plant.is_active.is_(True),
+            )
+        machine_candidates = list(self.session.scalars(machine_query.order_by(db.Machine.id)).all())
+        machines = [value for value in machine_candidates if asset_is_available(value)]
+        if len(machines) > 1:
+            return invalid_input(
+                "Machine number is ambiguous across plants; plant_code is required.",
+                "machine",
+            )
         machine = machines[0] if machines else None
-        tool = self.session.scalar(
+        tool_candidates = list(
+            self.session.scalars(
             select(db.Tool).where(
                 (db.Tool.business_identifier == request.tool_number) | (db.Tool.tool_number == request.tool_number)
-            )
+                ).order_by(db.Tool.id)
+            ).all()
         )
+        if len(tool_candidates) > 1:
+            return invalid_input("Tool identifier is ambiguous; use its unique business identifier.", "tool")
+        tool = tool_candidates[0] if tool_candidates else None
         eoat = self.session.scalar(
             select(db.EOAT).where(
                 (db.EOAT.business_identifier == request.eoat_identifier)
                 | (db.EOAT.legacy_identifier == request.eoat_identifier)
             )
         )
-        missing = [name for name, value in (("machine", machine), ("tool", tool), ("eoat", eoat)) if value is None]
-        if missing:
-            unknown = PairCompatibility(
-                pair="unresolved_input", result="NOT_EVALUATED", reason="Required entity was not found."
-            )
-            return FitCheckResult(
-                overall_result="INVALID_INPUT",
-                machine_tool_result=unknown,
-                machine_eoat_result=unknown,
-                tool_eoat_result=unknown,
-                reasons=[f"Unknown input: {', '.join(missing)}"],
-                warnings=[],
-                unknown_relationships=missing,
-                alternative_compatible_eoats=[],
+        unavailable = []
+        if machine_candidates and machine is None:
+            unavailable.append("machine")
+        unavailable.extend(
+            name for name, value in (("tool", tool), ("eoat", eoat)) if value is not None and not asset_is_available(value)
+        )
+        if unavailable:
+            return invalid_input(
+                f"Archived or inactive input: {', '.join(unavailable)}",
+                unavailable[0],
             )
 
-        inactive = [name for name, value in (("tool", tool), ("eoat", eoat)) if not value.is_active]
-        if inactive:
-            unknown = PairCompatibility(
-                pair="inactive_input", result="NOT_EVALUATED", reason="Archived or inactive assets cannot be approved."
-            )
-            return FitCheckResult(
-                overall_result="INVALID_INPUT",
-                machine_tool_result=unknown,
-                machine_eoat_result=unknown,
-                tool_eoat_result=unknown,
-                reasons=[f"Inactive input: {', '.join(inactive)}"],
-                warnings=[],
-                unknown_relationships=inactive,
-                alternative_compatible_eoats=[],
-            )
+        missing = [name for name, value in (("machine", machine), ("tool", tool), ("eoat", eoat)) if value is None]
+        if missing:
+            return invalid_input(f"Unknown input: {', '.join(missing)}", missing[0])
 
         def pair_result(model: type, *criteria) -> PairCompatibility:
             record = self.session.scalar(
@@ -189,6 +189,12 @@ class AtlasService:
                         db.EOATMachineCompatibility.machine_id == machine.id,
                         db.EOATToolCompatibility.tool_id == tool.id,
                         db.EOAT.is_active.is_(True),
+                        or_(
+                            db.EOAT.status_id.is_(None),
+                            db.EOAT.status_id.not_in(
+                                select(db.AssetStatus.id).where(db.AssetStatus.code == "archived")
+                            ),
+                        ),
                         db.EOATMachineCompatibility.is_active.is_(True),
                         db.EOATToolCompatibility.is_active.is_(True),
                         db.EOATMachineCompatibility.effective_from <= evaluated_at,

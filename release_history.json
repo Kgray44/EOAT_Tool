@@ -55,6 +55,15 @@
       "state": "finalized",
       "task_id": "codex-full-stabilization-20260715",
       "finalized_at_utc": "2026-07-15T18:58:24Z"
+    },
+    {
+      "application_version": "0.15.0",
+      "release_id": "eoat-atlas-0.15.0",
+      "build_id": "eoat-atlas-0.15.0-af7d1bb-20260715T213131Z",
+      "commit_sha": "af7d1bba359dc47156a003629aad32d6f474c696",
+      "state": "finalized",
+      "task_id": "codex-history-sanitization-and-release-qualification-20260715",
+      "finalized_at_utc": "2026-07-15T21:31:31Z"
     }
   ]
 }

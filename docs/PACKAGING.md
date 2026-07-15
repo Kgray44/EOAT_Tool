@@ -1,148 +1,67 @@
-# Packaging EOAT Command Center
+# Packaging EOAT Atlas
 
-EOAT Command Center can be launched from source or built into a Windows folder-style executable with PyInstaller.
-The supported packaged format is currently `--onedir`; one-file builds can be explored after the onedir build is stable.
+EOAT Atlas is distributed as a Windows PyInstaller `onedir` application, a lightweight launcher, and a no-elevation
+per-user installer bundle. Packaging is an internal qualification workflow; it does not imply production approval or
+code signing.
 
 ## Prerequisites
 
 - Windows 10 or newer.
-- Python 3.10+ available as `python` or `py`.
-- Access to this project checkout.
-- Project dependencies from `requirements.txt` and developer tools from `requirements-dev.txt`.
-
-## Source Launch
-
-Use this command as the canonical source entry point:
+- Python 3.12.
+- A clean committed checkout.
+- Runtime dependencies installed from `requirements.lock` and build dependencies from `requirements-build.lock`.
 
 ```powershell
-python -m app.main
+python -m pip install -r requirements-build.lock
+python -m PyInstaller --version
 ```
 
-For automated startup smoke checks, use:
+PyInstaller is build tooling and is not included in the runtime lock. UPX is disabled for both application and launcher
+builds. No signing identity is configured; an approved certificate and IT process are external requirements.
 
-```powershell
-$env:EOAT_COMMAND_CENTER_SMOKE_TEST = "1"
-python -m app.main
-Remove-Item Env:\EOAT_COMMAND_CENTER_SMOKE_TEST
-```
-
-## Build From Scratch
+## Build and verify the application
 
 From the repository root:
 
 ```powershell
-.\build_tools\build_exe.ps1
+python scripts/build_package.py
+python scripts/smoke_test_package.py "dist/EOAT Atlas/EOAT Atlas.exe"
 ```
 
-The script will:
+`build_package.py` refuses a dirty tree unless the explicit development-only
+`EOAT_ATLAS_ALLOW_DIRTY_BUILD=1` override is set. A production-candidate build must not use that override. The generated
+package metadata records the exact commit, branch, timestamp, build run, dirty state, build ID, and executable SHA-256.
+The package manifest records every packaged file and checksum.
 
-- clean `build/` and `dist/`
-- create or activate `.venv`
-- install project requirements, Ruff, pytest helpers, and PyInstaller
-- run `python -m ruff check .`
-- run `python -m pytest`
-- build with `python -m PyInstaller --noconfirm --clean .\EOAT_Command_Center.spec`
+Writable runtime state belongs under `%LOCALAPPDATA%\EOAT_Atlas`; it must not be written into the onedir package.
 
-For a packaging-debug build when tests were already run separately:
+## Build the launcher
 
 ```powershell
-.\build_tools\build_exe.ps1 -SkipTests
+python scripts/build_launcher.py
 ```
 
-## Output
+The launcher is written to `dist\launcher\EOAT Atlas Launcher.exe`. It resolves the current per-user application,
+validates release/update identity, prevents duplicate launch, and records diagnostics under the per-user runtime root.
 
-The executable is created at:
+## Build the per-user installer bundle
 
-```text
-dist/EOAT Command Center/EOAT Command Center.exe
-```
-
-The build is windowed, so double-clicking the executable should not open a console window.
-
-## Bundled Resources
-
-The PyInstaller spec includes:
-
-- `data_templates/`
-- `templates/`
-- `config/config.example.json`
-- Markdown documentation under `docs/`
-- PySide6 and Qt runtime dependencies
-- dynamic imports from `app`, `core`, and `tools`
-
-The app uses `core.resources.resource_path()` for bundled read-only resources. In a frozen build, local settings are stored under the user's app data folder instead of inside `dist/EOAT Command Center`.
-
-## User Data
-
-Do not place real EOAT project data inside the executable folder. Writable files should go to:
-
-- the selected EOAT project root
-- `%LOCALAPPDATA%\EOAT Command Center\config`
-- another user-selected or configured output folder
-
-This includes logs, reports, backups, generated workbooks, exported documents, selected project path config, app settings, and user-created data.
-
-## Test The Packaged App
-
-After building:
+Build the application and launcher first, then run:
 
 ```powershell
-python scripts/smoke_test_package.py
+powershell -NoProfile -ExecutionPolicy RemoteSigned -File installer/Build_Installer_Exe.ps1 -PythonExe python -Clean
 ```
 
-The smoke helper launches the windowed executable with a smoke flag and requires it to exit with code 0 within the timeout. A hung process, PyInstaller error dialog, or nonzero exit fails the smoke check. It does not replace manual double-click testing.
+`installer\dist` is the distributable folder. It contains only the no-elevation installer entry point, its audited
+runtime script/configuration, and the application and launcher payloads. Installation is per-user and refuses elevated
+execution. Validate an installed instance with `installer/Validate_EOAT_Atlas_Install.ps1`.
 
-Then manually verify:
+The configured desktop shortcut is intentional and targets the launcher. Application binaries are versioned under the
+per-user application root; logs, cache, and user identity follow the retention behavior documented in
+`installer/README_INSTALLER.md`.
 
-- double-click `dist/EOAT Command Center/EOAT Command Center.exe`
-- select or open the EOAT project root
-- confirm Home, Audit, Photos, Workbook Health, and Settings load
-- confirm bundled templates and workbook schema-backed features work
-- confirm reports, logs, workbook backups, and photo intake outputs write to the selected project root
-- confirm `config/local_config.json` is not written inside the executable folder
+## Exclusions and security
 
-## Troubleshooting
-
-Missing imports:
-Add hidden imports to `EOAT_Command_Center.spec`. Dynamic page imports are already covered by `collect_submodules("app")`.
-
-Missing PySide6 or Qt plugins:
-Keep `collect_all("PySide6")` in the spec. Rebuild with `--clean`.
-
-Missing templates or assets:
-Add the folder or file to the `datas` list in `EOAT_Command_Center.spec`.
-
-App opens then instantly closes:
-Run from PowerShell once to inspect errors, or temporarily build without `console=False` while debugging.
-
-App cannot write files:
-Check that the selected project root is writable. Packaged settings belong in `%LOCALAPPDATA%\EOAT Command Center`, not in the bundled app folder.
-
-Helper-script workflows:
-Some legacy workflows still launch Python scripts using `sys.executable`. In a frozen build, verify those workflows manually before relying on them for production scheduling.
-
-## One-File Build Later
-
-A one-file executable can be tested later by changing the PyInstaller build to `--onefile` or adjusting the spec. One-file builds start more slowly because bundled files are extracted at launch, so onedir remains preferred for debugging and internal deployment.
-
-## Future Installer
-
-An installer such as Inno Setup can wrap the onedir output later and add Start Menu entries if desired.
-
-## EOAT Atlas Launcher
-
-EOAT Atlas now has a separate lightweight launcher package. Build it with:
-
-```powershell
-.\build_tools\build_atlas_launcher.ps1
-```
-
-The launcher executable is created at:
-
-```text
-dist/EOAT Atlas Launcher.exe
-```
-
-The launcher reads per-user config from `%APPDATA%\EOAT Atlas Launcher\launcher_config.json`, writes logs under `%LOCALAPPDATA%\EOAT Atlas\Logs\`, and starts the installed `EOAT Atlas.exe` after checking install path, optional resource paths, version metadata, and duplicate-launch guards.
-
-Installer integration details are in `docs/EOAT_ATLAS_LAUNCHER.md`.
+Packages must not contain `.env` files, credentials, Git metadata, private workbooks, operational evidence, test
+fixtures, developer caches, or backup artifacts. Endpoint allowlisting, certificate-backed signing, production TLS,
+production infrastructure, and deployment approval remain external IT controls.

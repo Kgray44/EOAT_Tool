@@ -56,15 +56,17 @@ def test_legacy_backend_requires_explicit_selection(tmp_path: Path, monkeypatch)
     assert BootstrapConfiguration.resolve(tmp_path, backend="legacy").backend == "legacy"
 
 
-def test_import_path_isolation_removes_old_repository_copy(monkeypatch) -> None:
-    old = r"\\example.invalid\VT/Sanitized/Example\My Documents\KG_Nolato_Summer_2026"
+def test_import_path_isolation_removes_old_repository_copy(tmp_path: Path, monkeypatch) -> None:
+    old = tmp_path / "old-repository-copy"
+    old.mkdir()
+    (old / CANONICAL_MARKER).write_text("synthetic marker", encoding="utf-8")
     neutral = r"C:\Python\Lib"
-    monkeypatch.setattr(sys, "path", [old, neutral])
+    monkeypatch.setattr(sys, "path", [str(old), neutral])
 
     run_atlas._isolate_import_path()
 
     assert sys.path[0] == str(run_atlas.REPOSITORY_ROOT)
-    assert old not in sys.path
+    assert str(old) not in sys.path
     assert neutral in sys.path
 
 
