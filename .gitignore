@@ -151,6 +151,8 @@ reports/*
 !reports/cutover_preparation/**
 !reports/cutover_rehearsal/
 !reports/cutover_rehearsal/**
+!reports/security/
+!reports/security/**
 
 # Never re-include generated Python bytecode after allowlist exceptions
 __pycache__/

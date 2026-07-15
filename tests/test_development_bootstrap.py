@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -79,9 +80,10 @@ def test_version_sources_agree() -> None:
     metadata = load_app_metadata(root)
     atlas_version = json.loads((root / "app" / "atlas" / "version.json").read_text(encoding="utf-8"))
 
-    assert canonical.application_version == metadata.app_version == atlas_version["version"] == "0.9.1"
+    assert canonical.application_version == metadata.app_version == atlas_version["version"]
+    assert re.fullmatch(r"\d+\.\d+\.\d+", canonical.application_version)
     assert canonical.build_id == metadata.build_id == atlas_version["buildId"] == "mysql-api-development"
-    assert canonical.release_id == metadata.release_id == "eoat-atlas-0.9.1"
+    assert canonical.release_id == metadata.release_id == f"eoat-atlas-{canonical.application_version}"
 
 
 def test_wrong_process_on_mysql_port_is_never_stopped(monkeypatch) -> None:
@@ -117,8 +119,8 @@ def test_mysql_api_diagnostics_hide_legacy_operational_fields(qapp, tmp_path: Pa
         "api_response_ms": 3.2,
         "database_connected": True,
         "mysql_version": "8.4.9",
-        "schema_revision": "20260714_0005",
-        "required_schema_revision": "20260714_0005",
+        "schema_revision": "20260715_0006",
+        "required_schema_revision": "20260715_0006",
         "server_revision": "test",
         "cache_path": str(tmp_path / "eoat_atlas_api_cache_dev.db"),
         "cache_schema_version": "3",

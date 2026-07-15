@@ -3,16 +3,16 @@
 To publish a tested patch update, double-click:
 `Publish Patch Update.cmd`
 
-The publisher reads the current network manifest, proposes the next patch, asks once for `PUBLISH`, then tests, builds, smoke-tests, packages, verifies, and promotes the release. `release_metadata.json` is the sole app-version source. The initial release is deliberately different because no valid network history exists: run `python scripts/publish_release.py --initialize --release-notes "Initial managed release"`; inspect a dry run first by adding `--dry-run --yes`.
+The publisher reads the already-bumped canonical version, requires it to be newer than the current network manifest, asks once for `PUBLISH`, then tests, builds, smoke-tests, packages, verifies, and promotes that exact release. `release_metadata.json` is the sole app-version source. Perform the task's one version bump before publishing; publishing never adds a second bump. The initial release is deliberately different because no valid network history exists: run `python scripts/publish_release.py --initialize --release-notes "Initial managed release"`; inspect a dry run first by adding `--dry-run --yes`.
 
 ## Commands
 
 - Safe full validation: `python scripts/publish_release.py --dry-run --initialize --yes --release-notes "..."`
 - Temporary deployment integration: `python scripts/publish_release.py --initialize --yes --deployment-root "C:\temp\EOAT Atlas" --release-notes "..."`
-- Normal CLI patch after initialization: `python scripts/publish_release.py --bump patch --yes --release-notes "..."`
+- Normal publish after the task bump: `python scripts/publish_release.py --yes --release-notes "..."`
 - Explicit compatibility floor only when intended: add `--minimum-supported-version X.Y.Z`.
 
-`latest.json` schema version 1 requires `latest_version`, immutable `release_path`, `minimum_supported_version`, `sha256`, `package_size`, and `published_at`; it also records `release_notes` and tolerates unknown optional fields. The manifest is atomically replaced only after the final package has been read back and verified.
+`latest.json` requires `latest_version`, matching `release_id`, unique `build_id`, immutable `release_path`, `minimum_supported_version`, `sha256`, `package_size`, and `published_at`; it also records `release_notes` and tolerates unknown optional fields. The manifest is atomically replaced only after the final package has been read back and verified against the same embedded version/release/build identity.
 
 The launcher compares parsed numeric semantic versions. Missing or older local apps install/update; equal starts immediately; newer local versions are never downgraded. Network or package failures use the last-known-good local app only when it meets the cached compatibility floor. A required but unreachable update shows an actionable error. Packages stage under `%LOCALAPPDATA%\EOAT_Atlas\app_staging`, activate into `app_versions\VERSION`, and switch `current.json` atomically. Settings, SQLite data, caches, logs, exports, identity, and last-known-good metadata are outside version directories and are never removed.
 

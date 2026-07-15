@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.versioning import EXPECTED_SCHEMA_REVISION, get_app_version
+
 SUPPORTED_BACKENDS = {"legacy", "mysql_api"}
 
 
@@ -14,7 +16,7 @@ class GatewayConfiguration:
     timeout_seconds: float = 10.0
     cache_path: Path = Path.home() / "AppData" / "Local" / "EOAT Atlas Development" / "eoat_atlas_api_cache_dev.db"
     supported_api_major: int = 1
-    expected_schema_revision: str = "20260714_0005"
+    expected_schema_revision: str = EXPECTED_SCHEMA_REVISION
     writes_enabled: bool = True
     environment: str = "development"
     development_identity: str = ""
@@ -41,5 +43,5 @@ class GatewayConfiguration:
             environment=os.getenv("EOAT_ATLAS_ENVIRONMENT", "development").strip().casefold(),
             development_identity=os.getenv("EOAT_ATLAS_DEV_IDENTITY", "").strip(),
             application_instance_id=os.getenv("EOAT_ATLAS_INSTANCE_ID", "").strip(),
-            client_version=os.getenv("EOAT_ATLAS_CLIENT_VERSION", "").strip(),
+            client_version=os.getenv("EOAT_ATLAS_CLIENT_VERSION", "").strip() or get_app_version(),
         )

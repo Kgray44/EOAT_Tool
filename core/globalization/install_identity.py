@@ -13,7 +13,7 @@ from core.resources import app_base_path, packaged_executable_dir
 from .app_metadata import load_app_metadata
 from .runtime_paths import AtlasRuntimePaths, atomic_write_json, ensure_runtime_layout, get_runtime_paths, read_json
 
-IDENTITY_SCHEMA_VERSION = 1
+IDENTITY_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,7 @@ class InstallIdentity:
     app_name: str
     app_version_at_install: str
     release_id_at_install: str
+    build_id_at_install: str
     install_root: str
     runtime_root: str
     source_release_path: str
@@ -58,7 +59,7 @@ def _identity_from_payload(payload: dict[str, Any], runtime: AtlasRuntimePaths) 
     app_instance_id = str(payload.get("app_instance_id") or _default_app_instance_id(machine_name))
     installed_at = str(payload.get("installed_at") or payload.get("generated_at") or now)
     return InstallIdentity(
-        identity_schema_version=int(payload.get("identity_schema_version") or IDENTITY_SCHEMA_VERSION),
+        identity_schema_version=max(int(payload.get("identity_schema_version") or 1), IDENTITY_SCHEMA_VERSION),
         install_id=install_id,
         app_instance_id=app_instance_id,
         machine_name=machine_name,
@@ -69,6 +70,7 @@ def _identity_from_payload(payload: dict[str, Any], runtime: AtlasRuntimePaths) 
         app_name=str(payload.get("app_name") or metadata.app_name),
         app_version_at_install=str(payload.get("app_version_at_install") or metadata.app_version),
         release_id_at_install=str(payload.get("release_id_at_install") or metadata.release_id),
+        build_id_at_install=str(payload.get("build_id_at_install") or metadata.build_id),
         install_root=str(payload.get("install_root") or packaged_executable_dir()),
         runtime_root=str(payload.get("runtime_root") or runtime.runtime_root),
         source_release_path=str(payload.get("source_release_path") or app_base_path()),

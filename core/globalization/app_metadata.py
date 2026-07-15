@@ -9,11 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from core.resources import app_base_path, release_metadata_path
+from core.versioning import get_app_version, get_release_info
 
 from .sqlite_store import SCHEMA_VERSION
 
 APP_NAME = "EOAT Atlas"
-APP_VERSION = "0.0.0"
+APP_VERSION = get_app_version()
 RELEASE_ID = "eoat-atlas-unknown"
 BUILD_ID = "unknown"
 BUILD_DATE = "2026-07-10"
@@ -41,6 +42,12 @@ class AppMetadata:
     minimum_supported_launcher_version: str = MINIMUM_SUPPORTED_LAUNCHER_VERSION
     minimum_supported_installer_version: str = MINIMUM_SUPPORTED_INSTALLER_VERSION
     environment: str = "development"
+    release_channel: str = "development"
+    branch_name: str = ""
+    database_schema_revision: str = ""
+    api_contract_version: str = ""
+    launcher_version: str = ""
+    installer_version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -62,15 +69,16 @@ def _load_app_metadata_cached(metadata_path_text: str, git_root_text: str) -> Ap
     metadata_path = Path(metadata_path_text)
     git_root = Path(git_root_text)
     payload = _read_metadata_json(metadata_path)
+    release = get_release_info(git_root)
     metadata = AppMetadata(
         metadata_schema_version=int(payload.get("metadata_schema_version") or METADATA_SCHEMA_VERSION),
         app_name=str(payload.get("app_name") or APP_NAME),
-        app_version=str(payload.get("app_version") or APP_VERSION),
-        release_id=str(payload.get("release_id") or RELEASE_ID),
+        app_version=release.application_version,
+        release_id=release.release_id,
         build_date=str(payload.get("build_date") or BUILD_DATE),
         build_timestamp=str(payload.get("build_timestamp") or BUILD_TIMESTAMP),
-        build_id=str(payload.get("build_id") or BUILD_ID),
-        git_commit=str(payload.get("git_commit") or os.environ.get("EOAT_ATLAS_GIT_COMMIT") or _git_commit(git_root)),
+        build_id=release.build_id,
+        git_commit=str(release.commit_sha or os.environ.get("EOAT_ATLAS_GIT_COMMIT") or _git_commit(git_root)),
         cache_schema_version=int(payload.get("cache_schema_version") or SCHEMA_VERSION),
         event_schema_version=int(payload.get("event_schema_version") or EVENT_SCHEMA_VERSION),
         config_schema_version=int(payload.get("config_schema_version") or CONFIG_SCHEMA_VERSION),
@@ -80,7 +88,13 @@ def _load_app_metadata_cached(metadata_path_text: str, git_root_text: str) -> Ap
         minimum_supported_installer_version=str(
             payload.get("minimum_supported_installer_version") or MINIMUM_SUPPORTED_INSTALLER_VERSION
         ),
-        environment=str(payload.get("environment") or "development"),
+        environment=release.environment,
+        release_channel=release.release_channel,
+        branch_name=release.branch_name,
+        database_schema_revision=release.database_schema_revision,
+        api_contract_version=release.api_contract_version,
+        launcher_version=release.launcher_version,
+        installer_version=release.installer_version,
     )
     return metadata
 

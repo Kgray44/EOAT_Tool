@@ -599,7 +599,13 @@ class AtlasDataGateway:
         )
 
     def register_application_instance(self, request):
-        return self._server_first_write("POST", "/api/v1/application-instances/register", request)
+        from core.versioning import get_release_info
+
+        release = get_release_info()
+        enriched = dict(request)
+        for key, value in release.provenance().items():
+            enriched.setdefault(key, value)
+        return self._server_first_write("POST", "/api/v1/application-instances/register", enriched)
 
     def heartbeat_application_instance(self, instance_uuid):
         return self._server_first_write(

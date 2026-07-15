@@ -5,6 +5,8 @@ from urllib.parse import quote
 
 import httpx
 
+from core.versioning import get_release_info
+
 from .exceptions import (
     ApiUnavailableError,
     AuthenticationRequiredError,
@@ -28,13 +30,18 @@ class AtlasApiClient:
         client_version: str = "",
     ):
         self.base_url = base_url.rstrip("/")
-        headers = {}
+        release = get_release_info()
+        effective_client_version = client_version or release.application_version
+        headers = {
+            "User-Agent": f"EOAT-Atlas/{effective_client_version} ({release.release_id}; {release.build_id})",
+            "X-EOAT-Client-Version": effective_client_version,
+            "X-EOAT-Release-ID": release.release_id,
+            "X-EOAT-Build-ID": release.build_id,
+        }
         if identity:
             headers["X-EOAT-Identity"] = identity
         if application_instance_id:
             headers["X-EOAT-Application-Instance"] = application_instance_id
-        if client_version:
-            headers["X-EOAT-Client-Version"] = client_version
         self._client = httpx.Client(base_url=self.base_url, timeout=timeout, transport=transport, headers=headers)
         self._settings_access_token = ""
         self.last_request_id = ""
@@ -189,6 +196,20 @@ class AtlasApiClient:
             "POST",
             "/api/v1/settings/authorization/check",
             json={"permission": permission, "operation": operation},
+            headers=self._settings_auth_headers(),
+        )
+
+    def read_settings(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/settings")
+
+    def write_setting(self, key: str, value: Any, description: str | None = None) -> dict[str, Any]:
+        payload = {"value": value}
+        if description is not None:
+            payload["description"] = description
+        return self._request(
+            "PUT",
+            f"/api/v1/settings/{quote(key, safe='')}",
+            json=payload,
             headers=self._settings_auth_headers(),
         )
 

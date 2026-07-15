@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
+from server.eoat_api.release_provenance import ensure_application_release
 
 
 @dataclass
@@ -114,6 +115,7 @@ def _import(session: Session, source: dict[str, list[dict]], path: Path, checksu
         started_at=datetime.now(timezone.utc),
         status="RUNNING",
         dry_run=False,
+        application_release_id=ensure_application_release(session).id,
         records_discovered=sum(len(rows) for rows in source.values()),
     )
     session.add(batch)

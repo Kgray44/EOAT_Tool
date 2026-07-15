@@ -503,6 +503,11 @@ class MinimalistSettingsContent(QWidget):
     def page_shown(self) -> None:
         if self._admin_logout_timer.isActive():
             self._admin_logout_timer.stop()
+        if self.admin_active:
+            try:
+                self.authentication_gateway.authorize("settings.edit", "settings.resume")
+            except (AuthenticationRequiredError, PermissionDeniedError, DataGatewayError):
+                self._relock_settings("Administrator authorization changed or is unavailable. Settings were relocked.")
         self._sync_admin_state()
         if self._pending_admin_timeout_notice:
             message = self._pending_admin_timeout_notice
@@ -552,19 +557,23 @@ class MinimalistSettingsContent(QWidget):
     def _admin_timeout_elapsed(self) -> None:
         if not self.admin_active:
             return
+        self._relock_settings("Admin session ended.")
+
+    def _relock_settings(self, message: str) -> None:
         discarded = self._has_unsaved_settings()
         if discarded:
             self._discard_unsaved_changes()
         self.admin_active = False
         self._administrator_display_name = ""
-        self.authentication_gateway.api.clear_settings_session()
+        if self._admin_logout_timer.isActive():
+            self._admin_logout_timer.stop()
         if self._authentication_expiry_timer.isActive():
             self._authentication_expiry_timer.stop()
+        self.authentication_gateway.api.clear_settings_session()
         self._sync_admin_state(rerender=True)
         self._sync_dirty_state()
-        self._pending_admin_timeout_notice = (
-            "Admin session ended. Unsaved settings were discarded." if discarded else "Admin session ended."
-        )
+        suffix = " Unsaved settings were discarded." if discarded else ""
+        self._pending_admin_timeout_notice = f"{message}{suffix}".strip()
 
     def _has_unsaved_settings(self) -> bool:
         return bool(self.dirty_keys or self._calculate_dirty_keys())
@@ -672,9 +681,11 @@ class MinimalistSettingsContent(QWidget):
             if "settings.edit" not in set(session.get("permissions") or []):
                 raise PermissionDeniedError("This identity cannot edit Settings.")
         except PermissionDeniedError:
+            self.authentication_gateway.api.clear_settings_session()
             self.show_toast("Administrator access was denied. Settings remain locked.")
             return
         except (AuthenticationRequiredError, DataGatewayError):
+            self.authentication_gateway.api.clear_settings_session()
             self.show_toast(
                 "Administrator authentication is currently unavailable. EOAT Atlas remains fully usable; Settings remain locked."
             )
@@ -1468,7 +1479,10 @@ class MinimalistSettingsContent(QWidget):
                     self._setting_row("Writes enabled", "", value_label("Enabled" if metrics.get("writes_enabled") else "Disabled")),
                     self._setting_row("Normal user login", "", value_label("Not required")),
                     self._setting_row("Settings authentication provider", "", value_label(str(auth_metrics.get("provider") or "unselected"))),
+                    self._setting_row("Provider configuration", "", value_label("Configured" if auth_metrics.get("provider_configured") else "Incomplete")),
                     self._setting_row("Settings authentication", "", value_label("Available" if auth_metrics.get("settings_authentication_available") else "Unavailable")),
+                    self._setting_row("Production provider approval", "", value_label("Approved" if auth_metrics.get("production_approved") else "Not approved")),
+                    self._setting_row("Missing provider fields", "Field names only; values and secrets are never displayed.", value_label(", ".join(auth_metrics.get("missing_configuration") or []) or "None", muted=True)),
                     self._setting_row("Settings administrator", "", value_label(self._administrator_display_name or "Not signed in")),
                     self._setting_row("Authentication status detail", "", value_label(str(auth_metrics.get("message") or ""), muted=True)),
                     self._setting_row("Application instance ID", "", value_label(str(metrics.get("application_instance_id") or "Not configured"), muted=True)),
@@ -1922,10 +1936,7 @@ class MinimalistSettingsContent(QWidget):
         try:
             self.authentication_gateway.authorize("settings.edit", "settings.save")
         except (AuthenticationRequiredError, PermissionDeniedError, DataGatewayError):
-            self.admin_active = False
-            self._administrator_display_name = ""
-            self._sync_admin_state(rerender=True)
-            self._sync_dirty_state()
+            self._relock_settings("Settings authorization expired or is unavailable. Settings were relocked.")
             self.show_toast("Settings authorization expired or is unavailable. Settings were not saved.")
             return False
         try:
@@ -2049,9 +2060,7 @@ class MinimalistSettingsContent(QWidget):
         try:
             self.authentication_gateway.authorize("settings.set_default", "settings.set_default")
         except (AuthenticationRequiredError, PermissionDeniedError, DataGatewayError):
-            self.admin_active = False
-            self._administrator_display_name = ""
-            self._sync_admin_state(rerender=True)
+            self._relock_settings("Default configuration authorization failed. Settings were relocked.")
             self.show_toast("Default configuration authorization failed. Settings were relocked.")
             return
         timestamp = datetime.now().isoformat(timespec="seconds")
@@ -2271,7 +2280,11 @@ class MinimalistSettingsContent(QWidget):
                 "last_successful_api_contact", "last_deep_refresh", "offline_read_only", "writes_enabled",
                 "identity", "role", "application_instance_id", "legacy_fallback",
             )
-            lines = [f"Application version: {info.application_version}", f"Build ID: {info.build_id}"]
+            lines = [
+                f"Application version: {info.application_version}",
+                f"Release ID: {info.release_id}",
+                f"Build ID: {info.build_id}",
+            ]
             lines.extend(f"{key}: {metrics.get(key)}" for key in keys)
             QApplication.clipboard().setText("\n".join(lines))
             self.show_toast("MySQL/API diagnostic summary copied.")
@@ -2307,9 +2320,9 @@ class MinimalistSettingsContent(QWidget):
         if not target:
             return
         mysql_api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api"
+        release = get_version_info()
         bundle = {
-            "app_version": get_version_info().application_version,
-            "build_id": get_version_info().build_id,
+            **release.provenance(),
             "backend": "mysql_api" if mysql_api_mode else "legacy",
             "settings": self.draft_settings,
             "source_paths": ({spec.key: str(self._effective_source_path(spec)) for spec in SOURCE_SPECS} if not mysql_api_mode else {}),

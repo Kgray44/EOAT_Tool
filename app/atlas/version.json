@@ -1,7 +1,7 @@
 {
   "appName": "EOAT Atlas",
-  "version": "0.9.1",
-  "buildDate": "2026-07-14",
-  "buildId": "mysql-api-development",
+  "version": "0.13.0",
+  "buildDate": "2026-07-15",
+  "buildId": "eoat-atlas-0.13.0-dc3f0f7-20260715T150437Z",
   "channel": "development"
 }

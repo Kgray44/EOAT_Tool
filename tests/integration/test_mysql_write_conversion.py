@@ -18,6 +18,7 @@ from core.data_gateway.exceptions import (
     WriteBlockedError,
 )
 from core.data_gateway.gateway import AtlasDataGateway
+from core.versioning import get_release_info
 from server.eoat_api.app import app
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory, get_write_session
@@ -269,15 +270,27 @@ def test_audit_maintenance_fit_check_and_instance_writes(api):
     )
     assert fit.status_code == 200 and fit.json()["stored"] is True
     instance_uuid = str(uuid4())
+    release = get_release_info()
     registered = post(
         api,
         "/api/v1/application-instances/register",
-        {"instance_uuid": instance_uuid, "computer_name": "TEST-PC", "application_version": "test"},
+        {"instance_uuid": instance_uuid, "computer_name": "TEST-PC", **release.provenance()},
         TECHNICIAN,
     )
     assert registered.status_code == 200
     heartbeat = post(api, "/api/v1/application-instances/heartbeat", {"instance_uuid": instance_uuid}, TECHNICIAN)
     assert heartbeat.status_code == 200
+    with create_session_factory(migration=True)() as session:
+        instance = session.scalar(
+            select(db.ApplicationInstance).where(db.ApplicationInstance.instance_uuid == instance_uuid)
+        )
+        registered_release = session.get(db.ApplicationRelease, instance.application_release_id)
+        assert registered_release.application_version == release.application_version
+        assert registered_release.release_id == release.release_id
+        assert registered_release.build_id == release.build_id
+        assert session.scalar(
+            select(func.count(db.ChangeAuditLog.id)).where(db.ChangeAuditLog.application_release_id.is_not(None))
+        ) > 0
 
 
 def test_document_tag_and_annotation_writes(api, tmp_path):
@@ -584,14 +597,14 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     config_a = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-a.db",
-        expected_schema_revision="20260714_0005",
+        expected_schema_revision="20260715_0006",
         writes_enabled=True,
         environment="development",
     )
     config_b = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-b.db",
-        expected_schema_revision="20260714_0005",
+        expected_schema_revision="20260715_0006",
         writes_enabled=True,
         environment="development",
     )
@@ -627,7 +640,7 @@ def test_gateway_blocks_offline_writes_without_queueing(tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "offline.db",
-        expected_schema_revision="20260714_0005",
+        expected_schema_revision="20260715_0006",
         writes_enabled=True,
         environment="development",
     )
@@ -641,7 +654,7 @@ def test_server_success_survives_local_cache_refresh_failure(api, tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "fail-cache.db",
-        expected_schema_revision="20260714_0005",
+        expected_schema_revision="20260715_0006",
         writes_enabled=True,
         environment="development",
     )

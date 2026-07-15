@@ -355,14 +355,18 @@ function Test-SourceRelease {
     }
     $appVersion = [string](Get-ConfigValue $metadata "app_version" "")
     $releaseId = [string](Get-ConfigValue $metadata "release_id" "")
+    $buildId = [string](Get-ConfigValue $metadata "build_id" "")
     if ([string]::IsNullOrWhiteSpace($appVersion)) {
-        $appVersion = [string](Get-ConfigValue $Config "app_version" "")
+        $appVersion = ""
     }
     if ([string]::IsNullOrWhiteSpace($releaseId)) {
         $releaseId = [string](Get-ConfigValue $Config "release_id" "")
     }
-    if ([string]::IsNullOrWhiteSpace($appVersion) -or [string]::IsNullOrWhiteSpace($releaseId)) {
-        Stop-WithError "App version and release id could not be determined from metadata/config."
+    if ([string]::IsNullOrWhiteSpace($appVersion) -or [string]::IsNullOrWhiteSpace($releaseId) -or [string]::IsNullOrWhiteSpace($buildId)) {
+        Stop-WithError "App version, release id, and build id must be present in release metadata."
+    }
+    if ($appVersion -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$' -or $releaseId -ne "eoat-atlas-$appVersion") {
+        Stop-WithError "Release metadata application version and release id are inconsistent."
     }
 
     $stats = Get-DirectoryStats $SourceRoot
@@ -385,7 +389,7 @@ function Test-SourceRelease {
         )
         app_version = $appVersion
         release_id = $releaseId
-        build_id = [string](Get-ConfigValue $metadata "build_id" "")
+        build_id = $buildId
         environment = [string](Get-ConfigValue $metadata "environment" "")
         file_count = $stats.file_count
         total_bytes = $stats.total_bytes
@@ -632,7 +636,7 @@ function Update-InstallIdentity {
         $appInstanceId = New-AppInstanceId
     }
     $payload = [ordered]@{
-        identity_schema_version = 1
+        identity_schema_version = 2
         install_id = $installId
         app_instance_id = $appInstanceId
         machine_name = $env:COMPUTERNAME
@@ -644,6 +648,7 @@ function Update-InstallIdentity {
         app_name = [string](Get-ConfigValue $Config "app_name" "EOAT Atlas")
         app_version_at_install = [string]$SourceSummary.app_version
         release_id_at_install = [string]$SourceSummary.release_id
+        build_id_at_install = [string]$SourceSummary.build_id
         install_root = $InstallRoot
         runtime_root = $RuntimeRoot
         app_install_path = [string]$InstallState.app_install_path
@@ -731,6 +736,7 @@ function Update-GlobalConfig {
     $payload["app_instance_id"] = [string]$Identity.app_instance_id
     $payload["app_version"] = [string]$SourceSummary.app_version
     $payload["release_id"] = [string]$SourceSummary.release_id
+    $payload["build_id"] = [string]$SourceSummary.build_id
     $payload["installer_version"] = [string](Get-ConfigValue $Config "installer_version" $script:InstallerScriptVersion)
     $payload["updated_at"] = $now
 
@@ -945,6 +951,7 @@ try {
             app_name = [string](Get-ConfigValue $config "app_name" "EOAT Atlas")
             app_version = [string]$sourceSummary.app_version
             release_id = [string]$sourceSummary.release_id
+            build_id = [string]$sourceSummary.build_id
             app_install_path = [string]$installState.app_install_path
             app_exe_path = [string]$installState.app_exe_path
             metadata_path = [string]$installState.metadata_path

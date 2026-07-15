@@ -1,6 +1,6 @@
 # EOAT Atlas MySQL Schema Reference
 
-Alembic authority: revision `20260714_0005` (`enterprise_authentication`) over `20260714_0004`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. There are 51 application tables plus `alembic_version`; Phase 10 adds Settings authentication sessions, stable external-group mappings, and authentication audit events.
+Alembic authority: revision `20260715_0006` (`application_release_provenance`) over `20260714_0005`. Database defaults: MySQL 8.4 LTS, InnoDB, `utf8mb4`, `utf8mb4_0900_ai_ci`, UTC application timestamps. Release provenance adds `application_releases` and optional release foreign keys on application instances, imports, structured history, and change audits; business-record and migration identifiers remain unchanged.
 
 ## Implemented tables
 

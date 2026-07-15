@@ -49,6 +49,8 @@ class AuthenticationService:
             "ordinary_application_access_requires_login": False,
             "settings_authentication_available": bool(health and health.available),
             "production_approved": bool(health and health.production_approved),
+            "provider_configured": bool(health and health.configured),
+            "missing_configuration": list(health.missing_configuration) if health else ["provider_selection"],
             "message": health.message if health else "Authentication provider selection is awaiting IT",
             "development_identities": ["dev.viewer", "dev.technician", "dev.engineer", "dev.admin"]
             if self.configuration.provider == "development"
@@ -98,19 +100,6 @@ class AuthenticationService:
         roles = resolve_roles(self.session, identity.provider, identity.group_identifiers)
         self._sync_user_roles(user, roles)
         permissions = effective_permissions(roles)
-        if "settings.edit" not in permissions:
-            record_auth_event(
-                self.session,
-                "SETTINGS_ADMIN_ACCESS_DENIED",
-                result="DENIED",
-                external_subject=identity.external_subject,
-                user_id=user.id,
-                provider=identity.provider,
-                request_id=request_id,
-                reason_code="SETTINGS_EDIT_MISSING",
-                source_ip=source_ip,
-            )
-            raise APIError(403, "SETTINGS_ACCESS_DENIED", "This identity cannot edit Settings.")
         token, auth_session = self._issue_session(
             user,
             identity,
@@ -131,15 +120,16 @@ class AuthenticationService:
             client_version=client_version,
             source_ip=source_ip,
         )
-        record_auth_event(
-            self.session,
-            "SETTINGS_ADMIN_MODE_ENTERED",
-            result="SUCCEEDED",
-            external_subject=identity.external_subject,
-            user_id=user.id,
-            provider=identity.provider,
-            request_id=request_id,
-        )
+        if "settings.edit" in permissions:
+            record_auth_event(
+                self.session,
+                "SETTINGS_ADMIN_MODE_ENTERED",
+                result="SUCCEEDED",
+                external_subject=identity.external_subject,
+                user_id=user.id,
+                provider=identity.provider,
+                request_id=request_id,
+            )
         return {"access_token": token, "token_type": "bearer", **self.session_payload(auth_session, user)}
 
     def _provision_user(self, identity: AuthenticatedIdentity) -> db.User:
@@ -234,7 +224,37 @@ class AuthenticationService:
 
     def require_permission(self, token: str, permission: str) -> dict:
         row, user = self.resolve_session(token)
-        if permission not in set(row.permissions_json or []):
+        if row.provider != self.configuration.provider:
+            row.revoked_at = datetime.now(timezone.utc)
+            row.revocation_reason = "provider_changed"
+            raise APIError(401, "SESSION_PROVIDER_CHANGED", "The authentication provider changed; sign in again.")
+        health = self.provider.health_check() if self.provider else None
+        if not health or not health.available:
+            row.revoked_at = datetime.now(timezone.utc)
+            row.revocation_reason = "provider_unavailable"
+            raise APIError(
+                503,
+                "AUTH_PROVIDER_UNAVAILABLE",
+                "Administrator authentication is unavailable. Settings have been relocked; normal application use is unaffected.",
+                retryable=True,
+            )
+        role_codes = tuple(
+            self.session.scalars(
+                select(db.Role.role_code)
+                .join(db.UserRole, db.UserRole.role_id == db.Role.id)
+                .where(
+                    db.UserRole.user_id == user.id,
+                    db.UserRole.removed_at.is_(None),
+                    db.Role.is_active.is_(True),
+                )
+            ).all()
+        )
+        live_permissions = effective_permissions(role_codes)
+        row.roles_json = list(role_codes)
+        row.permissions_json = sorted(live_permissions)
+        if permission not in live_permissions:
+            row.revoked_at = datetime.now(timezone.utc)
+            row.revocation_reason = "permission_lost"
             record_auth_event(
                 self.session,
                 "SETTINGS_ADMIN_ACCESS_DENIED",
@@ -246,6 +266,71 @@ class AuthenticationService:
             )
             raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this permission.")
         return self.session_payload(row, user)
+
+    def public_settings(self) -> list[dict]:
+        rows = self.session.scalars(
+            select(db.SystemSetting).where(
+                db.SystemSetting.is_active.is_(True),
+                db.SystemSetting.archived_at.is_(None),
+                db.SystemSetting.is_sensitive.is_(False),
+            ).order_by(db.SystemSetting.setting_key)
+        ).all()
+        return [self._setting_payload(row) for row in rows]
+
+    def write_public_setting(self, token: str, setting_key: str, value, description: str | None = None) -> dict:
+        authorization = self.require_permission(token, "settings.edit")
+        row = self.session.scalar(select(db.SystemSetting).where(db.SystemSetting.setting_key == setting_key))
+        if row is not None and row.is_sensitive:
+            raise APIError(403, "SENSITIVE_SETTING_BLOCKED", "Sensitive settings cannot be changed through this endpoint.")
+        if row is None:
+            row = db.SystemSetting(
+                setting_key=setting_key,
+                setting_value_json=value,
+                value_type=self._value_type(value),
+                description=description,
+                is_sensitive=False,
+                created_by_user_id=self.session.scalar(
+                    select(db.User.id).where(db.User.external_subject == authorization["identity"]["external_subject"])
+                ),
+            )
+            self.session.add(row)
+        else:
+            row.setting_value_json = value
+            row.value_type = self._value_type(value)
+            row.description = description if description is not None else row.description
+            row.row_version += 1
+            row.updated_by_user_id = self.session.scalar(
+                select(db.User.id).where(db.User.external_subject == authorization["identity"]["external_subject"])
+            )
+        self.session.flush()
+        self.audit_settings_action(token, "SETTINGS_UPDATED", f"settings.write:{setting_key}")
+        return self._setting_payload(row)
+
+    @staticmethod
+    def _value_type(value) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, int):
+            return "integer"
+        if isinstance(value, float):
+            return "number"
+        if isinstance(value, str):
+            return "string"
+        if isinstance(value, list):
+            return "array"
+        return "object"
+
+    @staticmethod
+    def _setting_payload(row: db.SystemSetting) -> dict:
+        return {
+            "key": row.setting_key,
+            "value": row.setting_value_json,
+            "value_type": row.value_type,
+            "description": row.description,
+            "row_version": row.row_version,
+        }
 
     def logout(self, token: str) -> None:
         row, user = self.resolve_session(token)

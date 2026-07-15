@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "releases": [
+    {
+      "application_version": "0.9.1",
+      "release_id": "eoat-atlas-0.9.1",
+      "state": "historical",
+      "task_id": "pre-ledger-history",
+      "finalized_at_utc": null
+    },
+    {
+      "application_version": "0.10.0",
+      "release_id": "eoat-atlas-0.10.0",
+      "state": "finalized",
+      "task_id": "phase10-provider-independent-foundation-20260715",
+      "finalized_at_utc": "2026-07-15T13:48:37Z"
+    },
+    {
+      "application_version": "0.11.0",
+      "release_id": "eoat-atlas-0.11.0",
+      "state": "finalized",
+      "task_id": "codex-mysql-excel-parity-verifier-20260715",
+      "finalized_at_utc": "2026-07-15T13:55:52Z"
+    },
+    {
+      "application_version": "0.12.0",
+      "release_id": "eoat-atlas-0.12.0",
+      "state": "finalized",
+      "task_id": "codex-automatic-version-enforcement-20260715",
+      "finalized_at_utc": "2026-07-15T14:04:17Z"
+    },
+    {
+      "application_version": "0.13.0",
+      "release_id": "eoat-atlas-0.13.0",
+      "build_id": "eoat-atlas-0.13.0-dc3f0f7-20260715T150437Z",
+      "commit_sha": "dc3f0f7cd9dda512345f5e4cc96968997fa67aad",
+      "state": "finalized",
+      "task_id": "codex-project-wide-release-propagation-20260715",
+      "finalized_at_utc": "2026-07-15T15:04:37Z"
+    }
+  ]
+}

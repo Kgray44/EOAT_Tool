@@ -22,6 +22,11 @@ class HealthResult(BaseModel):
     environment: str
     writes_enabled: bool
     api_version: str
+    application_version: str
+    release_id: str
+    build_id: str
+    api_contract_version: str
+    database_schema_revision: str
     database_server_version: str = ""
     server_timestamp: datetime
 

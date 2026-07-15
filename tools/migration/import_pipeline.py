@@ -17,9 +17,10 @@ from sqlalchemy.orm import Session
 
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
+from server.eoat_api.release_provenance import ensure_application_release
 from tools.migration.excel_to_mysql import MISSING_TOKENS, _checksum, _rows, _text
 
-SCHEMA_REVISION = "20260714_0004"
+SCHEMA_REVISION = "20260715_0006"
 MACHINE_PATTERN = re.compile(r"^\d+$")
 RESOLUTION_STATUSES = {"UNRESOLVED", "DEFERRED", "RESOLVED", "NOT_APPLICABLE", "REJECTED_WITH_REASON"}
 
@@ -479,6 +480,7 @@ def execute_import(
                     started_at=started,
                     status="RUNNING",
                     dry_run=False,
+                    application_release_id=ensure_application_release(session).id,
                     records_discovered=sum(result.rows_discovered_by_sheet.values()),
                     notes=f"Controlled supported-record import at schema {SCHEMA_REVISION}",
                 )

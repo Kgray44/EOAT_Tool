@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+import platform
 import sys
 import threading
 
@@ -11,7 +13,7 @@ from PySide6.QtWidgets import QApplication
 from core.config import UserConfig, load_config
 from core.constants import DEFAULT_PROJECT_ROOT
 from core.globalization.config import load_or_create_global_config
-from core.versioning import get_version_info
+from core.versioning import configure_release_logging, get_version_info
 
 from .assets import ATLAS_LOGO_PATH
 from .settings import AtlasSettings, load_atlas_settings
@@ -19,6 +21,7 @@ from .styles import atlas_stylesheet
 
 
 def main() -> int:
+    configure_release_logging()
     backend = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold()
     if backend not in {"mysql_api", "legacy"}:
         raise SystemExit(f"Invalid EOAT_ATLAS_DATA_BACKEND: {backend}")
@@ -59,6 +62,8 @@ def main() -> int:
         settings=settings,
     )
     window.show()
+    if not smoke_test and backend == "mysql_api":
+        _register_application_instance_in_background()
     if (not settings.auto_refresh_on_startup or not refresh_on_launch) and not smoke_test:
         cache_label = "disposable API cache" if backend == "mysql_api" else "existing local cache"
         window.show_status(f"Auto-refresh is off. EOAT Atlas opened from the {cache_label}.")
@@ -140,6 +145,42 @@ def _initialize_smoke_runtime() -> None:
             )
     except Exception:
         return
+
+
+def _register_application_instance_in_background() -> None:
+    """Register this stable installation and its release without delaying the UI."""
+
+    def register() -> None:
+        gateway = None
+        try:
+            from core.data_gateway.configuration import GatewayConfiguration
+            from core.data_gateway.gateway import AtlasDataGateway
+            from core.globalization.install_identity import load_or_create_install_identity
+
+            identity = load_or_create_install_identity()
+            os.environ.setdefault("EOAT_ATLAS_INSTANCE_ID", identity.app_instance_id)
+            gateway = AtlasDataGateway(GatewayConfiguration.from_environment())
+            gateway.register_application_instance(
+                {
+                    "instance_uuid": identity.app_instance_id,
+                    "computer_name": identity.machine_name,
+                    "operating_system": platform.platform(),
+                }
+            )
+        except Exception:
+            logging.getLogger(__name__).warning(
+                "EOAT Atlas application-release registration failed; startup will continue.",
+                exc_info=True,
+            )
+        finally:
+            if gateway is not None:
+                gateway.close()
+
+    threading.Thread(
+        target=register,
+        name="eoat-release-registration",
+        daemon=True,
+    ).start()
 
 
 if __name__ == "__main__":

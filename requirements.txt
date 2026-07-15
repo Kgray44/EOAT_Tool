@@ -1,11 +1,11 @@
 openpyxl
 python-docx
-pypdf
+pypdf>=6.13.3
 PySide6
 pandas
 matplotlib
 reportlab
-Pillow
+Pillow>=12.3.0
 pillow-heif
 qrcode
 opencv-python-headless

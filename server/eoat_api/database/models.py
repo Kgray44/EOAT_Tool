@@ -101,6 +101,9 @@ class ImportBatch(Base):
     # Deliberately not an FK: import_batches must be creatable before users during
     # the first legacy import, and the actor may be an external administrator.
     started_by_user_id: Mapped[int | None] = mapped_column(PK)
+    application_release_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("application_releases.id", ondelete="SET NULL")
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     dry_run: Mapped[bool] = mapped_column(Boolean, nullable=False)
     records_discovered: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
@@ -168,6 +171,26 @@ class UserRole(Base):
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ApplicationRelease(Base):
+    __tablename__ = "application_releases"
+    __table_args__ = (
+        Index("ix_application_releases_release", "release_id", "first_seen_at"),
+        Index("ix_application_releases_version", "application_version", "first_seen_at"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    application_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    release_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    build_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    commit_sha: Mapped[str | None] = mapped_column(String(64))
+    release_channel: Mapped[str] = mapped_column(String(64), nullable=False)
+    database_schema_revision: Mapped[str | None] = mapped_column(String(64))
+    api_contract_version: Mapped[str | None] = mapped_column(String(64))
+    launcher_version: Mapped[str | None] = mapped_column(String(64))
+    installer_version: Mapped[str | None] = mapped_column(String(64))
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+
+
 class ApplicationInstance(TimestampMixin, Base):
     __tablename__ = "application_instances"
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
@@ -177,6 +200,11 @@ class ApplicationInstance(TimestampMixin, Base):
     plant_id: Mapped[int | None] = mapped_column(PK, ForeignKey("plants.id", ondelete="SET NULL"))
     area_id: Mapped[int | None] = mapped_column(PK, ForeignKey("areas.id", ondelete="SET NULL"))
     application_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    release_id: Mapped[str | None] = mapped_column(String(128))
+    build_id: Mapped[str | None] = mapped_column(String(255))
+    application_release_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("application_releases.id", ondelete="SET NULL")
+    )
     launcher_version: Mapped[str | None] = mapped_column(String(64))
     operating_system: Mapped[str | None] = mapped_column(String(255))
     registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
@@ -690,6 +718,9 @@ class EntityHistoryEvent(Base):
     application_instance_id: Mapped[int | None] = mapped_column(
         PK, ForeignKey("application_instances.id", ondelete="SET NULL")
     )
+    application_release_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("application_releases.id", ondelete="SET NULL")
+    )
     request_id: Mapped[str | None] = mapped_column(String(64))
     event_category: Mapped[str] = mapped_column(String(64), nullable=False)
     summary: Mapped[str] = mapped_column(String(512), nullable=False)
@@ -721,6 +752,9 @@ class ChangeAuditLog(Base):
     actor_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     application_instance_id: Mapped[int | None] = mapped_column(
         PK, ForeignKey("application_instances.id", ondelete="SET NULL")
+    )
+    application_release_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("application_releases.id", ondelete="SET NULL")
     )
     entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_id: Mapped[int] = mapped_column(PK, nullable=False)

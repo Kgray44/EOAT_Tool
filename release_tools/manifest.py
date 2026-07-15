@@ -11,6 +11,8 @@ from .versioning import Version
 
 REQUIRED_FIELDS = {
     "latest_version": str,
+    "release_id": str,
+    "build_id": str,
     "release_path": str,
     "minimum_supported_version": str,
     "sha256": str,
@@ -34,6 +36,10 @@ def validate_manifest(payload: Any, *, require_package: bool = False) -> dict[st
         if field not in payload or not isinstance(payload[field], field_type):
             raise ValueError(f"Manifest field {field!r} is missing or has the wrong type")
     Version.parse(payload["latest_version"])
+    if payload["release_id"] != f"eoat-atlas-{payload['latest_version']}":
+        raise ValueError("Manifest release_id does not match latest_version")
+    if not payload["build_id"].strip():
+        raise ValueError("Manifest build_id is required")
     Version.parse(payload["minimum_supported_version"])
     if len(payload["sha256"]) != 64 or any(c not in "0123456789abcdefABCDEF" for c in payload["sha256"]):
         raise ValueError("Manifest sha256 must contain 64 hexadecimal characters")
@@ -74,4 +80,3 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     except Exception:
         Path(temp_name).unlink(missing_ok=True)
         raise
-

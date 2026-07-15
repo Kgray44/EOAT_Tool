@@ -7,6 +7,7 @@ on:
       - main
       - feature/**
       - codex/**
+      - development/**
 
 jobs:
   test-and-safety:
@@ -19,6 +20,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,6 +37,9 @@ jobs:
 
       - name: Ruff lint
         run: python -m ruff check .
+
+      - name: Enforce application version increment
+        run: python scripts/check_version_bump.py
 
       - name: Verify registries, demo mode, and dashboard launch
         run: python scripts/ci_smoke_check.py --root . --dashboard-smoke

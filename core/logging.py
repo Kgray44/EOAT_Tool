@@ -8,6 +8,7 @@ from typing import Any
 from .paths import resolve_project_paths
 from .result import ToolResult
 from .safe_files import ensure_directory
+from .versioning import release_log_context
 
 
 def activity_log_path(project_root: str | Path) -> Path:
@@ -20,6 +21,7 @@ def log_tool_run(result: ToolResult, project_root: str | Path) -> str | None:
         ensure_directory(path.parent)
         entry: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            **release_log_context(),
             "tool_id": result.tool_id,
             "tool_name": result.tool_name,
             "success": result.success,
@@ -45,6 +47,7 @@ def log_activity_event(project_root: str | Path, event_name: str, payload: dict[
         ensure_directory(path.parent)
         entry: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            **release_log_context(),
             "event_name": event_name,
             "project_root": str(project_root),
             **payload,

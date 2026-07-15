@@ -13,12 +13,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from launcher import LAUNCHER_VERSION
+
 from .manifest import read_manifest, sha256_file
 from .versioning import Version
 
 APP_EXE = "EOAT Atlas.exe"
 METADATA = "release_metadata.json"
-LAUNCHER_VERSION = "0.1.0"
 DEFAULT_DEPLOYMENT_ROOT = Path(r"\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas")
 
 
@@ -58,6 +59,10 @@ def _installed(root: Path) -> tuple[Version | None, Path | None]:
         return None, None
     metadata = _read_json(_metadata_path(directory))
     if metadata.get("app_version") != str(version):
+        return None, None
+    if current.get("release_id") and metadata.get("release_id") != current.get("release_id"):
+        return None, None
+    if current.get("build_id") and metadata.get("build_id") != current.get("build_id"):
         return None, None
     return version, directory
 
@@ -99,6 +104,10 @@ def install_package(manifest: dict[str, Any], root: Path) -> Path:
         metadata = _read_json(_metadata_path(source))
         if metadata.get("app_version") != str(version):
             raise LauncherError("Update package embedded version does not match the manifest")
+        if metadata.get("release_id") != manifest["release_id"]:
+            raise LauncherError("Update package embedded release ID does not match the manifest")
+        if metadata.get("build_id") != manifest["build_id"]:
+            raise LauncherError("Update package embedded build ID does not match the manifest")
         if (source / APP_EXE).stat().st_size <= 0:
             raise LauncherError("Update executable is empty")
         versions = root / "app_versions"
@@ -108,9 +117,25 @@ def install_package(manifest: dict[str, Any], root: Path) -> Path:
             existing = _read_json(_metadata_path(target))
             if existing.get("app_version") != str(version) or not (target / APP_EXE).is_file():
                 raise LauncherError(f"Existing local version directory is invalid: {target}")
+            if (
+                existing.get("release_id") != manifest["release_id"]
+                or existing.get("build_id") != manifest["build_id"]
+            ):
+                raise LauncherError(
+                    "A different immutable build already occupies the local application-version directory"
+                )
         else:
             source.replace(target)
-        _write_json_atomic(root / "current.json", {"version": str(version), "path": str(target), "activated_at": datetime.now().astimezone().isoformat(timespec="seconds")})
+        _write_json_atomic(
+            root / "current.json",
+            {
+                "version": str(version),
+                "release_id": manifest["release_id"],
+                "build_id": manifest["build_id"],
+                "path": str(target),
+                "activated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            },
+        )
         _write_json_atomic(root / "last_known_good_manifest.json", manifest)
         return target
     finally:
@@ -143,7 +168,10 @@ def update_and_launch(
         action = "offline-fallback"
     else:
         if local_version is None or local_dir is None or local_version < latest:
-            print(f"Updating EOAT Atlas from v{local_version or 'not installed'} to v{latest}...")
+            print(
+                f"Updating EOAT Atlas from v{local_version or 'not installed'} "
+                f"to {manifest['release_id']} ({manifest['build_id']})..."
+            )
             try:
                 target = install_package(manifest, local_root)
             except Exception as exc:

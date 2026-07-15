@@ -2,6 +2,8 @@
 
 Production provider selection is blocked until Nolato IT completes this checklist. Do not place secrets, private keys, passwords, or sensitive production metadata in this file.
 
+The exact decision fields, provider-specific configuration, and downstream validation blocked by IT are detailed in `PHASE_10_REMAINING_IT_ACTIONS.md`.
+
 ## Common requirements
 
 - [ ] Approved method: SAML 2.0 or LDAP/Active Directory

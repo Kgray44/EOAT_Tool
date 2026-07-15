@@ -29,6 +29,11 @@ class SettingsAuditRequest(BaseModel):
     operation: str
 
 
+class SettingsWriteRequest(BaseModel):
+    value: Any
+    description: str | None = Field(default=None, max_length=2000)
+
+
 def _service(session: Session) -> AuthenticationService:
     try:
         return AuthenticationService(session)
@@ -90,6 +95,32 @@ def authorize_settings(
         raise APIError(422, "INVALID_SETTINGS_PERMISSION", "Only Settings permissions may be checked here.")
     result = _service(session).require_permission(_bearer(request), payload.permission)
     return {**result, "authorized": True, "operation": payload.operation}
+
+
+@router.get("/settings")
+def read_settings(session: Session = Depends(get_write_session)):
+    """Return only non-secret shared Settings; ordinary reads never require login."""
+    return {"items": _service(session).public_settings(), "authentication_required": False}
+
+
+@router.put("/settings/{setting_key}")
+def write_setting(
+    setting_key: str,
+    payload: SettingsWriteRequest,
+    request: Request,
+    session: Session = Depends(get_write_session),
+):
+    normalized_key = setting_key.strip()
+    allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    if not normalized_key or len(normalized_key) > 128 or any(char not in allowed_characters for char in normalized_key):
+        raise APIError(
+            422,
+            "INVALID_SETTING_KEY",
+            "Setting keys may contain only letters, numbers, dots, underscores, and hyphens.",
+        )
+    return _service(session).write_public_setting(
+        _bearer(request), normalized_key, payload.value, payload.description
+    )
 
 
 @router.post("/settings/audit")

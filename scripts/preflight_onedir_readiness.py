@@ -74,6 +74,7 @@ def _check_static_files(preflight: Preflight) -> None:
     spec_text = spec.read_text(encoding="utf-8")
     preflight.check("spec references minimalist packaging entry", lambda: '["packaging/eoat_atlas_entry.py"]' in spec_text)
     preflight.check("spec includes release_metadata.json", lambda: "release_metadata.json" in spec_text)
+    preflight.check("spec embeds canonical Windows version metadata", lambda: "version=str(VERSION_FILE)" in spec_text)
     preflight.check("spec output name is EOAT Atlas", lambda: 'name="EOAT Atlas"' in spec_text)
     preflight.check("spec does not include runtime cache/settings artifacts", lambda: all(token not in spec_text for token in ("local_cache.db", "install_identity.json", "events/outbox", "settings.json")))
     preflight.check("spec excludes old app entry targets", lambda: all(token not in spec_text for token in FORBIDDEN_RELEASE_STRINGS))

@@ -337,17 +337,34 @@ class AnnotationPatch(ExpectedVersion):
 
 
 class ApplicationInstanceRegistration(WriteModel):
-    instance_uuid: str = Field(min_length=36, max_length=36)
+    # Existing installations use both UUIDs and stable host-derived identifiers.
+    # Do not rotate either form merely to satisfy a release-registration request.
+    instance_uuid: str = Field(min_length=1, max_length=36)
     computer_name: str
     application_version: str
+    release_id: str
+    build_id: str
+    commit_sha: str | None = None
+    release_channel: str = "development"
+    database_schema_revision: str | None = None
+    api_contract_version: str | None = None
     launcher_version: str | None = None
+    installer_version: str | None = None
     operating_system: str | None = None
     plant_code: str | None = None
     area_code: str | None = None
 
+    @model_validator(mode="after")
+    def validate_release_identity(self):
+        if self.release_id != f"eoat-atlas-{self.application_version}":
+            raise ValueError("release_id must match application_version")
+        if not self.build_id.strip():
+            raise ValueError("build_id is required")
+        return self
+
 
 class ApplicationInstanceHeartbeat(WriteModel):
-    instance_uuid: str = Field(min_length=36, max_length=36)
+    instance_uuid: str = Field(min_length=1, max_length=36)
 
 
 EntityType = Literal["eoat", "machine", "tool", "robot", "audit", "maintenance", "annotation_target"]

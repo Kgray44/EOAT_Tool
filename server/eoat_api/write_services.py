@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from .database import models as db
 from .errors import APIError, conflict, not_found
+from .release_provenance import ensure_application_release, release_id_for_instance
 from .security import ActorContext
 
 CACHED_ENTITY_TYPES = {
@@ -154,6 +155,7 @@ def add_history_event(
             occurred_at=occurred_at or utcnow(),
             actor_user_id=actor.user_id,
             application_instance_id=actor.application_instance_id,
+            application_release_id=release_id_for_instance(session, actor.application_instance_id),
             request_id=actor.request_id,
             event_category=history_event_category(history_code),
             summary=summary,
@@ -205,6 +207,7 @@ def audit_change(
             occurred_at=utcnow(),
             actor_user_id=actor.user_id,
             application_instance_id=actor.application_instance_id,
+            application_release_id=release_id_for_instance(session, actor.application_instance_id),
             entity_type=entity_type,
             entity_id=entity_id,
             action=action,
@@ -1805,6 +1808,10 @@ def register_instance(session: Session, actor: ActorContext, payload: dict[str, 
         if record is None:
             raise not_found("application instance", payload["instance_uuid"])
         record.last_seen_at = utcnow()
+        if record.application_release_id:
+            release = session.get(db.ApplicationRelease, record.application_release_id)
+            if release is not None:
+                release.last_seen_at = utcnow()
         return public_record(record)
     plant_id = area_id = None
     if payload.get("plant_code"):
@@ -1817,9 +1824,20 @@ def register_instance(session: Session, actor: ActorContext, payload: dict[str, 
         )
         if area_id is None:
             raise APIError(422, "INVALID_AREA", "Unknown area_code.")
-    values = {k: v for k, v in payload.items() if k not in {"plant_code", "area_code"}} | {
+    release = ensure_application_release(session, payload)
+    instance_fields = {
+        "instance_uuid",
+        "computer_name",
+        "application_version",
+        "release_id",
+        "build_id",
+        "launcher_version",
+        "operating_system",
+    }
+    values = {k: v for k, v in payload.items() if k in instance_fields} | {
         "plant_id": plant_id,
         "area_id": area_id,
+        "application_release_id": release.id,
         "last_seen_at": utcnow(),
     }
     if record is None:

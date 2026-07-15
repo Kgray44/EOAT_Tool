@@ -40,6 +40,12 @@ class AuthenticationGateway:
     def authorize(self, permission: str = "settings.edit", operation: str = "settings.save") -> dict[str, Any]:
         return self.api.authorize_settings(permission, operation)
 
+    def read_settings(self) -> dict[str, Any]:
+        return self.api.read_settings()
+
+    def write_setting(self, key: str, value: Any, description: str | None = None) -> dict[str, Any]:
+        return self.api.write_setting(key, value, description)
+
     def logout(self) -> None:
         self.api.logout_settings()
 

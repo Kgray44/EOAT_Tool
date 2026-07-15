@@ -49,7 +49,14 @@ def make_package(root: Path, version: str, *, corrupt_metadata: bool = False) ->
     (source / APP_EXE).write_bytes(b"fake-executable")
     (source / "_internal").mkdir()
     (source / "release_metadata.json").write_text(
-        json.dumps({"app_name": "EOAT Atlas", "app_version": "9.9.9" if corrupt_metadata else version}),
+        json.dumps(
+            {
+                "app_name": "EOAT Atlas",
+                "app_version": "9.9.9" if corrupt_metadata else version,
+                "release_id": f"eoat-atlas-{version}",
+                "build_id": f"build-{version}",
+            }
+        ),
         encoding="utf-8",
     )
     package = root / f"EOAT-Atlas_v{version}.zip"
@@ -59,6 +66,8 @@ def make_package(root: Path, version: str, *, corrupt_metadata: bool = False) ->
                 archive.write(path, Path("EOAT Atlas") / path.relative_to(source))
     manifest = {
         "latest_version": version,
+        "release_id": f"eoat-atlas-{version}",
+        "build_id": f"build-{version}",
         "release_path": str(package),
         "minimum_supported_version": "0.1.0",
         "sha256": sha256_file(package),
@@ -73,8 +82,23 @@ def install_local(root: Path, version: str) -> Path:
     directory = root / "app_versions" / version
     directory.mkdir(parents=True)
     (directory / APP_EXE).write_bytes(b"local")
-    (directory / "release_metadata.json").write_text(json.dumps({"app_version": version}), encoding="utf-8")
-    (root / "current.json").write_text(json.dumps({"version": version, "path": str(directory)}), encoding="utf-8")
+    (directory / "release_metadata.json").write_text(
+        json.dumps(
+            {"app_version": version, "release_id": f"eoat-atlas-{version}", "build_id": f"build-{version}"}
+        ),
+        encoding="utf-8",
+    )
+    (root / "current.json").write_text(
+        json.dumps(
+            {
+                "version": version,
+                "release_id": f"eoat-atlas-{version}",
+                "build_id": f"build-{version}",
+                "path": str(directory),
+            }
+        ),
+        encoding="utf-8",
+    )
     return directory
 
 
@@ -91,7 +115,17 @@ def test_manifest_unknown_fields_tolerated(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "field", ["latest_version", "release_path", "minimum_supported_version", "sha256", "package_size", "published_at"]
+    "field",
+    [
+        "latest_version",
+        "release_id",
+        "build_id",
+        "release_path",
+        "minimum_supported_version",
+        "sha256",
+        "package_size",
+        "published_at",
+    ],
 )
 def test_manifest_required_fields(field, tmp_path):
     _, manifest = make_package(tmp_path, "1.0.0")

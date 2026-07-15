@@ -12,6 +12,7 @@ from .paths import resolve_project_paths
 from .reports import list_recent_files, read_report_preview
 from .schedule import load_week_schedule
 from .task_progress import STATUS_VALUES
+from .versioning import get_release_info
 
 
 def _date_text(value: date | str | None) -> str:
@@ -190,6 +191,7 @@ def build_daily_report_context(
                     changed_files[name] += 1
     return {
         "type": "daily",
+        "release": get_release_info().provenance(),
         "target_date": _date_text(target_date),
         "week": week,
         "day": day,
@@ -267,6 +269,7 @@ def build_weekly_report_context(
             weekly_activity.append(entry)
     return {
         "type": "weekly",
+        "release": get_release_info().provenance(),
         "target_date": _date_text(target_date),
         "week": week,
         "activity": weekly_activity,

@@ -7,7 +7,7 @@ pushd "%~dp0" || (
 )
 set "PYTHON_EXE=%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe"
 if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
-"%PYTHON_EXE%" scripts\publish_release.py --bump patch %*
+"%PYTHON_EXE%" scripts\publish_release.py %*
 set "RESULT=%ERRORLEVEL%"
 if "%RESULT%"=="0" (
   echo.

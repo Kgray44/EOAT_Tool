@@ -22,6 +22,7 @@ from core.globalization.workbook_import import (
 )
 from core.globalization.write_foundation import ChangeValidationService, WorkbookSyncService
 from core.paths import resolve_project_paths
+from core.versioning import get_app_version
 from tests.fixtures.fake_project import create_fake_eoat_project
 from tests.fixtures.reference_workbooks import create_press_reference_workbooks
 
@@ -34,8 +35,8 @@ def test_app_metadata_and_install_identity_are_stable_and_installer_ready(tmp_pa
     loaded_again = load_or_create_install_identity(runtime)
 
     assert metadata.app_name == "EOAT Atlas"
-    assert metadata.app_version == "0.9.1"
-    assert metadata.release_id == "eoat-atlas-0.9.1"
+    assert metadata.app_version == get_app_version()
+    assert metadata.release_id == f"eoat-atlas-{get_app_version()}"
     assert metadata.cache_schema_version >= 1
     assert metadata.event_schema_version == 1
     assert generated.install_id == loaded_again.install_id

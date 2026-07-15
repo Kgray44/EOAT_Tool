@@ -6,6 +6,7 @@ ROOT = Path.cwd()
 
 datas = [
     (str(ROOT / "launcher" / "default_config.json"), "launcher"),
+    (str(ROOT / "launcher" / "launcher_version.json"), "launcher"),
     (str(ROOT / "app" / "atlas" / "version.json"), "app/atlas"),
 ]
 

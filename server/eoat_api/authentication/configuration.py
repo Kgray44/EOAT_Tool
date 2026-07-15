@@ -42,5 +42,3 @@ class AuthenticationConfiguration:
             raise AuthenticationConfigurationError("Phase 10 authentication scope must be settings_only")
         if self.environment == "production" and self.provider == "development":
             raise AuthenticationConfigurationError("Development authentication is forbidden in production")
-        if self.environment == "production" and self.provider == "unselected":
-            raise AuthenticationConfigurationError("Production authentication provider is not selected")

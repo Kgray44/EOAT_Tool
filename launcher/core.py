@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from release_tools.versioning import Version
+
 from .config import ConfigLoader, LauncherConfig, default_config_dir
 
 
@@ -43,6 +45,7 @@ class VersionInfo:
     version: str = ""
     buildDate: str = ""
     buildId: str = ""
+    releaseId: str = ""
     channel: str = "stable"
     path: Path | None = None
 
@@ -52,6 +55,7 @@ class VersionInfo:
             "version": self.version,
             "buildDate": self.buildDate,
             "buildId": self.buildId,
+            "releaseId": self.releaseId,
             "channel": self.channel,
             "path": str(self.path) if self.path else "",
         }
@@ -63,6 +67,9 @@ class UpdateCheckResult:
     message: str
     installedVersion: str = ""
     availableVersion: str = ""
+    installedReleaseId: str = ""
+    availableReleaseId: str = ""
+    availableBuildId: str = ""
     source: str = ""
     error: str = ""
 
@@ -76,6 +83,9 @@ class UpdateCheckResult:
             "message": self.message,
             "installedVersion": self.installedVersion,
             "availableVersion": self.availableVersion,
+            "installedReleaseId": self.installedReleaseId,
+            "availableReleaseId": self.availableReleaseId,
+            "availableBuildId": self.availableBuildId,
             "source": self.source,
             "error": self.error,
         }
@@ -259,6 +269,7 @@ class VersionReader:
                 version=str(data.get("version") or data.get("app_version") or ""),
                 buildDate=str(data.get("buildDate") or data.get("build_date") or data.get("build_timestamp") or ""),
                 buildId=str(data.get("buildId") or data.get("build_id") or data.get("release_id") or ""),
+                releaseId=str(data.get("releaseId") or data.get("release_id") or ""),
                 channel=str(data.get("channel") or data.get("environment") or "stable"),
                 path=candidate,
             )
@@ -295,7 +306,7 @@ class UpdateChecker:
                 source=source,
                 error=str(exc),
             )
-        available = str(manifest.get("version") or "").strip()
+        available = str(manifest.get("latest_version") or manifest.get("version") or "").strip()
         if not available:
             return UpdateCheckResult(
                 status="invalid",
@@ -303,12 +314,51 @@ class UpdateChecker:
                 installedVersion=installed.version,
                 source=source,
             )
-        if _version_tuple(available) > _version_tuple(installed.version):
+        try:
+            installed_version = Version.parse(installed.version)
+            available_version = Version.parse(available)
+            minimum = Version.parse(str(manifest.get("minimum_supported_version") or "0.0.0"))
+        except ValueError as exc:
+            return UpdateCheckResult(
+                status="invalid",
+                message="The update manifest contains malformed semantic-version metadata.",
+                installedVersion=installed.version,
+                source=source,
+                error=str(exc),
+            )
+        release_id = str(manifest.get("release_id") or "")
+        build_id = str(manifest.get("build_id") or "")
+        if "latest_version" in manifest and (release_id != f"eoat-atlas-{available_version}" or not build_id):
+            return UpdateCheckResult(
+                status="invalid",
+                message="The deployment manifest release/build identity is inconsistent.",
+                installedVersion=installed.version,
+                source=source,
+            )
+        if available_version > installed_version:
             return UpdateCheckResult(
                 status="update_available",
-                message="A newer EOAT Atlas version is available. Manual update is required until IT update flow is connected.",
+                message=(
+                    "A required EOAT Atlas update is available."
+                    if installed_version < minimum
+                    else "A newer EOAT Atlas version is available."
+                ),
                 installedVersion=installed.version,
                 availableVersion=available,
+                installedReleaseId=installed.releaseId,
+                availableReleaseId=release_id,
+                availableBuildId=build_id,
+                source=source,
+            )
+        if installed_version > available_version:
+            return UpdateCheckResult(
+                status="newer_local",
+                message="The installed EOAT Atlas version is newer; automatic downgrade is blocked.",
+                installedVersion=installed.version,
+                availableVersion=available,
+                installedReleaseId=installed.releaseId,
+                availableReleaseId=release_id,
+                availableBuildId=build_id,
                 source=source,
             )
         return UpdateCheckResult(
@@ -316,6 +366,9 @@ class UpdateChecker:
             message="Installed EOAT Atlas version is current.",
             installedVersion=installed.version,
             availableVersion=available,
+            installedReleaseId=installed.releaseId,
+            availableReleaseId=release_id,
+            availableBuildId=build_id,
             source=source,
         )
 

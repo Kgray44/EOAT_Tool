@@ -396,6 +396,25 @@ def test_admin_button_unlocks_only_settings_with_server_identity(qapp, tmp_path:
     content.close()
 
 
+def test_mysql_api_admin_workflow_never_calls_dormant_shared_password(qapp, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
+    monkeypatch.setenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api")
+    monkeypatch.setattr(
+        settings_page_module,
+        "verify_admin_password",
+        lambda _password: (_ for _ in ()).throw(AssertionError("dormant password verifier was called")),
+    )
+    content = MinimalistSettingsContent(
+        SimpleNamespace(config=UserConfig(project_root=str(tmp_path)), minimalist_app_settings={})
+    )
+
+    content.open_admin_overlay()
+
+    assert content.admin_active
+    assert content._authentication_provider == "development"
+    content.close()
+
+
 def test_authentication_outage_keeps_settings_visible_and_locked(qapp, tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
     content = MinimalistSettingsContent(
@@ -534,6 +553,28 @@ def test_admin_timeout_discards_unsaved_settings_safely(qapp, tmp_path: Path, mo
     assert not content.dirty_keys
     assert content.draft_settings == content.saved_settings
     assert content._pending_admin_timeout_notice == "Admin session ended. Unsaved settings were discarded."
+    content.close()
+
+
+def test_provider_failure_relocks_settings_and_discards_unsaved_changes(qapp, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
+    controller = SimpleNamespace(config=UserConfig(project_root=str(tmp_path)), minimalist_app_settings={})
+    content = MinimalistSettingsContent(controller)
+    content._start_admin_session()
+    content._set_setting("library.cards_per_page", 48)
+    monkeypatch.setattr(
+        content.authentication_gateway,
+        "authorize",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ApiUnavailableError("provider unavailable")),
+    )
+
+    content.page_shown()
+
+    assert not content.admin_active
+    assert not content.dirty_keys
+    assert content.draft_settings == content.saved_settings
+    assert not content.save_button.isEnabled()
+    assert content.admin_status_label.text() == "Settings Locked"
     content.close()
 
 

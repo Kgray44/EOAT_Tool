@@ -24,3 +24,4 @@ class ProviderHealth:
     available: bool
     production_approved: bool
     message: str
+    missing_configuration: tuple[str, ...] = ()

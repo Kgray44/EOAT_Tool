@@ -18,6 +18,7 @@ from core.globalization.runtime_paths import ensure_runtime_layout, get_runtime_
 from core.globalization.sqlite_store import connect_cache_db, write_bundle
 from core.globalization.workbook_import import refresh_from_local_sqlite_cache
 from core.globalization.write_foundation import WorkbookLockManager, WorkbookSyncService
+from core.versioning import get_app_version
 
 
 def test_metadata_loads_from_source_without_repo_cwd(tmp_path, monkeypatch) -> None:
@@ -28,7 +29,7 @@ def test_metadata_loads_from_source_without_repo_cwd(tmp_path, monkeypatch) -> N
     loaded = app_metadata.load_app_metadata(repo_root)
 
     assert loaded.app_name == "EOAT Atlas"
-    assert loaded.release_id == "eoat-atlas-0.9.1"
+    assert loaded.release_id == f"eoat-atlas-{get_app_version()}"
     assert loaded.cache_schema_version == loaded.event_schema_version == loaded.config_schema_version == 1
 
 
@@ -39,8 +40,8 @@ def test_metadata_and_resources_load_from_simulated_packaged_root(tmp_path, monk
         json.dumps(
             {
                 "app_name": "EOAT Atlas",
-                "app_version": "9.9.9-test",
-                "release_id": "packaged-release",
+                "app_version": "9.9.9",
+                "release_id": "eoat-atlas-9.9.9",
                 "build_id": "packaged-build",
                 "build_date": "2026-07-10",
                 "cache_schema_version": 1,
@@ -58,8 +59,8 @@ def test_metadata_and_resources_load_from_simulated_packaged_root(tmp_path, monk
 
     assert resources.app_base_path() == package_root
     assert resources.release_metadata_path() == package_root / "release_metadata.json"
-    assert loaded.app_version == "9.9.9-test"
-    assert loaded.release_id == "packaged-release"
+    assert loaded.app_version == "9.9.9"
+    assert loaded.release_id == "eoat-atlas-9.9.9"
 
 
 def test_runtime_folder_switches_between_dev_and_frozen_prod(tmp_path, monkeypatch) -> None:

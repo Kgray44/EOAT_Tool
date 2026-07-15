@@ -14,7 +14,7 @@ import uuid
 import zipfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from release_tools.manifest import atomic_write_json, read_manifest, sha256_file, validate_manifest
-from release_tools.versioning import Version
+from release_tools.versioning import Version, build_identifier
 
 DEFAULT_DEPLOYMENT_ROOT = Path(r"\\example.invalid\VT\Plant4\Maintenance & Manufacturing Engineering\EOAT Atlas")
 
@@ -79,14 +79,22 @@ def _read_source_metadata() -> dict[str, Any]:
 
 
 def _target_metadata(original: dict[str, Any], version: Version) -> dict[str, Any]:
-    now = datetime.now().astimezone()
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    commit = str(original.get("git_commit") or "").strip()
+    if not commit:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=False
+        )
+        commit = completed.stdout.strip() if completed.returncode == 0 else ""
     result = dict(original)
     result.update({
         "app_version": str(version),
         "release_id": f"eoat-atlas-{version}",
-        "build_id": f"release-{version}",
+        "build_id": build_identifier(version, commit, now),
         "build_date": now.date().isoformat(),
-        "build_timestamp": now.isoformat(timespec="seconds"),
+        "build_timestamp": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "git_commit": commit,
+        "release_channel": "production",
         "environment": "production",
     })
     return result
@@ -227,9 +235,12 @@ def publish(args: argparse.Namespace) -> int:
         if manifest_path.exists():
             previous = read_manifest(manifest_path, require_package=True)
             published = Version.parse(previous["latest_version"])
-            if source_version != published:
-                raise PublishError(f"Source version {source_version} does not match published version {published}; reconcile deliberately before publishing")
-            target = published.bump(args.bump)
+            if source_version <= published:
+                raise PublishError(
+                    f"Canonical source version {source_version} must be newer than published version {published}; "
+                    "complete the task version bump before publishing"
+                )
+            target = source_version
         elif not args.initialize:
             raise PublishError("No valid production latest.json exists. Re-run with --initialize for the deliberate initial release.")
         else:
@@ -238,7 +249,7 @@ def publish(args: argparse.Namespace) -> int:
         if minimum > target:
             raise PublishError("minimum_supported_version cannot be newer than the target release")
         target_metadata = _target_metadata(source_original, target)
-        print("\nEOAT Atlas Patch Release\n")
+        print("\nEOAT Atlas Release\n")
         print(f"Current published version: {previous['latest_version'] if previous else 'NONE (initialization)'}")
         print(f"Proposed version:          {target}")
         print(f"Deployment root:           {args.deployment_root}")
@@ -289,13 +300,15 @@ def publish(args: argparse.Namespace) -> int:
             _validate_package(package, target)
             manifest = {
                 "latest_version": str(target),
+                "release_id": target_metadata["release_id"],
+                "build_id": target_metadata["build_id"],
                 "release_path": str(working_deployment / "Packages" / "Current" / package.name),
                 "minimum_supported_version": str(minimum),
                 "sha256": sha256_file(package),
                 "package_size": package.stat().st_size,
                 "published_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                 "release_notes": args.release_notes,
-                "manifest_schema_version": 1,
+                "manifest_schema_version": 2,
             }
             stage = "network-promotion"
             _publish_package(working_deployment, package, manifest, previous)
@@ -327,7 +340,6 @@ def publish(args: argparse.Namespace) -> int:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build, validate, and transactionally publish EOAT Atlas")
-    parser.add_argument("--bump", choices=("patch", "minor", "major"), default="patch")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--deployment-root", type=Path, default=DEFAULT_DEPLOYMENT_ROOT)
     parser.add_argument("--release-notes", default="")

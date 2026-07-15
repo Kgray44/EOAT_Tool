@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.versioning import get_release_info
+
 LEGAL_FOOTER_TEXT = "For reference only"
 DEFAULT_FOOTER_Y = 22
 DEFAULT_FOOTER_LINE_Y = 34.5
@@ -24,6 +26,7 @@ def draw_standard_pdf_footer(
     footer_y: float = DEFAULT_FOOTER_Y,
     line_y: float = DEFAULT_FOOTER_LINE_Y,
 ) -> None:
+    apply_pdf_release_metadata(canvas)
     width, _height = pdf_page_size(canvas, doc)
     left_x = float(getattr(doc, "leftMargin", DEFAULT_HORIZONTAL_MARGIN) or DEFAULT_HORIZONTAL_MARGIN)
     right_x = width - float(getattr(doc, "rightMargin", DEFAULT_HORIZONTAL_MARGIN) or DEFAULT_HORIZONTAL_MARGIN)
@@ -42,4 +45,18 @@ def draw_standard_pdf_footer(
     canvas.restoreState()
 
 
-__all__ = ["LEGAL_FOOTER_TEXT", "draw_standard_pdf_footer", "pdf_page_size"]
+def apply_pdf_release_metadata(canvas: Any) -> None:
+    info = get_release_info()
+    values = {
+        "setCreator": f"EOAT Atlas {info.application_version}",
+        "setAuthor": "EOAT Atlas",
+        "setSubject": f"Release {info.release_id}; build {info.build_id}",
+        "setKeywords": f"EOAT Atlas,{info.application_version},{info.release_id},{info.build_id}",
+    }
+    for method_name, value in values.items():
+        method = getattr(canvas, method_name, None)
+        if callable(method):
+            method(value)
+
+
+__all__ = ["LEGAL_FOOTER_TEXT", "apply_pdf_release_metadata", "draw_standard_pdf_footer", "pdf_page_size"]

@@ -13,6 +13,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from core.versioning import configure_release_logging, get_release_info
+
 from .authentication.audit import record_auth_event
 from .authentication.configuration import AuthenticationConfiguration
 from .authentication.routes import router as authentication_router
@@ -34,9 +36,20 @@ from .write_routes import router as write_router
 
 logging.basicConfig(
     level=os.getenv("EOAT_API_LOG_LEVEL", "INFO"),
-    format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+    format=(
+        '{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s",'
+        '"application_version":"%(application_version)s","release_id":"%(release_id)s",'
+        '"build_id":"%(build_id)s","database_schema_revision":"%(database_schema_revision)s",'
+        '"api_contract_version":"%(api_contract_version)s","message":"%(message)s"}'
+    ),
 )
+configure_release_logging()
 LOGGER = logging.getLogger("eoat_api")
+RELEASE_INFO = get_release_info()
+if RELEASE_INFO.api_contract_version != API_VERSION:
+    raise RuntimeError("Canonical release API contract version does not match server API_VERSION")
+if RELEASE_INFO.database_schema_revision != EXPECTED_SCHEMA_REVISION:
+    raise RuntimeError("Canonical release schema revision does not match server expectation")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -168,6 +181,11 @@ def health(svc: AtlasService = Depends(service)):
         environment=os.getenv("EOAT_API_ENVIRONMENT", "development"),
         writes_enabled=os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"},
         api_version=API_VERSION,
+        application_version=RELEASE_INFO.application_version,
+        release_id=RELEASE_INFO.release_id,
+        build_id=RELEASE_INFO.build_id,
+        api_contract_version=API_VERSION,
+        database_schema_revision=EXPECTED_SCHEMA_REVISION,
         database_server_version=svc.database_server_version(),
         server_timestamp=datetime.now(timezone.utc),
     )
@@ -175,7 +193,16 @@ def health(svc: AtlasService = Depends(service)):
 
 @app.get("/api/v1/version")
 def version():
-    return {"api_version": API_VERSION, "server_revision": SERVER_REVISION}
+    return {
+        "service": "EOAT Atlas API",
+        "application_version": RELEASE_INFO.application_version,
+        "release_id": RELEASE_INFO.release_id,
+        "build_id": RELEASE_INFO.build_id,
+        "api_version": API_VERSION,
+        "api_contract_version": API_VERSION,
+        "database_schema_revision": EXPECTED_SCHEMA_REVISION,
+        "server_revision": SERVER_REVISION,
+    }
 
 
 @app.get("/api/v1/schema-status")
@@ -193,6 +220,11 @@ def server_status(svc: AtlasService = Depends(service)):
     status = svc.sync_status()
     return {
         **status.model_dump(),
+        "application_version": RELEASE_INFO.application_version,
+        "release_id": RELEASE_INFO.release_id,
+        "build_id": RELEASE_INFO.build_id,
+        "api_contract_version": API_VERSION,
+        "database_schema_revision": EXPECTED_SCHEMA_REVISION,
         "environment": os.getenv("EOAT_API_ENVIRONMENT", "development"),
         "read_only_phase": False,
         "writes_enabled": os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold()

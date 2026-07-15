@@ -2,12 +2,18 @@
 
 from pathlib import Path
 import os
+import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 ROOT = Path(SPECPATH).resolve()
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from build_tools.version_metadata import write_windows_version_file
 
 METADATA_PATH = Path(os.environ.get("EOAT_ATLAS_BUILD_METADATA", str(ROOT / "release_metadata.json")))
+VERSION_FILE = write_windows_version_file(ROOT, ROOT / "build" / "eoat_atlas_version_info.txt")
 datas = [(str(METADATA_PATH), ".")]
 binaries = []
 hiddenimports = []
@@ -73,6 +79,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,
+    version=str(VERSION_FILE),
 )
 coll = COLLECT(
     exe,
