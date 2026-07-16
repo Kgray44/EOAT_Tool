@@ -42,8 +42,20 @@ def test_metadata_and_resources_load_from_simulated_packaged_root(tmp_path, monk
                 "app_name": "EOAT Atlas",
                 "app_version": "9.9.9",
                 "release_id": "eoat-atlas-9.9.9",
-                "build_id": "packaged-build",
+                "build_id": "eoat-atlas-9.9.9-aaaaaaa-20260710T000000Z",
                 "build_date": "2026-07-10",
+                "build_timestamp": "2026-07-10T00:00:00Z",
+                "source_git_commit": "a" * 40,
+                "git_commit": "a" * 40,
+                "branch_name": "test/release",
+                "metadata_role": "release_artifact",
+                "metadata_schema_version": 2,
+                "environment": "test",
+                "release_channel": "test",
+                "database_schema_revision": "20260715_0006",
+                "api_contract_version": "1.3.0",
+                "launcher_version": "0.1.0",
+                "installer_version": "0.1.0",
                 "cache_schema_version": 1,
                 "event_schema_version": 1,
                 "config_schema_version": 1,
@@ -123,7 +135,7 @@ def test_spec_is_ready_for_metadata_and_excludes_old_targets() -> None:
 
     assert "Path(SPECPATH).resolve()" in spec_text
     assert '["packaging/eoat_atlas_entry.py"]' in spec_text
-    assert "release_metadata.json" in spec_text
+    assert "EOAT_ATLAS_BUILD_METADATA" in spec_text
     assert 'name="EOAT Atlas"' in spec_text
     for forbidden in ("EOAT_Command_Center", "eoat_command_center_entry", "run_dashboard", "app.dashboard_ui", "app.atlas.atlas_window", "local_cache.db", "install_identity.json"):
         assert forbidden not in spec_text

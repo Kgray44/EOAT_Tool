@@ -67,14 +67,16 @@ class ReleaseLock:
 
 
 def _read_source_metadata() -> dict[str, Any]:
-    path = ROOT / "release_metadata.json"
+    defaults_path = ROOT / "release_defaults.json"
+    version_path = ROOT / "app" / "atlas" / "version.json"
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(defaults_path.read_text(encoding="utf-8"))
+        version_payload = json.loads(version_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise PublishError(f"Source release metadata is invalid: {exc}") from exc
-    if not isinstance(payload, dict) or payload.get("app_name") != "EOAT Atlas":
-        raise PublishError("Source release_metadata.json is not EOAT Atlas metadata")
-    Version.parse(str(payload.get("app_version", "")))
+        raise PublishError(f"Source version/defaults are invalid: {exc}") from exc
+    if not isinstance(payload, dict) or not isinstance(version_payload, dict) or payload.get("app_name") != "EOAT Atlas":
+        raise PublishError("Source version/defaults are not EOAT Atlas metadata")
+    payload["app_version"] = str(Version.parse(str(version_payload.get("version", ""))))
     return payload
 
 
@@ -91,7 +93,12 @@ def _target_metadata(original: dict[str, Any], version: Version) -> dict[str, An
         "build_id": build_identifier(version, commit, now),
         "build_date": now.date().isoformat(),
         "build_timestamp": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "source_git_commit": commit,
         "git_commit": commit,
+        "branch_name": subprocess.run(
+            ["git", "branch", "--show-current"], cwd=ROOT, capture_output=True, text=True, check=False
+        ).stdout.strip() or "detached",
+        "metadata_role": "release_artifact",
         "release_channel": "production",
         "environment": "production",
     })
@@ -99,7 +106,8 @@ def _target_metadata(original: dict[str, Any], version: Version) -> dict[str, An
 
 
 def _write_source_metadata(payload: dict[str, Any]) -> None:
-    path = ROOT / "release_metadata.json"
+    path = ROOT / "build" / "release_metadata.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix(".json.release-temp")
     temp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     temp.replace(path)
@@ -107,13 +115,16 @@ def _write_source_metadata(payload: dict[str, Any]) -> None:
 
 @contextmanager
 def staged_source_metadata(payload: dict[str, Any]) -> Iterator[None]:
-    path = ROOT / "release_metadata.json"
-    original = path.read_bytes()
+    path = ROOT / "build" / "release_metadata.json"
+    original = path.read_bytes() if path.exists() else None
     try:
         _write_source_metadata(payload)
         yield
     finally:
-        path.write_bytes(original)
+        if original is None:
+            path.unlink(missing_ok=True)
+        else:
+            path.write_bytes(original)
 
 
 def _run(name: str, command: list[str], results: dict[str, Any], *, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
@@ -313,9 +324,8 @@ def publish(args: argparse.Namespace) -> int:
             if args.dry_run:
                 read_manifest(working_deployment / "Manifests" / "latest.json", require_package=True)
                 print("Dry-run transaction validated in an isolated temporary deployment root.")
-            elif not args.preserve_source_metadata:
-                stage = "source-version-commit"
-                _write_source_metadata(target_metadata)
+            # Generated build identity remains in the package and manifest;
+            # publication never writes it back into tracked source files.
         record = {"status": "success", "dry_run": args.dry_run, "source_version": source_original["app_version"], "previous_version": previous["latest_version"] if previous else None, "target_version": str(target), "deployment_root": str(args.deployment_root), "release_notes": args.release_notes, "checks": results, "manifest_promoted": not args.dry_run, "elapsed_seconds": round(time.monotonic() - started, 2), "developer": getpass.getuser(), "machine": socket.gethostname(), "timestamp": datetime.now().astimezone().isoformat(timespec="seconds")}
         log = _write_log(log_root, record, production_mutation=production_mutation)
         print(f"\nSUCCESS: EOAT Atlas v{target} {'dry-run validated' if args.dry_run else 'published'}.")

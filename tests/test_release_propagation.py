@@ -20,7 +20,7 @@ from launcher.core import UpdateChecker
 from launcher.core import VersionInfo as LauncherVersionInfo
 from release_tools.manifest import validate_manifest
 from release_tools.versioning import Version, build_identifier, validate_version_sources
-from scripts.publish_release import _target_metadata
+from scripts.publish_release import _read_source_metadata, _target_metadata
 from server.eoat_api.app import version as api_version
 from server.eoat_api.database import models as db
 from server.eoat_api.release_provenance import ensure_application_release
@@ -28,8 +28,8 @@ from server.eoat_api.release_provenance import ensure_application_release
 
 def test_unified_release_info_loads_without_gui_mysql_or_network() -> None:
     info = get_release_info()
-    canonical = json.loads((Path(__file__).resolve().parents[1] / "release_metadata.json").read_text(encoding="utf-8"))
-    assert info.application_version == canonical["app_version"]
+    canonical = json.loads((Path(__file__).resolve().parents[1] / "app/atlas/version.json").read_text(encoding="utf-8"))
+    assert info.application_version == canonical["version"]
     assert info.release_id == f"eoat-atlas-{info.application_version}"
     assert info.api_contract_version == EXPECTED_API_VERSION
     assert info.database_schema_revision == EXPECTED_SCHEMA_REVISION
@@ -208,11 +208,11 @@ def test_release_id_is_stable_per_version_and_build_ids_distinguish_builds() -> 
 
 def test_publish_metadata_consumes_source_version_without_mutating_canonical() -> None:
     root = Path(__file__).resolve().parents[1]
-    path = root / "release_metadata.json"
+    path = root / "app/atlas/version.json"
     before = path.read_bytes()
-    source = json.loads(before)
+    source = _read_source_metadata()
     target = _target_metadata(source, Version.parse(source["app_version"]))
     assert target["app_version"] == source["app_version"]
-    assert target["release_id"] == source["release_id"]
-    assert target["build_id"] != source["build_id"]
+    assert target["release_id"] == f"eoat-atlas-{source['app_version']}"
+    assert target["source_git_commit"] == target["git_commit"]
     assert path.read_bytes() == before

@@ -10,6 +10,7 @@ __pycache__/
 htmlcov/
 build/
 dist/
+release_metadata.json
 *.egg-info/
 
 # Virtual environments

@@ -9,6 +9,11 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from scripts.release.build_server_release import generate_release_metadata
+
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "EOAT_Atlas.spec"
 
@@ -32,25 +37,12 @@ def _generated_build_metadata() -> Path:
     dirty = _git("status", "--porcelain")
     if dirty and os.getenv("EOAT_ATLAS_ALLOW_DIRTY_BUILD") != "1":
         raise RuntimeError("Refusing to package a dirty tracked tree; exact source provenance would be ambiguous.")
-    payload = json.loads((ROOT / "release_metadata.json").read_text(encoding="utf-8"))
     commit = os.getenv("GITHUB_SHA") or _git("rev-parse", "HEAD")
     branch = os.getenv("GITHUB_REF_NAME") or _git("branch", "--show-current")
     timestamp = datetime.now(timezone.utc).replace(microsecond=0)
     run_id = os.getenv("GITHUB_RUN_ID") or f"local-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
-    payload.update(
-        {
-            "git_commit": commit,
-            "branch_name": branch,
-            "build_timestamp": timestamp.isoformat().replace("+00:00", "Z"),
-            "build_date": timestamp.date().isoformat(),
-            "build_id": f"eoat-atlas-{payload['app_version']}-{commit[:7]}-{run_id}",
-            "ci_run_id": run_id,
-            "build_run_id": run_id,
-            "dirty_tree": bool(dirty),
-            "artifact_sha256": None,
-            "build_identity_generated": True,
-        }
-    )
+    payload = generate_release_metadata(ROOT, commit, branch_name=branch, build_timestamp=timestamp)
+    payload.update({"ci_run_id": run_id, "build_run_id": run_id, "dirty_tree": False, "artifact_sha256": None})
     destination = ROOT / "build" / "release_metadata.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -12,7 +12,10 @@ if str(ROOT) not in sys.path:
 
 from build_tools.version_metadata import write_windows_version_file
 
-METADATA_PATH = Path(os.environ.get("EOAT_ATLAS_BUILD_METADATA", str(ROOT / "release_metadata.json")))
+metadata_override = os.environ.get("EOAT_ATLAS_BUILD_METADATA", "").strip()
+if not metadata_override:
+    raise RuntimeError("EOAT_ATLAS_BUILD_METADATA must name generated release metadata")
+METADATA_PATH = Path(metadata_override)
 VERSION_FILE = write_windows_version_file(ROOT, ROOT / "build" / "eoat_atlas_version_info.txt")
 datas = [(str(METADATA_PATH), ".")]
 binaries = []

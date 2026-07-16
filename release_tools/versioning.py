@@ -12,8 +12,11 @@ from functools import total_ordering
 from pathlib import Path
 
 _SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
-CANONICAL_VERSION_PATH = Path("release_metadata.json")
-DERIVED_VERSION_PATH = Path("app/atlas/version.json")
+CANONICAL_VERSION_PATH = Path("app/atlas/version.json")
+# Compatibility export for callers that previously treated version.json as a
+# derived copy of tracked release metadata. It is now the only source version.
+DERIVED_VERSION_PATH = CANONICAL_VERSION_PATH
+RELEASE_DEFAULTS_PATH = Path("release_defaults.json")
 RELEASE_LEDGER_PATH = Path("release_history.json")
 
 
@@ -65,10 +68,11 @@ def read_json_object(data: str | bytes, *, source: str) -> dict[str, object]:
     return payload
 
 
-def canonical_version_from_payload(payload: dict[str, object], *, source: str = "release_metadata.json") -> Version:
-    if payload.get("app_name") != "EOAT Atlas":
-        raise ValueError(f"{source} is not EOAT Atlas release metadata")
-    return Version.parse(str(payload.get("app_version", "")))
+def canonical_version_from_payload(payload: dict[str, object], *, source: str = "app/atlas/version.json") -> Version:
+    app_name = payload.get("appName") or payload.get("app_name")
+    if app_name != "EOAT Atlas":
+        raise ValueError(f"{source} is not EOAT Atlas version metadata")
+    return Version.parse(str(payload.get("version") or payload.get("app_version") or ""))
 
 
 def read_canonical_version(root: Path) -> Version:
@@ -91,28 +95,17 @@ def validate_version_sources(
     except OSError as exc:
         raise ValueError(f"Canonical version source is unavailable: {CANONICAL_VERSION_PATH}") from exc
     version = canonical_version_from_payload(canonical)
-    expected_release_id = f"eoat-atlas-{version}"
-    if canonical.get("release_id") != expected_release_id:
-        raise ValueError(
-            f"release_metadata.json release_id must be {expected_release_id!r}, "
-            f"not {canonical.get('release_id')!r}"
-        )
     try:
-        derived = read_json_object(reader(DERIVED_VERSION_PATH), source=str(DERIVED_VERSION_PATH))
+        defaults = read_json_object(reader(RELEASE_DEFAULTS_PATH), source=str(RELEASE_DEFAULTS_PATH))
     except OSError as exc:
-        raise ValueError(f"Required derived version metadata is unavailable: {DERIVED_VERSION_PATH}") from exc
-    try:
-        derived_version = Version.parse(str(derived.get("version", "")))
-    except ValueError as exc:
-        raise ValueError(f"{DERIVED_VERSION_PATH}: {exc}") from exc
-    if derived_version != version:
-        raise ValueError(
-            f"Competing version sources disagree: {CANONICAL_VERSION_PATH}={version}, "
-            f"{DERIVED_VERSION_PATH}={derived_version}"
-        )
-    if derived.get("appName") != canonical.get("app_name"):
-        raise ValueError("Derived app name does not match canonical release metadata")
-    _validate_component_snapshots(root, canonical)
+        raise ValueError(f"Required release defaults are unavailable: {RELEASE_DEFAULTS_PATH}") from exc
+    if defaults.get("app_name") != canonical.get("appName"):
+        raise ValueError("Release defaults app name does not match canonical version metadata")
+    forbidden = {"app_version", "release_id", "build_id", "build_timestamp", "git_commit", "source_git_commit"}
+    present = sorted(field for field in forbidden if field in defaults)
+    if present:
+        raise ValueError("release_defaults.json contains generated identity fields: " + ", ".join(present))
+    _validate_component_snapshots(root, defaults)
     try:
         ledger = read_json_object(reader(RELEASE_LEDGER_PATH), source=str(RELEASE_LEDGER_PATH))
     except OSError as exc:
@@ -122,7 +115,7 @@ def validate_version_sources(
     return version
 
 
-def _validate_component_snapshots(root: Path, canonical: dict[str, object]) -> None:
+def _validate_component_snapshots(root: Path, defaults: dict[str, object]) -> None:
     expected = {
         "api_contract_version": _python_assignment(root / "core/versioning/compatibility.py", "EXPECTED_API_VERSION"),
         "database_schema_revision": _python_assignment(
@@ -132,9 +125,9 @@ def _validate_component_snapshots(root: Path, canonical: dict[str, object]) -> N
         "installer_version": _json_field(root / "installer/installer_config.json", "installer_version"),
     }
     mismatches = [
-        f"{field}: release_metadata={canonical.get(field)!r}, component={value!r}"
+        f"{field}: release_defaults={defaults.get(field)!r}, component={value!r}"
         for field, value in expected.items()
-        if value and canonical.get(field) != value
+        if value and defaults.get(field) != value
     ]
     if mismatches:
         raise ValueError("Release component snapshots disagree: " + "; ".join(mismatches))
@@ -303,43 +296,13 @@ def _bump_repository_version_locked(
     if target <= current:
         raise ValueError(f"New version {target} must be greater than current version {current}")
     canonical_path = root / CANONICAL_VERSION_PATH
-    derived_path = root / DERIVED_VERSION_PATH
     ledger_path = root / RELEASE_LEDGER_PATH
     original_canonical = canonical_path.read_bytes().decode("utf-8")
-    original_derived = derived_path.read_bytes().decode("utf-8")
     original_ledger = ledger_path.read_bytes().decode("utf-8")
     finalized = datetime.now(timezone.utc).replace(microsecond=0)
     timestamp = finalized.strftime("%Y-%m-%dT%H:%M:%SZ")
-    commit_sha = _git_value(root, "rev-parse", "HEAD")
-    branch_name = _git_value(root, "branch", "--show-current")
-    build_id = build_identifier(target, commit_sha, finalized)
     canonical_text = _replace_json_string(
-        original_canonical, "app_version", str(target), source=str(canonical_path)
-    )
-    canonical_text = _replace_json_string(
-        canonical_text, "release_id", f"eoat-atlas-{target}", source=str(canonical_path)
-    )
-    for field, value in (
-        ("build_id", build_id),
-        ("build_timestamp", timestamp),
-        ("build_date", finalized.date().isoformat()),
-        ("git_commit", commit_sha),
-        ("branch_name", branch_name),
-    ):
-        canonical_text = _replace_json_string(canonical_text, field, value, source=str(canonical_path))
-    canonical_payload = read_json_object(canonical_text, source=str(canonical_path))
-    # Name each independent local schema. cache_schema_version remains only as a
-    # backward-compatible alias for the globalization SQLite schema.
-    canonical_payload["globalization_sqlite_schema_version"] = int(canonical_payload.get("cache_schema_version") or 1)
-    canonical_payload["api_cache_schema_version"] = 4
-    canonical_payload.setdefault("config_schema_version", 1)
-    canonical_payload.setdefault("event_schema_version", 1)
-    canonical_payload.setdefault("metadata_schema_version", 1)
-    canonical_text = json.dumps(canonical_payload, indent=2) + "\n"
-    derived_text = _replace_json_string(original_derived, "version", str(target), source=str(derived_path))
-    derived_text = _replace_json_string(derived_text, "buildId", build_id, source=str(derived_path))
-    derived_text = _replace_json_string(
-        derived_text, "buildDate", finalized.date().isoformat(), source=str(derived_path)
+        original_canonical, "version", str(target), source=str(canonical_path)
     )
     ledger = read_json_object(original_ledger, source=str(ledger_path))
     releases = list(ledger.get("releases") or [])
@@ -347,8 +310,6 @@ def _bump_repository_version_locked(
         {
             "application_version": str(target),
             "release_id": f"eoat-atlas-{target}",
-            "build_id": build_id,
-            "commit_sha": commit_sha,
             "state": "finalized",
             "task_id": task_id,
             "finalized_at_utc": timestamp,
@@ -358,7 +319,6 @@ def _bump_repository_version_locked(
     ledger_text = json.dumps(ledger, indent=2) + "\n"
     updates = {
         canonical_path: canonical_text,
-        derived_path: derived_text,
         ledger_path: ledger_text,
     }
     _atomic_replace_texts(updates)
@@ -368,7 +328,6 @@ def _bump_repository_version_locked(
         _atomic_replace_texts(
             {
                 canonical_path: original_canonical,
-                derived_path: original_derived,
                 ledger_path: original_ledger,
             }
         )
@@ -386,7 +345,6 @@ def _bump_repository_version_locked(
                     "previous": str(current),
                     "current": str(target),
                     "release_id": f"eoat-atlas-{target}",
-                    "build_id": build_id,
                     "finalized_at_utc": timestamp,
                 },
                 stream,
@@ -400,7 +358,6 @@ def _bump_repository_version_locked(
         _atomic_replace_texts(
             {
                 canonical_path: original_canonical,
-                derived_path: original_derived,
                 ledger_path: original_ledger,
             }
         )
@@ -459,7 +416,7 @@ def application_change_paths(paths: Iterable[str]) -> list[str]:
         "pytest.ini",
         "requirements-dev.txt",
         str(CANONICAL_VERSION_PATH).replace("\\", "/"),
-        str(DERIVED_VERSION_PATH).replace("\\", "/"),
+        str(RELEASE_DEFAULTS_PATH).replace("\\", "/"),
         str(RELEASE_LEDGER_PATH).replace("\\", "/"),
     }
     result: list[str] = []

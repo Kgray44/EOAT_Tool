@@ -56,13 +56,13 @@ def _check_static_files(preflight: Preflight) -> None:
     entry = ROOT / "run_atlas.py"
     packaging_entry = ROOT / "packaging" / "eoat_atlas_entry.py"
     spec = ROOT / "EOAT_Atlas.spec"
-    metadata = ROOT / "release_metadata.json"
+    metadata = ROOT / "release_defaults.json"
     smoke = ROOT / "scripts" / "smoke_test_package.py"
 
     preflight.check("active entry point exists", lambda: entry.exists())
     preflight.check("packaging entry point exists", lambda: packaging_entry.exists())
     preflight.check("spec file exists", lambda: spec.exists())
-    preflight.check("release metadata file exists", lambda: metadata.exists())
+    preflight.check("release defaults file exists", lambda: metadata.exists())
     preflight.check("package smoke script exists", lambda: smoke.exists())
 
     from core.globalization.app_metadata import load_app_metadata
@@ -73,7 +73,7 @@ def _check_static_files(preflight: Preflight) -> None:
 
     spec_text = spec.read_text(encoding="utf-8")
     preflight.check("spec references minimalist packaging entry", lambda: '["packaging/eoat_atlas_entry.py"]' in spec_text)
-    preflight.check("spec includes release_metadata.json", lambda: "release_metadata.json" in spec_text)
+    preflight.check("spec requires generated release metadata", lambda: "EOAT_ATLAS_BUILD_METADATA" in spec_text)
     preflight.check("spec embeds canonical Windows version metadata", lambda: "version=str(VERSION_FILE)" in spec_text)
     preflight.check("spec output name is EOAT Atlas", lambda: 'name="EOAT Atlas"' in spec_text)
     preflight.check("spec does not include runtime cache/settings artifacts", lambda: all(token not in spec_text for token in ("local_cache.db", "install_identity.json", "events/outbox", "settings.json")))

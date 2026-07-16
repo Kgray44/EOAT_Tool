@@ -66,8 +66,9 @@ smoke, and dependency audit so one failure cannot conceal another gate.
 
 ## Release and packaging
 
-`release_metadata.json` owns tracked release identity. Packaging generates build identity and manifests for the exact
-source tree. Build with `python scripts/build_package.py`; validate with
+`app/atlas/version.json` owns the tracked application version; `release_defaults.json` owns non-build component
+defaults. Packaging generates `release_metadata.json` and manifests only after selecting the exact source commit.
+Build with `python scripts/build_package.py`; validate with
 `python scripts/smoke_test_package.py "dist/EOAT Atlas/EOAT Atlas.exe"`. Do not publish mismatched metadata or unsigned
 artifacts as approved production releases.
 

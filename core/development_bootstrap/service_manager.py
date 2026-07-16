@@ -85,7 +85,13 @@ class DevelopmentServiceManager:
         configured = os.getenv("EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT", "").strip()
         if configured and root != Path(configured).expanduser().resolve():
             raise BootstrapError("Repository does not match EOAT_ATLAS_CANONICAL_DEVELOPMENT_ROOT.")
-        required = (marker, root / "release_metadata.json", root / "app" / "atlas" / "main.py", root / "server")
+        required = (
+            marker,
+            root / "release_defaults.json",
+            root / "app" / "atlas" / "version.json",
+            root / "app" / "atlas" / "main.py",
+            root / "server",
+        )
         missing = [path.name for path in required if not path.exists()]
         if missing:
             raise BootstrapError("Repository is missing canonical marker/layout entries: " + ", ".join(missing))

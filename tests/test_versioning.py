@@ -24,22 +24,17 @@ def make_repository(root: Path, version: str = "1.2.3") -> Path:
     (root / "core" / "versioning").mkdir(parents=True, exist_ok=True)
     (root / "launcher").mkdir(parents=True, exist_ok=True)
     (root / "installer").mkdir(parents=True, exist_ok=True)
-    (root / "release_metadata.json").write_text(
+    (root / "release_defaults.json").write_text(
         json.dumps(
             {
                 "app_name": "EOAT Atlas",
-                "app_version": version,
-                "release_id": f"eoat-atlas-{version}",
-                "build_id": "test-build",
-                "build_date": "2026-07-15",
-                "build_timestamp": "2026-07-15T00:00:00Z",
-                "git_commit": "",
-                "branch_name": "test",
                 "environment": "test",
                 "api_contract_version": "1.3.0",
                 "database_schema_revision": "test_revision",
                 "launcher_version": "0.1.0",
                 "installer_version": "0.1.0",
+                "release_channel": "test",
+                "metadata_schema_version": 2,
             },
             indent=2,
         )
@@ -51,8 +46,6 @@ def make_repository(root: Path, version: str = "1.2.3") -> Path:
             {
                 "appName": "EOAT Atlas",
                 "version": version,
-                "buildDate": "2026-07-15",
-                "buildId": "test-build",
                 "channel": "test",
             },
             indent=2,
@@ -128,9 +121,9 @@ def test_missing_canonical_version_is_rejected(tmp_path: Path) -> None:
 
 def test_conflicting_and_duplicate_version_sources_are_rejected(tmp_path: Path) -> None:
     root = make_repository(tmp_path)
-    derived = root / "app" / "atlas" / "version.json"
-    derived.write_text(derived.read_text(encoding="utf-8").replace("1.2.3", "1.2.4"), encoding="utf-8")
-    with pytest.raises(ValueError, match="disagree"):
+    canonical = root / "app" / "atlas" / "version.json"
+    canonical.write_text(canonical.read_text(encoding="utf-8").replace("1.2.3", "bad"), encoding="utf-8")
+    with pytest.raises(ValueError, match="Invalid semantic version"):
         validate_version_sources(root)
     make_repository(root)
     (root / "core").mkdir(exist_ok=True)
@@ -141,9 +134,9 @@ def test_conflicting_and_duplicate_version_sources_are_rejected(tmp_path: Path) 
 
 def test_component_and_release_ledger_mismatches_are_rejected(tmp_path: Path) -> None:
     root = make_repository(tmp_path)
-    metadata = root / "release_metadata.json"
-    metadata.write_text(
-        metadata.read_text(encoding="utf-8").replace('"api_contract_version": "1.3.0"', '"api_contract_version": "9.9.9"'),
+    defaults = root / "release_defaults.json"
+    defaults.write_text(
+        defaults.read_text(encoding="utf-8").replace('"api_contract_version": "1.3.0"', '"api_contract_version": "9.9.9"'),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="component snapshots disagree"):
@@ -174,17 +167,17 @@ def test_concurrent_finalization_lock_prevents_version_reuse(tmp_path: Path) -> 
     lock = root / ".git" / "eoat-version-bump.lock"
     lock.parent.mkdir()
     lock.write_text("another task\n", encoding="utf-8")
-    before = (root / "release_metadata.json").read_bytes()
+    before = (root / "app" / "atlas" / "version.json").read_bytes()
     with pytest.raises(ValueError, match="Another version finalization is active"):
         bump_repository_version(root, part="minor", operation_id="concurrent-task")
-    assert (root / "release_metadata.json").read_bytes() == before
+    assert (root / "app" / "atlas" / "version.json").read_bytes() == before
 
 
 def test_validation_failure_does_not_partially_modify_repository(tmp_path: Path) -> None:
     root = make_repository(tmp_path)
-    derived = root / "app" / "atlas" / "version.json"
-    derived.write_text(derived.read_text(encoding="utf-8").replace('"version": "1.2.3"', '"version": "bad"'), encoding="utf-8")
-    before = {path: path.read_bytes() for path in (root / "release_metadata.json", derived)}
+    canonical = root / "app" / "atlas" / "version.json"
+    canonical.write_text(canonical.read_text(encoding="utf-8").replace('"version": "1.2.3"', '"version": "bad"'), encoding="utf-8")
+    before = {path: path.read_bytes() for path in (root / "release_defaults.json", canonical)}
     with pytest.raises(ValueError):
         bump_repository_version(root, part="patch")
     assert {path: path.read_bytes() for path in before} == before
@@ -228,6 +221,25 @@ def test_application_change_without_bump_fails_but_developer_docs_only_pass(tmp_
 
 def test_runtime_launcher_and_build_reader_consume_canonical_without_gui(tmp_path: Path) -> None:
     root = make_repository(tmp_path, "4.5.6")
+    commit = "a" * 40
+    (root / "release_metadata.json").write_text(
+        json.dumps(
+            {
+                **json.loads((root / "release_defaults.json").read_text(encoding="utf-8")),
+                "metadata_role": "release_artifact",
+                "app_version": "4.5.6",
+                "release_id": "eoat-atlas-4.5.6",
+                "build_id": "eoat-atlas-4.5.6-aaaaaaa-20260715T000000Z",
+                "build_date": "2026-07-15",
+                "build_timestamp": "2026-07-15T00:00:00Z",
+                "source_git_commit": commit,
+                "git_commit": commit,
+                "branch_name": "test",
+                "database_schema_revision": "20260715_0006",
+            }
+        ),
+        encoding="utf-8",
+    )
     get_version_info.cache_clear()
     runtime = get_version_info(root)
     launcher = VersionReader().read(root)

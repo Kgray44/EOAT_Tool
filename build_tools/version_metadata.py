@@ -7,7 +7,7 @@ from release_tools.versioning import canonical_version_from_payload
 
 
 def windows_version_text(root: Path) -> str:
-    metadata_path = root / "release_metadata.json"
+    metadata_path = root / "app" / "atlas" / "version.json"
     payload = json.loads(metadata_path.read_text(encoding="utf-8"))
     version = canonical_version_from_payload(payload, source=str(metadata_path))
     numeric = f"({version.major}, {version.minor}, {version.patch}, 0)"

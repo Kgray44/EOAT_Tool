@@ -328,7 +328,8 @@ def test_manifest_failure_restores_previous_package(tmp_path, monkeypatch):
 def test_source_metadata_rolls_back_on_failure(tmp_path, monkeypatch):
     from scripts import publish_release
 
-    metadata = tmp_path / "release_metadata.json"
+    metadata = tmp_path / "build" / "release_metadata.json"
+    metadata.parent.mkdir()
     metadata.write_text('{"app_version":"1.0.0"}', encoding="utf-8")
     monkeypatch.setattr(publish_release, "ROOT", tmp_path)
     with pytest.raises(RuntimeError), staged_source_metadata({"app_version": "1.0.1"}):

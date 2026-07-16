@@ -1304,8 +1304,8 @@ def run(args: argparse.Namespace) -> tuple[int, Path, dict[str, Any]]:
     ]
     (output / "verification.log").write_text("\n".join(log_lines) + "\n", encoding="utf-8")
 
-    release_file = repository_root / "release_metadata.json"
-    release = json.loads(release_file.read_text(encoding="utf-8")) if release_file.is_file() else {}
+    version_file = repository_root / "app" / "atlas" / "version.json"
+    release = json.loads(version_file.read_text(encoding="utf-8")) if version_file.is_file() else {}
     hashes = {
         path.name: sha256_file(path) for path in sorted(output.iterdir())
         if path.is_file() and path.name != "verification_manifest.json"
@@ -1314,7 +1314,7 @@ def run(args: argparse.Namespace) -> tuple[int, Path, dict[str, Any]]:
         "run_id": output.name,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "repository": repo,
-        "application_version": release.get("app_version"),
+        "application_version": release.get("version"),
         "api_version": "1.3.0",
         "workbook_path": str(workbook_path),
         "workbook_hash": inventory["sha256"],

@@ -26,7 +26,9 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     root = args.root.resolve()
-    metadata = json.loads((root / "release_metadata.json").read_text(encoding="utf-8"))
+    from core.versioning import get_release_info
+
+    metadata = get_release_info(root).to_dict()
     state = {
         "last_completed_step": "release_metadata_loaded",
         "active_backend": os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold(),
@@ -55,10 +57,8 @@ def main() -> int:
         if state["active_backend"] != "mysql_api":
             raise RuntimeError("Atlas smoke requires mysql_api unless a separate legacy-mode test is explicitly used.")
         version_payload = json.loads((root / "app" / "atlas" / "version.json").read_text(encoding="utf-8"))
-        if version_payload.get("version") != metadata.get("app_version"):
+        if version_payload.get("version") != metadata.get("application_version"):
             raise RuntimeError("app/atlas/version.json does not match canonical application version.")
-        if version_payload.get("buildId") != metadata.get("build_id"):
-            raise RuntimeError("app/atlas/version.json does not match canonical build ID.")
         state["last_completed_step"] = "version_sources_validated"
 
         with tempfile.TemporaryDirectory(prefix="eoat_atlas_ci_smoke_") as temporary:

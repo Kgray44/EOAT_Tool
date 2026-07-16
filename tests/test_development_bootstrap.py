@@ -84,7 +84,8 @@ def test_version_sources_agree() -> None:
 
     assert canonical.application_version == metadata.app_version == atlas_version["version"]
     assert re.fullmatch(r"\d+\.\d+\.\d+", canonical.application_version)
-    assert canonical.build_id == metadata.build_id == atlas_version["buildId"]
+    assert canonical.build_id == metadata.build_id
+    assert "buildId" not in atlas_version
     assert canonical.build_id.startswith(f"eoat-atlas-{canonical.application_version}-")
     assert canonical.release_id == metadata.release_id == f"eoat-atlas-{canonical.application_version}"
 

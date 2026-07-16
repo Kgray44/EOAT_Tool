@@ -33,6 +33,20 @@ python scripts/smoke_test_package.py "dist/EOAT Atlas/EOAT Atlas.exe"
 package metadata records the exact commit, branch, timestamp, build run, dirty state, build ID, and executable SHA-256.
 The package manifest records every packaged file and checksum.
 
+## Build the Debian server release
+
+Commit the intended source first, then build its exact revision:
+
+```powershell
+python scripts/release/build_server_release.py --source-commit HEAD --branch-name fix/release-provenance
+```
+
+The builder refuses relevant dirty server files, reads the version and defaults from the selected commit, creates a
+normalized ZIP under `dist/server`, inserts generated `release_metadata.json`, and writes adjacent SHA-256 and JSON
+manifest files. Reusing the same explicit `--build-timestamp` with the same commit produces the same metadata, build ID,
+ZIP ordering, timestamps, permissions, and checksum. The manifest—not the tracked tree—binds the source commit to the
+finished archive checksum. The archive intentionally contains no `.git` directory and needs none at runtime.
+
 Writable runtime state belongs under `%LOCALAPPDATA%\EOAT_Atlas`; it must not be written into the onedir package.
 
 ## Build the launcher
