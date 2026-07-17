@@ -64,6 +64,15 @@
       "state": "finalized",
       "task_id": "codex-history-sanitization-and-release-qualification-20260715",
       "finalized_at_utc": "2026-07-15T21:31:31Z"
+    },
+    {
+      "application_version": "0.15.1",
+      "release_id": "eoat-atlas-0.15.1",
+      "build_id": "eoat-atlas-0.15.1-e942dd8-20260717T175838Z",
+      "commit_sha": "e942dd88ab8c2f7b6bd99c37fdcb2aa12b3514c4",
+      "state": "finalized",
+      "task_id": "production-operational-data-migration-20260717",
+      "finalized_at_utc": "2026-07-17T17:58:38Z"
     }
   ]
 }

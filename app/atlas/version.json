@@ -1,7 +1,7 @@
 {
   "appName": "EOAT Atlas",
-  "version": "0.15.0",
-  "buildDate": "2026-07-15",
-  "buildId": "eoat-atlas-0.15.0-af7d1bb-20260715T213131Z",
+  "version": "0.15.1",
+  "buildDate": "2026-07-17",
+  "buildId": "eoat-atlas-0.15.1-e942dd8-20260717T175838Z",
   "channel": "development"
 }
