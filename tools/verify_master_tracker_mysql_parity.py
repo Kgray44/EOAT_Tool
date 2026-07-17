@@ -788,6 +788,16 @@ def reconcile(
                          for item in database["relationships"]["tool_machine"]},
         "installations": {(normalized_value(item["eoat_identifier"]), normalized_value(item["machine_number"])): item
                           for item in database["relationships"]["installations"] if item.get("is_current")},
+        "installed_observations": {
+            (normalized_value(item["eoat_identifier"]), normalized_value(item["machine_number"])): item
+            for item in database["relationships"].get("location_observations", [])
+            if clean_text(item.get("state")).upper() == "INSTALLED" and item.get("is_authoritative")
+        },
+        "stored_observations": {
+            normalized_value(item["eoat_identifier"]): item
+            for item in database["relationships"].get("location_observations", [])
+            if clean_text(item.get("state")).upper() == "STORED" and item.get("is_authoritative")
+        },
     }
     document_links: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for link in database["document_links"]:
@@ -971,16 +981,22 @@ def reconcile(
         physical_state = state["determined_physical_state"]
         if physical_state == STATE_INSTALLED:
             machine = clean_text(state["machine_number"])
+            event = relation_sets["installations"].get((normalized_value(eoat), normalized_value(machine)))
+            observation = relation_sets["installed_observations"].get((normalized_value(eoat), normalized_value(machine)))
             add_relationship(
-                "EOAT Inventory", row_number, eoat, "current_eoat_installation", machine,
-                relation_sets["installations"].get((normalized_value(eoat), normalized_value(machine))), eoat, machine,
-                "Physically verified audit evidence establishes an observed current installation; schema cannot safely represent unknown original installed_at.",
+                "EOAT Inventory", row_number, eoat,
+                "current_eoat_installation" if event else "observed_current_eoat_installation", machine,
+                event or observation, eoat, machine,
+                "Resolved by real lifecycle event or authoritative date-precision current-state observation; no installed_at was fabricated.",
             )
         elif physical_state == STATE_STORED:
+            event = storage_by_eoat.get(normalized_value(eoat))
+            observation = relation_sets["stored_observations"].get(normalized_value(eoat))
             add_relationship(
-                "EOAT Inventory", row_number, eoat, "current_eoat_storage", clean_text(state["storage_location"]),
-                storage_by_eoat.get(normalized_value(eoat)), eoat, clean_text(state["storage_location"]),
-                "Explicit audit note establishes cabinet storage, but the cabinet identifier and original stored_at are not recorded.",
+                "EOAT Inventory", row_number, eoat,
+                "current_eoat_storage" if event else "observed_current_eoat_storage",
+                clean_text(state["storage_location"]), event or observation, eoat, clean_text(state["storage_location"]),
+                "Resolved by real storage event or authoritative stored observation; no cabinet or stored_at was fabricated.",
             )
 
     project_root = workbook_path.parents[2]
