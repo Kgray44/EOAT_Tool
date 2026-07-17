@@ -17,6 +17,8 @@ from typing import Any
 
 import pymysql
 
+from core.versioning import get_version_info
+
 REQUIRED_REVISION = "20260717_0007"
 TOOL_VERSION = "1.1.0"
 SEED_TABLE_KEYS = {
@@ -652,7 +654,8 @@ def build(args: argparse.Namespace) -> int:
                 "credentials_included": False,
             },
             "source_git": git,
-            "source_application": json.loads((repo / "release_metadata.json").read_text(encoding="utf-8")),
+            # Source checkouts intentionally do not track generated release_metadata.json.
+            "source_application": asdict(get_version_info(repo)),
             "source_database_latest_application_release": database_release,
             "export_timestamp_utc": args.export_timestamp or utc_now(),
             "export_utility_version": TOOL_VERSION,
