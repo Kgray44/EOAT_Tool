@@ -14,7 +14,8 @@ EXPECTED_TABLES = {
     "authentication_audit_events", "authentication_sessions", "change_audit_log", "change_feed",
     "cleanroom_classifications", "compatibility_sources", "compatibility_statuses", "connection_types",
     "cutover_sessions", "document_links", "document_types", "documents", "entity_history_events",
-    "entity_tags", "eoat_installations", "eoat_machine_compatibility", "eoat_storage_assignments",
+    "entity_tags", "eoat_installations", "eoat_location_assertions", "eoat_location_observations",
+    "eoat_machine_compatibility", "eoat_storage_assignments",
     "eoat_tool_compatibility", "eoat_types", "eoats", "external_group_role_mappings",
     "fit_check_records", "history_event_types", "idempotency_records", "import_batches", "import_issues",
     "import_rows", "machine_robot_assignments", "machines", "maintenance_events", "parts", "photos",
@@ -31,8 +32,8 @@ class LiteralConnection:
         return str(value)
 
 
-def test_table_classification_is_complete_for_all_53_tables() -> None:
-    assert len(EXPECTED_TABLES) == 53
+def test_table_classification_is_complete_for_all_55_tables() -> None:
+    assert len(EXPECTED_TABLES) == 55
     assert set(migration.TABLE_POLICIES) == EXPECTED_TABLES
     assert {policy.group for policy in migration.TABLE_POLICIES.values()} == {"A", "B", "C", "D", "E"}
     assert all(policy.copy != policy.exclude for policy in migration.TABLE_POLICIES.values())

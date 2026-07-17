@@ -120,7 +120,7 @@ def test_stale_schema_fails_closed_with_authorized_migrator_guidance() -> None:
         manager.verify(stale)
 
     rendered = captured.value.render()
-    assert "Expected schema: 20260715_0006" in rendered
+    assert "Expected schema: 20260717_0007" in rendered
     assert "Detected schema: 20260714_0005" in rendered
     assert "authorized migrator" in rendered
     assert "runtime credentials never migrate schemas" in rendered
@@ -142,12 +142,12 @@ def test_mysql_api_diagnostics_hide_legacy_operational_fields(qapp, tmp_path: Pa
         "environment": "development",
         "api_online": True,
         "api_url": "http://127.0.0.1:8765",
-        "api_version": "1.3.0",
+        "api_version": "1.4.0",
         "api_response_ms": 3.2,
         "database_connected": True,
         "mysql_version": "8.4.9",
-        "schema_revision": "20260715_0006",
-        "required_schema_revision": "20260715_0006",
+        "schema_revision": "20260717_0007",
+        "required_schema_revision": "20260717_0007",
         "server_revision": "test",
         "cache_path": str(tmp_path / "eoat_atlas_api_cache_dev.db"),
         "cache_schema_version": "3",

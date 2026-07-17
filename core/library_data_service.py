@@ -630,7 +630,11 @@ class LibraryDataService:
             if current_machines:
                 eoat_current_location[eoat_key] = f"On Machine {current_machines[0]}"
             else:
-                eoat_current_location[eoat_key] = _eoat_condition_from_rows(eoat) or NOT_INDEXED
+                eoat_current_location[eoat_key] = (
+                    display_value(getattr(eoat, "current_location", ""))
+                    or _eoat_condition_from_rows(eoat)
+                    or NOT_INDEXED
+                )
         return {
             "eoat_to_machines": eoat_to_machines,
             "eoat_to_tools": eoat_to_tools,

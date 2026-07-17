@@ -560,6 +560,15 @@ def database_snapshot(config: DatabaseConfig, workbook_hash: str, *, read_only: 
                 FROM eoat_storage_assignments a JOIN eoats e ON e.id=a.eoat_id
                 JOIN storage_locations l ON l.id=a.storage_location_id
             """),
+            "location_observations": rows_as_dicts(connection, """
+                SELECT o.id,e.business_identifier AS eoat_identifier,o.state,m.machine_number,
+                       l.location_code,o.observed_at,o.observed_on,o.observation_precision,
+                       o.confidence,o.resolution_status,o.conflict_group_uuid,o.is_authoritative
+                FROM eoat_location_observations o JOIN eoats e ON e.id=o.eoat_id
+                LEFT JOIN machines m ON m.id=o.machine_id
+                LEFT JOIN storage_locations l ON l.id=o.storage_location_id
+                WHERE o.superseded_by_observation_id IS NULL
+            """) if table_exists(connection, "eoat_location_observations") else [],
         }
         photos = rows_as_dicts(connection, """
             SELECT ir.source_row_number,ir.source_identifier,ir.status AS import_status,

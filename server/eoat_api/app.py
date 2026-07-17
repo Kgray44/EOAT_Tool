@@ -322,6 +322,48 @@ def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     return value
 
 
+@app.get("/api/v1/eoats/{identifier}/current-location")
+def eoat_current_location(identifier: str, repo: AtlasRepository = Depends(repository)):
+    entity = repo.session.scalar(
+        __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
+    )
+    if entity is None:
+        raise not_found("EOAT", identifier)
+    from .location_resolver import resolve_eoat_location
+    return resolve_eoat_location(repo.session, entity.id)
+
+
+@app.get("/api/v1/eoats/{identifier}/location-observations")
+def eoat_location_observations(identifier: str, repo: AtlasRepository = Depends(repository)):
+    entity = repo.session.scalar(
+        __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
+    )
+    if entity is None:
+        raise not_found("EOAT", identifier)
+    rows = repo.session.scalars(
+        __import__("sqlalchemy").select(db.EOATLocationObservation)
+        .where(db.EOATLocationObservation.eoat_id == entity.id)
+        .order_by(db.EOATLocationObservation.observed_on.desc(), db.EOATLocationObservation.id.desc())
+    )
+    return [
+        {
+            "event_kind": "OBSERVED_CURRENT_STATE",
+            "observation_uuid": row.observation_uuid,
+            "state": row.state,
+            "observed_at": row.observed_at,
+            "observed_on": row.observed_on,
+            "observation_precision": row.observation_precision,
+            "confidence": row.confidence,
+            "resolution_status": row.resolution_status,
+            "source_workbook": row.source_workbook,
+            "source_worksheet": row.source_worksheet,
+            "source_row_number": row.source_row_number,
+            "evidence": row.original_source_wording,
+        }
+        for row in rows
+    ]
+
+
 @app.get("/api/v1/eoats/{identifier}/relationships")
 def eoat_relationships(identifier: str, repo: AtlasRepository = Depends(repository)):
     if repo.eoat(identifier) is None:
@@ -417,9 +459,10 @@ def machine_current_setup(number: str, plant_code: str | None = None, repo: Atla
         raise not_found("Machine", number)
     return {
         "machine_number": number,
-        "current_eoat": "UNKNOWN_NOT_VERIFIED",
+        "current_eoat": value.current_eoat,
         "current_tool": "UNKNOWN_NOT_VERIFIED",
-        "verified": False,
+        "verified": value.current_eoat not in {"NONE_OBSERVED", "UNKNOWN_NOT_VERIFIED"},
+        "location_semantics": "OBSERVATION_OR_LATER_LIFECYCLE_EVENT",
     }
 
 

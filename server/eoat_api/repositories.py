@@ -26,6 +26,7 @@ from .contracts import (
 )
 from .database import models as db
 from .errors import APIError
+from .location_resolver import resolve_eoat_location, resolve_eoat_locations
 
 LOOKUP_MODELS = {
     "eoat_types": db.EOATType,
@@ -111,6 +112,7 @@ class AtlasRepository:
         total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
         order = db.EOAT.updated_at.desc() if sort == "updated_desc" else db.EOAT.business_identifier
         rows = self.session.execute(stmt.order_by(order).offset((page - 1) * page_size).limit(page_size)).all()
+        locations = resolve_eoat_locations(self.session, [row[0].id for row in rows])
         items = [
             EOATSummary(
                 business_identifier=e.business_identifier,
@@ -123,6 +125,8 @@ class AtlasRepository:
                 number_of_parts_picked=e.number_of_parts_picked,
                 is_active=e.is_active,
                 row_version=e.row_version,
+                current_location=locations[e.id].display,
+                current_location_detail=locations[e.id],
             )
             for e, t, c, cl, s in rows
         ]
@@ -232,6 +236,17 @@ class AtlasRepository:
         rows = self.session.execute(
             stmt.order_by(cast(db.Machine.machine_number, String)).offset((page - 1) * page_size).limit(page_size)
         ).all()
+        all_eoat_ids = list(self.session.scalars(select(db.EOAT.id).where(db.EOAT.is_active.is_(True))))
+        installed_by_machine: dict[str, list[str]] = defaultdict(list)
+        if all_eoat_ids:
+            identifiers = dict(
+                self.session.execute(
+                    select(db.EOAT.id, db.EOAT.business_identifier).where(db.EOAT.id.in_(all_eoat_ids))
+                ).all()
+            )
+            for eoat_id, location in resolve_eoat_locations(self.session, all_eoat_ids).items():
+                if location.state == "INSTALLED" and location.machine_number:
+                    installed_by_machine[location.machine_number].append(identifiers[eoat_id])
         return [
             MachineSummary(
                 plant_code=plant_code,
@@ -244,6 +259,7 @@ class AtlasRepository:
                 status=s,
                 is_active=m.is_active,
                 row_version=m.row_version,
+                current_eoat=(", ".join(sorted(installed_by_machine.get(m.machine_number, []))) or "NONE_OBSERVED"),
             )
             for m, plant_code, a, c, s in rows
         ], PaginationMetadata(

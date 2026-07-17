@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -46,6 +46,29 @@ class RelationshipSummary(BaseModel):
     reason: str | None = None
 
 
+class CurrentEOATLocation(BaseModel):
+    state: Literal["INSTALLED", "STORED", "UNKNOWN", "INACTIVE", "CONFLICTING"]
+    source: Literal["OBSERVATION", "LIFECYCLE_EVENT", "RESOLVER", "NONE"]
+    machine_number: str | None = None
+    storage_location: str | None = None
+    observed_at: datetime | None = None
+    observed_on: date | None = None
+    observation_precision: Literal["TIMESTAMP", "DATE"] | None = None
+    confidence: str
+    resolution_status: Literal["CURRENT", "SUPERSEDED", "REVIEW_REQUIRED"]
+    evidence: str
+    observation_uuid: str | None = None
+    conflict_group_uuid: str | None = None
+
+    @property
+    def display(self) -> str:
+        if self.state == "INSTALLED" and self.machine_number:
+            return f"INSTALLED — Machine {self.machine_number}"
+        if self.state == "STORED":
+            return f"STORED — {self.storage_location or 'cabinet/location unspecified'}"
+        return self.state
+
+
 class EOATSummary(BaseModel):
     business_identifier: str
     legacy_identifier: str | None = None
@@ -58,6 +81,7 @@ class EOATSummary(BaseModel):
     is_active: bool
     row_version: int
     current_location: str = "UNKNOWN_NOT_VERIFIED"
+    current_location_detail: CurrentEOATLocation | None = None
 
 
 class EOATProfile(EOATSummary):

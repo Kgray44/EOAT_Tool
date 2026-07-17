@@ -125,6 +125,11 @@ class EOATRecord:
     part_description: str = ""
     eoat_type: str = ""
     status: str = ""
+    current_location: str = ""
+    current_location_status: str = ""
+    current_location_source: str = ""
+    current_location_confidence: str = ""
+    current_location_resolution_reason: str = ""
     robot_types: tuple[str, ...] = ()
     robot_models: tuple[str, ...] = ()
     connection_type: str = ""

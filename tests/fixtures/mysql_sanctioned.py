@@ -97,8 +97,8 @@ def load_sanctioned_fixture(session: Session) -> dict[str, int]:
         build_id="eoat-atlas-0.15.0-synthetic-fixture",
         commit_sha="0" * 40,
         release_channel="test",
-        database_schema_revision="20260715_0006",
-        api_contract_version="1.3.0",
+        database_schema_revision="20260717_0007",
+        api_contract_version="1.4.0",
         launcher_version="0.1.0",
         installer_version="0.1.0",
     )

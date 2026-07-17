@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -618,6 +618,97 @@ class EOATStorageAssignment(Base):
     active_eoat_marker: Mapped[int | None] = mapped_column(
         PK, Computed("CASE WHEN removed_from_storage_at IS NULL THEN eoat_id ELSE NULL END")
     )
+
+
+class EOATLocationObservation(Base):
+    """An asserted current-state observation, distinct from lifecycle history."""
+
+    __tablename__ = "eoat_location_observations"
+    __table_args__ = (
+        CheckConstraint("state IN ('INSTALLED','STORED','UNKNOWN','INACTIVE','CONFLICTING')", name="ck_eoat_location_observations_state"),
+        CheckConstraint(
+            "(observation_precision = 'TIMESTAMP' AND observed_at IS NOT NULL) OR "
+            "(observation_precision = 'DATE' AND observed_at IS NULL AND observed_on IS NOT NULL)",
+            name="ck_eoat_location_observations_observation_time",
+        ),
+        CheckConstraint(
+            "(state = 'INSTALLED' AND machine_id IS NOT NULL AND storage_location_id IS NULL) OR "
+            "(state = 'STORED' AND machine_id IS NULL) OR "
+            "(state IN ('UNKNOWN','INACTIVE','CONFLICTING') AND machine_id IS NULL AND storage_location_id IS NULL)",
+            name="ck_eoat_location_observations_physical_target",
+        ),
+        CheckConstraint("resolution_status IN ('CURRENT','SUPERSEDED','REVIEW_REQUIRED')", name="ck_eoat_location_observations_resolution"),
+        CheckConstraint("row_version > 0", name="ck_eoat_location_observations_row_version"),
+        Index("ix_eoat_location_observations_current", "eoat_id", "is_authoritative", "resolution_status"),
+        Index("ix_eoat_location_observations_time", "eoat_id", "observed_on", "observed_at"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    observation_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    eoat_id: Mapped[int] = mapped_column(PK, ForeignKey("eoats.id", ondelete="RESTRICT"), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    machine_id: Mapped[int | None] = mapped_column(PK, ForeignKey("machines.id", ondelete="RESTRICT"))
+    storage_location_id: Mapped[int | None] = mapped_column(PK, ForeignKey("storage_locations.id", ondelete="RESTRICT"))
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_on: Mapped[date | None] = mapped_column(Date)
+    observation_precision: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_audit_record_id: Mapped[int | None] = mapped_column(PK, ForeignKey("audit_records.id", ondelete="SET NULL"))
+    source_import_row_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_rows.id", ondelete="SET NULL"))
+    source_import_batch_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_batches.id", ondelete="SET NULL"))
+    source_workbook: Mapped[str | None] = mapped_column(String(512))
+    source_worksheet: Mapped[str | None] = mapped_column(String(255))
+    source_row_number: Mapped[int | None] = mapped_column(Integer)
+    original_source_wording: Mapped[str] = mapped_column(MEDIUMTEXT, nullable=False)
+    confidence: Mapped[str] = mapped_column(String(64), nullable=False)
+    resolution_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    conflict_group_uuid: Mapped[str | None] = mapped_column(String(36))
+    is_authoritative: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
+    superseded_by_observation_id: Mapped[int | None] = mapped_column(PK, ForeignKey("eoat_location_observations.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    row_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
+
+
+class EOATLocationAssertion(Base):
+    """A raw, immutable assertion supporting an observation or conflict set."""
+
+    __tablename__ = "eoat_location_assertions"
+    __table_args__ = (
+        CheckConstraint("state IN ('INSTALLED','STORED','UNKNOWN','INACTIVE','CONFLICTING')", name="ck_eoat_location_assertions_state"),
+        CheckConstraint(
+            "(observation_precision = 'TIMESTAMP' AND observed_at IS NOT NULL) OR "
+            "(observation_precision = 'DATE' AND observed_at IS NULL AND observed_on IS NOT NULL)",
+            name="ck_eoat_location_assertions_observation_time",
+        ),
+        CheckConstraint(
+            "(state = 'INSTALLED' AND machine_id IS NOT NULL AND storage_location_id IS NULL) OR "
+            "(state = 'STORED' AND machine_id IS NULL) OR "
+            "(state IN ('UNKNOWN','INACTIVE','CONFLICTING') AND machine_id IS NULL AND storage_location_id IS NULL)",
+            name="ck_eoat_location_assertions_physical_target",
+        ),
+        Index("ix_eoat_location_assertions_observation", "observation_id", "source_row_number"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    assertion_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    observation_id: Mapped[int] = mapped_column(PK, ForeignKey("eoat_location_observations.id", ondelete="CASCADE"), nullable=False)
+    eoat_id: Mapped[int] = mapped_column(PK, ForeignKey("eoats.id", ondelete="RESTRICT"), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    machine_id: Mapped[int | None] = mapped_column(PK, ForeignKey("machines.id", ondelete="RESTRICT"))
+    storage_location_id: Mapped[int | None] = mapped_column(PK, ForeignKey("storage_locations.id", ondelete="RESTRICT"))
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_on: Mapped[date | None] = mapped_column(Date)
+    observation_precision: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_audit_record_id: Mapped[int | None] = mapped_column(PK, ForeignKey("audit_records.id", ondelete="SET NULL"))
+    source_import_row_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_rows.id", ondelete="SET NULL"))
+    source_import_batch_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_batches.id", ondelete="SET NULL"))
+    source_workbook: Mapped[str | None] = mapped_column(String(512))
+    source_worksheet: Mapped[str | None] = mapped_column(String(255))
+    source_row_number: Mapped[int | None] = mapped_column(Integer)
+    original_source_wording: Mapped[str] = mapped_column(MEDIUMTEXT, nullable=False)
+    confidence: Mapped[str] = mapped_column(String(64), nullable=False)
+    participates_in_conflict: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
 
 
 class Document(VersionMixin, Base):

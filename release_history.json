@@ -78,6 +78,13 @@
       "state": "finalized",
       "task_id": "state-aware-eoat-location-parity-20260717",
       "finalized_at_utc": "2026-07-17T18:38:23Z"
+    },
+    {
+      "application_version": "0.17.0",
+      "release_id": "eoat-atlas-0.17.0",
+      "state": "finalized",
+      "task_id": "observed-eoat-location-model-20260717",
+      "finalized_at_utc": "2026-07-17T19:29:06Z"
     }
   ]
 }

@@ -16,6 +16,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from core.versioning.compatibility import EXPECTED_API_VERSION
+
 from .contracts import FitCheckRequest
 from .database import models as db
 from .errors import APIError, conflict, not_found
@@ -221,7 +223,7 @@ def audit_change(
             reason=reason,
             source="eoat_api",
             success=True,
-            api_version="1.3.0",
+            api_version=EXPECTED_API_VERSION,
             client_version=actor.client_version,
         )
     )

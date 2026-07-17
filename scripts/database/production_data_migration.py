@@ -17,8 +17,8 @@ from typing import Any
 
 import pymysql
 
-REQUIRED_REVISION = "20260715_0006"
-TOOL_VERSION = "1.0.0"
+REQUIRED_REVISION = "20260717_0007"
+TOOL_VERSION = "1.1.0"
 SEED_TABLE_KEYS = {
     "asset_statuses": "code",
     "compatibility_sources": "code",
@@ -84,6 +84,10 @@ TABLE_POLICIES: dict[str, TablePolicy] = {
     "tool_machine_compatibility": _p("B", copy=True, reset=True, reason="Operational tool/machine compatibility knowledge."),
     "eoat_installations": _p("C", copy=True, reset=True, reason="Operational installation history."),
     "eoat_storage_assignments": _p("C", copy=True, reset=True, reason="Operational storage-location history."),
+    "eoat_location_observations": _p("C", copy=True, reset=True,
+        reason="Authoritative observed current-state evidence; not fabricated lifecycle history."),
+    "eoat_location_assertions": _p("C", copy=True, reset=True,
+        reason="Immutable workbook assertions supporting observations and conflict review."),
     "fit_check_records": _p("C", copy=True, reset=True, reason="Operational fit-check transactions."),
     "audit_records": _p("C", copy=True, reset=True, reason="Operational audit history."),
     "maintenance_events": _p("C", copy=True, reset=True, reason="Operational maintenance history."),

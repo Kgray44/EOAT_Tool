@@ -235,7 +235,8 @@ def test_runtime_launcher_and_build_reader_consume_canonical_without_gui(tmp_pat
                 "source_git_commit": commit,
                 "git_commit": commit,
                 "branch_name": "test",
-                "database_schema_revision": "20260715_0006",
+                "database_schema_revision": "20260717_0007",
+                "api_contract_version": "1.4.0",
             }
         ),
         encoding="utf-8",

@@ -32,12 +32,13 @@ def snapshot_to_bundle(snapshot: dict, project_root: str = "") -> AtlasDataBundl
         relationships = item.get("relationships", [])
         machines = tuple(rel["identifier"] for rel in relationships if rel.get("relationship_type") == "machine")
         tools = tuple(rel["identifier"] for rel in relationships if rel.get("relationship_type") == "tool")
+        location = item.get("current_location_detail") or {}
+        state = str(location.get("state") or "UNKNOWN")
         warning = WarningItem(
-            "info",
-            "Current location not verified",
-            "No authoritative active installation was imported.",
-            source="mysql_api",
-            related_eoat_id=item["business_identifier"],
+            "warning" if state == "CONFLICTING" else "info",
+            "Current location requires review" if state == "CONFLICTING" else "Current location not verified",
+            str(location.get("evidence") or "No authoritative physical-location evidence is available."),
+            source="mysql_api", related_eoat_id=item["business_identifier"],
         )
         evidence = item.get("audit_evidence", [])
         primary = evidence[0] if evidence else {}
@@ -56,6 +57,11 @@ def snapshot_to_bundle(snapshot: dict, project_root: str = "") -> AtlasDataBundl
                 machines=machines,
                 eoat_type=item.get("eoat_type") or "",
                 status=item.get("status") or "",
+                current_location=item.get("current_location") or state,
+                current_location_status=state.casefold(),
+                current_location_source=str(location.get("source") or "mysql_api"),
+                current_location_confidence=str(location.get("confidence") or ""),
+                current_location_resolution_reason=str(location.get("evidence") or ""),
                 connection_type=connection_summary,
                 vacuum_info="Present"
                 if item.get("vacuum_present") is True
@@ -67,12 +73,15 @@ def snapshot_to_bundle(snapshot: dict, project_root: str = "") -> AtlasDataBundl
                 photos=PhotoSet(
                     eoat_id=item["business_identifier"], photos=linked_photos, indexed_photos=linked_photos
                 ),
-                warnings=(warning,),
+                warnings=(warning,) if state in {"UNKNOWN", "CONFLICTING"} else (),
                 source_rows=tuple(evidence),
             )
         )
-    machines = [
-        MachineRecord(
+    machines = []
+    for item in snapshot.get("machines", []):
+        current = str(item.get("current_eoat") or "")
+        missing = current in {"NONE_OBSERVED", "UNKNOWN_NOT_VERIFIED"}
+        machines.append(MachineRecord(
             machine=item["machine_number"],
             label=item.get("machine_name") or item["machine_number"],
             compatible_eoats=tuple(
@@ -81,14 +90,12 @@ def snapshot_to_bundle(snapshot: dict, project_root: str = "") -> AtlasDataBundl
             compatible_tools=tuple(
                 rel["identifier"] for rel in item.get("relationships", []) if rel.get("relationship_type") == "tool"
             ),
-            current_eoat="",
-            current_eoat_status="unknown",
+            current_eoat="" if missing else current,
+            current_eoat_status="unknown" if missing else "observed_installed",
             current_eoat_source="mysql_api",
-            current_eoat_confidence="unverified",
+            current_eoat_confidence="unverified" if missing else "authoritative_observation",
             source_rows=tuple(item.get("audit_evidence", ())),
-        )
-        for item in snapshot.get("machines", [])
-    ]
+        ))
     tools = [
         ToolRecord(
             tool=item["business_identifier"],

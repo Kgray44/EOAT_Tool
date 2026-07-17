@@ -198,14 +198,27 @@ def classify_eoat_locations(
 
         installations = _active_relationships(database, "installations", eoat)
         storage = _active_relationships(database, "storage_assignments", eoat)
+        observations = [
+            row for row in database.get("relationships", {}).get("location_observations", [])
+            if _text(row.get("eoat_identifier")).casefold() == eoat.casefold()
+            and bool(row.get("is_authoritative", True))
+        ]
         db_machine = ", ".join(sorted({_text(row.get("machine_number")) for row in installations}))
         db_storage = ", ".join(sorted({_text(row.get("location_code")) for row in storage}))
+        observed_states = {_text(row.get("state")).upper() for row in observations}
+        observed_machines = {_text(row.get("machine_number")) for row in observations if _text(row.get("machine_number"))}
         if state == STATE_INSTALLED:
-            parity_pass = len(installations) == 1 and db_machine == machine_number and not storage
+            parity_pass = (
+                (len(installations) == 1 and db_machine == machine_number and not storage)
+                or ("INSTALLED" in observed_states and machine_number in observed_machines and not storage)
+            )
         elif state == STATE_STORED:
-            parity_pass = len(storage) == 1 and not installations
+            parity_pass = (len(storage) == 1 and not installations) or ("STORED" in observed_states and not installations)
         elif state in {STATE_UNKNOWN, STATE_INACTIVE}:
-            parity_pass = not installations and not storage
+            required = "INACTIVE" if state == STATE_INACTIVE else "UNKNOWN"
+            parity_pass = not installations and not storage and (required in observed_states or not observations)
+        elif state == STATE_CONFLICT:
+            parity_pass = "CONFLICTING" in observed_states and not installations and not storage
         else:
             parity_pass = False
 
@@ -224,6 +237,7 @@ def classify_eoat_locations(
             "current_database_state": (
                 f"active installations={len(installations)}{f' ({db_machine})' if db_machine else ''}; "
                 f"active storage assignments={len(storage)}{f' ({db_storage})' if db_storage else ''}; "
+                f"authoritative observations={len(observations)} ({', '.join(sorted(observed_states)) or 'none'}); "
                 f"audit evidence rows={len(audited)}"
             ),
             "determined_physical_state": state,
@@ -288,6 +302,13 @@ def classify_eoat_locations(
             "failed": len(verified_records) - overall_pass,
             "conflicting_excluded_pending_review": len(records) - len(verified_records),
             "percent": round(100 * overall_pass / len(verified_records), 4) if verified_records else 100.0,
+        },
+        "conflict_representation_parity": {
+            "expected": sum(row["determined_physical_state"] == STATE_CONFLICT for row in records),
+            "passed": sum(
+                row["determined_physical_state"] == STATE_CONFLICT and row["normalized_location_parity"] == "PASS"
+                for row in records
+            ),
         },
     }
     return {"records": records, "metrics": metrics}
