@@ -17,6 +17,10 @@ from typing import Any
 
 import pymysql
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
 from core.versioning import get_version_info
 
 REQUIRED_REVISION = "20260717_0007"
