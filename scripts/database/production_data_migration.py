@@ -469,6 +469,47 @@ def file_reference_report(connection) -> dict[str, Any]:
     }
 
 
+def location_observation_report(connection) -> dict[str, Any]:
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT o.observation_uuid,e.business_identifier AS eoat_identifier,o.state,m.machine_number,
+                   l.location_code AS storage_location,o.observed_at,o.observed_on,o.observation_precision,
+                   o.source_workbook,o.source_worksheet,o.source_row_number,o.original_source_wording,
+                   o.confidence,o.resolution_status,o.conflict_group_uuid,o.is_authoritative
+            FROM eoat_location_observations o JOIN eoats e ON e.id=o.eoat_id
+            LEFT JOIN machines m ON m.id=o.machine_id
+            LEFT JOIN storage_locations l ON l.id=o.storage_location_id
+            ORDER BY e.business_identifier,o.observed_on,o.observed_at,o.id
+        """)
+        observations = cursor.fetchall()
+        cursor.execute("""
+            SELECT a.assertion_uuid,o.observation_uuid,e.business_identifier AS eoat_identifier,a.state,
+                   m.machine_number,l.location_code AS storage_location,a.observed_at,a.observed_on,
+                   a.observation_precision,a.source_workbook,a.source_worksheet,a.source_row_number,
+                   a.original_source_wording,a.confidence,a.participates_in_conflict
+            FROM eoat_location_assertions a
+            JOIN eoat_location_observations o ON o.id=a.observation_id
+            JOIN eoats e ON e.id=a.eoat_id
+            LEFT JOIN machines m ON m.id=a.machine_id
+            LEFT JOIN storage_locations l ON l.id=a.storage_location_id
+            ORDER BY e.business_identifier,a.observed_on,a.source_row_number,a.id
+        """)
+        assertions = cursor.fetchall()
+    state_counts = {
+        state: sum(row["state"] == state for row in observations)
+        for state in ("INSTALLED", "STORED", "UNKNOWN", "INACTIVE", "CONFLICTING")
+    }
+    return {
+        "semantics": "observed current state; not lifecycle history or compatibility",
+        "state_counts": state_counts,
+        "observation_count": len(observations),
+        "assertion_count": len(assertions),
+        "observations": observations,
+        "assertions": assertions,
+        "conflicts": [row for row in observations if row["state"] == "CONFLICTING"],
+    }
+
+
 def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False, default=str, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -640,12 +681,18 @@ def build(args: argparse.Namespace) -> int:
             "authentication_sessions_included": False,
         }
         file_report = file_reference_report(source)
+        location_report = location_observation_report(source)
         write_json(output / "source-row-counts.json", source_counts)
         write_json(output / "expected-production-row-counts.json", expected_counts)
         write_json(output / "table-classification.json", classification)
         write_json(output / "seed-parity-report.json", parity)
         write_json(output / "excluded-data-report.json", excluded_report)
         write_json(output / "file-reference-report.json", file_report)
+        write_json(output / "eoat-location-observation-report.json", location_report)
+        write_json(output / "eoat-location-conflict-report.json", {
+            "conflicts": location_report["conflicts"],
+            "competing_assertions": [row for row in location_report["assertions"] if row["participates_in_conflict"]],
+        })
         manifest = {
             "manifest_version": 1,
             "migration_id": migration_id,
