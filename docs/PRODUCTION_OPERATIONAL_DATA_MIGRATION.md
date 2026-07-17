@@ -48,7 +48,7 @@ Run `tools/verify_master_tracker_mysql_parity.py` against the imported disposabl
 
 Packages built for `20260715_0006` are obsolete and must be rejected. Use only a new migration identity whose manifest requires `20260717_0007`; never amend or reuse an older package.
 
-An observed current installation is not installation history. The schema at revision `20260715_0006` requires a non-null `eoat_installations.installed_at`, and storage requires both a specific `storage_location_id` and non-null `stored_at`. Do not use an audit date as the original movement timestamp. When the workbook proves the observed state but not the original movement time, preserve the audit evidence and block normalized location creation until sanctioned observation-time semantics exist. Likewise, “EOAT in cabinet” may prove stored state without identifying a cabinet; do not invent a cabinet code.
+An observed current installation is not installation history. Revision `20260717_0007` represents this evidence in `eoat_location_observations` and retains row-level support in `eoat_location_assertions`. Date-only audits use `observed_on` with no fabricated `observed_at`. Real lifecycle tables still require genuine event times, and storage assignments still require a real storage location. “EOAT in cabinet” may prove stored state without identifying a cabinet; keep the observation target null rather than inventing a cabinet code.
 
 A failing strict parity verdict is a go/no-go blocker even when the data artifact perfectly reproduces the authoritative MySQL source. Preserve the detailed evidence instead of converting unresolved source issues into “expected” differences.
 
