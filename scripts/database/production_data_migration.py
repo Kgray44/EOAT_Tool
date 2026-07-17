@@ -748,6 +748,7 @@ Disposable import, integrity, parity, and API read-smoke results are written by 
 def write_instructions(output: Path, manifest: dict[str, Any]) -> None:
     migration_id = manifest["migration_id"]
     digest = manifest["artifact_sha256"]
+    release_evidence_dir = str(manifest.get("source_git", {}).get("commit") or "uncommitted")[:7]
     import_text = f"""# EOAT Atlas controlled operational-data import
 
 These commands are documentation only. Run them interactively on EOAT-ATLAS as an authorized operator. The database login paths must be created beforehand with `mysql_config_editor`; never place passwords on a command line.
@@ -775,8 +776,9 @@ PYTHONPATH=/opt/eoat-atlas/current EOAT_DB_NAME="$VALIDATION_DB" /opt/eoat-atlas
 mysqlcheck --login-path=eoat-atlas-prod-admin --check --extended "$VALIDATION_DB"
 mysql --login-path=eoat-atlas-prod-admin -e "DROP DATABASE \\`$VALIDATION_DB\\`"
 
-# Current package parity is blocking until the missing installation relationships and unresolved issues
-# are corrected or accepted by the named data owner. Preserve the approval as permanent evidence.
+# Current-location and compatibility relationship parity pass. Strict overall parity remains blocking
+# until the documented workbook-metadata fields and unresolved legacy import issues are corrected or
+# accepted by the named data owner. Preserve the approval as permanent evidence.
 test -s "$PACKAGE/PARITY_GO_NO_GO_APPROVAL.txt"
 grep -Fx "APPROVED {migration_id} FOR PRODUCTION IMPORT" "$PACKAGE/PARITY_GO_NO_GO_APPROVAL.txt"
 
@@ -792,7 +794,7 @@ mysqlcheck --login-path=eoat-atlas-prod-admin --check --extended eoat_atlas_prod
 POST=/opt/eoat-atlas/shared/backups/eoat_atlas_prod-post-operational-import-$STAMP.sql
 mysqldump --login-path=eoat-atlas-prod-admin --single-transaction --no-tablespaces --routines --triggers --events --hex-blob --set-gtid-purged=OFF eoat_atlas_prod > "$POST"
 sha256sum "$POST" | tee "$POST.sha256"
-install -m 0640 disposable-validation-report.json /opt/eoat-atlas/shared/releases/5b816f3/production-data-import-$STAMP.json
+install -m 0640 disposable-validation-report.json /opt/eoat-atlas/shared/releases/{release_evidence_dir}/production-data-import-$STAMP.json
 ```
 
 Do not start the API and do not change systemd, Nginx, or runtime configuration in this procedure. The persistent marker `{manifest['import_marker']}` and exact baseline-count guard refuse duplicate or non-baseline imports. An `IN_PROGRESS` marker indicates an interrupted attempt and requires evidence preservation plus rollback, not a blind retry.
