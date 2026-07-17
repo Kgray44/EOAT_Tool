@@ -44,7 +44,11 @@ py -3.14 scripts/database/build_production_data_migration.py api-smoke `
 
 `validate-database` checks the revision, every expected count, all declared foreign keys, every unique index, AUTO_INCREMENT positions, transient database-name leakage, the completed marker, and runtime grants. Run `mysqlcheck --check --extended` separately with the migration account. The API smoke command uses FastAPI in-process and covers EOAT, machine, tool, compatibility, Fit Check, history, documents, photos, and home summary reads; it does not bind a network port.
 
-Run `tools/verify_master_tracker_mysql_parity.py` against the imported disposable database. A failing strict parity verdict is a go/no-go blocker even when the data artifact perfectly reproduces the authoritative MySQL source. Preserve the detailed evidence instead of converting unresolved source issues into “expected” differences.
+Run `tools/verify_master_tracker_mysql_parity.py` against the imported disposable database. The verifier is state-aware: compatibility rows never imply current installation; explicit cabinet/not-installed audit notes override a generic machine/context field; and conflicting simultaneous machine observations remain unresolved. It writes `eoat_location_state.csv` and `state_aware_location_parity.json` in addition to the general parity evidence.
+
+An observed current installation is not installation history. The schema at revision `20260715_0006` requires a non-null `eoat_installations.installed_at`, and storage requires both a specific `storage_location_id` and non-null `stored_at`. Do not use an audit date as the original movement timestamp. When the workbook proves the observed state but not the original movement time, preserve the audit evidence and block normalized location creation until sanctioned observation-time semantics exist. Likewise, “EOAT in cabinet” may prove stored state without identifying a cabinet; do not invent a cabinet code.
+
+A failing strict parity verdict is a go/no-go blocker even when the data artifact perfectly reproduces the authoritative MySQL source. Preserve the detailed evidence instead of converting unresolved source issues into “expected” differences.
 
 ## Production and rollback
 

@@ -73,6 +73,15 @@
       "state": "finalized",
       "task_id": "production-operational-data-migration-20260717",
       "finalized_at_utc": "2026-07-17T17:58:38Z"
+    },
+    {
+      "application_version": "0.15.2",
+      "release_id": "eoat-atlas-0.15.2",
+      "build_id": "eoat-atlas-0.15.2-ba8348e-20260717T183823Z",
+      "commit_sha": "ba8348e0262315f2c4b8151113dacfe78014b104",
+      "state": "finalized",
+      "task_id": "state-aware-eoat-location-parity-20260717",
+      "finalized_at_utc": "2026-07-17T18:38:23Z"
     }
   ]
 }

@@ -19,7 +19,12 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, range_boundaries
 from sqlalchemy import URL, create_engine, text
 
-TOOL_VERSION = "1.0.0"
+try:
+    from tools.eoat_location_state import STATE_INSTALLED, STATE_STORED, classify_eoat_locations
+except ModuleNotFoundError:  # Direct script execution places tools/ on sys.path.
+    from eoat_location_state import STATE_INSTALLED, STATE_STORED, classify_eoat_locations
+
+TOOL_VERSION = "1.1.0"
 ACTIVE_DATA_SHEETS = {"EOAT Inventory", "Photo Index"}
 DERIVED_SHEETS = {"Audit by Press"}
 METADATA_SHEETS = {"_EOAT_App_Metadata"}
@@ -549,6 +554,12 @@ def database_snapshot(config: DatabaseConfig, workbook_hash: str, *, read_only: 
                        (i.removed_at IS NULL) AS is_current,i.installed_at,i.removed_at
                 FROM eoat_installations i JOIN eoats e ON e.id=i.eoat_id JOIN machines m ON m.id=i.machine_id
             """),
+            "storage_assignments": rows_as_dicts(connection, """
+                SELECT a.id,e.business_identifier AS eoat_identifier,l.location_code,
+                       (a.removed_from_storage_at IS NULL) AS is_current,a.stored_at,a.removed_from_storage_at
+                FROM eoat_storage_assignments a JOIN eoats e ON e.id=a.eoat_id
+                JOIN storage_locations l ON l.id=a.storage_location_id
+            """),
         }
         photos = rows_as_dicts(connection, """
             SELECT ir.source_row_number,ir.source_identifier,ir.status AS import_status,
@@ -744,6 +755,7 @@ def reconcile(
     source_rows: dict[str, dict[int, dict[str, Any]]],
     mappings: list[dict[str, Any]],
     database: dict[str, Any],
+    location_audit: dict[str, Any],
     *,
     include_file_existence_check: bool,
 ) -> dict[str, Any]:
@@ -939,10 +951,28 @@ def reconcile(
         if tool and tool.casefold() not in MISSING_TOKENS and machine.isdigit():
             add_relationship("EOAT Inventory", row_number, audit, "tool_to_machine_compatibility", machine,
                              relation_sets["tool_machine"].get((normalized_value(tool), normalized_value(machine))), tool, machine)
-        if clean_text(source.get("Entry Type")).casefold() == "audited" and eoat and machine.isdigit():
-            add_relationship("EOAT Inventory", row_number, audit, "current_eoat_installation", machine,
-                             relation_sets["installations"].get((normalized_value(eoat), normalized_value(machine))), eoat, machine,
-                             "Audited entry indicates a current physical assignment; no current installation row was found.")
+
+    storage_by_eoat = {
+        normalized_value(item.get("eoat_identifier")): item
+        for item in database["relationships"].get("storage_assignments", []) if item.get("is_current")
+    }
+    for state in location_audit["records"]:
+        eoat = clean_text(state["eoat_identifier"])
+        row_number = int(clean_text(state.get("rows")).split(",", 1)[0]) if clean_text(state.get("rows")) else 0
+        physical_state = state["determined_physical_state"]
+        if physical_state == STATE_INSTALLED:
+            machine = clean_text(state["machine_number"])
+            add_relationship(
+                "EOAT Inventory", row_number, eoat, "current_eoat_installation", machine,
+                relation_sets["installations"].get((normalized_value(eoat), normalized_value(machine))), eoat, machine,
+                "Physically verified audit evidence establishes an observed current installation; schema cannot safely represent unknown original installed_at.",
+            )
+        elif physical_state == STATE_STORED:
+            add_relationship(
+                "EOAT Inventory", row_number, eoat, "current_eoat_storage", clean_text(state["storage_location"]),
+                storage_by_eoat.get(normalized_value(eoat)), eoat, clean_text(state["storage_location"]),
+                "Explicit audit note establishes cabinet storage, but the cabinet identifier and original stored_at are not recorded.",
+            )
 
     project_root = workbook_path.parents[2]
     for row_number, source in source_rows.get("Photo Index", {}).items():
@@ -1212,8 +1242,9 @@ def run(args: argparse.Namespace) -> tuple[int, Path, dict[str, Any]]:
     mappings = mapping_matrix(source_rows, headers)
     config = load_database_config(args.database_environment)
     database = database_snapshot(config, inventory["sha256"], read_only=args.read_only)
+    location_audit = classify_eoat_locations(source_rows.get("EOAT Inventory", {}), database)
     results = reconcile(
-        workbook_path, inventory, source_rows, mappings, database,
+        workbook_path, inventory, source_rows, mappings, database, location_audit,
         include_file_existence_check=args.include_file_existence_check,
     )
     summary, verdict = summarize(inventory, mappings, database, results)
@@ -1247,6 +1278,16 @@ def run(args: argparse.Namespace) -> tuple[int, Path, dict[str, Any]]:
         ],
     }
     (output / "normalization_rules.json").write_text(json.dumps(normalization_rules, indent=2) + "\n", encoding="utf-8")
+    location_fields = [
+        "eoat_identifier", "workbook_source", "sheet", "rows", "workbook_location_fields",
+        "current_database_state", "determined_physical_state", "machine_number", "storage_location",
+        "confidence", "evidence", "required_database_correction", "unresolved_ambiguity",
+        "normalized_location_parity",
+    ]
+    _csv_write(output / "eoat_location_state.csv", location_fields, location_audit["records"])
+    (output / "state_aware_location_parity.json").write_text(
+        json.dumps(location_audit["metrics"], indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8"
+    )
     integrity = {
         "foreign_key_checks": database["orphan_checks"],
         "duplicate_database_keys": database["duplicate_database_keys"],
