@@ -7,7 +7,6 @@ from openpyxl import Workbook
 from core.data_gateway.mappings import snapshot_to_bundle
 from scripts.database.import_eoat_location_observations import build_plan, read_rows
 
-
 HEADERS = [
     "Audit ID", "Audit Date", "Entry Type", "EOAT Assembly ID", "Press/Machine #",
     "Audit Context", "Physical Audit Verified", "Notes",

@@ -106,6 +106,10 @@ workbook_staging/
 !EOAT_Atlas_pages/**
 !tests/**
 
+# Desktop UI source assets are versioned; audit and generated media remain excluded.
+!app/atlas/logo/
+!app/atlas/logo/**
+
 # Logs, snapshots, backups, exports
 output/
 Migration_Dry_Run_Logs/

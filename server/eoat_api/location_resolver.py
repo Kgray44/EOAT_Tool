@@ -7,8 +7,8 @@ real event time is provably later than the latest authoritative observation.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import date, datetime
-from typing import Iterable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session

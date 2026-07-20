@@ -26,7 +26,7 @@ from .contracts import (
 )
 from .database import models as db
 from .errors import APIError
-from .location_resolver import resolve_eoat_location, resolve_eoat_locations
+from .location_resolver import resolve_eoat_locations
 
 LOOKUP_MODELS = {
     "eoat_types": db.EOATType,
