@@ -13,6 +13,8 @@ from uuid import uuid4
 
 from openpyxl import load_workbook
 
+from tools.eoat_location_normalization import normalize_machine_reference
+
 MISSING_TOKENS = {"", "n/a", "na", "none", "unknown", "unknown / not checked", "not checked"}
 MACHINE_PATTERN = re.compile(r"^\d+$")
 
@@ -256,14 +258,15 @@ def analyze_workbook(source_workbook: str | Path, *, batch_name: str | None = No
         else:
             eoats[eoat_id] = eoat_candidate
 
+        canonical_machine = normalize_machine_reference(machine)
         if machine and not _missing(machine):
-            if MACHINE_PATTERN.fullmatch(machine):
-                machines.add((plant_code, machine))
-                eoat_machine.add((eoat_id, plant_code, machine))
+            if canonical_machine:
+                machines.add((plant_code, canonical_machine))
+                eoat_machine.add((eoat_id, plant_code, canonical_machine))
                 if tool_number and not _missing(tool_number):
-                    tool_machine.add((tool_number, plant_code, machine))
+                    tool_machine.add((tool_number, plant_code, canonical_machine))
                 if entry_type.casefold() == "audited":
-                    audited_locations[eoat_id].add(f"{plant_code}:{machine}")
+                    audited_locations[eoat_id].add(f"{plant_code}:{canonical_machine}")
             else:
                 report.add_issue(
                     _issue(

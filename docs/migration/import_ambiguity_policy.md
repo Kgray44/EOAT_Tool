@@ -4,10 +4,11 @@ Review records use stable UUIDs and the statuses `UNRESOLVED`, `DEFERRED`, `RESO
 
 - Tool Number is never treated as Part Number. The 67 distinct candidates remain deferred.
 - Audit dates are not treated as installation/removal dates. All 57 EOAT installation histories remain deferred.
-- Multiple audited machines do not establish current location. Current location is returned as Unknown / Not Verified.
+- Multiple audited machines do not establish a lifecycle history. The owner-approved location policy records either proven separate physical units or a cabinet-unspecified `STORED` observed state.
 - Missing/ambiguous machines and tools omit only the unsafe relationship; the traceable EOAT/audit is retained.
-- `26 - Xqual in 25` is preserved verbatim and does not create a machine.
-- The two conflicting `CL-EOAT-0052` cleanroom rows remain review items and the normalized field remains null.
+- `26 - Xqual in 25` is preserved verbatim in raw evidence and normalizes to Machine 26.
+- Proven same-day Cleanroom physical duplicates are split into separately identified EOAT masters using the deterministic mapping in `config/eoat_location_normalization.json`.
+- `N/A` in the audited machine field means cabinet-unspecified `STORED`; it never creates a cabinet identifier.
 - The placeholder Photo Index row is retained as a deferred import row without document/photo creation.
 - Unknown does not mean incompatible; absent compatibility evidence remains Unknown.
 

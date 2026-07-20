@@ -10,6 +10,7 @@ from tools.verify_master_tracker_mysql_parity import (
     _indexed,
     comparison,
     duplicate_source_keys,
+    executive_summary_text,
     find_change_history,
     issue_original_preserved,
     mapping_matrix,
@@ -126,7 +127,7 @@ def test_current_value_changed_without_history_fails_evidence_check():
     assert find_change_history({"audit_log": [], "history": []}, "eoat", 9, "notes", "old") == ""
 
 
-def test_unmapped_populated_metadata_column_is_failure(tmp_path):
+def test_populated_workbook_metadata_is_intentionally_excluded_from_operational_parity(tmp_path):
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "_EOAT_App_Metadata"
@@ -136,7 +137,46 @@ def test_unmapped_populated_metadata_column_is_failure(tmp_path):
     workbook.save(path)
     _, rows, headers = workbook_inventory(path)
     matrix = mapping_matrix(rows, headers)
-    assert {item["status"] for item in matrix} == {"unmapped_failure"}
+    assert {item["status"] for item in matrix} == {"intentionally_excluded"}
+
+
+def test_normalized_original_eoat_identifier_is_mapped_to_raw_provenance():
+    rows = {
+        "EOAT Inventory": {
+            82: {
+                "Audit ID": "AUD-1",
+                "EOAT Assembly ID": "CL-EOAT-0057",
+                "Original EOAT Assembly ID": "CL-EOAT-0050",
+            }
+        }
+    }
+    headers = {"EOAT Inventory": list(rows["EOAT Inventory"][82])}
+    matrix = mapping_matrix(rows, headers)
+    original = next(item for item in matrix if item["source_header"] == "Original EOAT Assembly ID")
+    assert original["status"] == "preserved_in_provenance"
+    assert original["destination_mysql_column"] == "raw_values_json.EOAT Assembly ID"
+
+
+def test_passing_executive_summary_does_not_claim_parity_is_unproven():
+    blockers = {
+        "missing_entities": 0, "missing_relationships": 0, "field_mismatches": 0, "unmapped_fields": 0,
+        "ambiguous_matches": 0, "duplicate_source_keys": 0, "duplicate_database_keys": 0, "truncations": 0,
+        "unaccounted_import_issues": 0, "unresolved_import_issues": 0, "orphaned_foreign_keys": 0,
+    }
+    summary = {
+        "verdict": "PASS", "blockers": blockers, "source_rows_reconciled": 1, "source_rows_total": 1,
+        "source_row_coverage_percent": 100.0, "meaningful_fields_reconciled": 1,
+        "meaningful_fields_total": 1, "source_field_coverage_percent": 100.0,
+        "relationships_reconciled": 1, "relationships_total": 1, "relationship_coverage_percent": 100.0,
+        "database_only_records": 0, "external_file_missing": 0,
+    }
+    report = executive_summary_text(
+        summary,
+        {"path": "tracker.xlsx", "sheet_count": 1, "sha256": "a" * 64},
+        {"issues": [], "batch": {}, "info": {"host": "localhost", "port": 3306, "schema": "test", "server_version": "8", "alembic_revision": "head"}},
+    )
+    assert "has been proven" in report
+    assert "has not been proven" not in report
 
 
 def test_hidden_populated_sheet_is_inventoried(tmp_path):

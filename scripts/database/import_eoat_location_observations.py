@@ -1,5 +1,7 @@
 """Import workbook evidence as observations, never as fabricated movements."""
 
+# ruff: noqa: E402, I001
+
 from __future__ import annotations
 
 import argparse
@@ -16,9 +18,15 @@ REPO = Path(__file__).resolve().parents[2]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-from scripts.database.production_data_migration import REQUIRED_REVISION, connect, database_identity, read_env
-from tools.eoat_location_state import (
+from scripts.database.production_data_migration import REQUIRED_REVISION, connect, database_identity, read_env  # noqa: E402
+from tools.eoat_location_state import (  # noqa: E402
     STATE_CONFLICT, STATE_INACTIVE, STATE_INSTALLED, STATE_STORED, classify_eoat_locations,
+)
+from tools.eoat_location_normalization import (  # noqa: E402
+    is_stored_machine_reference,
+    load_policy,
+    normalize_machine_reference,
+    normalized_source_rows,
 )
 
 TOOL_VERSION = "1.0.0"
@@ -57,6 +65,8 @@ def read_rows(path: Path) -> dict[int, dict]:
 
 
 def _assertion_state(row: dict) -> str:
+    if is_stored_machine_reference(row.get("Press/Machine #")):
+        return "STORED"
     notes = _text(row.get("Notes")).casefold()
     if "cabinet" in notes:
         return "STORED"
@@ -64,7 +74,7 @@ def _assertion_state(row: dict) -> str:
         return "UNKNOWN"
     if (_text(row.get("Physical Audit Verified")).casefold() == "yes"
             and _text(row.get("Audit Context")).casefold() == "installed on machine"
-            and _text(row.get("Press/Machine #")).isdigit()):
+            and normalize_machine_reference(row.get("Press/Machine #"))):
         return "INSTALLED"
     return "UNKNOWN"
 
@@ -81,8 +91,17 @@ def _wording(row: dict) -> str:
     return "; ".join(f"{field}={_text(row.get(field)) or 'blank'}" for field in fields)
 
 
-def build_plan(rows: dict[int, dict], database: dict, workbook: Path) -> dict:
-    digest = hashlib.sha256(workbook.read_bytes()).hexdigest()
+def build_plan(
+    rows: dict[int, dict], database: dict, workbook: Path | None = None, *,
+    workbook_sha256: str | None = None, source_workbook: str | None = None,
+) -> dict:
+    if workbook_sha256:
+        digest = workbook_sha256
+    elif workbook is not None:
+        digest = hashlib.sha256(workbook.read_bytes()).hexdigest()
+    else:
+        raise ValueError("A workbook path or workbook_sha256 is required")
+    workbook_name = source_workbook or (workbook.name if workbook is not None else "EOAT_Master_Tracker.xlsx")
     classified = classify_eoat_locations(rows, database)
     by_eoat: dict[str, list[tuple[int, dict]]] = {}
     for number, row in rows.items():
@@ -105,7 +124,7 @@ def build_plan(rows: dict[int, dict], database: dict, workbook: Path) -> dict:
             "observation_uuid": observation_uuid, "eoat_identifier": eoat, "state": state,
             "machine_number": record["machine_number"] or None, "storage_location": None,
             "observed_on": observed_on.isoformat(), "source_row_number": source_row,
-            "source_workbook": workbook.name, "source_worksheet": WORKSHEET,
+            "source_workbook": workbook_name, "source_worksheet": WORKSHEET,
             "original_source_wording": record["workbook_location_fields"], "confidence": record["confidence"],
             "resolution_status": "REVIEW_REQUIRED" if state == "CONFLICTING" else "CURRENT",
             "conflict_group_uuid": conflict_uuid,
@@ -115,14 +134,14 @@ def build_plan(rows: dict[int, dict], database: dict, workbook: Path) -> dict:
             assertions.append({
                 "assertion_uuid": str(uuid5(NAMESPACE_URL, f"eoat-atlas:{digest}:{eoat}:{WORKSHEET}:{number}")),
                 "observation_uuid": observation_uuid, "eoat_identifier": eoat, "state": assertion_state,
-                "machine_number": _text(row.get("Press/Machine #")) if assertion_state == "INSTALLED" else None,
+                "machine_number": normalize_machine_reference(row.get("Press/Machine #")) if assertion_state == "INSTALLED" else None,
                 "observed_on": _date(row.get("Audit Date")).isoformat(), "source_row_number": number,
-                "source_workbook": workbook.name, "source_worksheet": WORKSHEET,
+                "source_workbook": workbook_name, "source_worksheet": WORKSHEET,
                 "original_source_wording": _wording(row), "confidence": "SOURCE_ASSERTION",
                 "participates_in_conflict": state == "CONFLICTING",
             })
     return {
-        "tool_version": TOOL_VERSION, "workbook": workbook.name, "workbook_sha256": digest,
+        "tool_version": TOOL_VERSION, "workbook": workbook_name, "workbook_sha256": digest,
         "required_schema_revision": REQUIRED_REVISION, "observations": observations, "assertions": assertions,
         "state_counts": {state: sum(row["state"] == state for row in observations) for state in ("INSTALLED", "STORED", "UNKNOWN", "INACTIVE", "CONFLICTING")},
     }
@@ -139,7 +158,7 @@ def load_database(connection) -> dict:
     return {"eoats": eoats, "relationships": {"installations": installations, "storage_assignments": storage}}
 
 
-def apply_plan(connection, plan: dict) -> None:
+def apply_plan(connection, plan: dict, *, commit: bool = True) -> None:
     with connection.cursor() as cursor:
         cursor.execute("SELECT id,business_identifier FROM eoats")
         eoats = {row["business_identifier"]: row["id"] for row in cursor.fetchall()}
@@ -173,7 +192,8 @@ def apply_plan(connection, plan: dict) -> None:
         cursor.execute("SELECT COUNT(*) count FROM eoat_location_assertions")
         if cursor.fetchone()["count"] != len(plan["assertions"]):
             raise RuntimeError("Assertion count mismatch; refusing partial or mixed import")
-    connection.commit()
+    if commit:
+        connection.commit()
 
 
 def main() -> int:
@@ -191,8 +211,8 @@ def main() -> int:
             raise RuntimeError(f"Schema mismatch: required {REQUIRED_REVISION}; found {identity['alembic_revision']}")
         if str(identity["database_name"]).casefold().endswith("_prod"):
             raise RuntimeError("Production database is forbidden")
-        plan = build_plan(read_rows(args.workbook), load_database(connection), args.workbook)
-        if plan["state_counts"] != {"INSTALLED": 37, "STORED": 11, "UNKNOWN": 3, "INACTIVE": 0, "CONFLICTING": 6}:
+        plan = build_plan(normalized_source_rows(read_rows(args.workbook)), load_database(connection), args.workbook)
+        if plan["state_counts"] != load_policy()["expected_location_state_counts"]:
             raise RuntimeError(f"Unexpected location classification: {plan['state_counts']}")
         if args.apply:
             apply_plan(connection, plan)

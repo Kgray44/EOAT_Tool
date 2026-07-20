@@ -21,8 +21,6 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from core.versioning import get_version_info
-
 REQUIRED_REVISION = "20260717_0007"
 TOOL_VERSION = "1.1.0"
 SEED_TABLE_KEYS = {
@@ -36,6 +34,16 @@ SEED_TABLE_KEYS = {
 SEMANTIC_IGNORES = {"id", "created_at", "updated_at"}
 PRODUCTION_NAMES = {"eoat_atlas_prod", "eoat-atlas-prod", "production"}
 TEST_NAME_MARKERS = ("test", "fixture", "pytest")
+SUPERSEDED_OPERATIONAL_MIGRATION_ID = "eoat-operational-633d0596386fc44b33c2"
+APPROVAL_EVIDENCE_FILENAME = "production-owner-approval-evidence.json"
+DUPLICATE_RESOLUTION_FILENAME = "eoat-location-duplicate-resolution-report.json"
+EMPTY_BASELINE_FILENAME = "required-empty-production-baseline-counts.json"
+SUPERSEDES_FILENAME = "SUPERSEDES.md"
+DANGEROUS_RUNTIME_PRIVILEGES = (
+    "ALTER", "ALL PRIVILEGES", "CREATE", "CREATE USER", "DROP", "EVENT", "FILE", "GRANT OPTION",
+    "INDEX", "LOCK TABLES", "PROCESS", "REFERENCES", "RELOAD", "ROLE_ADMIN", "SHUTDOWN", "SUPER",
+    "SYSTEM_USER", "TRIGGER",
+)
 
 
 @dataclass(frozen=True)
@@ -510,6 +518,69 @@ def location_observation_report(connection) -> dict[str, Any]:
     }
 
 
+def normalization_policy() -> dict[str, Any]:
+    path = REPOSITORY_ROOT / "config" / "eoat_location_normalization.json"
+    policy = json.loads(path.read_text(encoding="utf-8"))
+    if policy.get("supersedes_operational_migration_id") != SUPERSEDED_OPERATIONAL_MIGRATION_ID:
+        raise RuntimeError("Owner-approved location policy does not name the superseded migration")
+    if not policy.get("owner_decisions") or not policy.get("approved_by"):
+        raise RuntimeError("Owner-approved location policy is incomplete")
+    return policy
+
+
+def duplicate_resolution_report(connection, policy: dict[str, Any]) -> dict[str, Any]:
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT e.business_identifier,a.source_row_number,m.machine_number
+            FROM audit_records a JOIN eoats e ON e.id=a.eoat_id
+            LEFT JOIN machines m ON m.id=a.machine_id
+            WHERE a.source_sheet='EOAT Inventory' AND a.source_row_number IN (81,82,83,85,86,88,89,92,93)
+            ORDER BY a.source_row_number
+        """)
+        split_audits = cursor.fetchall()
+        cursor.execute("""
+            SELECT e.business_identifier,a.source_row_number,a.state,a.machine_id,a.storage_location_id
+            FROM eoat_location_assertions a JOIN eoats e ON e.id=a.eoat_id
+            WHERE a.original_source_wording LIKE '%Press/Machine #=N/A%'
+            ORDER BY a.source_row_number
+        """)
+        na_rows = cursor.fetchall()
+        cursor.execute("""
+            SELECT i.source_row_number,JSON_UNQUOTE(JSON_EXTRACT(i.raw_values_json,'$."Press/Machine #"')) original_machine,
+                   JSON_UNQUOTE(JSON_EXTRACT(i.normalized_values_json,'$.machine')) normalized_machine,m.machine_number AS audit_machine
+            FROM import_rows i LEFT JOIN audit_records a ON a.source_sheet=i.source_sheet AND a.source_row_number=i.source_row_number
+            LEFT JOIN machines m ON m.id=a.machine_id
+            WHERE i.source_sheet='EOAT Inventory'
+              AND JSON_UNQUOTE(JSON_EXTRACT(i.raw_values_json,'$."Press/Machine #"'))='26 - Xqual in 25'
+            ORDER BY i.source_row_number
+        """)
+        xqual_rows = cursor.fetchall()
+        cursor.execute("""
+            SELECT e.business_identifier,o.state,o.machine_id,o.storage_location_id,o.original_source_wording
+            FROM eoat_location_observations o JOIN eoats e ON e.id=o.eoat_id
+            WHERE o.state IN ('UNKNOWN','CONFLICTING') ORDER BY e.business_identifier
+        """)
+        unresolved = cursor.fetchall()
+    if any(row["state"] != "STORED" or row["machine_id"] is not None or row["storage_location_id"] is not None for row in na_rows):
+        raise RuntimeError("N/A source rows are not all normalized to cabinet-unspecified STORED assertions")
+    if any(row["normalized_machine"] != "26" or row["audit_machine"] != "26" for row in xqual_rows):
+        raise RuntimeError("Xqual source wording was not normalized to Machine 26")
+    if unresolved:
+        raise RuntimeError("Owner-approved location normalization still has unresolved observations")
+    return {
+        "status": "RESOLVED",
+        "supersedes_operational_migration_id": SUPERSEDED_OPERATIONAL_MIGRATION_ID,
+        "approved_by": policy["approved_by"],
+        "owner_decisions": policy["owner_decisions"],
+        "physical_unit_splits": policy["physical_unit_splits"],
+        "actual_split_audit_assignments": split_audits,
+        "na_storage_normalizations": na_rows,
+        "machine_26_normalizations": xqual_rows,
+        "plant4_movement_resolutions": policy.get("plant4_movement_resolutions", []),
+        "remaining_unresolved_records": unresolved,
+    }
+
+
 def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False, default=str, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -545,6 +616,12 @@ def _classification_payload(meta: dict[str, dict[str, Any]]) -> list[dict[str, A
 
 
 def build(args: argparse.Namespace) -> int:
+    # The same module is copied into an operational package as
+    # ``migration_tool.py``.  Keep source-checkout-only release metadata
+    # loading inside the build path so package verification has no dependency
+    # on the repository's ``core`` package.
+    from core.versioning import get_version_info
+
     output = Path(args.output_directory).resolve()
     if output.exists():
         raise FileExistsError(f"Output directory already exists: {output}")
@@ -682,7 +759,17 @@ def build(args: argparse.Namespace) -> int:
         }
         file_report = file_reference_report(source)
         location_report = location_observation_report(source)
+        policy = normalization_policy()
+        resolution_report = duplicate_resolution_report(source, policy)
+        approval_evidence = {
+            "approved_by": policy["approved_by"],
+            "owner_decisions": policy["owner_decisions"],
+            "policy_version": policy["policy_version"],
+            "approval_scope": "EOAT Atlas observed-location production data normalization",
+            "supersedes_operational_migration_id": SUPERSEDED_OPERATIONAL_MIGRATION_ID,
+        }
         write_json(output / "source-row-counts.json", source_counts)
+        write_json(output / EMPTY_BASELINE_FILENAME, baseline_counts)
         write_json(output / "expected-production-row-counts.json", expected_counts)
         write_json(output / "table-classification.json", classification)
         write_json(output / "seed-parity-report.json", parity)
@@ -693,6 +780,14 @@ def build(args: argparse.Namespace) -> int:
             "conflicts": location_report["conflicts"],
             "competing_assertions": [row for row in location_report["assertions"] if row["participates_in_conflict"]],
         })
+        write_json(output / DUPLICATE_RESOLUTION_FILENAME, resolution_report)
+        write_json(output / APPROVAL_EVIDENCE_FILENAME, approval_evidence)
+        (output / SUPERSEDES_FILENAME).write_text(
+            f"# Superseded operational migration\n\n"
+            f"`{SUPERSEDED_OPERATIONAL_MIGRATION_ID}` is superseded by this corrected package. "
+            "Do not import, overwrite, or amend the superseded package.\n",
+            encoding="utf-8",
+        )
         manifest = {
             "manifest_version": 1,
             "migration_id": migration_id,
@@ -712,6 +807,7 @@ def build(args: argparse.Namespace) -> int:
             "export_utility_version": TOOL_VERSION,
             "artifact_filename": sql_path.name,
             "artifact_sha256": digest,
+            "supersedes_operational_migration_id": SUPERSEDED_OPERATIONAL_MIGRATION_ID,
             "required_production_schema_revision": REQUIRED_REVISION,
             "table_classifications": classification,
             "table_order": order,
@@ -722,6 +818,9 @@ def build(args: argparse.Namespace) -> int:
             "foreign_key_checks_temporarily_disabled": True,
             "foreign_key_checks_reason": "Self-references and deterministic cross-table ordering; explicit orphan validation is mandatory.",
             "import_marker": marker_key,
+            "required_empty_production_baseline_counts_file": EMPTY_BASELINE_FILENAME,
+            "owner_approval_evidence_file": APPROVAL_EVIDENCE_FILENAME,
+            "duplicate_resolution_report_file": DUPLICATE_RESOLUTION_FILENAME,
         }
         write_json(output / "migration-manifest.json", manifest)
         shutil.copy2(Path(__file__), output / "migration_tool.py")
@@ -736,6 +835,9 @@ def build(args: argparse.Namespace) -> int:
 - Credential/secret scan: PASS
 - Development authentication/session data excluded: PASS
 - File references inspected: {file_report['total_document_references']}
+- Owner-approved location normalization evidence: `{APPROVAL_EVIDENCE_FILENAME}` (PASS)
+- Duplicate/location resolution report: `{DUPLICATE_RESOLUTION_FILENAME}` (PASS)
+- Superseded migration: `{SUPERSEDED_OPERATIONAL_MIGRATION_ID}`
 
 Disposable import, integrity, parity, and API read-smoke results are written by `migration_tool.py validate-database`.
 """
@@ -760,6 +862,7 @@ cd "$PACKAGE"
 sha256sum -c operational-data.sql.sha256
 /opt/eoat-atlas/current/venv/bin/python migration_tool.py verify-package --package-directory "$PACKAGE"
 test "$(mysql --login-path=eoat-atlas-prod-runtime --batch --skip-column-names eoat_atlas_prod -e 'SELECT version_num FROM alembic_version')" = "{REQUIRED_REVISION}"
+EOAT_DB_NAME=eoat_atlas_prod /opt/eoat-atlas/current/venv/bin/python migration_tool.py verify-empty-baseline --package-directory "$PACKAGE"
 
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 BACKUP=/opt/eoat-atlas/shared/backups/eoat_atlas_prod-pre-operational-import-$STAMP.sql
@@ -774,13 +877,18 @@ mysql --login-path=eoat-atlas-prod-admin "$VALIDATION_DB" < operational-data.sql
 EOAT_DB_NAME="$VALIDATION_DB" /opt/eoat-atlas/current/venv/bin/python migration_tool.py validate-database --package-directory "$PACKAGE"
 PYTHONPATH=/opt/eoat-atlas/current EOAT_DB_NAME="$VALIDATION_DB" /opt/eoat-atlas/current/venv/bin/python migration_tool.py api-smoke --package-directory "$PACKAGE"
 mysqlcheck --login-path=eoat-atlas-prod-admin --check --extended "$VALIDATION_DB"
+if mysql --login-path=eoat-atlas-prod-admin "$VALIDATION_DB" < operational-data.sql; then
+  echo 'ERROR: duplicate import unexpectedly succeeded' >&2
+  exit 1
+fi
+echo 'PASS: duplicate import correctly refused'
+EOAT_DB_NAME="$VALIDATION_DB" /opt/eoat-atlas/current/venv/bin/python migration_tool.py validate-database --package-directory "$PACKAGE"
 mysql --login-path=eoat-atlas-prod-admin -e "DROP DATABASE \\`$VALIDATION_DB\\`"
 
-# Current-location and compatibility relationship parity pass. Strict overall parity remains blocking
-# until the documented workbook-metadata fields and unresolved legacy import issues are corrected or
-# accepted by the named data owner. Preserve the approval as permanent evidence.
-test -s "$PACKAGE/PARITY_GO_NO_GO_APPROVAL.txt"
-grep -Fx "APPROVED {migration_id} FOR PRODUCTION IMPORT" "$PACKAGE/PARITY_GO_NO_GO_APPROVAL.txt"
+# Owner-approved normalization evidence is verified by verify-package above.
+test -s "$PACKAGE/{APPROVAL_EVIDENCE_FILENAME}"
+test -s "$PACKAGE/{DUPLICATE_RESOLUTION_FILENAME}"
+EOAT_DB_NAME=eoat_atlas_prod /opt/eoat-atlas/current/venv/bin/python migration_tool.py verify-empty-baseline --package-directory "$PACKAGE"
 
 EXPECTED='IMPORT {migration_id} INTO eoat_atlas_prod'
 read -r -p "Type exactly: $EXPECTED: " CONFIRM
@@ -790,6 +898,12 @@ mysql --login-path=eoat-atlas-prod-admin eoat_atlas_prod < operational-data.sql
 EOAT_DB_NAME=eoat_atlas_prod /opt/eoat-atlas/current/venv/bin/python migration_tool.py validate-database --package-directory "$PACKAGE"
 PYTHONPATH=/opt/eoat-atlas/current EOAT_DB_NAME=eoat_atlas_prod /opt/eoat-atlas/current/venv/bin/python migration_tool.py api-smoke --package-directory "$PACKAGE"
 mysqlcheck --login-path=eoat-atlas-prod-admin --check --extended eoat_atlas_prod
+if mysql --login-path=eoat-atlas-prod-admin eoat_atlas_prod < operational-data.sql; then
+  echo 'ERROR: duplicate production import unexpectedly succeeded' >&2
+  exit 1
+fi
+echo 'PASS: duplicate production import correctly refused'
+EOAT_DB_NAME=eoat_atlas_prod /opt/eoat-atlas/current/venv/bin/python migration_tool.py validate-database --package-directory "$PACKAGE"
 
 POST=/opt/eoat-atlas/shared/backups/eoat_atlas_prod-post-operational-import-$STAMP.sql
 mysqldump --login-path=eoat-atlas-prod-admin --single-transaction --no-tablespaces --routines --triggers --events --hex-blob --set-gtid-purged=OFF eoat_atlas_prod > "$POST"
@@ -846,6 +960,25 @@ def verify_package(package: Path) -> dict[str, Any]:
         raise RuntimeError("Manifest target revision is not approved")
     if secret_findings(artifact.read_bytes()):
         raise RuntimeError("Artifact secret scan failed")
+    if manifest.get("supersedes_operational_migration_id") != SUPERSEDED_OPERATIONAL_MIGRATION_ID:
+        raise RuntimeError("Package does not explicitly supersede the rejected migration")
+    for key, filename in (
+        ("required_empty_production_baseline_counts_file", EMPTY_BASELINE_FILENAME),
+        ("owner_approval_evidence_file", APPROVAL_EVIDENCE_FILENAME),
+        ("duplicate_resolution_report_file", DUPLICATE_RESOLUTION_FILENAME),
+    ):
+        if manifest.get(key) != filename or not (package / filename).is_file():
+            raise RuntimeError(f"Package is missing required evidence: {filename}")
+    approval = json.loads((package / APPROVAL_EVIDENCE_FILENAME).read_text(encoding="utf-8"))
+    if approval.get("approved_by") != {"name": "Kato Gray", "role": "EOAT Atlas project/data owner"}:
+        raise RuntimeError("Package owner approval record is not the authorized EOAT data owner")
+    decisions = " ".join(approval.get("owner_decisions", []))
+    for phrase in ("N/A means stored", "26 - Xqual in 25 means Machine 26", "separate deterministic EOAT IDs", "movement", "STORED", "No unsupported lifecycle history"):
+        if phrase not in decisions:
+            raise RuntimeError("Package owner approval record is incomplete")
+    resolution = json.loads((package / DUPLICATE_RESOLUTION_FILENAME).read_text(encoding="utf-8"))
+    if resolution.get("status") != "RESOLVED" or resolution.get("remaining_unresolved_records"):
+        raise RuntimeError("Package duplicate-resolution evidence is incomplete")
     return {"status": "PASS", "artifact_sha256": actual, "migration_id": manifest["migration_id"]}
 
 
@@ -909,21 +1042,60 @@ def auto_increment_checks(connection) -> list[dict[str, Any]]:
     return results
 
 
-def runtime_grant_check(connection) -> dict[str, Any]:
-    with connection.cursor() as cursor:
-        cursor.execute("SHOW GRANTS FOR CURRENT_USER")
-        grants = [str(next(iter(row.values()))) for row in cursor.fetchall()]
+def assess_runtime_grants(grants: list[str]) -> dict[str, Any]:
     combined = " ".join(grants).upper()
-    required = [permission for permission in ("SELECT", "INSERT", "UPDATE", "DELETE", "EXECUTE")
-                if permission not in combined and "ALL PRIVILEGES" not in combined]
-    forbidden = [permission for permission in ("ALTER", "CREATE", "DROP", "GRANT OPTION", "SUPER")
-                 if re.search(rf"\b{re.escape(permission)}\b", combined)]
+    all_privileges = "ALL PRIVILEGES" in combined
+    required = [
+        permission for permission in ("SELECT", "INSERT", "UPDATE", "DELETE")
+        if permission not in combined and not all_privileges
+    ]
+    forbidden = [
+        permission for permission in DANGEROUS_RUNTIME_PRIVILEGES
+        if permission in combined
+    ]
     return {
         "valid": not required and not forbidden,
+        "required_permissions": ["SELECT", "INSERT", "UPDATE", "DELETE"],
         "missing_required_permissions": required,
         "forbidden_permissions_present": forbidden,
         "grants_redacted": True,
     }
+
+
+def runtime_grant_check(connection) -> dict[str, Any]:
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW GRANTS FOR CURRENT_USER")
+        grants = [str(next(iter(row.values()))) for row in cursor.fetchall()]
+    return assess_runtime_grants(grants)
+
+
+def verify_empty_baseline(args: argparse.Namespace) -> int:
+    package = Path(args.package_directory).resolve()
+    verify_package(package)
+    manifest = json.loads((package / "migration-manifest.json").read_text(encoding="utf-8"))
+    baseline = json.loads((package / EMPTY_BASELINE_FILENAME).read_text(encoding="utf-8"))
+    values = read_env(args.database_environment)
+    with connect(values) as connection:
+        identity = database_identity(connection)
+        if identity["alembic_revision"] != REQUIRED_REVISION:
+            raise RuntimeError(f"Baseline revision mismatch: {identity['alembic_revision']}")
+        actual = row_counts(connection)
+        mismatches = {table: {"expected": count, "actual": actual.get(table)}
+                      for table, count in baseline.items() if actual.get(table) != count}
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT metadata_value FROM system_metadata WHERE metadata_key=%s", (manifest["import_marker"],))
+            marker = cursor.fetchone()
+    report = {
+        "status": "PASS" if not mismatches and marker is None else "FAIL",
+        "database": identity["database_name"],
+        "required_schema_revision": REQUIRED_REVISION,
+        "row_count_mismatches": mismatches,
+        "operational_migration_marker_absent": marker is None,
+        "location_observations": actual.get("eoat_location_observations"),
+        "location_assertions": actual.get("eoat_location_assertions"),
+    }
+    print(json.dumps(report, indent=2))
+    return 0 if report["status"] == "PASS" else 1
 
 
 def transient_name_checks(connection) -> list[dict[str, Any]]:
@@ -1037,6 +1209,8 @@ def api_smoke(args: argparse.Namespace) -> int:
             "health": ("get", "/api/v1/health", None),
             "eoat_list": ("get", "/api/v1/eoats", {"limit": 5}),
             "eoat_detail": ("get", f"/api/v1/eoats/{eoat}", None),
+            "eoat_current_location": ("get", f"/api/v1/eoats/{eoat}/current-location", None),
+            "eoat_location_observations": ("get", f"/api/v1/eoats/{eoat}/location-observations", None),
             "eoat_compatibility": ("get", f"/api/v1/eoats/{eoat}/relationships", None),
             "eoat_history": ("get", f"/api/v1/eoats/{eoat}/history", None),
             "documents": ("get", f"/api/v1/eoats/{eoat}/documents", None),
@@ -1078,6 +1252,9 @@ def parser() -> argparse.ArgumentParser:
     build_cmd.add_argument("--validation-mode", action="store_true")
     verify_cmd = commands.add_parser("verify-package")
     verify_cmd.add_argument("--package-directory", required=True)
+    baseline_cmd = commands.add_parser("verify-empty-baseline")
+    baseline_cmd.add_argument("--package-directory", required=True)
+    baseline_cmd.add_argument("--database-environment", default="environment")
     validate_cmd = commands.add_parser("validate-database")
     validate_cmd.add_argument("--package-directory", required=True)
     validate_cmd.add_argument("--database-environment", default="environment")
@@ -1095,6 +1272,8 @@ def main() -> int:
         if args.command == "verify-package":
             print(json.dumps(verify_package(Path(args.package_directory)), indent=2))
             return 0
+        if args.command == "verify-empty-baseline":
+            return verify_empty_baseline(args)
         if args.command == "api-smoke":
             return api_smoke(args)
         return validate_database(args)

@@ -97,7 +97,7 @@ def staging_environment(*, reset: bool) -> dict[str, object]:
             cursor.execute(f"ALTER USER '{user}'@'127.0.0.1' IDENTIFIED BY %s", (password,))
         cursor.execute(f"GRANT ALL PRIVILEGES ON `{STAGING_DB}`.* TO 'eoat_staging_migrator'@'127.0.0.1'")
         cursor.execute(
-            f"GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{STAGING_DB}`.* "
+            f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{STAGING_DB}`.* "
             "TO 'eoat_staging_runtime'@'127.0.0.1'"
         )
     values = {
@@ -252,7 +252,7 @@ def backup_restore_check() -> dict[str, object]:
         cursor.execute(f"CREATE DATABASE `{RESTORE_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci")
         cursor.execute(f"GRANT ALL PRIVILEGES ON `{RESTORE_DB}`.* TO 'eoat_staging_migrator'@'127.0.0.1'")
         cursor.execute(
-            f"GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{RESTORE_DB}`.* "
+            f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{RESTORE_DB}`.* "
             "TO 'eoat_staging_runtime'@'127.0.0.1'"
         )
     restore_env = dump_env.copy()

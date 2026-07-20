@@ -1,0 +1,61 @@
+{
+  "policy_version": "2026-07-20",
+  "approved_by": {
+    "name": "Kato Gray",
+    "role": "EOAT Atlas project/data owner"
+  },
+  "supersedes_operational_migration_id": "eoat-operational-633d0596386fc44b33c2",
+  "machine_aliases": {
+    "26 - Xqual in 25": "26"
+  },
+  "owner_decisions": [
+    "N/A means stored in cabinet with no cabinet identifier invented.",
+    "26 - Xqual in 25 means Machine 26 while the original workbook wording is retained as evidence.",
+    "Proven identical cleanroom EOATs receive separate deterministic EOAT IDs.",
+    "Plant 4 multi-machine audit sequences that do not prove duplicates are treated as movement.",
+    "Uncertain present locations become STORED with cabinet unspecified.",
+    "No unsupported lifecycle history, user, cabinet identifier, or timestamp may be fabricated."
+  ],
+  "physical_unit_splits": [
+    {
+      "source_identifier": "CL-EOAT-0050",
+      "reason": "Three physically verified Cleanroom observations on 2026-06-24 prove three simultaneous identical units.",
+      "units": [
+        {"eoat_identifier": "CL-EOAT-0050", "source_rows": [81]},
+        {"eoat_identifier": "CL-EOAT-0057", "source_rows": [82]},
+        {"eoat_identifier": "CL-EOAT-0058", "source_rows": [83]}
+      ]
+    },
+    {
+      "source_identifier": "CL-EOAT-0052",
+      "reason": "Three physically verified Cleanroom observations on 2026-06-26 prove three simultaneous identical units.",
+      "units": [
+        {"eoat_identifier": "CL-EOAT-0052", "source_rows": [85]},
+        {"eoat_identifier": "CL-EOAT-0059", "source_rows": [86]},
+        {"eoat_identifier": "CL-EOAT-0060", "source_rows": [89]}
+      ]
+    },
+    {
+      "source_identifier": "CL-EOAT-0054",
+      "reason": "The two physically verified Cleanroom observations on 2026-06-29 prove two simultaneous identical units; the earlier row remains with the preserved original unit.",
+      "units": [
+        {"eoat_identifier": "CL-EOAT-0054", "source_rows": [88, 92]},
+        {"eoat_identifier": "CL-EOAT-0061", "source_rows": [93]}
+      ]
+    }
+  ],
+  "plant4_movement_resolutions": [
+    {
+      "eoat_identifier": "P4-EOAT-0057",
+      "source_rows": [94, 95, 96, 97],
+      "reason": "The four same-day Plant 4 observations do not contain duplicate-pair proof, so they are a movement sequence and current storage is cabinet unspecified."
+    }
+  ],
+  "expected_location_state_counts": {
+    "INSTALLED": 45,
+    "STORED": 17,
+    "UNKNOWN": 0,
+    "INACTIVE": 0,
+    "CONFLICTING": 0
+  }
+}

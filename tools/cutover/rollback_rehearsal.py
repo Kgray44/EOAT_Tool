@@ -46,7 +46,7 @@ def main() -> int:
         cursor.execute(f"DROP DATABASE IF EXISTS `{RESTORE_DB}`")
         cursor.execute(f"CREATE DATABASE `{RESTORE_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci")
         cursor.execute(f"GRANT ALL PRIVILEGES ON `{RESTORE_DB}`.* TO 'eoat_staging_migrator'@'127.0.0.1'")
-        cursor.execute(f"GRANT SELECT,INSERT,UPDATE,DELETE,EXECUTE ON `{RESTORE_DB}`.* TO 'eoat_staging_runtime'@'127.0.0.1'")
+        cursor.execute(f"GRANT SELECT,INSERT,UPDATE,DELETE ON `{RESTORE_DB}`.* TO 'eoat_staging_runtime'@'127.0.0.1'")
     started = time.perf_counter()
     env = os.environ.copy() | {"MYSQL_PWD": staging["EOAT_DB_MIGRATION_PASSWORD"]}
     with pre_write.open("rb") as stream:
@@ -102,7 +102,7 @@ def main() -> int:
             cursor.execute(f"DROP DATABASE IF EXISTS `{STAGING_DB}`")
             cursor.execute(f"CREATE DATABASE `{STAGING_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci")
             cursor.execute(f"GRANT ALL PRIVILEGES ON `{STAGING_DB}`.* TO 'eoat_staging_migrator'@'127.0.0.1'")
-            cursor.execute(f"GRANT SELECT,INSERT,UPDATE,DELETE,EXECUTE ON `{STAGING_DB}`.* TO 'eoat_staging_runtime'@'127.0.0.1'")
+            cursor.execute(f"GRANT SELECT,INSERT,UPDATE,DELETE ON `{STAGING_DB}`.* TO 'eoat_staging_runtime'@'127.0.0.1'")
         with pre_write.open("rb") as stream:
             subprocess.run([str(mysql), "--host=127.0.0.1", "--port=3306", f"--user={staging['EOAT_DB_MIGRATION_USER']}", STAGING_DB], stdin=stream, env=env, check=True)
         cleaned = database_counts(staging, STAGING_DB)

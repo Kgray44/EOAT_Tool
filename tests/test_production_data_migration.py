@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -162,17 +165,44 @@ def test_artifact_checksum_and_manifest_accuracy(tmp_path: Path) -> None:
     artifact = tmp_path / "operational-data.sql"
     artifact.write_text("SELECT 1;\n", encoding="utf-8")
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    (tmp_path / migration.EMPTY_BASELINE_FILENAME).write_text("{}", encoding="utf-8")
+    (tmp_path / migration.APPROVAL_EVIDENCE_FILENAME).write_text(json.dumps({
+        "approved_by": {"name": "Kato Gray", "role": "EOAT Atlas project/data owner"},
+        "owner_decisions": [
+            "N/A means stored in cabinet with no cabinet identifier invented.",
+            "26 - Xqual in 25 means Machine 26 while the original workbook wording is retained as evidence.",
+            "Proven identical cleanroom EOATs receive separate deterministic EOAT IDs.",
+            "Plant 4 multi-machine audit sequences that do not prove duplicates are treated as movement.",
+            "Uncertain present locations become STORED with cabinet unspecified.",
+            "No unsupported lifecycle history, user, cabinet identifier, or timestamp may be fabricated.",
+        ],
+    }), encoding="utf-8")
+    (tmp_path / migration.DUPLICATE_RESOLUTION_FILENAME).write_text(json.dumps({
+        "status": "RESOLVED", "remaining_unresolved_records": [],
+    }), encoding="utf-8")
     (tmp_path / "migration-manifest.json").write_text(json.dumps({
         "artifact_filename": artifact.name,
         "artifact_sha256": digest,
         "required_production_schema_revision": migration.REQUIRED_REVISION,
         "migration_id": "unit-test",
+        "supersedes_operational_migration_id": migration.SUPERSEDED_OPERATIONAL_MIGRATION_ID,
+        "required_empty_production_baseline_counts_file": migration.EMPTY_BASELINE_FILENAME,
+        "owner_approval_evidence_file": migration.APPROVAL_EVIDENCE_FILENAME,
+        "duplicate_resolution_report_file": migration.DUPLICATE_RESOLUTION_FILENAME,
     }), encoding="utf-8")
     result = migration.verify_package(tmp_path)
     assert result["status"] == "PASS"
     artifact.write_text("SELECT 2;\n", encoding="utf-8")
     with pytest.raises(RuntimeError, match="checksum mismatch"):
         migration.verify_package(tmp_path)
+
+
+def test_copied_operational_migration_tool_has_no_source_checkout_dependency(tmp_path: Path) -> None:
+    tool = tmp_path / "migration_tool.py"
+    shutil.copy2(Path(migration.__file__), tool)
+    result = subprocess.run([sys.executable, str(tool), "--help"], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    assert "verify-package" in result.stdout
 
 
 def test_duplicate_import_prevention_is_required_by_policy() -> None:
@@ -220,6 +250,19 @@ def test_import_and_rollback_require_exact_typed_confirmation(tmp_path: Path) ->
     assert "Type exactly" in rollback
     assert "test -s \"$BACKUP\"" in rollback
     assert "failed-import" in rollback
+
+
+def test_runtime_permissions_require_only_the_four_dml_privileges_and_reject_dangerous_ones():
+    allowed = migration.assess_runtime_grants([
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON `eoat_atlas_prod`.* TO `eoat_runtime`@`localhost`"
+    ])
+    assert allowed["valid"]
+    assert allowed["missing_required_permissions"] == []
+    assert "EXECUTE" not in allowed["required_permissions"]
+
+    forbidden = migration.assess_runtime_grants(["GRANT ALL PRIVILEGES ON *.* TO `eoat_runtime`@`localhost`"])
+    assert not forbidden["valid"]
+    assert "ALL PRIVILEGES" in forbidden["forbidden_permissions_present"]
 
 
 def test_validation_implementation_covers_orphans_duplicates_auto_increment_and_transient_names() -> None:

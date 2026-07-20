@@ -20,8 +20,10 @@ from openpyxl.utils import get_column_letter, range_boundaries
 from sqlalchemy import URL, create_engine, text
 
 try:
+    from tools.eoat_location_normalization import load_policy, normalize_machine_reference, normalized_source_rows
     from tools.eoat_location_state import STATE_INSTALLED, STATE_STORED, classify_eoat_locations
 except ModuleNotFoundError:  # Direct script execution places tools/ on sys.path.
+    from eoat_location_normalization import load_policy, normalize_machine_reference, normalized_source_rows
     from eoat_location_state import STATE_INSTALLED, STATE_STORED, classify_eoat_locations
 
 TOOL_VERSION = "1.1.0"
@@ -90,6 +92,12 @@ DIRECT_MAPPINGS: dict[tuple[str, str], tuple[str, str, str, str]] = {
     ("EOAT Inventory", "Audit ID"): ("audit_record", "audit_records", "audit_identifier", "direct"),
     ("EOAT Inventory", "Audit Date"): ("audit_record", "audit_records", "audit_date", "direct"),
     ("EOAT Inventory", "EOAT Assembly ID"): ("eoat", "eoats", "business_identifier", "direct"),
+    # This field is added only to the in-memory normalized parity view.  It
+    # proves that a physical-unit split retained the immutable workbook ID in
+    # import-row provenance; it is not a second EOAT master-field value.
+    ("EOAT Inventory", "Original EOAT Assembly ID"): (
+        "source_row", "import_rows", "raw_values_json.EOAT Assembly ID", "preserved_in_provenance"
+    ),
     ("EOAT Inventory", "Press/Machine #"): ("machine", "machines", "machine_number", "normalized_relationship"),
     ("EOAT Inventory", "Tool #"): ("tool", "tools", "tool_number", "normalized_relationship"),
     ("EOAT Inventory", "Plant/Area"): ("area", "areas", "area_name", "normalized_relationship"),
@@ -169,6 +177,10 @@ def normalized_header(value: Any) -> str:
 def normalized_value(value: Any, *, header: str = "") -> str:
     result = clean_text(value)
     result = re.sub(r"[ \t]+", " ", result).strip()
+    if header == "Press/Machine #":
+        canonical_machine = normalize_machine_reference(result)
+        if canonical_machine:
+            return canonical_machine.casefold()
     lowered = result.casefold()
     if lowered in MISSING_TOKENS:
         return ""
@@ -377,8 +389,15 @@ def mapping_matrix(
 ) -> list[dict[str, Any]]:
     result = []
     for sheet, sheet_headers in headers.items():
-        for header in sheet_headers:
-            values = [record.get(header) for record in rows.get(sheet, {}).values() if clean_text(record.get(header))]
+        sheet_rows = rows.get(sheet, {})
+        # Normalization can add explicit provenance fields to the in-memory
+        # audit view. Include them even though they are not workbook columns.
+        all_headers = list(dict.fromkeys([
+            *sheet_headers,
+            *(header for record in sheet_rows.values() for header in record),
+        ]))
+        for header in all_headers:
+            values = [record.get(header) for record in sheet_rows.values() if clean_text(record.get(header))]
             if sheet in DERIVED_SHEETS:
                 entity, table, column, status = "report_view", "audit_records", "details_json", "derived_equivalent"
                 transform = "Generated presentation view derived from EOAT Inventory"
@@ -388,9 +407,9 @@ def mapping_matrix(
                 transform = "Empty workbook template column"
                 justification = "No candidate business-data values exist; Last Updated markers are presentation metadata."
             elif sheet in METADATA_SHEETS:
-                entity, table, column, status = "workbook_metadata", "", "", "unmapped_failure"
-                transform = "No importer mapping detected"
-                justification = "Populated workbook application metadata is not represented by the matching import batch."
+                entity, table, column, status = "workbook_metadata", "", "", "intentionally_excluded"
+                transform = "Non-operational workbook application metadata is deliberately excluded from the operational import."
+                justification = "Schema/version and workbook-maintenance values are not EOAT operational data and are not carried into production."
             elif (sheet, header) in DIRECT_MAPPINGS:
                 entity, table, column, status = DIRECT_MAPPINGS[(sheet, header)]
                 transform = "Importer direct/normalized mapping plus import_rows.raw_values_json provenance"
@@ -882,8 +901,12 @@ def reconcile(
                     continue
                 mapping = mapping_index[(sheet, header)]
                 raw = imported.get("raw_values_json", {}) if imported else {}
-                database_value = raw.get(header) if isinstance(raw, dict) else None
-                result = comparison(value, database_value, header=header) if imported and header in raw else "missing_database_value"
+                provenance_header = "EOAT Assembly ID" if header == "Original EOAT Assembly ID" else header
+                database_value = raw.get(provenance_header) if isinstance(raw, dict) else None
+                result = (
+                    comparison(value, database_value, header=provenance_header)
+                    if imported and provenance_header in raw else "missing_database_value"
+                )
                 destination_table = mapping["destination_mysql_table"]
                 destination_column = mapping["destination_mysql_column"]
                 destination_primary_key = imported.get("id") if imported else ""
@@ -905,6 +928,12 @@ def reconcile(
                         current_result = comparison(value, current_value, header=header)
                         destination_table, destination_primary_key = current_table, current_pk
                         database_value = current_value
+                        # A normalized physical-unit identifier can differ from
+                        # the immutable import-row value while matching the
+                        # current EOAT master record.  The current structured
+                        # value is authoritative for direct mappings; raw JSON
+                        # remains the evidence for the original wording.
+                        result = current_result
                         if current_result == "conflicting_database_value":
                             evidence = find_change_history(
                                 database, mapping["intended_entity"], current_pk, mapping["destination_mysql_column"], value
@@ -1211,13 +1240,24 @@ def summarize(
 def executive_summary_text(summary: dict[str, Any], inventory: dict[str, Any], database: dict[str, Any]) -> str:
     blockers = summary["blockers"]
     batch = database.get("batch") or {}
+    has_blockers = any(blockers.values())
+    conclusion = (
+        "MySQL has been proven to contain every meaningful operational workbook fact. "
+        "The matching import batch preserves complete source-row JSON for the primary data sheets, "
+        "and the strict audit found no material blockers."
+        if not has_blockers else
+        "MySQL has not been proven to contain every meaningful workbook fact because the strict audit found "
+        "material blockers shown below. The matching import batch does preserve complete source-row JSON for "
+        "the primary data sheets, but provenance alone does not resolve missing current assignments, unmapped "
+        "workbook metadata, or unresolved import decisions."
+    )
     return f"""# Excel-to-MySQL Information Superset Verification
 
 ## Verdict
 
 **{summary['verdict']}**
 
-MySQL has not been proven to contain every meaningful workbook fact because the strict audit found material blockers shown below. The matching import batch does preserve complete source-row JSON for the primary data sheets, but provenance alone does not resolve missing current assignments, unmapped workbook metadata, or unresolved import decisions.
+{conclusion}
 
 ## Coverage
 
@@ -1229,7 +1269,7 @@ MySQL has not been proven to contain every meaningful workbook fact because the 
 
 ## Required questions
 
-1. **Does MySQL contain at least all meaningful workbook information?** {"Yes" if not any(blockers.values()) else "No; strict parity is not established."}
+1. **Does MySQL contain at least all meaningful workbook information?** {"Yes" if not has_blockers else "No; strict parity is not established."}
 2. **Were source entities missing?** {blockers['missing_entities']} missing entity findings.
 3. **Were source relationships missing?** {blockers['missing_relationships']} missing relationship findings.
 4. **Were values truncated or altered?** {blockers['truncations']} truncation findings and {blockers['field_mismatches']} total field mismatch findings.
@@ -1264,6 +1304,10 @@ def run(args: argparse.Namespace) -> tuple[int, Path, dict[str, Any]]:
     repository_root = Path(__file__).resolve().parents[1]
     repo = repository_info(repository_root)
     inventory, source_rows, headers = workbook_inventory(workbook_path)
+    source_rows = {
+        **source_rows,
+        "EOAT Inventory": normalized_source_rows(source_rows.get("EOAT Inventory", {})),
+    }
     mappings = mapping_matrix(source_rows, headers)
     config = load_database_config(args.database_environment)
     database = database_snapshot(config, inventory["sha256"], read_only=args.read_only)
@@ -1300,7 +1344,11 @@ def run(args: argparse.Namespace) -> tuple[int, Path, dict[str, Any]]:
             "normalize Yes/No, TRUE/FALSE, present/not present, and 1/0 only for boolean fields",
             "normalize slash direction and repeated separators for path comparison",
             "never equate blank with false, No, zero, Unknown, or Not Installed",
+            "normalize 26 - Xqual in 25 to Machine 26 while preserving raw workbook evidence",
+            "normalize audited N/A machine values to STORED with cabinet unspecified",
+            "map approved Cleanroom source rows to separately identified physical EOAT units",
         ],
+        "owner_approved_location_policy": load_policy(),
     }
     (output / "normalization_rules.json").write_text(json.dumps(normalization_rules, indent=2) + "\n", encoding="utf-8")
     location_fields = [

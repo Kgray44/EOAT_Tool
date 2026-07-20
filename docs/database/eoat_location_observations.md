@@ -10,6 +10,17 @@ Schema revision `20260717_0007` separates an observed present state from a lifec
 
 The five normalized states are `INSTALLED`, `STORED`, `UNKNOWN`, `INACTIVE`, and `CONFLICTING`. A stored observation may have no `storage_location_id`; this means storage is proven but the cabinet/location is unspecified. It must not be replaced by a made-up generic cabinet.
 
+## Owner-approved workbook normalization
+
+The reviewed policy in `config/eoat_location_normalization.json` is authoritative for the operational migration:
+
+- An audited `Press/Machine #` value of `N/A` means `STORED`, with both `machine_id` and `storage_location_id` null.
+- `26 - Xqual in 25` is retained in raw workbook/import evidence but normalizes to Machine `26` everywhere a machine relationship is represented.
+- Same-day Cleanroom evidence that proves simultaneous identical units is split into physical EOAT masters. The preserved original and the deterministic added IDs retain the shared compatibility relationships; only the evidence row assigned to a unit moves with that unit. Documents, photos, lifecycle history, and unrelated audits are not copied.
+- Plant 4 multi-machine audit sequences without duplicate-pair proof are treated as movement evidence, not physical duplicates. When no present machine is reliable, the observed state is `STORED` with cabinet unspecified.
+
+These are observed-current-state decisions, not installation/removal/storage lifecycle events. They never invent event timestamps, cabinet identifiers, actors, or lifecycle history.
+
 ## Time precision and precedence
 
 Workbook audits currently provide a date, not a time. Such evidence has `observed_on`, a null `observed_at`, and `observation_precision=DATE`. Exact event timestamps remain in lifecycle tables. The resolver applies these rules:

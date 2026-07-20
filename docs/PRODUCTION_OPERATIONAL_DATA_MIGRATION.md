@@ -4,7 +4,7 @@ EOAT Atlas production operational data is promoted with `scripts/database/build_
 
 ## Required invariants
 
-- The source must be the authoritative development MySQL database and must be at Alembic revision `20260715_0006`.
+- The source must be the authoritative development MySQL database and must be at Alembic revision `20260717_0007`.
 - The production-equivalent baseline must be a newly migrated disposable MySQL database at the same revision.
 - A production database, a name ending in `_prod`, or a test database outside explicit validation mode is rejected as an export source.
 - All 53 base tables must have a policy in `TABLE_POLICIES`; an unknown or missing table stops the build.
@@ -29,6 +29,8 @@ py -3.14 scripts/database/build_production_data_migration.py build `
 
 The output contains the SQL artifact and checksum, manifest, all-table classification, source/expected counts, seed parity, exclusions and transformations, file-reference analysis, validation report, a standalone copy of the migration utility, and controlled import/rollback instructions.
 
+For the approved observed-location correction, the package also contains the owner approval evidence, required empty-production baseline counts, location observation/assertion report, duplicate-resolution report, and an explicit supersession record for `eoat-operational-633d0596386fc44b33c2`. The superseded package must never be amended or overwritten.
+
 ## Disposable validation
 
 Migrate a second empty database, import `operational-data.sql`, and run both validation commands without starting a live API:
@@ -43,6 +45,8 @@ py -3.14 scripts/database/build_production_data_migration.py api-smoke `
 ```
 
 `validate-database` checks the revision, every expected count, all declared foreign keys, every unique index, AUTO_INCREMENT positions, transient database-name leakage, the completed marker, and runtime grants. Run `mysqlcheck --check --extended` separately with the migration account. The API smoke command uses FastAPI in-process and covers EOAT, machine, tool, compatibility, Fit Check, history, documents, photos, and home summary reads; it does not bind a network port.
+
+Run `verify-empty-baseline` against production immediately before the backup and again after the disposable rehearsal. It requires the exact migrated baseline table counts, absent operational marker, and zero location observations/assertions. After a disposable or production import, attempt the same SQL a second time; the marker guard must refuse it, and a subsequent `validate-database` must still pass.
 
 Run `tools/verify_master_tracker_mysql_parity.py` against the imported disposable database. The verifier is state-aware: compatibility rows never imply current installation; explicit cabinet/not-installed audit notes override a generic machine/context field; and conflicting simultaneous machine observations must be represented by `CONFLICTING` observations. It writes `eoat_location_state.csv` and `state_aware_location_parity.json` in addition to the general parity evidence.
 

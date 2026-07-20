@@ -8,11 +8,16 @@ precedence over generic context/machine fields on the same row.
 
 from __future__ import annotations
 
-from collections import defaultdict
-from datetime import date, datetime
 import re
-from typing import Any, Iterable
+from collections import defaultdict
+from collections.abc import Iterable
+from datetime import date, datetime
+from typing import Any
 
+try:
+    from tools.eoat_location_normalization import is_stored_machine_reference, normalize_machine_reference
+except ModuleNotFoundError:  # Direct execution from tools/ does not include the repository root.
+    from eoat_location_normalization import is_stored_machine_reference, normalize_machine_reference
 
 STATE_INSTALLED = "A. Installed on a machine"
 STATE_STORED = "B. Stored at a documented storage location"
@@ -56,8 +61,11 @@ def _is_verified(row: dict[str, Any]) -> bool:
 
 
 def _machine(row: dict[str, Any]) -> str:
-    value = _text(row.get("Press/Machine #"))
-    return value if value.isdigit() else ""
+    return normalize_machine_reference(row.get("Press/Machine #"))
+
+
+def _is_plant4(row: dict[str, Any]) -> bool:
+    return _text(row.get("Plant/Area")).casefold() in {"plant 4", "p4"}
 
 
 def _row_number(item: tuple[int, dict[str, Any]]) -> int:
@@ -122,7 +130,11 @@ def classify_eoat_locations(
         inactive = not bool(db_eoat.get("is_active", True)) or bool(db_eoat.get("archived_at")) or _text(
             db_eoat.get("status")
         ).casefold() in {"retired", "archived", "inactive"}
-        stored_rows = [item for item in current if _CABINET.search(_text(item[1].get("Notes")))]
+        stored_rows = [
+            item for item in current
+            if is_stored_machine_reference(item[1].get("Press/Machine #"))
+            or _CABINET.search(_text(item[1].get("Notes")))
+        ]
         negative_rows = [
             item for item in current
             if _NOT_INSTALLED.search(_text(item[1].get("Notes"))) or _REMOVED.search(_text(item[1].get("Notes")))
@@ -145,6 +157,21 @@ def classify_eoat_locations(
             confidence = "High"
             evidence = "Database asset is inactive or archived; no active physical placement should be asserted."
             correction = "Ensure no active installation or storage assignment remains."
+        elif stored_rows:
+            state = STATE_STORED
+            confidence = "High"
+            storage_location = "Cabinet unspecified"
+            evidence = _join(
+                f"row {number}: {_text(row.get('Notes'))}" for number, row in stored_rows
+            )
+            if any(is_stored_machine_reference(row.get("Press/Machine #")) for _, row in stored_rows):
+                evidence = "Owner-approved N/A storage normalization; " + evidence
+            if any(_text(row.get("Audit Context")).casefold() == "installed on machine" for _, row in stored_rows):
+                ambiguity = "Generic Audit Context/machine field conflicts with storage evidence; storage governs."
+            correction = (
+                "Represent cabinet-unspecified storage as an observed current state; do not invent stored_at "
+                "or a cabinet identifier."
+            )
         elif identity_conflicts.get(eoat):
             state = STATE_CONFLICT
             confidence = "Review required"
@@ -152,19 +179,15 @@ def classify_eoat_locations(
             evidence = f"Audit notes say this is the same physical EOAT represented by {related}."
             ambiguity = "Distinct EOAT identifiers may represent one physical asset."
             correction = "Resolve asset identity before creating any normalized current-location row."
-        elif stored_rows:
+        elif len(installed_machines) > 1 and all(_is_plant4(row) for _, row in installed_rows):
             state = STATE_STORED
-            confidence = "High"
-            storage_location = "EOAT storage cabinet (cabinet identifier not recorded)"
-            evidence = _join(
-                f"row {number}: {_text(row.get('Notes'))}" for number, row in stored_rows
+            confidence = "Owner approved"
+            storage_location = "Cabinet unspecified"
+            evidence = (
+                "Owner-approved Plant 4 movement resolution for latest multiple-machine audit sequence "
+                f"({', '.join(installed_machines)}); no duplicate-pair evidence establishes separate physical units."
             )
-            if any(_text(row.get("Audit Context")).casefold() == "installed on machine" for _, row in stored_rows):
-                ambiguity = "Generic Audit Context/machine field conflicts with the explicit not-installed cabinet note; note governs."
-            correction = (
-                "Add a sanctioned generic cabinet/location observation with the audit observation date; "
-                "do not invent stored_at or a cabinet identifier."
-            )
+            correction = "Preserve dated assertions; do not create lifecycle movement history or a cabinet identifier."
         elif len(installed_machines) > 1:
             state = STATE_CONFLICT
             confidence = "Review required"
@@ -184,11 +207,15 @@ def classify_eoat_locations(
                 "do not use the audit date as the original installed_at."
             )
         elif negative_rows:
-            state = STATE_UNKNOWN
-            confidence = "High that it was not installed; low for its destination"
+            state = STATE_STORED
+            confidence = "Owner approved"
+            storage_location = "Cabinet unspecified"
             evidence = _join(f"row {number}: {_text(row.get('Notes'))}" for number, row in negative_rows)
-            ambiguity = "Source does not identify a current storage location."
-            correction = "Keep current location unknown and physically verify; do not create an installation or storage assignment."
+            ambiguity = "Source does not identify a cabinet/location identifier."
+            correction = (
+                "Owner-approved storage normalization for an uncertain present location; do not create "
+                "an installation, storage lifecycle event, or cabinet identifier."
+            )
         else:
             state = STATE_UNKNOWN
             confidence = "Low"

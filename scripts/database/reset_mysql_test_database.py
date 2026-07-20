@@ -54,7 +54,7 @@ def main() -> int:
                     (environment["EOAT_DB_MIGRATION_USER"],),
                 )
             cursor.execute(
-                f"GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{args.database}`.* TO %s@'%%'",
+                f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{args.database}`.* TO %s@'%%'",
                 (environment["EOAT_DB_USER"],),
             )
     finally:

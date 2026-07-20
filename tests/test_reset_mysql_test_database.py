@@ -58,6 +58,7 @@ def test_reset_reuses_root_and_grants_network_reachable_test_app_user(monkeypatc
 
     sql = "\n".join(statement for statement, _params in statements)
     assert "CREATE USER IF NOT EXISTS %s@'%%'" in sql
-    assert "GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE" in sql
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON" in sql
+    assert "EXECUTE" not in sql
     assert "GRANT ALL PRIVILEGES" not in sql
     assert all(params != ("root",) for _statement, params in statements)

@@ -85,6 +85,13 @@
       "state": "finalized",
       "task_id": "observed-eoat-location-model-20260717",
       "finalized_at_utc": "2026-07-17T19:29:06Z"
+    },
+    {
+      "application_version": "0.17.1",
+      "release_id": "eoat-atlas-0.17.1",
+      "state": "finalized",
+      "task_id": "codex-production-observed-location-correction-20260720",
+      "finalized_at_utc": "2026-07-20T19:08:40Z"
     }
   ]
 }

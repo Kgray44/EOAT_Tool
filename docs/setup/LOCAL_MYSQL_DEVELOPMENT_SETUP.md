@@ -36,7 +36,7 @@ scripts\database\check_schema_version.ps1
 3. Initialize a new data directory with `mysqld --initialize-insecure`, bind only to `127.0.0.1`, immediately assign a strong root password, and never expose the temporary empty-password state.
 4. Run `scripts/setup/create_local_dev_database.sql` as an administrator.
 5. Create a migrator account with privileges limited to `eoat_atlas_dev.*` and `eoat_atlas_test.*`.
-6. Create a runtime account with only `SELECT, INSERT, UPDATE, DELETE, EXECUTE` on `eoat_atlas_dev.*`.
+6. Create a runtime account with only `SELECT, INSERT, UPDATE, DELETE` on `eoat_atlas_dev.*`; do not grant `EXECUTE`.
 7. Store generated passwords outside Git and load them through the documented environment variables.
 8. Run the Alembic upgrade and verification scripts.
 
