@@ -40,6 +40,18 @@ export function ErrorState({ error }: { error: unknown }) {
   );
 }
 
+export function NotFoundState({ identifier }: { identifier: string }) {
+  return (
+    <section className="state" aria-labelledby="not-found-title">
+      <h2 id="not-found-title">EOAT not found</h2>
+      <p>
+        EOAT Atlas did not find <code>{identifier}</code>. Check the QR link or
+        identifier and try again.
+      </p>
+    </section>
+  );
+}
+
 export function StatusValue({
   value,
 }: {

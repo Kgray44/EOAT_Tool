@@ -845,6 +845,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/eoats/{identifier}/web-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Eoat Web Documents
+         * @description Return EOAT document metadata without server or network storage paths.
+         */
+        get: operations["eoat_web_documents_api_v1_eoats__identifier__web_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/eoats/{identifier}/web-photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Eoat Web Photos
+         * @description Return EOAT photo metadata without exposing a browser-reachable file path.
+         */
+        get: operations["eoat_web_photos_api_v1_eoats__identifier__web_photos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/fit-checks/evaluate": {
         parameters: {
             query?: never;
@@ -2060,6 +2100,68 @@ export interface components {
             /** Weight Kg */
             weight_kg?: number | null;
         };
+        /** EOATProfile */
+        EOATProfile: {
+            /** Audit Evidence */
+            audit_evidence?: {
+                [key: string]: unknown;
+            }[];
+            /** Business Identifier */
+            business_identifier: string;
+            /** Cleanroom Classification */
+            cleanroom_classification?: string | null;
+            /** Connection Type */
+            connection_type?: string | null;
+            /** Cup Material */
+            cup_material?: string | null;
+            /**
+             * Current Location
+             * @default UNKNOWN_NOT_VERIFIED
+             */
+            current_location: string;
+            current_location_detail?: components["schemas"]["CurrentEOATLocation"] | null;
+            /** Description */
+            description?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Eoat Type */
+            eoat_type?: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Legacy Identifier */
+            legacy_identifier?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Number Of Grippers */
+            number_of_grippers?: number | null;
+            /** Number Of Parts Picked */
+            number_of_parts_picked?: number | null;
+            /** Number Of Vacuum Cups */
+            number_of_vacuum_cups?: number | null;
+            /** Part Present Sensor Present */
+            part_present_sensor_present?: boolean | null;
+            /**
+             * Part Status
+             * @default NOT_YET_VERIFIED
+             */
+            part_status: string;
+            /** Quick Disconnect Present */
+            quick_disconnect_present?: boolean | null;
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipSummary"][];
+            /** Revision */
+            revision?: string | null;
+            /** Row Version */
+            row_version: number;
+            /** Sensors Present */
+            sensors_present?: boolean | null;
+            /** Status */
+            status?: string | null;
+            /** Vacuum Confirmation Sensor Present */
+            vacuum_confirmation_sensor_present?: boolean | null;
+            /** Vacuum Present */
+            vacuum_present?: boolean | null;
+        };
         /** EOATSummary */
         EOATSummary: {
             /** Business Identifier */
@@ -2489,6 +2591,22 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** RelationshipSummary */
+        RelationshipSummary: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Identifier */
+            identifier: string;
+            /** Reason */
+            reason?: string | null;
+            /** Relationship Type */
+            relationship_type: string;
+            /**
+             * Status
+             * @default UNKNOWN
+             */
+            status: string;
+        };
         /** RobotCreate */
         RobotCreate: {
             /** Area Code */
@@ -2700,6 +2818,66 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * WebDocumentMetadata
+         * @description Browser-safe document metadata. Internal storage paths are intentionally excluded.
+         */
+        WebDocumentMetadata: {
+            /**
+             * Content Delivery State
+             * @default NOT_AVAILABLE_THROUGH_WEB
+             * @constant
+             */
+            content_delivery_state: "NOT_AVAILABLE_THROUGH_WEB";
+            /** Description */
+            description?: string | null;
+            /** Document Number */
+            document_number?: string | null;
+            /** Document Uuid */
+            document_uuid: string;
+            /** File Name */
+            file_name: string;
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Related Entities */
+            related_entities?: components["schemas"]["RelationshipSummary"][];
+            /** Title */
+            title: string;
+        };
+        /** WebPhotoMetadata */
+        WebPhotoMetadata: {
+            /** Caption */
+            caption?: string | null;
+            /** Captured At */
+            captured_at?: string | null;
+            /**
+             * Content Delivery State
+             * @default NOT_AVAILABLE_THROUGH_WEB
+             * @constant
+             */
+            content_delivery_state: "NOT_AVAILABLE_THROUGH_WEB";
+            /** Description */
+            description?: string | null;
+            /** Document Number */
+            document_number?: string | null;
+            /** Document Uuid */
+            document_uuid: string;
+            /** File Name */
+            file_name: string;
+            /**
+             * Is Profile Photo
+             * @default false
+             */
+            is_profile_photo: boolean;
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Photo View Type */
+            photo_view_type?: string | null;
+            /** Related Entities */
+            related_entities?: components["schemas"]["RelationshipSummary"][];
+            /** Title */
+            title: string;
         };
     };
     responses: never;
@@ -4169,7 +4347,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["EOATProfile"];
                 };
             };
             /** @description Validation Error */
@@ -4270,7 +4448,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CurrentEOATLocation"];
                 };
             };
             /** @description Validation Error */
@@ -4545,7 +4723,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RelationshipSummary"][];
                 };
             };
             /** @description Validation Error */
@@ -4581,6 +4759,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    eoat_web_documents_api_v1_eoats__identifier__web_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebDocumentMetadata"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    eoat_web_photos_api_v1_eoats__identifier__web_photos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebPhotoMetadata"][];
                 };
             };
             /** @description Validation Error */

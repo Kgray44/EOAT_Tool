@@ -189,6 +189,26 @@ class PhotoMetadata(DocumentMetadata):
     is_profile_photo: bool = False
 
 
+class WebDocumentMetadata(BaseModel):
+    """Browser-safe document metadata. Internal storage paths are intentionally excluded."""
+
+    document_uuid: str
+    document_number: str | None = None
+    title: str
+    description: str | None = None
+    file_name: str
+    mime_type: str | None = None
+    related_entities: list[RelationshipSummary] = Field(default_factory=list)
+    content_delivery_state: Literal["NOT_AVAILABLE_THROUGH_WEB"] = "NOT_AVAILABLE_THROUGH_WEB"
+
+
+class WebPhotoMetadata(WebDocumentMetadata):
+    photo_view_type: str | None = None
+    captured_at: datetime | None = None
+    caption: str | None = None
+    is_profile_photo: bool = False
+
+
 class SearchResult(BaseModel):
     category: Literal["eoat", "machine", "tool"]
     identifier: str

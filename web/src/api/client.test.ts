@@ -45,4 +45,19 @@ describe("apiClient", () => {
       kind: "malformed-response",
     });
   });
+
+  it("encodes EOAT identifiers and distinguishes a timeout", async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValue(new DOMException("aborted", "AbortError"));
+    await expect(
+      apiClient.getEoatProfile("EOAT / 1", fetcher),
+    ).rejects.toMatchObject({
+      kind: "timeout",
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/eoats/EOAT%20%2F%201",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

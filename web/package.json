@@ -16,6 +16,7 @@
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "api:generate": "python ../scripts/export_openapi_schema.py --output src/api/generated/openapi.json && openapi-typescript src/api/generated/openapi.json -o src/api/generated/types.ts",
     "api:check": "npm run api:generate && git diff --exit-code -- src/api/generated"
   },
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
+    "@playwright/test": "^1.51.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",

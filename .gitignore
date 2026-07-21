@@ -24,6 +24,8 @@ ENV/
 web/node_modules/
 web/dist/
 web/.vite/
+web/playwright-report/
+web/test-results/
 
 # Local configs and secrets
 .env

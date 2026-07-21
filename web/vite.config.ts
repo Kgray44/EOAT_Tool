@@ -38,6 +38,7 @@ export default defineConfig(({ mode }) => {
       globals: true,
       css: true,
       pool: "threads",
+      include: ["src/**/*.test.{ts,tsx}"],
     },
   };
 });

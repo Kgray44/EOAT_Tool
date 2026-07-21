@@ -20,12 +20,19 @@ from .authentication.audit import record_auth_event
 from .authentication.configuration import AuthenticationConfiguration
 from .authentication.routes import router as authentication_router
 from .contracts import (
+    CurrentEOATLocation,
+    DocumentMetadata,
+    EOATProfile,
     FitCheckRequest,
     HealthResult,
     PaginatedEOATs,
     PaginatedHistory,
     PaginatedMachines,
     PaginatedTools,
+    PhotoMetadata,
+    RelationshipSummary,
+    WebDocumentMetadata,
+    WebPhotoMetadata,
 )
 from .database import models as db
 from .database.session import create_session_factory, dispose_database_engines, get_runtime_session, get_write_session
@@ -314,7 +321,7 @@ def eoats(
     return PaginatedEOATs(items=items, pagination=pagination)
 
 
-@app.get("/api/v1/eoats/{identifier}")
+@app.get("/api/v1/eoats/{identifier}", response_model=EOATProfile)
 def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     value = repo.eoat(identifier)
     if value is None:
@@ -322,7 +329,7 @@ def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     return value
 
 
-@app.get("/api/v1/eoats/{identifier}/current-location")
+@app.get("/api/v1/eoats/{identifier}/current-location", response_model=CurrentEOATLocation)
 def eoat_current_location(identifier: str, repo: AtlasRepository = Depends(repository)):
     entity = repo.session.scalar(
         __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
@@ -364,7 +371,7 @@ def eoat_location_observations(identifier: str, repo: AtlasRepository = Depends(
     ]
 
 
-@app.get("/api/v1/eoats/{identifier}/relationships")
+@app.get("/api/v1/eoats/{identifier}/relationships", response_model=list[RelationshipSummary])
 def eoat_relationships(identifier: str, repo: AtlasRepository = Depends(repository)):
     if repo.eoat(identifier) is None:
         raise not_found("EOAT", identifier)
@@ -422,6 +429,54 @@ def eoat_photos(identifier: str, repo: AtlasRepository = Depends(repository)):
     if entity is None:
         raise not_found("EOAT", identifier)
     return repo.documents("eoat", entity.id, photos_only=True)
+
+
+def _web_document_metadata(value: DocumentMetadata | PhotoMetadata) -> WebDocumentMetadata | WebPhotoMetadata:
+    """Remove internal path details before a document is visible to browser clients."""
+    common = {
+        "document_uuid": value.document_uuid,
+        "document_number": value.document_number,
+        "title": value.title,
+        "description": value.description,
+        "file_name": value.file_name,
+        "mime_type": value.mime_type,
+        "related_entities": value.related_entities,
+    }
+    if isinstance(value, PhotoMetadata):
+        return WebPhotoMetadata(
+            **common,
+            photo_view_type=value.photo_view_type,
+            captured_at=value.captured_at,
+            caption=value.caption,
+            is_profile_photo=value.is_profile_photo,
+        )
+    return WebDocumentMetadata(**common)
+
+
+@app.get("/api/v1/eoats/{identifier}/web-documents", response_model=list[WebDocumentMetadata])
+def eoat_web_documents(identifier: str, repo: AtlasRepository = Depends(repository)):
+    """Return EOAT document metadata without server or network storage paths."""
+    entity = repo.session.scalar(
+        __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
+    )
+    if entity is None:
+        raise not_found("EOAT", identifier)
+    return [_web_document_metadata(value) for value in repo.documents("eoat", entity.id) if not isinstance(value, PhotoMetadata)]
+
+
+@app.get("/api/v1/eoats/{identifier}/web-photos", response_model=list[WebPhotoMetadata])
+def eoat_web_photos(identifier: str, repo: AtlasRepository = Depends(repository)):
+    """Return EOAT photo metadata without exposing a browser-reachable file path."""
+    entity = repo.session.scalar(
+        __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
+    )
+    if entity is None:
+        raise not_found("EOAT", identifier)
+    return [
+        _web_document_metadata(value)
+        for value in repo.documents("eoat", entity.id, photos_only=True)
+        if isinstance(value, PhotoMetadata)
+    ]
 
 
 @app.get("/api/v1/machines", response_model=PaginatedMachines)

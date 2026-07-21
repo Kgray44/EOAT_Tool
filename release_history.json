@@ -99,6 +99,13 @@
       "state": "finalized",
       "task_id": "codex-safe-github-publication-20260720",
       "finalized_at_utc": "2026-07-20T20:01:57Z"
+    },
+    {
+      "application_version": "0.18.0",
+      "release_id": "eoat-atlas-0.18.0",
+      "state": "finalized",
+      "task_id": "web-phase1-eoat-qr-profile",
+      "finalized_at_utc": "2026-07-21T21:29:34Z"
     }
   ]
 }

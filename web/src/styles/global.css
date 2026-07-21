@@ -168,3 +168,166 @@ dd {
     animation-iteration-count: 1 !important;
   }
 }
+
+.profile-page {
+  max-width: 70rem;
+}
+.profile-header {
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  color: white;
+  background: linear-gradient(125deg, #09283b, #0d5670);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow-wrap: anywhere;
+}
+.profile-header .eyebrow {
+  color: #b8e8f3;
+}
+.profile-header h1 {
+  margin: 0.3rem 0;
+  font-size: clamp(1.75rem, 6vw, 3.4rem);
+}
+.profile-name {
+  margin: 0;
+  color: #e4f6fa;
+  font-size: 1.1rem;
+}
+.profile-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.profile-summary div {
+  min-width: 0;
+  padding: 0.85rem;
+  background: rgb(255 255 255 / 12%);
+  border-radius: 0.45rem;
+}
+.profile-summary span,
+.profile-summary strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.profile-summary span {
+  color: #d1eef5;
+  font-size: 0.82rem;
+}
+.profile-summary strong {
+  margin-top: 0.25rem;
+  font-size: 0.98rem;
+}
+.profile-sections {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.profile-section {
+  padding: clamp(1rem, 3vw, 1.5rem);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.profile-section h2 {
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+}
+.attribute-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+.attribute-grid div {
+  min-width: 0;
+  padding: 0.75rem;
+  background: #eff7f9;
+  border-radius: 0.45rem;
+  overflow-wrap: anywhere;
+}
+.attribute-grid dd {
+  overflow-wrap: anywhere;
+}
+.location-card {
+  border-left: 0.3rem solid var(--accent);
+  padding-left: 1rem;
+}
+.notes {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.relationship-list,
+.metadata-list,
+.history-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.relationship-list li,
+.metadata-list li,
+.history-list li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  overflow-wrap: anywhere;
+}
+.relationship-list small,
+.metadata-list small,
+.history-list small {
+  color: var(--muted);
+}
+.history-list {
+  counter-reset: event;
+}
+.history-list li {
+  position: relative;
+  padding-left: 1.2rem;
+}
+.history-list li::before {
+  position: absolute;
+  left: 0;
+  top: 1rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  content: "";
+  background: var(--accent);
+  border-radius: 50%;
+}
+.history-list time {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.history-list p {
+  margin: 0.25rem 0;
+  line-height: 1.5;
+}
+.retry-button {
+  min-height: 2.75rem;
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  color: white;
+  background: var(--accent-dark);
+  border: 0;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+.retry-button:hover {
+  background: #05546a;
+}
+@media (max-width: 760px) {
+  .profile-summary,
+  .attribute-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 420px) {
+  .profile-summary,
+  .attribute-grid {
+    grid-template-columns: 1fr;
+  }
+}

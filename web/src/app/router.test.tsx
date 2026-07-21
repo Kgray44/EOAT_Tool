@@ -13,10 +13,10 @@ function renderAt(path: string) {
 }
 
 describe("router", () => {
-  it("preserves registered deep routes as honest phase placeholders", () => {
-    renderAt("/eoats/test-identifier");
-    expect(screen.getByText(/EOAT profile is planned/i)).toBeInTheDocument();
-    expect(screen.getByText("/eoats/test-identifier")).toBeInTheDocument();
+  it("preserves deferred deep routes as honest phase placeholders", () => {
+    renderAt("/machines/test-machine");
+    expect(screen.getByText(/Machine profile is planned/i)).toBeInTheDocument();
+    expect(screen.getByText("/machines/test-machine")).toBeInTheDocument();
   });
   it("shows a not-found page for unknown routes", () => {
     renderAt("/not-a-route");
