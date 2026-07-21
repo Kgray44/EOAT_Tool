@@ -466,7 +466,17 @@ class ReadonlySSH:
             "memory": ["free", "-h"],
             "disk": ["df", "-h", root, "/tmp"],
             "layout": ["ls", "-ld", root, f"{root}/incoming", f"{root}/releases", f"{root}/current", f"{root}/shared"],
-            "current-content": ["find", "-H", f"{root}/current", "-mindepth", "1", "-maxdepth", "1", "-printf", "%f %y\n"],
+            "current-content": [
+                "find",
+                "-H",
+                f"{root}/current",
+                "-mindepth",
+                "1",
+                "-maxdepth",
+                "1",
+                "-printf",
+                "%f %y\n",
+            ],
             "current-target": ["readlink", "-f", f"{root}/current"],
             "releases": [
                 "find",
@@ -582,7 +592,12 @@ class ReadonlySSH:
                 "\n__EOAT_HTTP_STATUS=%{http_code} __EOAT_RESPONSE_SECONDS=%{time_total}\n",
                 f"http://127.0.0.1:{self.config.api_port}{value}",
             ]
-        if operation == "reverse-proxy-health" and value and value in INSPECTION_HEALTH_PATHS and self.config.public_hostname:
+        if (
+            operation == "reverse-proxy-health"
+            and value
+            and value in INSPECTION_HEALTH_PATHS
+            and self.config.public_hostname
+        ):
             endpoint = f"{self.config.public_scheme}://{self.config.public_hostname}:{self.config.public_port}{value}"
             return [
                 "curl",
@@ -961,9 +976,7 @@ def _current_metadata(remote: RemoteResult) -> tuple[dict[str, Any] | None, str 
     )
 
 
-def _current_deployment(
-    manifest: RemoteResult, metadata: RemoteResult
-) -> tuple[dict[str, Any], list[str]]:
+def _current_deployment(manifest: RemoteResult, metadata: RemoteResult) -> tuple[dict[str, Any], list[str]]:
     core, manifest_error = _current_manifest(manifest)
     release_metadata, metadata_error = _current_metadata(metadata)
     warnings: list[str] = []
@@ -993,7 +1006,9 @@ def _current_deployment(
     }, warnings
 
 
-def _discovered_service_names(units: RemoteResult, config: ServerConfig, core: dict[str, Any] | None = None) -> tuple[str, ...]:
+def _discovered_service_names(
+    units: RemoteResult, config: ServerConfig, core: dict[str, Any] | None = None
+) -> tuple[str, ...]:
     names: list[str] = []
     if core:
         names.extend(str(item) for item in core.get("services", []))
@@ -1038,7 +1053,9 @@ def truth_reconciliation(
             checks.append({"source": "current_symlink", "status": "FAIL", "detail": detail})
             violations.append(detail)
     else:
-        checks.append({"source": "current_symlink", "status": "UNKNOWN", "detail": "Insufficient symlink or identity data"})
+        checks.append(
+            {"source": "current_symlink", "status": "UNKNOWN", "detail": "Insufficient symlink or identity data"}
+        )
 
     app_services = [result for name, result in services.items() if name.startswith("eoat-") or "atlas" in name]
     if app_services and any("/opt/eoat-atlas/current" in str(result.get("output") or "") for result in app_services):
@@ -1076,7 +1093,9 @@ def truth_reconciliation(
             checks.append({"source": "health", "status": "FAIL", "detail": detail})
             violations.append(detail)
         else:
-            checks.append({"source": "health", "status": "PASS", "detail": "Health identity agrees with current release metadata"})
+            checks.append(
+                {"source": "health", "status": "PASS", "detail": "Health identity agrees with current release metadata"}
+            )
         metadata_environment = identity.get("environment")
         health_environment = payload.get("environment")
         if metadata_environment and health_environment and metadata_environment != health_environment:
@@ -1087,7 +1106,9 @@ def truth_reconciliation(
             checks.append({"source": "environment", "status": "FAIL", "detail": detail})
             violations.append(detail)
         elif metadata_environment or health_environment:
-            checks.append({"source": "environment", "status": "PASS", "detail": str(metadata_environment or health_environment)})
+            checks.append(
+                {"source": "environment", "status": "PASS", "detail": str(metadata_environment or health_environment)}
+            )
         metadata_revision = identity.get("migration_revision")
         health_revision = payload.get("current_schema_revision")
         if metadata_revision and health_revision and metadata_revision != health_revision:
@@ -1109,12 +1130,12 @@ def public_health_compatibility(config: ServerConfig, core: dict[str, Any]) -> d
         "paths": core.get("health_checks", []),
     }
     if not isinstance(expected, dict):
-        return {"status": "UNKNOWN", "detail": "Release manifest has no public health endpoint metadata", "observed": observed}
-    differences = [
-        key
-        for key in ("scheme", "hostname", "port", "paths")
-        if expected.get(key) != observed.get(key)
-    ]
+        return {
+            "status": "UNKNOWN",
+            "detail": "Release manifest has no public health endpoint metadata",
+            "observed": observed,
+        }
+    differences = [key for key in ("scheme", "hostname", "port", "paths") if expected.get(key) != observed.get(key)]
     return {
         "status": "PASS" if not differences else "FAIL",
         "detail": "Public health endpoint agrees with release manifest"
@@ -1141,10 +1162,7 @@ def _reverse_proxy_inspection(
     if not config.public_hostname:
         body, timing = _http_probe_output(fallback.output)
         return {**_service_result(fallback), "body_excerpt": body[-1000:], **timing}
-    probes = {
-        path: _reverse_proxy_result(ssh.execute("reverse-proxy-health", path), config, path)
-        for path in paths
-    }
+    probes = {path: _reverse_proxy_result(ssh.execute("reverse-proxy-health", path), config, path) for path in paths}
     return {
         "endpoint": {
             "scheme": config.public_scheme,
@@ -1215,9 +1233,7 @@ def inspect_server_only(config: ServerConfig) -> dict[str, Any]:
         "reverse-proxy-root",
     )
     remote = {name: ssh.execute(name) for name in operations}
-    current, current_warnings = _current_deployment(
-        ssh.execute("current-manifest"), ssh.execute("current-metadata")
-    )
+    current, current_warnings = _current_deployment(ssh.execute("current-manifest"), ssh.execute("current-metadata"))
     service_names = _discovered_service_names(remote["service-units"], config)
     services = {name: _service_result(ssh.execute("service", name)) for name in service_names}
     health = {path: _health_result(ssh.execute("health", path)) for path in INSPECTION_HEALTH_PATHS}
@@ -1431,10 +1447,7 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         blocking.append("Required server identity or filesystem inspection failed")
     readiness = "NOT_READY" if blocking else "READY_WITH_WARNINGS" if warnings else "READY_FOR_LATER_DEPLOYMENT"
     return {
-        "server": {
-            name: _result_payload(result)
-            for name, result in remote.items()
-        },
+        "server": {name: _result_payload(result) for name, result in remote.items()},
         "current_deployment": current_deployment,
         "services": service_state,
         "health": health,
@@ -1548,7 +1561,9 @@ def _resolve_local_or_github(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="EOAT Atlas Phase 2 server updater (strict dry-run/read-only mode)")
+    parser = argparse.ArgumentParser(
+        description="EOAT Atlas release updater (read-only preflight plus explicit Phase 3 controls)"
+    )
     parser.add_argument("--root", type=Path, default=ROOT, help=argparse.SUPPRESS)
     parser.add_argument("--json", action="store_true", dest="as_json")
     parser.add_argument("--server-config", type=Path, help="Non-secret local server inspection configuration")
@@ -1562,11 +1577,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     inspect.add_argument("--version", metavar="MAJOR.MINOR.PATCH")
     preflight = subparsers.add_parser("preflight", help="Perform a strict read-only deployment rehearsal")
     preflight.add_argument("--version", metavar="MAJOR.MINOR.PATCH")
-    deploy_latest = subparsers.add_parser("deploy-latest", help="Alias for read-only latest-release preflight")
-    deploy_latest.add_argument("--dry-run", action="store_true", required=True)
-    deploy_version = subparsers.add_parser("deploy-version", help="Alias for read-only selected-release preflight")
+    deploy_latest = subparsers.add_parser("deploy-latest", help="Preflight latest release or explicitly stage it")
+    latest_mode = deploy_latest.add_mutually_exclusive_group(required=True)
+    latest_mode.add_argument("--dry-run", action="store_true")
+    latest_mode.add_argument("--stage-only", action="store_true", help="Stage after all checks; never activate")
+    deploy_version = subparsers.add_parser("deploy-version", help="Preflight selected release or explicitly stage it")
     deploy_version.add_argument("version", metavar="MAJOR.MINOR.PATCH")
-    deploy_version.add_argument("--dry-run", action="store_true", required=True)
+    version_mode = deploy_version.add_mutually_exclusive_group(required=True)
+    version_mode.add_argument("--dry-run", action="store_true")
+    version_mode.add_argument("--stage-only", action="store_true", help="Stage after all checks; never activate")
+    for command, description in (
+        ("activate", "Activate an already staged deployment"),
+        ("rollback", "Roll back an activated deployment"),
+        ("recover", "Inspect a locked interrupted deployment"),
+        ("abort", "Abort a pre-activation deployment"),
+        ("deployment-status", "Read a deployment transaction state"),
+    ):
+        active = subparsers.add_parser(command, help=description)
+        active.add_argument("deployment_id", metavar="DEPLOYMENT_ID")
     return parser.parse_args(argv)
 
 
@@ -1578,10 +1606,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "status":
             payload = {
                 "tool_version": TOOL_VERSION,
-                "mode": "DRY_RUN_READ_ONLY",
+                "mode": "READ_ONLY_STATUS",
                 "server_configured": bool(args.server_config),
                 "cache_dir": str(cache),
-                "active_deployment_supported": False,
+                "active_deployment_supported": True,
             }
             _print(payload, args.as_json)
             return 0
@@ -1603,6 +1631,25 @@ def main(argv: list[str] | None = None) -> int:
             receipt["receipt_path"] = str(_write_receipt(root, receipt))
             _print(receipt, args.as_json)
             return 0
+        if args.command in {"activate", "rollback", "recover", "abort", "deployment-status"}:
+            if not args.server_config:
+                raise DeploymentError(f"{args.command} requires a non-secret --server-config")
+            from .active_deployment import helper_operation
+
+            operation = "status" if args.command == "deployment-status" else args.command
+            result = helper_operation(
+                root, load_server_config(args.server_config.resolve()), operation, args.deployment_id
+            )
+            _print(
+                {
+                    "mode": operation.upper(),
+                    "deployment_id": result.deployment_id,
+                    "state": result.state,
+                    "receipt_path": str(result.receipt_path),
+                },
+                args.as_json,
+            )
+            return 0
         version = getattr(args, "version", None)
         release_dir, external = _resolve_local_or_github(
             root, release_dir=args.release_dir, version=version, cache_root=cache
@@ -1621,6 +1668,22 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         config = load_server_config(args.server_config.resolve()) if args.server_config else None
+        if getattr(args, "stage_only", False):
+            if not config:
+                raise DeploymentError("--stage-only requires a non-secret --server-config")
+            from .active_deployment import stage_release
+
+            result = stage_release(root, release_dir, external, config)
+            _print(
+                {
+                    "mode": "STAGE_ONLY",
+                    "deployment_id": result.deployment_id,
+                    "state": result.state,
+                    "receipt_path": str(result.receipt_path),
+                },
+                args.as_json,
+            )
+            return 0
         receipt = dry_run_receipt(root, release_dir, external, config)
         path = _write_receipt(root, receipt)
         receipt["receipt_path"] = str(path)

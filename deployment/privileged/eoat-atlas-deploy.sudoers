@@ -1,0 +1,5 @@
+# EOAT Atlas Phase 3: deliberately narrow, non-interactive elevation surface.
+# The helper parses the structured base64 request and rejects all commands,
+# paths, units, and environment values supplied by the caller.
+Cmnd_Alias EOAT_ATLAS_DEPLOY = /usr/bin/python3 /usr/local/libexec/eoat-atlas/eoat_atlas_deploy_helper.py --request-b64 *
+kgray ALL=(root) NOPASSWD: EOAT_ATLAS_DEPLOY

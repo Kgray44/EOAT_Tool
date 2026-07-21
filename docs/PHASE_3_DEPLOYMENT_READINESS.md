@@ -1,65 +1,84 @@
-# Phase 3 deployment readiness
+# Phase 3 deployment controls
 
-This checklist is a handoff boundary, not permission to activate a release.
-The repository deliberately contains no Phase 3 deployment command.  A
-validated GitHub Release and a PASS/READY Phase 2 read-only receipt are both
-required before any of the actions below can be designed, tested, or approved.
+Phase 3 is implemented as two intentionally separate trust domains:
 
-## Required control plane
+- The unprivileged updater verifies an immutable GitHub release, runs the
+  existing strict production preflight, transfers only the verified artifact,
+  manifest, and checksum to a non-final incoming location, and asks for one
+  structured helper operation.
+- The root-owned helper has a fixed operation allowlist.  It accepts neither a
+  shell command nor caller-provided paths, service names, environment data, or
+  database credentials.  It is the only component permitted to create the
+  deployment lock, extract a release, provision a locked virtual environment,
+  atomically change `current`, or restart `eoat-atlas.service`.
 
-Before active deployment work can begin, infrastructure owners must provide
-and document:
+## State machine and durable evidence
 
-- A dedicated server-side deployment account with a narrowly scoped public-key
-  authorization and the read-only inspection permissions required by Phase 2.
-- Approved upload and staging paths under the controlled application root.
-- A server-side deployment lock with ownership, timeout, stale-lock recovery,
-  and audit rules.
-- A tested database backup mechanism, restore owner, retention period, and
-  verification procedure.
-- A reproducible dependency-provisioning method using locked inputs only.
-- An explicit migration approval gate, including destructive-migration review
-  and a database recovery boundary.
-- An atomic, reversible current-release switch and a retention policy for the
-  previous known-good release.
-- Scoped service and NGINX restart authority, bounded to verified unit names.
-- Post-switch health checks for both release identity and API behavior.
-- An automatic application rollback design, plus separately documented
-  database recovery limits.
-- Disposable-environment evidence covering upload, activation, failure,
-  rollback, and retained-release recovery.
+The helper writes root-owned JSON transaction records under
+`/opt/eoat-atlas/shared/deployment-transactions`, receipts under
+`/opt/eoat-atlas/shared/deployment-receipts`, and an exclusive lock at
+`/var/lock/eoat-atlas-deploy.lock`.  State transitions are append-only events:
 
-## Phase 2 acceptance inputs
+`CREATED -> LOCK_ACQUIRED -> BACKUP_CREATED -> ARTIFACT_TRANSFERRED ->
+ARTIFACT_VERIFIED -> RELEASE_EXTRACTED -> RUNTIME_READY ->
+STAGED_VALIDATED -> ACTIVATION_STARTED -> ACTIVATED -> SERVICE_RESTARTED ->
+HEALTH_VALIDATED -> COMPLETED`.
 
-The active-deployment design must consume a Phase 2 receipt that confirms the
-selected GitHub Release, verified hash/manifest identity, server runtime,
-available disk space, current release metadata, migration state, service
-metadata, and local health probes.  Any UNKNOWN or FAIL result is a blocker;
-it must not be converted into an assumption by a deployment script.
-Filesystem metadata, the current symlink, systemd executable paths, host-routed
-health responses, and declared runtime environment must agree. A disagreement
-is a deployment truth violation and blocks release publication until the owner
-resolves it or supplies authoritative evidence that changes the expected model.
+The non-mutating `recover` operation reports the required bounded action for
+an interrupted transaction; it never guesses, deletes a stale lock, or
+silently changes a release.  `abort` is available only before activation.
+`rollback` is available only for an activated transaction and restores the
+recorded `previous` release.  A failed rollback health probe preserves the
+lock and records `MANUAL_INTERVENTION_REQUIRED`.
 
-Known-host verification and non-interactive authentication are separate gates.
-The SSH host key must be matched to a trusted out-of-band fingerprint before
-its known-host entry is added.  The deployment account must then authenticate
-without password prompts, copied private keys, or relaxed host checking.
+## Gates
 
-## Future release procedure constraints
+Before staging, the updater requires a trusted OpenSSH host key, complete
+GitHub release assets, external and embedded manifest agreement, checksum and
+archive-safety validation, no Phase 2 blocking deployment-truth violation,
+known compatible runtime/disk facts, and a verified `NOT_REQUIRED` migration
+decision.  Phase 3 intentionally refuses a migration-bearing release until a
+separate owner-approved backup/restore and migration runbook is supplied; it
+does not treat an application rollback as database rollback.
 
-An eventual Phase 3 implementation must preserve this order:
+The helper repeats server-side SHA-256 verification, parses the external
+manifest/checksum, compares its canonical core to the embedded manifest,
+rejects traversal/symlink/device/FIFO archive entries, requires runtime source
+and `requirements.lock`, uses `pip install --require-hashes`, and imports the
+staged API before the release directory is promoted.
 
-1. Acquire the deployment lock and verify the selected immutable artifact.
-2. Confirm backup approval and create a verified recovery point.
-3. Upload and stage without changing the current release.
-4. Verify the staged hash, provision only locked dependencies, and review the
-   migration plan before any database action.
-5. Perform the approved migration, switch the release atomically, then restart
-   only the approved services.
-6. Verify versioned health checks, release identity, and service state.
-7. Automatically roll back the application on failed health checks, while
-   stopping at the documented database recovery boundary.
+## Operator commands
 
-No implementation may skip a failed gate, broaden service scope, or treat an
-application rollback as proof that a database migration is reversible.
+All active commands require a verified non-secret server configuration and a
+preinstalled helper.  They retain OpenSSH `BatchMode=yes` and
+`StrictHostKeyChecking=yes`.
+
+```powershell
+# Stages only. It does not modify current, restart a service, or run a migration.
+python tools/server_updater.py --server-config C:\safe\eoat-atlas-production.json deploy-latest --stage-only
+
+# An explicit second operator decision is required for any activation.
+python tools/server_updater.py --server-config C:\safe\eoat-atlas-production.json activate DEPLOYMENT_ID
+python tools/server_updater.py --server-config C:\safe\eoat-atlas-production.json deployment-status DEPLOYMENT_ID
+python tools/server_updater.py --server-config C:\safe\eoat-atlas-production.json rollback DEPLOYMENT_ID
+python tools/server_updater.py --server-config C:\safe\eoat-atlas-production.json recover DEPLOYMENT_ID
+```
+
+Each local invocation writes a receipt below
+`.local/active-deployment-receipts`.  Stage and activation receipts are
+separate evidence; neither command updates Git, creates a GitHub release, or
+changes NGINX.
+
+## One-time privileged bootstrap
+
+The human administrator installs the root-owned helper using the exact
+procedure in [privileged helper README](../deployment/privileged/README.md).
+It creates only the helper, its narrowly scoped sudo rule, and dedicated
+control directories.  It must be followed by `sudo -l -U kgray`, `visudo -cf
+/etc/sudoers.d/eoat-atlas-deploy`, and a read-only helper status operation.
+No deployment or service restart is part of bootstrap.
+
+The currently approved reverse proxy remains the internal HTTP endpoint on
+port 80.  Missing HTTPS/TLS on port 443 is a non-blocking infrastructure
+warning for deployment automation, but should be resolved before broad
+browser/mobile rollout or any exposure beyond the approved internal network.

@@ -1,8 +1,8 @@
 # EOAT Atlas release packaging and deployment preflight
 
-This is the Phase 1/Phase 2 release foundation. It deliberately separates a
-GitHub-published, immutable release package from an eventual server activation.
-There is no production deployment command in this repository.
+This is the Phase 1/2 release foundation plus the Phase 3 controlled deployment
+client.  It deliberately separates a GitHub-published, immutable release
+package from an explicit, separately authorized server activation.
 
 ## Existing sources of truth
 
@@ -156,10 +156,11 @@ was modified. If SSH credentials, a known host, or an approved read-only MySQL
 login path are unavailable, the receipt says `UNKNOWN`; it does not weaken
 security or guess production truth.
 
-## Explicit Phase 2 boundary
+## Phase 3 boundary
 
-The following remain Phase 3 work and are intentionally absent: upload,
-extraction, backup creation, dependency installation, migration execution,
-symlink changes, service/NGINX restart, post-switch activation, and rollback.
-The required controls and acceptance gates for that future work are listed in
-[Phase 3 deployment readiness](PHASE_3_DEPLOYMENT_READINESS.md).
+Phase 3 is available only after the one-time human sudo bootstrap described in
+[Phase 3 deployment controls](PHASE_3_DEPLOYMENT_READINESS.md).  The updater's
+`--stage-only` mode never activates a release; `activate DEPLOYMENT_ID` is a
+separate conscious operation.  Migration-bearing releases are refused pending
+an independently approved backup/restore and migration runbook.  The helper
+does not manage NGINX and does not infer HTTPS for the approved HTTP endpoint.
