@@ -777,6 +777,49 @@ def health_comparison(health: dict[str, dict[str, Any]], core: dict[str, Any]) -
     return compared, warnings
 
 
+def migration_requirement(
+    health: dict[str, dict[str, Any]], database: RemoteResult, core: dict[str, Any]
+) -> dict[str, Any]:
+    """Determine whether a migration is needed without treating a failed direct query as a write permission."""
+
+    target = str(core["database"]["target_revision"])
+    if database.exit_code == 0 and database.output.strip():
+        current = database.output.strip()
+        return {
+            "status": "NOT_REQUIRED" if current == target else "REQUIRED",
+            "current_revision": current,
+            "target_revision": target,
+            "source": "mysql_login_path",
+        }
+    for path in ("/api/v1/schema-status", "/api/v1/health"):
+        item = health.get(path)
+        if not item or item.get("status") != "PASS":
+            continue
+        body, _timing = _http_probe_output(str(item.get("output") or ""))
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        current = str(payload.get("current_revision") or payload.get("current_schema_revision") or "")
+        if current:
+            return {
+                "status": "NOT_REQUIRED" if current == target else "REQUIRED",
+                "current_revision": current,
+                "target_revision": target,
+                "source": path,
+                "direct_database_query": "UNAVAILABLE",
+            }
+    return {
+        "status": "UNKNOWN",
+        "current_revision": None,
+        "target_revision": target,
+        "source": None,
+        "direct_database_query": "UNAVAILABLE" if database.exit_code else "EMPTY",
+    }
+
+
 def _current_manifest(remote: RemoteResult) -> tuple[dict[str, Any] | None, str | None]:
     if remote.exit_code:
         return None, remote.output
@@ -1170,6 +1213,7 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
     health_status, health_warnings = health_comparison(health, core)
     database = ssh.execute("database-revision")
     truth = truth_reconciliation(current_deployment, remote, service_state, health)
+    migration_requirement_result = migration_requirement(health, database, core)
     migration = migration_summary(archive)
     disk = (
         disk_space_preflight(remote["disk"].output, archive.stat().st_size)
@@ -1198,6 +1242,8 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         )
     elif database.exit_code:
         warnings.append("Database migration revision could not be inspected with the approved read-only login path")
+    if migration_requirement_result["status"] == "UNKNOWN":
+        warnings.append("Migration requirement could not be determined from the direct query or health endpoints")
     if migration["multiple_heads"]:
         blocking.append("Downloaded release contains multiple Alembic heads")
     if core["database"]["target_revision"] not in migration["revisions"]:
@@ -1249,6 +1295,7 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         "disk_space_preflight": disk,
         "runtime_compatibility": runtime,
         "migration_preflight": migration,
+        "migration_requirement": migration_requirement_result,
         "deployment_lock": {
             "exit_code": remote["lock"].exit_code,
             "metadata": remote["lock"].output if remote["lock"].exit_code == 0 else None,

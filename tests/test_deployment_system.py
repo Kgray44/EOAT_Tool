@@ -330,6 +330,27 @@ def test_truth_reconciliation_flags_environment_disagreement() -> None:
     assert any("Environment mismatch" in violation for violation in result["violations"])
 
 
+def test_migration_requirement_uses_read_only_health_when_mysql_login_is_unavailable() -> None:
+    core = {"database": {"target_revision": "20260717_0007"}}
+    health = {
+        "/api/v1/schema-status": {
+            "status": "PASS",
+            "output": json.dumps(
+                {
+                    "current_revision": "20260717_0007",
+                    "expected_revision": "20260717_0007",
+                    "compatible": True,
+                }
+            ),
+        }
+    }
+    database = RemoteResult("database-revision", (), 1, "Access denied")
+    result = server_updater.migration_requirement(health, database, core)
+    assert result["status"] == "NOT_REQUIRED"
+    assert result["source"] == "/api/v1/schema-status"
+    assert result["direct_database_query"] == "UNAVAILABLE"
+
+
 def test_unknown_host_key_is_reported_but_never_trusted(monkeypatch: pytest.MonkeyPatch) -> None:
     config = ServerConfig(
         "EOAT-ATLAS",
