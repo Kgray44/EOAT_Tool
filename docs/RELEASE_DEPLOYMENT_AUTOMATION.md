@@ -138,3 +138,5 @@ security or guess production truth.
 The following remain Phase 3 work and are intentionally absent: upload,
 extraction, backup creation, dependency installation, migration execution,
 symlink changes, service/NGINX restart, post-switch activation, and rollback.
+The required controls and acceptance gates for that future work are listed in
+[Phase 3 deployment readiness](PHASE_3_DEPLOYMENT_READINESS.md).
