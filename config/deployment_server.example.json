@@ -1,0 +1,14 @@
+{
+  "server": {
+    "hostname": "EOAT-ATLAS",
+    "port": 22,
+    "username": "eoat-deploy",
+    "application_root": "/opt/eoat-atlas",
+    "api_port": 8765,
+    "services": [],
+    "nginx_service": "nginx.service",
+    "mysql_login_path": "eoat-atlas-prod-runtime",
+    "database_name": "eoat_atlas_prod",
+    "deployment_lock": "/var/lock/eoat-atlas-deploy.lock"
+  }
+}

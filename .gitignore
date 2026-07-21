@@ -11,6 +11,7 @@ htmlcov/
 build/
 dist/
 release_metadata.json
+.local/
 *.egg-info/
 
 # Virtual environments

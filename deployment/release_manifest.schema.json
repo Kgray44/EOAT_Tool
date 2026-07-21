@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eoat-atlas.invalid/schemas/release-manifest-v1.json",
+  "title": "EOAT Atlas external release manifest",
+  "type": "object",
+  "required": [
+    "manifest_schema_version",
+    "manifest_core",
+    "embedded_manifest_sha256",
+    "artifact"
+  ],
+  "properties": {
+    "manifest_schema_version": {"const": 1},
+    "embedded_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "manifest_core": {
+      "type": "object",
+      "required": [
+        "schema_version", "application", "version", "release_id", "build_id",
+        "commit_sha", "branch", "created_at_utc", "payload_sha256",
+        "database", "runtime", "services", "health_checks", "api_contract_version"
+      ],
+      "properties": {
+        "schema_version": {"const": 1},
+        "application": {"const": "EOAT Atlas"},
+        "version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+        "release_id": {"type": "string", "pattern": "^eoat-atlas-"},
+        "build_id": {"type": "string", "pattern": "^eoat-atlas-"},
+        "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "services": {"type": "array", "items": {"type": "string"}},
+        "health_checks": {"type": "array", "items": {"type": "string", "pattern": "^/"}}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["filename", "format", "sha256", "size_bytes"],
+      "properties": {
+        "filename": {"type": "string", "pattern": "\\.tar\\.gz$"},
+        "format": {"const": "tar.gz"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size_bytes": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}
