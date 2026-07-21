@@ -490,3 +490,30 @@ def test_package_dry_run_uses_disposable_clone_without_mutating_source(
         subprocess.run(["git", "status", "--porcelain"], cwd=root, text=True, capture_output=True, check=True).stdout
         == original_status
     )
+
+
+def test_release_receipt_attachment_uses_existing_release_without_clobbering(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    receipt = tmp_path / "release-20260721T000000Z.json"
+    receipt.write_text("{}\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="uploaded", stderr="")
+
+    monkeypatch.setattr(release_manager.subprocess, "run", fake_run)
+    release_manager._attach_release_receipt(tmp_path, "v1.2.4", "owner/repository", receipt)
+
+    assert calls == [
+        [
+            "gh",
+            "release",
+            "upload",
+            "v1.2.4",
+            str(receipt),
+            "--repo",
+            "owner/repository",
+        ]
+    ]

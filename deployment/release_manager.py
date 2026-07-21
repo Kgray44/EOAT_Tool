@@ -676,6 +676,35 @@ def _tag_and_publish(
         receipt["github_release_result"] = "not requested"
 
 
+def _attach_release_receipt(root: Path, tag: str, repository: str, receipt_path: Path) -> None:
+    """Attach the finalized local receipt without replacing any existing asset.
+
+    The receipt describes the exact branch, tag, manifest, and artifact that
+    were published.  It is created only after the GitHub release exists, so a
+    failed attachment is explicitly a recoverable partial-publication state.
+    Its timestamped filename makes an existing unrelated asset a hard error
+    rather than something the release tool could silently overwrite.
+    """
+    result = subprocess.run(
+        [
+            "gh",
+            "release",
+            "upload",
+            tag,
+            str(receipt_path),
+            "--repo",
+            repository,
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        detail = redact_text((result.stderr or result.stdout or "GitHub CLI returned no detail").strip())
+        raise DeploymentError(f"GitHub release receipt attachment failed: {detail}")
+
+
 def package(
     root: Path,
     *,
@@ -786,6 +815,7 @@ def package(
                 }
             )
             destination = _receipt_path(root, "release")
+            receipt["receipt_path"] = str(destination)
             write_json_atomic(destination, receipt)
             raise
         receipt["final_status"] = "SUCCEEDED"
@@ -797,8 +827,45 @@ def package(
         receipt["receipt_path"] = None
     else:
         destination = _receipt_path(root, "release")
-        write_json_atomic(destination, receipt)
         receipt["receipt_path"] = str(destination)
+        if no_publish:
+            receipt["github_release_receipt_asset"] = "not requested"
+            write_json_atomic(destination, receipt)
+        else:
+            # This field is deliberately included in the attached JSON before
+            # the upload occurs: a receipt cannot truthfully assert the result
+            # of the very upload carrying it.  The returned local receipt is
+            # updated to "attached" once the GitHub CLI confirms success.
+            receipt["github_release_receipt_asset"] = "attachment pending"
+            receipt["github_release_receipt_filename"] = destination.name
+            write_json_atomic(destination, receipt)
+            repository = _remote_repository(root)
+            if not repository or not shutil.which("gh"):
+                receipt.update(
+                    {
+                        "final_status": "FAILED_PARTIAL_PUBLICATION",
+                        "failure_stage": "github_release_receipt_attachment",
+                        "failure": "GitHub CLI or origin GitHub repository is unavailable for receipt attachment",
+                        "ended_at_utc": utc_text(),
+                    }
+                )
+                write_json_atomic(destination, receipt)
+                raise DeploymentError(receipt["failure"])
+            try:
+                _attach_release_receipt(root, tag, repository, destination)
+            except DeploymentError as exc:
+                receipt.update(
+                    {
+                        "final_status": "FAILED_PARTIAL_PUBLICATION",
+                        "failure_stage": "github_release_receipt_attachment",
+                        "failure": redact_text(str(exc)),
+                        "ended_at_utc": utc_text(),
+                    }
+                )
+                write_json_atomic(destination, receipt)
+                raise
+            receipt["github_release_receipt_asset"] = "attached"
+            write_json_atomic(destination, receipt)
     return receipt
 
 

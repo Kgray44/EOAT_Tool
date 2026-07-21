@@ -48,7 +48,12 @@ stages only `app/atlas/version.json` and `release_history.json`, commits
 `release: EOAT Atlas X.Y.Z`, builds from that exact resulting commit, creates
 an annotated `vX.Y.Z` tag, then pushes and publishes unless `--no-push` or
 `--no-publish` is supplied. It never force-pushes, overwrites a tag, or calls
-`git add .`.
+`git add .`. A successful published release attaches the archive, checksum,
+external manifest, and the timestamped release receipt. Receipt attachment is
+an explicit final step: if it fails after the first three assets publish, the
+local receipt records `FAILED_PARTIAL_PUBLICATION` and the exact recovery is to
+upload that saved receipt to the existing immutable tag without creating a new
+version or moving the tag.
 
 If a branch or tag push succeeds but GitHub publication fails, the receipt
 records that partial state. Recover by first running `status`, verifying the
