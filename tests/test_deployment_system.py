@@ -590,6 +590,13 @@ def test_dry_run_never_attempts_server_mutation(tmp_path: Path) -> None:
     assert receipt["production_database_written"] is False
 
 
+def test_written_preflight_receipt_records_its_own_path(tmp_path: Path) -> None:
+    receipt = {"mode": "DRY_RUN_READ_ONLY"}
+    path = server_updater._write_receipt(tmp_path, receipt)
+    assert receipt["receipt_path"] == str(path)
+    assert json.loads(path.read_text(encoding="utf-8"))["receipt_path"] == str(path)
+
+
 def test_package_dry_run_uses_disposable_clone_without_mutating_source(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -1532,6 +1532,7 @@ def _write_receipt(root: Path, receipt: dict[str, Any]) -> Path:
         / "deployment-preflight-receipts"
         / f"preflight-{utc_text().replace(':', '').replace('-', '')}.json"
     )
+    receipt["receipt_path"] = str(path)
     write_json_atomic(path, receipt)
     return path
 
