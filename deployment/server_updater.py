@@ -849,12 +849,21 @@ def health_comparison(health: dict[str, dict[str, Any]], core: dict[str, Any]) -
         }
         compared[path] = {"status": "PASS", "values": values, **timing}
         if values.get("application_version") and values["application_version"] != core["version"]:
-            warnings.append(
-                f"Health probe {path} reports {values['application_version']} while target is {core['version']}"
-            )
+            compared[path]["target_version"] = core["version"]
+            compared[path]["version_matches_target"] = False
+        elif values.get("application_version"):
+            compared[path]["target_version"] = core["version"]
+            compared[path]["version_matches_target"] = True
         if values.get("commit_sha") and values["commit_sha"] != core["commit_sha"]:
             warnings.append(f"Health probe {path} reports a commit different from the selected release")
     return compared, warnings
+
+
+def migration_execution_warnings(migration: dict[str, Any], requirement: dict[str, Any]) -> list[str]:
+    """Historical destructive syntax is irrelevant when the target schema is already current."""
+    if requirement.get("status") == "NOT_REQUIRED":
+        return []
+    return [str(warning) for warning in migration.get("destructive_warnings", [])]
 
 
 def migration_requirement(
@@ -1397,8 +1406,7 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         blocking.append("Downloaded release contains multiple Alembic heads")
     if core["database"]["target_revision"] not in migration["revisions"]:
         blocking.append("Downloaded release does not contain its declared Alembic target revision")
-    if migration["destructive_warnings"]:
-        warnings.extend(migration["destructive_warnings"])
+    warnings.extend(migration_execution_warnings(migration, migration_requirement_result))
     warnings.extend(health_warnings)
     blocking.extend(truth["violations"])
     if public_health["status"] == "FAIL":

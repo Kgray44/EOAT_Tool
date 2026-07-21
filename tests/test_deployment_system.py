@@ -415,7 +415,9 @@ def test_health_comparison_keeps_http_timing_and_release_identity() -> None:
     assert compared["/api/v1/health"]["http_status"] == 200
     assert compared["/api/v1/health"]["response_seconds"] == pytest.approx(0.013)
     assert compared["/api/v1/health"]["values"]["release_id"] == "eoat-atlas-0.17.1"
-    assert warnings
+    assert compared["/api/v1/health"]["target_version"] == "0.17.3"
+    assert compared["/api/v1/health"]["version_matches_target"] is False
+    assert warnings == []
 
 
 def test_truth_reconciliation_flags_environment_disagreement() -> None:
@@ -573,6 +575,8 @@ def test_migration_preflight_flags_destructive_operations(tmp_path: Path) -> Non
     summary = migration_summary(build.archive)
     assert summary["heads"] == ["20260717_0007"]
     assert summary["destructive_warnings"]
+    assert server_updater.migration_execution_warnings(summary, {"status": "NOT_REQUIRED"}) == []
+    assert server_updater.migration_execution_warnings(summary, {"status": "REQUIRED"}) == summary["destructive_warnings"]
 
 
 def test_dry_run_never_attempts_server_mutation(tmp_path: Path) -> None:
