@@ -20,6 +20,11 @@ venv/
 env/
 ENV/
 
+# Web client dependencies and static build output
+web/node_modules/
+web/dist/
+web/.vite/
+
 # Local configs and secrets
 .env
 .env.*

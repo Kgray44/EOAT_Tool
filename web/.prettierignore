@@ -1,0 +1,4 @@
+dist
+node_modules
+src/api/generated/openapi.json
+src/api/generated/types.ts

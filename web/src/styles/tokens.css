@@ -1,0 +1,17 @@
+:root {
+  --ink: #102b3b;
+  --muted: #526978;
+  --surface: #f8fbfc;
+  --panel: #ffffff;
+  --line: #c8d7de;
+  --accent: #12a4c8;
+  --accent-dark: #08718c;
+  --success: #256c4c;
+  --danger: #a33737;
+  --focus: #f3b61f;
+  --radius: 0.75rem;
+  --shadow: 0 8px 24px rgb(16 43 59 / 10%);
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--surface);
+}
