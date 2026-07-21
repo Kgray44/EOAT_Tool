@@ -6,8 +6,8 @@ EOAT Atlas will use a static React/TypeScript/Vite frontend with React Router an
 
 Production will serve static files through NGINX and reverse-proxy same-origin `/api` calls to FastAPI bound to localhost. Browser JavaScript never holds the desktop device token or a shared service credential. NGINX will own any future internal credential injection for anonymous read-only traffic.
 
-The initial web rollout is read-only. Phase 1 adds a QR-ready EOAT profile vertical slice and browser-safe metadata adapters that deliberately omit internal document/photo storage paths. Browser writes require production-ready SAML or LDAP and a separately designed session/CSRF boundary.
+The initial web rollout is read-only. Phase 1 adds a QR-ready EOAT profile vertical slice and browser-safe metadata adapters that deliberately omit internal document/photo storage paths. Phase 2 adds UUID-only content delivery guarded by server-configured approved roots, plus a browser Fit Check route that forces non-persistence server-side. Browser writes require production-ready SAML or LDAP and a separately designed session/CSRF boundary.
 
 ## Consequences
 
-The desktop client and responsive web client can coexist over one FastAPI/MySQL source of truth. Phase 0 creates routes and an API-status foundation only; QR deep links, profile pages, editing, uploads, and production hosting remain deferred. Phase 1 should implement the EOAT QR-profile vertical slice at `/eoats/:identifier` using the generated contract rather than a web-specific model.
+The desktop client and responsive web client can coexist over one FastAPI/MySQL source of truth. Phase 2 completes the initial discovery routes—profiles, Library, QR labels, and non-persisting Fit Check—without exposing desktop storage metadata or shared credentials. Editing, uploads, authenticated sessions, and production hosting remain deferred.

@@ -6,6 +6,16 @@ export type EoatProfile = components["schemas"]["EOATProfile"];
 export type EoatLocation = components["schemas"]["CurrentEOATLocation"];
 export type EoatRelationship = components["schemas"]["RelationshipSummary"];
 export type EoatHistory = components["schemas"]["PaginatedHistory"];
+export type MachineProfile = components["schemas"]["MachineProfile"];
+export type MachineSetup = components["schemas"]["MachineCurrentSetup"];
+export type ToolProfile = components["schemas"]["ToolProfile"];
+export type HistoryEvent = components["schemas"]["HistoryEvent"];
+export type MachineList = components["schemas"]["PaginatedMachines"];
+export type ToolList = components["schemas"]["PaginatedTools"];
+export type EoatList = components["schemas"]["PaginatedEOATs"];
+export type SearchResult = components["schemas"]["SearchResult"];
+export type FitCheckRequest = components["schemas"]["WebFitCheckRequest"];
+export type FitCheckResult = components["schemas"]["FitCheckResult"];
 export type WebDocument = components["schemas"]["WebDocumentMetadata"];
 export type WebPhoto = components["schemas"]["WebPhotoMetadata"];
 
@@ -75,14 +85,16 @@ function assertArray<T>(payload: unknown, label: string): T[] {
 async function requestJson(
   path: string,
   fetcher: typeof fetch = fetch,
+  init?: RequestInit,
 ): Promise<unknown> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const response = await fetcher(path, {
-      method: "GET",
-      headers: { Accept: "application/json" },
+      method: init?.method ?? "GET",
+      headers: { Accept: "application/json", ...init?.headers },
       signal: controller.signal,
+      body: init?.body,
     });
     const text = await response.text();
     let body: unknown;
@@ -197,5 +209,219 @@ export const apiClient = {
       ["items", "pagination"],
       "history",
     );
+  },
+  async getMachineProfile(
+    number: string,
+    fetcher?: typeof fetch,
+  ): Promise<MachineProfile> {
+    return assertObject<MachineProfile>(
+      await requestJson(
+        `/api/v1/machines/${encodeURIComponent(number)}`,
+        fetcher,
+      ),
+      ["machine_number", "plant_code", "is_active", "relationships"],
+      "machine profile",
+    );
+  },
+  async getMachineRelationships(
+    number: string,
+    fetcher?: typeof fetch,
+  ): Promise<EoatRelationship[]> {
+    return assertArray<EoatRelationship>(
+      await requestJson(
+        `/api/v1/machines/${encodeURIComponent(number)}/relationships`,
+        fetcher,
+      ),
+      "machine relationships",
+    );
+  },
+  async getMachineSetup(
+    number: string,
+    fetcher?: typeof fetch,
+  ): Promise<MachineSetup> {
+    return assertObject<MachineSetup>(
+      await requestJson(
+        `/api/v1/machines/${encodeURIComponent(number)}/current-setup`,
+        fetcher,
+      ),
+      ["machine_number", "current_eoat", "current_tool", "verified"],
+      "machine current setup",
+    );
+  },
+  async getMachineHistory(
+    number: string,
+    fetcher?: typeof fetch,
+  ): Promise<HistoryEvent[]> {
+    return assertArray<HistoryEvent>(
+      await requestJson(
+        `/api/v1/machines/${encodeURIComponent(number)}/history`,
+        fetcher,
+      ),
+      "machine history",
+    );
+  },
+  async getMachineDocuments(
+    number: string,
+    fetcher?: typeof fetch,
+  ): Promise<WebDocument[]> {
+    return assertArray<WebDocument>(
+      await requestJson(
+        `/api/v1/machines/${encodeURIComponent(number)}/web-documents`,
+        fetcher,
+      ),
+      "machine browser-safe documents",
+    );
+  },
+  async getMachinePhotos(
+    number: string,
+    fetcher?: typeof fetch,
+  ): Promise<WebPhoto[]> {
+    return assertArray<WebPhoto>(
+      await requestJson(
+        `/api/v1/machines/${encodeURIComponent(number)}/web-photos`,
+        fetcher,
+      ),
+      "machine browser-safe photos",
+    );
+  },
+  async getToolProfile(
+    identifier: string,
+    fetcher?: typeof fetch,
+  ): Promise<ToolProfile> {
+    return assertObject<ToolProfile>(
+      await requestJson(
+        `/api/v1/tools/${encodeURIComponent(identifier)}`,
+        fetcher,
+      ),
+      ["business_identifier", "is_active", "relationships"],
+      "tool profile",
+    );
+  },
+  async getToolRelationships(
+    identifier: string,
+    fetcher?: typeof fetch,
+  ): Promise<EoatRelationship[]> {
+    return assertArray<EoatRelationship>(
+      await requestJson(
+        `/api/v1/tools/${encodeURIComponent(identifier)}/relationships`,
+        fetcher,
+      ),
+      "tool relationships",
+    );
+  },
+  async getToolHistory(
+    identifier: string,
+    fetcher?: typeof fetch,
+  ): Promise<HistoryEvent[]> {
+    return assertArray<HistoryEvent>(
+      await requestJson(
+        `/api/v1/tools/${encodeURIComponent(identifier)}/history`,
+        fetcher,
+      ),
+      "tool history",
+    );
+  },
+  async getToolDocuments(
+    identifier: string,
+    fetcher?: typeof fetch,
+  ): Promise<WebDocument[]> {
+    return assertArray<WebDocument>(
+      await requestJson(
+        `/api/v1/tools/${encodeURIComponent(identifier)}/web-documents`,
+        fetcher,
+      ),
+      "tool browser-safe documents",
+    );
+  },
+  async getToolPhotos(
+    identifier: string,
+    fetcher?: typeof fetch,
+  ): Promise<WebPhoto[]> {
+    return assertArray<WebPhoto>(
+      await requestJson(
+        `/api/v1/tools/${encodeURIComponent(identifier)}/web-photos`,
+        fetcher,
+      ),
+      "tool browser-safe photos",
+    );
+  },
+  async getMachines(
+    search = "",
+    page = 1,
+    fetcher?: typeof fetch,
+  ): Promise<MachineList> {
+    return assertObject<MachineList>(
+      await requestJson(
+        `/api/v1/machines?search=${encodeURIComponent(search)}&page=${page}&page_size=24`,
+        fetcher,
+      ),
+      ["items", "pagination"],
+      "machine list",
+    );
+  },
+  async getTools(
+    search = "",
+    page = 1,
+    fetcher?: typeof fetch,
+  ): Promise<ToolList> {
+    return assertObject<ToolList>(
+      await requestJson(
+        `/api/v1/tools?search=${encodeURIComponent(search)}&page=${page}&page_size=24`,
+        fetcher,
+      ),
+      ["items", "pagination"],
+      "tool list",
+    );
+  },
+  async getEoats(
+    search = "",
+    page = 1,
+    fetcher?: typeof fetch,
+  ): Promise<EoatList> {
+    return assertObject<EoatList>(
+      await requestJson(
+        `/api/v1/eoats?search=${encodeURIComponent(search)}&page=${page}&page_size=24`,
+        fetcher,
+      ),
+      ["items", "pagination"],
+      "EOAT list",
+    );
+  },
+  async search(query: string, fetcher?: typeof fetch): Promise<SearchResult[]> {
+    return assertArray<SearchResult>(
+      await requestJson(
+        `/api/v1/search?q=${encodeURIComponent(query)}&limit=75`,
+        fetcher,
+      ),
+      "search results",
+    );
+  },
+  async evaluateWebFitCheck(
+    payload: FitCheckRequest,
+    fetcher?: typeof fetch,
+  ): Promise<FitCheckResult> {
+    return assertObject<FitCheckResult>(
+      await requestJson("/api/v1/web-fit-checks/evaluate", fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+      [
+        "overall_result",
+        "machine_tool_result",
+        "machine_eoat_result",
+        "tool_eoat_result",
+      ],
+      "read-only Fit Check",
+    );
+  },
+  documentContentUrl(documentUuid: string): string {
+    return `/api/v1/web-documents/${encodeURIComponent(documentUuid)}/content`;
+  },
+  photoContentUrl(documentUuid: string): string {
+    return `/api/v1/web-photos/${encodeURIComponent(documentUuid)}/content`;
+  },
+  photoThumbnailUrl(documentUuid: string): string {
+    return `/api/v1/web-photos/${encodeURIComponent(documentUuid)}/thumbnail`;
   },
 };

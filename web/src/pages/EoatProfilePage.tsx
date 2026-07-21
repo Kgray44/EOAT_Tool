@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -8,6 +8,7 @@ import {
   type EoatRelationship,
 } from "@/api/client";
 import { ApiError } from "@/api/errors";
+import { rememberItem } from "@/api/recent";
 import {
   EmptyState,
   ErrorState,
@@ -15,6 +16,8 @@ import {
   NotFoundState,
   StatusValue,
 } from "@/components/feedback/StateViews";
+import { DocumentList, PhotoGallery } from "@/components/profile/ProfileBlocks";
+import { QrLabel } from "@/components/qr/QrLabel";
 
 function decodeEoatIdentifier(pathname: string): string | undefined {
   const prefix = "/eoats/";
@@ -156,6 +159,13 @@ function ProfileContent({
   identifier: string;
   profile: EoatProfile;
 }) {
+  useEffect(() => {
+    rememberItem({
+      category: "eoat",
+      identifier,
+      label: profile.display_name ?? profile.business_identifier,
+    });
+  }, [identifier, profile.business_identifier, profile.display_name]);
   const [location, relationships, documents, photos, history] = useQueries({
     queries: [
       {
@@ -331,19 +341,7 @@ function ProfileContent({
             </EmptyState>
           )}
           {photos.data && photos.data.length > 0 && (
-            <ul className="metadata-list">
-              {photos.data.map((photo) => (
-                <li key={photo.document_uuid}>
-                  <strong>{photo.title}</strong>
-                  <span>{photo.caption ?? photo.file_name}</span>
-                  <small>
-                    {photo.is_profile_photo ? "Profile photo" : "Photo"} ·{" "}
-                    {formatDate(photo.captured_at)} · Not available through the
-                    web interface yet
-                  </small>
-                </li>
-              ))}
-            </ul>
+            <PhotoGallery photos={photos.data} />
           )}
         </ProfileSection>
 
@@ -363,21 +361,7 @@ function ProfileContent({
             </EmptyState>
           )}
           {documents.data && documents.data.length > 0 && (
-            <ul className="metadata-list">
-              {documents.data.map((document) => (
-                <li key={document.document_uuid}>
-                  <strong>{document.title}</strong>
-                  <span>
-                    {document.file_name}
-                    {document.mime_type ? ` · ${document.mime_type}` : ""}
-                  </span>
-                  <small>
-                    {document.description ?? "No description provided."} · Not
-                    available through the web interface yet
-                  </small>
-                </li>
-              ))}
-            </ul>
+            <DocumentList documents={documents.data} />
           )}
         </ProfileSection>
 
@@ -428,6 +412,7 @@ function ProfileContent({
             </ol>
           )}
         </ProfileSection>
+        <QrLabel category="eoat" identifier={profile.business_identifier} />
       </div>
     </>
   );

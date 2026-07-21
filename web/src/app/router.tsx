@@ -2,8 +2,12 @@ import { createBrowserRouter, createMemoryRouter } from "react-router-dom";
 import { App } from "@/app/App";
 import { FoundationPage } from "@/pages/FoundationPage";
 import { EoatProfilePage } from "@/pages/EoatProfilePage";
-import { FutureRoutePage } from "@/pages/FutureRoutePage";
+import { FitCheckPage } from "@/pages/FitCheckPage";
+import { LibraryPage } from "@/pages/LibraryPage";
+import { MachineProfilePage } from "@/pages/MachineProfilePage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { SearchPage } from "@/pages/SearchPage";
+import { ToolProfilePage } from "@/pages/ToolProfilePage";
 
 export const routeDefinitions = [
   {
@@ -11,18 +15,12 @@ export const routeDefinitions = [
     element: <App />,
     children: [
       { index: true, element: <FoundationPage /> },
-      { path: "search", element: <FutureRoutePage title="Search" /> },
-      { path: "library", element: <FutureRoutePage title="Library" /> },
+      { path: "search", element: <SearchPage /> },
+      { path: "library", element: <LibraryPage /> },
       { path: "eoats/:identifier", element: <EoatProfilePage /> },
-      {
-        path: "machines/:number",
-        element: <FutureRoutePage title="Machine profile" />,
-      },
-      {
-        path: "tools/:identifier",
-        element: <FutureRoutePage title="Tool profile" />,
-      },
-      { path: "fit-check", element: <FutureRoutePage title="Fit Check" /> },
+      { path: "machines/:number", element: <MachineProfilePage /> },
+      { path: "tools/:identifier", element: <ToolProfilePage /> },
+      { path: "fit-check", element: <FitCheckPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },

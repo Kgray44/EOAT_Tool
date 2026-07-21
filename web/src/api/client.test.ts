@@ -60,4 +60,48 @@ describe("apiClient", () => {
       expect.objectContaining({ method: "GET" }),
     );
   });
+
+  it("allows only the dedicated non-persisting Fit Check POST", async () => {
+    const fitResult = {
+      overall_result: "COMPATIBLE",
+      machine_tool_result: {
+        pair: "machine_tool",
+        result: "COMPATIBLE",
+        reason: "fixture",
+      },
+      machine_eoat_result: {
+        pair: "machine_eoat",
+        result: "COMPATIBLE",
+        reason: "fixture",
+      },
+      tool_eoat_result: {
+        pair: "tool_eoat",
+        result: "COMPATIBLE",
+        reason: "fixture",
+      },
+      reasons: [],
+      warnings: [],
+      unknown_relationships: [],
+      alternative_compatible_eoats: [],
+      stored: false,
+    };
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify(fitResult), { status: 200 }),
+      );
+    await apiClient.evaluateWebFitCheck(
+      { machine_number: "M/1", tool_number: "T1", eoat_identifier: "E1" },
+      fetcher,
+    );
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/web-fit-checks/evaluate",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.not.objectContaining({
+          "X-EOAT-Device-Token": expect.anything(),
+        }),
+      }),
+    );
+  });
 });

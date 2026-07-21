@@ -199,7 +199,7 @@ class WebDocumentMetadata(BaseModel):
     file_name: str
     mime_type: str | None = None
     related_entities: list[RelationshipSummary] = Field(default_factory=list)
-    content_delivery_state: Literal["NOT_AVAILABLE_THROUGH_WEB"] = "NOT_AVAILABLE_THROUGH_WEB"
+    content_delivery_state: Literal["AVAILABLE", "NOT_AVAILABLE_THROUGH_WEB"] = "NOT_AVAILABLE_THROUGH_WEB"
 
 
 class WebPhotoMetadata(WebDocumentMetadata):
@@ -207,6 +207,23 @@ class WebPhotoMetadata(WebDocumentMetadata):
     captured_at: datetime | None = None
     caption: str | None = None
     is_profile_photo: bool = False
+
+
+class MachineCurrentSetup(BaseModel):
+    machine_number: str
+    current_eoat: str = "UNKNOWN_NOT_VERIFIED"
+    current_tool: str = "UNKNOWN_NOT_VERIFIED"
+    verified: bool = False
+    location_semantics: str
+
+
+class WebFitCheckRequest(BaseModel):
+    """Read-only browser input. Persistence is deliberately not representable."""
+
+    plant_code: str | None = None
+    machine_number: str
+    tool_number: str
+    eoat_identifier: str
 
 
 class SearchResult(BaseModel):

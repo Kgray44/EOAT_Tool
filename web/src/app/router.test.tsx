@@ -13,10 +13,11 @@ function renderAt(path: string) {
 }
 
 describe("router", () => {
-  it("preserves deferred deep routes as honest phase placeholders", () => {
+  it("registers a machine deep route as a real profile route", () => {
     renderAt("/machines/test-machine");
-    expect(screen.getByText(/Machine profile is planned/i)).toBeInTheDocument();
-    expect(screen.getByText("/machines/test-machine")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading machine profile",
+    );
   });
   it("shows a not-found page for unknown routes", () => {
     renderAt("/not-a-route");

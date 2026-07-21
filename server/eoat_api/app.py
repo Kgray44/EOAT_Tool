@@ -24,14 +24,21 @@ from .contracts import (
     DocumentMetadata,
     EOATProfile,
     FitCheckRequest,
+    FitCheckResult,
     HealthResult,
+    HistoryEvent,
+    MachineCurrentSetup,
+    MachineProfile,
     PaginatedEOATs,
     PaginatedHistory,
     PaginatedMachines,
     PaginatedTools,
     PhotoMetadata,
     RelationshipSummary,
+    SearchResult,
+    ToolProfile,
     WebDocumentMetadata,
+    WebFitCheckRequest,
     WebPhotoMetadata,
 )
 from .database import models as db
@@ -40,6 +47,7 @@ from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
 from .services import API_VERSION, EXPECTED_SCHEMA_REVISION, SERVER_REVISION, AtlasService
+from .web_content import content_is_available, content_response, thumbnail_response
 from .write_routes import router as write_router
 
 logging.basicConfig(
@@ -441,6 +449,7 @@ def _web_document_metadata(value: DocumentMetadata | PhotoMetadata) -> WebDocume
         "file_name": value.file_name,
         "mime_type": value.mime_type,
         "related_entities": value.related_entities,
+        "content_delivery_state": "AVAILABLE" if content_is_available(value.storage_path) else "NOT_AVAILABLE_THROUGH_WEB",
     }
     if isinstance(value, PhotoMetadata):
         return WebPhotoMetadata(
@@ -479,6 +488,49 @@ def eoat_web_photos(identifier: str, repo: AtlasRepository = Depends(repository)
     ]
 
 
+@app.get("/api/v1/web-documents/{document_uuid}/content", response_model=None)
+def web_document_content(document_uuid: str, session: Session = Depends(get_runtime_session)):
+    """Serve a document only after UUID lookup and approved-root validation."""
+    return content_response(session, document_uuid, photo_only=False)
+
+
+@app.get("/api/v1/web-photos/{document_uuid}/content", response_model=None)
+def web_photo_content(document_uuid: str, session: Session = Depends(get_runtime_session)):
+    """Serve a photo only after UUID lookup and approved-root validation."""
+    return content_response(session, document_uuid, photo_only=True)
+
+
+@app.get("/api/v1/web-photos/{document_uuid}/thumbnail", response_model=None)
+def web_photo_thumbnail(document_uuid: str, session: Session = Depends(get_runtime_session)):
+    return thumbnail_response(session, document_uuid)
+
+
+def _machine_entity(repo: AtlasRepository, number: str, plant_code: str | None = None):
+    profile = repo.machine(number, plant_code=plant_code)
+    if profile is None:
+        raise not_found("Machine", number)
+    statement = __import__("sqlalchemy").select(db.Machine).where(db.Machine.machine_number == number)
+    statement = statement.join(db.Plant).where(db.Plant.plant_code == profile.plant_code)
+    return repo.session.scalar(statement)
+
+
+def _tool_entity(repo: AtlasRepository, identifier: str):
+    profile = repo.tool(identifier)
+    if profile is None:
+        raise not_found("Tool", identifier)
+    return repo.session.scalar(
+        __import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == profile.business_identifier)
+    )
+
+
+def _web_documents(repo: AtlasRepository, entity_type: str, entity_id: int, *, photos_only: bool):
+    return [
+        _web_document_metadata(value)
+        for value in repo.documents(entity_type, entity_id, photos_only=photos_only)
+        if isinstance(value, PhotoMetadata) is photos_only
+    ]
+
+
 @app.get("/api/v1/machines", response_model=PaginatedMachines)
 def machines(
     search: str = "",
@@ -491,7 +543,7 @@ def machines(
     return PaginatedMachines(items=items, pagination=pagination)
 
 
-@app.get("/api/v1/machines/{number}")
+@app.get("/api/v1/machines/{number}", response_model=MachineProfile)
 def machine(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
     value = repo.machine(number, plant_code=plant_code)
     if value is None:
@@ -499,7 +551,7 @@ def machine(number: str, plant_code: str | None = None, repo: AtlasRepository = 
     return value
 
 
-@app.get("/api/v1/machines/{number}/relationships")
+@app.get("/api/v1/machines/{number}/relationships", response_model=list[RelationshipSummary])
 def machine_relationships(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
     value = repo.machine(number, plant_code=plant_code)
     if value is None:
@@ -507,7 +559,7 @@ def machine_relationships(number: str, plant_code: str | None = None, repo: Atla
     return value.relationships + value.robots
 
 
-@app.get("/api/v1/machines/{number}/current-setup")
+@app.get("/api/v1/machines/{number}/current-setup", response_model=MachineCurrentSetup)
 def machine_current_setup(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
     value = repo.machine(number, plant_code=plant_code)
     if value is None:
@@ -521,7 +573,7 @@ def machine_current_setup(number: str, plant_code: str | None = None, repo: Atla
     }
 
 
-@app.get("/api/v1/machines/{number}/history")
+@app.get("/api/v1/machines/{number}/history", response_model=list[HistoryEvent])
 def machine_history(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
     profile = repo.machine(number, plant_code=plant_code)
     if profile is None:
@@ -530,6 +582,18 @@ def machine_history(number: str, plant_code: str | None = None, repo: AtlasRepos
     statement = statement.join(db.Plant).where(db.Plant.plant_code == profile.plant_code)
     entity = repo.session.scalar(statement)
     return repo.history("machine", entity.id)
+
+
+@app.get("/api/v1/machines/{number}/web-documents", response_model=list[WebDocumentMetadata])
+def machine_web_documents(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
+    entity = _machine_entity(repo, number, plant_code)
+    return _web_documents(repo, "machine", entity.id, photos_only=False)
+
+
+@app.get("/api/v1/machines/{number}/web-photos", response_model=list[WebPhotoMetadata])
+def machine_web_photos(number: str, plant_code: str | None = None, repo: AtlasRepository = Depends(repository)):
+    entity = _machine_entity(repo, number, plant_code)
+    return _web_documents(repo, "machine", entity.id, photos_only=True)
 
 
 @app.get("/api/v1/tools", response_model=PaginatedTools)
@@ -544,7 +608,7 @@ def tools(
     return PaginatedTools(items=items, pagination=pagination)
 
 
-@app.get("/api/v1/tools/{identifier}")
+@app.get("/api/v1/tools/{identifier}", response_model=ToolProfile)
 def tool(identifier: str, repo: AtlasRepository = Depends(repository)):
     value = repo.tool(identifier)
     if value is None:
@@ -552,7 +616,7 @@ def tool(identifier: str, repo: AtlasRepository = Depends(repository)):
     return value
 
 
-@app.get("/api/v1/tools/{identifier}/relationships")
+@app.get("/api/v1/tools/{identifier}/relationships", response_model=list[RelationshipSummary])
 def tool_relationships(identifier: str, repo: AtlasRepository = Depends(repository)):
     value = repo.tool(identifier)
     if value is None:
@@ -560,7 +624,7 @@ def tool_relationships(identifier: str, repo: AtlasRepository = Depends(reposito
     return value.relationships
 
 
-@app.get("/api/v1/tools/{identifier}/history")
+@app.get("/api/v1/tools/{identifier}/history", response_model=list[HistoryEvent])
 def tool_history(identifier: str, repo: AtlasRepository = Depends(repository)):
     entity = repo.session.scalar(
         __import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == identifier)
@@ -570,11 +634,30 @@ def tool_history(identifier: str, repo: AtlasRepository = Depends(repository)):
     return repo.history("tool", entity.id)
 
 
-@app.get("/api/v1/search")
+@app.get("/api/v1/tools/{identifier}/web-documents", response_model=list[WebDocumentMetadata])
+def tool_web_documents(identifier: str, repo: AtlasRepository = Depends(repository)):
+    entity = _tool_entity(repo, identifier)
+    return _web_documents(repo, "tool", entity.id, photos_only=False)
+
+
+@app.get("/api/v1/tools/{identifier}/web-photos", response_model=list[WebPhotoMetadata])
+def tool_web_photos(identifier: str, repo: AtlasRepository = Depends(repository)):
+    entity = _tool_entity(repo, identifier)
+    return _web_documents(repo, "tool", entity.id, photos_only=True)
+
+
+@app.get("/api/v1/search", response_model=list[SearchResult])
 def search(
     q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=250), repo: AtlasRepository = Depends(repository)
 ):
     return repo.search(q, limit=limit)
+
+
+@app.post("/api/v1/web-fit-checks/evaluate", response_model=FitCheckResult)
+def evaluate_web_fit_check(payload: WebFitCheckRequest, session: Session = Depends(get_runtime_session)):
+    """Browser-only compatibility evaluation; this route has no persistence path."""
+    request = FitCheckRequest(**payload.model_dump(), persist=False)
+    return AtlasService(session).fit_check(request)
 
 
 @app.post("/api/v1/fit-checks/evaluate")

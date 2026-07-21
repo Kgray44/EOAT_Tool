@@ -117,9 +117,7 @@ test("landing, back navigation, not-found, and mobile overflow are truthful", as
   await page.goBack();
   await expect(page.getByRole("heading", { name: "QR-EOAT-1" })).toBeVisible();
   await page.goForward();
-  await expect(
-    page.getByRole("heading", { name: "Search is planned for a later phase" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole("heading", { name: "QR-EOAT-1" })).toBeVisible();
   await page.goto("/eoats/MISSING");

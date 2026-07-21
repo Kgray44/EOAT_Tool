@@ -2014,6 +2014,79 @@
         "title": "FitCheckRequest",
         "type": "object"
       },
+      "FitCheckResult": {
+        "properties": {
+          "alternative_compatible_eoats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alternative Compatible Eoats",
+            "type": "array"
+          },
+          "evaluation_engine_version": {
+            "default": "mysql-read-v1",
+            "title": "Evaluation Engine Version",
+            "type": "string"
+          },
+          "machine_eoat_result": {
+            "$ref": "#/components/schemas/PairCompatibility"
+          },
+          "machine_tool_result": {
+            "$ref": "#/components/schemas/PairCompatibility"
+          },
+          "overall_result": {
+            "enum": [
+              "COMPATIBLE",
+              "INCOMPATIBLE",
+              "NEEDS_REVIEW",
+              "INVALID_INPUT"
+            ],
+            "title": "Overall Result",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "stored": {
+            "default": false,
+            "title": "Stored",
+            "type": "boolean"
+          },
+          "tool_eoat_result": {
+            "$ref": "#/components/schemas/PairCompatibility"
+          },
+          "unknown_relationships": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unknown Relationships",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "overall_result",
+          "machine_tool_result",
+          "machine_eoat_result",
+          "tool_eoat_result",
+          "reasons",
+          "warnings",
+          "unknown_relationships",
+          "alternative_compatible_eoats"
+        ],
+        "title": "FitCheckResult",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2559,6 +2632,39 @@
         "title": "MachineCreate",
         "type": "object"
       },
+      "MachineCurrentSetup": {
+        "properties": {
+          "current_eoat": {
+            "default": "UNKNOWN_NOT_VERIFIED",
+            "title": "Current Eoat",
+            "type": "string"
+          },
+          "current_tool": {
+            "default": "UNKNOWN_NOT_VERIFIED",
+            "title": "Current Tool",
+            "type": "string"
+          },
+          "location_semantics": {
+            "title": "Location Semantics",
+            "type": "string"
+          },
+          "machine_number": {
+            "title": "Machine Number",
+            "type": "string"
+          },
+          "verified": {
+            "default": false,
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "machine_number",
+          "location_semantics"
+        ],
+        "title": "MachineCurrentSetup",
+        "type": "object"
+      },
       "MachinePatch": {
         "additionalProperties": false,
         "properties": {
@@ -2718,6 +2824,160 @@
           "expected_row_version"
         ],
         "title": "MachinePatch",
+        "type": "object"
+      },
+      "MachineProfile": {
+        "properties": {
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "audit_evidence": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Audit Evidence",
+            "type": "array"
+          },
+          "cleanroom_classification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanroom Classification"
+          },
+          "controller_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller Type"
+          },
+          "current_eoat": {
+            "default": "UNKNOWN_NOT_VERIFIED",
+            "title": "Current Eoat",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "machine_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Name"
+          },
+          "machine_number": {
+            "title": "Machine Number",
+            "type": "string"
+          },
+          "manufacturer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manufacturer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "plant_code": {
+            "title": "Plant Code",
+            "type": "string"
+          },
+          "press_capacity_tons": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Press Capacity Tons"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/RelationshipSummary"
+            },
+            "title": "Relationships",
+            "type": "array"
+          },
+          "robots": {
+            "items": {
+              "$ref": "#/components/schemas/RelationshipSummary"
+            },
+            "title": "Robots",
+            "type": "array"
+          },
+          "row_version": {
+            "title": "Row Version",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "plant_code",
+          "machine_number",
+          "is_active",
+          "row_version"
+        ],
+        "title": "MachineProfile",
         "type": "object"
       },
       "MachineSummary": {
@@ -3252,6 +3512,93 @@
           "pages"
         ],
         "title": "PaginationMetadata",
+        "type": "object"
+      },
+      "PairCompatibility": {
+        "properties": {
+          "effective_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          },
+          "effective_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective To"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "pair": {
+            "title": "Pair",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "COMPATIBLE",
+              "INCOMPATIBLE",
+              "NEEDS_REVIEW",
+              "UNKNOWN",
+              "NOT_EVALUATED"
+            ],
+            "title": "Result",
+            "type": "string"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "verification_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verification Source"
+          }
+        },
+        "required": [
+          "pair",
+          "result",
+          "reason"
+        ],
+        "title": "PairCompatibility",
         "type": "object"
       },
       "PhotoCreate": {
@@ -3841,6 +4188,44 @@
         "title": "RobotPatch",
         "type": "object"
       },
+      "SearchResult": {
+        "properties": {
+          "category": {
+            "enum": [
+              "eoat",
+              "machine",
+              "tool"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "identifier": {
+            "title": "Identifier",
+            "type": "string"
+          },
+          "matched_field": {
+            "title": "Matched Field",
+            "type": "string"
+          },
+          "subtitle": {
+            "default": "",
+            "title": "Subtitle",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category",
+          "identifier",
+          "title",
+          "matched_field"
+        ],
+        "title": "SearchResult",
+        "type": "object"
+      },
       "SettingsAuditRequest": {
         "properties": {
           "event_type": {
@@ -4308,6 +4693,148 @@
         "title": "ToolPatch",
         "type": "object"
       },
+      "ToolProfile": {
+        "properties": {
+          "audit_evidence": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Audit Evidence",
+            "type": "array"
+          },
+          "business_identifier": {
+            "title": "Business Identifier",
+            "type": "string"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "mold_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mold Number"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "part_status": {
+            "default": "NOT_YET_VERIFIED",
+            "title": "Part Status",
+            "type": "string"
+          },
+          "program_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Name"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/RelationshipSummary"
+            },
+            "title": "Relationships",
+            "type": "array"
+          },
+          "row_version": {
+            "title": "Row Version",
+            "type": "integer"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "tool_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Number"
+          },
+          "tool_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Type"
+          }
+        },
+        "required": [
+          "business_identifier",
+          "is_active",
+          "row_version"
+        ],
+        "title": "ToolProfile",
+        "type": "object"
+      },
       "ToolSummary": {
         "properties": {
           "business_identifier": {
@@ -4424,8 +4951,11 @@
         "description": "Browser-safe document metadata. Internal storage paths are intentionally excluded.",
         "properties": {
           "content_delivery_state": {
-            "const": "NOT_AVAILABLE_THROUGH_WEB",
             "default": "NOT_AVAILABLE_THROUGH_WEB",
+            "enum": [
+              "AVAILABLE",
+              "NOT_AVAILABLE_THROUGH_WEB"
+            ],
             "title": "Content Delivery State",
             "type": "string"
           },
@@ -4490,6 +5020,41 @@
         "title": "WebDocumentMetadata",
         "type": "object"
       },
+      "WebFitCheckRequest": {
+        "description": "Read-only browser input. Persistence is deliberately not representable.",
+        "properties": {
+          "eoat_identifier": {
+            "title": "Eoat Identifier",
+            "type": "string"
+          },
+          "machine_number": {
+            "title": "Machine Number",
+            "type": "string"
+          },
+          "plant_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Code"
+          },
+          "tool_number": {
+            "title": "Tool Number",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machine_number",
+          "tool_number",
+          "eoat_identifier"
+        ],
+        "title": "WebFitCheckRequest",
+        "type": "object"
+      },
       "WebPhotoMetadata": {
         "properties": {
           "caption": {
@@ -4516,8 +5081,11 @@
             "title": "Captured At"
           },
           "content_delivery_state": {
-            "const": "NOT_AVAILABLE_THROUGH_WEB",
             "default": "NOT_AVAILABLE_THROUGH_WEB",
+            "enum": [
+              "AVAILABLE",
+              "NOT_AVAILABLE_THROUGH_WEB"
+            ],
             "title": "Content Delivery State",
             "type": "string"
           },
@@ -8052,7 +8620,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/MachineProfile"
+                }
               }
             },
             "description": "Successful Response"
@@ -8105,7 +8675,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/MachineCurrentSetup"
+                }
               }
             },
             "description": "Successful Response"
@@ -8158,7 +8730,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEvent"
+                  },
+                  "title": "Response Machine History Api V1 Machines  Number  History Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -8211,7 +8789,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RelationshipSummary"
+                  },
+                  "title": "Response Machine Relationships Api V1 Machines  Number  Relationships Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -8228,6 +8812,124 @@
           }
         },
         "summary": "Machine Relationships"
+      }
+    },
+    "/api/v1/machines/{number}/web-documents": {
+      "get": {
+        "operationId": "machine_web_documents_api_v1_machines__number__web_documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WebDocumentMetadata"
+                  },
+                  "title": "Response Machine Web Documents Api V1 Machines  Number  Web Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Machine Web Documents"
+      }
+    },
+    "/api/v1/machines/{number}/web-photos": {
+      "get": {
+        "operationId": "machine_web_photos_api_v1_machines__number__web_photos_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WebPhotoMetadata"
+                  },
+                  "title": "Response Machine Web Photos Api V1 Machines  Number  Web Photos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Machine Web Photos"
       }
     },
     "/api/v1/maintenance-events": {
@@ -8909,7 +9611,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResult"
+                  },
+                  "title": "Response Search Api V1 Search Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -9628,7 +10336,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ToolProfile"
+                }
               }
             },
             "description": "Successful Response"
@@ -9757,7 +10467,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEvent"
+                  },
+                  "title": "Response Tool History Api V1 Tools  Identifier  History Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -9794,7 +10510,13 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RelationshipSummary"
+                  },
+                  "title": "Response Tool Relationships Api V1 Tools  Identifier  Relationships Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
@@ -9860,6 +10582,92 @@
         "summary": "Restore Tool Route"
       }
     },
+    "/api/v1/tools/{identifier}/web-documents": {
+      "get": {
+        "operationId": "tool_web_documents_api_v1_tools__identifier__web_documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identifier",
+            "required": true,
+            "schema": {
+              "title": "Identifier",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WebDocumentMetadata"
+                  },
+                  "title": "Response Tool Web Documents Api V1 Tools  Identifier  Web Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tool Web Documents"
+      }
+    },
+    "/api/v1/tools/{identifier}/web-photos": {
+      "get": {
+        "operationId": "tool_web_photos_api_v1_tools__identifier__web_photos_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identifier",
+            "required": true,
+            "schema": {
+              "title": "Identifier",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WebPhotoMetadata"
+                  },
+                  "title": "Response Tool Web Photos Api V1 Tools  Identifier  Web Photos Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tool Web Photos"
+      }
+    },
     "/api/v1/version": {
       "get": {
         "operationId": "version_api_v1_version_get",
@@ -9874,6 +10682,158 @@
           }
         },
         "summary": "Version"
+      }
+    },
+    "/api/v1/web-documents/{document_uuid}/content": {
+      "get": {
+        "description": "Serve a document only after UUID lookup and approved-root validation.",
+        "operationId": "web_document_content_api_v1_web_documents__document_uuid__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_uuid",
+            "required": true,
+            "schema": {
+              "title": "Document Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Document Content"
+      }
+    },
+    "/api/v1/web-fit-checks/evaluate": {
+      "post": {
+        "description": "Browser-only compatibility evaluation; this route has no persistence path.",
+        "operationId": "evaluate_web_fit_check_api_v1_web_fit_checks_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebFitCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FitCheckResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Web Fit Check"
+      }
+    },
+    "/api/v1/web-photos/{document_uuid}/content": {
+      "get": {
+        "description": "Serve a photo only after UUID lookup and approved-root validation.",
+        "operationId": "web_photo_content_api_v1_web_photos__document_uuid__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_uuid",
+            "required": true,
+            "schema": {
+              "title": "Document Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Photo Content"
+      }
+    },
+    "/api/v1/web-photos/{document_uuid}/thumbnail": {
+      "get": {
+        "operationId": "web_photo_thumbnail_api_v1_web_photos__document_uuid__thumbnail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_uuid",
+            "required": true,
+            "schema": {
+              "title": "Document Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Photo Thumbnail"
       }
     }
   }

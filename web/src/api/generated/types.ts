@@ -1158,6 +1158,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/machines/{number}/web-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Machine Web Documents */
+        get: operations["machine_web_documents_api_v1_machines__number__web_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/machines/{number}/web-photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Machine Web Photos */
+        get: operations["machine_web_photos_api_v1_machines__number__web_photos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/maintenance-events": {
         parameters: {
             query?: never;
@@ -1727,6 +1761,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tools/{identifier}/web-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tool Web Documents */
+        get: operations["tool_web_documents_api_v1_tools__identifier__web_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tools/{identifier}/web-photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Tool Web Photos */
+        get: operations["tool_web_photos_api_v1_tools__identifier__web_photos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/version": {
         parameters: {
             query?: never;
@@ -1736,6 +1804,83 @@ export interface paths {
         };
         /** Version */
         get: operations["version_api_v1_version_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web-documents/{document_uuid}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Document Content
+         * @description Serve a document only after UUID lookup and approved-root validation.
+         */
+        get: operations["web_document_content_api_v1_web_documents__document_uuid__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web-fit-checks/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Web Fit Check
+         * @description Browser-only compatibility evaluation; this route has no persistence path.
+         */
+        post: operations["evaluate_web_fit_check_api_v1_web_fit_checks_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web-photos/{document_uuid}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Photo Content
+         * @description Serve a photo only after UUID lookup and approved-root validation.
+         */
+        get: operations["web_photo_content_api_v1_web_photos__document_uuid__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web-photos/{document_uuid}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Web Photo Thumbnail */
+        get: operations["web_photo_thumbnail_api_v1_web_photos__document_uuid__thumbnail_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2214,6 +2359,35 @@ export interface components {
             /** Tool Number */
             tool_number: string;
         };
+        /** FitCheckResult */
+        FitCheckResult: {
+            /** Alternative Compatible Eoats */
+            alternative_compatible_eoats: string[];
+            /**
+             * Evaluation Engine Version
+             * @default mysql-read-v1
+             */
+            evaluation_engine_version: string;
+            machine_eoat_result: components["schemas"]["PairCompatibility"];
+            machine_tool_result: components["schemas"]["PairCompatibility"];
+            /**
+             * Overall Result
+             * @enum {string}
+             */
+            overall_result: "COMPATIBLE" | "INCOMPATIBLE" | "NEEDS_REVIEW" | "INVALID_INPUT";
+            /** Reasons */
+            reasons: string[];
+            /**
+             * Stored
+             * @default false
+             */
+            stored: boolean;
+            tool_eoat_result: components["schemas"]["PairCompatibility"];
+            /** Unknown Relationships */
+            unknown_relationships: string[];
+            /** Warnings */
+            warnings: string[];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2359,6 +2533,28 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /** MachineCurrentSetup */
+        MachineCurrentSetup: {
+            /**
+             * Current Eoat
+             * @default UNKNOWN_NOT_VERIFIED
+             */
+            current_eoat: string;
+            /**
+             * Current Tool
+             * @default UNKNOWN_NOT_VERIFIED
+             */
+            current_tool: string;
+            /** Location Semantics */
+            location_semantics: string;
+            /** Machine Number */
+            machine_number: string;
+            /**
+             * Verified
+             * @default false
+             */
+            verified: boolean;
+        };
         /** MachinePatch */
         MachinePatch: {
             /** Area Code */
@@ -2387,6 +2583,48 @@ export interface components {
             reason?: string | null;
             /** Serial Number */
             serial_number?: string | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** MachineProfile */
+        MachineProfile: {
+            /** Area */
+            area?: string | null;
+            /** Audit Evidence */
+            audit_evidence?: {
+                [key: string]: unknown;
+            }[];
+            /** Cleanroom Classification */
+            cleanroom_classification?: string | null;
+            /** Controller Type */
+            controller_type?: string | null;
+            /**
+             * Current Eoat
+             * @default UNKNOWN_NOT_VERIFIED
+             */
+            current_eoat: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Machine Name */
+            machine_name?: string | null;
+            /** Machine Number */
+            machine_number: string;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Plant Code */
+            plant_code: string;
+            /** Press Capacity Tons */
+            press_capacity_tons?: number | null;
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipSummary"][];
+            /** Robots */
+            robots?: components["schemas"]["RelationshipSummary"][];
+            /** Row Version */
+            row_version: number;
             /** Status */
             status?: string | null;
         };
@@ -2537,6 +2775,28 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** PairCompatibility */
+        PairCompatibility: {
+            /** Effective From */
+            effective_from?: string | null;
+            /** Effective To */
+            effective_to?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Pair */
+            pair: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "COMPATIBLE" | "INCOMPATIBLE" | "NEEDS_REVIEW" | "UNKNOWN" | "NOT_EVALUATED";
+            /** Status Code */
+            status_code?: string | null;
+            /** Verification Source */
+            verification_source?: string | null;
+        };
         /** PhotoCreate */
         PhotoCreate: {
             /** Caption */
@@ -2669,6 +2929,25 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /** SearchResult */
+        SearchResult: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "eoat" | "machine" | "tool";
+            /** Identifier */
+            identifier: string;
+            /** Matched Field */
+            matched_field: string;
+            /**
+             * Subtitle
+             * @default
+             */
+            subtitle: string;
+            /** Title */
+            title: string;
+        };
         /** SettingsAuditRequest */
         SettingsAuditRequest: {
             /** Event Type */
@@ -2784,6 +3063,44 @@ export interface components {
             /** Tool Type */
             tool_type?: string | null;
         };
+        /** ToolProfile */
+        ToolProfile: {
+            /** Audit Evidence */
+            audit_evidence?: {
+                [key: string]: unknown;
+            }[];
+            /** Business Identifier */
+            business_identifier: string;
+            /** Customer */
+            customer?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Mold Number */
+            mold_number?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Part Status
+             * @default NOT_YET_VERIFIED
+             */
+            part_status: string;
+            /** Program Name */
+            program_name?: string | null;
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipSummary"][];
+            /** Row Version */
+            row_version: number;
+            /** Status */
+            status?: string | null;
+            /** Tool Number */
+            tool_number?: string | null;
+            /** Tool Type */
+            tool_type?: string | null;
+        };
         /** ToolSummary */
         ToolSummary: {
             /** Business Identifier */
@@ -2827,9 +3144,9 @@ export interface components {
             /**
              * Content Delivery State
              * @default NOT_AVAILABLE_THROUGH_WEB
-             * @constant
+             * @enum {string}
              */
-            content_delivery_state: "NOT_AVAILABLE_THROUGH_WEB";
+            content_delivery_state: "AVAILABLE" | "NOT_AVAILABLE_THROUGH_WEB";
             /** Description */
             description?: string | null;
             /** Document Number */
@@ -2845,6 +3162,20 @@ export interface components {
             /** Title */
             title: string;
         };
+        /**
+         * WebFitCheckRequest
+         * @description Read-only browser input. Persistence is deliberately not representable.
+         */
+        WebFitCheckRequest: {
+            /** Eoat Identifier */
+            eoat_identifier: string;
+            /** Machine Number */
+            machine_number: string;
+            /** Plant Code */
+            plant_code?: string | null;
+            /** Tool Number */
+            tool_number: string;
+        };
         /** WebPhotoMetadata */
         WebPhotoMetadata: {
             /** Caption */
@@ -2854,9 +3185,9 @@ export interface components {
             /**
              * Content Delivery State
              * @default NOT_AVAILABLE_THROUGH_WEB
-             * @constant
+             * @enum {string}
              */
-            content_delivery_state: "NOT_AVAILABLE_THROUGH_WEB";
+            content_delivery_state: "AVAILABLE" | "NOT_AVAILABLE_THROUGH_WEB";
             /** Description */
             description?: string | null;
             /** Document Number */
@@ -5256,7 +5587,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["MachineProfile"];
                 };
             };
             /** @description Validation Error */
@@ -5289,7 +5620,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["MachineCurrentSetup"];
                 };
             };
             /** @description Validation Error */
@@ -5322,7 +5653,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HistoryEvent"][];
                 };
             };
             /** @description Validation Error */
@@ -5355,7 +5686,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RelationshipSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    machine_web_documents_api_v1_machines__number__web_documents_get: {
+        parameters: {
+            query?: {
+                plant_code?: string | null;
+            };
+            header?: never;
+            path: {
+                number: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebDocumentMetadata"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    machine_web_photos_api_v1_machines__number__web_photos_get: {
+        parameters: {
+            query?: {
+                plant_code?: string | null;
+            };
+            header?: never;
+            path: {
+                number: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebPhotoMetadata"][];
                 };
             };
             /** @description Validation Error */
@@ -5856,7 +6253,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SearchResult"][];
                 };
             };
             /** @description Validation Error */
@@ -6403,7 +6800,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ToolProfile"];
                 };
             };
             /** @description Validation Error */
@@ -6504,7 +6901,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["HistoryEvent"][];
                 };
             };
             /** @description Validation Error */
@@ -6535,7 +6932,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RelationshipSummary"][];
                 };
             };
             /** @description Validation Error */
@@ -6584,6 +6981,68 @@ export interface operations {
             };
         };
     };
+    tool_web_documents_api_v1_tools__identifier__web_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebDocumentMetadata"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tool_web_photos_api_v1_tools__identifier__web_photos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebPhotoMetadata"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     version_api_v1_version_get: {
         parameters: {
             query?: never;
@@ -6600,6 +7059,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    web_document_content_api_v1_web_documents__document_uuid__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_web_fit_check_api_v1_web_fit_checks_evaluate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebFitCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitCheckResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    web_photo_content_api_v1_web_photos__document_uuid__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    web_photo_thumbnail_api_v1_web_photos__document_uuid__thumbnail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
