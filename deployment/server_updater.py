@@ -35,6 +35,7 @@ DESTRUCTIVE_MIGRATION = re.compile(
     r"\b(?:drop_table|drop_column|alter_column|drop_index|execute\s*\(|op\.execute)\b", re.I
 )
 SIZE = re.compile(r"^(\d+(?:\.\d+)?)([KMGTPE]?)(?:i?B)?$", re.I)
+HOST_KEY_FINGERPRINT = re.compile(r"Server host key: [^\r\n]*\b(SHA256:[A-Za-z0-9+/=]+)")
 
 
 @dataclass(frozen=True)
@@ -333,15 +334,52 @@ def ssh_host_key_status(config: ServerConfig) -> HostKeyStatus:
         )
     except OSError as exc:
         return HostKeyStatus(False, None, f"Host key is unknown and ssh-keyscan is unavailable: {exc}")
-    if scanned.returncode or not scanned.stdout.strip():
-        return HostKeyStatus(False, None, "Host key is unknown; no candidate fingerprint could be read safely")
-    fingerprint = subprocess.run(
-        ["ssh-keygen", "-lf", "-"], input=scanned.stdout, text=True, capture_output=True, check=False
-    )
-    if fingerprint.returncode:
-        return HostKeyStatus(False, None, "Host key is unknown; candidate fingerprint parsing failed")
-    lines = [line.strip() for line in fingerprint.stdout.splitlines() if line.strip()]
-    return HostKeyStatus(False, " | ".join(lines[:3]) or None, "Host key is not present in known_hosts")
+    if not scanned.returncode and scanned.stdout.strip():
+        fingerprint = subprocess.run(
+            ["ssh-keygen", "-lf", "-"], input=scanned.stdout, text=True, capture_output=True, check=False
+        )
+        if not fingerprint.returncode:
+            lines = [line.strip() for line in fingerprint.stdout.splitlines() if line.strip()]
+            if lines:
+                return HostKeyStatus(False, " | ".join(lines[:3]), "Host key is not present in known_hosts")
+
+    # Some legacy ssh-keyscan builds cannot negotiate modern server KEX
+    # algorithms.  Fall back to a strict, authentication-disabled debug
+    # handshake.  It never accepts or records the key and does not execute a
+    # remote command; it can only expose the same untrusted fingerprint an
+    # operator must verify out-of-band.
+    host = f"{config.username}@{config.hostname}" if config.username else config.hostname
+    strict_probe = [
+        "ssh",
+        "-vv",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        "PubkeyAuthentication=no",
+        "-o",
+        "PasswordAuthentication=no",
+        "-o",
+        "KbdInteractiveAuthentication=no",
+        "-o",
+        "NumberOfPasswordPrompts=0",
+        "-o",
+        "RequestTTY=no",
+        "-o",
+        "ConnectTimeout=8",
+        "-p",
+        str(config.port),
+        host,
+    ]
+    try:
+        probe = subprocess.run(strict_probe, text=True, capture_output=True, check=False)
+    except OSError as exc:
+        return HostKeyStatus(False, None, f"Host key is unknown and strict probe is unavailable: {exc}")
+    fingerprints = HOST_KEY_FINGERPRINT.findall((probe.stdout or "") + "\n" + (probe.stderr or ""))
+    if fingerprints:
+        return HostKeyStatus(False, " | ".join(dict.fromkeys(fingerprints)), "Host key is not present in known_hosts")
+    return HostKeyStatus(False, None, "Host key is unknown; no candidate fingerprint could be read safely")
 
 
 class ReadonlySSH:

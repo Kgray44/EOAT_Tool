@@ -244,6 +244,48 @@ def test_unknown_host_key_is_reported_but_never_trusted(monkeypatch: pytest.Monk
     assert "SHA256:untrusted" in str(status.fingerprint)
 
 
+def test_unknown_host_key_falls_back_to_strict_authentication_disabled_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = ServerConfig(
+        "EOAT-ATLAS",
+        22,
+        "eoat-deploy",
+        "/opt/eoat-atlas",
+        8765,
+        (),
+        None,
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+    )
+    observed: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        observed.append(command)
+        if command[:2] == ["ssh-keygen", "-F"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if command[0] == "ssh-keyscan":
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="unsupported KEX")
+        if command[0] == "ssh":
+            return subprocess.CompletedProcess(
+                command,
+                255,
+                stdout="",
+                stderr="debug1: Server host key: ssh-ed25519 SHA256:strictcandidate\n",
+            )
+        raise AssertionError(command)
+
+    monkeypatch.setattr(server_updater.subprocess, "run", fake_run)
+    status = ssh_host_key_status(config)
+    assert status.known is False
+    assert status.fingerprint == "SHA256:strictcandidate"
+    probe = next(command for command in observed if command[0] == "ssh")
+    assert "StrictHostKeyChecking=yes" in probe
+    assert "PubkeyAuthentication=no" in probe
+    assert "PasswordAuthentication=no" in probe
+
+
 def test_disk_preflight_uses_conservative_estimate() -> None:
     sufficient = disk_space_preflight(
         "Filesystem Size Used Avail Use% Mounted on\n/dev/sda1 20G 1G 19G 5% /opt\n/dev/sda2 10G 1G 9G 10% /tmp\n",

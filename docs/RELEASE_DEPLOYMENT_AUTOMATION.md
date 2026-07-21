@@ -113,8 +113,10 @@ SFTP/upload method and no code path for service control, filesystem writes,
 migrations, package installation, symlink changes, or database writes.
 If the configured host is absent from `known_hosts` (or has changed), the
 updater stops before SSH. It may display an *untrusted candidate* fingerprint
-obtained from `ssh-keyscan` for an operator to verify out-of-band; it never
-adds that key or proceeds automatically.
+obtained from `ssh-keyscan` for an operator to verify out-of-band; if a
+legacy scanner cannot negotiate a modern server, it uses an equally
+non-authenticating, strict SSH debug handshake only to display that candidate.
+It never adds the key or proceeds automatically.
 
 The updater selects the highest semantic-version non-draft, non-prerelease
 GitHub Release with exactly one `.tar.gz`, its checksum, and

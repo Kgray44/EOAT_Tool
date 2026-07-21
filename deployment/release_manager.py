@@ -611,7 +611,10 @@ def _tag_and_publish(
         git.run("tag", "-a", tag, "-m", annotation, build.core["commit_sha"])
         receipt["tag_result"] = "created"
     if push:
-        git.run("fetch", "origin")
+        # Do not let an unrelated local/remote tag-name collision prevent the
+        # branch freshness check.  Tags are immutable and are handled
+        # separately; only remote branch refs are needed here.
+        git.run("fetch", "--no-tags", "origin")
         refreshed = inspect_git_state(root)
         if refreshed.behind:
             raise DeploymentError("Refusing push because upstream advanced")
