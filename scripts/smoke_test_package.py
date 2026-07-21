@@ -45,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         runtime_base = Path(temp_root) / "LocalAppData"
         env = os.environ.copy()
         env["EOAT_ATLAS_SMOKE_TEST"] = "1"
+        env["EOAT_ATLAS_PACKAGED_TEST_MODE"] = "1"
         env["EOAT_ATLAS_SMOKE_RUNTIME_PROBE"] = "1"
         env["EOAT_ATLAS_LOCALAPPDATA"] = str(runtime_base)
         env["EOAT_ATLAS_DATA_BACKEND"] = "legacy"

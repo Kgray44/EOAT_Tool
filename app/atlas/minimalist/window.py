@@ -427,7 +427,8 @@ class MinimalistAtlasWindow(QMainWindow):
         self._apply_bundle_to_pages(bundle)
         deep_refresh = bool(getattr(bundle, "metrics", {}).get("deep_refresh"))
         action_label = "Deep Refresh complete." if deep_refresh else "Refresh complete."
-        load_message = f"{action_label} Loaded {len(bundle.eoats)} EOATs, {len(bundle.machines)} machines, {len(bundle.tools)} tools."
+        source_state = str(bundle.metrics.get("data_source_status") or "Server unavailable")
+        load_message = f"{source_state}. {action_label} Loaded {len(bundle.eoats)} EOATs, {len(bundle.machines)} machines, {len(bundle.tools)} tools."
         if bool(self.minimalist_setting("data_loading.show_last_refresh_timestamp", True)):
             load_message = f"{load_message} {datetime.now().strftime('%I:%M %p')}."
         self.show_status(load_message)
@@ -442,13 +443,20 @@ class MinimalistAtlasWindow(QMainWindow):
         self._bundle_before_refresh = None
         if fallback is not None and bool(self.minimalist_setting("data_loading.cache_last_good_data", True)):
             self.bundle = fallback
+            if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+                fallback.metrics["data_source_status"] = "Using cached data"
+                fallback.metrics["server_status_detail"] = message
             self._apply_bundle_to_pages(fallback)
             self._using_cached_data_fallback = True
             if bool(self.minimalist_setting("data_loading.show_cached_data_warning", True)):
-                self.show_status("Atlas data refresh failed; the last successful local data remains available. You can try again.")
+                self.show_status("Server unavailable. Using cached data from the last successful server refresh; no server connection is claimed.")
             self.data_ready.emit(fallback)
             return
-        self.show_status("Atlas data refresh failed. Check the application log, then try again.")
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
+            self.home_page.home_content.set_data_source_status("Server unavailable")
+            self.show_status("Server unavailable. No cached API data is available.")
+        else:
+            self.show_status("Atlas data refresh failed. Check the application log, then try again.")
         self.data_failed.emit(message)
 
     def _apply_bundle_to_pages(self, bundle: AtlasDataBundle | None) -> None:

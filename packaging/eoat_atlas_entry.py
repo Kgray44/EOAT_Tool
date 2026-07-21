@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from app.atlas.main import main
+from core.data_gateway.configuration import configure_packaged_production_environment
 
 
 def _force_minimalist_ui(argv: list[str]) -> list[str]:
@@ -24,4 +24,7 @@ def _force_minimalist_ui(argv: list[str]) -> list[str]:
 
 if __name__ == "__main__":
     sys.argv = _force_minimalist_ui(sys.argv)
+    configure_packaged_production_environment()
+    from app.atlas.main import main
+
     raise SystemExit(main())

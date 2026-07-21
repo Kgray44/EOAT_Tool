@@ -1,0 +1,9 @@
+{
+  "environment": "production",
+  "backend": "mysql_api",
+  "api_url": "http://eoat-atlas.gwplastics.com/api/v1",
+  "writes_enabled": false,
+  "expected_api_version": "1.4.0",
+  "expected_schema_revision": "20260717_0007",
+  "cache_filename": "eoat_atlas_api_cache.db"
+}

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..command_palette import AtlasCommand, resolve_atlas_commands
-from .data import MinimalistSearchEntry, loaded_status_text, recent_entries
+from .data import MinimalistSearchEntry, data_source_status_text, recent_entries
 from .entity_search import EntitySearchDropdown
 from .theme import active_minimalist_tokens, apply_glass_theme, effective_minimalist_theme
 from .widgets import (
@@ -89,7 +89,14 @@ class MinimalistHomeContent(QWidget):
     def set_bundle(self, bundle) -> None:
         self.bundle = bundle
         self.card.set_bundle(bundle)
-        self.status.set_status(loaded_status_text(bundle), ready=bundle is not None)
+        source_state = str((getattr(bundle, "metrics", {}) or {}).get("data_source_status") or "")
+        self.status.set_status(data_source_status_text(bundle), ready=source_state == "Server connected")
+
+    def set_data_source_status(self, state: str, last_refresh: str = "") -> None:
+        text = data_source_status_text(
+            type("DataSourceStatus", (), {"metrics": {"data_source_status": state, "last_successful_server_refresh": last_refresh}})()
+        )
+        self.status.set_status(text, ready=state == "Server connected")
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

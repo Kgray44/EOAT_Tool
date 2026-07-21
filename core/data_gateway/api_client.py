@@ -29,7 +29,10 @@ class AtlasApiClient:
         application_instance_id: str = "",
         client_version: str = "",
     ):
-        self.base_url = base_url.rstrip("/")
+        configured_url = base_url.rstrip("/")
+        self.base_url = configured_url
+        self._configured_api_prefix = configured_url.casefold().endswith("/api/v1")
+        client_base_url = f"{configured_url}/" if self._configured_api_prefix else configured_url
         release = get_release_info()
         effective_client_version = client_version or release.application_version
         headers = {
@@ -42,7 +45,7 @@ class AtlasApiClient:
             headers["X-EOAT-Identity"] = identity
         if application_instance_id:
             headers["X-EOAT-Application-Instance"] = application_instance_id
-        self._client = httpx.Client(base_url=self.base_url, timeout=timeout, transport=transport, headers=headers)
+        self._client = httpx.Client(base_url=client_base_url, timeout=timeout, transport=transport, headers=headers)
         self._settings_access_token = ""
         self.last_request_id = ""
 
@@ -51,7 +54,7 @@ class AtlasApiClient:
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
-            response = self._client.request(method, path, **kwargs)
+            response = self._client.request(method, self._request_path(path), **kwargs)
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
             raise ApiUnavailableError(f"EOAT Atlas API is unavailable: {exc}") from exc
         self.last_request_id = response.headers.get("X-Request-ID", "")
@@ -82,6 +85,16 @@ class AtlasApiClient:
                 raise PermissionDeniedError(message)
             raise DataGatewayError(message)
         return response.json()
+
+    def _request_path(self, path: str) -> str:
+        """Accept either an origin or the authoritative ``/api/v1`` endpoint URL."""
+
+        if not self._configured_api_prefix:
+            return path
+        prefix = "/api/v1"
+        if path.casefold().startswith(prefix):
+            return path[len(prefix) :].lstrip("/")
+        return path.lstrip("/")
 
     def write(
         self,

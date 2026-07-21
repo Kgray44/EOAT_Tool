@@ -461,6 +461,22 @@ def loaded_status_text(bundle) -> str:
     return f"Data refreshed {parsed.strftime('%b %d, %Y')}"
 
 
+def data_source_status_text(bundle) -> str:
+    """Render the actual delivery source rather than a generic load timestamp."""
+
+    if bundle is None:
+        return "Server unavailable"
+    metrics = getattr(bundle, "metrics", {}) or {}
+    state = str(metrics.get("state") or metrics.get("data_source_status") or "Server unavailable")
+    refreshed = str(metrics.get("last_successful_server_refresh") or "").strip()
+    if refreshed:
+        parsed = parse_loaded_at(refreshed)
+        refresh_text = parsed.strftime("%Y-%m-%d %I:%M %p") if parsed else refreshed
+    else:
+        refresh_text = "not yet available"
+    return f"{state} · Last successful server refresh: {refresh_text}"
+
+
 def parse_loaded_at(value: str) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))

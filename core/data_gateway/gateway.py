@@ -71,6 +71,7 @@ class AtlasDataGateway:
             "api_online": api_online,
             "api_url": self.configuration.api_base_url,
             "api_version": str(health.get("api_version") or version.get("api_version") or ""),
+            "required_api_version": self.configuration.expected_api_version,
             "api_response_ms": round((perf_counter() - started) * 1000, 1),
             "database_connected": bool(health.get("database_reachable")),
             "mysql_version": str(health.get("database_server_version") or ""),
@@ -96,6 +97,34 @@ class AtlasDataGateway:
             "application_instance_id": self.configuration.application_instance_id,
             "client_version": self.configuration.client_version,
             "legacy_fallback": False,
+        }
+
+    def data_source_status(self) -> dict:
+        """Return UI-safe source truth without presenting cache data as live data."""
+
+        connection = self.get_connection_status()
+        cache = self.get_cache_status() if self.cache.path.exists() else None
+        last_refresh = str(cache.last_successful_sync_at if cache else "")
+        cached_records = sum((cache.entity_counts or {}).values()) if cache else 0
+        if connection.mode == ConnectivityMode.ONLINE:
+            return {
+                "state": "Server connected",
+                "detail": connection.message,
+                "last_successful_server_refresh": last_refresh,
+                "using_cached_data": False,
+            }
+        if cached_records:
+            return {
+                "state": "Using cached data",
+                "detail": f"Server unavailable: {connection.message}",
+                "last_successful_server_refresh": last_refresh,
+                "using_cached_data": True,
+            }
+        return {
+            "state": "Server unavailable",
+            "detail": connection.message,
+            "last_successful_server_refresh": last_refresh,
+            "using_cached_data": False,
         }
 
     def _online_or_cache(self, online, cached):
@@ -246,7 +275,7 @@ class AtlasDataGateway:
 
     def _server_first_write(self, method, path, payload=None, *, idempotency_key=None, params=None):
         if not self.configuration.writes_enabled or self.configuration.environment != "development":
-            raise WriteBlockedError("Permanent writes require explicit development write mode.")
+            raise WriteBlockedError("Server writes are disabled in this production client; no server edit was saved.")
         status = self.get_connection_status()
         if status.mode == ConnectivityMode.INCOMPATIBLE_SERVER:
             raise IncompatibleServerError(status.message)
@@ -646,6 +675,7 @@ class AtlasDataGateway:
             "dev.engineer": "ENGINEER",
             "dev.admin": "ADMINISTRATOR",
         }.get(identity, "Server-resolved" if identity else "Not configured")
+        source_status = self.data_source_status()
         bundle.metrics.update(
             {
                 "api_version": cache_status.api_version if cache_status else "",
@@ -660,6 +690,10 @@ class AtlasDataGateway:
                 "last_server_failure": metadata.get("last_server_failure", ""),
                 "cache_status": "Ready" if cache_status and cache_status.exists else "Not built",
                 "last_change_cursor": cache_status.last_change_cursor if cache_status else 0,
+                "data_source_status": source_status["state"],
+                "server_status_detail": source_status["detail"],
+                "last_successful_server_refresh": source_status["last_successful_server_refresh"],
+                "using_cached_data": source_status["using_cached_data"],
             }
         )
         bundle.metrics.update(self.diagnostics())

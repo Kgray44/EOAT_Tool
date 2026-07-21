@@ -21,12 +21,15 @@ def check_connectivity(client, configuration: GatewayConfiguration) -> Connectio
         major = -1
     if (
         major != configuration.supported_api_major
+        or api_version != configuration.expected_api_version
         or schema != configuration.expected_schema_revision
         or not health.get("compatible", False)
     ):
         return ConnectionStatus(
             ConnectivityMode.INCOMPATIBLE_SERVER,
-            f"Server API/schema is incompatible (API {api_version}, schema {schema}).",
+            "Server API/schema is incompatible "
+            f"(API {api_version}, schema {schema}; expected API {configuration.expected_api_version}, "
+            f"schema {configuration.expected_schema_revision}).",
             api_version,
             schema,
             checked,

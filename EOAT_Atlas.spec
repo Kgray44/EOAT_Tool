@@ -18,6 +18,10 @@ if not metadata_override:
 METADATA_PATH = Path(metadata_override)
 VERSION_FILE = write_windows_version_file(ROOT, ROOT / "build" / "eoat_atlas_version_info.txt")
 datas = [(str(METADATA_PATH), ".")]
+for configuration_file in (ROOT / "config" / "production.json",):
+    if not configuration_file.is_file():
+        raise RuntimeError(f"Required packaged configuration is missing: {configuration_file}")
+    datas.append((str(configuration_file), "config"))
 binaries = []
 hiddenimports = []
 
