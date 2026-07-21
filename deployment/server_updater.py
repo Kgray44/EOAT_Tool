@@ -216,6 +216,36 @@ def _github_download(root: Path, release: GitHubRelease, asset: ReleaseAsset, de
     os.replace(temporary, destination)
 
 
+def release_tag_commit(root: Path, release: GitHubRelease, core: dict[str, Any]) -> str:
+    """Resolve the actual immutable remote annotated tag, not GitHub's default target field."""
+    if not TAG.fullmatch(release.tag):
+        raise DeploymentError("GitHub release has an unsafe tag name")
+    result = subprocess.run(
+        ["git", "ls-remote", "--tags", "origin", f"refs/tags/{release.tag}", f"refs/tags/{release.tag}^{{}}"],
+        cwd=root,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        raise DeploymentError("Could not resolve the remote release tag: " + redact_text(result.stderr.strip()))
+    refs: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        try:
+            commit, ref = line.split("\t", 1)
+        except ValueError:
+            continue
+        refs[ref] = commit.lower()
+    dereferenced = refs.get(f"refs/tags/{release.tag}^{{}}")
+    if not dereferenced or not re.fullmatch(r"[0-9a-f]{40}", dereferenced):
+        raise DeploymentError(f"Release tag {release.tag} is missing or is not annotated")
+    if dereferenced != str(core.get("commit_sha") or "").lower():
+        raise DeploymentError(
+            f"Release tag {release.tag} resolves to {dereferenced}, not manifest commit {core.get('commit_sha')}"
+        )
+    return dereferenced
+
+
 def _quarantine(path: Path) -> Path:
     target = path.with_name(f"{path.name}.corrupt-{utc_text().replace(':', '').replace('-', '')}")
     os.replace(path, target)
@@ -236,7 +266,8 @@ def cache_release(
     if manifest_path.exists():
         try:
             external = read_json_object(manifest_path)
-            _core, artifact = validate_external_manifest(external)
+            core, artifact = validate_external_manifest(external)
+            release_tag_commit(root, release, core)
             validate_deployment_archive(
                 cache_dir / artifact["filename"], manifest_path, cache_dir / f"{artifact['filename']}.sha256"
             )
@@ -251,6 +282,7 @@ def cache_release(
         core, artifact = validate_external_manifest(external)
         if f"v{core['version']}" != release.tag:
             raise DeploymentError("GitHub tag and manifest version disagree")
+        tag_commit = release_tag_commit(root, release, core)
         archive_asset = _asset(release, str(artifact["filename"]))
         checksum_asset = _asset(release, f"{artifact['filename']}.sha256")
         downloader(root, release, archive_asset, cache_dir / archive_asset.name)
@@ -258,7 +290,14 @@ def cache_release(
         validate_deployment_archive(cache_dir / archive_asset.name, manifest_path, cache_dir / checksum_asset.name)
         write_json_atomic(
             cache_dir / "verification.json",
-            {"verified_at_utc": utc_text(), "tag": release.tag, "status": "PASS", "sha256": artifact["sha256"]},
+            {
+                "verified_at_utc": utc_text(),
+                "tag": release.tag,
+                "tag_commit": tag_commit,
+                "manifest_commit": core["commit_sha"],
+                "status": "PASS",
+                "sha256": artifact["sha256"],
+            },
         )
         return cache_dir
     except Exception:

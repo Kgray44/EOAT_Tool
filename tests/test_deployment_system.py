@@ -172,13 +172,16 @@ def test_release_selection_is_semantic_and_ignores_drafts() -> None:
     assert select_release([older, newest], "0.9.9").tag == "v0.9.9"
 
 
-def test_release_cache_revalidates_and_quarantines_a_corrupt_entry(tmp_path: Path) -> None:
+def test_release_cache_revalidates_and_quarantines_a_corrupt_entry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     root, commit = _repository(tmp_path / "repo")
     build = build_deployment_archive(root, commit, tmp_path / "source", branch="test/release")
     assets = tuple(
         ReleaseAsset(path.name, size=path.stat().st_size) for path in (build.manifest, build.archive, build.checksum)
     )
     release = GitHubRelease("v1.2.3", False, False, None, assets)
+    monkeypatch.setattr(server_updater, "release_tag_commit", lambda *_args: commit)
 
     def copy_asset(_root: Path, _release: GitHubRelease, asset: ReleaseAsset, destination: Path) -> None:
         shutil.copyfile(build.manifest.parent / asset.name, destination)
@@ -190,6 +193,39 @@ def test_release_cache_revalidates_and_quarantines_a_corrupt_entry(tmp_path: Pat
     assert restored == cache
     assert sha256_file(restored / build.archive.name) == build.external["artifact"]["sha256"]
     assert list((tmp_path / "cache").glob("1.2.3.corrupt-*"))
+
+
+def test_release_tag_commit_uses_annotated_remote_tag_not_github_target_field(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    commit = "a" * 40
+    tag_object = "b" * 40
+    release = GitHubRelease("v1.2.3", False, False, None, ())
+    observed: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=f"{tag_object}\trefs/tags/v1.2.3\n{commit}\trefs/tags/v1.2.3^{{}}\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(server_updater.subprocess, "run", fake_run)
+    assert server_updater.release_tag_commit(tmp_path, release, {"commit_sha": commit}) == commit
+    assert observed == [["git", "ls-remote", "--tags", "origin", "refs/tags/v1.2.3", "refs/tags/v1.2.3^{}"]]
+
+
+def test_release_tag_commit_rejects_manifest_mismatch(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    release = GitHubRelease("v1.2.3", False, False, None, ())
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout=f"{'b' * 40}\trefs/tags/v1.2.3^{{}}\n", stderr="")
+
+    monkeypatch.setattr(server_updater.subprocess, "run", fake_run)
+    with pytest.raises(DeploymentError, match="not manifest commit"):
+        server_updater.release_tag_commit(tmp_path, release, {"commit_sha": "a" * 40})
 
 
 def test_readonly_ssh_rejects_unapproved_commands_and_uses_strict_host_checks() -> None:
