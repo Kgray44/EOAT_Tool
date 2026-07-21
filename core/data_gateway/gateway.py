@@ -106,6 +106,13 @@ class AtlasDataGateway:
         cache = self.get_cache_status() if self.cache.path.exists() else None
         last_refresh = str(cache.last_successful_sync_at if cache else "")
         cached_records = sum((cache.entity_counts or {}).values()) if cache else 0
+        if connection.mode == ConnectivityMode.INCOMPATIBLE_SERVER:
+            return {
+                "state": "Server unavailable",
+                "detail": f"Server API/schema is incompatible; cached data is not used. {connection.message}",
+                "last_successful_server_refresh": last_refresh,
+                "using_cached_data": False,
+            }
         if connection.mode == ConnectivityMode.ONLINE:
             return {
                 "state": "Server connected",
@@ -651,6 +658,8 @@ class AtlasDataGateway:
 
     def load_bundle(self, project_root: str = ""):
         status = self.get_connection_status()
+        if status.mode == ConnectivityMode.INCOMPATIBLE_SERVER:
+            raise IncompatibleServerError(status.message)
         if self.cache.path.exists():
             snapshot = {
                 "eoats": self.cache.list("eoats"),

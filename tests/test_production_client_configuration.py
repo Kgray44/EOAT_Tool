@@ -10,13 +10,24 @@ from app.atlas.minimalist.data import data_source_status_text
 from core.data_gateway.api_client import AtlasApiClient
 from core.data_gateway.cache_repository import CacheRepository
 from core.data_gateway.configuration import GatewayConfiguration, configure_packaged_production_environment
-from core.data_gateway.exceptions import ApiUnavailableError, WriteBlockedError
+from core.data_gateway.exceptions import ApiUnavailableError, IncompatibleServerError, WriteBlockedError
 from core.data_gateway.gateway import AtlasDataGateway
 
 
 class OfflineClient:
     def health(self):
         raise ApiUnavailableError("production endpoint is unavailable")
+
+
+class IncompatibleClient:
+    def health(self):
+        return {
+            "api_reachable": True,
+            "database_reachable": True,
+            "api_version": "9.9.9",
+            "current_schema_revision": "wrong-schema",
+            "compatible": False,
+        }
 
 
 def _snapshot() -> dict:
@@ -114,3 +125,22 @@ def test_api_client_accepts_the_authoritative_v1_endpoint_url() -> None:
         client.close()
 
     assert paths == ["/api/v1/health"]
+
+
+def test_incompatible_server_fails_closed_instead_of_serving_the_cached_bundle(tmp_path) -> None:
+    cache = CacheRepository(tmp_path / "production-cache.db")
+    cache.build_snapshot(_snapshot(), cache.path)
+    configuration = GatewayConfiguration(
+        backend="mysql_api",
+        cache_path=cache.path,
+        environment="production",
+        writes_enabled=False,
+    )
+    gateway = AtlasDataGateway(configuration, client=IncompatibleClient(), cache=cache)
+
+    status = gateway.data_source_status()
+    assert status["state"] == "Server unavailable"
+    assert status["using_cached_data"] is False
+    assert "cached data is not used" in status["detail"]
+    with pytest.raises(IncompatibleServerError):
+        gateway.load_bundle("test")

@@ -24,6 +24,12 @@ for configuration_file in (ROOT / "config" / "production.json",):
     datas.append((str(configuration_file), "config"))
 binaries = []
 hiddenimports = []
+portable_excludes = [
+    "alembic",
+    "pymysql",
+    "server",
+    "sqlalchemy",
+]
 
 
 def add_tree(folder_name: str, destination: str, *, suffixes: set[str] | None = None) -> None:
@@ -63,7 +69,9 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # The desktop production client communicates only through the HTTP API.  Do
+    # not carry server/database drivers into a portable desktop distribution.
+    excludes=portable_excludes,
     noarchive=False,
     optimize=0,
 )

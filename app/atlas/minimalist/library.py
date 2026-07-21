@@ -7349,7 +7349,7 @@ class RecordHistoryTab(GlassPanel):
             return
         self._loading = True
         self.retry_button.hide()
-        self.empty_title.setText("Loading documented historyâ€¦")
+        self.empty_title.setText("Loading documented history...")
         self.empty_message.setText("Retrieving lifecycle events for this EOAT.")
         self.empty_note.clear()
         self.empty_overlay.show()
@@ -7464,7 +7464,7 @@ class RecordHistoryTab(GlassPanel):
         scope = "Filtered results" if filtered else "Complete documented history"
         self._exporting = True
         self.export_button.setEnabled(False)
-        self.export_button.setText("Generatingâ€¦")
+        self.export_button.setText("Generating...")
         project_root = Path(self.project_root) if self.project_root else Path.cwd()
 
         def worker() -> None:
@@ -7533,7 +7533,7 @@ class RecordHistoryTab(GlassPanel):
 def _history_event_summaries(event: EOATHistoryEvent) -> tuple[str, str]:
     primary = []
     if event.previous_machine_label and event.machine_label:
-        primary.append(f"{event.previous_machine_label}  â†’  {event.machine_label}")
+        primary.append(f"{event.previous_machine_label} - {event.machine_label}")
     elif event.machine_label:
         primary.append(event.machine_label)
     if event.tool_number:
@@ -7591,7 +7591,7 @@ def _history_datetime_text(value: datetime | None, *, approximate: bool = False)
 
 def _history_event_tooltip(event: EOATHistoryEvent) -> str:
     primary, secondary = _history_event_summaries(event)
-    return f"{event.title}\n{event.event_type} Â· {_history_datetime_text(event.effective_timestamp)}\n{primary}\n{secondary}"
+    return f"{event.title}\n{event.event_type} - {_history_datetime_text(event.effective_timestamp)}\n{primary}\n{secondary}"
 
 
 def _unique_history_export_path(path: Path) -> Path:
