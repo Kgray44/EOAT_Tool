@@ -27,6 +27,7 @@ from .release_manager import ROOT, validate_deployment_archive
 
 TOOL_VERSION = "1.0.0"
 TAG = re.compile(r"^v(\d+\.\d+\.\d+)$")
+FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 SERVICE = re.compile(r"^[A-Za-z0-9_.@-]+\.service$")
 HOSTNAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$")
 IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -36,6 +37,8 @@ DESTRUCTIVE_MIGRATION = re.compile(
 )
 SIZE = re.compile(r"^(\d+(?:\.\d+)?)([KMGTPE]?)(?:i?B)?$", re.I)
 HOST_KEY_FINGERPRINT = re.compile(r"Server host key: [^\r\n]*\b(SHA256:[A-Za-z0-9+/=]+)")
+DISCOVERED_SERVICE = re.compile(r"^\s*([A-Za-z0-9_.@-]+\.service)\s+")
+INSPECTION_HEALTH_PATHS = ("/api/v1/health", "/api/v1/version", "/api/v1/schema-status")
 
 
 @dataclass(frozen=True)
@@ -73,6 +76,7 @@ class ServerConfig:
     mysql_login_path: str
     database_name: str
     deployment_lock: str
+    public_hostname: str | None = None
 
 
 @dataclass(frozen=True)
@@ -299,6 +303,9 @@ def load_server_config(path: Path) -> ServerConfig:
     deployment_lock = str(server.get("deployment_lock") or "/var/lock/eoat-atlas-deploy.lock")
     if deployment_lock != "/var/lock/eoat-atlas-deploy.lock":
         raise DeploymentError("Phase 2 only permits the approved deployment lock path")
+    public_hostname = server.get("public_hostname")
+    if public_hostname is not None and not HOSTNAME.fullmatch(str(public_hostname)):
+        raise DeploymentError("Public reverse-proxy hostname is unsafe")
     return ServerConfig(
         hostname,
         port,
@@ -310,6 +317,7 @@ def load_server_config(path: Path) -> ServerConfig:
         login_path,
         database_name,
         deployment_lock,
+        str(public_hostname) if public_hostname else None,
     )
 
 
@@ -399,10 +407,12 @@ class ReadonlySSH:
             "os-release": ["cat", "/etc/os-release"],
             "python": ["python3", "--version"],
             "mysql-version": ["mysql", "--version"],
-            "time": ["date", "-u", "+%Y-%m-%dT%H:%M:%SZ", "+%Z"],
+            "time": ["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"],
+            "timezone": ["timedatectl", "show", "--property=Timezone", "--value"],
             "memory": ["free", "-h"],
             "disk": ["df", "-h", root, "/tmp"],
             "layout": ["ls", "-ld", root, f"{root}/incoming", f"{root}/releases", f"{root}/current", f"{root}/shared"],
+            "current-content": ["find", "-H", f"{root}/current", "-mindepth", "1", "-maxdepth", "1", "-printf", "%f %y\n"],
             "current-target": ["readlink", "-f", f"{root}/current"],
             "releases": [
                 "find",
@@ -429,8 +439,64 @@ class ReadonlySSH:
                 "%f\\n",
             ],
             "current-manifest": ["cat", f"{root}/current/release_manifest.json"],
+            "current-metadata": ["cat", f"{root}/current/release_metadata.json"],
+            "shared-layout": [
+                "find",
+                f"{root}/shared",
+                "-mindepth",
+                "1",
+                "-maxdepth",
+                "2",
+                "-printf",
+                "%p %y\n",
+            ],
+            "release-evidence": [
+                "find",
+                f"{root}/shared/release-evidence",
+                "-mindepth",
+                "1",
+                "-maxdepth",
+                "1",
+                "-type",
+                "f",
+                "-printf",
+                "%f\n",
+            ],
             "lock": ["stat", "-c", "%n %U %G %a %Y", self.config.deployment_lock],
             "environment-metadata": ["stat", "-c", "%n %U %G %a", "/etc/eoat-atlas"],
+            "environment-files": [
+                "stat",
+                "-c",
+                "%n %U %G %a",
+                "/etc/eoat-atlas/runtime.env",
+                "/etc/eoat-atlas/migration.env",
+            ],
+            "service-units": ["systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager"],
+            "service-unit-files": [
+                "systemctl",
+                "list-unit-files",
+                "--type=service",
+                "--no-legend",
+                "--no-pager",
+            ],
+            "listeners": ["ss", "-ltn"],
+            "nginx-metadata": [
+                "stat",
+                "-c",
+                "%n %U %G %a",
+                "/etc/nginx/nginx.conf",
+                "/etc/nginx/sites-enabled",
+            ],
+            "reverse-proxy-root": [
+                "curl",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                "5",
+                "--write-out",
+                "\n__EOAT_HTTP_STATUS=%{http_code} __EOAT_RESPONSE_SECONDS=%{time_total}\n",
+                "http://127.0.0.1/",
+            ],
             "database-revision": [
                 "mysql",
                 f"--login-path={self.config.mysql_login_path}",
@@ -451,7 +517,7 @@ class ReadonlySSH:
                 "--no-pager",
                 "--property=LoadState,ActiveState,SubState,ExecStart,User,Group,WorkingDirectory,EnvironmentFiles,Restart,MainPID,ActiveEnterTimestamp",
             ]
-        if operation == "health" and value and value in {"/api/v1/health", "/api/v1/version"}:
+        if operation == "health" and value and value in INSPECTION_HEALTH_PATHS:
             return [
                 "curl",
                 "--fail",
@@ -459,7 +525,23 @@ class ReadonlySSH:
                 "--show-error",
                 "--max-time",
                 "5",
+                "--write-out",
+                "\n__EOAT_HTTP_STATUS=%{http_code} __EOAT_RESPONSE_SECONDS=%{time_total}\n",
                 f"http://127.0.0.1:{self.config.api_port}{value}",
+            ]
+        if operation == "reverse-proxy-health" and self.config.public_hostname:
+            return [
+                "curl",
+                "--fail",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                "5",
+                "-H",
+                f"Host: {self.config.public_hostname}",
+                "--write-out",
+                "\n__EOAT_HTTP_STATUS=%{http_code} __EOAT_RESPONSE_SECONDS=%{time_total}\n",
+                "http://127.0.0.1/api/v1/health",
             ]
         raise DeploymentError(f"Read-only SSH operation is not allowlisted: {operation}")
 
@@ -480,9 +562,23 @@ class ReadonlySSH:
             shlex.join(remote_args),
         ]
         try:
-            result = self._runner(command, text=True, capture_output=True, check=False)
+            result = self._runner(
+                command,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                check=False,
+            )
             output = redact_text(((result.stdout or "") + (result.stderr or "")).strip())
-            return RemoteResult(operation, tuple(remote_args), result.returncode, output[-6000:])
+            if operation in {"service-units", "service-unit-files"}:
+                # Unit lists are naturally ordered and EOAT entries occur near
+                # the beginning.  Keep their leading metadata instead of
+                # losing it to the generic diagnostic tail cap.
+                output = output[:20000]
+            else:
+                output = output[-6000:]
+            return RemoteResult(operation, tuple(remote_args), result.returncode, output)
         except OSError as exc:
             return RemoteResult(operation, tuple(remote_args), 127, redact_text(str(exc)))
 
@@ -626,26 +722,52 @@ def runtime_compatibility(remote: dict[str, RemoteResult], core: dict[str, Any])
     }
 
 
+def _http_probe_output(output: str) -> tuple[str, dict[str, Any]]:
+    match = re.search(
+        r"\n__EOAT_HTTP_STATUS=(?P<status>\d{3}) __EOAT_RESPONSE_SECONDS=(?P<seconds>[0-9.]+)\s*$",
+        output,
+    )
+    if not match:
+        return output, {"http_status": None, "response_seconds": None}
+    return (
+        output[: match.start()].strip(),
+        {"http_status": int(match.group("status")), "response_seconds": float(match.group("seconds"))},
+    )
+
+
 def health_comparison(health: dict[str, dict[str, Any]], core: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     compared: dict[str, Any] = {}
     warnings: list[str] = []
     for path, item in health.items():
+        body, timing = _http_probe_output(str(item["output"]))
         if item["status"] != "PASS":
-            compared[path] = {"status": item["status"], "detail": item["output"]}
+            compared[path] = {"status": item["status"], "detail": body, **timing}
             warnings.append(f"Health probe {path} did not complete")
             continue
         try:
-            payload = json.loads(item["output"])
+            payload = json.loads(body)
         except json.JSONDecodeError:
-            compared[path] = {"status": "WARNING", "detail": "Health response was not JSON"}
+            compared[path] = {"status": "WARNING", "detail": "Health response was not JSON", **timing}
             warnings.append(f"Health probe {path} returned non-JSON output")
             continue
         values = {
             key: payload.get(key)
-            for key in ("application_version", "commit_sha", "migration_revision", "database_revision")
+            for key in (
+                "application_version",
+                "release_id",
+                "build_id",
+                "server_revision",
+                "commit_sha",
+                "current_schema_revision",
+                "database_schema_revision",
+                "migration_revision",
+                "database_revision",
+                "database_reachable",
+                "compatible",
+            )
             if key in payload
         }
-        compared[path] = {"status": "PASS", "values": values}
+        compared[path] = {"status": "PASS", "values": values, **timing}
         if values.get("application_version") and values["application_version"] != core["version"]:
             warnings.append(
                 f"Health probe {path} reports {values['application_version']} while target is {core['version']}"
@@ -669,6 +791,275 @@ def _current_manifest(remote: RemoteResult) -> tuple[dict[str, Any] | None, str 
             return validate_core(payload), None
     except (json.JSONDecodeError, DeploymentError) as exc:
         return None, f"Current manifest is unavailable or invalid: {exc}"
+
+
+def _current_metadata(remote: RemoteResult) -> tuple[dict[str, Any] | None, str | None]:
+    """Read the legacy release metadata used by production releases before Phase 1."""
+
+    if remote.exit_code:
+        return None, remote.output
+    try:
+        payload = json.loads(remote.output)
+    except json.JSONDecodeError as exc:
+        return None, f"Current release metadata is unavailable or invalid: {exc}"
+    if not isinstance(payload, dict):
+        return None, "Current release metadata is not an object"
+    version = str(payload.get("app_version") or "")
+    try:
+        Version.parse(version)
+    except ValueError:
+        return None, "Current release metadata has an invalid application version"
+    release_id = str(payload.get("release_id") or "")
+    build_id = str(payload.get("build_id") or "")
+    commit = str(payload.get("source_git_commit") or payload.get("git_commit") or "")
+    if not release_id or not build_id or not FULL_SHA.fullmatch(commit):
+        return None, "Current release metadata lacks a release ID, build ID, or full source commit"
+    return (
+        {
+            "version": version,
+            "release_id": release_id,
+            "build_id": build_id,
+            "commit_sha": commit,
+            "created_at_utc": str(payload.get("build_timestamp") or "") or None,
+            "migration_revision": str(payload.get("database_schema_revision") or "") or None,
+            "api_contract_version": str(payload.get("api_contract_version") or "") or None,
+            "environment": str(payload.get("environment") or "") or None,
+        },
+        None,
+    )
+
+
+def _current_deployment(
+    manifest: RemoteResult, metadata: RemoteResult
+) -> tuple[dict[str, Any], list[str]]:
+    core, manifest_error = _current_manifest(manifest)
+    release_metadata, metadata_error = _current_metadata(metadata)
+    warnings: list[str] = []
+    if core:
+        return {
+            "primary_source": "release_manifest",
+            "manifest": core,
+            "metadata": release_metadata,
+            "identity": manifest_identity(core).__dict__,
+            "error": None,
+        }, warnings
+    if release_metadata:
+        warnings.append("Current release uses legacy release_metadata.json; no release_manifest.json is present")
+        return {
+            "primary_source": "release_metadata",
+            "manifest": None,
+            "metadata": release_metadata,
+            "identity": release_metadata,
+            "error": None,
+        }, warnings
+    return {
+        "primary_source": None,
+        "manifest": None,
+        "metadata": None,
+        "identity": None,
+        "error": manifest_error or metadata_error,
+    }, warnings
+
+
+def _discovered_service_names(units: RemoteResult, config: ServerConfig, core: dict[str, Any] | None = None) -> tuple[str, ...]:
+    names: list[str] = []
+    if core:
+        names.extend(str(item) for item in core.get("services", []))
+    names.extend(config.services)
+    if config.nginx_service:
+        names.append(config.nginx_service)
+    if units.exit_code == 0:
+        for line in units.output.splitlines():
+            match = DISCOVERED_SERVICE.match(line)
+            if not match:
+                continue
+            name = match.group(1)
+            if name == "nginx.service" or name.startswith("eoat-") or "atlas" in name:
+                names.append(name)
+    return tuple(dict.fromkeys(names))
+
+
+def _result_payload(remote: RemoteResult) -> dict[str, Any]:
+    return {"exit_code": remote.exit_code, "output": remote.output, "command": list(remote.command)}
+
+
+def truth_reconciliation(
+    current: dict[str, Any],
+    remote: dict[str, RemoteResult],
+    services: dict[str, dict[str, Any]],
+    health: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Compare independent deployment facts without silently choosing one."""
+
+    checks: list[dict[str, str]] = []
+    violations: list[str] = []
+    identity = current.get("identity") or {}
+    current_target = remote["current-target"].output if remote["current-target"].exit_code == 0 else ""
+    version = str(identity.get("version") or "")
+    commit = str(identity.get("commit_sha") or "")
+    if version and commit and current_target:
+        expected_markers = (version, commit[:7])
+        if all(marker in current_target for marker in expected_markers):
+            checks.append({"source": "current_symlink", "status": "PASS", "detail": current_target})
+        else:
+            detail = "Current symlink target does not match release metadata version/commit"
+            checks.append({"source": "current_symlink", "status": "FAIL", "detail": detail})
+            violations.append(detail)
+    else:
+        checks.append({"source": "current_symlink", "status": "UNKNOWN", "detail": "Insufficient symlink or identity data"})
+
+    app_services = [result for name, result in services.items() if name.startswith("eoat-") or "atlas" in name]
+    if app_services and any("/opt/eoat-atlas/current" in str(result.get("output") or "") for result in app_services):
+        checks.append({"source": "systemd", "status": "PASS", "detail": "EOAT service executes from current symlink"})
+    elif app_services:
+        detail = "EOAT service does not expose an ExecStart or working directory under current"
+        checks.append({"source": "systemd", "status": "FAIL", "detail": detail})
+        violations.append(detail)
+    else:
+        checks.append({"source": "systemd", "status": "UNKNOWN", "detail": "No EOAT service was discovered"})
+
+    health_item = health.get("/api/v1/health")
+    payload: dict[str, Any] | None = None
+    if health_item and health_item.get("status") == "PASS":
+        body, _timing = _http_probe_output(str(health_item.get("output") or ""))
+        try:
+            loaded = json.loads(body)
+            payload = loaded if isinstance(loaded, dict) else None
+        except json.JSONDecodeError:
+            payload = None
+    if payload is None:
+        checks.append({"source": "health", "status": "UNKNOWN", "detail": "Health identity response was unavailable"})
+    else:
+        mismatches = [
+            field
+            for field, health_field in (
+                ("version", "application_version"),
+                ("release_id", "release_id"),
+                ("build_id", "build_id"),
+            )
+            if identity.get(field) and payload.get(health_field) != identity.get(field)
+        ]
+        if mismatches:
+            detail = "Health identity differs from current release metadata: " + ", ".join(mismatches)
+            checks.append({"source": "health", "status": "FAIL", "detail": detail})
+            violations.append(detail)
+        else:
+            checks.append({"source": "health", "status": "PASS", "detail": "Health identity agrees with current release metadata"})
+        metadata_environment = identity.get("environment")
+        health_environment = payload.get("environment")
+        if metadata_environment and health_environment and metadata_environment != health_environment:
+            detail = (
+                f"Environment mismatch: release metadata is {metadata_environment!r} "
+                f"but health reports {health_environment!r}"
+            )
+            checks.append({"source": "environment", "status": "FAIL", "detail": detail})
+            violations.append(detail)
+        elif metadata_environment or health_environment:
+            checks.append({"source": "environment", "status": "PASS", "detail": str(metadata_environment or health_environment)})
+        metadata_revision = identity.get("migration_revision")
+        health_revision = payload.get("current_schema_revision")
+        if metadata_revision and health_revision and metadata_revision != health_revision:
+            detail = "Health schema revision differs from current release metadata"
+            checks.append({"source": "migration", "status": "FAIL", "detail": detail})
+            violations.append(detail)
+        elif metadata_revision and health_revision:
+            checks.append({"source": "migration", "status": "PASS", "detail": str(health_revision)})
+    return {"checks": checks, "violations": violations}
+
+
+def inspect_server_only(config: ServerConfig) -> dict[str, Any]:
+    """Inspect the verified server without selecting or downloading a release."""
+
+    host_key = ssh_host_key_status(config)
+    if not host_key.known:
+        return {
+            "mode": "READ_ONLY_SERVER_INSPECTION",
+            "declaration": "NO SERVER CHANGES WILL BE MADE",
+            "ssh_host_key": host_key.__dict__,
+            "warnings": [host_key.diagnostic or "SSH host key is not trusted"],
+            "blocking_failures": ["SSH host key is unknown or changed; inspection stopped before connection"],
+            "readiness": "NOT_READY",
+        }
+    ssh = ReadonlySSH(config)
+    operations = (
+        "hostname",
+        "uname",
+        "os-release",
+        "python",
+        "mysql-version",
+        "time",
+        "timezone",
+        "memory",
+        "disk",
+        "layout",
+        "current-target",
+        "current-content",
+        "releases",
+        "incoming",
+        "shared-layout",
+        "release-evidence",
+        "environment-metadata",
+        "environment-files",
+        "lock",
+        "service-units",
+        "service-unit-files",
+        "listeners",
+        "nginx-metadata",
+        "reverse-proxy-root",
+    )
+    remote = {name: ssh.execute(name) for name in operations}
+    current, current_warnings = _current_deployment(
+        ssh.execute("current-manifest"), ssh.execute("current-metadata")
+    )
+    service_names = _discovered_service_names(remote["service-units"], config)
+    services = {name: _service_result(ssh.execute("service", name)) for name in service_names}
+    health = {path: _service_result(ssh.execute("health", path)) for path in INSPECTION_HEALTH_PATHS}
+    database = ssh.execute("database-revision")
+    truth = truth_reconciliation(current, remote, services, health)
+    proxy_remote = ssh.execute("reverse-proxy-health") if config.public_hostname else remote["reverse-proxy-root"]
+    proxy_body, proxy_timing = _http_probe_output(proxy_remote.output)
+    proxy = {
+        **_service_result(proxy_remote),
+        "body_excerpt": proxy_body[-1000:],
+        **proxy_timing,
+    }
+    warnings = list(current_warnings)
+    if current["error"]:
+        warnings.append(str(current["error"]))
+    if database.exit_code:
+        warnings.append("Database migration revision could not be queried with the configured read-only login path")
+    if remote["lock"].exit_code:
+        warnings.append("Configured deployment lock is not present or not readable")
+    if not config.public_hostname and "Welcome to nginx!" in proxy_body:
+        warnings.append("Nginx is active but its local root serves the default page, not EOAT Atlas")
+    return {
+        "mode": "READ_ONLY_SERVER_INSPECTION",
+        "declaration": "NO SERVER CHANGES WILL BE MADE",
+        "server": {name: _result_payload(result) for name, result in remote.items()},
+        "current_deployment": current,
+        "services": services,
+        "health": health,
+        "reverse_proxy": proxy,
+        "truth_reconciliation": truth,
+        "database": {
+            "exit_code": database.exit_code,
+            "revision": database.output if database.exit_code == 0 else None,
+            "diagnostic": database.output if database.exit_code else None,
+        },
+        "deployment_lock": {
+            "exit_code": remote["lock"].exit_code,
+            "metadata": remote["lock"].output if remote["lock"].exit_code == 0 else None,
+            "diagnostic": remote["lock"].output if remote["lock"].exit_code else None,
+        },
+        "ssh_host_key": host_key.__dict__,
+        "warnings": warnings,
+        "blocking_failures": truth["violations"],
+        "readiness": "NOT_READY"
+        if truth["violations"]
+        else "READY_WITH_WARNINGS"
+        if warnings
+        else "READY_FOR_LATER_DEPLOYMENT",
+    }
 
 
 def future_deployment_plan(
@@ -750,26 +1141,35 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         "python",
         "mysql-version",
         "time",
+        "timezone",
         "memory",
         "disk",
         "layout",
         "current-target",
+        "current-content",
         "releases",
         "incoming",
+        "shared-layout",
+        "release-evidence",
         "environment-metadata",
+        "environment-files",
         "lock",
+        "service-units",
+        "service-unit-files",
+        "listeners",
+        "nginx-metadata",
+        "reverse-proxy-root",
     )
     remote = {name: ssh.execute(name) for name in identity_operations}
-    current_core, current_error = _current_manifest(ssh.execute("current-manifest"))
-    services = tuple(
-        dict.fromkeys(
-            [*core.get("services", []), *config.services, *([config.nginx_service] if config.nginx_service else [])]
-        )
+    current_deployment, current_warnings = _current_deployment(
+        ssh.execute("current-manifest"), ssh.execute("current-metadata")
     )
+    services = _discovered_service_names(remote["service-units"], config, core)
     service_state = {service: _service_result(ssh.execute("service", service)) for service in services}
     health = {path: _service_result(ssh.execute("health", path)) for path in core.get("health_checks", [])}
     health_status, health_warnings = health_comparison(health, core)
     database = ssh.execute("database-revision")
+    truth = truth_reconciliation(current_deployment, remote, service_state, health)
     migration = migration_summary(archive)
     disk = (
         disk_space_preflight(remote["disk"].output, archive.stat().st_size)
@@ -777,16 +1177,17 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         else {"status": "UNKNOWN", "warning": "Approved disk inspection command failed"}
     )
     runtime = runtime_compatibility(remote, core)
-    warnings: list[str] = []
+    warnings = list(current_warnings)
     blocking: list[str] = []
     if not services:
         warnings.append("No verified service units are configured or embedded in the release manifest")
-    if current_error:
-        warnings.append(current_error)
-    if current_core:
+    if current_deployment["error"]:
+        warnings.append(str(current_deployment["error"]))
+    current_identity = current_deployment["identity"]
+    if current_identity:
         for field in ("version", "commit_sha"):
-            if not current_core.get(field):
-                warnings.append(f"Current deployment manifest has no {field}")
+            if not current_identity.get(field):
+                warnings.append(f"Current deployment identity has no {field}")
     if (
         database.exit_code == 0
         and database.output.strip()
@@ -804,6 +1205,16 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
     if migration["destructive_warnings"]:
         warnings.extend(migration["destructive_warnings"])
     warnings.extend(health_warnings)
+    blocking.extend(truth["violations"])
+    proxy_remote = ssh.execute("reverse-proxy-health") if config.public_hostname else remote["reverse-proxy-root"]
+    proxy_body, proxy_timing = _http_probe_output(proxy_remote.output)
+    reverse_proxy = {
+        **_service_result(proxy_remote),
+        "body_excerpt": proxy_body[-1000:],
+        **proxy_timing,
+    }
+    if not config.public_hostname and "Welcome to nginx!" in proxy_body:
+        warnings.append("Nginx is active but its local root serves the default page, not EOAT Atlas")
     if disk["status"] == "FAIL":
         blocking.append("Server free space is below the conservative future deployment estimate")
     elif disk["status"] == "UNKNOWN":
@@ -821,13 +1232,15 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
     readiness = "NOT_READY" if blocking else "READY_WITH_WARNINGS" if warnings else "READY_FOR_LATER_DEPLOYMENT"
     return {
         "server": {
-            name: {"exit_code": result.exit_code, "output": result.output, "command": list(result.command)}
+            name: _result_payload(result)
             for name, result in remote.items()
         },
-        "current_deployment": {"manifest": current_core, "error": current_error},
+        "current_deployment": current_deployment,
         "services": service_state,
         "health": health,
         "health_comparison": health_status,
+        "truth_reconciliation": truth,
+        "reverse_proxy": reverse_proxy,
         "database": {
             "exit_code": database.exit_code,
             "revision": database.output if database.exit_code == 0 else None,
@@ -940,6 +1353,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cache-dir", type=Path, help="Local untracked GitHub release cache")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("status", help="Show strict read-only updater status")
+    subparsers.add_parser("inspect-server", help="Inspect the configured server without selecting a release")
     subparsers.add_parser("list-releases", help="List eligible GitHub Releases")
     inspect = subparsers.add_parser("inspect-release", help="Download/cache and verify a release without SSH")
     inspect.add_argument("--version", metavar="MAJOR.MINOR.PATCH")
@@ -978,6 +1392,13 @@ def main(argv: list[str] | None = None) -> int:
                 },
                 args.as_json,
             )
+            return 0
+        if args.command == "inspect-server":
+            if not args.server_config:
+                raise DeploymentError("inspect-server requires a non-secret --server-config")
+            receipt = inspect_server_only(load_server_config(args.server_config.resolve()))
+            receipt["receipt_path"] = str(_write_receipt(root, receipt))
+            _print(receipt, args.as_json)
             return 0
         version = getattr(args, "version", None)
         release_dir, external = _resolve_local_or_github(

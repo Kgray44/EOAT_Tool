@@ -15,6 +15,7 @@ from deployment.server_updater import (
     GitHubRelease,
     ReadonlySSH,
     ReleaseAsset,
+    RemoteResult,
     ServerConfig,
     cache_release,
     disk_space_preflight,
@@ -101,6 +102,8 @@ def test_tar_release_manifest_hash_and_safe_layout(tmp_path: Path) -> None:
     assert build.archive.name.endswith(".tar.gz")
     assert build.core["commit_sha"] == commit
     assert build.external["artifact"]["sha256"] == sha256_file(build.archive)
+    assert build.core["services"] == ["eoat-atlas.service"]
+    assert build.core["health_checks"] == ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"]
     with tarfile.open(build.archive, "r:gz") as archive:
         names = archive.getnames()
     assert "release_manifest.json" in names
@@ -197,18 +200,134 @@ def test_readonly_ssh_rejects_unapproved_commands_and_uses_strict_host_checks() 
         "/var/lock/eoat-atlas-deploy.lock",
     )
     observed: list[list[str]] = []
+    observed_kwargs: list[dict[str, object]] = []
 
-    def fake_runner(command, **_kwargs):
+    def fake_runner(command, **kwargs):
         observed.append(command)
+        observed_kwargs.append(kwargs)
         return subprocess.CompletedProcess(command, 0, stdout="EOAT-ATLAS\n", stderr="")
 
     ssh = ReadonlySSH(config, runner=fake_runner)
     assert ssh.execute("hostname").exit_code == 0
     assert "StrictHostKeyChecking=yes" in observed[0]
+    assert observed_kwargs[0]["encoding"] == "utf-8"
+    assert observed_kwargs[0]["errors"] == "replace"
+    assert ssh._command("time") == ["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"]
+    assert ssh._command("health", "/api/v1/schema-status")[-1].endswith("/api/v1/schema-status")
     with pytest.raises(DeploymentError, match="not allowlisted"):
         ssh.execute("rm")
     with pytest.raises(DeploymentError, match="not allowlisted"):
         ssh.execute("service", "bad;systemctl restart nginx")
+
+
+def test_current_deployment_falls_back_to_legacy_release_metadata() -> None:
+    manifest = RemoteResult("current-manifest", (), 1, "No such file")
+    metadata = RemoteResult(
+        "current-metadata",
+        (),
+        0,
+        json.dumps(
+            {
+                "app_version": "0.17.1",
+                "release_id": "eoat-atlas-0.17.1",
+                "build_id": "eoat-atlas-0.17.1-b18de78-20260720T201856Z",
+                "source_git_commit": "b18de78a6b8ca67b1d22e781aa717366d0bb67a9",
+                "build_timestamp": "2026-07-20T20:18:56Z",
+                "database_schema_revision": "20260717_0007",
+            }
+        ),
+    )
+    current, warnings = server_updater._current_deployment(manifest, metadata)
+    assert current["primary_source"] == "release_metadata"
+    assert current["identity"]["version"] == "0.17.1"
+    assert current["identity"]["commit_sha"] == "b18de78a6b8ca67b1d22e781aa717366d0bb67a9"
+    assert warnings
+
+
+def test_service_discovery_selects_verified_eoat_and_nginx_units() -> None:
+    config = ServerConfig(
+        "eoat-atlas",
+        22,
+        "kgray",
+        "/opt/eoat-atlas",
+        8765,
+        (),
+        None,
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+    )
+    units = RemoteResult(
+        "service-units",
+        (),
+        0,
+        "  eoat-atlas.service loaded active running EOAT Atlas API\n  nginx.service loaded active running nginx\n",
+    )
+    assert server_updater._discovered_service_names(units, config) == ("eoat-atlas.service", "nginx.service")
+
+
+def test_health_comparison_keeps_http_timing_and_release_identity() -> None:
+    core = {"version": "0.17.3", "commit_sha": "a" * 40}
+    health = {
+        "/api/v1/health": {
+            "status": "PASS",
+            "output": json.dumps(
+                {
+                    "application_version": "0.17.1",
+                    "release_id": "eoat-atlas-0.17.1",
+                    "build_id": "eoat-atlas-0.17.1-build",
+                    "current_schema_revision": "20260717_0007",
+                    "database_reachable": True,
+                }
+            )
+            + "\n__EOAT_HTTP_STATUS=200 __EOAT_RESPONSE_SECONDS=0.013\n",
+        }
+    }
+    compared, warnings = server_updater.health_comparison(health, core)
+    assert compared["/api/v1/health"]["http_status"] == 200
+    assert compared["/api/v1/health"]["response_seconds"] == pytest.approx(0.013)
+    assert compared["/api/v1/health"]["values"]["release_id"] == "eoat-atlas-0.17.1"
+    assert warnings
+
+
+def test_truth_reconciliation_flags_environment_disagreement() -> None:
+    current = {
+        "identity": {
+            "version": "0.17.1",
+            "release_id": "eoat-atlas-0.17.1",
+            "build_id": "eoat-atlas-0.17.1-build",
+            "commit_sha": "b18de78a6b8ca67b1d22e781aa717366d0bb67a9",
+            "migration_revision": "20260717_0007",
+            "environment": "production",
+        }
+    }
+    remote = {
+        "current-target": RemoteResult(
+            "current-target", (), 0, "/opt/eoat-atlas/releases/eoat-atlas-server-0.17.1-b18de78"
+        )
+    }
+    services = {
+        "eoat-atlas.service": {
+            "status": "PASS",
+            "output": "ExecStart=/opt/eoat-atlas/current/venv/bin/python",
+        }
+    }
+    health = {
+        "/api/v1/health": {
+            "status": "PASS",
+            "output": json.dumps(
+                {
+                    "application_version": "0.17.1",
+                    "release_id": "eoat-atlas-0.17.1",
+                    "build_id": "eoat-atlas-0.17.1-build",
+                    "environment": "development",
+                    "current_schema_revision": "20260717_0007",
+                }
+            ),
+        }
+    }
+    result = server_updater.truth_reconciliation(current, remote, services, health)
+    assert any("Environment mismatch" in violation for violation in result["violations"])
 
 
 def test_unknown_host_key_is_reported_but_never_trusted(monkeypatch: pytest.MonkeyPatch) -> None:

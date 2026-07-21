@@ -36,6 +36,10 @@ selected GitHub Release, verified hash/manifest identity, server runtime,
 available disk space, current release metadata, migration state, service
 metadata, and local health probes.  Any UNKNOWN or FAIL result is a blocker;
 it must not be converted into an assumption by a deployment script.
+Filesystem metadata, the current symlink, systemd executable paths, host-routed
+health responses, and declared runtime environment must agree. A disagreement
+is a deployment truth violation and blocks release publication until the owner
+resolves it or supplies authoritative evidence that changes the expected model.
 
 Known-host verification and non-interactive authentication are separate gates.
 The SSH host key must be matched to a trusted out-of-band fingerprint before

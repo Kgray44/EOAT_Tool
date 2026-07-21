@@ -11,6 +11,8 @@ from .common import DeploymentError, canonical_json, sha256_bytes
 MANIFEST_SCHEMA_VERSION = 1
 APPLICATION_NAME = "EOAT Atlas"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
+PRODUCTION_APPLICATION_SERVICES = ("eoat-atlas.service",)
+PRODUCTION_HEALTH_CHECKS = ("/api/v1/health", "/api/v1/version", "/api/v1/schema-status")
 
 
 @dataclass(frozen=True)
@@ -58,8 +60,11 @@ def manifest_core(
             "migration_required": True,
         },
         "runtime": {"python": ">=3.13", "mysql": ">=8.4"},
-        "services": services or [],
-        "health_checks": ["/api/v1/health", "/api/v1/version"],
+        # These are the verified production API unit and its read-only local
+        # probes.  The reverse proxy remains server configuration because it
+        # is not part of the application payload.
+        "services": services or list(PRODUCTION_APPLICATION_SERVICES),
+        "health_checks": list(PRODUCTION_HEALTH_CHECKS),
         "api_contract_version": api_contract_version,
     }
 

@@ -83,6 +83,7 @@ signature verifier can be added without weakening hash validation.
 
 ```powershell
 python tools/server_updater.py status
+python tools/server_updater.py --server-config C:\safe\eoat-atlas-production-readonly.json inspect-server
 python tools/server_updater.py list-releases
 python tools/server_updater.py inspect-release --version 0.17.2
 python tools/server_updater.py deploy-latest --dry-run
@@ -102,6 +103,18 @@ hostname/service unit values with infrastructure owners, and supply it with
 `--server-config`. Private keys, passwords, tokens, and environment files are
 never configured in this file. OpenSSH agent/configuration and normal
 `known_hosts` handling are used instead.
+
+The inspect-server command is the release-independent production inspection
+command. It uses only the same fixed read-only allowlist as preflight and
+saves a local receipt under .local/deployment-preflight-receipts. It discovers
+relevant EOAT/Nginx units, captures safe filesystem metadata, and accepts the
+legacy release_metadata.json layout used by releases published before this
+Phase 1 manifest format. It does not read environment-file contents.
+The checked-in example reflects the verified EOAT topology: the eoat-atlas
+application unit, its host-routed NGINX endpoint, and the current inspection
+account. A MySQL login path remains an operator-provided read-only capability;
+the updater reports its absence instead of falling back to credentials or
+environment-file contents.
 
 Phase 2 enforces `BatchMode=yes` and `StrictHostKeyChecking=yes`. It never
 accepts arbitrary remote shell text. The only remote actions are a fixed
