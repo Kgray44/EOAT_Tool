@@ -117,7 +117,12 @@ legacy release_metadata.json layout used by releases published before this
 Phase 1 manifest format. It does not read environment-file contents.
 The checked-in example reflects the verified EOAT topology: the eoat-atlas
 application unit, its host-routed NGINX endpoint, and the current inspection
-account. A MySQL login path remains an operator-provided read-only capability;
+account. The approved public probe is
+`http://eoat-atlas.gwplastics.com:80`; its three health paths are recorded in
+both release manifests and the non-secret server configuration. HTTP is
+intentional for the current approved internal endpoint: the updater does not
+infer HTTPS or treat absent port 443 as an API failure, but records TLS absence
+as a non-blocking infrastructure warning for any broader rollout. A MySQL login path remains an operator-provided read-only capability;
 the updater reports its absence instead of falling back to credentials or
 environment-file contents.
 

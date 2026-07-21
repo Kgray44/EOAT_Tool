@@ -39,6 +39,11 @@ SIZE = re.compile(r"^(\d+(?:\.\d+)?)([KMGTPE]?)(?:i?B)?$", re.I)
 HOST_KEY_FINGERPRINT = re.compile(r"Server host key: [^\r\n]*\b(SHA256:[A-Za-z0-9+/=]+)")
 DISCOVERED_SERVICE = re.compile(r"^\s*([A-Za-z0-9_.@-]+\.service)\s+")
 INSPECTION_HEALTH_PATHS = ("/api/v1/health", "/api/v1/version", "/api/v1/schema-status")
+HTTP_ONLY_TLS_WARNING = (
+    "Production currently exposes the internal EOAT Atlas reverse proxy over HTTP port 80 only. "
+    "TLS/HTTPS on port 443 is not configured. This does not block Phase 3 release deployment automation, "
+    "but HTTPS should be addressed before broad browser/mobile rollout or exposure beyond the currently approved internal network."
+)
 
 
 @dataclass(frozen=True)
@@ -77,6 +82,8 @@ class ServerConfig:
     database_name: str
     deployment_lock: str
     public_hostname: str | None = None
+    public_scheme: str = "http"
+    public_port: int = 80
 
 
 @dataclass(frozen=True)
@@ -306,6 +313,12 @@ def load_server_config(path: Path) -> ServerConfig:
     public_hostname = server.get("public_hostname")
     if public_hostname is not None and not HOSTNAME.fullmatch(str(public_hostname)):
         raise DeploymentError("Public reverse-proxy hostname is unsafe")
+    public_scheme = str(server.get("public_scheme") or "http").casefold()
+    if public_scheme not in {"http", "https"}:
+        raise DeploymentError("Public reverse-proxy scheme must be http or https")
+    public_port = server.get("public_port", 80)
+    if not isinstance(public_port, int) or not 1 <= public_port <= 65535:
+        raise DeploymentError("Public reverse-proxy port must be a safe integer")
     return ServerConfig(
         hostname,
         port,
@@ -318,6 +331,8 @@ def load_server_config(path: Path) -> ServerConfig:
         database_name,
         deployment_lock,
         str(public_hostname) if public_hostname else None,
+        public_scheme,
+        public_port,
     )
 
 
@@ -520,7 +535,6 @@ class ReadonlySSH:
         if operation == "health" and value and value in INSPECTION_HEALTH_PATHS:
             return [
                 "curl",
-                "--fail",
                 "--silent",
                 "--show-error",
                 "--max-time",
@@ -529,19 +543,19 @@ class ReadonlySSH:
                 "\n__EOAT_HTTP_STATUS=%{http_code} __EOAT_RESPONSE_SECONDS=%{time_total}\n",
                 f"http://127.0.0.1:{self.config.api_port}{value}",
             ]
-        if operation == "reverse-proxy-health" and self.config.public_hostname:
+        if operation == "reverse-proxy-health" and value and value in INSPECTION_HEALTH_PATHS and self.config.public_hostname:
+            endpoint = f"{self.config.public_scheme}://{self.config.public_hostname}:{self.config.public_port}{value}"
             return [
                 "curl",
-                "--fail",
                 "--silent",
                 "--show-error",
                 "--max-time",
                 "5",
-                "-H",
-                f"Host: {self.config.public_hostname}",
+                "--resolve",
+                f"{self.config.public_hostname}:{self.config.public_port}:127.0.0.1",
                 "--write-out",
                 "\n__EOAT_HTTP_STATUS=%{http_code} __EOAT_RESPONSE_SECONDS=%{time_total}\n",
-                "http://127.0.0.1/api/v1/health",
+                endpoint,
             ]
         raise DeploymentError(f"Read-only SSH operation is not allowlisted: {operation}")
 
@@ -735,11 +749,38 @@ def _http_probe_output(output: str) -> tuple[str, dict[str, Any]]:
     )
 
 
+def _health_result(remote: RemoteResult) -> dict[str, Any]:
+    """Interpret a safe GET without treating a protected endpoint as an outage."""
+    result = _service_result(remote)
+    body, timing = _http_probe_output(remote.output)
+    result.update(timing)
+    if remote.exit_code or timing["http_status"] is None:
+        return result
+    if timing["http_status"] == 200:
+        result["status"] = "PASS"
+        return result
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, dict) and payload.get("error_code") == "DEVICE_AUTH_NOT_CONFIGURED":
+        result["status"] = "SECURED_UNAVAILABLE"
+        return result
+    result["status"] = "FAIL"
+    return result
+
+
 def health_comparison(health: dict[str, dict[str, Any]], core: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     compared: dict[str, Any] = {}
     warnings: list[str] = []
     for path, item in health.items():
         body, timing = _http_probe_output(str(item["output"]))
+        if item["status"] == "SECURED_UNAVAILABLE":
+            compared[path] = {"status": item["status"], "detail": body, **timing}
+            warnings.append(
+                f"Health probe {path} requires production device authentication; /api/v1/health supplies schema state"
+            )
+            continue
         if item["status"] != "PASS":
             compared[path] = {"status": item["status"], "detail": body, **timing}
             warnings.append(f"Health probe {path} did not complete")
@@ -1010,6 +1051,81 @@ def truth_reconciliation(
     return {"checks": checks, "violations": violations}
 
 
+def public_health_compatibility(config: ServerConfig, core: dict[str, Any]) -> dict[str, Any]:
+    """Ensure the selected artifact declares the same approved public probe."""
+    expected = core.get("public_health_endpoint")
+    observed = {
+        "scheme": config.public_scheme,
+        "hostname": config.public_hostname,
+        "port": config.public_port,
+        "paths": core.get("health_checks", []),
+    }
+    if not isinstance(expected, dict):
+        return {"status": "UNKNOWN", "detail": "Release manifest has no public health endpoint metadata", "observed": observed}
+    differences = [
+        key
+        for key in ("scheme", "hostname", "port", "paths")
+        if expected.get(key) != observed.get(key)
+    ]
+    return {
+        "status": "PASS" if not differences else "FAIL",
+        "detail": "Public health endpoint agrees with release manifest"
+        if not differences
+        else "Public health endpoint differs from release manifest: " + ", ".join(differences),
+        "expected": expected,
+        "observed": observed,
+    }
+
+
+def _reverse_proxy_result(result: RemoteResult, config: ServerConfig, path: str) -> dict[str, Any]:
+    probe = _health_result(result)
+    body, _timing = _http_probe_output(result.output)
+    return {
+        **probe,
+        "url": f"{config.public_scheme}://{config.public_hostname}:{config.public_port}{path}",
+        "body_excerpt": body[-1000:],
+    }
+
+
+def _reverse_proxy_inspection(
+    ssh: ReadonlySSH, config: ServerConfig, paths: Iterable[str], fallback: RemoteResult
+) -> dict[str, Any]:
+    if not config.public_hostname:
+        body, timing = _http_probe_output(fallback.output)
+        return {**_service_result(fallback), "body_excerpt": body[-1000:], **timing}
+    probes = {
+        path: _reverse_proxy_result(ssh.execute("reverse-proxy-health", path), config, path)
+        for path in paths
+    }
+    return {
+        "endpoint": {
+            "scheme": config.public_scheme,
+            "hostname": config.public_hostname,
+            "port": config.public_port,
+        },
+        "probes": probes,
+    }
+
+
+def _reverse_proxy_warnings(config: ServerConfig, proxy: dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    if config.public_hostname:
+        for path, probe in proxy.get("probes", {}).items():
+            if probe.get("status") == "SECURED_UNAVAILABLE":
+                warnings.append(
+                    f"Public reverse-proxy health probe {path} requires production device authentication; "
+                    "/api/v1/health supplies schema state"
+                )
+                continue
+            if probe.get("status") != "PASS" or probe.get("http_status") != 200:
+                warnings.append(f"Public reverse-proxy health probe {path} did not return HTTP 200")
+        if config.public_scheme == "http" and config.public_port == 80:
+            warnings.append(HTTP_ONLY_TLS_WARNING)
+    elif "Welcome to nginx!" in str(proxy.get("body_excerpt") or ""):
+        warnings.append("Nginx is active but its local root serves the default page, not EOAT Atlas")
+    return warnings
+
+
 def inspect_server_only(config: ServerConfig) -> dict[str, Any]:
     """Inspect the verified server without selecting or downloading a release."""
 
@@ -1056,16 +1172,10 @@ def inspect_server_only(config: ServerConfig) -> dict[str, Any]:
     )
     service_names = _discovered_service_names(remote["service-units"], config)
     services = {name: _service_result(ssh.execute("service", name)) for name in service_names}
-    health = {path: _service_result(ssh.execute("health", path)) for path in INSPECTION_HEALTH_PATHS}
+    health = {path: _health_result(ssh.execute("health", path)) for path in INSPECTION_HEALTH_PATHS}
     database = ssh.execute("database-revision")
     truth = truth_reconciliation(current, remote, services, health)
-    proxy_remote = ssh.execute("reverse-proxy-health") if config.public_hostname else remote["reverse-proxy-root"]
-    proxy_body, proxy_timing = _http_probe_output(proxy_remote.output)
-    proxy = {
-        **_service_result(proxy_remote),
-        "body_excerpt": proxy_body[-1000:],
-        **proxy_timing,
-    }
+    proxy = _reverse_proxy_inspection(ssh, config, INSPECTION_HEALTH_PATHS, remote["reverse-proxy-root"])
     warnings = list(current_warnings)
     if current["error"]:
         warnings.append(str(current["error"]))
@@ -1073,8 +1183,7 @@ def inspect_server_only(config: ServerConfig) -> dict[str, Any]:
         warnings.append("Database migration revision could not be queried with the configured read-only login path")
     if remote["lock"].exit_code:
         warnings.append("Configured deployment lock is not present or not readable")
-    if not config.public_hostname and "Welcome to nginx!" in proxy_body:
-        warnings.append("Nginx is active but its local root serves the default page, not EOAT Atlas")
+    warnings.extend(_reverse_proxy_warnings(config, proxy))
     return {
         "mode": "READ_ONLY_SERVER_INSPECTION",
         "declaration": "NO SERVER CHANGES WILL BE MADE",
@@ -1209,10 +1318,11 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
     )
     services = _discovered_service_names(remote["service-units"], config, core)
     service_state = {service: _service_result(ssh.execute("service", service)) for service in services}
-    health = {path: _service_result(ssh.execute("health", path)) for path in core.get("health_checks", [])}
+    health = {path: _health_result(ssh.execute("health", path)) for path in core.get("health_checks", [])}
     health_status, health_warnings = health_comparison(health, core)
     database = ssh.execute("database-revision")
     truth = truth_reconciliation(current_deployment, remote, service_state, health)
+    public_health = public_health_compatibility(config, core)
     migration_requirement_result = migration_requirement(health, database, core)
     migration = migration_summary(archive)
     disk = (
@@ -1252,15 +1362,12 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         warnings.extend(migration["destructive_warnings"])
     warnings.extend(health_warnings)
     blocking.extend(truth["violations"])
-    proxy_remote = ssh.execute("reverse-proxy-health") if config.public_hostname else remote["reverse-proxy-root"]
-    proxy_body, proxy_timing = _http_probe_output(proxy_remote.output)
-    reverse_proxy = {
-        **_service_result(proxy_remote),
-        "body_excerpt": proxy_body[-1000:],
-        **proxy_timing,
-    }
-    if not config.public_hostname and "Welcome to nginx!" in proxy_body:
-        warnings.append("Nginx is active but its local root serves the default page, not EOAT Atlas")
+    if public_health["status"] == "FAIL":
+        blocking.append(str(public_health["detail"]))
+    elif public_health["status"] == "UNKNOWN":
+        warnings.append(str(public_health["detail"]))
+    reverse_proxy = _reverse_proxy_inspection(ssh, config, core.get("health_checks", []), remote["reverse-proxy-root"])
+    warnings.extend(_reverse_proxy_warnings(config, reverse_proxy))
     if disk["status"] == "FAIL":
         blocking.append("Server free space is below the conservative future deployment estimate")
     elif disk["status"] == "UNKNOWN":
@@ -1285,6 +1392,7 @@ def inspect_server(config: ServerConfig, core: dict[str, Any], archive: Path) ->
         "services": service_state,
         "health": health,
         "health_comparison": health_status,
+        "public_health_compatibility": public_health,
         "truth_reconciliation": truth,
         "reverse_proxy": reverse_proxy,
         "database": {

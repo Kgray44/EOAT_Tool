@@ -104,6 +104,12 @@ def test_tar_release_manifest_hash_and_safe_layout(tmp_path: Path) -> None:
     assert build.external["artifact"]["sha256"] == sha256_file(build.archive)
     assert build.core["services"] == ["eoat-atlas.service"]
     assert build.core["health_checks"] == ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"]
+    assert build.core["public_health_endpoint"] == {
+        "scheme": "http",
+        "hostname": "eoat-atlas.gwplastics.com",
+        "port": 80,
+        "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+    }
     with tarfile.open(build.archive, "r:gz") as archive:
         names = archive.getnames()
     assert "release_manifest.json" in names
@@ -218,6 +224,92 @@ def test_readonly_ssh_rejects_unapproved_commands_and_uses_strict_host_checks() 
         ssh.execute("rm")
     with pytest.raises(DeploymentError, match="not allowlisted"):
         ssh.execute("service", "bad;systemctl restart nginx")
+
+
+def test_http_reverse_proxy_probes_use_declared_host_port_and_never_infer_https() -> None:
+    config = ServerConfig(
+        "eoat-atlas",
+        22,
+        "kgray",
+        "/opt/eoat-atlas",
+        8765,
+        ("eoat-atlas.service",),
+        "nginx.service",
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+        public_hostname="eoat-atlas.gwplastics.com",
+        public_scheme="http",
+        public_port=80,
+    )
+    command = ReadonlySSH(config)._command("reverse-proxy-health", "/api/v1/version")
+    assert "--resolve" in command
+    assert "eoat-atlas.gwplastics.com:80:127.0.0.1" in command
+    assert command[-1] == "http://eoat-atlas.gwplastics.com:80/api/v1/version"
+    assert all("https://" not in item for item in command)
+    compatibility = server_updater.public_health_compatibility(
+        config,
+        {
+            "health_checks": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            "public_health_endpoint": {
+                "scheme": "http",
+                "hostname": "eoat-atlas.gwplastics.com",
+                "port": 80,
+                "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            },
+        },
+    )
+    assert compatibility["status"] == "PASS"
+
+
+def test_http_only_listener_is_nonblocking_infrastructure_warning() -> None:
+    config = ServerConfig(
+        "eoat-atlas",
+        22,
+        "kgray",
+        "/opt/eoat-atlas",
+        8765,
+        (),
+        "nginx.service",
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+        public_hostname="eoat-atlas.gwplastics.com",
+        public_scheme="http",
+        public_port=80,
+    )
+    proxy = {
+        "probes": {
+            path: {"status": "PASS", "http_status": 200}
+            for path in ("/api/v1/health", "/api/v1/version", "/api/v1/schema-status")
+        }
+    }
+    warnings = server_updater._reverse_proxy_warnings(config, proxy)
+    assert warnings == [server_updater.HTTP_ONLY_TLS_WARNING]
+
+
+def test_secured_schema_probe_is_not_misreported_as_an_api_or_tls_failure() -> None:
+    protected = RemoteResult(
+        "health",
+        (),
+        0,
+        json.dumps(
+            {
+                "error_code": "DEVICE_AUTH_NOT_CONFIGURED",
+                "message": "Production read authentication is not configured.",
+            }
+        )
+        + "\n__EOAT_HTTP_STATUS=503 __EOAT_RESPONSE_SECONDS=0.001\n",
+    )
+    result = server_updater._health_result(protected)
+    assert result["status"] == "SECURED_UNAVAILABLE"
+    assert result["http_status"] == 503
+    compared, warnings = server_updater.health_comparison(
+        {"/api/v1/schema-status": result}, {"version": "0.17.3", "commit_sha": "a" * 40}
+    )
+    assert compared["/api/v1/schema-status"]["status"] == "SECURED_UNAVAILABLE"
+    assert len(warnings) == 1
+    assert "device authentication" in warnings[0]
 
 
 def test_current_deployment_falls_back_to_legacy_release_metadata() -> None:
