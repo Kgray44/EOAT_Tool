@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -33,6 +34,8 @@ VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 SAFE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 SERVICE = "eoat-atlas.service"
 SERVICE_ACCOUNT = "eoat-atlas"
+HEALTH_RETRY_ATTEMPTS = 12
+HEALTH_RETRY_SECONDS = 1.0
 HELPER_POLICY_VERSION = 1
 HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
 STAGED_RUNTIME_VALIDATION = r'''
@@ -904,14 +907,31 @@ class Helper:
                     raise Rejected(f"health metadata {field} does not match activated release")
 
     def _validate_health(self, state: dict[str, Any], *, target_release: bool) -> None:
-        result = self._run(
-            ["/usr/bin/curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1:8765/api/v1/health"]
-        )
-        try:
-            health = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            raise Rejected("health endpoint did not return JSON") from exc
-        self._validate_health_payload(state, health, target_release=target_release)
+        last_error: Rejected | None = None
+        for attempt in range(HEALTH_RETRY_ATTEMPTS):
+            try:
+                result = self._run(
+                    [
+                        "/usr/bin/curl",
+                        "--fail",
+                        "--silent",
+                        "--max-time",
+                        "10",
+                        "http://127.0.0.1:8765/api/v1/health",
+                    ],
+                    purpose="post-restart health check",
+                )
+                try:
+                    health = json.loads(result.stdout)
+                except json.JSONDecodeError as exc:
+                    raise Rejected("health endpoint did not return JSON") from exc
+                self._validate_health_payload(state, health, target_release=target_release)
+                return
+            except Rejected as exc:
+                last_error = exc
+                if attempt + 1 < HEALTH_RETRY_ATTEMPTS:
+                    time.sleep(HEALTH_RETRY_SECONDS)
+        raise Rejected("post-restart health validation did not succeed within the bounded window") from last_error
 
     def _validate_staged_runtime(self, state: dict[str, Any], staging: Path) -> dict[str, Any]:
         """Run the staged API on an ephemeral localhost socket under its service account."""
@@ -1102,7 +1122,19 @@ class Helper:
         state = self._load(self._id(request.get("deployment_id")))
         self._assert_lock(state["deployment_id"])
         allowed = {"STAGED_VALIDATED"} if state.get("migration_decision") == "NOT_REQUIRED" else {"MIGRATION_VERIFIED"}
-        if state["state"] not in allowed:
+        if state["state"] == "MANUAL_INTERVENTION_REQUIRED":
+            # This is the sole retry path: an earlier activation restored the
+            # previous release but health was probed too early.  Re-check the
+            # old service and the already verified target schema before a new
+            # atomic switch.  It cannot resume any other failed transaction.
+            if state.get("migration_decision") != "REQUIRED":
+                raise Rejected("transaction is not staged")
+            target, _, _ = self._migration_contract(state)
+            if self._current_target() != state["previous_target"] or self._alembic_revision(state) != target:
+                raise Rejected("activation retry prerequisites are not satisfied")
+            self._validate_health(state, target_release=False)
+            self._save(state, "ROLLED_BACK", recovery="old release revalidated before activation retry")
+        elif state["state"] not in allowed:
             raise Rejected("transaction is not staged")
         old = self._current_target()
         if old != state["previous_target"]:

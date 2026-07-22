@@ -336,15 +336,46 @@ def test_migration_failure_preserves_old_release_and_backup_restore_is_bounded(t
     assert restored["state"] == "ROLLED_BACK" and not value.lock.exists()
 
 
+def test_transient_post_restart_health_failure_is_retried(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("deployment.privileged.eoat_atlas_deploy_helper.time.sleep", lambda _seconds: None)
+    helper = DisposableHelper(paths(tmp_path), Runner(fail="curl"))
+    state = {"version": "0.18.0", "release_id": "eoat-atlas-0.18.0", "build_id": helper.runner.health["build_id"]}
+
+    helper._validate_health(state, target_release=True)
+
+    assert sum(command[0] == "/usr/bin/curl" for command in helper.runner.commands) == 2
+
+
 def test_post_activation_failure_rolls_back_the_application_but_retains_migrated_schema(tmp_path: Path) -> None:
     value, helper, payload, runner = staged(tmp_path)
     helper.migration_preflight({"deployment_id": payload["deployment_id"]})
     helper.apply_migration({"deployment_id": payload["deployment_id"]})
     helper.verify_migration({"deployment_id": payload["deployment_id"]})
-    runner.fail = "curl"
+    original_validate = helper._validate_health
+
+    def reject_target(state, *, target_release):
+        if target_release:
+            raise Rejected("simulated activated-release health failure")
+        return original_validate(state, target_release=target_release)
+
+    helper._validate_health = reject_target
     result = helper.activate({"deployment_id": payload["deployment_id"]})
     assert result["state"] == "ROLLED_BACK"
     assert Path(helper.links["current"]).name.endswith("35dea12")
+    assert helper.revision == TARGET and not value.lock.exists()
+
+
+def test_activation_retry_is_limited_to_revalidated_manual_recovery(tmp_path: Path) -> None:
+    value, helper, payload, _ = staged(tmp_path)
+    helper.migration_preflight({"deployment_id": payload["deployment_id"]})
+    helper.apply_migration({"deployment_id": payload["deployment_id"]})
+    helper.verify_migration({"deployment_id": payload["deployment_id"]})
+    state = helper._load(payload["deployment_id"])
+    helper._save(state, "MANUAL_INTERVENTION_REQUIRED", recovery_failure="transient health probe")
+
+    result = helper.activate({"deployment_id": payload["deployment_id"]})
+
+    assert result["state"] == "COMPLETED"
     assert helper.revision == TARGET and not value.lock.exists()
 
 
