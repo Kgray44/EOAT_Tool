@@ -467,6 +467,24 @@ class Helper:
         try:
             defaults = self._mysql_defaults_file(environment)
             try:
+                # Prove that the fixed migration identity can reach only the
+                # fixed production database before requesting a full backup.
+                # This is deliberately a non-mutating query and uses the same
+                # root-owned option file as mysqldump, so it cannot be
+                # influenced by caller credentials or a database argument.
+                self._run(
+                    [
+                        "/usr/bin/mysql",
+                        f"--defaults-extra-file={defaults}",
+                        "--batch",
+                        "--skip-column-names",
+                        "--execute",
+                        "SELECT 1",
+                        self._database_name(),
+                    ],
+                    env=environment,
+                    purpose="approved migration database connection probe",
+                )
                 result = self._run(
                     [
                         "/usr/bin/mysqldump",
@@ -497,12 +515,13 @@ class Helper:
             if not sample or b"\x00" in sample:
                 raise Rejected("production backup is not structurally plausible")
             partial.unlink(missing_ok=True)
-        except (OSError, Rejected):
+        except (OSError, Rejected) as exc:
             # A failed mysqldump can leave a partial file.  It belongs only to
             # this lock-bound deployment ID, so remove it before recording a
             # recoverable failed state; no migration or activation can follow.
             partial.unlink(missing_ok=True)
-            self._save(state, "FAILED", failure="production backup failed")
+            failure = str(exc) if isinstance(exc, Rejected) else "production backup failed"
+            self._save(state, "FAILED", failure=failure)
             self._receipt(state)
             raise
         record = {"id": target.stem, "path": str(target), "sha256": digest(target), "size_bytes": target.stat().st_size, "created_at_utc": utc()}
@@ -722,7 +741,7 @@ class Helper:
             elif "unknown option" in output:
                 category = "approved client option unsupported"
             else:
-                category = "approved command exited nonzero"
+                category = f"approved command exited nonzero (exit status {result.returncode})"
             raise Rejected(f"approved command failed: {label} ({category})")
         return result
 

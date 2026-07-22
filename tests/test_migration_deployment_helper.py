@@ -182,6 +182,9 @@ def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:
     assert not any(part.startswith("--user=") or part.startswith("--login-path=") for part in backup_command)
     assert "--single-transaction" in backup_command
     assert "--no-tablespaces" in backup_command
+    probe_command = next(command for command in runner.commands if command[0] == "/usr/bin/mysql")
+    assert probe_command[-2:] == ["SELECT 1", "eoat_atlas_prod"]
+    assert "--batch" in probe_command and "--skip-column-names" in probe_command
     expected_defaults = '[client]\nuser="eoat_migrate"\npassword="disposable-only"\nhost="127.0.0.1"\nport="3306"\n'
     assert runner.mysql_defaults and all(item == expected_defaults for item in runner.mysql_defaults)
 
@@ -213,12 +216,13 @@ def test_backup_command_failure_is_recoverable_and_releases_no_partial_file(tmp_
     payload = request(value)
     helper.begin(payload)
 
-    with pytest.raises(Rejected, match="approved production backup \\(approved command exited nonzero\\)"):
+    with pytest.raises(Rejected, match="approved production backup \\(approved command exited nonzero"):
         helper.backup_production({"deployment_id": payload["deployment_id"]})
 
     state = helper.status({"deployment_id": payload["deployment_id"]})
     partial = value.backups / f"{payload['deployment_id']}-eoat_atlas_prod-pre-migration.sql.partial"
     assert state["state"] == "FAILED"
+    assert state["failure"] == "approved command failed: approved production backup (approved command exited nonzero (exit status 1))"
     assert not partial.exists()
     assert Path(helper.links["current"]).name.endswith("35dea12")
     helper.cleanup_failed_deployment({"deployment_id": payload["deployment_id"]})
