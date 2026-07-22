@@ -144,7 +144,10 @@ def request(value: Paths, deployment_id: str = "deploy-0001") -> dict[str, str]:
         "release_manifest.json": json.dumps(core()).encode(),
         "server/eoat_api/app.py": b"APP = 'EOAT'\n",
         "server/alembic.ini": b"[alembic]\n",
-        "server/migrations/versions/20260721_0008_data_state_freshness.py": b"revision = '20260721_0008'\n",
+        "server/migrations/versions/20260721_0008_data_state_freshness.py": (
+            b"revision = '20260721_0008'\n"
+            b"down_revision = '20260717_0007'\n"
+        ),
         "requirements.lock": b"example==1 --hash=sha256:" + b"a" * 64,
     }
     with tarfile.open(archive, "w:gz") as bundle:
@@ -168,6 +171,40 @@ def staged(tmp_path: Path, *, runner: Runner | None = None):
     helper.verify_backup({"deployment_id": payload["deployment_id"]})
     helper.stage({"deployment_id": payload["deployment_id"]})
     return value, helper, payload, active_runner
+
+
+def test_migration_contract_uses_packaged_down_revision_and_module_runtime(tmp_path: Path) -> None:
+    value = paths(tmp_path)
+    release = value.releases / "eoat-atlas-server-0.18.0-8f0788e"
+    python = release / "venv" / "bin" / "python"
+    config = release / "server" / "alembic.ini"
+    migration = release / "server" / "migrations" / "versions" / "20260721_0008_data_state_freshness.py"
+    python.parent.mkdir(parents=True)
+    config.parent.mkdir(parents=True)
+    migration.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    config.write_text("[alembic]\n", encoding="utf-8")
+    migration.write_text("revision = '20260721_0008'\ndown_revision = '20260717_0007'\n", encoding="utf-8")
+    state = {
+        "target_path": str(release),
+        "manifest_core": {
+            "database": {
+                "target_revision": TARGET,
+                # Compatibility metadata describes the result, not the edge
+                # that Alembic must traverse from the live schema.
+                "minimum_compatible_revision": TARGET,
+            }
+        },
+    }
+    helper = Helper(value, Runner())
+
+    target, predecessor, migration_file = helper._migration_contract(state)
+
+    assert (target, predecessor, migration_file) == (TARGET, PREDECESSOR, migration)
+    assert helper._migration_command(state, "upgrade") == [
+        str(python), "-m", "alembic", "-c", str(config), "upgrade", TARGET,
+    ]
+    assert helper._migration_command(state, "downgrade")[-1] == PREDECESSOR
 
 
 def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:

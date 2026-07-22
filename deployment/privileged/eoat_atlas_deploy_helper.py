@@ -423,27 +423,41 @@ class Helper:
             "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         }
 
-    def _migration_command(self, state: dict[str, Any], action: str) -> list[str]:
+    def _migration_contract(self, state: dict[str, Any]) -> tuple[str, str, Path]:
         staged = Path(str(state.get("target_path") or ""))
-        binary = staged / "venv" / "bin" / "alembic"
-        config = staged / "server" / "alembic.ini"
-        if not binary.is_file() or not config.is_file() or staged.resolve().parent != self.paths.releases.resolve():
+        if staged.resolve().parent != self.paths.releases.resolve():
             raise Rejected("verified staged migration environment is unavailable")
         database = state["manifest_core"].get("database")
         if not isinstance(database, dict):
             raise Rejected("release metadata has no database contract")
         target = database.get("target_revision")
-        predecessor = database.get("minimum_compatible_revision") or "20260717_0007"
         if not isinstance(target, str) or not re.fullmatch(r"[0-9]{8}_[0-9]{4}", target):
             raise Rejected("release target revision is unsafe")
-        if not isinstance(predecessor, str) or not re.fullmatch(r"[0-9]{8}_[0-9]{4}", predecessor):
-            raise Rejected("release predecessor revision is unsafe")
+        migration_files = list((staged / "server" / "migrations" / "versions").glob(f"{target}_*.py"))
+        if len(migration_files) != 1 or migration_files[0].is_symlink():
+            raise Rejected("packaged migration file is missing or ambiguous")
+        try:
+            source = migration_files[0].read_text(encoding="utf-8")
+        except OSError as exc:
+            raise Rejected("packaged migration file is unreadable") from exc
+        match = re.search(r"(?m)^down_revision\s*=\s*['\"]([0-9]{8}_[0-9]{4})['\"]\s*$", source)
+        if not match:
+            raise Rejected("packaged migration predecessor is unsafe")
+        return target, match.group(1), migration_files[0]
+
+    def _migration_command(self, state: dict[str, Any], action: str) -> list[str]:
+        staged = Path(str(state.get("target_path") or ""))
+        python = staged / "venv" / "bin" / "python"
+        config = staged / "server" / "alembic.ini"
+        if not python.is_file() or not config.is_file() or staged.resolve().parent != self.paths.releases.resolve():
+            raise Rejected("verified staged migration environment is unavailable")
+        target, predecessor, _ = self._migration_contract(state)
         if action == "current":
-            return [str(binary), "-c", str(config), "current"]
+            return [str(python), "-m", "alembic", "-c", str(config), "current"]
         if action == "upgrade":
-            return [str(binary), "-c", str(config), "upgrade", target]
+            return [str(python), "-m", "alembic", "-c", str(config), "upgrade", target]
         if action == "downgrade":
-            return [str(binary), "-c", str(config), "downgrade", predecessor]
+            return [str(python), "-m", "alembic", "-c", str(config), "downgrade", predecessor]
         raise Rejected("unsupported fixed migration action")
 
     def _alembic_revision(self, state: dict[str, Any]) -> str:
@@ -653,15 +667,10 @@ class Helper:
             raise Rejected("migration preflight is not permitted in the current transaction state")
         if not state.get("backup_verified_at_utc"):
             raise Rejected("migration preflight requires a verified backup")
-        database = state["manifest_core"].get("database", {})
-        predecessor = database.get("minimum_compatible_revision") or "20260717_0007"
-        target = database.get("target_revision")
+        target, predecessor, migration_file = self._migration_contract(state)
         current = self._alembic_revision(state)
         if current != predecessor or current == target:
             raise Rejected("production schema does not match the package predecessor revision")
-        migration_files = list((Path(state["target_path"]) / "server" / "migrations" / "versions").glob(f"{target}_*.py"))
-        if len(migration_files) != 1 or migration_files[0].is_symlink():
-            raise Rejected("packaged migration file is missing or ambiguous")
         return self._save(
             state,
             "MIGRATION_PREFLIGHT_PASSED",
@@ -669,8 +678,8 @@ class Helper:
                 "current_revision": current,
                 "target_revision": target,
                 "writes_enabled": False,
-                "migration_file": migration_files[0].name,
-                "migration_sha256": digest(migration_files[0]),
+                "migration_file": migration_file.name,
+                "migration_sha256": digest(migration_file),
             },
         )
 
@@ -683,7 +692,7 @@ class Helper:
         self._save(state, "MIGRATION_STARTED")
         try:
             self._run(self._migration_command(state, "upgrade"), cwd=Path(state["target_path"]), env=self._migration_environment(), purpose="approved production migration")
-            target = state["manifest_core"]["database"]["target_revision"]
+            target, _, _ = self._migration_contract(state)
             if self._alembic_revision(state) != target:
                 raise Rejected("approved migration did not reach the package target revision")
         except Rejected:
@@ -697,7 +706,7 @@ class Helper:
         self._assert_lock(state["deployment_id"])
         if state["state"] != "MIGRATION_COMPLETE":
             raise Rejected("migration verification requires a completed migration")
-        target = state["manifest_core"]["database"]["target_revision"]
+        target, _, _ = self._migration_contract(state)
         if self._alembic_revision(state) != target or self._current_target() != state["previous_target"]:
             raise Rejected("migration verification failed")
         environment = self._migration_environment()
@@ -738,7 +747,7 @@ class Helper:
             raise Rejected("migration downgrade is not permitted in the current transaction state")
         self._save(state, "ROLLBACK_STARTED", recovery="package-declared predecessor downgrade")
         self._run(self._migration_command(state, "downgrade"), cwd=Path(state["target_path"]), env=self._migration_environment(), purpose="approved migration downgrade")
-        predecessor = state["manifest_core"]["database"].get("minimum_compatible_revision") or "20260717_0007"
+        _, predecessor, _ = self._migration_contract(state)
         if self._alembic_revision(state) != predecessor:
             raise Rejected("migration downgrade did not reach the package predecessor revision")
         return self._save(state, "ROLLED_BACK", database_recovery="downgrade")
@@ -772,7 +781,7 @@ class Helper:
                 )
             if result.returncode:
                 raise Rejected("approved backup restoration failed")
-            predecessor = state["manifest_core"]["database"].get("minimum_compatible_revision") or "20260717_0007"
+            _, predecessor, _ = self._migration_contract(state)
             if self._alembic_revision(state) != predecessor:
                 raise Rejected("backup restoration did not restore the package predecessor revision")
         except (OSError, Rejected):
