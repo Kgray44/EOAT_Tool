@@ -9,7 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from deployment.privileged.eoat_atlas_deploy_helper import Helper, Paths, Rejected, canonical_json, digest
+from deployment.privileged.eoat_atlas_deploy_helper import (
+    HEALTH_RETRY_ATTEMPTS,
+    Helper,
+    Paths,
+    Rejected,
+    canonical_json,
+    digest,
+)
 
 COMMIT = "35dea122f0ee9fc0fd3a0ca6130de6a6f78d8811"
 ARTIFACT = "eoat-atlas-server-0.17.3-35dea12.tar.gz"
@@ -128,7 +135,7 @@ class HarnessHelper(Helper):
     """
 
     def __init__(self, paths: Paths, runner: Runner) -> None:
-        super().__init__(paths, runner)
+        super().__init__(paths, runner, health_retry_delay_seconds=0)
         self.links = {"current": str(paths.releases / "eoat-atlas-server-0.17.1-b18de78")}
 
     def _current_target(self) -> str:
@@ -340,7 +347,7 @@ def test_lock_contention_abort_and_recovery_boundaries(tmp_path: Path) -> None:
 
 
 def test_health_failure_rolls_back_without_database_action(tmp_path: Path) -> None:
-    paths, helper, request, _ = _staged(tmp_path, runner=Runner(failures=("curl",)))
+    paths, helper, request, _ = _staged(tmp_path, runner=Runner(failures=("curl",) * HEALTH_RETRY_ATTEMPTS))
     result = helper.activate({"deployment_id": request["deployment_id"]})
     assert result["state"] == "ROLLED_BACK"
     assert Path(helper.links["current"]).name == "eoat-atlas-server-0.17.1-b18de78"
@@ -368,11 +375,21 @@ def test_identity_health_mismatch_rolls_back(tmp_path: Path) -> None:
 
 
 def test_failed_rollback_preserves_lock_and_requires_manual_intervention(tmp_path: Path) -> None:
-    paths, helper, request, _ = _staged(tmp_path, runner=Runner(failures=("curl", "curl")))
+    paths, helper, request, _ = _staged(
+        tmp_path, runner=Runner(failures=("curl",) * (HEALTH_RETRY_ATTEMPTS * 2))
+    )
     with pytest.raises(Rejected, match="manual intervention"):
         helper.activate({"deployment_id": request["deployment_id"]})
     assert helper.status({"deployment_id": request["deployment_id"]})["state"] == "MANUAL_INTERVENTION_REQUIRED"
     assert paths.lock.exists()
+
+
+def test_post_restart_health_retries_through_a_startup_race(tmp_path: Path) -> None:
+    paths, helper, request, runner = _staged(tmp_path, runner=Runner(failures=("curl",)))
+    result = helper.activate({"deployment_id": request["deployment_id"]})
+    assert result["state"] == "COMPLETED"
+    assert sum(command[0] == "/usr/bin/curl" for command in runner.commands) == 2
+    assert not paths.lock.exists()
 
 
 def test_current_change_after_staging_is_rejected_and_explicit_rollback_is_bounded(tmp_path: Path) -> None:

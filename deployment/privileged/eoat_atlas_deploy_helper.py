@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -33,6 +34,8 @@ SERVICE = "eoat-atlas.service"
 SERVICE_ACCOUNT = "eoat-atlas"
 HELPER_POLICY_VERSION = 1
 HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
+HEALTH_RETRY_ATTEMPTS = 20
+HEALTH_RETRY_DELAY_SECONDS = 1.0
 STAGED_RUNTIME_VALIDATION = r'''
 # EOAT_STAGE_RUNTIME_VALIDATION
 import json
@@ -164,9 +167,14 @@ class Rejected(RuntimeError):
 
 class Helper:
     def __init__(
-        self, paths: Paths | None = None, runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run
+        self,
+        paths: Paths | None = None,
+        runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+        *,
+        health_retry_delay_seconds: float = HEALTH_RETRY_DELAY_SECONDS,
     ):
         self.paths, self.runner = paths or Paths(), runner
+        self.health_retry_delay_seconds = health_retry_delay_seconds
 
     def _state_path(self, deployment_id: str) -> Path:
         self._id(deployment_id)
@@ -369,14 +377,31 @@ class Helper:
                     raise Rejected(f"health metadata {field} does not match activated release")
 
     def _validate_health(self, state: dict[str, Any], *, target_release: bool) -> None:
-        result = self._run(
-            ["/usr/bin/curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1:8765/api/v1/health"]
-        )
-        try:
-            health = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            raise Rejected("health endpoint did not return JSON") from exc
-        self._validate_health_payload(state, health, target_release=target_release)
+        last_failure: Rejected | None = None
+        for attempt in range(HEALTH_RETRY_ATTEMPTS):
+            try:
+                result = self._run(
+                    [
+                        "/usr/bin/curl",
+                        "--fail",
+                        "--silent",
+                        "--max-time",
+                        "10",
+                        "http://127.0.0.1:8765/api/v1/health",
+                    ],
+                    purpose="post-restart health validation",
+                )
+                try:
+                    health = json.loads(result.stdout)
+                except json.JSONDecodeError as exc:
+                    raise Rejected("health endpoint did not return JSON") from exc
+                self._validate_health_payload(state, health, target_release=target_release)
+                return
+            except Rejected as exc:
+                last_failure = exc
+                if attempt + 1 < HEALTH_RETRY_ATTEMPTS:
+                    time.sleep(self.health_retry_delay_seconds)
+        raise Rejected("post-restart health validation did not pass before timeout") from last_failure
 
     def _validate_staged_runtime(self, state: dict[str, Any], staging: Path) -> dict[str, Any]:
         """Run the staged API on an ephemeral localhost socket under its service account."""
