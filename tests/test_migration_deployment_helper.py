@@ -208,7 +208,7 @@ def test_backup_command_failure_is_recoverable_and_releases_no_partial_file(tmp_
     payload = request(value)
     helper.begin(payload)
 
-    with pytest.raises(Rejected, match="approved production backup"):
+    with pytest.raises(Rejected, match="approved production backup \\(approved command exited nonzero\\)"):
         helper.backup_production({"deployment_id": payload["deployment_id"]})
 
     state = helper.status({"deployment_id": payload["deployment_id"]})

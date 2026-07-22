@@ -640,8 +640,22 @@ class Helper:
         if result.returncode:
             label = purpose or command[0]
             # Process output can contain database URLs or provider credentials.
-            # Persist only the fixed stage name; never surface that output.
-            raise Rejected(f"approved command failed: {label}")
+            # Persist only an allowlisted failure class; never surface raw
+            # stderr/stdout, which may contain database URLs or credentials.
+            output = f"{result.stderr or ''}\n{result.stdout or ''}".casefold()
+            if "login path" in output:
+                category = "configured login path unavailable"
+            elif "access denied" in output or "error 1045" in output:
+                category = "database authentication or authorization failed"
+            elif "process privilege" in output or "permission denied" in output:
+                category = "required database privilege unavailable"
+            elif "can\'t connect" in output or "connection refused" in output:
+                category = "database connectivity failed"
+            elif "unknown option" in output:
+                category = "approved client option unsupported"
+            else:
+                category = "approved command exited nonzero"
+            raise Rejected(f"approved command failed: {label} ({category})")
         return result
 
     def _service_runtime_environment(self) -> dict[str, str]:
