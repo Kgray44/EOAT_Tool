@@ -30,6 +30,9 @@ with `--request-b64`; it does not grant a shell, generic Python, MySQL,
 Alembic, service control, alternate paths, or caller-supplied environment.
 Protected `/etc/eoat-atlas/migration.env` remains root-only and must contain
 the approved production migration identity while keeping writes disabled.
+The root-owned MySQL login-path entry `eoat-atlas-prod-admin` remains the
+fixed backup and restore identity; it is never supplied by the deployment
+operator or copied into a receipt.
 
 ## Rollback of the helper installation
 

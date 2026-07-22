@@ -32,6 +32,7 @@ VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 SAFE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 SERVICE = "eoat-atlas.service"
 SERVICE_ACCOUNT = "eoat-atlas"
+BACKUP_LOGIN_PATH = "eoat-atlas-prod-admin"
 HELPER_POLICY_VERSION = 1
 HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
 STAGED_RUNTIME_VALIDATION = r'''
@@ -421,11 +422,10 @@ class Helper:
         partial = target.with_suffix(".sql.partial")
         if partial.exists() or partial.is_symlink():
             raise Rejected("production backup partial path is unsafe")
-        user = environment.get("EOAT_MIGRATION_DB_USER") or environment["EOAT_DB_USER"]
         self._save(state, "BACKUP_STARTED")
         command = [
             "/usr/bin/mysqldump",
-            f"--user={user}",
+            f"--login-path={BACKUP_LOGIN_PATH}",
             *self._mysql_client_arguments(environment),
             "--single-transaction",
             "--no-tablespaces",
@@ -600,13 +600,12 @@ class Helper:
             raise Rejected("backup restoration checksum validation failed")
         self._save(state, "ROLLBACK_STARTED", recovery="verified deployment backup restoration")
         environment = self._migration_environment()
-        user = environment.get("EOAT_MIGRATION_DB_USER") or environment["EOAT_DB_USER"]
         try:
             with gzip.open(path, "rb") as stream:
                 result = self.runner(
                     [
                         "/usr/bin/mysql",
-                        f"--user={user}",
+                        f"--login-path={BACKUP_LOGIN_PATH}",
                         *self._mysql_client_arguments(environment),
                         self._database_name(),
                     ],

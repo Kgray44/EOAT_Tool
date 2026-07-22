@@ -173,6 +173,8 @@ def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:
     assert helper.revision == TARGET and Path(helper.links["current"]).name.endswith("8f0788e")
     assert json.loads((value.receipts / f"{payload['deployment_id']}.json").read_text())["state"] == "COMPLETED"
     backup_command = next(command for command in runner.commands if command[0] == "/usr/bin/mysqldump")
+    assert "--login-path=eoat-atlas-prod-admin" in backup_command
+    assert not any(part.startswith("--user=") for part in backup_command)
     assert "--single-transaction" in backup_command
     assert "--no-tablespaces" in backup_command
     assert "--host=127.0.0.1" in backup_command
