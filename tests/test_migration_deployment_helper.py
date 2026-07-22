@@ -225,6 +225,32 @@ def test_backup_command_failure_is_recoverable_and_releases_no_partial_file(tmp_
     assert not value.lock.exists()
 
 
+def test_backup_query_privilege_failure_is_redacted_and_actionable(tmp_path: Path) -> None:
+    class QueryDeniedRunner(Runner):
+        def __call__(self, command, **kwargs):
+            command = list(command)
+            if command[0] == "/usr/bin/mysqldump":
+                return subprocess.CompletedProcess(
+                    command,
+                    2,
+                    stdout="",
+                    stderr="mysqldump: Couldn't execute 'SHOW VIEW': SHOW VIEW command denied",
+                )
+            return super().__call__(command, **kwargs)
+
+    value = paths(tmp_path)
+    helper = DisposableHelper(value, QueryDeniedRunner())
+    payload = request(value)
+    helper.begin(payload)
+
+    with pytest.raises(Rejected, match="required database read privilege unavailable"):
+        helper.backup_production({"deployment_id": payload["deployment_id"]})
+
+    state = helper.status({"deployment_id": payload["deployment_id"]})
+    assert state["state"] == "FAILED"
+    assert "SHOW VIEW" not in json.dumps(state)
+
+
 def test_migration_failure_preserves_old_release_and_backup_restore_is_bounded(tmp_path: Path) -> None:
     value, helper, payload, runner = staged(tmp_path, runner=Runner(fail="upgrade"))
     helper.migration_preflight({"deployment_id": payload["deployment_id"]})

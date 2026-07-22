@@ -698,8 +698,23 @@ class Helper:
                 category = "configured login path unavailable"
             elif "access denied" in output or "error 1045" in output:
                 category = "database authentication or authorization failed"
+            elif (
+                "command denied" in output
+                or "couldn\'t execute" in output
+                or "could not execute" in output
+            ):
+                # mysqldump commonly reports an unavailable SELECT, SHOW VIEW,
+                # or TRIGGER privilege as "Couldn\'t execute ... command
+                # denied" rather than as MySQL error 1044/1142.  Keep the
+                # server output private while making this deployment
+                # prerequisite actionable.
+                category = "required database read privilege unavailable"
             elif match := re.search(r"(?:got\s+)?error(?:\s+code)?\s*:?\s*([0-9]{3,5})\b", output):
                 category = f"MySQL error {match.group(1)}"
+            elif "unknown variable" in output:
+                category = "approved MySQL defaults configuration is invalid"
+            elif "no space left" in output or "got errno" in output:
+                category = "approved backup storage write failed"
             elif "process privilege" in output or "permission denied" in output:
                 category = "required database privilege unavailable"
             elif "can\'t connect" in output or "connection refused" in output:
