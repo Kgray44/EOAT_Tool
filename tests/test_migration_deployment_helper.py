@@ -170,7 +170,9 @@ def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:
     assert result["state"] == "COMPLETED" and not value.lock.exists()
     assert helper.revision == TARGET and Path(helper.links["current"]).name.endswith("8f0788e")
     assert json.loads((value.receipts / f"{payload['deployment_id']}.json").read_text())["state"] == "COMPLETED"
-    assert any(command[0] == "/usr/bin/mysqldump" for command in runner.commands)
+    backup_command = next(command for command in runner.commands if command[0] == "/usr/bin/mysqldump")
+    assert "--single-transaction" in backup_command
+    assert "--no-tablespaces" in backup_command
 
 
 def test_backup_corruption_wrong_schema_and_concurrency_block_migration(tmp_path: Path) -> None:
@@ -192,6 +194,24 @@ def test_backup_corruption_wrong_schema_and_concurrency_block_migration(tmp_path
     helper2.revision = "20250101_0001"
     with pytest.raises(Rejected, match="predecessor"):
         helper2.migration_preflight({"deployment_id": payload2["deployment_id"]})
+
+
+def test_backup_command_failure_is_recoverable_and_releases_no_partial_file(tmp_path: Path) -> None:
+    value = paths(tmp_path)
+    helper = DisposableHelper(value, Runner(fail="mysqldump"))
+    payload = request(value)
+    helper.begin(payload)
+
+    with pytest.raises(Rejected, match="approved production backup"):
+        helper.backup_production({"deployment_id": payload["deployment_id"]})
+
+    state = helper.status({"deployment_id": payload["deployment_id"]})
+    partial = value.backups / f"{payload['deployment_id']}-eoat_atlas_prod-pre-migration.sql.partial"
+    assert state["state"] == "FAILED"
+    assert not partial.exists()
+    assert Path(helper.links["current"]).name.endswith("35dea12")
+    helper.cleanup_failed_deployment({"deployment_id": payload["deployment_id"]})
+    assert not value.lock.exists()
 
 
 def test_migration_failure_preserves_old_release_and_backup_restore_is_bounded(tmp_path: Path) -> None:

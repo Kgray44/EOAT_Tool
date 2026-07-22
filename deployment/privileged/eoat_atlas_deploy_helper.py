@@ -420,17 +420,18 @@ class Helper:
             "/usr/bin/mysqldump",
             f"--user={user}",
             "--single-transaction",
+            "--no-tablespaces",
             "--routines",
             "--events",
             f"--result-file={partial}",
             self._database_name(),
         ]
-        result = self._run(command, env=environment, purpose="approved production backup")
-        # Test runners return a controlled stdout payload; real mysqldump
-        # writes directly to the fixed partial file via --result-file.
-        if not partial.exists() and result.stdout:
-            partial.write_text(result.stdout, encoding="utf-8")
         try:
+            result = self._run(command, env=environment, purpose="approved production backup")
+            # Test runners return a controlled stdout payload; real mysqldump
+            # writes directly to the fixed partial file via --result-file.
+            if not partial.exists() and result.stdout:
+                partial.write_text(result.stdout, encoding="utf-8")
             if not partial.is_file() or partial.stat().st_size < 16:
                 raise Rejected("production backup is empty or incomplete")
             with partial.open("rb") as source, gzip.open(target, "wb") as compressed:
@@ -440,8 +441,15 @@ class Helper:
                 sample = stream.read(4096)
             if not sample or b"\x00" in sample:
                 raise Rejected("production backup is not structurally plausible")
-        finally:
             partial.unlink(missing_ok=True)
+        except (OSError, Rejected):
+            # A failed mysqldump can leave a partial file.  It belongs only to
+            # this lock-bound deployment ID, so remove it before recording a
+            # recoverable failed state; no migration or activation can follow.
+            partial.unlink(missing_ok=True)
+            self._save(state, "FAILED", failure="production backup failed")
+            self._receipt(state)
+            raise
         record = {"id": target.stem, "path": str(target), "sha256": digest(target), "size_bytes": target.stat().st_size, "created_at_utc": utc()}
         return self._save(state, "BACKUP_CREATED", backup=record)
 
@@ -925,6 +933,7 @@ class Helper:
             "CREATED",
             "PACKAGE_VERIFIED",
             "LOCK_ACQUIRED",
+            "BACKUP_STARTED",
             "BACKUP_CREATED",
             "BACKUP_VERIFIED",
             "ARTIFACT_VERIFIED",
@@ -933,6 +942,11 @@ class Helper:
             "STAGED_VALIDATED",
         }:
             raise Rejected("active or completed deployment cannot be aborted")
+        if state["state"] == "BACKUP_STARTED":
+            partial = (self.paths.backups / f"{state['deployment_id']}-{self._database_name()}-pre-migration.sql.gz").with_suffix(".sql.partial")
+            if partial.is_symlink():
+                raise Rejected("production backup partial path is unsafe")
+            partial.unlink(missing_ok=True)
         staging = self.paths.releases / f".staging-{state['deployment_id']}"
         shutil.rmtree(staging, ignore_errors=True)
         self._save(state, "FAILED", aborted=True)
