@@ -475,7 +475,7 @@ class MinimalistPacketBuilderContent(QWidget):
         self.stack.setCurrentWidget(self.changeover_page if packet_type == PACKET_TYPE_CHANGEOVER else self.setup_page)
         self.refresh_validation()
         self.updateGeometry()
-        QTimer.singleShot(0, self._layout_content)
+        QTimer.singleShot(0, self, self._layout_content)
 
     def current_valid_packet(self) -> bool:
         if self.packet_type == PACKET_TYPE_CHANGEOVER:
@@ -758,7 +758,7 @@ class MinimalistPacketBuilderContent(QWidget):
             empty.setObjectName("PacketBuilderMuted")
             self.recent_layout.addWidget(empty)
             self.recent_layout.addStretch(1)
-            QTimer.singleShot(0, self._layout_content)
+            QTimer.singleShot(0, self, self._layout_content)
             return
         for packet in packets:
             row = RecentPacketRow(packet)
@@ -767,7 +767,7 @@ class MinimalistPacketBuilderContent(QWidget):
             row.open_pdf_requested.connect(self._open_recent_pdf)
             self.recent_layout.addWidget(row)
         self.recent_layout.addStretch(1)
-        QTimer.singleShot(0, self._layout_content)
+        QTimer.singleShot(0, self, self._layout_content)
 
     def _reload_recent_packet(self, packet: RecentPacket) -> None:
         self.apply_incoming_state(
@@ -780,7 +780,7 @@ class MinimalistPacketBuilderContent(QWidget):
 
     def _generate_recent_packet(self, packet: RecentPacket) -> None:
         self._reload_recent_packet(packet)
-        QTimer.singleShot(80, self.generate_pdf)
+        QTimer.singleShot(80, self, self.generate_pdf)
 
     def _open_recent_pdf(self, packet: RecentPacket) -> None:
         path = Path(packet.pdf_path)

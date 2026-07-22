@@ -52,6 +52,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "show_cached_data_warning": True,
         "warn_when_files_changed": True,
         "show_last_refresh_timestamp": True,
+        "automatic_polling_enabled": True,
+        "polling_interval_seconds": 60,
+        "refresh_when_data_changes": "notify",
+        "pause_refresh_while_editing": True,
+        "poll_while_minimized": True,
+        "timestamp_display": "relative",
+        "request_timeout_seconds": 10,
     },
     "safety": {
         "read_only_mode": True,
@@ -382,6 +389,8 @@ def validate_settings_schema(settings: dict[str, Any], *, defaults: dict[str, An
     )
     for dotted_path in (
         "data_loading.auto_refresh_minutes",
+        "data_loading.polling_interval_seconds",
+        "data_loading.request_timeout_seconds",
         "search.recent_items_limit",
         "fit_check.save_recent_after_seconds",
         "fit_check.max_recent_fit_checks",
@@ -390,6 +399,10 @@ def validate_settings_schema(settings: dict[str, Any], *, defaults: dict[str, An
     ):
         _normalize_int(normalized, dotted_path)
     _normalize_int_choice(normalized, "data_loading.auto_refresh_minutes", {5, 10, 15, 30, 60}, 15)
+    _normalize_int_choice(normalized, "data_loading.polling_interval_seconds", {15, 30, 60, 300, 900, 1800}, 60)
+    _normalize_int_choice(normalized, "data_loading.request_timeout_seconds", {5, 10, 15, 30, 60}, 10)
+    _normalize_choice(normalized, "data_loading.refresh_when_data_changes", {"automatic", "notify"}, "notify")
+    _normalize_choice(normalized, "data_loading.timestamp_display", {"relative", "exact"}, "relative")
     _normalize_int_choice(normalized, "search.recent_items_limit", {5, 10, 15, 25, 50}, 15)
     _normalize_int_choice(normalized, "fit_check.save_recent_after_seconds", {5, 10, 20, 30, 60}, 20)
     _normalize_int_choice(normalized, "fit_check.max_recent_fit_checks", {5, 10, 15, 25, 50}, 15)

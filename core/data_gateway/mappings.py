@@ -124,5 +124,9 @@ def snapshot_to_bundle(snapshot: dict, project_root: str = "") -> AtlasDataBundl
             "backend": "mysql_api",
             "schema_revision": snapshot.get("schema_revision"),
             "server_revision": snapshot.get("server_revision"),
+            "data_revision": snapshot.get("data_status", {}).get("data_revision"),
+            "data_last_modified_at": snapshot.get("data_status", {}).get("data_last_modified_at", ""),
+            "last_import_at": snapshot.get("data_status", {}).get("last_import_at", ""),
+            "last_import_source": snapshot.get("data_status", {}).get("last_import_source", ""),
         },
     )

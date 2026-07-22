@@ -159,6 +159,7 @@ def load_database(connection) -> dict:
 
 
 def apply_plan(connection, plan: dict, *, commit: bool = True) -> None:
+    material_changes = 0
     with connection.cursor() as cursor:
         cursor.execute("SELECT id,business_identifier FROM eoats")
         eoats = {row["business_identifier"]: row["id"] for row in cursor.fetchall()}
@@ -176,6 +177,7 @@ def apply_plan(connection, plan: dict, *, commit: bool = True) -> None:
                 "INSERT IGNORE INTO eoat_location_observations (observation_uuid,eoat_id,state,machine_id,storage_location_id,observed_at,observed_on,observation_precision,source_type,source_audit_record_id,source_import_row_id,source_import_batch_id,source_workbook,source_worksheet,source_row_number,original_source_wording,confidence,resolution_status,conflict_group_uuid,is_authoritative) VALUES (%s,%s,%s,%s,NULL,NULL,%s,'DATE','MASTER_TRACKER_AUDIT',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)",
                 (row["observation_uuid"], eoat_id, row["state"], machines.get(row["machine_number"]), row["observed_on"], audit.get("id"), imported.get("id"), audit.get("source_import_batch_id") or imported.get("import_batch_id"), row["source_workbook"], row["source_worksheet"], row["source_row_number"], row["original_source_wording"], row["confidence"], row["resolution_status"], row["conflict_group_uuid"]),
             )
+            material_changes += max(0, cursor.rowcount)
         cursor.execute("SELECT id,observation_uuid FROM eoat_location_observations")
         observation_ids = {row["observation_uuid"]: row["id"] for row in cursor.fetchall()}
         for row in plan["assertions"]:
@@ -186,12 +188,28 @@ def apply_plan(connection, plan: dict, *, commit: bool = True) -> None:
                 "INSERT IGNORE INTO eoat_location_assertions (assertion_uuid,observation_id,eoat_id,state,machine_id,storage_location_id,observed_at,observed_on,observation_precision,source_type,source_audit_record_id,source_import_row_id,source_import_batch_id,source_workbook,source_worksheet,source_row_number,original_source_wording,confidence,participates_in_conflict) VALUES (%s,%s,%s,%s,%s,NULL,NULL,%s,'DATE','MASTER_TRACKER_AUDIT',%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (row["assertion_uuid"], observation_ids[row["observation_uuid"]], eoat_id, row["state"], machines.get(row["machine_number"]), row["observed_on"], audit.get("id"), imported.get("id"), audit.get("source_import_batch_id") or imported.get("import_batch_id"), row["source_workbook"], row["source_worksheet"], row["source_row_number"], row["original_source_wording"], row["confidence"], row["participates_in_conflict"]),
             )
+            material_changes += max(0, cursor.rowcount)
         cursor.execute("SELECT COUNT(*) count FROM eoat_location_observations")
         if cursor.fetchone()["count"] != len(plan["observations"]):
             raise RuntimeError("Observation count mismatch; refusing partial or mixed import")
         cursor.execute("SELECT COUNT(*) count FROM eoat_location_assertions")
         if cursor.fetchone()["count"] != len(plan["assertions"]):
             raise RuntimeError("Assertion count mismatch; refusing partial or mixed import")
+        import_source = f"{plan['workbook']}:{plan['workbook_sha256']}"
+        if material_changes:
+            cursor.execute(
+                "UPDATE data_state SET current_revision=current_revision+1,data_last_modified_at=UTC_TIMESTAMP(6),"
+                "last_import_at=UTC_TIMESTAMP(6),last_import_source=%s,updated_by='location-observation-import' WHERE id=1",
+                (import_source,),
+            )
+        else:
+            # A successfully deduplicated import is still useful provenance,
+            # but it must never fabricate a data change or revision advance.
+            cursor.execute(
+                "UPDATE data_state SET last_import_at=UTC_TIMESTAMP(6),last_import_source=%s,"
+                "updated_by='location-observation-import' WHERE id=1",
+                (import_source,),
+            )
     if commit:
         connection.commit()
 

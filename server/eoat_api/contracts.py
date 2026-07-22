@@ -274,6 +274,19 @@ class SyncStatus(BaseModel):
     compatible: bool
 
 
+class DataStatusResponse(BaseModel):
+    """Small, server-authoritative freshness payload safe for frequent reads."""
+
+    status: Literal["available"]
+    data_revision: int = Field(ge=0)
+    data_last_modified_at: datetime
+    last_import_at: datetime | None = None
+    last_import_source: str | None = None
+    server_time: datetime
+    source: Literal["mysql"]
+    environment: str
+
+
 class SyncChange(BaseModel):
     cursor: int
     entity_type: str
@@ -294,6 +307,7 @@ class SyncSnapshot(BaseModel):
     schema_revision: str | None
     cursor: int
     generated_at: datetime
+    data_status: DataStatusResponse
     lookups: dict[str, list[LookupValue]]
     eoats: list[EOATProfile]
     machines: list[MachineProfile]

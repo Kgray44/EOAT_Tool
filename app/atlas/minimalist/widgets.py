@@ -323,7 +323,7 @@ class InteractiveTopIconButton(QAbstractButton):
         if self._reduced_motion:
             self._pressed_flash = True
             self.update()
-            QTimer.singleShot(120, self._clear_pressed_flash)
+            QTimer.singleShot(120, self, self._clear_pressed_flash)
             return
         self._scale_animation.stop()
         if self._bounce_animation is not None:
@@ -615,6 +615,7 @@ class StatusDot(QWidget):
         painter.setBrush(color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QRectF(2, 2, 10, 10))
+        painter.end()
 
 
 class MinimalistClickCatcher(QWidget):

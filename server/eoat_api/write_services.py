@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from core.versioning.compatibility import EXPECTED_API_VERSION
 
 from .contracts import FitCheckRequest
+from .data_state import mark_data_changed
 from .database import models as db
 from .errors import APIError, conflict, not_found
 from .release_provenance import ensure_application_release, release_id_for_instance
@@ -231,6 +232,9 @@ def audit_change(
         session.flush()
         fault_injector("audit_creation")
     if entity_type in CACHED_ENTITY_TYPES:
+        # One request can create several audit/feed rows.  The data-state
+        # transaction hook coalesces those into exactly one revision advance.
+        mark_data_changed(session, actor)
         session.add(
             db.ChangeFeed(
                 entity_type=entity_type,

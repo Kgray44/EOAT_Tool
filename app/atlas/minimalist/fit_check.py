@@ -578,7 +578,10 @@ class AtlasMinimalistFitCheckPage(QWidget):
         self.fit_content.close_search_overlays()
         self.shell.set_active_nav("fit_check")
         self.shell.top_bar.set_back_visible(False, animated=False)
-        self.fit_content.set_bundle(self.bundle)
+        # The page already receives ``set_bundle`` when a snapshot is applied.
+        # Reapplying the existing bundle just because the user returns here
+        # would erase an explicit stale-result warning before newer data was
+        # actually loaded.
         self.shell.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def open_search_overlay(self) -> None:
@@ -702,6 +705,7 @@ class MinimalistFitCheckContent(QWidget):
         self._recent_save_timer.setSingleShot(True)
         self._recent_save_timer.setInterval(_fit_int(self.controller, "fit_check.save_recent_after_seconds", 20) * 1000)
         self._recent_save_timer.timeout.connect(self._recent_save_timer_elapsed)
+        self._result_stale = False
 
     def apply_theme_preference(self, preference: str | None) -> None:
         self._theme_preference = preference
@@ -711,12 +715,36 @@ class MinimalistFitCheckContent(QWidget):
     def set_bundle(self, bundle: AtlasDataBundle | None) -> None:
         self._cancel_recent_save_timer()
         old_selection = self._request()
+        # A newly applied bundle is the only event that can make a stale
+        # result current again.  Selection changes alone still operate on the
+        # previous snapshot and must retain the visible stale warning.
+        self._result_stale = False
         self.bundle = bundle
         self.service = FitCheckService(bundle)
         self._sync_selector_options()
         self.input_card.apply_request(old_selection)
         self.status.set_status(loaded_status_text(bundle), ready=bundle is not None)
         self._refresh_result(animate=False)
+
+    def mark_server_data_stale(self) -> None:
+        """Keep the selected inputs, but never leave a prior result looking current."""
+        if self.current_result is None:
+            return
+        self._result_stale = True
+        self.helper.setText("Server data changed. This Fit Check result needs refresh before engineering use.")
+        self._present_stale_result_notice()
+        self.show_toast("New compatibility-relevant data is available. Your selected inputs were preserved.")
+
+    def _present_stale_result_notice(self) -> None:
+        """Put the stale state on the result card, not beneath its overlay."""
+        if self.current_result is None:
+            return
+        self.result_card.headline.setText("Result needs refresh")
+        self.result_card.headline.setStyleSheet("color: #f5b642;")
+        self.result_card.message.setText(
+            "Server data changed. This Fit Check result is stale and must be refreshed before engineering use."
+        )
+        self.result_card.message.setStyleSheet("color: #ffd98a;")
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -947,6 +975,8 @@ class MinimalistFitCheckContent(QWidget):
             if _fit_bool(self.controller, path, True)
         }
         self.alternatives_card.set_result(result)
+        if self._result_stale:
+            self._present_stale_result_notice()
         self._show_result(animate=animate)
         self._schedule_recent_save_if_eligible()
 
@@ -1245,7 +1275,7 @@ class MinimalistFitCheckContent(QWidget):
             self.show_toast("This saved Fit Check is incomplete, so a setup packet cannot be created.")
             return
         self._load_recent_check(check)
-        QTimer.singleShot(0, self.open_setup_packet_overlay)
+        QTimer.singleShot(0, self, self.open_setup_packet_overlay)
 
     def _apply_setup_for_packet(self, setup: PacketSetup) -> bool:
         if self.bundle is None:
@@ -2241,7 +2271,7 @@ class FitCheckSelector(QWidget):
         self.dropdown.show()
         self.dropdown.raise_()
         self.input.setFocus(Qt.FocusReason.OtherFocusReason)
-        QTimer.singleShot(0, lambda: self.input.setFocus(Qt.FocusReason.OtherFocusReason))
+        QTimer.singleShot(0, self, lambda: self.input.setFocus(Qt.FocusReason.OtherFocusReason))
 
     def _dropdown_selected(self, option: SelectorOption) -> None:
         self._set_selected(option, emit=True)
