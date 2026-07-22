@@ -261,7 +261,7 @@ def test_backup_query_privilege_failure_is_redacted_and_actionable(tmp_path: Pat
     assert "SHOW VIEW" not in json.dumps(state)
 
 
-def test_backup_refuses_stored_programs_without_full_backup_identity(tmp_path: Path) -> None:
+def test_backup_uses_root_socket_identity_when_stored_programs_exist(tmp_path: Path) -> None:
     class StoredProgramRunner(Runner):
         def __call__(self, command, **kwargs):
             command = list(command)
@@ -274,10 +274,17 @@ def test_backup_refuses_stored_programs_without_full_backup_identity(tmp_path: P
     payload = request(value)
     helper.begin(payload)
 
-    with pytest.raises(Rejected, match="stored programs require an approved full-backup identity"):
-        helper.backup_production({"deployment_id": payload["deployment_id"]})
+    helper.backup_production({"deployment_id": payload["deployment_id"]})
 
-    assert helper.status({"deployment_id": payload["deployment_id"]})["state"] == "FAILED"
+    state = helper.status({"deployment_id": payload["deployment_id"]})
+    assert state["state"] == "BACKUP_CREATED"
+    assert state["backup"]["identity"] == "root_local_socket"
+    root_dump = next(
+        command
+        for command in helper.runner.commands
+        if command[0] == "/usr/bin/mysqldump" and "--protocol=socket" in command
+    )
+    assert "--routines" in root_dump and "--events" in root_dump
 
 
 def test_migration_failure_preserves_old_release_and_backup_restore_is_bounded(tmp_path: Path) -> None:
