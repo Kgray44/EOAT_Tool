@@ -127,6 +127,7 @@ class PhotoService(QObject):
         self._running_tasks: set[_PhotoTask] = set()
         self._paused_requests: list[_PhotoRequest] = []
         self._prefetch_paused = False
+        self._shutting_down = False
         self._lock = threading.RLock()
         self._disk_format, self._disk_suffix = _preferred_disk_thumbnail_format()
 
@@ -236,20 +237,41 @@ class PhotoService(QObject):
             self._paused_requests = [request for request in self._paused_requests if request.context_id != normalized]
 
     def shutdown(self, wait_ms: int = 0) -> None:
+        """Cancel callbacks before a page can destroy this service's QThreadPool.
+
+        ``QThreadPool.clear`` only removes queued runnables.  A runnable that is
+        already decoding can still emit its private ``finished`` signal after
+        the owning Library page begins closing.  Disconnect those paths first,
+        then wait for running work within the caller's bounded timeout.
+        """
         with self._lock:
+            if self._shutting_down:
+                return
+            self._shutting_down = True
             contexts = set(self._context_generation)
             contexts.update(request.context_id for request in self._paused_requests)
             contexts.update(task.request.context_id for task in self._running_tasks)
             for context in contexts:
                 self._context_generation[context] = self._context_generation.get(context, 0) + 1
             self._paused_requests.clear()
+            running_tasks = tuple(self._running_tasks)
+        for task in running_tasks:
+            try:
+                task.signals.finished.disconnect(self._task_finished)
+            except (RuntimeError, TypeError):
+                continue
         try:
             self.pool.clear()
             wait = max(0, int(wait_ms))
             if wait:
                 self.pool.waitForDone(wait)
         except RuntimeError:
-            return
+            pass
+        finally:
+            # The task owns its signals.  Dropping the service references makes
+            # a late worker completion harmless after its signal was detached.
+            with self._lock:
+                self._running_tasks.clear()
 
     def pause_prefetch(self) -> None:
         with self._lock:
@@ -313,6 +335,8 @@ class PhotoService(QObject):
 
     def _start_or_pause(self, request: _PhotoRequest) -> None:
         with self._lock:
+            if self._shutting_down:
+                return
             if self._prefetch_paused and request.priority < 60:
                 self._paused_requests.append(request)
                 return
@@ -362,7 +386,9 @@ class PhotoService(QObject):
             source="photo_service",
             page_tool="photos",
         )
-        QTimer.singleShot(0, lambda: self._emit_thumbnail_ready(photo_id, image, "", context_id))
+        # Bind this queued notification to the service lifetime so a cache hit
+        # cannot invoke Python after its owner has been torn down.
+        QTimer.singleShot(0, self, lambda: self._emit_thumbnail_ready(photo_id, image, "", context_id))
 
     def _emit_thumbnail_ready(self, photo_id: str, image: QImage, resolved_path: str, context_id: str) -> None:
         log_perf_marker(
@@ -386,6 +412,8 @@ class PhotoService(QObject):
 
     @Slot(object)
     def _task_finished(self, result: _PhotoTaskResult) -> None:
+        if self._shutting_down:
+            return
         sender = self.sender()
         with self._lock:
             task = next((item for item in self._running_tasks if item.signals is sender), None)

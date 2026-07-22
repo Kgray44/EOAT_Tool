@@ -27,8 +27,32 @@ def test_migration_created_complete_mysql_schema(engine):
     tables = set(inspector.get_table_names())
     assert set(Base.metadata.tables) <= tables
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260717_0007"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260721_0008"
         assert connection.execute(text("SELECT VERSION()" )).scalar_one().startswith("8.4.")
+
+
+def test_data_state_is_a_seeded_non_auto_increment_singleton(engine):
+    """The freshness migration must work on real MySQL, not only SQLite."""
+    with engine.connect() as connection:
+        create_statement = connection.execute(text("SHOW CREATE TABLE data_state")).mappings().one()["Create Table"]
+        state = connection.execute(
+            text(
+                "SELECT id, current_revision, data_last_modified_at, last_import_at, last_import_source "
+                "FROM data_state"
+            )
+        ).mappings().all()
+    assert "AUTO_INCREMENT" not in create_statement.upper()
+    assert "CK_DATA_STATE_SINGLETON" in create_statement.upper()
+    assert "`ID` = 1" in create_statement.upper()
+    assert len(state) == 1
+    assert state[0]["id"] == 1
+    # This module can run after other MySQL integration modules.  The
+    # structural invariant is a valid non-negative singleton revision; the
+    # fresh-empty reset path separately exercises its initial value of zero.
+    assert state[0]["current_revision"] >= 0
+    assert state[0]["data_last_modified_at"] is not None
+    assert state[0]["last_import_at"] is None
+    assert state[0]["last_import_source"] is None
 
 
 def test_foreign_key_and_unique_constraints(engine):

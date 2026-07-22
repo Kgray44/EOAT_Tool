@@ -13,9 +13,26 @@ from core.constants import EXPECTED_NUMBERED_FOLDERS
 from core.workbook_schema import get_expected_headers, get_expected_sheets
 from tests.fixtures.fake_config import create_fake_config
 from tests.fixtures.fake_project import create_fake_eoat_project, create_minimal_fake_project
+from tests.qt_lifecycle_diagnostics import (
+    assert_post_test_invariants as assert_qt_post_test_invariants,
+)
+from tests.qt_lifecycle_diagnostics import (
+    drain_deferred_deletes,
+    settle_pending_widget_updates,
+)
+from tests.qt_lifecycle_diagnostics import (
+    snapshot as qt_lifecycle_snapshot,
+)
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("EOAT_DISABLE_GLOBAL_TYPE_SEARCH", "1")
+if os.environ.get("QT_QPA_PLATFORM", "").strip().casefold() == "offscreen":
+    system_font_directory = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+    if system_font_directory.is_dir():
+        # The Qt offscreen plugin on this Windows image does not enumerate
+        # installed fonts unless its font directory is explicit.  Tests and
+        # native evidence use installed system fonts only; no font is bundled.
+        os.environ.setdefault("QT_QPA_FONTDIR", str(system_font_directory))
 
 
 def _load_local_development_database_environment() -> None:
@@ -43,46 +60,73 @@ def isolated_eoat_atlas_runtime(monkeypatch, tmp_path):
 @pytest.fixture(scope="session")
 def qapp():
     pytest.importorskip("PySide6")
+    from PySide6.QtGui import QFont, QGuiApplication
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance() or QApplication([])
+    if QGuiApplication.platformName().casefold() == "offscreen":
+        app.setFont(QFont("Segoe UI", 9))
     yield app
     app.processEvents()
 
 
 @pytest.fixture(autouse=True)
-def cleanup_qt_widgets():
+def cleanup_qt_widgets(request):
+    qt_lifecycle_snapshot(request.node.nodeid, "before_test")
     yield
     try:
-        from PySide6.QtCore import QCoreApplication, QEvent
         from PySide6.QtWidgets import QApplication
     except ImportError:
         return
     app = QApplication.instance()
     if app is None:
         return
+    qt_lifecycle_snapshot(request.node.nodeid, "before_cleanup")
+    settle_pending_widget_updates(app)
+    from shiboken6 import isValid
+
     for widget in app.topLevelWidgets():
-        widget.close()
-        widget.deleteLater()
-    app.processEvents()
-    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-    app.processEvents()
+        if not isValid(widget):
+            continue
+        try:
+            # Popup/view helper widgets can be reported as top-level even
+            # while they remain QObject children of a test window.  Closing
+            # one is correct; scheduling it for deletion in addition to its
+            # owning window creates a competing destruction path.
+            is_owned_popup = widget.parentWidget() is not None or widget.parent() is not None
+            widget.close()
+            if not is_owned_popup:
+                widget.deleteLater()
+        except RuntimeError:
+            # A parent can destroy a sibling while QApplication is enumerating
+            # top-level widgets.  Never invoke another Qt method on that stale
+            # wrapper.
+            continue
+    drain_deferred_deletes(app)
+    qt_lifecycle_snapshot(request.node.nodeid, "after_cleanup")
+    assert_qt_post_test_invariants(app)
 
 
 def pytest_sessionfinish(session, exitstatus):
     try:
-        from PySide6.QtCore import QCoreApplication, QEvent
         from PySide6.QtWidgets import QApplication
     except ImportError:
         return
     app = QApplication.instance()
     if app is not None:
+        from shiboken6 import isValid
+
         for widget in app.topLevelWidgets():
-            widget.close()
-            widget.deleteLater()
-        app.processEvents()
-        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        app.processEvents()
+            if not isValid(widget):
+                continue
+            try:
+                is_owned_popup = widget.parentWidget() is not None or widget.parent() is not None
+                widget.close()
+                if not is_owned_popup:
+                    widget.deleteLater()
+            except RuntimeError:
+                continue
+        drain_deferred_deletes(app)
     try:
         from core.performance import flush_performance_log_queue
 

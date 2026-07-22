@@ -208,7 +208,7 @@ class AtlasCommandPalette(QDialog):
             self._command_dispatch_in_progress = False
             return
         self.accept()
-        QTimer.singleShot(0, lambda command=command, query=query: self._dispatch_command(command, query))
+        QTimer.singleShot(0, self, lambda command=command, query=query: self._dispatch_command(command, query))
 
     def _dispatch_command(self, command: AtlasCommand, query: str) -> None:
         try:

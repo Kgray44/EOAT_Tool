@@ -4,7 +4,7 @@ import threading
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, QRect, Qt
+from PySide6.QtCore import QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader, QPainter
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QWidget
@@ -40,6 +40,7 @@ from app.atlas.minimalist.library import (
     record_status_display,
 )
 from app.atlas.minimalist.widgets import TopChromeFade
+from app.atlas.minimalist.window import MinimalistAtlasWindow
 from core.atlas_data_loader import _current_eoat_for_rows, _current_eoat_resolution_for_rows
 from core.atlas_models import (
     AtlasDataBundle,
@@ -53,6 +54,7 @@ from core.atlas_models import (
 )
 from core.atlas_record_details import RecordDetailData, RecordField, RecordPhoto, RecordPhotoGroup
 from core.atlas_utils import normalized_eoat_key, normalized_machine_key, normalized_tool_key
+from core.config import UserConfig
 from core.library_data_service import LibraryDataService
 from core.photos.photo_service import PhotoService
 from core.reporting.pdf_preview_session import PdfPreviewSession
@@ -85,6 +87,17 @@ def test_library_data_service_rebuilds_cache_and_serves_maps(tmp_path: Path) -> 
     reloaded.load_cached_index()
     assert reloaded.is_index_ready()
     assert reloaded.get_relationships("machine", "52")["current_eoat"] == "P4-EOAT-0052"
+
+
+def test_window_close_shutdowns_library_photo_service(qapp, tmp_path: Path, monkeypatch) -> None:
+    """The main-window owner stops Library work before child destruction."""
+    window = MinimalistAtlasWindow(UserConfig(project_root=str(tmp_path)), auto_refresh=False)
+    calls: list[int] = []
+    monkeypatch.setattr(window.library_page.library_content.photo_service, "shutdown", lambda wait_ms=0: calls.append(wait_ms))
+
+    window.close()
+
+    assert calls == [1_000]
 
 
 def test_eoat_card_preview_selects_front_view_from_cached_photo_metadata(tmp_path: Path) -> None:
@@ -1412,12 +1425,10 @@ def test_record_page_opens_with_photo_service_disabled(qapp, tmp_path: Path) -> 
 
 
 def test_record_page_survives_photo_service_thumbnail_failure(qapp, tmp_path: Path) -> None:
-    page = MinimalistLibraryContent(_Controller())
+    failing_service = _FailingPhotoService()
+    page = MinimalistLibraryContent(_Controller(), photo_service=failing_service)
     page.resize(1400, 900)
     page.set_bundle(_photo_preview_bundle(tmp_path, tmp_path / "missing_preview.png"))
-    failing_service = _FailingPhotoService()
-    page.photo_service = failing_service
-    page.catalog.photo_service = failing_service
     page.show()
     qapp.processEvents()
 
@@ -1431,11 +1442,45 @@ def test_record_page_survives_photo_service_thumbnail_failure(qapp, tmp_path: Pa
         qapp.processEvents()
     tile = page.current_view.findChild(PhotoTile)
     assert tile is not None
+    tile._photo_load_failed(tile.photo_id, "thumbnail worker unavailable", tile.context_id)
     assert tile.load_error
     assert page.current_view.isVisible()
     assert page.current_view.findChild(RecordHeroPanel).isVisible()
     assert page.current_view.findChild(RecordTabBar).isVisible()
     assert tile.isVisible()
+    _cleanup_widget(qapp, page)
+
+
+def test_retired_browse_view_releases_page_callbacks_before_deferred_delete(qapp, tmp_path: Path) -> None:
+    """Regression for the Settings crash's stale Library-page callback path."""
+    page = MinimalistLibraryContent(_Controller(), photo_service=_FailingPhotoService())
+    page.resize(1400, 900)
+    page.set_bundle(_photo_preview_bundle(tmp_path, tmp_path / "missing_preview.png"))
+    page.show()
+    qapp.processEvents()
+    retired_browse_view = page.current_view
+
+    assert isinstance(retired_browse_view, LibraryBrowseStateView)
+    assert page.select_entity(ENTITY_EOAT, "P4-EOAT-0052") is True
+    for _ in range(3):
+        qapp.processEvents()
+
+    assert retired_browse_view._disposed is True
+    assert retired_browse_view.record_callback is None
+    assert retired_browse_view.lens_callback is None
+    assert retired_browse_view.clear_callback is None
+    assert retired_browse_view.photo_context_callback is None
+    _cleanup_widget(qapp, page)
+
+
+def test_library_failure_service_injection_does_not_create_an_orphaned_photo_pool(qapp) -> None:
+    failing_service = _FailingPhotoService()
+    page = MinimalistLibraryContent(_Controller(), photo_service=failing_service)
+
+    assert page.photo_service is failing_service
+    assert page.catalog.photo_service is failing_service
+    assert not page.findChildren(PhotoService)
+
     _cleanup_widget(qapp, page)
 
 
@@ -1976,6 +2021,14 @@ def _assert_widgets_do_not_overlap(widgets) -> None:
 
 
 def _cleanup_widget(qapp, widget) -> None:
+    """Stop Library-owned work, then leave destruction to the autouse fixture.
+
+    Calling ``deleteLater`` while this helper's caller still holds wrappers to
+    a page and its children leaves invalid Shiboken wrappers alive until the
+    test frame unwinds.  The process-wide fixture performs the bounded
+    deferred-delete drain after that frame has returned, which preserves the
+    intended one-QApplication lifetime boundary between tests.
+    """
     content = getattr(widget, "library_content", None)
     shell = getattr(widget, "shell", None)
     remove_filter = getattr(shell, "remove_app_event_filter", None)
@@ -1992,11 +2045,9 @@ def _cleanup_widget(qapp, widget) -> None:
             shutdown_owner = getattr(owner, "shutdown_photo_service", None)
             if callable(shutdown_owner):
                 shutdown_owner()
-    widget.close()
-    widget.deleteLater()
-    qapp.processEvents()
-    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-    qapp.processEvents()
+    # The shared fixture closes and drains top-level widgets after the test
+    # frame has unwound.  Do not call close/deleteLater here: callers often
+    # still hold page, record-view, and tile wrappers at this point.
 
 
 def _wait_for_qt(qapp, predicate, *, timeout_ms: int = 2000) -> bool:
@@ -2057,6 +2108,12 @@ class _TestSignal:
         for slot in list(self._slots):
             slot(*args, **kwargs)
 
+    def disconnect(self, slot) -> None:
+        try:
+            self._slots.remove(slot)
+        except ValueError:
+            return None
+
 
 class _RecordingPhotoService:
     def __init__(self) -> None:
@@ -2095,14 +2152,33 @@ class _RecordingPhotoService:
 
 
 class _FailingPhotoService:
-    thumbnail_ready = _NoopSignal()
-    photo_load_failed = _NoopSignal()
+    def __init__(self) -> None:
+        self.thumbnail_ready = _NoopSignal()
+        self.photo_load_failed = _TestSignal()
+
+    def set_project_root(self, _project_root: str) -> None:
+        return None
 
     def get_cached_thumbnail(self, *_args, **_kwargs):
-        raise RuntimeError("thumbnail cache unavailable")
+        return None
 
     def request_thumbnail(self, *_args, **_kwargs) -> None:
-        raise RuntimeError("thumbnail worker unavailable")
+        # The production service emits failures from its worker completion
+        # path.  The test invokes the receiving slot after the record shell is
+        # fully built rather than re-entering widget constructors synchronously.
+        return None
+
+    def cancel_context(self, _context_id: str) -> None:
+        return None
+
+    def pause_prefetch(self) -> None:
+        return None
+
+    def resume_prefetch(self) -> None:
+        return None
+
+    def shutdown(self, *_args, **_kwargs) -> None:
+        return None
 
 
 class _FakeWheelEvent:

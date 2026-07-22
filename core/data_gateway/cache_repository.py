@@ -71,6 +71,10 @@ class CacheRepository:
                 "last_full_refresh_at": "",
                 "last_change_cursor": "0",
                 "server_revision": "",
+                "data_revision": "",
+                "data_last_modified_at": "",
+                "last_import_at": "",
+                "last_import_source": "",
                 "cache_created_at": created,
             }
             connection.executemany("INSERT OR IGNORE INTO cache_metadata(key,value) VALUES(?,?)", defaults.items())
@@ -159,6 +163,10 @@ class CacheRepository:
                     "last_full_refresh_at": now,
                     "last_change_cursor": snapshot.get("cursor", 0),
                     "server_revision": snapshot.get("server_revision", ""),
+                    "data_revision": snapshot.get("data_status", {}).get("data_revision", ""),
+                    "data_last_modified_at": snapshot.get("data_status", {}).get("data_last_modified_at", ""),
+                    "last_import_at": snapshot.get("data_status", {}).get("last_import_at", ""),
+                    "last_import_source": snapshot.get("data_status", {}).get("last_import_source", ""),
                 },
             )
             connection.commit()

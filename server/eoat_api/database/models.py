@@ -15,12 +15,13 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.mysql import BIGINT, MEDIUMTEXT
+from sqlalchemy.dialects.mysql import BIGINT, DATETIME, MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -939,6 +940,18 @@ class SystemMetadata(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     metadata_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     metadata_value: Mapped[str] = mapped_column(MEDIUMTEXT, nullable=False)
+
+
+class DataState(Base):
+    """The single authoritative revision for committed EOAT application data."""
+
+    __tablename__ = "data_state"
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, autoincrement=False)
+    current_revision: Mapped[int] = mapped_column(BIGINT(unsigned=True), nullable=False, server_default=text("0"))
+    data_last_modified_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6), nullable=False)
+    last_import_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
+    last_import_source: Mapped[str | None] = mapped_column(String(255))
+    updated_by: Mapped[str | None] = mapped_column(String(255))
 
 
 class Tag(VersionMixin, Base):

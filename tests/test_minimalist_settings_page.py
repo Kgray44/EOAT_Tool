@@ -184,13 +184,36 @@ def test_dynamic_source_rows_are_unregistered_before_deferred_delete(qapp, tmp_p
     content.close()
 
 
+def test_settings_shutdown_cancels_deferred_refresh_and_unregisters_rows(qapp, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
+    controller = SimpleNamespace(config=UserConfig(project_root=str(tmp_path)), minimalist_app_settings={})
+    content = MinimalistSettingsContent(controller)
+    old_rows = tuple(content.source_rows.values())
+
+    content._queue_dynamic_refresh()
+    assert content._dynamic_refresh_timer.isActive()
+
+    content.shutdown()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
+
+    assert not content._dynamic_refresh_timer.isActive()
+    assert content.source_rows == {}
+    assert content.source_dirty_rows == {}
+    assert all(row._disposing for row in old_rows)
+    content.close()
+
+
 def test_settings_reconstruction_and_bundle_changes_leave_only_live_rows(qapp, tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
     controller = SimpleNamespace(config=UserConfig(project_root=str(tmp_path)), minimalist_app_settings={})
     content = MinimalistSettingsContent(controller)
     bundles = (SimpleNamespace(loaded_at="2026-07-13 12:00"), None)
 
-    for index in range(12):
+    # This deliberately crosses the deferred-delete boundary many times in one
+    # QApplication lifetime.  The production crash surfaced only after enough
+    # cumulative settings/library activity, not in an isolated reconstruction.
+    for index in range(80):
         content.select_section("refresh_cache")
         content.set_bundle(bundles[index % 2])
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -591,6 +614,22 @@ def test_library_settings_are_consumed_by_library_browse_view(qapp, tmp_path: Pa
     assert content.scope_type == ENTITY_TOOL
     assert isinstance(content.current_view, LibraryBrowseStateView)
     assert content.current_view._configured_grid_page_size == 12
+    content.close()
+
+
+def test_long_diagnostics_content_keeps_its_scroll_extent(qapp, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api")
+    controller = SimpleNamespace(config=UserConfig(project_root=str(tmp_path)), minimalist_app_settings={})
+    content = MinimalistSettingsContent(controller)
+    content._mysql_api_metrics = lambda: {"backend": "mysql_api", "api_online": True}  # type: ignore[method-assign]
+    content.resize(1400, 900)
+    content.show()
+    content.select_section("diagnostics_support")
+    content._sync_main_scroll_extent()
+    qapp.processEvents()
+
+    assert content.main_body.minimumHeight() >= content.main_layout.sizeHint().height()
+    assert content.main_scroll.verticalScrollBar().maximum() > 0
     content.close()
 
 
