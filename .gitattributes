@@ -1,2 +1,10 @@
 *.pdf binary
 *.png binary
+
+# Phase 3 bootstrap files are executed by Debian.  Keep their Git blobs and
+# generated archives POSIX-safe even when committed from a Windows checkout.
+*.sh text eol=lf
+*.sudoers text eol=lf
+deployment/privileged/*.py text eol=lf
+deployment/privileged/*.md text eol=lf
+deployment/privileged/eoat_atlas_deploy_helper.py export-subst
