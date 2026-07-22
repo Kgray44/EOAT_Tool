@@ -263,6 +263,35 @@ class ServerUpdaterService:
         )
         return result_from_payload("stage release", _plain(receipt), summary="Staging submitted")
 
+    def update_server(self, config_path: Path, version: str, selected_commit: str) -> OperationResult:
+        """Verify a published artifact matches source, then use the backend's stage/activate gates."""
+
+        inspection = self.inspect_release(version)
+        release = inspection.raw.get("release", {})
+        release_commit = str(release.get("commit_sha") or "") if isinstance(release, dict) else ""
+        if release_commit.lower() != selected_commit.lower():
+            raise ValueError(
+                "The verified release artifact does not match the selected source commit; server update was not attempted"
+            )
+        release_dir = Path(str(inspection.raw["release_dir"]))
+        config = server_updater.load_server_config(config_path.resolve())
+        staged = active_deployment.stage_release(self.root, release_dir, inspection.raw["manifest"], config)
+        if staged.state != "STAGED_VALIDATED":
+            raise ValueError(f"Backend staging did not permit activation (state: {staged.state})")
+        activated = active_deployment.helper_operation(self.root, config, "activate", staged.deployment_id)
+        raw = {
+            "state": activated.state,
+            "deployment_id": activated.deployment_id,
+            "receipt_path": str(activated.receipt_path),
+            "selected_source": {"version": version, "commit": selected_commit},
+            "release_verification": inspection.raw,
+            "stage": _plain(staged),
+            "activation": _plain(activated),
+        }
+        return result_from_payload(
+            "update server", raw, summary="Server update completed through backend transaction gates"
+        )
+
     def deployment_operation(self, config_path: Path, deployment_id: str, operation: str) -> OperationResult:
         receipt = active_deployment.helper_operation(
             self.root, server_updater.load_server_config(config_path.resolve()), operation, deployment_id

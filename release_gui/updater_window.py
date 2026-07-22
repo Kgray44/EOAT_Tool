@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -15,153 +17,143 @@ from PySide6.QtWidgets import (
 )
 
 from .dialogs import TypedConfirmationDialog
-from .models import OperationResult, readiness_from_payload
-from .services import ServerUpdaterService
-from .state_rules import ToolState, abort_rule, activate_rule, recover_rule, rollback_rule, stage_rule
+from .models import OperationResult, RepositoryStatus
+from .services import ReleaseManagerService, ServerUpdaterService
+from .state_rules import ToolState, update_server_rule
 from .widgets import KeyValuePanel, OperationLog, StatusCard, WarningPanel
 from .window_base import ToolWindow, ensure_application
 
 
 class ServerUpdaterWindow(ToolWindow):
-    def __init__(self, root: Path | None = None) -> None:
+    """A simple source-first updater that still delegates every gate to deployment."""
+
+    def __init__(self, root: Path | None = None, *, auto_refresh: bool = True) -> None:
         super().__init__("EOAT Atlas Server Updater")
-        self.service = ServerUpdaterService(root or Path.cwd())
+        source_root = root or Path.cwd()
+        self.source_service = ReleaseManagerService(source_root)
+        self.service = ServerUpdaterService(source_root)
         self.config_path: Path | None = None
-        self.release_dir: Path | None = None
-        self.helper_available = False
-        self.server_ok = self.release_verified = self.rehearsal_passed = self.rehearsal_matches = self.host_key = False
-        self.migration = "UNKNOWN"
-        self.deployment_state = "UNKNOWN"
+        self.repository: RepositoryStatus | None = None
         self.last_result: OperationResult | None = None
-        self.status_card = StatusCard("Deployment readiness")
-        self.details = KeyValuePanel("Selected deployment")
+        self._loading_choices = False
+
+        self.status_card = StatusCard("Server update readiness")
+        self.status_card.set_status("CHECKING", "Loading source branches, commits, and app version")
+        self.details = KeyValuePanel("Selected update source")
         self.warnings = WarningPanel()
         self.log = OperationLog()
+        self.branch = QComboBox()
+        self.commit = QComboBox()
         self.config = QLineEdit()
         self.config.setReadOnly(True)
-        self.version = QLineEdit()
-        self.version.setPlaceholderText("Latest eligible release, or exact version")
-        self.deployment_id = QLineEdit()
-        self.deployment_id.setPlaceholderText("deploy-YYYYMMDDtHHMMSSz-abcdef0")
-        (
-            self.choose,
-            self.status,
-            self.inspect_server,
-            self.list_releases,
-            self.inspect_release,
-            self.rehearse,
-            self.stage,
-            self.activate,
-            self.abort,
-            self.recover,
-            self.rollback,
-            self.receipt,
-        ) = (
-            QPushButton("Choose configuration"),
-            QPushButton("Refresh status"),
-            QPushButton("Inspect server"),
-            QPushButton("Check available releases"),
-            QPushButton("Inspect selected release"),
-            QPushButton("Run deployment rehearsal"),
-            QPushButton("Stage selected release"),
-            QPushButton("Activate staged release"),
-            QPushButton("Abort"),
-            QPushButton("Recover"),
-            QPushButton("Rollback"),
-            QPushButton("Open latest receipt"),
-        )
-        self.receipt.setEnabled(False)
+        self.refresh_button = QPushButton("Refresh source")
+        self.choose_config_button = QPushButton("Choose server configuration")
+        self.update_button = QPushButton("Update Server")
+        self.receipt_button = QPushButton("Inspect latest receipt")
+        self.receipt_button.setEnabled(False)
+
         form = QFormLayout()
+        form.addRow("Branch", self.branch)
+        form.addRow("Commit", self.commit)
+        form.addRow("App version", QLabel("Shown below for the selected branch and commit."))
         config_row = QHBoxLayout()
         config_row.addWidget(self.config)
-        config_row.addWidget(self.choose)
-        form.addRow("Non-secret server config", config_row)
-        form.addRow("Release version", self.version)
-        form.addRow("Deployment ID", self.deployment_id)
+        config_row.addWidget(self.choose_config_button)
+        form.addRow("Server configuration", config_row)
         actions = QHBoxLayout()
-        for button in (
-            self.status,
-            self.inspect_server,
-            self.list_releases,
-            self.inspect_release,
-            self.rehearse,
-            self.stage,
-            self.activate,
-            self.abort,
-            self.recover,
-            self.rollback,
-            self.receipt,
-        ):
+        for button in (self.refresh_button, self.update_button, self.receipt_button):
             actions.addWidget(button)
+        form.addRow(actions)
+
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.addWidget(
             QLabel(
-                "<h1>EOAT Atlas Server Updater</h1><p>All server actions use the established strict-host-key deployment backend. Staging never activates a release; migration-required releases remain blocked.</p>"
+                "<h1>EOAT Atlas Server Updater</h1>"
+                "<p>Select the exact source branch and commit, then update the server. "
+                "The existing backend verifies the published artifact, SSH trust, server readiness, migration gate, "
+                "and transaction state before any production change.</p>"
             )
         )
         layout.addWidget(self.status_card)
         layout.addLayout(form)
-        layout.addLayout(actions)
         layout.addWidget(self.details)
         layout.addWidget(self.warnings)
         splitter = QSplitter()
         splitter.addWidget(self.log)
         layout.addWidget(splitter)
         self.setCentralWidget(content)
-        self.choose.clicked.connect(self.choose_config)
-        self.status.clicked.connect(self.refresh_status)
-        self.inspect_server.clicked.connect(self.inspect)
-        self.list_releases.clicked.connect(self.list)
-        self.inspect_release.clicked.connect(self.inspect_selected)
-        self.rehearse.clicked.connect(self.run_rehearsal)
-        self.stage.clicked.connect(self.stage_selected)
-        self.activate.clicked.connect(lambda: self.confirm_operation("Activate staged release", "ACTIVATE", "activate"))
-        self.abort.clicked.connect(lambda: self.confirm_operation("Abort deployment", "ABORT", "abort"))
-        self.recover.clicked.connect(lambda: self.operation("recover"))
-        self.rollback.clicked.connect(lambda: self.confirm_operation("Rollback deployment", "ROLLBACK", "rollback"))
-        self.receipt.clicked.connect(lambda: self.last_result and self.show_receipt(self.last_result.raw))
-        self.version.textChanged.connect(self._invalidate_release_selection)
-        self.refresh_actions()
 
-    def state(self) -> ToolState:
-        return ToolState(
-            busy=self._busy,
-            config_loaded=self.config_path is not None,
-            server_inspected=self.server_ok,
-            release_verified=self.release_verified,
-            rehearsal_passed=self.rehearsal_passed,
-            rehearsal_matches_selection=self.rehearsal_matches,
-            migration_status=self.migration,
-            host_key_trusted=self.host_key,
-            helper_available=self.helper_available,
-            blockers=not self.host_key,
-            deployment_state=self.deployment_state,
-        )
+        self.refresh_button.clicked.connect(self.refresh_source)
+        self.branch.currentTextChanged.connect(self._branch_changed)
+        self.commit.currentIndexChanged.connect(self._commit_changed)
+        self.choose_config_button.clicked.connect(self.choose_config)
+        self.update_button.clicked.connect(self.update_server)
+        self.receipt_button.clicked.connect(lambda: self.last_result and self.show_receipt(self.last_result.raw))
+        self.refresh_actions()
+        if auto_refresh:
+            QTimer.singleShot(0, self.refresh_source)
 
     def refresh_actions(self) -> None:
-        state = self.state()
-        stage = stage_rule(state)
-        activate = activate_rule(state)
-        abort = abort_rule(state)
-        recover = recover_rule(state)
-        rollback = rollback_rule(state)
-        self.inspect_server.setEnabled(not self._busy and self.config_path is not None)
-        self.inspect_release.setEnabled(not self._busy)
-        self.rehearse.setEnabled(not self._busy and self.config_path is not None and self.release_dir is not None)
-        self.stage.setEnabled(stage.enabled)
-        self.activate.setEnabled(activate.enabled)
-        self.abort.setEnabled(abort.enabled)
-        self.recover.setEnabled(recover.enabled)
-        self.rollback.setEnabled(rollback.enabled)
-        for button, rule in (
-            (self.stage, stage),
-            (self.activate, activate),
-            (self.abort, abort),
-            (self.recover, recover),
-            (self.rollback, rollback),
-        ):
-            button.setToolTip(rule.reason)
+        source_selected = bool(self.repository and self.repository.version and self.commit.currentData())
+        rule = update_server_rule(
+            ToolState(busy=self._busy, config_loaded=self.config_path is not None, source_selected=source_selected)
+        )
+        self.update_button.setEnabled(rule.enabled)
+        self.update_button.setToolTip(rule.reason)
+        self.refresh_button.setEnabled(not self._busy)
+        self.branch.setEnabled(not self._busy)
+        self.commit.setEnabled(not self._busy)
+        self.choose_config_button.setEnabled(not self._busy)
+
+    def refresh_source(self) -> None:
+        self.status_card.set_status("CHECKING", "Reading branches, commits, and current source state")
+
+        def done(value: tuple[RepositoryStatus, OperationResult, list[str]]) -> None:
+            status, result, branches = value
+            self._loading_choices = True
+            self.branch.clear()
+            self.branch.addItems(branches)
+            self.branch.setCurrentText(status.branch)
+            self._loading_choices = False
+            self._show_source((status, result))
+            QTimer.singleShot(0, lambda: self._load_commits(status.branch, status.commit))
+
+        self.run_operation("Source refresh", self.source_service.repository_view, done)
+
+    def _set_commits(self, commits: list[tuple[str, str]], selected: str | None = None) -> None:
+        self.commit.clear()
+        for sha, subject in commits:
+            self.commit.addItem(f"{sha[:12]}  {subject}", sha)
+        if selected:
+            index = self.commit.findData(selected)
+            if index >= 0:
+                self.commit.setCurrentIndex(index)
+
+    def _branch_changed(self, branch: str) -> None:
+        if not self._loading_choices and branch:
+            self._load_commits(branch)
+
+    def _load_commits(self, branch: str, selected: str | None = None) -> None:
+        def done(commits: list[tuple[str, str]]) -> None:
+            self._loading_choices = True
+            self._set_commits(commits, selected)
+            self._loading_choices = False
+            self._inspect_selected_source()
+
+        self.run_operation("Branch inspection", lambda: self.source_service.commits_for_branch(branch), done)
+
+    def _commit_changed(self, _index: int) -> None:
+        if not self._loading_choices:
+            self._inspect_selected_source()
+
+    def _inspect_selected_source(self) -> None:
+        branch = self.branch.currentText()
+        commit = self.commit.currentData()
+        if branch and isinstance(commit, str):
+            self.run_operation(
+                "Source inspection", lambda: self.source_service.inspect_reference(branch, commit), self._show_source
+            )
 
     def choose_config(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
@@ -174,127 +166,63 @@ class ServerUpdaterWindow(ToolWindow):
         def done(result: OperationResult) -> None:
             self.config_path = path
             self.config.setText(str(path))
-            self.server_ok = self.host_key = self.helper_available = False
-            self.rehearsal_passed = self.rehearsal_matches = False
             self.last_result = result
-            self.show_result(result)
-            self.refresh_actions()
+            self._show_source((self.repository, result) if self.repository else None)
 
         self.run_operation("Configuration validation", lambda: self.service.load_config(path), done)
 
-    def refresh_status(self) -> None:
-        self.run_operation("Updater status", lambda: self.service.inspect_status(self.config_path), self._record)
-
-    def inspect(self) -> None:
-        assert self.config_path
-
-        def done(result: OperationResult) -> None:
-            self.server_ok = result.status.startswith("READY")
-            details = result.raw
-            key = details.get("ssh_host_key", {}) if isinstance(details, dict) else {}
-            self.host_key = bool(key.get("known"))
-            helper = details.get("privileged_helper", {}) if isinstance(details, dict) else {}
-            self.helper_available = bool(helper.get("available"))
-            self._record(result)
-
-        self.run_operation("Server inspection", lambda: self.service.inspect_server(self.config_path), done)
-
-    def list(self) -> None:
-        self.run_operation("Release listing", self.service.list_releases, self._record)
-
-    def inspect_selected(self) -> None:
-        version = self.version.text().strip() or None
-
-        def done(result: OperationResult) -> None:
-            self.release_dir = Path(str(result.raw["release_dir"]))
-            self.release_verified = result.status == "VERIFIED"
-            self._record(result)
-
-        self.run_operation("Release inspection", lambda: self.service.inspect_release(version), done)
-
-    def run_rehearsal(self) -> None:
-        assert self.config_path and self.release_dir
-
-        def done(result: OperationResult) -> None:
-            readiness = readiness_from_payload(result.raw)
-            self.migration = readiness.migration_status
-            self.host_key = readiness.host_key_trusted
-            self.rehearsal_passed = readiness.readiness.startswith("READY")
-            self.rehearsal_matches = self.rehearsal_passed
-            self._record(result)
-
-        self.run_operation(
-            "Deployment rehearsal", lambda: self.service.rehearse_deployment(self.config_path, self.release_dir), done
-        )
-
-    def stage_selected(self) -> None:
-        assert self.config_path and self.release_dir
-        version = self.version.text().strip() or "selected release"
+    def update_server(self) -> None:
+        if not self.repository or not self.config_path:
+            return
+        version = self.repository.version
+        commit = self.repository.commit
+        if not version:
+            return
         dialog = TypedConfirmationDialog(
-            "Stage selected release",
-            "STAGING DOES NOT ACTIVATE THE RELEASE. The backend will reject blocked or migration-required releases.",
-            f"STAGE {version}",
+            "Update Server",
+            f"This verifies the published EOAT Atlas {version} artifact matches {commit[:12]}, then asks the existing "
+            "backend to stage and activate it. A migration requirement, untrusted host key, health failure, or transaction "
+            "gate stops the update before activation.",
+            f"UPDATE SERVER {version}",
             self,
         )
         if not dialog.exec():
             return
 
         def done(result: OperationResult) -> None:
-            self.deployment_id.setText(str(result.raw.get("deployment_id", "")))
-            self.deployment_state = result.status
-            self._record(result)
+            self.last_result = result
+            self.show_result(result)
+            self.receipt_button.setEnabled(True)
+            self.details.set_values(
+                {
+                    "Branch": self.repository.branch,
+                    "Commit": self.repository.commit,
+                    "App version": self.repository.version,
+                    "Server configuration": self.config_path,
+                    "Deployment ID": result.raw.get("deployment_id", "Unavailable"),
+                    "Backend state": result.status,
+                }
+            )
+            self.refresh_actions()
 
-        self.run_operation(
-            "Release staging", lambda: self.service.stage_release(self.config_path, self.release_dir), done
-        )
+        self.run_operation("Update server", lambda: self.service.update_server(self.config_path, version, commit), done)
 
-    def confirm_operation(self, title: str, verb: str, operation: str) -> None:
-        identifier = self.deployment_id.text().strip()
-        dialog = TypedConfirmationDialog(
-            title,
-            "This request is sent to the existing backend state machine and is not assumed successful until status and health are returned.",
-            f"{verb} {identifier}",
-            self,
-        )
-        if dialog.exec():
-            self.operation(operation)
-
-    def operation(self, operation: str) -> None:
-        if not self.config_path:
+    def _show_source(self, value: tuple[RepositoryStatus, OperationResult] | None) -> None:
+        if value is None:
             return
-        identifier = self.deployment_id.text().strip()
-
-        def done(result: OperationResult) -> None:
-            self.deployment_state = result.status
-            self._record(result)
-
-        self.run_operation(
-            f"Deployment {operation}",
-            lambda: self.service.deployment_operation(self.config_path, identifier, operation),
-            done,
-        )
-
-    def _record(self, result: OperationResult) -> None:
+        self.repository, result = value
         self.last_result = result
-        self.show_result(result)
         self.details.set_values(
             {
-                "Configuration": self.config_path or "None",
-                "Release cache": self.release_dir or "None",
-                "Deployment ID": self.deployment_id.text() or "None",
-                "Deployment state": self.deployment_state,
-                "Migration": self.migration,
-                "Privileged helper": self.helper_available,
+                "Branch": self.repository.branch,
+                "Commit": self.repository.commit,
+                "App version": self.repository.version or "Unavailable in this commit",
+                "Server configuration": self.config_path or "Choose a configuration to enable Update Server",
+                "Artifact requirement": "A published artifact must match this exact commit",
             }
         )
-        self.receipt.setEnabled(True)
-        self.refresh_actions()
-
-    def _invalidate_release_selection(self) -> None:
-        self.release_dir = None
-        self.release_verified = False
-        self.rehearsal_passed = False
-        self.rehearsal_matches = False
+        self.show_result(result)
+        self.receipt_button.setEnabled(True)
         self.refresh_actions()
 
 

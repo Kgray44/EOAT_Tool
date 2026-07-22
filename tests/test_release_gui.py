@@ -13,7 +13,7 @@ from release_gui.packager_window import ReleasePackagerWindow
 from release_gui.receipt_viewer import ReceiptViewer
 from release_gui.services import ReleaseManagerService, ServerUpdaterService
 from release_gui.settings import GuiSettings
-from release_gui.state_rules import ToolState, activate_rule, package_rule, publish_rule, stage_rule
+from release_gui.state_rules import ToolState, activate_rule, package_rule, publish_rule, stage_rule, update_server_rule
 from release_gui.updater_window import ServerUpdaterWindow
 
 
@@ -61,21 +61,46 @@ def test_result_preserves_raw_receipt() -> None:
 
 def test_windows_construct_without_starting_operations(tmp_path: Path) -> None:
     app()
-    packager, updater = ReleasePackagerWindow(tmp_path, auto_refresh=False), ServerUpdaterWindow(tmp_path)
+    packager, updater = (
+        ReleasePackagerWindow(tmp_path, auto_refresh=False),
+        ServerUpdaterWindow(tmp_path, auto_refresh=False),
+    )
     assert not packager._busy and not updater._busy
     assert packager.package_button.text() == "Package Software"
     assert not packager.package_button.isEnabled()
-    assert not updater.stage.isEnabled() and not updater.activate.isEnabled()
+    assert updater.update_button.text() == "Update Server"
+    assert not updater.update_button.isEnabled()
 
 
-def test_version_change_invalidates_release_rehearsal(tmp_path: Path) -> None:
-    app()
-    updater = ServerUpdaterWindow(tmp_path)
-    updater.release_dir = tmp_path / "release"
-    updater.release_verified = updater.rehearsal_passed = updater.rehearsal_matches = True
-    updater.version.setText("0.18.1")
-    assert updater.release_dir is None
-    assert not updater.release_verified and not updater.rehearsal_passed
+def test_update_server_requires_source_and_configuration() -> None:
+    assert not update_server_rule(ToolState()).enabled
+    assert update_server_rule(ToolState(config_loaded=True, source_selected=True)).enabled
+
+
+def test_update_server_refuses_artifact_for_a_different_commit(tmp_path: Path, monkeypatch) -> None:
+    service = ServerUpdaterService(tmp_path)
+    monkeypatch.setattr(
+        service,
+        "inspect_release",
+        lambda _version: result_from_payload(
+            "release inspection",
+            {"release": {"commit_sha": "b" * 40}, "release_dir": str(tmp_path), "manifest": {}},
+        ),
+    )
+    attempted = False
+
+    def stage(*_args, **_kwargs) -> None:
+        nonlocal attempted
+        attempted = True
+
+    monkeypatch.setattr("release_gui.services.active_deployment.stage_release", stage)
+    try:
+        service.update_server(tmp_path / "server.json", "0.18.2", "a" * 40)
+    except ValueError as exc:
+        assert "does not match" in str(exc)
+    else:
+        raise AssertionError("a mismatched release must never reach staging")
+    assert not attempted
 
 
 def test_receipt_viewer_keeps_raw_json_visible() -> None:

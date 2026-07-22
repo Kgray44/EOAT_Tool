@@ -11,6 +11,7 @@ class ToolState:
     repository_ready: bool = False
     validation_passed: bool = False
     selected_reference_current: bool = False
+    source_selected: bool = False
     config_loaded: bool = False
     server_inspected: bool = False
     release_verified: bool = False
@@ -43,6 +44,16 @@ def package_rule(state: ToolState) -> ActionAvailability:
     return ActionAvailability(
         ok,
         "Select the clean checked-out branch and commit before packaging" if not ok else "Ready to package software",
+    )
+
+
+def update_server_rule(state: ToolState) -> ActionAvailability:
+    ok = state.config_loaded and state.source_selected and not state.busy
+    return ActionAvailability(
+        ok,
+        "Choose a non-secret server configuration, branch, and commit first"
+        if not ok
+        else "Ready to verify and update server",
     )
 
 

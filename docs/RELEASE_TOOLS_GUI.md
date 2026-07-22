@@ -17,11 +17,11 @@ PySide6, Git, and (for GitHub release inspection/publication) GitHub CLI must be
 1. In the packager, select a branch and then an exact commit. The App version field identifies the selected source without changing the checkout.
 2. Enter the package version. **Package Software** is enabled only when the selected branch and commit match the clean checkout on disk.
 3. The operator must type `PACKAGE X.Y.Z` exactly. The existing backend runs validation and creates the local package commit and artifacts, but this GUI action does not push, tag, or publish a GitHub Release.
-4. In the updater, choose a non-secret configuration, inspect the server, check/inspect a release, and run a deployment rehearsal.
-5. Stage is available only after a matching successful rehearsal, a trusted SSH host key, no blockers, privileged-helper availability, and a backend-confirmed `NOT_REQUIRED` migration state. **STAGING DOES NOT ACTIVATE THE RELEASE.**
-6. Activation, abort, recovery, and rollback remain bounded by the existing server state machine. Their exact case-sensitive confirmations include the deployment ID.
+4. In the updater, select a branch and exact commit, confirm the App version, and choose a non-secret server configuration.
+5. **Update Server** requires `UPDATE SERVER X.Y.Z`. It first verifies that the published release artifact matches the selected commit, then delegates staging and activation to the existing backend.
+6. An untrusted host key, artifact mismatch, migration requirement, server-health failure, deployment lock, or transaction-state failure stops the operation. The GUI does not override those backend gates.
 
-The deployment rehearsal prominently remains a dry run: **NO SERVER CHANGES WILL BE MADE**. A verified artifact alone never makes deployment ready. Migration-required, unknown, or blocked releases cannot be staged or activated by this interface.
+A verified artifact alone never makes deployment ready. Migration-required, unknown, or blocked releases cannot be staged or activated by this interface.
 
 ## Receipts, settings, and troubleshooting
 
