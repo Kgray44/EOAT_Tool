@@ -6,6 +6,8 @@
     "application_root": "/opt/eoat-atlas",
     "api_port": 8765,
     "public_hostname": "eoat-atlas.gwplastics.com",
+    "public_scheme": "http",
+    "public_port": 80,
     "services": [
       "eoat-atlas.service"
     ],

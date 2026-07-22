@@ -1,8 +1,8 @@
 # EOAT Atlas release packaging and deployment preflight
 
-This is the Phase 1/Phase 2 release foundation. It deliberately separates a
-GitHub-published, immutable release package from an eventual server activation.
-There is no production deployment command in this repository.
+This is the Phase 1/2 release foundation plus the Phase 3 controlled deployment
+client.  It deliberately separates a GitHub-published, immutable release
+package from an explicit, separately authorized server activation.
 
 ## Existing sources of truth
 
@@ -48,7 +48,12 @@ stages only `app/atlas/version.json` and `release_history.json`, commits
 `release: EOAT Atlas X.Y.Z`, builds from that exact resulting commit, creates
 an annotated `vX.Y.Z` tag, then pushes and publishes unless `--no-push` or
 `--no-publish` is supplied. It never force-pushes, overwrites a tag, or calls
-`git add .`.
+`git add .`. A successful published release attaches the archive, checksum,
+external manifest, and the timestamped release receipt. Receipt attachment is
+an explicit final step: if it fails after the first three assets publish, the
+local receipt records `FAILED_PARTIAL_PUBLICATION` and the exact recovery is to
+upload that saved receipt to the existing immutable tag without creating a new
+version or moving the tag.
 
 If a branch or tag push succeeds but GitHub publication fails, the receipt
 records that partial state. Recover by first running `status`, verifying the
@@ -112,7 +117,12 @@ legacy release_metadata.json layout used by releases published before this
 Phase 1 manifest format. It does not read environment-file contents.
 The checked-in example reflects the verified EOAT topology: the eoat-atlas
 application unit, its host-routed NGINX endpoint, and the current inspection
-account. A MySQL login path remains an operator-provided read-only capability;
+account. The approved public probe is
+`http://eoat-atlas.gwplastics.com:80`; its three health paths are recorded in
+both release manifests and the non-secret server configuration. HTTP is
+intentional for the current approved internal endpoint: the updater does not
+infer HTTPS or treat absent port 443 as an API failure, but records TLS absence
+as a non-blocking infrastructure warning for any broader rollout. A MySQL login path remains an operator-provided read-only capability;
 the updater reports its absence instead of falling back to credentials or
 environment-file contents.
 
@@ -146,10 +156,11 @@ was modified. If SSH credentials, a known host, or an approved read-only MySQL
 login path are unavailable, the receipt says `UNKNOWN`; it does not weaken
 security or guess production truth.
 
-## Explicit Phase 2 boundary
+## Phase 3 boundary
 
-The following remain Phase 3 work and are intentionally absent: upload,
-extraction, backup creation, dependency installation, migration execution,
-symlink changes, service/NGINX restart, post-switch activation, and rollback.
-The required controls and acceptance gates for that future work are listed in
-[Phase 3 deployment readiness](PHASE_3_DEPLOYMENT_READINESS.md).
+Phase 3 is available only after the one-time human sudo bootstrap described in
+[Phase 3 deployment controls](PHASE_3_DEPLOYMENT_READINESS.md).  The updater's
+`--stage-only` mode never activates a release; `activate DEPLOYMENT_ID` is a
+separate conscious operation.  Migration-bearing releases are refused pending
+an independently approved backup/restore and migration runbook.  The helper
+does not manage NGINX and does not infer HTTPS for the approved HTTP endpoint.

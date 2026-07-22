@@ -13,6 +13,12 @@ APPLICATION_NAME = "EOAT Atlas"
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
 PRODUCTION_APPLICATION_SERVICES = ("eoat-atlas.service",)
 PRODUCTION_HEALTH_CHECKS = ("/api/v1/health", "/api/v1/version", "/api/v1/schema-status")
+PRODUCTION_PUBLIC_HEALTH_ENDPOINT = {
+    "scheme": "http",
+    "hostname": "eoat-atlas.gwplastics.com",
+    "port": 80,
+    "paths": list(PRODUCTION_HEALTH_CHECKS),
+}
 
 
 @dataclass(frozen=True)
@@ -62,9 +68,12 @@ def manifest_core(
         "runtime": {"python": ">=3.13", "mysql": ">=8.4"},
         # These are the verified production API unit and its read-only local
         # probes.  The reverse proxy remains server configuration because it
-        # is not part of the application payload.
+        # is not part of the application payload.  Its approved endpoint is
+        # nevertheless recorded so the updater can reject an unsafe implicit
+        # HTTPS assumption or a host/port mismatch.
         "services": services or list(PRODUCTION_APPLICATION_SERVICES),
         "health_checks": list(PRODUCTION_HEALTH_CHECKS),
+        "public_health_endpoint": dict(PRODUCTION_PUBLIC_HEALTH_ENDPOINT),
         "api_contract_version": api_contract_version,
     }
 
@@ -102,6 +111,7 @@ def validate_core(payload: object) -> dict[str, Any]:
         "runtime",
         "services",
         "health_checks",
+        "public_health_endpoint",
         "api_contract_version",
     }
     missing = sorted(required - set(payload))
@@ -137,6 +147,17 @@ def validate_core(payload: object) -> dict[str, Any]:
         isinstance(item, str) and item.startswith("/") for item in payload["health_checks"]
     ):
         raise DeploymentError("Release manifest health checks must be absolute HTTP paths")
+    public_health = payload["public_health_endpoint"]
+    if (
+        not isinstance(public_health, dict)
+        or public_health.get("scheme") not in {"http", "https"}
+        or not isinstance(public_health.get("hostname"), str)
+        or not public_health["hostname"]
+        or not isinstance(public_health.get("port"), int)
+        or not 1 <= public_health["port"] <= 65535
+        or public_health.get("paths") != payload["health_checks"]
+    ):
+        raise DeploymentError("Release manifest has invalid public health endpoint metadata")
     return payload
 
 

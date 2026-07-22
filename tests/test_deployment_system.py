@@ -104,6 +104,12 @@ def test_tar_release_manifest_hash_and_safe_layout(tmp_path: Path) -> None:
     assert build.external["artifact"]["sha256"] == sha256_file(build.archive)
     assert build.core["services"] == ["eoat-atlas.service"]
     assert build.core["health_checks"] == ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"]
+    assert build.core["public_health_endpoint"] == {
+        "scheme": "http",
+        "hostname": "eoat-atlas.gwplastics.com",
+        "port": 80,
+        "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+    }
     with tarfile.open(build.archive, "r:gz") as archive:
         names = archive.getnames()
     assert "release_manifest.json" in names
@@ -166,13 +172,16 @@ def test_release_selection_is_semantic_and_ignores_drafts() -> None:
     assert select_release([older, newest], "0.9.9").tag == "v0.9.9"
 
 
-def test_release_cache_revalidates_and_quarantines_a_corrupt_entry(tmp_path: Path) -> None:
+def test_release_cache_revalidates_and_quarantines_a_corrupt_entry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     root, commit = _repository(tmp_path / "repo")
     build = build_deployment_archive(root, commit, tmp_path / "source", branch="test/release")
     assets = tuple(
         ReleaseAsset(path.name, size=path.stat().st_size) for path in (build.manifest, build.archive, build.checksum)
     )
     release = GitHubRelease("v1.2.3", False, False, None, assets)
+    monkeypatch.setattr(server_updater, "release_tag_commit", lambda *_args: commit)
 
     def copy_asset(_root: Path, _release: GitHubRelease, asset: ReleaseAsset, destination: Path) -> None:
         shutil.copyfile(build.manifest.parent / asset.name, destination)
@@ -184,6 +193,39 @@ def test_release_cache_revalidates_and_quarantines_a_corrupt_entry(tmp_path: Pat
     assert restored == cache
     assert sha256_file(restored / build.archive.name) == build.external["artifact"]["sha256"]
     assert list((tmp_path / "cache").glob("1.2.3.corrupt-*"))
+
+
+def test_release_tag_commit_uses_annotated_remote_tag_not_github_target_field(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    commit = "a" * 40
+    tag_object = "b" * 40
+    release = GitHubRelease("v1.2.3", False, False, None, ())
+    observed: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        observed.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=f"{tag_object}\trefs/tags/v1.2.3\n{commit}\trefs/tags/v1.2.3^{{}}\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(server_updater.subprocess, "run", fake_run)
+    assert server_updater.release_tag_commit(tmp_path, release, {"commit_sha": commit}) == commit
+    assert observed == [["git", "ls-remote", "--tags", "origin", "refs/tags/v1.2.3", "refs/tags/v1.2.3^{}"]]
+
+
+def test_release_tag_commit_rejects_manifest_mismatch(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    release = GitHubRelease("v1.2.3", False, False, None, ())
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout=f"{'b' * 40}\trefs/tags/v1.2.3^{{}}\n", stderr="")
+
+    monkeypatch.setattr(server_updater.subprocess, "run", fake_run)
+    with pytest.raises(DeploymentError, match="not manifest commit"):
+        server_updater.release_tag_commit(tmp_path, release, {"commit_sha": "a" * 40})
 
 
 def test_readonly_ssh_rejects_unapproved_commands_and_uses_strict_host_checks() -> None:
@@ -218,6 +260,92 @@ def test_readonly_ssh_rejects_unapproved_commands_and_uses_strict_host_checks() 
         ssh.execute("rm")
     with pytest.raises(DeploymentError, match="not allowlisted"):
         ssh.execute("service", "bad;systemctl restart nginx")
+
+
+def test_http_reverse_proxy_probes_use_declared_host_port_and_never_infer_https() -> None:
+    config = ServerConfig(
+        "eoat-atlas",
+        22,
+        "kgray",
+        "/opt/eoat-atlas",
+        8765,
+        ("eoat-atlas.service",),
+        "nginx.service",
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+        public_hostname="eoat-atlas.gwplastics.com",
+        public_scheme="http",
+        public_port=80,
+    )
+    command = ReadonlySSH(config)._command("reverse-proxy-health", "/api/v1/version")
+    assert "--resolve" in command
+    assert "eoat-atlas.gwplastics.com:80:127.0.0.1" in command
+    assert command[-1] == "http://eoat-atlas.gwplastics.com:80/api/v1/version"
+    assert all("https://" not in item for item in command)
+    compatibility = server_updater.public_health_compatibility(
+        config,
+        {
+            "health_checks": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            "public_health_endpoint": {
+                "scheme": "http",
+                "hostname": "eoat-atlas.gwplastics.com",
+                "port": 80,
+                "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            },
+        },
+    )
+    assert compatibility["status"] == "PASS"
+
+
+def test_http_only_listener_is_nonblocking_infrastructure_warning() -> None:
+    config = ServerConfig(
+        "eoat-atlas",
+        22,
+        "kgray",
+        "/opt/eoat-atlas",
+        8765,
+        (),
+        "nginx.service",
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+        public_hostname="eoat-atlas.gwplastics.com",
+        public_scheme="http",
+        public_port=80,
+    )
+    proxy = {
+        "probes": {
+            path: {"status": "PASS", "http_status": 200}
+            for path in ("/api/v1/health", "/api/v1/version", "/api/v1/schema-status")
+        }
+    }
+    warnings = server_updater._reverse_proxy_warnings(config, proxy)
+    assert warnings == [server_updater.HTTP_ONLY_TLS_WARNING]
+
+
+def test_secured_schema_probe_is_not_misreported_as_an_api_or_tls_failure() -> None:
+    protected = RemoteResult(
+        "health",
+        (),
+        0,
+        json.dumps(
+            {
+                "error_code": "DEVICE_AUTH_NOT_CONFIGURED",
+                "message": "Production read authentication is not configured.",
+            }
+        )
+        + "\n__EOAT_HTTP_STATUS=503 __EOAT_RESPONSE_SECONDS=0.001\n",
+    )
+    result = server_updater._health_result(protected)
+    assert result["status"] == "SECURED_UNAVAILABLE"
+    assert result["http_status"] == 503
+    compared, warnings = server_updater.health_comparison(
+        {"/api/v1/schema-status": result}, {"version": "0.17.3", "commit_sha": "a" * 40}
+    )
+    assert compared["/api/v1/schema-status"]["status"] == "SECURED_UNAVAILABLE"
+    assert len(warnings) == 1
+    assert "device authentication" in warnings[0]
 
 
 def test_current_deployment_falls_back_to_legacy_release_metadata() -> None:
@@ -287,7 +415,9 @@ def test_health_comparison_keeps_http_timing_and_release_identity() -> None:
     assert compared["/api/v1/health"]["http_status"] == 200
     assert compared["/api/v1/health"]["response_seconds"] == pytest.approx(0.013)
     assert compared["/api/v1/health"]["values"]["release_id"] == "eoat-atlas-0.17.1"
-    assert warnings
+    assert compared["/api/v1/health"]["target_version"] == "0.17.3"
+    assert compared["/api/v1/health"]["version_matches_target"] is False
+    assert warnings == []
 
 
 def test_truth_reconciliation_flags_environment_disagreement() -> None:
@@ -445,6 +575,8 @@ def test_migration_preflight_flags_destructive_operations(tmp_path: Path) -> Non
     summary = migration_summary(build.archive)
     assert summary["heads"] == ["20260717_0007"]
     assert summary["destructive_warnings"]
+    assert server_updater.migration_execution_warnings(summary, {"status": "NOT_REQUIRED"}) == []
+    assert server_updater.migration_execution_warnings(summary, {"status": "REQUIRED"}) == summary["destructive_warnings"]
 
 
 def test_dry_run_never_attempts_server_mutation(tmp_path: Path) -> None:
@@ -456,6 +588,13 @@ def test_dry_run_never_attempts_server_mutation(tmp_path: Path) -> None:
     assert receipt["production_files_modified"] is False
     assert receipt["production_service_restarted"] is False
     assert receipt["production_database_written"] is False
+
+
+def test_written_preflight_receipt_records_its_own_path(tmp_path: Path) -> None:
+    receipt = {"mode": "DRY_RUN_READ_ONLY"}
+    path = server_updater._write_receipt(tmp_path, receipt)
+    assert receipt["receipt_path"] == str(path)
+    assert json.loads(path.read_text(encoding="utf-8"))["receipt_path"] == str(path)
 
 
 def test_package_dry_run_uses_disposable_clone_without_mutating_source(
@@ -490,3 +629,30 @@ def test_package_dry_run_uses_disposable_clone_without_mutating_source(
         subprocess.run(["git", "status", "--porcelain"], cwd=root, text=True, capture_output=True, check=True).stdout
         == original_status
     )
+
+
+def test_release_receipt_attachment_uses_existing_release_without_clobbering(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    receipt = tmp_path / "release-20260721T000000Z.json"
+    receipt.write_text("{}\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="uploaded", stderr="")
+
+    monkeypatch.setattr(release_manager.subprocess, "run", fake_run)
+    release_manager._attach_release_receipt(tmp_path, "v1.2.4", "owner/repository", receipt)
+
+    assert calls == [
+        [
+            "gh",
+            "release",
+            "upload",
+            "v1.2.4",
+            str(receipt),
+            "--repo",
+            "owner/repository",
+        ]
+    ]
