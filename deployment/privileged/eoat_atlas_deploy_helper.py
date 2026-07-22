@@ -503,14 +503,29 @@ class Helper:
                     env=environment,
                     purpose="approved backup metadata privilege probe",
                 )
+                stored_programs = self._run(
+                    [
+                        "/usr/bin/mysql",
+                        f"--defaults-extra-file={defaults}",
+                        "--batch",
+                        "--skip-column-names",
+                        "--execute",
+                        "SELECT "
+                        "(SELECT COUNT(*) FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = DATABASE()), "
+                        "(SELECT COUNT(*) FROM information_schema.EVENTS WHERE EVENT_SCHEMA = DATABASE())",
+                        self._database_name(),
+                    ],
+                    env=environment,
+                    purpose="approved backup completeness probe",
+                )
+                if not re.fullmatch(r"\s*0\s+0\s*", stored_programs.stdout or ""):
+                    raise Rejected("production stored programs require an approved full-backup identity")
                 result = self._run(
                     [
                         "/usr/bin/mysqldump",
                         f"--defaults-extra-file={defaults}",
                         "--single-transaction",
                         "--no-tablespaces",
-                        "--routines",
-                        "--events",
                         f"--result-file={partial}",
                         self._database_name(),
                     ],

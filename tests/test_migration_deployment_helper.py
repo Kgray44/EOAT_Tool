@@ -63,6 +63,8 @@ class Runner:
         if "curl" in command[0]:
             return subprocess.CompletedProcess(command, 0, stdout=json.dumps(self.health), stderr="")
         if command[0] == "/usr/bin/mysql":
+            if any("information_schema.ROUTINES" in str(part) for part in command):
+                return subprocess.CompletedProcess(command, 0, stdout="0\t0\n", stderr="")
             return subprocess.CompletedProcess(command, 0, stdout="1\n", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
 
@@ -182,10 +184,12 @@ def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:
     assert not any(part.startswith("--user=") or part.startswith("--login-path=") for part in backup_command)
     assert "--single-transaction" in backup_command
     assert "--no-tablespaces" in backup_command
+    assert "--routines" not in backup_command and "--events" not in backup_command
     probe_commands = [command for command in runner.commands if command[0] == "/usr/bin/mysql"]
     connection_probe = next(command for command in probe_commands if command[-2] == "SELECT 1")
     metadata_probe = next(command for command in probe_commands if command[-2] == "SHOW TABLES; SHOW EVENTS; SHOW TRIGGERS")
-    assert connection_probe[-1] == metadata_probe[-1] == "eoat_atlas_prod"
+    completeness_probe = next(command for command in probe_commands if "information_schema.ROUTINES" in command[-2])
+    assert connection_probe[-1] == metadata_probe[-1] == completeness_probe[-1] == "eoat_atlas_prod"
     assert "--batch" in connection_probe and "--skip-column-names" in connection_probe
     expected_defaults = '[client]\nuser="eoat_migrate"\npassword="disposable-only"\nhost="127.0.0.1"\nport="3306"\n'
     assert runner.mysql_defaults and all(item == expected_defaults for item in runner.mysql_defaults)
@@ -255,6 +259,25 @@ def test_backup_query_privilege_failure_is_redacted_and_actionable(tmp_path: Pat
     state = helper.status({"deployment_id": payload["deployment_id"]})
     assert state["state"] == "FAILED"
     assert "SHOW VIEW" not in json.dumps(state)
+
+
+def test_backup_refuses_stored_programs_without_full_backup_identity(tmp_path: Path) -> None:
+    class StoredProgramRunner(Runner):
+        def __call__(self, command, **kwargs):
+            command = list(command)
+            if command[0] == "/usr/bin/mysql" and any("information_schema.ROUTINES" in str(part) for part in command):
+                return subprocess.CompletedProcess(command, 0, stdout="1\t0\n", stderr="")
+            return super().__call__(command, **kwargs)
+
+    value = paths(tmp_path)
+    helper = DisposableHelper(value, StoredProgramRunner())
+    payload = request(value)
+    helper.begin(payload)
+
+    with pytest.raises(Rejected, match="stored programs require an approved full-backup identity"):
+        helper.backup_production({"deployment_id": payload["deployment_id"]})
+
+    assert helper.status({"deployment_id": payload["deployment_id"]})["state"] == "FAILED"
 
 
 def test_migration_failure_preserves_old_release_and_backup_restore_is_bounded(tmp_path: Path) -> None:
