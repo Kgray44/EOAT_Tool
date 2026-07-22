@@ -10,6 +10,7 @@ class ToolState:
     busy: bool = False
     repository_ready: bool = False
     validation_passed: bool = False
+    selected_reference_current: bool = False
     config_loaded: bool = False
     server_inspected: bool = False
     release_verified: bool = False
@@ -35,6 +36,14 @@ def _blocked(state: ToolState) -> bool:
 def publish_rule(state: ToolState) -> ActionAvailability:
     ok = state.repository_ready and state.validation_passed and not _blocked(state)
     return ActionAvailability(ok, "Validation and a clean, current repository are required" if not ok else "Ready")
+
+
+def package_rule(state: ToolState) -> ActionAvailability:
+    ok = state.repository_ready and state.selected_reference_current and not _blocked(state)
+    return ActionAvailability(
+        ok,
+        "Select the clean checked-out branch and commit before packaging" if not ok else "Ready to package software",
+    )
 
 
 def stage_rule(state: ToolState) -> ActionAvailability:

@@ -13,7 +13,7 @@ from release_gui.packager_window import ReleasePackagerWindow
 from release_gui.receipt_viewer import ReceiptViewer
 from release_gui.services import ReleaseManagerService, ServerUpdaterService
 from release_gui.settings import GuiSettings
-from release_gui.state_rules import ToolState, activate_rule, publish_rule, stage_rule
+from release_gui.state_rules import ToolState, activate_rule, package_rule, publish_rule, stage_rule
 from release_gui.updater_window import ServerUpdaterWindow
 
 
@@ -61,9 +61,10 @@ def test_result_preserves_raw_receipt() -> None:
 
 def test_windows_construct_without_starting_operations(tmp_path: Path) -> None:
     app()
-    packager, updater = ReleasePackagerWindow(tmp_path), ServerUpdaterWindow(tmp_path)
+    packager, updater = ReleasePackagerWindow(tmp_path, auto_refresh=False), ServerUpdaterWindow(tmp_path)
     assert not packager._busy and not updater._busy
-    assert not packager.publish_button.isEnabled()
+    assert packager.package_button.text() == "Package Software"
+    assert not packager.package_button.isEnabled()
     assert not updater.stage.isEnabled() and not updater.activate.isEnabled()
 
 
@@ -104,26 +105,26 @@ def test_services_are_importable_without_cli_execution(tmp_path: Path) -> None:
 
 
 def test_repository_status_keeps_computed_clean_property(tmp_path: Path, monkeypatch) -> None:
-    from deployment.release_manager import GitState
+    class FakeGit:
+        def __init__(self, _root: Path) -> None:
+            pass
 
-    state = GitState(
-        root=str(tmp_path),
-        branch="codex/test",
-        commit="a" * 40,
-        upstream="origin/codex/test",
-        ahead=0,
-        behind=0,
-        modified=[],
-        staged=[],
-        untracked=[],
-        conflicts=[],
-        latest_tag=None,
-        version="0.18.0",
-    )
-    monkeypatch.setattr(
-        "release_gui.services.release_manager.status_payload",
-        lambda _root: {"repository": state, "ready_to_package": True},
-    )
+        def output(self, *args: str) -> str:
+            values = {
+                ("branch", "--show-current"): "codex/test",
+                ("rev-parse", "HEAD"): "a" * 40,
+                ("status", "--porcelain=v1"): "",
+                ("show", f"{'a' * 40}:app/atlas/version.json"): '{"version": "0.18.0"}',
+            }
+            return values[args]
+
+    monkeypatch.setattr("release_gui.services.release_manager.Git", FakeGit)
     status, result = ReleaseManagerService(tmp_path).inspect_status()
     assert status.clean and status.ready
     assert result.raw["repository"]["clean"] is True
+
+
+def test_package_requires_selected_clean_checkout() -> None:
+    enabled = ToolState(repository_ready=True, selected_reference_current=True, blockers=False)
+    assert package_rule(enabled).enabled
+    assert not package_rule(enabled.__class__(**{**enabled.__dict__, "selected_reference_current": False})).enabled

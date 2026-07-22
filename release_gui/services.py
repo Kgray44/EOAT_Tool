@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 from dataclasses import asdict
 from pathlib import Path
@@ -28,25 +29,102 @@ def _plain(value: Any) -> Any:
 class ReleaseManagerService:
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
+        self._branches: list[str] | None = None
+        self._commits_by_branch: dict[str, list[tuple[str, str]]] = {}
 
     def inspect_status(self) -> tuple[RepositoryStatus, OperationResult]:
-        backend_payload = release_manager.status_payload(self.root)
-        # ``clean`` is a computed GitState property, rather than a dataclass
-        # field, so ``asdict`` deliberately omits it. Preserve the backend's
-        # authoritative computed value in the raw GUI response.
-        backend_repository = backend_payload["repository"]
-        payload = _plain(backend_payload)
-        payload["repository"]["clean"] = bool(backend_repository.clean)
+        # The full CLI status makes many sequential Git calls and invokes
+        # diagnostics. This selector needs an immediate local answer; the
+        # existing packager still runs its complete readiness checks later.
+        git = release_manager.Git(self.root)
+        branch = git.output("branch", "--show-current") or "(detached)"
+        commit = git.output("rev-parse", "HEAD").lower()
+        clean = not bool(git.output("status", "--porcelain=v1").strip())
+        version = self._version_at(git, commit)
+        payload = {
+            "tool_version": release_manager.TOOL_VERSION,
+            "repository": {
+                "root": str(self.root),
+                "branch": branch,
+                "commit": commit,
+                "clean": clean,
+                "version": version,
+            },
+            "ready_to_package": bool(clean and branch != "(detached)" and version),
+        }
+        payload["readiness"] = "READY" if payload.get("ready_to_package") else "NOT_READY"
+        payload["selection_matches_checkout"] = True
         repo = payload["repository"]
         status = RepositoryStatus(
             str(repo["branch"]),
             str(repo["commit"]),
             repo.get("version"),
-            bool(repo["clean"]),
+            clean,
             bool(payload["ready_to_package"]),
             payload,
         )
         return status, result_from_payload("repository status", payload, summary="Repository status refreshed")
+
+    def repository_view(self) -> tuple[RepositoryStatus, OperationResult, list[str]]:
+        """Return the current checkout plus safe, read-only branch/ref choices."""
+
+        self._branches = None
+        self._commits_by_branch.clear()
+        status, result = self.inspect_status()
+        branches = self.available_branches()
+        return status, result, branches
+
+    def available_branches(self) -> list[str]:
+        if self._branches is not None:
+            return self._branches
+        output = release_manager.Git(self.root).output("for-each-ref", "--format=%(refname:short)", "refs/heads")
+        self._branches = [line.strip() for line in output.splitlines() if line.strip()]
+        return self._branches
+
+    def commits_for_branch(self, branch: str) -> list[tuple[str, str]]:
+        if branch not in self.available_branches():
+            raise ValueError("Choose a branch from the repository list")
+        if branch in self._commits_by_branch:
+            return self._commits_by_branch[branch]
+        output = release_manager.Git(self.root).output("log", "-n", "50", "--format=%H%x09%s", branch)
+        commits: list[tuple[str, str]] = []
+        for line in output.splitlines():
+            commit, separator, subject = line.partition("\t")
+            if separator and len(commit) == 40:
+                commits.append((commit, subject))
+        self._commits_by_branch[branch] = commits
+        return commits
+
+    def inspect_reference(self, branch: str, commit: str) -> tuple[RepositoryStatus, OperationResult]:
+        if branch not in self.available_branches() or commit not in {
+            item[0] for item in self.commits_for_branch(branch)
+        }:
+            raise ValueError("Choose a commit listed for the selected branch")
+        current, _result = self.inspect_status()
+        version = self._version_at(release_manager.Git(self.root), commit)
+        selected_is_checkout = branch == current.branch and commit == current.commit
+        raw = {
+            "repository": current.raw["repository"],
+            "selected": {"branch": branch, "commit": commit, "version": version},
+            "ready_to_package": bool(selected_is_checkout and current.clean),
+            "selection_matches_checkout": selected_is_checkout,
+        }
+        raw["readiness"] = "READY" if raw["ready_to_package"] else "NOT_READY"
+        status = RepositoryStatus(branch, commit, version, current.clean, bool(raw["ready_to_package"]), raw)
+        summary = (
+            "Selected checkout is ready"
+            if status.ready
+            else "Selected reference is read-only; package the checked-out HEAD"
+        )
+        return status, result_from_payload("reference inspection", raw, summary=summary)
+
+    @staticmethod
+    def _version_at(git: Any, commit: str) -> str | None:
+        try:
+            version_payload = json.loads(git.output("show", f"{commit}:app/atlas/version.json"))
+            return str(version_payload.get("version") or "") or None
+        except (json.JSONDecodeError, ValueError):
+            return None
 
     def validate(self) -> OperationResult:
         checks, commands = release_manager.run_validation(self.root)
@@ -67,6 +145,21 @@ class ReleaseManagerService:
             approved_exception=None,
         )
         return result_from_payload("dry-run package", _plain(payload), summary="Dry-run package completed")
+
+    def package_software(self, version: str) -> OperationResult:
+        """Run the existing active packager without pushing or publishing a release."""
+
+        payload = release_manager.package(
+            self.root,
+            bump=None,
+            explicit_version=version,
+            dry_run=False,
+            no_push=True,
+            no_publish=True,
+            allow_dirty=False,
+            approved_exception=None,
+        )
+        return result_from_payload("package software", _plain(payload), summary="Software package completed")
 
     def publish_release(
         self, version: str, *, allow_dirty: bool = False, exception: str | None = None

@@ -120,6 +120,13 @@
       "state": "finalized",
       "task_id": "release-tools-gui-status-clean-hotfix-20260722",
       "finalized_at_utc": "2026-07-22T20:01:21Z"
+    },
+    {
+      "application_version": "0.18.2",
+      "release_id": "eoat-atlas-0.18.2",
+      "state": "finalized",
+      "task_id": "release-tools-gui-selector-simplification-20260722",
+      "finalized_at_utc": "2026-07-22T20:19:12Z"
     }
   ]
 }

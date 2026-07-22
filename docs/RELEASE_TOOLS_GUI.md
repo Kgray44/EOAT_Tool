@@ -1,6 +1,6 @@
 # EOAT Atlas Release Tools GUIs
 
-`run_release_packager.py` opens **EOAT Atlas Release Packager**. It presents repository status, release validation, a dry-run package rehearsal, and the existing release-manager publication path. `run_server_updater.py` opens **EOAT Atlas Server Updater**. `run_release_tools.py` opens a small launcher for both.
+`run_release_packager.py` opens **EOAT Atlas Release Packager**. It immediately loads a branch selector, commit selector, and the app version stored in the selected commit. It has one mutation action: **Package Software**. `run_server_updater.py` opens **EOAT Atlas Server Updater**. `run_release_tools.py` opens a small launcher for both.
 
 Run from the repository root with the same Python environment used for EOAT Atlas:
 
@@ -14,9 +14,9 @@ PySide6, Git, and (for GitHub release inspection/publication) GitHub CLI must be
 
 ## Safe normal workflow
 
-1. In the packager, refresh repository status and run validation.
-2. Enter a proposed version and run the dry-run package rehearsal. No tag, GitHub release, or production change occurs in this mode.
-3. Publication remains disabled until the repository is current and clean and validation passes. The operator must type `PUBLISH X.Y.Z` exactly before the established backend is called.
+1. In the packager, select a branch and then an exact commit. The App version field identifies the selected source without changing the checkout.
+2. Enter the package version. **Package Software** is enabled only when the selected branch and commit match the clean checkout on disk.
+3. The operator must type `PACKAGE X.Y.Z` exactly. The existing backend runs validation and creates the local package commit and artifacts, but this GUI action does not push, tag, or publish a GitHub Release.
 4. In the updater, choose a non-secret configuration, inspect the server, check/inspect a release, and run a deployment rehearsal.
 5. Stage is available only after a matching successful rehearsal, a trusted SSH host key, no blockers, privileged-helper availability, and a backend-confirmed `NOT_REQUIRED` migration state. **STAGING DOES NOT ACTIVATE THE RELEASE.**
 6. Activation, abort, recovery, and rollback remain bounded by the existing server state machine. Their exact case-sensitive confirmations include the deployment ID.

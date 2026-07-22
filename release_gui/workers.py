@@ -36,6 +36,7 @@ class BackgroundRunner(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.pool = QThreadPool.globalInstance()
+        self._workers: set[ServiceWorker] = set()
 
     def submit(
         self,
@@ -47,7 +48,12 @@ class BackgroundRunner(QObject):
         finished: Callable[[], None],
     ) -> None:
         worker = ServiceWorker(name, operation)
+        self._workers.add(worker)
         worker.signals.succeeded.connect(success)
         worker.signals.failed.connect(failure)
-        worker.signals.finished.connect(finished)
+        worker.signals.finished.connect(lambda: self._finish_worker(worker, finished))
         self.pool.start(worker)
+
+    def _finish_worker(self, worker: ServiceWorker, finished: Callable[[], None]) -> None:
+        self._workers.discard(worker)
+        finished()
