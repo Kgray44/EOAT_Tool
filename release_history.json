@@ -134,6 +134,13 @@
       "state": "finalized",
       "task_id": "codex-web-phase3-deploy-fix-20260722",
       "finalized_at_utc": "2026-07-22T14:58:12Z"
+    },
+    {
+      "application_version": "0.20.2",
+      "release_id": "eoat-atlas-0.20.2",
+      "state": "finalized",
+      "task_id": "codex-web-http-canary-template-20260722",
+      "finalized_at_utc": "2026-07-22T19:35:08Z"
     }
   ]
 }

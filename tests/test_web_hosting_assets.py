@@ -5,6 +5,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_nginx_template_keeps_browser_read_only_and_uses_server_only_token() -> None:
     text = (ROOT / "deployment/runtime/nginx/eoat-atlas.conf").read_text(encoding="utf-8")
+    assert "listen 80;" in text
+    assert "listen 443" not in text
+    assert " ssl" not in text
+    assert "Strict-Transport-Security" not in text
     assert "location = /api/v1/web-fit-checks/evaluate" in text
     assert "$request_method != POST" in text
     assert "$request_method !~ ^(GET|HEAD)$" in text
