@@ -698,6 +698,8 @@ class Helper:
                 category = "configured login path unavailable"
             elif "access denied" in output or "error 1045" in output:
                 category = "database authentication or authorization failed"
+            elif match := re.search(r"(?:got\s+)?error(?:\s+code)?\s*:?\s*([0-9]{3,5})\b", output):
+                category = f"MySQL error {match.group(1)}"
             elif "process privilege" in output or "permission denied" in output:
                 category = "required database privilege unavailable"
             elif "can\'t connect" in output or "connection refused" in output:
