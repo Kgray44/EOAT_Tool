@@ -485,6 +485,24 @@ class Helper:
                     env=environment,
                     purpose="approved migration database connection probe",
                 )
+                # mysqldump requires metadata privileges beyond a basic
+                # connection.  Probe only the fixed production schema before
+                # starting a potentially large dump so a missing metadata
+                # privilege is reported safely and cannot leave a partial
+                # backup mistaken for a recoverable artifact.
+                self._run(
+                    [
+                        "/usr/bin/mysql",
+                        f"--defaults-extra-file={defaults}",
+                        "--batch",
+                        "--skip-column-names",
+                        "--execute",
+                        "SHOW TABLES; SHOW EVENTS; SHOW TRIGGERS",
+                        self._database_name(),
+                    ],
+                    env=environment,
+                    purpose="approved backup metadata privilege probe",
+                )
                 result = self._run(
                     [
                         "/usr/bin/mysqldump",
@@ -721,6 +739,7 @@ class Helper:
                 "command denied" in output
                 or "couldn\'t execute" in output
                 or "could not execute" in output
+                or "access violation" in output
             ):
                 # mysqldump commonly reports an unavailable SELECT, SHOW VIEW,
                 # or TRIGGER privilege as "Couldn\'t execute ... command

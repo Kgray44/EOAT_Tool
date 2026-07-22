@@ -182,9 +182,11 @@ def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:
     assert not any(part.startswith("--user=") or part.startswith("--login-path=") for part in backup_command)
     assert "--single-transaction" in backup_command
     assert "--no-tablespaces" in backup_command
-    probe_command = next(command for command in runner.commands if command[0] == "/usr/bin/mysql")
-    assert probe_command[-2:] == ["SELECT 1", "eoat_atlas_prod"]
-    assert "--batch" in probe_command and "--skip-column-names" in probe_command
+    probe_commands = [command for command in runner.commands if command[0] == "/usr/bin/mysql"]
+    connection_probe = next(command for command in probe_commands if command[-2] == "SELECT 1")
+    metadata_probe = next(command for command in probe_commands if command[-2] == "SHOW TABLES; SHOW EVENTS; SHOW TRIGGERS")
+    assert connection_probe[-1] == metadata_probe[-1] == "eoat_atlas_prod"
+    assert "--batch" in connection_probe and "--skip-column-names" in connection_probe
     expected_defaults = '[client]\nuser="eoat_migrate"\npassword="disposable-only"\nhost="127.0.0.1"\nport="3306"\n'
     assert runner.mysql_defaults and all(item == expected_defaults for item in runner.mysql_defaults)
 
