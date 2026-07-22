@@ -300,6 +300,65 @@ class Helper:
             raise Rejected("embedded manifest has no release/build identity")
         state["release_id"], state["build_id"] = release_id, build_id
 
+    def _validate_existing_release(self, state: dict[str, Any], target: Path, source: Path) -> None:
+        """Prove an interrupted transaction left an immutable reusable release.
+
+        Reuse is permitted only when every archived payload file and mode still
+        matches the same server-verified artifact. Runtime-only venv files and
+        Python bytecode are deliberately excluded from that comparison.
+        """
+        if target.is_symlink() or not target.is_dir() or target.resolve().parent != self.paths.releases.resolve():
+            raise Rejected("existing release target is unsafe")
+        required = (
+            target / "release_manifest.json",
+            target / "server" / "eoat_api" / "app.py",
+            target / "requirements.lock",
+            target / "venv" / "bin" / "python",
+        )
+        if not all(path.exists() for path in required):
+            raise Rejected("existing release misses required runtime files")
+        self._validate_manifest(state, target)
+        archive_members: set[str] = set()
+        payload_members: list[tuple[str, bytes, int]] = []
+        try:
+            with tarfile.open(source, "r:gz") as bundle:
+                for member in bundle.getmembers():
+                    if not member.isfile():
+                        raise Rejected("artifact has a non-file member during reuse validation")
+                    name = member.name
+                    archive_members.add(name)
+                    path = target / name
+                    if path.is_symlink() or not path.is_file():
+                        raise Rejected(f"existing release member is missing or unsafe: {name}")
+                    stream = bundle.extractfile(member)
+                    if stream is None:
+                        raise Rejected(f"artifact member is unreadable during reuse validation: {name}")
+                    contents = stream.read()
+                    if path.read_bytes() != contents or (os.name != "nt" and path.stat().st_mode & 0o022):
+                        raise Rejected(f"existing release member does not match artifact: {name}")
+                    if name not in {"release_metadata.json", "release_manifest.json"}:
+                        payload_members.append((name, contents, member.mode & 0o777))
+        except (OSError, tarfile.TarError) as exc:
+            raise Rejected("artifact could not be read during reuse validation") from exc
+        payload = hashlib.sha256()
+        for name, contents, mode in sorted(payload_members):
+            payload.update(name.encode("utf-8"))
+            payload.update(b"\0")
+            payload.update(oct(mode).encode("ascii"))
+            payload.update(b"\0")
+            payload.update(contents)
+            payload.update(b"\0")
+        if payload.hexdigest() != state["manifest_core"].get("payload_sha256"):
+            raise Rejected("existing release payload digest does not match manifest")
+        for path in target.rglob("*"):
+            relative = path.relative_to(target).as_posix()
+            if relative == "venv" or relative.startswith("venv/") or "__pycache__" in path.parts:
+                continue
+            if path.is_dir():
+                continue
+            if path.is_symlink() or relative not in archive_members:
+                raise Rejected(f"existing release has an unexpected or unsafe member: {relative}")
+
     def _run(
         self,
         command: list[str],
@@ -534,8 +593,19 @@ class Helper:
         self._safe_archive(source)
         target = self.paths.releases / f"eoat-atlas-server-{state['version']}-{state['commit_sha'][:7]}"
         staging = self.paths.releases / f".staging-{state['deployment_id']}"
-        if target.exists() or staging.exists():
-            raise Rejected("target or staging release directory already exists")
+        if staging.exists():
+            raise Rejected("staging release directory already exists")
+        if target.exists():
+            self._validate_existing_release(state, target, source)
+            staged_validation = self._validate_staged_runtime(state, target)
+            self._save(
+                state,
+                "STAGED_VALIDATED",
+                target_path=str(target),
+                reused_existing_release=True,
+                staged_validation=staged_validation,
+            )
+            return state
         staging.mkdir(parents=True, mode=0o750)
         with tarfile.open(source, "r:gz") as bundle:
             bundle.extractall(staging, filter="data")
