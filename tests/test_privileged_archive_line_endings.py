@@ -21,7 +21,11 @@ LINUX_CONSUMED = (
 
 
 def _privileged_files(root: Path) -> list[Path]:
-    return sorted((root / PRIVILEGED).glob("*"))
+    return sorted(
+        path
+        for path in (root / PRIVILEGED).glob("*")
+        if path.is_file() and path.parent.name != "__pycache__"
+    )
 
 
 def _git_bash() -> Path | None:
