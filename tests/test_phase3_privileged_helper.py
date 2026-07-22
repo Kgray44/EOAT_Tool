@@ -21,12 +21,18 @@ def _paths(tmp_path: Path) -> Paths:
         root=root,
         lock=tmp_path / "var" / "lock" / "eoat-atlas-deploy.lock",
         runtime_env=tmp_path / "etc" / "runtime.env",
+        proc=tmp_path / "proc",
     )
     for path in (paths.incoming, paths.releases, paths.shared, paths.transactions, paths.receipts, paths.backups):
         path.mkdir(parents=True, exist_ok=True)
     old = paths.releases / "eoat-atlas-server-0.17.1-b18de78"
     old.mkdir()
     (old / "venv").mkdir()
+    process = paths.proc / "4242"
+    process.mkdir(parents=True)
+    (process / "environ").write_bytes(
+        b"EOAT_API_ENVIRONMENT=production\0EOAT_API_WRITES_ENABLED=false\0EOAT_DB_PASSWORD=never-display\0"
+    )
     return paths
 
 
@@ -79,7 +85,7 @@ def _archive(
 
 class Runner:
     def __init__(self, *, failures: tuple[str, ...] = (), health: dict[str, object] | None = None) -> None:
-        self.failures, self.commands = list(failures), []
+        self.failures, self.commands, self.calls = list(failures), [], []
         self.health = health or {
             "api_reachable": True,
             "database_reachable": True,
@@ -88,16 +94,27 @@ class Runner:
             "writes_enabled": False,
             "current_schema_revision": "20260717_0007",
             "expected_schema_revision": "20260717_0007",
+            "database_schema_revision": "20260717_0007",
             "application_version": "0.17.3",
             "release_id": "eoat-atlas-0.17.3",
             "build_id": "eoat-atlas-0.17.3-35dea12-20260721T000000Z",
         }
 
-    def __call__(self, command, **_kwargs):
+    def __call__(self, command, **kwargs):
         self.commands.append(command)
+        self.calls.append((command, kwargs))
         if self.failures and self.failures[0] in " ".join(map(str, command)):
             self.failures.pop(0)
             return subprocess.CompletedProcess(command, 1, stdout="", stderr="simulated failure")
+        if command[:4] == ["/bin/systemctl", "show", "--property=MainPID", "--value"]:
+            return subprocess.CompletedProcess(command, 0, stdout="4242\n", stderr="")
+        if any("EOAT_STAGE_RUNTIME_VALIDATION" in str(part) for part in command):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=json.dumps({"health": self.health, "version": self.health}),
+                stderr="",
+            )
         output = json.dumps(self.health) if "curl" in command[0] else "ok"
         return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
 
@@ -177,6 +194,19 @@ def test_successful_transaction_creates_previous_current_and_receipt(tmp_path: P
     assert not paths.lock.exists()
     assert json.loads((paths.receipts / "deploy-0001.json").read_text())["state"] == "COMPLETED"
     assert any(command[0] == "/usr/bin/chown" for command in runner.commands)
+    staged = next(call for call in runner.calls if any("EOAT_STAGE_RUNTIME_VALIDATION" in str(part) for part in call[0]))
+    assert staged[1]["cwd"].name.startswith(".staging-")
+    assert staged[1]["env"]["EOAT_API_ENVIRONMENT"] == "production"
+    assert staged[1]["env"]["EOAT_DB_PASSWORD"] == "never-display"
+
+
+def test_staged_validation_rejects_nonproduction_or_writable_service_environment(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+    (paths.proc / "4242" / "environ").write_bytes(b"EOAT_API_ENVIRONMENT=development\0EOAT_API_WRITES_ENABLED=true\0")
+    helper, request = HarnessHelper(paths, Runner()), _request(paths)
+    helper.begin(request)
+    with pytest.raises(Rejected, match="not production"):
+        helper.stage({"deployment_id": request["deployment_id"]})
 
 
 @pytest.mark.parametrize(
@@ -330,7 +360,8 @@ def test_identity_health_mismatch_rolls_back(tmp_path: Path) -> None:
         "release_id": "eoat-atlas-0.17.3",
         "build_id": "eoat-atlas-0.17.3-35dea12-20260721T000000Z",
     }
-    paths, helper, request, _ = _staged(tmp_path, runner=Runner(health=bad_health))
+    paths, helper, request, runner = _staged(tmp_path)
+    runner.health = bad_health
     result = helper.activate({"deployment_id": request["deployment_id"]})
     assert result["state"] == "ROLLED_BACK"
     assert Path(helper.links["current"]).name == "eoat-atlas-server-0.17.1-b18de78"

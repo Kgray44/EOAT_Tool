@@ -30,8 +30,43 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 SAFE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 SERVICE = "eoat-atlas.service"
+SERVICE_ACCOUNT = "eoat-atlas"
 HELPER_POLICY_VERSION = 1
 HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
+STAGED_RUNTIME_VALIDATION = r'''
+# EOAT_STAGE_RUNTIME_VALIDATION
+import json
+import socket
+import threading
+import time
+import urllib.request
+
+import uvicorn
+
+listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listener.bind(("127.0.0.1", 0))
+listener.listen(5)
+port = listener.getsockname()[1]
+server = uvicorn.Server(uvicorn.Config("server.eoat_api.app:app", log_level="warning", lifespan="on"))
+thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
+thread.start()
+try:
+    deadline = time.monotonic() + 20
+    while not server.started and thread.is_alive() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if not server.started:
+        raise RuntimeError("staged API did not start")
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/v1/health", timeout=10) as response:
+        health = json.loads(response.read().decode("utf-8"))
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/v1/version", timeout=10) as response:
+        version = json.loads(response.read().decode("utf-8"))
+    print(json.dumps({"health": health, "version": version}, sort_keys=True))
+finally:
+    server.should_exit = True
+    thread.join(timeout=10)
+    listener.close()
+'''
 STATES = {
     "CREATED",
     "PREFLIGHT_PASSED",
@@ -88,6 +123,7 @@ class Paths:
     root: Path = Path("/opt/eoat-atlas")
     lock: Path = Path("/var/lock/eoat-atlas-deploy.lock")
     runtime_env: Path = Path("/etc/eoat-atlas/runtime.env")
+    proc: Path = Path("/proc")
 
     @property
     def incoming(self) -> Path:
@@ -256,20 +292,58 @@ class Helper:
             raise Rejected("embedded manifest has no release/build identity")
         state["release_id"], state["build_id"] = release_id, build_id
 
-    def _run(self, command: list[str]) -> subprocess.CompletedProcess[str]:
-        result = self.runner(command, text=True, capture_output=True, check=False)
+    def _run(
+        self,
+        command: list[str],
+        *,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
+        purpose: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        result = self.runner(command, text=True, capture_output=True, check=False, cwd=cwd, env=env)
         if result.returncode:
-            raise Rejected(f"approved command failed: {command[0]}")
+            label = purpose or command[0]
+            # Process output can contain database URLs or provider credentials.
+            # Persist only the fixed stage name; never surface that output.
+            raise Rejected(f"approved command failed: {label}")
         return result
 
-    def _validate_health(self, state: dict[str, Any], *, target_release: bool) -> None:
+    def _service_runtime_environment(self) -> dict[str, str]:
+        """Return the running service environment without displaying its secrets.
+
+        The isolated process must see exactly the production settings that
+        systemd supplied to the live API, including database connectivity, but
+        neither this method nor its caller serializes any environment values.
+        """
         result = self._run(
-            ["/usr/bin/curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1:8765/api/v1/health"]
+            ["/bin/systemctl", "show", "--property=MainPID", "--value", SERVICE],
+            purpose="service runtime environment lookup",
         )
+        pid = result.stdout.strip()
+        if not pid.isdecimal() or int(pid) <= 1:
+            raise Rejected("active service MainPID is unavailable for staged validation")
         try:
-            health = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            raise Rejected("health endpoint did not return JSON") from exc
+            raw = (self.paths.proc / pid / "environ").read_bytes()
+        except OSError as exc:
+            raise Rejected("active service environment is unavailable for staged validation") from exc
+        environment: dict[str, str] = {}
+        for entry in raw.split(b"\0"):
+            if not entry or b"=" not in entry:
+                continue
+            key, value = entry.split(b"=", 1)
+            try:
+                name = key.decode("ascii")
+                environment[name] = os.fsdecode(value)
+            except UnicodeDecodeError as exc:
+                raise Rejected("active service environment has an invalid variable name") from exc
+        if environment.get("EOAT_API_ENVIRONMENT", "").strip().casefold() != "production":
+            raise Rejected("active service environment is not production")
+        if environment.get("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"}:
+            raise Rejected("active service environment enables writes")
+        return environment
+
+    @staticmethod
+    def _validate_health_payload(state: dict[str, Any], health: dict[str, Any], *, target_release: bool) -> None:
         if not isinstance(health, dict):
             raise Rejected("health endpoint returned an invalid document")
         required = {
@@ -293,6 +367,66 @@ class Helper:
             for field, expected in expected_identity.items():
                 if health.get(field) != expected:
                     raise Rejected(f"health metadata {field} does not match activated release")
+
+    def _validate_health(self, state: dict[str, Any], *, target_release: bool) -> None:
+        result = self._run(
+            ["/usr/bin/curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1:8765/api/v1/health"]
+        )
+        try:
+            health = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise Rejected("health endpoint did not return JSON") from exc
+        self._validate_health_payload(state, health, target_release=target_release)
+
+    def _validate_staged_runtime(self, state: dict[str, Any], staging: Path) -> dict[str, Any]:
+        """Run the staged API on an ephemeral localhost socket under its service account."""
+        environment = self._service_runtime_environment()
+        result = self._run(
+            [
+                "/usr/sbin/runuser",
+                "--preserve-environment",
+                "--user",
+                SERVICE_ACCOUNT,
+                "--",
+                str(staging / "venv" / "bin" / "python"),
+                "-c",
+                STAGED_RUNTIME_VALIDATION,
+            ],
+            cwd=staging,
+            env=environment,
+            purpose="staged localhost runtime validation",
+        )
+        try:
+            payload = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise Rejected("staged runtime validation did not return JSON") from exc
+        if not isinstance(payload, dict):
+            raise Rejected("staged runtime validation returned an invalid document")
+        health, version = payload.get("health"), payload.get("version")
+        self._validate_health_payload(state, health, target_release=True)
+        if not isinstance(version, dict):
+            raise Rejected("staged version endpoint returned an invalid document")
+        for field, expected in {
+            "application_version": state["version"],
+            "release_id": state["release_id"],
+            "build_id": state["build_id"],
+        }.items():
+            if version.get(field) != expected:
+                raise Rejected(f"staged version metadata {field} does not match release")
+        expected_schema = state["manifest_core"]["database"]["target_revision"]
+        if version.get("database_schema_revision") != expected_schema:
+            raise Rejected("staged version metadata schema does not match manifest")
+        return {
+            "bind": "127.0.0.1:ephemeral",
+            "environment": health["environment"],
+            "writes_enabled": health["writes_enabled"],
+            "database_reachable": health["database_reachable"],
+            "schema_revision": health["current_schema_revision"],
+            "application_version": health["application_version"],
+            "release_id": health["release_id"],
+            "build_id": health["build_id"],
+            "commit_sha": state["commit_sha"],
+        }
 
     def begin(self, request: dict[str, Any]) -> dict[str, Any]:
         deployment_id = self._id(request.get("deployment_id"))
@@ -393,12 +527,13 @@ class Helper:
         pip = staging / "venv" / "bin" / "pip"
         self._run([str(pip), "install", "--require-hashes", "-r", str(staging / "requirements.lock")])
         self._save(state, "RUNTIME_READY")
-        self._run([str(staging / "venv" / "bin" / "python"), "-c", "import server.eoat_api.app"])
         # Ownership is fixed here; no user supplied account or group can reach
-        # this command.  It happens only after archive and manifest validation.
-        self._run(["/usr/bin/chown", "-R", "eoat-atlas:eoat-atlas", str(staging)])
+        # this command. It occurs before the isolated run so it exercises the
+        # same account as the production systemd service.
+        self._run(["/usr/bin/chown", "-R", f"{SERVICE_ACCOUNT}:{SERVICE_ACCOUNT}", str(staging)])
+        staged_validation = self._validate_staged_runtime(state, staging)
         os.replace(staging, target)
-        self._save(state, "STAGED_VALIDATED", target_path=str(target))
+        self._save(state, "STAGED_VALIDATED", target_path=str(target), staged_validation=staged_validation)
         return state
 
     def _replace_link(self, link: Path, target: Path, deployment_id: str) -> None:
