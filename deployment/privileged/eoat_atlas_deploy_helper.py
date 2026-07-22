@@ -350,6 +350,8 @@ class Helper:
             raise Rejected("migration account is unavailable")
         if values.get("EOAT_DB_NAME") != self._database_name():
             raise Rejected("migration environment database is not the fixed production database")
+        if values.get("EOAT_DB_HOST") != "127.0.0.1" or values.get("EOAT_DB_PORT") != "3306":
+            raise Rejected("migration environment must use the fixed local MySQL endpoint")
         # mysql client programs consume MYSQL_PWD.  Set it only in the
         # sanitized child-process environment; it is never logged, persisted,
         # or accepted from a deployment request.
@@ -357,6 +359,11 @@ class Helper:
         if password:
             values["MYSQL_PWD"] = password
         return {**os.environ, **values}
+
+    @staticmethod
+    def _mysql_client_arguments(environment: dict[str, str]) -> list[str]:
+        """Use only the loopback endpoint validated from migration.env."""
+        return [f"--host={environment['EOAT_DB_HOST']}", f"--port={environment['EOAT_DB_PORT']}"]
 
     @staticmethod
     def _database_name() -> str:
@@ -419,6 +426,7 @@ class Helper:
         command = [
             "/usr/bin/mysqldump",
             f"--user={user}",
+            *self._mysql_client_arguments(environment),
             "--single-transaction",
             "--no-tablespaces",
             "--routines",
@@ -541,7 +549,15 @@ class Helper:
         environment = self._migration_environment()
         user = environment.get("EOAT_MIGRATION_DB_USER") or environment["EOAT_DB_USER"]
         data_state = self._run(
-            ["/usr/bin/mysql", f"--user={user}", "--batch", "--skip-column-names", "--execute=SELECT COUNT(*) FROM data_state", self._database_name()],
+            [
+                "/usr/bin/mysql",
+                f"--user={user}",
+                *self._mysql_client_arguments(environment),
+                "--batch",
+                "--skip-column-names",
+                "--execute=SELECT COUNT(*) FROM data_state",
+                self._database_name(),
+            ],
             env=environment,
             purpose="fixed data-state singleton verification",
         ).stdout.strip()
@@ -588,7 +604,12 @@ class Helper:
         try:
             with gzip.open(path, "rb") as stream:
                 result = self.runner(
-                    ["/usr/bin/mysql", f"--user={user}", self._database_name()],
+                    [
+                        "/usr/bin/mysql",
+                        f"--user={user}",
+                        *self._mysql_client_arguments(environment),
+                        self._database_name(),
+                    ],
                     stdin=stream,
                     stderr=subprocess.PIPE,
                     check=False,

@@ -114,6 +114,8 @@ def paths(tmp_path: Path) -> Paths:
     value.migration_env.write_text(
         "EOAT_API_ENVIRONMENT=production\n"
         "EOAT_API_WRITES_ENABLED=false\n"
+        "EOAT_DB_HOST=127.0.0.1\n"
+        "EOAT_DB_PORT=3306\n"
         "EOAT_DB_NAME=eoat_atlas_prod\n"
         "EOAT_MIGRATION_DB_USER=eoat_migrate\n",
         encoding="utf-8",
@@ -173,6 +175,8 @@ def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:
     backup_command = next(command for command in runner.commands if command[0] == "/usr/bin/mysqldump")
     assert "--single-transaction" in backup_command
     assert "--no-tablespaces" in backup_command
+    assert "--host=127.0.0.1" in backup_command
+    assert "--port=3306" in backup_command
 
 
 def test_backup_corruption_wrong_schema_and_concurrency_block_migration(tmp_path: Path) -> None:
@@ -276,10 +280,28 @@ def test_migration_environment_rejects_a_nonproduction_database(tmp_path: Path) 
     value.migration_env.write_text(
         "EOAT_API_ENVIRONMENT=production\n"
         "EOAT_API_WRITES_ENABLED=false\n"
+        "EOAT_DB_HOST=127.0.0.1\n"
+        "EOAT_DB_PORT=3306\n"
         "EOAT_DB_NAME=not_eoat_atlas_prod\n"
         "EOAT_DB_MIGRATION_USER=eoat_migrate\n",
         encoding="utf-8",
     )
 
     with pytest.raises(Rejected, match="fixed production database"):
+        DisposableHelper(value, Runner())._migration_environment()
+
+
+def test_migration_environment_rejects_a_nonlocal_mysql_endpoint(tmp_path: Path) -> None:
+    value = paths(tmp_path)
+    value.migration_env.write_text(
+        "EOAT_API_ENVIRONMENT=production\n"
+        "EOAT_API_WRITES_ENABLED=false\n"
+        "EOAT_DB_HOST=database.example.test\n"
+        "EOAT_DB_PORT=3306\n"
+        "EOAT_DB_NAME=eoat_atlas_prod\n"
+        "EOAT_DB_MIGRATION_USER=eoat_migrate\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(Rejected, match="fixed local MySQL endpoint"):
         DisposableHelper(value, Runner())._migration_environment()
