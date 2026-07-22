@@ -630,6 +630,12 @@ class AtlasDataGateway:
                 "photos": self.cache.list("photos"),
                 "schema_revision": self.cache.metadata().get("server_schema_revision", ""),
                 "server_revision": self.cache.metadata().get("server_revision", ""),
+                "data_status": {
+                    "data_revision": self.cache.metadata().get("data_revision", ""),
+                    "data_last_modified_at": self.cache.metadata().get("data_last_modified_at", ""),
+                    "last_import_at": self.cache.metadata().get("last_import_at", ""),
+                    "last_import_source": self.cache.metadata().get("last_import_source", ""),
+                },
                 "generated_at": self.cache.metadata().get("last_successful_sync_at", ""),
             }
         elif status.mode == ConnectivityMode.ONLINE:
@@ -660,6 +666,10 @@ class AtlasDataGateway:
                 "last_server_failure": metadata.get("last_server_failure", ""),
                 "cache_status": "Ready" if cache_status and cache_status.exists else "Not built",
                 "last_change_cursor": cache_status.last_change_cursor if cache_status else 0,
+                "data_revision": metadata.get("data_revision", ""),
+                "data_last_modified_at": metadata.get("data_last_modified_at", ""),
+                "last_import_at": metadata.get("last_import_at", ""),
+                "last_import_source": metadata.get("last_import_source", ""),
             }
         )
         bundle.metrics.update(self.diagnostics())

@@ -10,6 +10,7 @@ from core.versioning.compatibility import EXPECTED_API_VERSION, EXPECTED_SCHEMA_
 
 from .compatibility import COMPATIBLE_STATUS_CODES, classify_status
 from .contracts import (
+    DataStatusResponse,
     FitCheckRequest,
     FitCheckResult,
     PairCompatibility,
@@ -18,7 +19,9 @@ from .contracts import (
     SyncSnapshot,
     SyncStatus,
 )
+from .data_state import mark_data_changed
 from .database import models as db
+from .errors import APIError
 from .repositories import AtlasRepository
 from .security import ActorContext
 
@@ -275,7 +278,30 @@ class AtlasService:
         )
         self.session.add(record)
         self.session.flush()
+        # Persisted Fit Check history is visible operational data, unlike an
+        # in-memory evaluation request, so it participates in data freshness.
+        mark_data_changed(self.session, actor)
         return result.model_copy(update={"stored": True})
+
+    def data_status(self) -> DataStatusResponse:
+        state = self.session.get(db.DataState, 1)
+        if state is None:
+            raise APIError(
+                503,
+                "DATA_STATE_UNAVAILABLE",
+                "Authoritative data freshness metadata is not initialized.",
+                retryable=True,
+            )
+        return DataStatusResponse(
+            status="available",
+            data_revision=int(state.current_revision),
+            data_last_modified_at=state.data_last_modified_at,
+            last_import_at=state.last_import_at,
+            last_import_source=state.last_import_source,
+            server_time=datetime.now(timezone.utc),
+            source="mysql",
+            environment=__import__("os").environ.get("EOAT_API_ENVIRONMENT", "development"),
+        )
 
     def sync_status(self) -> SyncStatus:
         revision = self.schema_revision()
@@ -318,6 +344,7 @@ class AtlasService:
             schema_revision=status.schema_revision,
             cursor=status.current_cursor,
             generated_at=datetime.now(timezone.utc),
+            data_status=self.data_status(),
             lookups=self.repository.lookups(),
             eoats=eoat_profiles,
             machines=machine_profiles,

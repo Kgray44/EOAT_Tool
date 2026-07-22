@@ -99,6 +99,13 @@
       "state": "finalized",
       "task_id": "codex-safe-github-publication-20260720",
       "finalized_at_utc": "2026-07-20T20:01:57Z"
+    },
+    {
+      "application_version": "0.18.0",
+      "release_id": "eoat-atlas-0.18.0",
+      "state": "finalized",
+      "task_id": "codex-data-freshness-polling-20260721",
+      "finalized_at_utc": "2026-07-21T15:01:57Z"
     }
   ]
 }

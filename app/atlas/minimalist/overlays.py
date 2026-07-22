@@ -297,6 +297,7 @@ class MinimalistSearchOverlay(AnimatedGlassPanel):
         self._current_commands: list[AtlasCommand] = []
         self._command_dispatch_in_progress = False
         self._callback_dispatch_pending = False
+        self._deferred_callback = None
         self.setObjectName("MinimalistSearchOverlay")
         apply_glass_theme(self, "search_overlay")
 
@@ -331,6 +332,12 @@ class MinimalistSearchOverlay(AnimatedGlassPanel):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(125)
         self._refresh_timer.timeout.connect(self.refresh_results)
+        # Commands close the palette before changing pages.  Keep that queued
+        # step on an owned timer so teardown can cancel it instead of leaving a
+        # Python closure posted after its overlay or main window is deleted.
+        self._callback_dispatch_timer = QTimer(self)
+        self._callback_dispatch_timer.setSingleShot(True)
+        self._callback_dispatch_timer.timeout.connect(self._run_deferred_callback)
         self._current_entity_query = None
         self._current_entity_query_text = ""
         self.entity_dropdown: EntitySearchDropdown | None = None
@@ -601,7 +608,29 @@ class MinimalistSearchOverlay(AnimatedGlassPanel):
             self.hide()
         # Closing changes focus, visibility, and sometimes page ownership. Let
         # that teardown finish before a command mutates application pages.
-        QTimer.singleShot(0, lambda callback=callback: self._run_callback_safely(callback))
+        self._deferred_callback = callback
+        self._callback_dispatch_timer.start(0)
+
+    def _run_deferred_callback(self) -> None:
+        callback = self._deferred_callback
+        self._deferred_callback = None
+        if callback is not None:
+            self._run_callback_safely(callback)
+
+    def _cancel_deferred_callback(self) -> None:
+        self._callback_dispatch_timer.stop()
+        self._deferred_callback = None
+        self._callback_dispatch_pending = False
+
+    def event(self, event) -> bool:
+        if event.type() == QEvent.Type.Destroy:
+            self._cancel_deferred_callback()
+        return super().event(event)
+
+    def closeEvent(self, event) -> None:
+        self._refresh_timer.stop()
+        self._cancel_deferred_callback()
+        super().closeEvent(event)
 
     def _run_callback_safely(self, callback) -> None:
         try:

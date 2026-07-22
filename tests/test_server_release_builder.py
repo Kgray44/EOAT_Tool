@@ -23,7 +23,7 @@ def release_repository(root: Path) -> tuple[Path, str]:
     defaults = {
         "app_name": "EOAT Atlas",
         "api_contract_version": "1.4.0",
-        "database_schema_revision": "20260717_0007",
+        "database_schema_revision": "20260721_0008",
         "environment": "production",
         "release_channel": "server",
         "launcher_version": "0.1.0",
@@ -35,7 +35,7 @@ def release_repository(root: Path) -> tuple[Path, str]:
     _write(root / "launcher/launcher_version.json", json.dumps({"launcher_version": "0.1.0"}))
     _write(root / "installer/installer_config.json", json.dumps({"installer_version": "0.1.0"}))
     _write(root / "server/eoat_api/__init__.py", "")
-    _write(root / "server/migrations/versions/20260717_0007_test.py", 'revision = "20260717_0007"\ndown_revision = None\n')
+    _write(root / "server/migrations/versions/20260721_0008_test.py", 'revision = "20260721_0008"\ndown_revision = None\n')
     _write(root / "core/__init__.py", "")
     _write(root / "release_tools/__init__.py", "")
     _write(root / "requirements.lock", "")
@@ -69,7 +69,7 @@ def test_metadata_generation_captures_exact_source_and_stable_identities(tmp_pat
     assert metadata["release_id"] == "eoat-atlas-1.2.3"
     assert metadata["build_id"] == f"eoat-atlas-1.2.3-{commit[:7]}-20260716T200000Z"
     assert metadata["source_git_commit"] == metadata["git_commit"] == commit
-    assert metadata["database_schema_revision"] == "20260717_0007"
+    assert metadata["database_schema_revision"] == "20260721_0008"
     assert metadata["api_contract_version"] == "1.4.0"
     assert metadata["build_timestamp"] == "2026-07-16T20:00:00Z"
 
@@ -117,7 +117,7 @@ def test_archive_checksum_manifest_and_linux_layout_are_consistent(tmp_path: Pat
         assert all("\\" not in name and not name.startswith("/") for name in package.namelist())
         metadata = json.loads(package.read("release_metadata.json"))
     assert metadata["source_git_commit"] == commit
-    assert metadata["database_schema_revision"] == "20260717_0007"
+    assert metadata["database_schema_revision"] == "20260721_0008"
     assert metadata["api_contract_version"] == "1.4.0"
     assert not any(builder.SECRET_KEY.search(key) for key in metadata)
     assert not any(builder.SECRET_KEY.search(key) for key in manifest)

@@ -7,6 +7,7 @@ from threading import RLock
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.requests import Request
 
 from .config import DatabaseSettings
 
@@ -19,6 +20,7 @@ def _bool_env(name: str, default: bool) -> bool:
 _LOCK = RLock()
 _ENGINES: dict[bool, Engine] = {}
 _FACTORIES: dict[bool, sessionmaker[Session]] = {}
+_REQUEST_SESSION_ATTRIBUTE = "_eoat_write_session"
 
 
 def create_database_engine(*, migration: bool = False, pool_pre_ping: bool | None = None) -> Engine:
@@ -71,13 +73,36 @@ def get_runtime_session() -> Iterator[Session]:
             session.rollback()
 
 
-def get_write_session() -> Iterator[Session]:
-    """Yield one isolated transaction for an entire server-first write request."""
+def get_write_session(request: Request) -> Iterator[Session]:
+    """Yield one request session; middleware commits successful HTTP writes first.
+
+    FastAPI's yielded dependencies are finalized after it has prepared the
+    response.  Storing the session on the request lets the HTTP middleware
+    commit before that response is released, so a 200 write cannot be followed
+    by a stale authoritative status read.
+    """
     factory = create_session_factory(migration=False)
-    with factory() as session:
-        try:
-            with session.begin():
-                yield session
-        except Exception:
+    session = factory()
+    setattr(request.state, _REQUEST_SESSION_ATTRIBUTE, session)
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        # The normal path is finalized by ``finalize_request_write_session``.
+        # Keep this rollback as the exception/streaming safety net.
+        if session.in_transaction():
             session.rollback()
-            raise
+        session.close()
+
+
+def finalize_request_write_session(request: Request, *, commit: bool) -> None:
+    """Finish a request session before its HTTP response is returned."""
+    session = getattr(request.state, _REQUEST_SESSION_ATTRIBUTE, None)
+    if session is None or not session.in_transaction():
+        return
+    if commit:
+        session.commit()
+    else:
+        session.rollback()

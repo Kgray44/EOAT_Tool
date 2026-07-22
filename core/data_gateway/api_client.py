@@ -107,6 +107,9 @@ class AtlasApiClient:
     def server_status(self) -> dict[str, Any]:
         return self._request("GET", "/api/v1/server-status")
 
+    def data_status(self) -> dict[str, Any]:
+        return self._request("GET", "/api/v1/data-status")
+
     def home_summary(self) -> dict[str, Any]:
         return self._request("GET", "/api/v1/home-summary")
 

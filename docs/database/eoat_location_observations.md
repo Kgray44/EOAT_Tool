@@ -47,7 +47,7 @@ python scripts/database/import_eoat_location_observations.py `
   --apply
 ```
 
-It refuses a schema other than `20260717_0007`, refuses a production-named source, requires the reviewed 57-state distribution, uses UUIDv5 identifiers, and rejects mixed/partial row counts.
+It requires the current application schema `20260721_0008`, refuses a production-named source, requires the reviewed 57-state distribution, uses UUIDv5 identifiers, and rejects mixed/partial row counts. The later revision retains the observation model and adds independent freshness metadata.
 
 ## API and client
 

@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMainWindow, QStackedWidget, QWidget
 
@@ -23,6 +23,8 @@ from core.atlas_entity_search import (
 from core.atlas_models import AtlasDataBundle
 from core.atlas_search import SearchResolution, normalize_search_term, resolve_search_query
 from core.config import UserConfig
+from core.data_freshness import DataFreshnessService, FreshnessSettings, FreshnessTransition, PollingState
+from core.data_freshness_qt import QtDataFreshnessPoller
 from core.logging import log_activity_event
 from core.performance import perf_timer
 from core.reporting.pdf_preview_session import cleanup_abandoned_preview_files
@@ -142,6 +144,13 @@ class MinimalistAtlasWindow(QMainWindow):
         self.config = config
         self.settings = (settings or AtlasSettings()).normalized()
         self.minimalist_app_settings = load_minimalist_settings()
+        freshness_settings = self.minimalist_app_settings.get("data_loading", {}) if isinstance(self.minimalist_app_settings, dict) else {}
+        self.data_freshness = DataFreshnessService(settings=FreshnessSettings.from_mapping(freshness_settings))
+        self._freshness_poller: QtDataFreshnessPoller | None = None
+        self._freshness_relative_timer = QTimer(self)
+        self._freshness_relative_timer.timeout.connect(self._refresh_freshness_indicators)
+        self._freshness_refresh_in_progress = False
+        self._closing = False
         self._minimalist_theme_preference = normalize_theme_preference(
             self.minimalist_app_settings.get("app", {}).get("theme") if isinstance(self.minimalist_app_settings, dict) else None
         )
@@ -208,6 +217,12 @@ class MinimalistAtlasWindow(QMainWindow):
         }
         self._apply_minimalist_theme_to_pages(self._minimalist_theme_preference)
         self.setCentralWidget(self.stack)
+        # ``auto_refresh=False`` is the existing opt-out for background window
+        # work.  Honor it for the new status poller as well; callers can still
+        # construct deterministic GUI fixtures without an unmanaged network
+        # worker being started behind their back.
+        if auto_refresh:
+            self._configure_freshness_polling(start=True)
         self.command_palette_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
         self.command_palette_shortcut.activated.connect(self._context_search_shortcut)
         self.command_palette_meta_shortcut = QShortcut(QKeySequence("Meta+K"), self)
@@ -248,6 +263,43 @@ class MinimalistAtlasWindow(QMainWindow):
             enhanced_small_text_contrast=app_settings.get("enhanced_small_text_contrast"),
         )
         self._apply_minimalist_behavior_settings()
+        QTimer.singleShot(0, self, self._retry_deferred_freshness_refresh)
+
+    def on_minimalist_settings_editing_resolved(self) -> None:
+        """Resume a refresh deferred solely for an unsaved Settings edit.
+
+        Saving reaches this through :meth:`commit_minimalist_settings`, but a
+        deliberate discard keeps the saved configuration unchanged.  Give both
+        paths the same bounded, window-owned retry point so a stale page is not
+        left paused after the edit is resolved.
+        """
+        QTimer.singleShot(0, self, self._retry_deferred_freshness_refresh)
+
+    def _configure_freshness_polling(self, *, start: bool = False) -> None:
+        """Apply live polling settings without multiplying timers or workers."""
+        if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() != "mysql_api":
+            self._freshness_relative_timer.stop()
+            return
+        loading_settings = self.minimalist_app_settings.get("data_loading", {}) if isinstance(self.minimalist_app_settings, dict) else {}
+        self.data_freshness.configure(FreshnessSettings.from_mapping(loading_settings))
+        if self._freshness_poller is None:
+            self._freshness_poller = QtDataFreshnessPoller(
+                self.data_freshness,
+                can_poll=lambda: not self.isMinimized() or bool(self.minimalist_setting("data_loading.poll_while_minimized", True)),
+                parent=self,
+            )
+            self._freshness_poller.transitioned.connect(self._freshness_transitioned)
+            self._freshness_poller.poll_failed.connect(self._freshness_poll_failed)
+        if self.data_freshness.settings.automatic_polling_enabled:
+            self._freshness_relative_timer.start(30_000)
+            if start:
+                self._freshness_poller.start(immediate=True)
+            else:
+                self._freshness_poller.reconfigure()
+        else:
+            self._freshness_relative_timer.stop()
+            self._freshness_poller.reconfigure()
+        self._refresh_freshness_indicators()
 
     def _apply_minimalist_behavior_settings(self) -> None:
         app_settings = self.minimalist_app_settings.get("app", {}) if isinstance(self.minimalist_app_settings, dict) else {}
@@ -262,16 +314,23 @@ class MinimalistAtlasWindow(QMainWindow):
         }.get(animation_speed, (320, 160))
         self.page_transition.incoming_duration_ms = durations[0]
         self.page_transition.outgoing_duration_ms = durations[1]
-        auto_refresh = bool(loading_settings.get("auto_refresh_enabled", False)) and not bool(loading_settings.get("manual_refresh_only", False))
-        try:
-            auto_refresh_minutes = int(loading_settings.get("auto_refresh_minutes", 15))
-        except (TypeError, ValueError):
-            auto_refresh_minutes = 15
-        if auto_refresh:
-            self._auto_refresh_timer.start(max(1, auto_refresh_minutes) * 60 * 1000)
-        else:
-            self._auto_refresh_timer.stop()
         mysql_api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api"
+        if mysql_api_mode:
+            # MySQL/API mode uses the status-only freshness service.  The old
+            # cache-reload timer would be both expensive and semantically wrong.
+            self._auto_refresh_timer.stop()
+            if self._freshness_poller is not None:
+                self._configure_freshness_polling()
+        else:
+            auto_refresh = bool(loading_settings.get("auto_refresh_enabled", False)) and not bool(loading_settings.get("manual_refresh_only", False))
+            try:
+                auto_refresh_minutes = int(loading_settings.get("auto_refresh_minutes", 15))
+            except (TypeError, ValueError):
+                auto_refresh_minutes = 15
+            if auto_refresh:
+                self._auto_refresh_timer.start(max(1, auto_refresh_minutes) * 60 * 1000)
+            else:
+                self._auto_refresh_timer.stop()
         if (
             not mysql_api_mode
             and bool(loading_settings.get("detect_file_changes", True))
@@ -289,6 +348,122 @@ class MinimalistAtlasWindow(QMainWindow):
                 return default
             node = node.get(key)
         return default if node is None else node
+
+    def check_data_connection(self) -> bool:
+        """Run a manual status-only check; it does not reload data by itself."""
+        return bool(self._freshness_poller and self._freshness_poller.check_now())
+
+    def _freshness_transitioned(self, _service: DataFreshnessService, transition: FreshnessTransition) -> None:
+        self._refresh_freshness_indicators()
+        if transition.warning:
+            LOGGER.warning("data_freshness_warning %s", transition.warning)
+            self.show_status(transition.warning)
+        if transition.kind not in {"advanced", "decreased"}:
+            return
+        self._mark_fit_check_stale()
+        automatic = self.data_freshness.settings.refresh_when_data_changes == "automatic" or transition.kind == "decreased"
+        if not automatic:
+            self.show_status("New server data is available. Refresh current data when you are ready.")
+            return
+        reason = self._freshness_refresh_block_reason()
+        if reason:
+            self.data_freshness.mark_refresh_deferred(reason)
+            LOGGER.info("data_freshness_refresh_deferred reason=%s", reason)
+            self._refresh_freshness_indicators()
+            self.show_status("New server data is available. Refresh is deferred until the current edit or operation is complete.")
+            return
+        self.data_freshness.mark_refreshing()
+        self._freshness_refresh_in_progress = True
+        self.refresh_data(background=True, freshness_refresh=True)
+
+    def _freshness_poll_failed(self, message: str) -> None:
+        # Keep the last known authority timestamp and cached bundle visible.
+        self._using_cached_data_fallback = self.bundle is not None
+        self._refresh_freshness_indicators()
+        LOGGER.warning("data_freshness_connection_unavailable error=%s", message)
+
+    def _freshness_refresh_block_reason(self) -> str:
+        if self._refresh_in_progress or (self._load_thread is not None and self._load_thread.isRunning()):
+            return "operation"
+        if not self.data_freshness.settings.pause_refresh_while_editing:
+            return ""
+        settings_page = getattr(self, "settings_page", None)
+        settings_content = getattr(settings_page, "settings_content", settings_page)
+        if settings_content is not None and getattr(settings_content, "dirty_keys", None):
+            return "editing"
+        return ""
+
+    def _mark_fit_check_stale(self) -> None:
+        content = getattr(getattr(self, "fit_check_page", None), "fit_content", None)
+        marker = getattr(content, "mark_server_data_stale", None)
+        if callable(marker):
+            marker()
+
+    def _retry_deferred_freshness_refresh(self) -> None:
+        if self._closing:
+            return
+        if not self.data_freshness.any_page_stale or self._freshness_refresh_block_reason():
+            return
+        if self.data_freshness.state not in {PollingState.PAUSED_FOR_EDIT, PollingState.PAUSED_FOR_OPERATION}:
+            return
+        self.data_freshness.mark_refreshing()
+        self._freshness_refresh_in_progress = True
+        self.refresh_data(background=True, freshness_refresh=True)
+
+    def _decorate_bundle_freshness(self) -> None:
+        if self.bundle is None:
+            return
+        metrics = self.bundle.metrics
+        metrics["freshness_primary_text"] = self.data_freshness.primary_text()
+        metrics["data_revision"] = self.data_freshness.current_revision if self.data_freshness.current_revision is not None else metrics.get("data_revision", "")
+        metrics["data_last_modified_at"] = (
+            self.data_freshness.data_last_modified_at.isoformat() if self.data_freshness.data_last_modified_at else metrics.get("data_last_modified_at", "")
+        )
+        metrics["last_checked_at"] = self.data_freshness.last_checked_at.isoformat() if self.data_freshness.last_checked_at else ""
+        metrics["freshness_state"] = str(self.data_freshness.state)
+
+    def _refresh_freshness_indicators(self) -> None:
+        self._decorate_bundle_freshness()
+        if self.bundle is None:
+            return
+        ready = self.data_freshness.state not in {PollingState.OFFLINE_CACHED, PollingState.ERROR}
+        for page_key, content_name, page_name in (
+            ("minimalist_home", "home_content", "home_page"),
+            ("fit_check", "fit_content", "fit_check_page"),
+            ("packet_builder", "packet_content", "packet_builder_page"),
+            ("library", "library_content", "library_page"),
+            ("standards", "simple_content", "standards_page"),
+            ("data_health", "simple_content", "data_health_page"),
+        ):
+            content = getattr(getattr(self, page_name, None), content_name, None)
+            status = getattr(content, "status", None)
+            setter = getattr(status, "set_status", None)
+            if not callable(setter):
+                continue
+            text = self.data_freshness.primary_text()
+            setter(text, ready=ready)
+            details = self.data_freshness.details_text(page_key=page_key)
+            status.setToolTip(details)
+            label = getattr(status, "label", None)
+            if label is not None:
+                label.setToolTip(details)
+                label.setAccessibleName(f"EOAT Atlas data status. {details.replace(chr(10), '. ')}")
+
+    def _register_displayed_page_revisions(self, bundle: AtlasDataBundle) -> None:
+        raw_revision = getattr(bundle, "metrics", {}).get("data_revision")
+        try:
+            revision = int(raw_revision)
+        except (TypeError, ValueError):
+            revision = None
+        cached = self._using_cached_data_fallback
+        for page_key in ("minimalist_home", "fit_check", "packet_builder", "library", "standards", "data_health", "settings"):
+            self.data_freshness.register_page(page_key, displayed_revision=revision, cached=cached)
+        if revision is not None and self.data_freshness.current_revision is None:
+            # The full snapshot included the revision that produced this bundle;
+            # the first status poll will attach the authoritative timestamp.
+            self.data_freshness.current_revision = revision
+        if revision is not None and revision == self.data_freshness.current_revision:
+            self.data_freshness.finish_refresh(revision=revision)
 
     def _configured_source_paths(self) -> dict[str, str]:
         try:
@@ -355,7 +530,14 @@ class MinimalistAtlasWindow(QMainWindow):
                 if callable(apply_content):
                     apply_content(preference)
 
-    def refresh_data(self, *, force: bool = False, deep_refresh: bool = False) -> None:
+    def refresh_data(
+        self,
+        *,
+        force: bool = False,
+        deep_refresh: bool = False,
+        background: bool = False,
+        freshness_refresh: bool = False,
+    ) -> None:
         deep = bool(deep_refresh or force)
         mysql_api_mode = os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api"
         if self._refresh_in_progress or (self._load_thread is not None and self._load_thread.isRunning()):
@@ -364,14 +546,15 @@ class MinimalistAtlasWindow(QMainWindow):
         self._refresh_in_progress = True
         self._bundle_before_refresh = self.bundle
         self._entity_search_index = EntitySearchIndex.empty()
-        try:
-            self._apply_bundle_to_pages(None)
-        except Exception as exc:
-            LOGGER.exception("Could not prepare Atlas pages for data refresh")
-            self._refresh_in_progress = False
-            self._bundle_before_refresh = None
-            self.show_status(f"Atlas data refresh could not start: {type(exc).__name__}: {exc}")
-            return
+        if not background:
+            try:
+                self._apply_bundle_to_pages(None)
+            except Exception as exc:
+                LOGGER.exception("Could not prepare Atlas pages for data refresh")
+                self._refresh_in_progress = False
+                self._bundle_before_refresh = None
+                self.show_status(f"Atlas data refresh could not start: {type(exc).__name__}: {exc}")
+                return
         if deep and mysql_api_mode:
             self.loading_progress.emit("Deep Refresh: rebuilding the disposable API cache...")
             self.show_status("Deep Refresh started. EOAT Atlas is rebuilding its disposable cache from the API.")
@@ -380,7 +563,8 @@ class MinimalistAtlasWindow(QMainWindow):
             self.show_status("Explicit legacy Deep Refresh started.")
         elif mysql_api_mode:
             self.loading_progress.emit("Refreshing through the EOAT Atlas API...")
-            self.show_status("Refreshing EOAT Atlas from the server change feed and disposable cache.")
+            if not background:
+                self.show_status("Refreshing EOAT Atlas from the server change feed and disposable cache.")
         else:
             self.loading_progress.emit("Refreshing from local cache...")
             self.show_status("Refreshing EOAT Atlas from the existing local cache.")
@@ -391,6 +575,7 @@ class MinimalistAtlasWindow(QMainWindow):
             exclude_unaudited_tools=self.settings.exclude_unaudited_tools,
             source_paths=self._configured_source_paths(),
         )
+        self._freshness_refresh_in_progress = freshness_refresh
         self._load_worker.moveToThread(self._load_thread)
         self._load_thread.started.connect(self._load_worker.run)
         self._load_worker.progress.connect(self.loading_progress.emit)
@@ -425,6 +610,9 @@ class MinimalistAtlasWindow(QMainWindow):
         ):
             self._entity_search_index = EntitySearchIndex.build(bundle)
         self._apply_bundle_to_pages(bundle)
+        self._register_displayed_page_revisions(bundle)
+        self._freshness_refresh_in_progress = False
+        self._refresh_freshness_indicators()
         deep_refresh = bool(getattr(bundle, "metrics", {}).get("deep_refresh"))
         action_label = "Deep Refresh complete." if deep_refresh else "Refresh complete."
         load_message = f"{action_label} Loaded {len(bundle.eoats)} EOATs, {len(bundle.machines)} machines, {len(bundle.tools)} tools."
@@ -440,6 +628,10 @@ class MinimalistAtlasWindow(QMainWindow):
     def _data_failed(self, message: str) -> None:
         fallback = self._bundle_before_refresh or self.bundle
         self._bundle_before_refresh = None
+        self._freshness_refresh_in_progress = False
+        if self.data_freshness.state == PollingState.REFRESHING:
+            self.data_freshness.state = PollingState.UPDATE_AVAILABLE
+            self._refresh_freshness_indicators()
         if fallback is not None and bool(self.minimalist_setting("data_loading.cache_last_good_data", True)):
             self.bundle = fallback
             self._apply_bundle_to_pages(fallback)
@@ -548,6 +740,11 @@ class MinimalistAtlasWindow(QMainWindow):
 
             self.settings_page = AtlasMinimalistSettingsPage(self)
             self.settings_page.set_bundle(self.bundle)
+            self.data_freshness.register_page(
+                "settings",
+                displayed_revision=self.data_freshness.current_revision,
+                cached=self._using_cached_data_fallback,
+            )
             self.stack.addWidget(self.settings_page)
             self.pages["settings"] = self.settings_page
             self.pages["diagnostics"] = self.settings_page
@@ -1149,9 +1346,19 @@ class MinimalistAtlasWindow(QMainWindow):
         return next((record for record in self.bundle.tools if normalized_tool_key(record.tool) == key), None)
 
     def closeEvent(self, event) -> None:
+        self._closing = True
+        if self._freshness_poller is not None:
+            self._freshness_poller.shutdown()
+        for timer_name in ("_freshness_relative_timer", "_auto_refresh_timer", "_source_watch_timer"):
+            timer = getattr(self, timer_name, None)
+            if timer is not None:
+                timer.stop()
         shutdown_admin = getattr(getattr(self, "settings_page", None), "shutdown_admin_session", None)
         if callable(shutdown_admin):
             shutdown_admin()
+        shutdown_library = getattr(getattr(self, "library_page", None), "_shutdown_page_services", None)
+        if callable(shutdown_library):
+            shutdown_library()
         for page_name in (
             "home_page",
             "fit_check_page",
@@ -1170,6 +1377,11 @@ class MinimalistAtlasWindow(QMainWindow):
             load_thread.quit()
             load_thread.wait(3000)
         super().closeEvent(event)
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange and not self.isMinimized() and self._freshness_poller is not None:
+            self._freshness_poller.resume_or_focus()
 
 
 __all__ = ["MinimalistAtlasWindow"]
