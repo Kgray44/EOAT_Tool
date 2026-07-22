@@ -106,6 +106,13 @@
       "state": "finalized",
       "task_id": "release-manager-0.17.3",
       "finalized_at_utc": "2026-07-21T20:56:10Z"
+    },
+    {
+      "application_version": "0.18.0",
+      "release_id": "eoat-atlas-0.18.0",
+      "state": "finalized",
+      "task_id": "release-tools-gui-20260722",
+      "finalized_at_utc": "2026-07-22T19:45:22Z"
     }
   ]
 }

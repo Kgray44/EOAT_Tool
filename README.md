@@ -1,5 +1,9 @@
 # EOAT Atlas
 
+## Release tools GUI
+
+The release manager and server updater now also have PySide6 operator interfaces. From the repository root run `python run_release_tools.py`, `python run_release_packager.py`, or `python run_server_updater.py`. See [docs/RELEASE_TOOLS_GUI.md](docs/RELEASE_TOOLS_GUI.md) for safety gates, non-secret configuration, receipts, and the read-only rehearsal workflow.
+
 EOAT Atlas is the Minimalist desktop client and API for finding EOAT, machine, and tool records; evaluating their
 compatibility; reviewing evidence; and producing controlled setup references. MySQL through the EOAT Atlas API is the
 authoritative operational backend. The local SQLite API cache is disposable, read-only evidence for limited offline
