@@ -1,0 +1,3 @@
+# Root-owned production file: /etc/eoat-atlas/nginx-upstream-token.conf (0640).
+# It is deliberately excluded from releases and source control.
+set $eoat_atlas_upstream_token "__SERVER_ONLY_DEVICE_TOKEN__";

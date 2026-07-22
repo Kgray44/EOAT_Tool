@@ -31,6 +31,7 @@ from .common import (
     write_json_atomic,
 )
 from .manifest import external_manifest, manifest_core, validate_core, validate_external_manifest
+from .web_release import build_web_static
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL_VERSION = "1.0.0"
@@ -46,6 +47,7 @@ SERVER_PATHS = (
     "release_defaults.json",
     "launcher/launcher_version.json",
     "installer/installer_config.json",
+    "deployment/runtime",
 )
 REQUIRED_ARCHIVE_PATHS = {
     "server/alembic.ini",
@@ -180,9 +182,13 @@ def _source_members(root: Path, commit: str) -> list[tuple[str, bytes, int]]:
 
     with tempfile.TemporaryDirectory(prefix="eoat-release-source-") as temporary:
         source_tar = Path(temporary) / "source.tar"
-        result = Git(root).run(
-            "archive", "--format=tar", f"--output={source_tar}", commit, "--", *SERVER_PATHS, check=False
-        )
+        git = Git(root)
+        available = [
+            path
+            for path in SERVER_PATHS
+            if git.run("cat-file", "-e", f"{commit}:{path}", check=False).returncode == 0
+        ]
+        result = git.run("archive", "--format=tar", f"--output={source_tar}", commit, "--", *available, check=False)
         if result.returncode:
             raise DeploymentError("Could not create Git archive for selected release content")
         members: list[tuple[str, bytes, int]] = []
@@ -241,7 +247,7 @@ def _tarinfo(name: str, contents: bytes, mode: int, timestamp: datetime) -> tarf
 
 
 def build_deployment_archive(
-    root: Path, commit: str, output_dir: Path, *, branch: str, timestamp: datetime | None = None
+    root: Path, commit: str, output_dir: Path, *, branch: str, timestamp: datetime | None = None, web_static: Path | None = None
 ) -> ArchiveBuild:
     """Build and immediately re-validate a deterministic Debian tarball.
 
@@ -253,6 +259,15 @@ def build_deployment_archive(
     timestamp = (timestamp or utc_now()).astimezone(timezone.utc).replace(microsecond=0)
     commit = resolve_source_commit(root, commit)
     members = _source_members(root, commit)
+    if web_static is not None:
+        index = web_static / "index.html"
+        if not index.is_file():
+            raise DeploymentError("web static release is missing index.html")
+        members.extend(
+            (f"web-static/{path.relative_to(web_static).as_posix()}", path.read_bytes(), 0o644)
+            for path in sorted(web_static.rglob("*"))
+            if path.is_file()
+        )
     findings = _scan_forbidden(members)
     if findings:
         raise DeploymentError("Release content safety scan failed: " + "; ".join(findings))
@@ -750,7 +765,10 @@ def package(
         temporary, clone, release_commit = _clone_for_dry_run(root, target)
         try:
             artifact_dir = Path(temporary.name) / "artifacts"
-            build = build_deployment_archive(clone, release_commit, artifact_dir, branch=state.branch)
+            web_static = artifact_dir / "web-static" if (clone / "web" / "package.json").is_file() else None
+            if web_static is not None:
+                build_web_static(clone, release_commit, web_static)
+            build = build_deployment_archive(clone, release_commit, artifact_dir, branch=state.branch, web_static=web_static)
             receipt.update(
                 {
                     "release_commit": release_commit,
@@ -782,9 +800,11 @@ def package(
         Git(root).run("add", "--", "app/atlas/version.json", "release_history.json")
         Git(root).run("commit", "-m", f"release: EOAT Atlas {target}")
         release_commit = Git(root).output("rev-parse", "HEAD")
-        build = build_deployment_archive(
-            root, release_commit, root / ".local" / "release-artifacts" / str(target), branch=state.branch
-        )
+        artifact_dir = root / ".local" / "release-artifacts" / str(target)
+        web_static = artifact_dir / "web-static" if (root / "web" / "package.json").is_file() else None
+        if web_static is not None:
+            build_web_static(root, release_commit, web_static)
+        build = build_deployment_archive(root, release_commit, artifact_dir, branch=state.branch, web_static=web_static)
         receipt.update(
             {
                 "release_commit": release_commit,

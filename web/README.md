@@ -33,6 +33,8 @@ The legacy document/photo API endpoints retain desktop-oriented storage-path met
 
 Phase 2 remains read-only: it does not implement edits, PM workflows, uploads, browser authentication, SAML/LDAP, session cookies, CSRF, deployment, database changes, PWA/offline behavior, or service workers. Its dedicated web Fit Check route enforces non-persistence server-side. Playwright tests use intercepted, controlled API responses and do not touch production data.
 
+Phase 3 packages this static build into the server release and defines the NGINX/systemd production boundary. The browser still has no device credential: a root-owned NGINX include injects the existing trusted token only on its localhost FastAPI upstream request. Production activation requires IT-approved DNS, TLS, firewall, and media-mount inputs; it is not performed by the frontend build.
+
 ## Security and production architecture
 
 No `X-EOAT-Device-Token`, MySQL credential, or API secret belongs in browser code, `VITE_*` variables, source maps, tests, or committed config. This client does not send the trusted desktop token and does not enable writes. CORS and API authorization are unchanged.

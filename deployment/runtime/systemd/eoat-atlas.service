@@ -1,0 +1,30 @@
+[Unit]
+Description=EOAT Atlas FastAPI (read-only web service)
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=eoat-atlas
+Group=eoat-atlas
+WorkingDirectory=/opt/eoat-atlas/current
+EnvironmentFile=/etc/eoat-atlas/runtime.env
+UMask=0077
+ExecStart=/opt/eoat-atlas/current/venv/bin/python -m uvicorn server.eoat_api.app:app --host 127.0.0.1 --port 8765 --proxy-headers
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/eoat-atlas /var/log/eoat-atlas
+ReadOnlyPaths=/opt/eoat-atlas /mnt/eoat-atlas-media
+
+[Install]
+WantedBy=multi-user.target

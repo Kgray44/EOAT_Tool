@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import mimetypes
 import os
@@ -22,6 +23,7 @@ LOGGER = logging.getLogger("eoat_api.web_content")
 _INLINE_TYPES = {"application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"}
 _THUMBNAIL_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._ -]+")
+_WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
 
 
 def approved_content_roots() -> tuple[Path, ...]:
@@ -44,6 +46,45 @@ def safe_download_name(file_name: str) -> str:
     return name or "eoat-atlas-file"
 
 
+def _mapped_storage_path(raw_path: str) -> str:
+    """Map an approved Windows/UNC database path to a Debian mount, if needed.
+
+    Mapping configuration is server-only JSON in ``EOAT_WEB_CONTENT_PATH_MAPPINGS``.
+    A mapping must match a complete, normalized source-prefix boundary; this
+    intentionally fails closed rather than guessing a share mount.
+    """
+    # Local Windows development stores already-native absolute paths. Debian
+    # never sees those paths without a mapping, while test fixtures must retain
+    # the platform's normal filesystem semantics.
+    if not _WINDOWS_PATH.match(raw_path) or (os.name == "nt" and re.match(r"^[A-Za-z]:[\\/]", raw_path)):
+        return raw_path
+    try:
+        mappings = json.loads(os.getenv("EOAT_WEB_CONTENT_PATH_MAPPINGS", "[]"))
+    except json.JSONDecodeError:
+        LOGGER.warning("web_content_mapping_configuration_invalid")
+        raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.") from None
+    if not isinstance(mappings, list):
+        raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    raw_normalized = raw_path.replace("/", "\\")
+    normalized = raw_normalized.casefold()
+    for mapping in mappings:
+        if not isinstance(mapping, dict):
+            continue
+        prefix, target = mapping.get("source_prefix"), mapping.get("target_root")
+        if not isinstance(prefix, str) or not isinstance(target, str):
+            continue
+        source = prefix.replace("/", "\\").rstrip("\\").casefold()
+        if not source or not (normalized == source or normalized.startswith(source + "\\")):
+            continue
+        relative = raw_normalized[len(source) :].lstrip("\\")
+        parts = [part for part in relative.split("\\") if part]
+        if not parts or any(part in {".", ".."} for part in parts):
+            break
+        return str(Path(target, *parts))
+    LOGGER.warning("web_content_mapping_not_approved")
+    raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+
+
 def _reject_unsafe_path(raw_path: str, roots: tuple[Path, ...]) -> Path:
     if not roots:
         raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.", retryable=True)
@@ -52,7 +93,7 @@ def _reject_unsafe_path(raw_path: str, roots: tuple[Path, ...]) -> Path:
         LOGGER.warning("web_content_rejected_encoded_or_traversal_path")
         raise APIError(403, "WEB_CONTENT_FORBIDDEN", "Content is not available through the web interface.")
     try:
-        candidate = Path(raw_path).expanduser()
+        candidate = Path(_mapped_storage_path(raw_path)).expanduser()
         if not candidate.is_absolute():
             raise ValueError("relative path")
         resolved = candidate.resolve(strict=True)

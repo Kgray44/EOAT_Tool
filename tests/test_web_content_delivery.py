@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -50,6 +51,23 @@ def test_content_path_rejects_symlink_escape(tmp_path: Path, monkeypatch: pytest
         web_content._reject_unsafe_path(str(escaped), web_content.approved_content_roots())
 
     assert "outside-web-content" not in error.value.message
+
+
+def test_windows_storage_path_uses_only_an_exact_approved_mapping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    mounted = tmp_path / "mount"
+    mounted.mkdir()
+    source = mounted / "Folder" / "photo.jpg"
+    source.parent.mkdir()
+    source.write_bytes(b"jpg")
+    _configure_root(monkeypatch, mounted)
+    monkeypatch.setenv(
+        "EOAT_WEB_CONTENT_PATH_MAPPINGS",
+        json.dumps([{"source_prefix": r"\\fileserver\eoat-media", "target_root": str(mounted)}]),
+    )
+
+    assert web_content._reject_unsafe_path(r"\\fileserver\eoat-media\Folder\photo.jpg", web_content.approved_content_roots()) == source.resolve()
+    with pytest.raises(APIError):
+        web_content._reject_unsafe_path(r"\\fileserver\eoat-media-evil\Folder\photo.jpg", web_content.approved_content_roots())
 
 
 def test_content_response_uses_safe_filename_and_forces_active_content_download(
