@@ -31,6 +31,8 @@ config/config.json
 local_config.json
 user_config.json
 *.local.json
+# Default local server-updater target; contains non-secret metadata only.
+config/deployment_server.local.json
 
 # Real project data folders
 EOAT_Standardization_Project/

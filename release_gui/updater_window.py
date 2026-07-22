@@ -46,6 +46,7 @@ class ServerUpdaterWindow(ToolWindow):
         self.commit = QComboBox()
         self.config = QLineEdit()
         self.config.setReadOnly(True)
+        self.default_config_path = self.service.default_config_path
         self.refresh_button = QPushButton("Refresh source")
         self.choose_config_button = QPushButton("Choose server configuration")
         self.update_button = QPushButton("Update Server")
@@ -93,6 +94,9 @@ class ServerUpdaterWindow(ToolWindow):
         self.refresh_actions()
         if auto_refresh:
             QTimer.singleShot(0, self.refresh_source)
+            if self.default_config_path.is_file():
+                self.config.setText(str(self.default_config_path))
+                QTimer.singleShot(0, lambda: self._load_config(self.default_config_path, automatic=True))
 
     def refresh_actions(self) -> None:
         source_selected = bool(self.repository and self.repository.version and self.commit.currentData())
@@ -161,7 +165,11 @@ class ServerUpdaterWindow(ToolWindow):
         )
         if not filename:
             return
-        path = Path(filename)
+        self._load_config(Path(filename))
+
+    def _load_config(self, path: Path, *, automatic: bool = False) -> None:
+        if automatic:
+            self.log.add("Default server configuration: validating")
 
         def done(result: OperationResult) -> None:
             self.config_path = path

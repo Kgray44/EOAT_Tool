@@ -126,7 +126,9 @@ def test_settings_reject_sensitive_values(tmp_path: Path, monkeypatch) -> None:
 
 def test_services_are_importable_without_cli_execution(tmp_path: Path) -> None:
     assert ReleaseManagerService(tmp_path).root == tmp_path.resolve()
-    assert ServerUpdaterService(tmp_path).root == tmp_path.resolve()
+    updater = ServerUpdaterService(tmp_path)
+    assert updater.root == tmp_path.resolve()
+    assert updater.default_config_path == tmp_path / "config" / "deployment_server.local.json"
 
 
 def test_repository_status_keeps_computed_clean_property(tmp_path: Path, monkeypatch) -> None:

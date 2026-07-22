@@ -182,6 +182,10 @@ class ServerUpdaterService:
         self.root = root.resolve()
         self.cache_root = (cache_root or self.root / ".local" / "deployment-cache").resolve()
 
+    @property
+    def default_config_path(self) -> Path:
+        return self.root / "config" / "deployment_server.local.json"
+
     def inspect_status(self, config_path: Path | None = None) -> OperationResult:
         raw = {
             "tool_version": server_updater.TOOL_VERSION,

@@ -134,6 +134,13 @@
       "state": "finalized",
       "task_id": "release-tools-gui-updater-simplification-20260722",
       "finalized_at_utc": "2026-07-22T21:30:37Z"
+    },
+    {
+      "application_version": "0.18.4",
+      "release_id": "eoat-atlas-0.18.4",
+      "state": "finalized",
+      "task_id": "release-tools-gui-default-server-config-20260722",
+      "finalized_at_utc": "2026-07-22T21:38:15Z"
     }
   ]
 }

@@ -10,7 +10,7 @@ python run_release_packager.py
 python run_server_updater.py
 ```
 
-PySide6, Git, and (for GitHub release inspection/publication) GitHub CLI must be available. Server inspection and deployment operations require a selected non-secret JSON server configuration. The GUI deliberately does not read SSH passwords, private keys, database passwords, environment files, or tokens. OpenSSH configuration, agent, and `known_hosts` are used unchanged.
+PySide6, Git, and (for GitHub release inspection/publication) GitHub CLI must be available. The updater defaults to the ignored, non-secret `config/deployment_server.local.json` when it exists; **Choose server configuration** can replace it. The GUI deliberately does not read SSH passwords, private keys, database passwords, environment files, or tokens. OpenSSH configuration, agent, and `known_hosts` are used unchanged.
 
 ## Safe normal workflow
 
