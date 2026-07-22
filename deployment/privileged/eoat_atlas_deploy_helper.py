@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import gzip
 import hashlib
 import json
 import os
@@ -69,20 +70,27 @@ finally:
 '''
 STATES = {
     "CREATED",
+    "PACKAGE_VERIFIED",
     "PREFLIGHT_PASSED",
     "LOCK_ACQUIRED",
+    "BACKUP_STARTED",
     "BACKUP_CREATED",
+    "BACKUP_VERIFIED",
     "ARTIFACT_TRANSFERRED",
     "ARTIFACT_VERIFIED",
     "RELEASE_EXTRACTED",
     "RUNTIME_READY",
     "STAGED_VALIDATED",
+    "MIGRATION_PREFLIGHT_PASSED",
     "MIGRATION_APPROVED",
+    "MIGRATION_STARTED",
     "MIGRATION_COMPLETE",
+    "MIGRATION_VERIFIED",
     "ACTIVATION_STARTED",
     "ACTIVATED",
     "SERVICE_RESTARTED",
     "HEALTH_VALIDATED",
+    "POSTCHECK_PASSED",
     "COMPLETED",
     "ROLLBACK_STARTED",
     "ROLLED_BACK",
@@ -123,6 +131,7 @@ class Paths:
     root: Path = Path("/opt/eoat-atlas")
     lock: Path = Path("/var/lock/eoat-atlas-deploy.lock")
     runtime_env: Path = Path("/etc/eoat-atlas/runtime.env")
+    migration_env: Path = Path("/etc/eoat-atlas/migration.env")
     proc: Path = Path("/proc")
 
     @property
@@ -292,6 +301,282 @@ class Helper:
             raise Rejected("embedded manifest has no release/build identity")
         state["release_id"], state["build_id"] = release_id, build_id
 
+    def _migration_environment(self) -> dict[str, str]:
+        """Read the fixed root-only migration environment without logging it.
+
+        Values are never accepted from a request and never copied into a
+        receipt.  The administrator owns this protected file; the helper only
+        consumes it for its fixed mysqldump/mysql/Alembic commands.
+        """
+        path = self.paths.migration_env
+        try:
+            stat = path.stat()
+            if os.name != "nt" and (stat.st_uid != 0 or stat.st_mode & 0o077):
+                raise Rejected("migration environment ownership or permissions are unsafe")
+            raw = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise Rejected("protected migration environment is unavailable") from exc
+        values: dict[str, str] = {}
+        for line in raw.splitlines():
+            if not line or line.lstrip().startswith("#"):
+                continue
+            if "=" not in line:
+                raise Rejected("protected migration environment is malformed")
+            key, value = line.split("=", 1)
+            if not re.fullmatch(r"[A-Z][A-Z0-9_]{1,80}", key) or "\x00" in value:
+                raise Rejected("protected migration environment is malformed")
+            values[key] = value
+        if values.get("EOAT_API_ENVIRONMENT", "production").casefold() != "production":
+            raise Rejected("migration environment is not production")
+        if values.get("EOAT_API_WRITES_ENABLED", "false").casefold() in {"1", "true", "yes", "on"}:
+            raise Rejected("migration environment enables writes")
+        user = values.get("EOAT_MIGRATION_DB_USER") or values.get("EOAT_DB_USER")
+        if not user or not re.fullmatch(r"[A-Za-z0-9_]{1,64}", user):
+            raise Rejected("migration account is unavailable")
+        return {**os.environ, **values}
+
+    @staticmethod
+    def _database_name() -> str:
+        # This is deliberately not configurable through the request, manifest,
+        # environment, or CLI.  The privileged helper exists only for EOAT
+        # Atlas production.
+        return "eoat_atlas_prod"
+
+    def _migration_command(self, state: dict[str, Any], action: str) -> list[str]:
+        staged = Path(str(state.get("target_path") or ""))
+        binary = staged / "venv" / "bin" / "alembic"
+        config = staged / "server" / "alembic.ini"
+        if not binary.is_file() or not config.is_file() or staged.resolve().parent != self.paths.releases.resolve():
+            raise Rejected("verified staged migration environment is unavailable")
+        database = state["manifest_core"].get("database")
+        if not isinstance(database, dict):
+            raise Rejected("release metadata has no database contract")
+        target = database.get("target_revision")
+        predecessor = database.get("minimum_compatible_revision") or "20260717_0007"
+        if not isinstance(target, str) or not re.fullmatch(r"[0-9]{8}_[0-9]{4}", target):
+            raise Rejected("release target revision is unsafe")
+        if not isinstance(predecessor, str) or not re.fullmatch(r"[0-9]{8}_[0-9]{4}", predecessor):
+            raise Rejected("release predecessor revision is unsafe")
+        if action == "current":
+            return [str(binary), "-c", str(config), "current"]
+        if action == "upgrade":
+            return [str(binary), "-c", str(config), "upgrade", target]
+        if action == "downgrade":
+            return [str(binary), "-c", str(config), "downgrade", predecessor]
+        raise Rejected("unsupported fixed migration action")
+
+    def _alembic_revision(self, state: dict[str, Any]) -> str:
+        result = self._run(
+            self._migration_command(state, "current"),
+            cwd=Path(state["target_path"]),
+            env=self._migration_environment(),
+            purpose="approved migration revision query",
+        )
+        matches = re.findall(r"\b[0-9]{8}_[0-9]{4}\b", result.stdout or "")
+        if len(matches) != 1:
+            raise Rejected("migration revision query returned an unexpected result")
+        return matches[0]
+
+    def _backup_path(self, state: dict[str, Any]) -> Path:
+        identifier = state["deployment_id"]
+        name = f"{identifier}-{self._database_name()}-pre-migration.sql.gz"
+        path = self.paths.backups / name
+        if path.exists() or path.is_symlink() or path.parent.resolve() != self.paths.backups.resolve():
+            raise Rejected("production backup path is unsafe or already exists")
+        return path
+
+    def _create_backup(self, state: dict[str, Any]) -> dict[str, Any]:
+        environment = self._migration_environment()
+        target = self._backup_path(state)
+        partial = target.with_suffix(".sql.partial")
+        if partial.exists() or partial.is_symlink():
+            raise Rejected("production backup partial path is unsafe")
+        user = environment.get("EOAT_MIGRATION_DB_USER") or environment["EOAT_DB_USER"]
+        self._save(state, "BACKUP_STARTED")
+        command = [
+            "/usr/bin/mysqldump",
+            f"--user={user}",
+            "--single-transaction",
+            "--routines",
+            "--events",
+            f"--result-file={partial}",
+            self._database_name(),
+        ]
+        result = self._run(command, env=environment, purpose="approved production backup")
+        # Test runners return a controlled stdout payload; real mysqldump
+        # writes directly to the fixed partial file via --result-file.
+        if not partial.exists() and result.stdout:
+            partial.write_text(result.stdout, encoding="utf-8")
+        try:
+            if not partial.is_file() or partial.stat().st_size < 16:
+                raise Rejected("production backup is empty or incomplete")
+            with partial.open("rb") as source, gzip.open(target, "wb") as compressed:
+                shutil.copyfileobj(source, compressed)
+            os.chmod(target, 0o600)
+            with gzip.open(target, "rb") as stream:
+                sample = stream.read(4096)
+            if not sample or b"\x00" in sample:
+                raise Rejected("production backup is not structurally plausible")
+        finally:
+            partial.unlink(missing_ok=True)
+        record = {"id": target.stem, "path": str(target), "sha256": digest(target), "size_bytes": target.stat().st_size, "created_at_utc": utc()}
+        return self._save(state, "BACKUP_CREATED", backup=record)
+
+    def backup_production(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state.get("migration_decision") != "REQUIRED" or state["state"] != "LOCK_ACQUIRED":
+            raise Rejected("migration backup is not permitted in the current transaction state")
+        return self._create_backup(state)
+
+    def verify_backup(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state["state"] != "BACKUP_CREATED" or not isinstance(state.get("backup"), dict):
+            raise Rejected("migration backup has not been created")
+        record = state["backup"]
+        path = Path(str(record.get("path") or ""))
+        if path.parent.resolve() != self.paths.backups.resolve() or path.is_symlink() or not path.is_file():
+            raise Rejected("migration backup path is unsafe")
+        backup_stat = path.stat()
+        if (
+            (os.name != "nt" and (backup_stat.st_uid != 0 or backup_stat.st_mode & 0o077))
+            or backup_stat.st_size < 16
+            or digest(path) != record.get("sha256")
+        ):
+            raise Rejected("migration backup verification failed")
+        try:
+            with gzip.open(path, "rb") as stream:
+                if not stream.read(16):
+                    raise Rejected("migration backup verification failed")
+        except OSError as exc:
+            raise Rejected("migration backup verification failed") from exc
+        return self._save(state, "BACKUP_VERIFIED", backup_verified_at_utc=utc())
+
+    def migration_preflight(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state.get("migration_decision") != "REQUIRED" or state["state"] != "STAGED_VALIDATED":
+            raise Rejected("migration preflight is not permitted in the current transaction state")
+        if not state.get("backup_verified_at_utc"):
+            raise Rejected("migration preflight requires a verified backup")
+        database = state["manifest_core"].get("database", {})
+        predecessor = database.get("minimum_compatible_revision") or "20260717_0007"
+        target = database.get("target_revision")
+        current = self._alembic_revision(state)
+        if current != predecessor or current == target:
+            raise Rejected("production schema does not match the package predecessor revision")
+        migration_files = list((Path(state["target_path"]) / "server" / "migrations" / "versions").glob(f"{target}_*.py"))
+        if len(migration_files) != 1 or migration_files[0].is_symlink():
+            raise Rejected("packaged migration file is missing or ambiguous")
+        return self._save(
+            state,
+            "MIGRATION_PREFLIGHT_PASSED",
+            migration_preflight={
+                "current_revision": current,
+                "target_revision": target,
+                "writes_enabled": False,
+                "migration_file": migration_files[0].name,
+                "migration_sha256": digest(migration_files[0]),
+            },
+        )
+
+    def apply_migration(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state["state"] != "MIGRATION_PREFLIGHT_PASSED":
+            raise Rejected("migration apply requires a successful migration preflight")
+        self._save(state, "MIGRATION_APPROVED")
+        self._save(state, "MIGRATION_STARTED")
+        try:
+            self._run(self._migration_command(state, "upgrade"), cwd=Path(state["target_path"]), env=self._migration_environment(), purpose="approved production migration")
+            target = state["manifest_core"]["database"]["target_revision"]
+            if self._alembic_revision(state) != target:
+                raise Rejected("approved migration did not reach the package target revision")
+        except Rejected:
+            self._save(state, "FAILED", failure="migration apply failed")
+            self._receipt(state)
+            raise
+        return self._save(state, "MIGRATION_COMPLETE", migration_result={"target_revision": target, "exit_code": 0})
+
+    def verify_migration(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state["state"] != "MIGRATION_COMPLETE":
+            raise Rejected("migration verification requires a completed migration")
+        target = state["manifest_core"]["database"]["target_revision"]
+        if self._alembic_revision(state) != target or self._current_target() != state["previous_target"]:
+            raise Rejected("migration verification failed")
+        environment = self._migration_environment()
+        user = environment.get("EOAT_MIGRATION_DB_USER") or environment["EOAT_DB_USER"]
+        data_state = self._run(
+            ["/usr/bin/mysql", f"--user={user}", "--batch", "--skip-column-names", "--execute=SELECT COUNT(*) FROM data_state", self._database_name()],
+            env=environment,
+            purpose="fixed data-state singleton verification",
+        ).stdout.strip()
+        if data_state != "1":
+            raise Rejected("migration verification did not find exactly one data_state row")
+        staged = self._validate_staged_runtime(state, Path(state["target_path"]))
+        return self._save(state, "MIGRATION_VERIFIED", migration_verified_at_utc=utc(), staged_validation=staged)
+
+    def cleanup_failed_deployment(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state["state"] not in {"FAILED", "ROLLED_BACK"} or self._current_target() != state["previous_target"]:
+            raise Rejected("failed deployment cleanup is not permitted in the current transaction state")
+        self._receipt(state)
+        self._release_lock(state["deployment_id"])
+        return state
+
+    def downgrade_migration(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state["state"] not in {"MIGRATION_COMPLETE", "MIGRATION_VERIFIED", "ROLLBACK_STARTED", "FAILED"}:
+            raise Rejected("migration downgrade is not permitted in the current transaction state")
+        self._save(state, "ROLLBACK_STARTED", recovery="package-declared predecessor downgrade")
+        self._run(self._migration_command(state, "downgrade"), cwd=Path(state["target_path"]), env=self._migration_environment(), purpose="approved migration downgrade")
+        predecessor = state["manifest_core"]["database"].get("minimum_compatible_revision") or "20260717_0007"
+        if self._alembic_revision(state) != predecessor:
+            raise Rejected("migration downgrade did not reach the package predecessor revision")
+        return self._save(state, "ROLLED_BACK", database_recovery="downgrade")
+
+    def restore_backup(self, request: dict[str, Any]) -> dict[str, Any]:
+        state = self._load(self._id(request.get("deployment_id")))
+        self._assert_lock(state["deployment_id"])
+        if state["state"] not in {"MIGRATION_COMPLETE", "MIGRATION_VERIFIED", "ROLLBACK_STARTED", "FAILED"}:
+            raise Rejected("backup restoration is not permitted in the current transaction state")
+        record = state.get("backup")
+        if not isinstance(record, dict):
+            raise Rejected("verified deployment backup is unavailable")
+        path = Path(str(record.get("path") or ""))
+        if path.parent.resolve() != self.paths.backups.resolve() or path.is_symlink() or not path.is_file() or digest(path) != record.get("sha256"):
+            raise Rejected("backup restoration checksum validation failed")
+        self._save(state, "ROLLBACK_STARTED", recovery="verified deployment backup restoration")
+        environment = self._migration_environment()
+        user = environment.get("EOAT_MIGRATION_DB_USER") or environment["EOAT_DB_USER"]
+        try:
+            with gzip.open(path, "rb") as stream:
+                result = self.runner(
+                    ["/usr/bin/mysql", f"--user={user}", self._database_name()],
+                    stdin=stream,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                    env=environment,
+                )
+            if result.returncode:
+                raise Rejected("approved backup restoration failed")
+            predecessor = state["manifest_core"]["database"].get("minimum_compatible_revision") or "20260717_0007"
+            if self._alembic_revision(state) != predecessor:
+                raise Rejected("backup restoration did not restore the package predecessor revision")
+        except (OSError, Rejected):
+            self._save(state, "MANUAL_INTERVENTION_REQUIRED", failure="backup restoration failed")
+            self._receipt(state)
+            raise
+        self._save(state, "ROLLED_BACK", database_recovery="verified_backup_restore")
+        self._receipt(state)
+        self._release_lock(state["deployment_id"])
+        return state
+
     def _run(
         self,
         command: list[str],
@@ -444,6 +729,9 @@ class Helper:
             executor = os.getlogin()
         except OSError:
             executor = f"uid:{os.getuid()}"
+        decision = request.get("migration_decision")
+        if decision not in {"NOT_REQUIRED", "REQUIRED"}:
+            raise Rejected("invalid migration_decision")
         state = {
             "schema_version": 1,
             "deployment_id": deployment_id,
@@ -452,29 +740,33 @@ class Helper:
             "artifact_filename": artifact,
             "artifact_sha256": sha,
             "external_manifest_sha256": external_manifest_sha,
-            "migration_decision": request.get("migration_decision"),
+            "migration_decision": decision,
             "previous_target": current,
             "created_at_utc": utc(),
             "executor": executor,
             "events": [],
         }
         self._save(state, "CREATED")
-        self._save(state, "PREFLIGHT_PASSED", preflight="client-side verified release and server inspection")
+        self._save(state, "PACKAGE_VERIFIED", preflight="client-side verified release and server inspection")
         self._lock(state)
         return self._save(state, "LOCK_ACQUIRED")
 
     def stage(self, request: dict[str, Any]) -> dict[str, Any]:
         state = self._load(self._id(request.get("deployment_id")))
         self._assert_lock(state["deployment_id"])
-        if state["state"] != "LOCK_ACQUIRED":
-            raise Rejected("transaction is not ready for staging")
-        if state.get("migration_decision") != "NOT_REQUIRED":
+        if state.get("migration_decision") == "NOT_REQUIRED":
+            if state["state"] != "LOCK_ACQUIRED":
+                raise Rejected("transaction is not ready for staging")
+            self._save(
+                state,
+                "BACKUP_CREATED",
+                backup={"database": "NOT_REQUIRED", "reason": "current revision equals target revision"},
+            )
+        elif state.get("migration_decision") == "REQUIRED":
+            if state["state"] != "BACKUP_VERIFIED":
+                raise Rejected("migration-bearing deployments require backup verification before staging")
+        else:
             raise Rejected("migration-bearing deployments require explicit approved migration flow")
-        self._save(
-            state,
-            "BACKUP_CREATED",
-            backup={"database": "NOT_REQUIRED", "reason": "current revision equals target revision"},
-        )
         source = self.paths.incoming / f".{state['deployment_id']}.{state['artifact_filename']}"
         external_path = self.paths.incoming / f".{state['deployment_id']}.release_manifest.json"
         checksum_path = self.paths.incoming / f".{state['deployment_id']}.{state['artifact_filename']}.sha256"
@@ -531,9 +823,20 @@ class Helper:
         # this command. It occurs before the isolated run so it exercises the
         # same account as the production systemd service.
         self._run(["/usr/bin/chown", "-R", f"{SERVICE_ACCOUNT}:{SERVICE_ACCOUNT}", str(staging)])
-        staged_validation = self._validate_staged_runtime(state, staging)
-        os.replace(staging, target)
-        self._save(state, "STAGED_VALIDATED", target_path=str(target), staged_validation=staged_validation)
+        if state.get("migration_decision") == "REQUIRED":
+            # The package expects the target schema, so its API cannot pass a
+            # truthful health check until the controlled migration completes.
+            os.replace(staging, target)
+            self._save(
+                state,
+                "STAGED_VALIDATED",
+                target_path=str(target),
+                staged_validation={"status": "DEFERRED_UNTIL_MIGRATION_VERIFIED"},
+            )
+        else:
+            staged_validation = self._validate_staged_runtime(state, staging)
+            os.replace(staging, target)
+            self._save(state, "STAGED_VALIDATED", target_path=str(target), staged_validation=staged_validation)
         return state
 
     def _replace_link(self, link: Path, target: Path, deployment_id: str) -> None:
@@ -548,7 +851,8 @@ class Helper:
     def activate(self, request: dict[str, Any]) -> dict[str, Any]:
         state = self._load(self._id(request.get("deployment_id")))
         self._assert_lock(state["deployment_id"])
-        if state["state"] != "STAGED_VALIDATED":
+        allowed = {"STAGED_VALIDATED"} if state.get("migration_decision") == "NOT_REQUIRED" else {"MIGRATION_VERIFIED"}
+        if state["state"] not in allowed:
             raise Rejected("transaction is not staged")
         old = self._current_target()
         if old != state["previous_target"]:
@@ -582,6 +886,7 @@ class Helper:
             self._release_lock(state["deployment_id"])
             return state
         self._save(state, "HEALTH_VALIDATED")
+        self._save(state, "POSTCHECK_PASSED")
         self._save(state, "COMPLETED", completed_at_utc=utc())
         self._receipt(state)
         self._release_lock(state["deployment_id"])
@@ -595,8 +900,10 @@ class Helper:
         self._assert_lock(state["deployment_id"])
         if state["state"] not in {
             "CREATED",
+            "PACKAGE_VERIFIED",
             "LOCK_ACQUIRED",
             "BACKUP_CREATED",
+            "BACKUP_VERIFIED",
             "ARTIFACT_VERIFIED",
             "RELEASE_EXTRACTED",
             "RUNTIME_READY",
@@ -650,8 +957,10 @@ class Helper:
             if state["state"]
             in {
                 "CREATED",
+                "PACKAGE_VERIFIED",
                 "LOCK_ACQUIRED",
                 "BACKUP_CREATED",
+                "BACKUP_VERIFIED",
                 "ARTIFACT_VERIFIED",
                 "RELEASE_EXTRACTED",
                 "RUNTIME_READY",
@@ -679,7 +988,7 @@ class Helper:
         if not COMMIT.fullmatch(implementation_commit):
             implementation_commit = "UNEXPANDED_WORKTREE"
         return {
-            "helper_version": 1,
+            "helper_version": 2,
             "implementation_commit": implementation_commit,
             "installed_file_sha256": digest(Path(__file__)),
             "policy_version": HELPER_POLICY_VERSION,
@@ -691,6 +1000,14 @@ class Helper:
                 "abort",
                 "rollback",
                 "recover",
+                "backup-production",
+                "verify-backup",
+                "migration-preflight",
+                "apply-migration",
+                "verify-migration",
+                "downgrade-migration",
+                "restore-backup",
+                "cleanup-failed-deployment",
                 "retention-status",
                 "self-check",
             ],
@@ -717,6 +1034,14 @@ class Helper:
             "abort": self.abort,
             "rollback": self.rollback,
             "recover": self.recover,
+            "backup-production": self.backup_production,
+            "verify-backup": self.verify_backup,
+            "migration-preflight": self.migration_preflight,
+            "apply-migration": self.apply_migration,
+            "verify-migration": self.verify_migration,
+            "downgrade-migration": self.downgrade_migration,
+            "restore-backup": self.restore_backup,
+            "cleanup-failed-deployment": self.cleanup_failed_deployment,
             "retention-status": self.retention_status,
             "self-check": self.self_check,
         }

@@ -47,6 +47,27 @@ rejects traversal/symlink/device/FIFO archive entries, requires runtime source
 and `requirements.lock`, uses `pip install --require-hashes`, and imports the
 staged API before the release directory is promoted.
 
+## Migration-bearing releases
+
+`--stage-only` remains intentionally limited to `NOT_REQUIRED` migrations. A
+release that declares a schema change uses the separately installed helper v2
+workflow: `prepare-migration`, `migration-backup`,
+`migration-verify-backup`, `migration-stage`, `migration-preflight`,
+`migration-apply`, `migration-verify`, then the existing explicit `activate`.
+The root helper derives the production database, backup location, predecessor,
+target revision, migration environment, and release path from its protected
+transaction and package manifest. Operators cannot supply a command, URL,
+database name, backup file, revision, service name, or environment value.
+
+The transaction records `PACKAGE_VERIFIED`, `BACKUP_STARTED`,
+`BACKUP_CREATED`, `BACKUP_VERIFIED`, `STAGED_VALIDATED`,
+`MIGRATION_PREFLIGHT_PASSED`, `MIGRATION_STARTED`, `MIGRATION_COMPLETE`, and
+`MIGRATION_VERIFIED` before activation. A failed migration preserves the lock
+and receipt for the constrained `downgrade-migration` or `restore-backup`
+operation. See
+[the administrator handoff](../deployment/privileged/ADMINISTRATOR_MIGRATION_HELPER.md)
+for installation and recovery details.
+
 ## Operator commands
 
 All active commands require a verified non-secret server configuration and a

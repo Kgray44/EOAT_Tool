@@ -1610,12 +1610,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     version_mode = deploy_version.add_mutually_exclusive_group(required=True)
     version_mode.add_argument("--dry-run", action="store_true")
     version_mode.add_argument("--stage-only", action="store_true", help="Stage after all checks; never activate")
+    prepare_migration = subparsers.add_parser(
+        "prepare-migration", help="Begin and transfer a verified migration-bearing release without staging or migration"
+    )
+    prepare_migration.add_argument("version", metavar="MAJOR.MINOR.PATCH")
     for command, description in (
         ("activate", "Activate an already staged deployment"),
         ("rollback", "Roll back an activated deployment"),
         ("recover", "Inspect a locked interrupted deployment"),
         ("abort", "Abort a pre-activation deployment"),
         ("deployment-status", "Read a deployment transaction state"),
+        ("migration-backup", "Create the fixed production backup for a prepared migration transaction"),
+        ("migration-verify-backup", "Verify the fixed production backup for a prepared migration transaction"),
+        ("migration-stage", "Stage a prepared migration release after backup verification"),
+        ("migration-preflight", "Run the fixed migration preflight"),
+        ("migration-apply", "Apply only the packaged migration target"),
+        ("migration-verify", "Verify only the packaged migration target"),
+        ("migration-downgrade", "Downgrade only to the package-declared predecessor"),
+        ("migration-restore", "Restore only the verified deployment backup"),
+        ("migration-cleanup", "Release a recovered failed migration deployment lock"),
     ):
         active = subparsers.add_parser(command, help=description)
         active.add_argument("deployment_id", metavar="DEPLOYMENT_ID")
@@ -1655,12 +1668,21 @@ def main(argv: list[str] | None = None) -> int:
             receipt["receipt_path"] = str(_write_receipt(root, receipt))
             _print(receipt, args.as_json)
             return 0
-        if args.command in {"activate", "rollback", "recover", "abort", "deployment-status"}:
+        active_commands = {
+            "activate": "activate", "rollback": "rollback", "recover": "recover", "abort": "abort",
+            "deployment-status": "status", "migration-backup": "backup-production",
+            "migration-verify-backup": "verify-backup", "migration-stage": "stage",
+            "migration-preflight": "migration-preflight", "migration-apply": "apply-migration",
+            "migration-verify": "verify-migration", "migration-downgrade": "downgrade-migration",
+            "migration-restore": "restore-backup",
+            "migration-cleanup": "cleanup-failed-deployment",
+        }
+        if args.command in active_commands:
             if not args.server_config:
                 raise DeploymentError(f"{args.command} requires a non-secret --server-config")
             from .active_deployment import helper_operation
 
-            operation = "status" if args.command == "deployment-status" else args.command
+            operation = active_commands[args.command]
             result = helper_operation(
                 root, load_server_config(args.server_config.resolve()), operation, args.deployment_id
             )
@@ -1692,6 +1714,14 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         config = load_server_config(args.server_config.resolve()) if args.server_config else None
+        if args.command == "prepare-migration":
+            if not config:
+                raise DeploymentError("prepare-migration requires a non-secret --server-config")
+            from .active_deployment import prepare_migration_release
+
+            result = prepare_migration_release(root, release_dir, external, config)
+            _print({"mode": "MIGRATION_PREPARE", "deployment_id": result.deployment_id, "state": result.state, "receipt_path": str(result.receipt_path)}, args.as_json)
+            return 0
         if getattr(args, "stage_only", False):
             if not config:
                 raise DeploymentError("--stage-only requires a non-secret --server-config")

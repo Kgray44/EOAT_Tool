@@ -195,8 +195,68 @@ def stage_release(root: Path, release_dir: Path, external: dict[str, Any], confi
     )
 
 
+def prepare_migration_release(root: Path, release_dir: Path, external: dict[str, Any], config: ServerConfig) -> ActiveReceipt:
+    """Begin a migration-bearing transaction and transfer only verified assets.
+
+    This deliberately does *not* back up, stage, migrate, restart, or activate.
+    Each subsequent privileged operation has a separately enforced state gate.
+    """
+    core, artifact, archive = _validated_target(release_dir, external)
+    host_key = ssh_host_key_status(config)
+    if not host_key.known:
+        raise DeploymentError("SSH host key is not trusted; migration preparation stopped before connection")
+    inspection = inspect_server(config, core, archive)
+    if inspection["blocking_failures"]:
+        raise DeploymentError("deployment preflight has blocking failures: " + "; ".join(inspection["blocking_failures"]))
+    migration = inspection.get("migration_requirement", {})
+    if migration.get("status") not in {"REQUIRED", "PASS"}:
+        raise DeploymentError("migration preparation requires a verified required migration")
+    identifier = deployment_id(str(core["commit_sha"]))
+    helper = PrivilegedHelperClient(config)
+    helper.audit_noninteractive_sudo()
+    started = utc_text()
+    helper.invoke(
+        {
+            "operation": "begin",
+            "deployment_id": identifier,
+            "version": core["version"],
+            "commit_sha": core["commit_sha"],
+            "artifact_filename": artifact["filename"],
+            "artifact_sha256": artifact["sha256"],
+            "external_manifest_sha256": hashlib.sha256((release_dir / "release_manifest.json").read_bytes()).hexdigest(),
+            "migration_decision": "REQUIRED",
+        }
+    )
+    try:
+        helper.upload(archive, f".{identifier}.{artifact['filename']}")
+        helper.upload(release_dir / "release_manifest.json", f".{identifier}.release_manifest.json")
+        helper.upload(release_dir / f"{artifact['filename']}.sha256", f".{identifier}.{artifact['filename']}.sha256")
+    except Exception:
+        try:
+            helper.invoke({"operation": "abort", "deployment_id": identifier})
+        except DeploymentError:
+            pass
+        raise
+    return _write_receipt(
+        root,
+        identifier,
+        {
+            "schema_version": 1,
+            "mode": "MIGRATION_PREPARE",
+            "started_at_utc": started,
+            "state": "LOCK_ACQUIRED",
+            "selected_release": {"version": core["version"], "commit_sha": core["commit_sha"], "release_id": core["release_id"], "build_id": core["build_id"]},
+            "artifact": artifact,
+            "server": config.hostname,
+            "preflight": inspection,
+            "activation_performed": False,
+            "production_database_written": False,
+        },
+    )
+
+
 def helper_operation(root: Path, config: ServerConfig, operation: str, identifier: str) -> ActiveReceipt:
-    if operation not in {"activate", "status", "rollback", "recover", "abort"} or not DEPLOYMENT_ID.fullmatch(
+    if operation not in {"activate", "status", "rollback", "recover", "abort", "backup-production", "verify-backup", "stage", "migration-preflight", "apply-migration", "verify-migration", "downgrade-migration", "restore-backup", "cleanup-failed-deployment"} or not DEPLOYMENT_ID.fullmatch(
         identifier
     ):
         raise DeploymentError("unsafe Phase 3 helper operation")

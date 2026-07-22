@@ -1,0 +1,9 @@
+{
+  "helper_version": 2,
+  "helper_sha256": "85a828a94ad38a2f65f1da27e5d011dc889e326aa486d90084c608caede209e9",
+  "installed_helper": "/usr/local/libexec/eoat-atlas/eoat_atlas_deploy_helper.py",
+  "installed_manifest": "/etc/eoat-atlas/deployment-helper.manifest.json",
+  "sudoers": "/etc/sudoers.d/eoat-atlas-deploy",
+  "backup_root": "/opt/eoat-atlas/shared/backups",
+  "checksum_file": "helper.sha256"
+}
