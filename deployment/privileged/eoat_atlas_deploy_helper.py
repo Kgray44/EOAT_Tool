@@ -1132,8 +1132,16 @@ class Helper:
             target, _, _ = self._migration_contract(state)
             if self._current_target() != state["previous_target"] or self._alembic_revision(state) != target:
                 raise Rejected("activation retry prerequisites are not satisfied")
-            self._validate_health(state, target_release=False)
-            self._save(state, "ROLLED_BACK", recovery="old release revalidated before activation retry")
+            # The old release may legitimately report schema incompatibility
+            # once a forward-only migration is applied.  It is a rollback
+            # target for the filesystem/service boundary, not a valid API
+            # health target after the schema edge.  Prove liveness only, then
+            # return promptly to the packaged release that owns the target.
+            self._run(
+                ["/bin/systemctl", "is-active", "--quiet", SERVICE],
+                purpose="restored service liveness check",
+            )
+            self._save(state, "ROLLED_BACK", recovery="restored service liveness verified before activation retry")
         elif state["state"] not in allowed:
             raise Rejected("transaction is not staged")
         old = self._current_target()

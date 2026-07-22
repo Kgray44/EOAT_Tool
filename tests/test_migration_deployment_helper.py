@@ -372,6 +372,14 @@ def test_activation_retry_is_limited_to_revalidated_manual_recovery(tmp_path: Pa
     helper.verify_migration({"deployment_id": payload["deployment_id"]})
     state = helper._load(payload["deployment_id"])
     helper._save(state, "MANUAL_INTERVENTION_REQUIRED", recovery_failure="transient health probe")
+    original_validate = helper._validate_health
+
+    def reject_old_schema_health(state, *, target_release):
+        if not target_release:
+            raise Rejected("old release cannot report target schema compatibility")
+        return original_validate(state, target_release=target_release)
+
+    helper._validate_health = reject_old_schema_health
 
     result = helper.activate({"deployment_id": payload["deployment_id"]})
 
