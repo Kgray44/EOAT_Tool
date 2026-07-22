@@ -15,7 +15,7 @@ PRODUCTION_APPLICATION_SERVICES = ("eoat-atlas.service",)
 PRODUCTION_HEALTH_CHECKS = ("/api/v1/health", "/api/v1/version", "/api/v1/schema-status")
 PRODUCTION_PUBLIC_HEALTH_ENDPOINT = {
     "scheme": "http",
-    "hostname": "eoat-atlas.gwplastics.com",
+    "hostname": "eoat-atlas.example.invalid",
     "port": 80,
     "paths": list(PRODUCTION_HEALTH_CHECKS),
 }

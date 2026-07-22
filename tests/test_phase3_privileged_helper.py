@@ -53,7 +53,7 @@ def _manifest(**changes: object) -> dict[str, object]:
         "health_checks": ["/api/v1/health"],
         "public_health_endpoint": {
             "scheme": "http",
-            "hostname": "eoat-atlas.gwplastics.com",
+            "hostname": "eoat-atlas.example.invalid",
             "port": 80,
             "paths": ["/api/v1/health"],
         },

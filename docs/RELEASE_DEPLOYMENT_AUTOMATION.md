@@ -115,14 +115,14 @@ saves a local receipt under .local/deployment-preflight-receipts. It discovers
 relevant EOAT/Nginx units, captures safe filesystem metadata, and accepts the
 legacy release_metadata.json layout used by releases published before this
 Phase 1 manifest format. It does not read environment-file contents.
-The checked-in example reflects the verified EOAT topology: the eoat-atlas
-application unit, its host-routed NGINX endpoint, and the current inspection
-account. The approved public probe is
-`http://eoat-atlas.gwplastics.com:80`; its three health paths are recorded in
+The checked-in example uses a non-routable placeholder for the EOAT application
+unit and its host-routed NGINX endpoint. Replace it only in an approved,
+untracked environment-specific configuration. The example public probe is
+`http://eoat-atlas.example.invalid:80`; its three health paths are recorded in
 both release manifests and the non-secret server configuration. HTTP is
-intentional for the current approved internal endpoint: the updater does not
-infer HTTPS or treat absent port 443 as an API failure, but records TLS absence
-as a non-blocking infrastructure warning for any broader rollout. A MySQL login path remains an operator-provided read-only capability;
+intentional for the example endpoint: the updater does not infer HTTPS or
+treat absent port 443 as an API failure, but records TLS absence as a
+non-blocking infrastructure warning for any broader rollout. A MySQL login path remains an operator-provided read-only capability;
 the updater reports its absence instead of falling back to credentials or
 environment-file contents.
 
