@@ -330,9 +330,32 @@ class Helper:
             raise Rejected("migration environment is not production")
         if values.get("EOAT_API_WRITES_ENABLED", "false").casefold() in {"1", "true", "yes", "on"}:
             raise Rejected("migration environment enables writes")
-        user = values.get("EOAT_MIGRATION_DB_USER") or values.get("EOAT_DB_USER")
+        # EOAT Atlas has always used the ``EOAT_DB_MIGRATION_*`` pair for
+        # the privileged Alembic identity.  Earlier helper prototypes used
+        # an alternate spelling, so accept that spelling only as a backwards
+        # compatible alias.  Normalize it here, inside the root-only process,
+        # rather than asking an operator to duplicate a credential in another
+        # file or passing it through a request.
+        user = (
+            values.get("EOAT_DB_MIGRATION_USER")
+            or values.get("EOAT_MIGRATION_DB_USER")
+            or values.get("EOAT_DB_USER")
+        )
+        password = (
+            values.get("EOAT_DB_MIGRATION_PASSWORD")
+            or values.get("EOAT_MIGRATION_DB_PASSWORD")
+            or values.get("EOAT_DB_PASSWORD")
+        )
         if not user or not re.fullmatch(r"[A-Za-z0-9_]{1,64}", user):
             raise Rejected("migration account is unavailable")
+        if values.get("EOAT_DB_NAME") != self._database_name():
+            raise Rejected("migration environment database is not the fixed production database")
+        # mysql client programs consume MYSQL_PWD.  Set it only in the
+        # sanitized child-process environment; it is never logged, persisted,
+        # or accepted from a deployment request.
+        values["EOAT_MIGRATION_DB_USER"] = user
+        if password:
+            values["MYSQL_PWD"] = password
         return {**os.environ, **values}
 
     @staticmethod

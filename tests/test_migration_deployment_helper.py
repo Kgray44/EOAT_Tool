@@ -111,7 +111,13 @@ def paths(tmp_path: Path) -> Paths:
     process.mkdir(parents=True)
     (process / "environ").write_bytes(b"EOAT_API_ENVIRONMENT=production\0EOAT_API_WRITES_ENABLED=false\0")
     value.migration_env.parent.mkdir(parents=True, exist_ok=True)
-    value.migration_env.write_text("EOAT_API_ENVIRONMENT=production\nEOAT_API_WRITES_ENABLED=false\nEOAT_MIGRATION_DB_USER=eoat_migrate\n", encoding="utf-8")
+    value.migration_env.write_text(
+        "EOAT_API_ENVIRONMENT=production\n"
+        "EOAT_API_WRITES_ENABLED=false\n"
+        "EOAT_DB_NAME=eoat_atlas_prod\n"
+        "EOAT_MIGRATION_DB_USER=eoat_migrate\n",
+        encoding="utf-8",
+    )
     return value
 
 
@@ -222,3 +228,38 @@ def test_unknown_operations_arbitrary_fields_and_revisions_are_denied(tmp_path: 
     ):
         with pytest.raises(Rejected):
             helper.dispatch(payload)
+
+
+def test_production_migration_environment_uses_existing_root_only_identity(tmp_path: Path) -> None:
+    value = paths(tmp_path)
+    value.migration_env.write_text(
+        "EOAT_API_ENVIRONMENT=production\n"
+        "EOAT_API_WRITES_ENABLED=false\n"
+        "EOAT_DB_HOST=127.0.0.1\n"
+        "EOAT_DB_PORT=3306\n"
+        "EOAT_DB_NAME=eoat_atlas_prod\n"
+        "EOAT_DB_MIGRATION_USER=eoat_migrate\n"
+        "EOAT_DB_MIGRATION_PASSWORD=disposable-only\n"
+        "EOAT_DB_DRIVER=pymysql\n",
+        encoding="utf-8",
+    )
+    helper = DisposableHelper(value, Runner())
+
+    environment = helper._migration_environment()
+
+    assert environment["EOAT_MIGRATION_DB_USER"] == "eoat_migrate"
+    assert environment["MYSQL_PWD"] == "disposable-only"
+
+
+def test_migration_environment_rejects_a_nonproduction_database(tmp_path: Path) -> None:
+    value = paths(tmp_path)
+    value.migration_env.write_text(
+        "EOAT_API_ENVIRONMENT=production\n"
+        "EOAT_API_WRITES_ENABLED=false\n"
+        "EOAT_DB_NAME=not_eoat_atlas_prod\n"
+        "EOAT_DB_MIGRATION_USER=eoat_migrate\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(Rejected, match="fixed production database"):
+        DisposableHelper(value, Runner())._migration_environment()
