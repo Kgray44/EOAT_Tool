@@ -184,9 +184,7 @@ def _source_members(root: Path, commit: str) -> list[tuple[str, bytes, int]]:
         source_tar = Path(temporary) / "source.tar"
         git = Git(root)
         available = [
-            path
-            for path in SERVER_PATHS
-            if git.run("cat-file", "-e", f"{commit}:{path}", check=False).returncode == 0
+            path for path in SERVER_PATHS if git.run("cat-file", "-e", f"{commit}:{path}", check=False).returncode == 0
         ]
         result = git.run("archive", "--format=tar", f"--output={source_tar}", commit, "--", *available, check=False)
         if result.returncode:
@@ -247,7 +245,13 @@ def _tarinfo(name: str, contents: bytes, mode: int, timestamp: datetime) -> tarf
 
 
 def build_deployment_archive(
-    root: Path, commit: str, output_dir: Path, *, branch: str, timestamp: datetime | None = None, web_static: Path | None = None
+    root: Path,
+    commit: str,
+    output_dir: Path,
+    *,
+    branch: str,
+    timestamp: datetime | None = None,
+    web_static: Path | None = None,
 ) -> ArchiveBuild:
     """Build and immediately re-validate a deterministic Debian tarball.
 
@@ -278,6 +282,20 @@ def build_deployment_archive(
     metadata = generate_release_metadata(root, commit, branch_name=branch, build_timestamp=timestamp)
     version = str(metadata["app_version"])
     payload_hash = _payload_digest(members)
+    host_template_paths = {
+        "nginx": "deployment/runtime/nginx/eoat-atlas.conf",
+        "systemd": "deployment/runtime/systemd/eoat-atlas.service",
+    }
+    member_contents = {name: contents for name, contents, _mode in members}
+    host_templates = {
+        name: {"path": path, "sha256": hashlib.sha256(member_contents[path]).hexdigest()}
+        for name, path in host_template_paths.items()
+    }
+    if "web-static/web-static.manifest.json" in member_contents:
+        host_templates["static_manifest"] = {
+            "path": "web-static/web-static.manifest.json",
+            "sha256": hashlib.sha256(member_contents["web-static/web-static.manifest.json"]).hexdigest(),
+        }
     core = manifest_core(
         version=version,
         build_id=str(metadata["build_id"]),
@@ -287,6 +305,7 @@ def build_deployment_archive(
         payload_sha256=payload_hash,
         migration_revision=str(metadata["database_schema_revision"]),
         api_contract_version=str(metadata["api_contract_version"]),
+        host_templates=host_templates,
     )
     archive_name = f"eoat-atlas-server-{version}-{commit[:7]}.tar.gz"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -768,7 +787,9 @@ def package(
             web_static = artifact_dir / "web-static" if (clone / "web" / "package.json").is_file() else None
             if web_static is not None:
                 build_web_static(clone, release_commit, web_static)
-            build = build_deployment_archive(clone, release_commit, artifact_dir, branch=state.branch, web_static=web_static)
+            build = build_deployment_archive(
+                clone, release_commit, artifact_dir, branch=state.branch, web_static=web_static
+            )
             receipt.update(
                 {
                     "release_commit": release_commit,

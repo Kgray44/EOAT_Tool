@@ -41,6 +41,7 @@ def manifest_core(
     payload_sha256: str,
     migration_revision: str,
     api_contract_version: str,
+    host_templates: dict[str, dict[str, str]] | None = None,
     services: list[str] | None = None,
 ) -> dict[str, Any]:
     Version.parse(version)
@@ -75,6 +76,9 @@ def manifest_core(
         "health_checks": list(PRODUCTION_HEALTH_CHECKS),
         "public_health_endpoint": dict(PRODUCTION_PUBLIC_HEALTH_ENDPOINT),
         "api_contract_version": api_contract_version,
+        # These digests bind the root-side web host installer to files in the
+        # immutable release, rather than to a caller supplied configuration.
+        "host_templates": host_templates or {},
     }
 
 
@@ -113,6 +117,7 @@ def validate_core(payload: object) -> dict[str, Any]:
         "health_checks",
         "public_health_endpoint",
         "api_contract_version",
+        "host_templates",
     }
     missing = sorted(required - set(payload))
     if missing:
@@ -147,6 +152,17 @@ def validate_core(payload: object) -> dict[str, Any]:
         isinstance(item, str) and item.startswith("/") for item in payload["health_checks"]
     ):
         raise DeploymentError("Release manifest health checks must be absolute HTTP paths")
+    templates = payload["host_templates"]
+    if not isinstance(templates, dict):
+        raise DeploymentError("Release manifest host templates must be an object")
+    for name, entry in templates.items():
+        if not isinstance(name, str) or not isinstance(entry, dict):
+            raise DeploymentError("Release manifest host template is invalid")
+        path, value = entry.get("path"), entry.get("sha256")
+        if not isinstance(path, str) or path.startswith("/") or ".." in path.split("/"):
+            raise DeploymentError("Release manifest host template path is unsafe")
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
+            raise DeploymentError("Release manifest host template digest is invalid")
     public_health = payload["public_health_endpoint"]
     if (
         not isinstance(public_health, dict)

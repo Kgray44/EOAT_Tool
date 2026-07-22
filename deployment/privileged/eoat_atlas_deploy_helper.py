@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -32,11 +33,67 @@ VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 SAFE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 SERVICE = "eoat-atlas.service"
 SERVICE_ACCOUNT = "eoat-atlas"
+HOST_OPERATIONS = {
+    "host-config-status",
+    "install-web-host-config",
+    "validate-web-host-config",
+    "rollback-web-host-config",
+    "rotate-web-upstream-token",
+}
+HOST_STATES = {
+    "CREATED",
+    "LOCK_ACQUIRED",
+    "SOURCE_VERIFIED",
+    "BACKUPS_CREATED",
+    "FILES_PREPARED",
+    "FILES_INSTALLED",
+    "NGINX_VALIDATED",
+    "SYSTEMD_VALIDATED",
+    "CONFIG_VALIDATED",
+    "COMMITTED",
+    "ROLLBACK_STARTED",
+    "ROLLED_BACK",
+    "FAILED",
+    "MANUAL_INTERVENTION_REQUIRED",
+}
+HOST_TEMPLATE_PATHS = {
+    "nginx": "deployment/runtime/nginx/eoat-atlas.conf",
+    "systemd": "deployment/runtime/systemd/eoat-atlas.service",
+}
+RUNTIME_TOKEN_KEY = "EOAT_API_DEVICE_TOKEN"
+RUNTIME_KEYS = {
+    "EOAT_API_ENVIRONMENT",
+    "EOAT_API_WRITES_ENABLED",
+    RUNTIME_TOKEN_KEY,
+    "EOAT_WEB_CONTENT_ROOTS",
+    "EOAT_WEB_CONTENT_PATH_MAPPINGS",
+    "EOAT_API_LOG_LEVEL",
+    "EOAT_API_DOCS_ENABLED",
+    "EOAT_AUTH_PROVIDER",
+    "EOAT_AUTH_SCOPE",
+    "EOAT_AUTH_SESSION_MINUTES",
+    "EOAT_AUTH_JIT_PROVISIONING",
+    "EOAT_DATABASE_URL",
+    "EOAT_DB_HOST",
+    "EOAT_DB_PORT",
+    "EOAT_DB_NAME",
+    "EOAT_DB_USER",
+    "EOAT_DB_PASSWORD",
+    "EOAT_DB_DRIVER",
+    "EOAT_DB_POOL_PRE_PING",
+    "EOAT_DB_POOL_SIZE",
+    "EOAT_DB_MAX_OVERFLOW",
+    "EOAT_DB_POOL_RECYCLE_SECONDS",
+    "EOAT_DB_POOL_TIMEOUT_SECONDS",
+    "EOAT_DOCUMENT_ROOTS",
+    "EOAT_API_STAGING_IDENTITIES",
+    "EOAT_API_DEV_IDENTITIES",
+}
 HELPER_POLICY_VERSION = 1
 HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
 HEALTH_RETRY_ATTEMPTS = 20
 HEALTH_RETRY_DELAY_SECONDS = 1.0
-STAGED_RUNTIME_VALIDATION = r'''
+STAGED_RUNTIME_VALIDATION = r"""
 # EOAT_STAGE_RUNTIME_VALIDATION
 import json
 import socket
@@ -69,7 +126,7 @@ finally:
     server.should_exit = True
     thread.join(timeout=10)
     listener.close()
-'''
+"""
 STATES = {
     "CREATED",
     "PREFLIGHT_PASSED",
@@ -127,6 +184,11 @@ class Paths:
     lock: Path = Path("/var/lock/eoat-atlas-deploy.lock")
     runtime_env: Path = Path("/etc/eoat-atlas/runtime.env")
     proc: Path = Path("/proc")
+    nginx_site: Path = Path("/etc/nginx/sites-available/eoat-atlas")
+    nginx_enabled: Path = Path("/etc/nginx/sites-enabled/eoat-atlas")
+    nginx_default: Path = Path("/etc/nginx/sites-enabled/default")
+    nginx_token: Path = Path("/etc/eoat-atlas/nginx-upstream-token.conf")
+    systemd_unit: Path = Path("/etc/systemd/system/eoat-atlas.service")
 
     @property
     def incoming(self) -> Path:
@@ -159,6 +221,18 @@ class Paths:
     @property
     def previous(self) -> Path:
         return self.root / "previous"
+
+    @property
+    def host_transactions(self) -> Path:
+        return self.shared / "host-config-transactions"
+
+    @property
+    def host_receipts(self) -> Path:
+        return self.shared / "host-config-receipts"
+
+    @property
+    def host_backups(self) -> Path:
+        return self.shared / "host-config-backups"
 
 
 class Rejected(RuntimeError):
@@ -788,10 +862,20 @@ class Helper:
                 "recover",
                 "retention-status",
                 "self-check",
+                "host-config-status",
+                "install-web-host-config",
+                "validate-web-host-config",
+                "rollback-web-host-config",
+                "rotate-web-upstream-token",
             ],
         }
 
     def dispatch(self, request: dict[str, Any]) -> dict[str, Any]:
+        # Host mutations share the deployment lock, so an activation and a host
+        # change can never interleave.  The separate state directory keeps the
+        # two recovery stories auditable without broadening the sudo surface.
+        if isinstance(request, dict) and request.get("operation") in HOST_OPERATIONS:
+            return HostConfiguration(self.paths, self.runner).dispatch(request)
         if not isinstance(request, dict) or set(request) - {
             "operation",
             "deployment_id",
@@ -818,6 +902,501 @@ class Helper:
         if operation not in methods:
             raise Rejected("unsupported privileged operation")
         return methods[operation](request)
+
+
+class HostConfiguration:
+    """Transactional installer for the fixed EOAT web-host contract.
+
+    This deliberately has no caller-selected files, units, commands, modes or
+    environment values.  Every input is an operation plus an immutable release
+    identity or a transaction id.
+    """
+
+    def __init__(self, paths: Paths, runner: Callable[..., subprocess.CompletedProcess[str]]) -> None:
+        self.paths, self.runner = paths, runner
+        self.files = (
+            paths.nginx_site,
+            paths.nginx_enabled,
+            paths.nginx_default,
+            paths.nginx_token,
+            paths.runtime_env,
+            paths.systemd_unit,
+        )
+
+    @staticmethod
+    def _id(value: object) -> str:
+        if not isinstance(value, str) or not ID.fullmatch(value):
+            raise Rejected("invalid host_config_id")
+        return value
+
+    def _state_path(self, ident: str) -> Path:
+        return self.paths.host_transactions / f"{self._id(ident)}.json"
+
+    def _save(self, state: dict[str, Any], status: str, **extra: Any) -> dict[str, Any]:
+        if status not in HOST_STATES:
+            raise Rejected("invalid host configuration state")
+        state.update(extra)
+        state["state"] = status
+        state["updated_at_utc"] = utc()
+        state.setdefault("events", []).append({"state": status, "at_utc": state["updated_at_utc"]})
+        atomic_json(self._state_path(state["host_config_id"]), state)
+        if self.paths.lock.is_file():
+            lock = self._json(self.paths.lock, "mutation lock")
+            if lock.get("transaction_id") == state["host_config_id"]:
+                atomic_json(
+                    self.paths.lock,
+                    {
+                        "transaction_id": state["host_config_id"],
+                        "transaction_type": "host-config",
+                        "target_release": state.get("target_release"),
+                        "operation": state["operation"],
+                        "executor": state["executor"],
+                        "started_at_utc": state["started_at_utc"],
+                        "state": status,
+                    },
+                )
+        return state
+
+    @staticmethod
+    def _json(path: Path, label: str) -> dict[str, Any]:
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise Rejected(f"invalid {label}") from exc
+        if not isinstance(value, dict):
+            raise Rejected(f"invalid {label}")
+        return value
+
+    def _lock(self, state: dict[str, Any]) -> None:
+        self.paths.lock.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            fd = os.open(self.paths.lock, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o640)
+        except FileExistsError as exc:
+            try:
+                held = self._json(self.paths.lock, "mutation lock")
+                owner = held.get("transaction_id") or held.get("deployment_id") or "unknown"
+            except Rejected:
+                owner = "unknown"
+            raise Rejected(f"EOAT Atlas mutation lock is held by {owner}") from exc
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(
+                {
+                    "transaction_id": state["host_config_id"],
+                    "transaction_type": "host-config",
+                    "target_release": state.get("target_release"),
+                    "operation": state["operation"],
+                    "executor": state["executor"],
+                    "started_at_utc": state["started_at_utc"],
+                    "state": "CREATED",
+                },
+                stream,
+                sort_keys=True,
+            )
+
+    def _assert_lock(self, ident: str) -> None:
+        lock = self._json(self.paths.lock, "mutation lock")
+        if lock.get("transaction_id") != ident:
+            raise Rejected("host configuration lock belongs to another transaction")
+
+    def _unlock(self, ident: str) -> None:
+        self._assert_lock(ident)
+        self.paths.lock.unlink()
+
+    def _load(self, ident: str) -> dict[str, Any]:
+        path = self._state_path(ident)
+        if not path.is_file():
+            raise Rejected("unknown host_config_id")
+        return self._json(path, "host transaction")
+
+    def _release(self, release_id: str) -> tuple[Path, dict[str, Any]]:
+        if not isinstance(release_id, str) or not re.fullmatch(r"eoat-atlas-\d+\.\d+\.\d+", release_id):
+            raise Rejected("invalid release_id")
+        root = self.paths.releases.resolve()
+        candidates = []
+        for child in self.paths.releases.iterdir() if self.paths.releases.is_dir() else ():
+            if child.is_symlink() or not child.is_dir() or child.resolve().parent != root:
+                continue
+            manifest_path = child / "release_manifest.json"
+            if manifest_path.is_file():
+                manifest = self._json(manifest_path, "release manifest")
+                if manifest.get("release_id") == release_id:
+                    candidates.append((child, manifest))
+        if len(candidates) != 1:
+            raise Rejected("verified immutable release was not found")
+        release, manifest = candidates[0]
+        required = ("version", "release_id", "build_id", "commit_sha", "payload_sha256", "host_templates")
+        if (
+            any(name not in manifest for name in required)
+            or manifest.get("release_id") != release_id
+            or not VERSION.fullmatch(str(manifest.get("version")))
+            or not COMMIT.fullmatch(str(manifest.get("commit_sha")))
+            or not SHA.fullmatch(str(manifest.get("payload_sha256")))
+        ):
+            raise Rejected("release manifest identity is invalid")
+        templates = manifest.get("host_templates")
+        if not isinstance(templates, dict):
+            raise Rejected("release manifest has no host templates")
+        for label, relative in HOST_TEMPLATE_PATHS.items():
+            entry = templates.get(label)
+            if (
+                not isinstance(entry, dict)
+                or entry.get("path") != relative
+                or not SHA.fullmatch(str(entry.get("sha256")))
+            ):
+                raise Rejected("release manifest host template is invalid")
+            source = release / relative
+            if (
+                source.is_symlink()
+                or not source.is_file()
+                or source.resolve().parent == source.resolve()
+                or not str(source.resolve()).startswith(str(release.resolve()) + os.sep)
+                or digest(source) != entry["sha256"]
+            ):
+                raise Rejected("release host template failed immutable verification")
+        static = release / "web-static"
+        index = static / "index.html"
+        static_manifest = static / "web-static.manifest.json"
+        if (
+            static.is_symlink()
+            or not static.is_dir()
+            or not index.is_file()
+            or index.is_symlink()
+            or not static_manifest.is_file()
+        ):
+            raise Rejected("release static frontend is incomplete")
+        try:
+            static_hashes = json.loads(static_manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise Rejected("release static metadata is invalid") from exc
+        if not isinstance(static_hashes, dict) or "index.html" not in static_hashes:
+            raise Rejected("release static metadata is invalid")
+        static_entry = templates.get("static_manifest")
+        if (
+            not isinstance(static_entry, dict)
+            or static_entry.get("path") != "web-static/web-static.manifest.json"
+            or static_entry.get("sha256") != digest(static_manifest)
+        ):
+            raise Rejected("release static metadata is not manifest verified")
+        for name, expected in static_hashes.items():
+            candidate = static / str(name)
+            if (
+                not isinstance(expected, str)
+                or not SHA.fullmatch(expected)
+                or candidate.is_symlink()
+                or not candidate.is_file()
+                or candidate.resolve().parent == candidate.resolve()
+                or not str(candidate.resolve()).startswith(str(static.resolve()) + os.sep)
+                or digest(candidate) != expected
+            ):
+                raise Rejected("release static asset verification failed")
+            if candidate.suffix == ".map":
+                raise Rejected("release contains prohibited source map")
+        self._nginx_contract((release / HOST_TEMPLATE_PATHS["nginx"]).read_text(encoding="utf-8"))
+        self._unit_contract((release / HOST_TEMPLATE_PATHS["systemd"]).read_text(encoding="utf-8"))
+        return release, manifest
+
+    @staticmethod
+    def _nginx_contract(text: str) -> None:
+        required = (
+            "listen 80;",
+            "root /opt/eoat-atlas/current/web-static;",
+            "include /etc/eoat-atlas/nginx-upstream-token.conf;",
+            "autoindex off;",
+            "location ^~ /api/",
+            "location = /api/v1/web-fit-checks/evaluate",
+            "proxy_pass http://127.0.0.1:8765;",
+            "proxy_set_header X-EOAT-Device-Token $eoat_atlas_upstream_token",
+            "try_files $uri $uri/ /index.html",
+            "proxy_no_cache 1",
+            "location ~* /(?:\\\\.|.*\\\\.(?:map|env|pem|key))$",
+        )
+        forbidden = re.compile(
+            r"^\s*(?:listen\s+443\b|ssl\b|ssl_|ssl_certificate|add_header\s+Strict-Transport-Security\b)", re.I | re.M
+        )
+        if any(item not in text for item in required) or forbidden.search(text):
+            raise Rejected("NGINX template is not the approved HTTP-canary profile")
+        if "$request_method != POST" not in text or "$request_method !~ ^(GET|HEAD)$" not in text:
+            raise Rejected("NGINX template method restrictions are invalid")
+
+    @staticmethod
+    def _unit_contract(text: str) -> None:
+        required = (
+            "User=eoat-atlas",
+            "Group=eoat-atlas",
+            "WorkingDirectory=/opt/eoat-atlas/current",
+            "EnvironmentFile=/etc/eoat-atlas/runtime.env",
+            "UMask=0077",
+            "ExecStart=/opt/eoat-atlas/current/venv/bin/python -m uvicorn server.eoat_api.app:app --host 127.0.0.1 --port 8765",
+            "NoNewPrivileges=true",
+            "ProtectSystem=strict",
+            "PrivateTmp=true",
+        )
+        if any(item not in text for item in required) or "User=root" in text or "0.0.0.0" in text:
+            raise Rejected("systemd template is not the approved EOAT service")
+
+    @staticmethod
+    def _parse_runtime(raw: bytes) -> dict[str, str]:
+        if b"\x00" in raw or b"\r" in raw or any(byte < 32 and byte not in (10,) for byte in raw):
+            raise Rejected("runtime environment contains control characters")
+        values: dict[str, str] = {}
+        for line in raw.decode("utf-8").splitlines():
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export ") or "=" not in line:
+                raise Rejected("runtime environment contains malformed assignment")
+            key, value = line.split("=", 1)
+            if key not in RUNTIME_KEYS or not re.fullmatch(r"EOAT_[A-Z0-9_]+", key) or key in values:
+                raise Rejected("runtime environment contains unknown or duplicate key")
+            if not value or any(marker in value for marker in ("$", "`", "$(", "${")) or "\n" in value:
+                raise Rejected("runtime environment contains unsafe value")
+            if key.startswith("EOAT_DB_MIGRATION_"):
+                raise Rejected("migration credentials cannot be used as runtime credentials")
+            values[key] = value
+        return values
+
+    @staticmethod
+    def _token_from_nginx(raw: bytes) -> str:
+        try:
+            match = re.fullmatch(r'set \$eoat_atlas_upstream_token "([A-Za-z0-9_-]{43,})";\n', raw.decode("ascii"))
+        except UnicodeDecodeError as exc:
+            raise Rejected("upstream token include is invalid") from exc
+        if not match:
+            raise Rejected("upstream token include is invalid")
+        return match.group(1)
+
+    @staticmethod
+    def _redacted_file_metadata(path: Path) -> dict[str, Any]:
+        if not path.exists() and not path.is_symlink():
+            return {"present": False}
+        stat = path.lstat()
+        result: dict[str, Any] = {
+            "present": True,
+            "kind": "symlink" if path.is_symlink() else "file" if path.is_file() else "directory",
+            "uid": stat.st_uid,
+            "gid": stat.st_gid,
+            "mode": stat.st_mode & 0o777,
+        }
+        if path.is_symlink():
+            result["target"] = os.readlink(path)
+        elif path.is_file():
+            result["sha256"] = digest(path)
+        return result
+
+    def _backup(self, state: dict[str, Any]) -> None:
+        directory = self.paths.host_backups / state["host_config_id"]
+        directory.mkdir(parents=True, mode=0o700)
+        records = {}
+        for index, path in enumerate(self.files):
+            metadata = self._redacted_file_metadata(path)
+            backup = directory / str(index)
+            if metadata["present"] and metadata["kind"] == "file":
+                shutil.copyfile(path, backup)
+                if digest(backup) != metadata["sha256"]:
+                    raise Rejected("host configuration backup verification failed")
+            records[str(path)] = {"backup": str(backup) if backup.exists() else None, **metadata}
+        self._save(state, "BACKUPS_CREATED", backups=records)
+
+    def _restore(self, state: dict[str, Any]) -> None:
+        self._save(state, "ROLLBACK_STARTED")
+        for path in self.files:
+            record = state["backups"][str(path)]
+            path.unlink(missing_ok=True)
+            if not record["present"]:
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if record["kind"] == "symlink":
+                path.symlink_to(record["target"])
+            elif record["kind"] == "file":
+                shutil.copyfile(Path(record["backup"]), path)
+            else:
+                raise Rejected("unsupported protected host path type")
+            if not path.is_symlink():
+                os.chmod(path, record["mode"])
+                if hasattr(os, "chown"):
+                    try:
+                        os.chown(path, record["uid"], record["gid"])
+                    except PermissionError:
+                        pass
+        self._run(["/usr/sbin/nginx", "-t"], "NGINX rollback validation")
+        self._run(
+            ["/usr/bin/systemd-analyze", "verify", "/etc/systemd/system/eoat-atlas.service"],
+            "systemd rollback validation",
+        )
+        self._save(state, "ROLLED_BACK", completed_at_utc=utc())
+        atomic_json(self.paths.host_receipts / f"{state['host_config_id']}.json", state)
+        self._unlock(state["host_config_id"])
+
+    def _atomic(self, path: Path, content: bytes, mode: int) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix=".eoat-host-", dir=path.parent)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(content)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(name, mode)
+            os.replace(name, path)
+        finally:
+            if os.path.exists(name):
+                os.unlink(name)
+
+    def _enable_site(self) -> None:
+        self.paths.nginx_enabled.parent.mkdir(parents=True, exist_ok=True)
+        temporary_link = self.paths.nginx_enabled.with_name(".eoat-atlas-enabled")
+        temporary_link.unlink(missing_ok=True)
+        # The root helper is Linux-only.  The regular-file fallback exists
+        # solely for the disposable Windows filesystem harness, whose account
+        # cannot create symlinks; production always takes the strict branch.
+        if os.name == "nt":
+            shutil.copyfile(self.paths.nginx_site, temporary_link)
+        else:
+            temporary_link.symlink_to(self.paths.nginx_site)
+        os.replace(temporary_link, self.paths.nginx_enabled)
+
+    def _run(self, command: list[str], purpose: str) -> None:
+        result = self.runner(command, text=True, capture_output=True, check=False)
+        if result.returncode:
+            raise Rejected(f"approved command failed: {purpose}")
+
+    def _validate_installed(self, release: Path) -> None:
+        enabled_ok = self.paths.nginx_enabled.is_symlink() and os.readlink(self.paths.nginx_enabled) == str(
+            self.paths.nginx_site
+        )
+        if os.name == "nt":
+            enabled_ok = enabled_ok or (
+                self.paths.nginx_enabled.is_file() and digest(self.paths.nginx_enabled) == digest(self.paths.nginx_site)
+            )
+        if not enabled_ok:
+            raise Rejected("EOAT NGINX site symlink is invalid")
+        self._nginx_contract(self.paths.nginx_site.read_text(encoding="utf-8"))
+        self._unit_contract(self.paths.systemd_unit.read_text(encoding="utf-8"))
+        runtime = self._parse_runtime(self.paths.runtime_env.read_bytes())
+        token = self._token_from_nginx(self.paths.nginx_token.read_bytes())
+        if (
+            runtime.get("EOAT_API_ENVIRONMENT") != "production"
+            or runtime.get("EOAT_API_WRITES_ENABLED") != "false"
+            or runtime.get(RUNTIME_TOKEN_KEY) != token
+        ):
+            raise Rejected("runtime token or production safety settings are invalid")
+        for path in (self.paths.nginx_token, self.paths.runtime_env):
+            if not path.is_file() or (os.name != "nt" and path.stat().st_mode & 0o077):
+                raise Rejected("secret host configuration file permissions are unsafe")
+        if not (release / "web-static" / "index.html").is_file():
+            raise Rejected("current release static frontend is unavailable")
+        self._run(["/usr/sbin/nginx", "-t"], "NGINX validation")
+        self._run(
+            ["/usr/bin/systemd-analyze", "verify", "/etc/systemd/system/eoat-atlas.service"], "systemd validation"
+        )
+
+    def install(self, request: dict[str, Any], *, rotate: bool = False) -> dict[str, Any]:
+        allowed = {"operation", "host_config_id", "release_id"}
+        if set(request) - allowed:
+            raise Rejected("unknown request fields")
+        ident = self._id(request.get("host_config_id"))
+        release, manifest = self._release(request.get("release_id"))
+        state = {
+            "host_config_id": ident,
+            "operation": request["operation"],
+            "target_release": manifest["release_id"],
+            "target_version": manifest["version"],
+            "target_commit": manifest["commit_sha"],
+            "template_digests": manifest["host_templates"],
+            "executor": str(getattr(os, "geteuid", os.getpid)()),
+            "started_at_utc": utc(),
+            "state": "CREATED",
+            "events": [],
+        }
+        self.paths.host_transactions.mkdir(parents=True, exist_ok=True)
+        self.paths.host_receipts.mkdir(parents=True, exist_ok=True)
+        self._save(state, "CREATED")
+        self._lock(state)
+        self._save(state, "LOCK_ACQUIRED")
+        try:
+            self._save(state, "SOURCE_VERIFIED")
+            self._backup(state)
+            existing_runtime = (
+                self._parse_runtime(self.paths.runtime_env.read_bytes()) if self.paths.runtime_env.is_file() else {}
+            )
+            existing_token = (
+                self._token_from_nginx(self.paths.nginx_token.read_bytes())
+                if self.paths.nginx_token.is_file()
+                else None
+            )
+            runtime_token = existing_runtime.get(RUNTIME_TOKEN_KEY)
+            if existing_token != runtime_token and (existing_token or runtime_token):
+                raise Rejected("existing upstream token representations do not match")
+            token = secrets.token_urlsafe(32) if rotate or not existing_token else existing_token
+            runtime = dict(existing_runtime)
+            runtime.update(
+                {"EOAT_API_ENVIRONMENT": "production", "EOAT_API_WRITES_ENABLED": "false", RUNTIME_TOKEN_KEY: token}
+            )
+            runtime_bytes = ("\n".join(f"{key}={value}" for key, value in sorted(runtime.items())) + "\n").encode(
+                "utf-8"
+            )
+            token_bytes = f'set $eoat_atlas_upstream_token "{token}";\n'.encode("ascii")
+            self._save(state, "FILES_PREPARED")
+            self._atomic(self.paths.nginx_site, (release / HOST_TEMPLATE_PATHS["nginx"]).read_bytes(), 0o644)
+            self._enable_site()
+            self.paths.nginx_default.unlink(missing_ok=True)
+            self._atomic(self.paths.nginx_token, token_bytes, 0o640)
+            self._atomic(self.paths.runtime_env, runtime_bytes, 0o640)
+            self._atomic(self.paths.systemd_unit, (release / HOST_TEMPLATE_PATHS["systemd"]).read_bytes(), 0o644)
+            self._save(state, "FILES_INSTALLED")
+            self._validate_installed(release)
+            self._save(state, "NGINX_VALIDATED")
+            self._save(state, "SYSTEMD_VALIDATED")
+            self._save(state, "CONFIG_VALIDATED")
+            self._save(state, "COMMITTED", completed_at_utc=utc())
+            atomic_json(self.paths.host_receipts / f"{ident}.json", state)
+            self._unlock(ident)
+            return state
+        except Rejected:
+            state["failure"] = "sanitized host configuration validation failure"
+            if state.get("backups"):
+                try:
+                    self._restore(state)
+                except Rejected:
+                    self._save(state, "MANUAL_INTERVENTION_REQUIRED")
+                    atomic_json(self.paths.host_receipts / f"{ident}.json", state)
+            else:
+                self._save(state, "FAILED")
+                self._unlock(ident)
+            raise
+
+    def validate(self, request: dict[str, Any]) -> dict[str, Any]:
+        if set(request) - {"operation", "release_id"}:
+            raise Rejected("unknown request fields")
+        release, manifest = self._release(request.get("release_id"))
+        self._validate_installed(release)
+        return {"operation": "validate-web-host-config", "release_id": manifest["release_id"], "valid": True}
+
+    def status(self, request: dict[str, Any]) -> dict[str, Any]:
+        if set(request) - {"operation", "host_config_id"}:
+            raise Rejected("unknown request fields")
+        state = self._load(self._id(request.get("host_config_id")))
+        return {key: value for key, value in state.items() if key not in {"runtime", "token", "failure_detail"}}
+
+    def rollback(self, request: dict[str, Any]) -> dict[str, Any]:
+        if set(request) - {"operation", "host_config_id"}:
+            raise Rejected("unknown request fields")
+        state = self._load(self._id(request.get("host_config_id")))
+        self._assert_lock(state["host_config_id"])
+        self._restore(state)
+        return state
+
+    def dispatch(self, request: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(request, dict) or request.get("operation") not in HOST_OPERATIONS:
+            raise Rejected("unsupported privileged operation")
+        operation = request["operation"]
+        if operation == "install-web-host-config":
+            return self.install(request)
+        if operation == "rotate-web-upstream-token":
+            return self.install(request, rotate=True)
+        if operation == "validate-web-host-config":
+            return self.validate(request)
+        if operation == "host-config-status":
+            return self.status(request)
+        return self.rollback(request)
 
 
 def main(argv: list[str] | None = None) -> int:

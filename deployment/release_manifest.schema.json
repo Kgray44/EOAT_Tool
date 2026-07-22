@@ -17,7 +17,7 @@
       "required": [
         "schema_version", "application", "version", "release_id", "build_id",
         "commit_sha", "branch", "created_at_utc", "payload_sha256",
-        "database", "runtime", "services", "health_checks", "api_contract_version"
+        "database", "runtime", "services", "health_checks", "api_contract_version", "host_templates"
       ],
       "properties": {
         "schema_version": {"const": 1},
@@ -29,6 +29,7 @@
         "payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "services": {"type": "array", "items": {"type": "string"}},
         "health_checks": {"type": "array", "items": {"type": "string", "pattern": "^/"}}
+        ,"host_templates": {"type": "object", "additionalProperties": {"type": "object", "required": ["path", "sha256"], "properties": {"path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./-]+$"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}}}
       }
     },
     "artifact": {

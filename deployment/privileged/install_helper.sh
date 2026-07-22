@@ -41,4 +41,7 @@ install -d -o root -g eoat-atlas -m 2770 /opt/eoat-atlas/incoming
 install -d -o root -g eoat-atlas -m 2770 /opt/eoat-atlas/shared/deployment-transactions
 install -d -o root -g eoat-atlas -m 2770 /opt/eoat-atlas/shared/deployment-receipts
 install -d -o root -g eoat-atlas -m 2770 /opt/eoat-atlas/shared/backups
+install -d -o root -g root -m 0700 /opt/eoat-atlas/shared/host-config-transactions
+install -d -o root -g root -m 0700 /opt/eoat-atlas/shared/host-config-receipts
+install -d -o root -g root -m 0700 /opt/eoat-atlas/shared/host-config-backups
 echo "EOAT Atlas privileged deployment helper installed. Verify with: sudo -l -U kgray"
