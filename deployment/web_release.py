@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tarfile
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
+from scripts.release.build_server_release import generate_release_metadata
+
 from .common import DeploymentError
+
+UNC_PATH = re.compile(rb"\\\\\\\\[A-Za-z0-9][A-Za-z0-9._-]{0,62}\\\\")
 
 
 def _run(root: Path, *args: str) -> None:
@@ -27,6 +33,38 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _commit_timestamp(root: Path, commit: str) -> datetime:
+    result = subprocess.run(
+        ["git", "show", "-s", "--format=%cI", commit], cwd=root, text=True, capture_output=True, check=False
+    )
+    if result.returncode:
+        raise DeploymentError("cannot determine the source commit timestamp for the web release")
+    try:
+        return datetime.fromisoformat(result.stdout.strip().replace("Z", "+00:00")).astimezone(timezone.utc)
+    except ValueError as exc:
+        raise DeploymentError("source commit timestamp is invalid for the web release") from exc
+
+
+def _normalize_generated_line_endings(directory: Path) -> None:
+    """Keep deterministic generated-contract checks independent of Windows EOLs."""
+    for path in directory.glob("*"):
+        if path.is_file():
+            content = path.read_bytes()
+            normalized = content.replace(b"\r\n", b"\n")
+            if normalized != content:
+                path.write_bytes(normalized)
+
+
+def _normalize_web_source_line_endings(directory: Path) -> None:
+    """Normalize the disposable archive before deterministic web validation."""
+    for path in directory.rglob("*"):
+        if path.is_file():
+            content = path.read_bytes()
+            normalized = content.replace(b"\r\n", b"\n")
+            if normalized != content:
+                path.write_bytes(normalized)
+
+
 def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, object]:
     """Build an exact committed web tree; Node is never included in the result."""
     npm = shutil.which("npm")
@@ -40,14 +78,35 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         with tarfile.open(bundle) as archive:
             for member in archive.getmembers():
                 target = (source / member.name).resolve()
-                if not member.isfile() or not target.is_relative_to(source.resolve()):
+                if not target.is_relative_to(source.resolve()):
+                    raise DeploymentError("unsafe source member while preparing web release")
+                # ``git archive`` emits directory entries as well as ordinary
+                # files.  Directories are safe to extract after their path is
+                # checked; links and special members are never accepted.
+                if not (member.isdir() or member.isfile()):
                     raise DeploymentError("unsafe source member while preparing web release")
             archive.extractall(source, filter="data")
+        # The archived source is deliberately not a Git checkout.  The API
+        # contract exporter imports version metadata while loading FastAPI, so
+        # supply generated metadata for this exact commit only in the
+        # disposable build tree.
+        metadata = generate_release_metadata(
+            root,
+            commit,
+            branch_name="web-release-build",
+            build_timestamp=_commit_timestamp(root, commit),
+        )
+        (source / "release_metadata.json").write_text(
+            json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         web = source / "web"
+        _normalize_web_source_line_endings(web)
         _run(web, npm, "ci")
         generated = web / "src" / "api" / "generated"
+        _normalize_generated_line_endings(generated)
         before = {path.name: _sha256(path) for path in generated.glob("*") if path.is_file()}
         _run(web, npm, "run", "api:generate")
+        _normalize_generated_line_endings(generated)
         after = {path.name: _sha256(path) for path in generated.glob("*") if path.is_file()}
         if before != after:
             raise DeploymentError("generated OpenAPI TypeScript contract is stale")
@@ -60,8 +119,10 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         files = [path for path in sorted(dist.rglob("*")) if path.is_file()]
         if any(path.suffix == ".map" for path in files):
             raise DeploymentError("web production build contains source maps")
-        forbidden = (b"X-EOAT-Device-Token", b"EOAT_API_DEVICE_TOKEN", b"\\\\", b"mysql://")
-        if any(token in path.read_bytes() for path in files for token in forbidden):
+        forbidden = (b"X-EOAT-Device-Token", b"EOAT_API_DEVICE_TOKEN", b"mysql://")
+        if any(token in path.read_bytes() for path in files for token in forbidden) or any(
+            UNC_PATH.search(path.read_bytes()) for path in files
+        ):
             raise DeploymentError("web production build contains a forbidden internal value")
         if destination.exists():
             shutil.rmtree(destination)

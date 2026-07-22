@@ -127,6 +127,13 @@
       "state": "finalized",
       "task_id": "web-phase3-production-hosting",
       "finalized_at_utc": "2026-07-22T14:32:00Z"
+    },
+    {
+      "application_version": "0.20.1",
+      "release_id": "eoat-atlas-0.20.1",
+      "state": "finalized",
+      "task_id": "codex-web-phase3-deploy-fix-20260722",
+      "finalized_at_utc": "2026-07-22T14:58:12Z"
     }
   ]
 }
