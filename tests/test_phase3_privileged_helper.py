@@ -353,3 +353,11 @@ def test_current_change_after_staging_is_rejected_and_explicit_rollback_is_bound
         helper.activate({"deployment_id": request["deployment_id"]})
     with pytest.raises(Rejected, match="not eligible"):
         helper.rollback({"deployment_id": request["deployment_id"]})
+
+
+def test_retention_status_is_machine_readable_without_a_previous_release(tmp_path: Path) -> None:
+    paths = _paths(tmp_path)
+    helper = HarnessHelper(paths, Runner())
+    payload = helper.retention_status({})
+    assert payload["previous"] == []
+    assert json.loads(json.dumps(payload))["current"].endswith("eoat-atlas-server-0.17.1-b18de78")

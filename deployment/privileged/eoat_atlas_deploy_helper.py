@@ -528,7 +528,7 @@ class Helper:
         protected = {self._current_target(), str(self.paths.previous.resolve()) if self.paths.previous.exists() else ""}
         return {
             "current": self._current_target(),
-            "previous": protected - {self._current_target()},
+            "previous": sorted(protected - {self._current_target(), ""}),
             "eligible": sorted(
                 str(p)
                 for p in self.paths.releases.iterdir()
