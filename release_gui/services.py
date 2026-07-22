@@ -30,7 +30,13 @@ class ReleaseManagerService:
         self.root = root.resolve()
 
     def inspect_status(self) -> tuple[RepositoryStatus, OperationResult]:
-        payload = _plain(release_manager.status_payload(self.root))
+        backend_payload = release_manager.status_payload(self.root)
+        # ``clean`` is a computed GitState property, rather than a dataclass
+        # field, so ``asdict`` deliberately omits it. Preserve the backend's
+        # authoritative computed value in the raw GUI response.
+        backend_repository = backend_payload["repository"]
+        payload = _plain(backend_payload)
+        payload["repository"]["clean"] = bool(backend_repository.clean)
         repo = payload["repository"]
         status = RepositoryStatus(
             str(repo["branch"]),

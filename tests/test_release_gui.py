@@ -101,3 +101,29 @@ def test_settings_reject_sensitive_values(tmp_path: Path, monkeypatch) -> None:
 def test_services_are_importable_without_cli_execution(tmp_path: Path) -> None:
     assert ReleaseManagerService(tmp_path).root == tmp_path.resolve()
     assert ServerUpdaterService(tmp_path).root == tmp_path.resolve()
+
+
+def test_repository_status_keeps_computed_clean_property(tmp_path: Path, monkeypatch) -> None:
+    from deployment.release_manager import GitState
+
+    state = GitState(
+        root=str(tmp_path),
+        branch="codex/test",
+        commit="a" * 40,
+        upstream="origin/codex/test",
+        ahead=0,
+        behind=0,
+        modified=[],
+        staged=[],
+        untracked=[],
+        conflicts=[],
+        latest_tag=None,
+        version="0.18.0",
+    )
+    monkeypatch.setattr(
+        "release_gui.services.release_manager.status_payload",
+        lambda _root: {"repository": state, "ready_to_package": True},
+    )
+    status, result = ReleaseManagerService(tmp_path).inspect_status()
+    assert status.clean and status.ready
+    assert result.raw["repository"]["clean"] is True
