@@ -28,6 +28,7 @@ TARGET = "20260721_0008"
 class Runner:
     def __init__(self, *, fail: str | None = None) -> None:
         self.commands: list[list[str]] = []
+        self.mysql_defaults: list[str] = []
         self.fail = fail
         self.health = {
             "api_reachable": True,
@@ -46,6 +47,9 @@ class Runner:
     def __call__(self, command, **kwargs):
         command = list(command)
         self.commands.append(command)
+        for part in command:
+            if str(part).startswith("--defaults-extra-file="):
+                self.mysql_defaults.append(Path(str(part).split("=", 1)[1]).read_text(encoding="utf-8"))
         if self.fail and self.fail in " ".join(command):
             self.fail = None
             return subprocess.CompletedProcess(command, 1, stdout="", stderr="failure with EOAT_DB_PASSWORD=redacted")
@@ -117,7 +121,8 @@ def paths(tmp_path: Path) -> Paths:
         "EOAT_DB_HOST=127.0.0.1\n"
         "EOAT_DB_PORT=3306\n"
         "EOAT_DB_NAME=eoat_atlas_prod\n"
-        "EOAT_MIGRATION_DB_USER=eoat_migrate\n",
+        "EOAT_MIGRATION_DB_USER=eoat_migrate\n"
+        "EOAT_MIGRATION_DB_PASSWORD=disposable-only\n",
         encoding="utf-8",
     )
     return value
@@ -173,12 +178,12 @@ def test_disposable_migration_deployment_end_to_end(tmp_path: Path) -> None:
     assert helper.revision == TARGET and Path(helper.links["current"]).name.endswith("8f0788e")
     assert json.loads((value.receipts / f"{payload['deployment_id']}.json").read_text())["state"] == "COMPLETED"
     backup_command = next(command for command in runner.commands if command[0] == "/usr/bin/mysqldump")
-    assert "--login-path=eoat-atlas-prod-admin" in backup_command
-    assert not any(part.startswith("--user=") for part in backup_command)
+    assert any(part.startswith("--defaults-extra-file=") for part in backup_command)
+    assert not any(part.startswith("--user=") or part.startswith("--login-path=") for part in backup_command)
     assert "--single-transaction" in backup_command
     assert "--no-tablespaces" in backup_command
-    assert "--host=127.0.0.1" in backup_command
-    assert "--port=3306" in backup_command
+    expected_defaults = '[client]\nuser="eoat_migrate"\npassword="disposable-only"\nhost="127.0.0.1"\nport="3306"\n'
+    assert runner.mysql_defaults and all(item == expected_defaults for item in runner.mysql_defaults)
 
 
 def test_backup_corruption_wrong_schema_and_concurrency_block_migration(tmp_path: Path) -> None:
@@ -256,7 +261,8 @@ def test_unknown_operations_arbitrary_fields_and_revisions_are_denied(tmp_path: 
             helper.dispatch(payload)
 
 
-def test_production_migration_environment_uses_existing_root_only_identity(tmp_path: Path) -> None:
+def test_production_migration_environment_uses_existing_root_only_identity(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EOAT_DB_MIGRATION_PASSWORD", "caller-controlled-value")
     value = paths(tmp_path)
     value.migration_env.write_text(
         "EOAT_API_ENVIRONMENT=production\n"
@@ -265,7 +271,7 @@ def test_production_migration_environment_uses_existing_root_only_identity(tmp_p
         "EOAT_DB_PORT=3306\n"
         "EOAT_DB_NAME=eoat_atlas_prod\n"
         "EOAT_DB_MIGRATION_USER=eoat_migrate\n"
-        "EOAT_DB_MIGRATION_PASSWORD=disposable-only\n"
+        "EOAT_DB_MIGRATION_PASSWORD='disposable only'\n"
         "EOAT_DB_DRIVER=pymysql\n",
         encoding="utf-8",
     )
@@ -274,7 +280,8 @@ def test_production_migration_environment_uses_existing_root_only_identity(tmp_p
     environment = helper._migration_environment()
 
     assert environment["EOAT_MIGRATION_DB_USER"] == "eoat_migrate"
-    assert environment["MYSQL_PWD"] == "disposable-only"
+    assert environment["EOAT_DB_MIGRATION_PASSWORD"] == "disposable only"
+    assert "MYSQL_PWD" not in environment
 
 
 def test_migration_environment_rejects_a_nonproduction_database(tmp_path: Path) -> None:

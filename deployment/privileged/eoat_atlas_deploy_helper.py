@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -32,7 +33,6 @@ VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 SAFE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 SERVICE = "eoat-atlas.service"
 SERVICE_ACCOUNT = "eoat-atlas"
-BACKUP_LOGIN_PATH = "eoat-atlas-prod-admin"
 HELPER_POLICY_VERSION = 1
 HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
 STAGED_RUNTIME_VALIDATION = r'''
@@ -326,6 +326,15 @@ class Helper:
             key, value = line.split("=", 1)
             if not re.fullmatch(r"[A-Z][A-Z0-9_]{1,80}", key) or "\x00" in value:
                 raise Rejected("protected migration environment is malformed")
+            value = value.strip()
+            if value.startswith(("'", '"')):
+                try:
+                    parsed = shlex.split(value, posix=True)
+                except ValueError as exc:
+                    raise Rejected("protected migration environment is malformed") from exc
+                if len(parsed) != 1:
+                    raise Rejected("protected migration environment is malformed")
+                value = parsed[0]
             values[key] = value
         if values.get("EOAT_API_ENVIRONMENT", "production").casefold() != "production":
             raise Rejected("migration environment is not production")
@@ -342,29 +351,61 @@ class Helper:
             or values.get("EOAT_MIGRATION_DB_USER")
             or values.get("EOAT_DB_USER")
         )
-        password = (
-            values.get("EOAT_DB_MIGRATION_PASSWORD")
-            or values.get("EOAT_MIGRATION_DB_PASSWORD")
-            or values.get("EOAT_DB_PASSWORD")
-        )
         if not user or not re.fullmatch(r"[A-Za-z0-9_]{1,64}", user):
             raise Rejected("migration account is unavailable")
         if values.get("EOAT_DB_NAME") != self._database_name():
             raise Rejected("migration environment database is not the fixed production database")
         if values.get("EOAT_DB_HOST") != "127.0.0.1" or values.get("EOAT_DB_PORT") != "3306":
             raise Rejected("migration environment must use the fixed local MySQL endpoint")
-        # mysql client programs consume MYSQL_PWD.  Set it only in the
-        # sanitized child-process environment; it is never logged, persisted,
-        # or accepted from a deployment request.
+        # Normalize the legacy user spelling only for the helper's fixed
+        # child processes. Password material stays in the protected
+        # environment until a mode-0600 defaults file is created for one
+        # fixed MySQL client invocation.
         values["EOAT_MIGRATION_DB_USER"] = user
-        if password:
-            values["MYSQL_PWD"] = password
-        return {**os.environ, **values}
+        # Do not inherit a caller-controlled environment into privileged
+        # database or Alembic processes.  Absolute executable paths and the
+        # fixed minimal environment below are sufficient for all approved
+        # operations.
+        return {
+            "HOME": "/root",
+            "LANG": "C.UTF-8",
+            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            **values,
+        }
 
     @staticmethod
-    def _mysql_client_arguments(environment: dict[str, str]) -> list[str]:
-        """Use only the loopback endpoint validated from migration.env."""
-        return [f"--host={environment['EOAT_DB_HOST']}", f"--port={environment['EOAT_DB_PORT']}"]
+    def _mysql_option_value(value: str) -> str:
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+    def _mysql_defaults_file(self, environment: dict[str, str]) -> Path:
+        """Create one root-only option file for a fixed local MySQL client."""
+        password = (
+            environment.get("EOAT_DB_MIGRATION_PASSWORD")
+            or environment.get("EOAT_MIGRATION_DB_PASSWORD")
+            or environment.get("EOAT_DB_PASSWORD")
+        )
+        if password is None:
+            raise Rejected("migration account password is unavailable")
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                encoding="utf-8",
+                dir=self.paths.migration_env.parent,
+                prefix=".eoat-mysql-",
+                delete=False,
+            ) as stream:
+                path = Path(stream.name)
+                stream.write("[client]\n")
+                stream.write(f"user={self._mysql_option_value(environment['EOAT_MIGRATION_DB_USER'])}\n")
+                stream.write(f"password={self._mysql_option_value(password)}\n")
+                stream.write(f"host={self._mysql_option_value(environment['EOAT_DB_HOST'])}\n")
+                stream.write(f"port={self._mysql_option_value(environment['EOAT_DB_PORT'])}\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.chmod(path, 0o600)
+            return path
+        except OSError as exc:
+            raise Rejected("secure MySQL defaults file is unavailable") from exc
 
     @staticmethod
     def _database_name() -> str:
@@ -423,19 +464,25 @@ class Helper:
         if partial.exists() or partial.is_symlink():
             raise Rejected("production backup partial path is unsafe")
         self._save(state, "BACKUP_STARTED")
-        command = [
-            "/usr/bin/mysqldump",
-            f"--login-path={BACKUP_LOGIN_PATH}",
-            *self._mysql_client_arguments(environment),
-            "--single-transaction",
-            "--no-tablespaces",
-            "--routines",
-            "--events",
-            f"--result-file={partial}",
-            self._database_name(),
-        ]
         try:
-            result = self._run(command, env=environment, purpose="approved production backup")
+            defaults = self._mysql_defaults_file(environment)
+            try:
+                result = self._run(
+                    [
+                        "/usr/bin/mysqldump",
+                        f"--defaults-extra-file={defaults}",
+                        "--single-transaction",
+                        "--no-tablespaces",
+                        "--routines",
+                        "--events",
+                        f"--result-file={partial}",
+                        self._database_name(),
+                    ],
+                    env=environment,
+                    purpose="approved production backup",
+                )
+            finally:
+                defaults.unlink(missing_ok=True)
             # Test runners return a controlled stdout payload; real mysqldump
             # writes directly to the fixed partial file via --result-file.
             if not partial.exists() and result.stdout:
@@ -547,20 +594,22 @@ class Helper:
         if self._alembic_revision(state) != target or self._current_target() != state["previous_target"]:
             raise Rejected("migration verification failed")
         environment = self._migration_environment()
-        user = environment.get("EOAT_MIGRATION_DB_USER") or environment["EOAT_DB_USER"]
-        data_state = self._run(
-            [
-                "/usr/bin/mysql",
-                f"--user={user}",
-                *self._mysql_client_arguments(environment),
-                "--batch",
-                "--skip-column-names",
-                "--execute=SELECT COUNT(*) FROM data_state",
-                self._database_name(),
-            ],
-            env=environment,
-            purpose="fixed data-state singleton verification",
-        ).stdout.strip()
+        defaults = self._mysql_defaults_file(environment)
+        try:
+            data_state = self._run(
+                [
+                    "/usr/bin/mysql",
+                    f"--defaults-extra-file={defaults}",
+                    "--batch",
+                    "--skip-column-names",
+                    "--execute=SELECT COUNT(*) FROM data_state",
+                    self._database_name(),
+                ],
+                env=environment,
+                purpose="fixed data-state singleton verification",
+            ).stdout.strip()
+        finally:
+            defaults.unlink(missing_ok=True)
         if data_state != "1":
             raise Rejected("migration verification did not find exactly one data_state row")
         staged = self._validate_staged_runtime(state, Path(state["target_path"]))
@@ -600,13 +649,13 @@ class Helper:
             raise Rejected("backup restoration checksum validation failed")
         self._save(state, "ROLLBACK_STARTED", recovery="verified deployment backup restoration")
         environment = self._migration_environment()
+        defaults = self._mysql_defaults_file(environment)
         try:
             with gzip.open(path, "rb") as stream:
                 result = self.runner(
                     [
                         "/usr/bin/mysql",
-                        f"--login-path={BACKUP_LOGIN_PATH}",
-                        *self._mysql_client_arguments(environment),
+                        f"--defaults-extra-file={defaults}",
                         self._database_name(),
                     ],
                     stdin=stream,
@@ -623,6 +672,8 @@ class Helper:
             self._save(state, "MANUAL_INTERVENTION_REQUIRED", failure="backup restoration failed")
             self._receipt(state)
             raise
+        finally:
+            defaults.unlink(missing_ok=True)
         self._save(state, "ROLLED_BACK", database_recovery="verified_backup_restore")
         self._receipt(state)
         self._release_lock(state["deployment_id"])

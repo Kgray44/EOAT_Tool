@@ -29,10 +29,11 @@ The sudo policy permits only `/usr/bin/python3` executing the installed helper
 with `--request-b64`; it does not grant a shell, generic Python, MySQL,
 Alembic, service control, alternate paths, or caller-supplied environment.
 Protected `/etc/eoat-atlas/migration.env` remains root-only and must contain
-the approved production migration identity while keeping writes disabled.
-The root-owned MySQL login-path entry `eoat-atlas-prod-admin` remains the
-fixed backup and restore identity; it is never supplied by the deployment
-operator or copied into a receipt.
+the approved production migration identity while keeping writes disabled. For
+each fixed backup, restore, or verification command, the helper creates and
+removes a root-owned mode-0600 MySQL defaults file beneath `/etc/eoat-atlas`.
+No credential is supplied by the deployment operator, written to a receipt,
+or included in a process argument.
 
 ## Rollback of the helper installation
 

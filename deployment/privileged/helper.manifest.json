@@ -1,6 +1,6 @@
 {
   "helper_version": 2,
-  "helper_sha256": "b884712b8977eae8b5b9105af9e934eb09d27343b0a9d0051a3c2678c882cab3",
+  "helper_sha256": "f0f7aab689c2c6501b6fddbdddd2be8d1fa995e8af367d5068b2e9166b1ba7e9",
   "installed_helper": "/usr/local/libexec/eoat-atlas/eoat_atlas_deploy_helper.py",
   "installed_manifest": "/etc/eoat-atlas/deployment-helper.manifest.json",
   "sudoers": "/etc/sudoers.d/eoat-atlas-deploy",
