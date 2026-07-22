@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -33,6 +34,8 @@ SERVICE = "eoat-atlas.service"
 SERVICE_ACCOUNT = "eoat-atlas"
 HELPER_POLICY_VERSION = 1
 HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
+HEALTH_RETRY_ATTEMPTS = 20
+HEALTH_RETRY_DELAY_SECONDS = 1.0
 STAGED_RUNTIME_VALIDATION = r'''
 # EOAT_STAGE_RUNTIME_VALIDATION
 import json
@@ -164,9 +167,14 @@ class Rejected(RuntimeError):
 
 class Helper:
     def __init__(
-        self, paths: Paths | None = None, runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run
+        self,
+        paths: Paths | None = None,
+        runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+        *,
+        health_retry_delay_seconds: float = HEALTH_RETRY_DELAY_SECONDS,
     ):
         self.paths, self.runner = paths or Paths(), runner
+        self.health_retry_delay_seconds = health_retry_delay_seconds
 
     def _state_path(self, deployment_id: str) -> Path:
         self._id(deployment_id)
@@ -292,6 +300,65 @@ class Helper:
             raise Rejected("embedded manifest has no release/build identity")
         state["release_id"], state["build_id"] = release_id, build_id
 
+    def _validate_existing_release(self, state: dict[str, Any], target: Path, source: Path) -> None:
+        """Prove an interrupted transaction left an immutable reusable release.
+
+        Reuse is permitted only when every archived payload file and mode still
+        matches the same server-verified artifact. Runtime-only venv files and
+        Python bytecode are deliberately excluded from that comparison.
+        """
+        if target.is_symlink() or not target.is_dir() or target.resolve().parent != self.paths.releases.resolve():
+            raise Rejected("existing release target is unsafe")
+        required = (
+            target / "release_manifest.json",
+            target / "server" / "eoat_api" / "app.py",
+            target / "requirements.lock",
+            target / "venv" / "bin" / "python",
+        )
+        if not all(path.exists() for path in required):
+            raise Rejected("existing release misses required runtime files")
+        self._validate_manifest(state, target)
+        archive_members: set[str] = set()
+        payload_members: list[tuple[str, bytes, int]] = []
+        try:
+            with tarfile.open(source, "r:gz") as bundle:
+                for member in bundle.getmembers():
+                    if not member.isfile():
+                        raise Rejected("artifact has a non-file member during reuse validation")
+                    name = member.name
+                    archive_members.add(name)
+                    path = target / name
+                    if path.is_symlink() or not path.is_file():
+                        raise Rejected(f"existing release member is missing or unsafe: {name}")
+                    stream = bundle.extractfile(member)
+                    if stream is None:
+                        raise Rejected(f"artifact member is unreadable during reuse validation: {name}")
+                    contents = stream.read()
+                    if path.read_bytes() != contents or (os.name != "nt" and path.stat().st_mode & 0o022):
+                        raise Rejected(f"existing release member does not match artifact: {name}")
+                    if name not in {"release_metadata.json", "release_manifest.json"}:
+                        payload_members.append((name, contents, member.mode & 0o777))
+        except (OSError, tarfile.TarError) as exc:
+            raise Rejected("artifact could not be read during reuse validation") from exc
+        payload = hashlib.sha256()
+        for name, contents, mode in sorted(payload_members):
+            payload.update(name.encode("utf-8"))
+            payload.update(b"\0")
+            payload.update(oct(mode).encode("ascii"))
+            payload.update(b"\0")
+            payload.update(contents)
+            payload.update(b"\0")
+        if payload.hexdigest() != state["manifest_core"].get("payload_sha256"):
+            raise Rejected("existing release payload digest does not match manifest")
+        for path in target.rglob("*"):
+            relative = path.relative_to(target).as_posix()
+            if relative == "venv" or relative.startswith("venv/") or "__pycache__" in path.parts:
+                continue
+            if path.is_dir():
+                continue
+            if path.is_symlink() or relative not in archive_members:
+                raise Rejected(f"existing release has an unexpected or unsafe member: {relative}")
+
     def _run(
         self,
         command: list[str],
@@ -369,14 +436,31 @@ class Helper:
                     raise Rejected(f"health metadata {field} does not match activated release")
 
     def _validate_health(self, state: dict[str, Any], *, target_release: bool) -> None:
-        result = self._run(
-            ["/usr/bin/curl", "--fail", "--silent", "--max-time", "10", "http://127.0.0.1:8765/api/v1/health"]
-        )
-        try:
-            health = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            raise Rejected("health endpoint did not return JSON") from exc
-        self._validate_health_payload(state, health, target_release=target_release)
+        last_failure: Rejected | None = None
+        for attempt in range(HEALTH_RETRY_ATTEMPTS):
+            try:
+                result = self._run(
+                    [
+                        "/usr/bin/curl",
+                        "--fail",
+                        "--silent",
+                        "--max-time",
+                        "10",
+                        "http://127.0.0.1:8765/api/v1/health",
+                    ],
+                    purpose="post-restart health validation",
+                )
+                try:
+                    health = json.loads(result.stdout)
+                except json.JSONDecodeError as exc:
+                    raise Rejected("health endpoint did not return JSON") from exc
+                self._validate_health_payload(state, health, target_release=target_release)
+                return
+            except Rejected as exc:
+                last_failure = exc
+                if attempt + 1 < HEALTH_RETRY_ATTEMPTS:
+                    time.sleep(self.health_retry_delay_seconds)
+        raise Rejected("post-restart health validation did not pass before timeout") from last_failure
 
     def _validate_staged_runtime(self, state: dict[str, Any], staging: Path) -> dict[str, Any]:
         """Run the staged API on an ephemeral localhost socket under its service account."""
@@ -509,8 +593,19 @@ class Helper:
         self._safe_archive(source)
         target = self.paths.releases / f"eoat-atlas-server-{state['version']}-{state['commit_sha'][:7]}"
         staging = self.paths.releases / f".staging-{state['deployment_id']}"
-        if target.exists() or staging.exists():
-            raise Rejected("target or staging release directory already exists")
+        if staging.exists():
+            raise Rejected("staging release directory already exists")
+        if target.exists():
+            self._validate_existing_release(state, target, source)
+            staged_validation = self._validate_staged_runtime(state, target)
+            self._save(
+                state,
+                "STAGED_VALIDATED",
+                target_path=str(target),
+                reused_existing_release=True,
+                staged_validation=staged_validation,
+            )
+            return state
         staging.mkdir(parents=True, mode=0o750)
         with tarfile.open(source, "r:gz") as bundle:
             bundle.extractall(staging, filter="data")

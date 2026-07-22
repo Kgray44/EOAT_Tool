@@ -9,10 +9,29 @@ from pathlib import Path
 
 import pytest
 
-from deployment.privileged.eoat_atlas_deploy_helper import Helper, Paths, Rejected, canonical_json, digest
+from deployment.privileged.eoat_atlas_deploy_helper import (
+    HEALTH_RETRY_ATTEMPTS,
+    Helper,
+    Paths,
+    Rejected,
+    canonical_json,
+    digest,
+)
 
 COMMIT = "35dea122f0ee9fc0fd3a0ca6130de6a6f78d8811"
 ARTIFACT = "eoat-atlas-server-0.17.3-35dea12.tar.gz"
+
+
+def _payload_digest(members: list[tuple[str, bytes, int]]) -> str:
+    value = hashlib.sha256()
+    for name, contents, mode in sorted(members):
+        value.update(name.encode("utf-8"))
+        value.update(b"\0")
+        value.update(oct(mode).encode("ascii"))
+        value.update(b"\0")
+        value.update(contents)
+        value.update(b"\0")
+    return value.hexdigest()
 
 
 def _paths(tmp_path: Path) -> Paths:
@@ -37,6 +56,12 @@ def _paths(tmp_path: Path) -> Paths:
 
 
 def _manifest(**changes: object) -> dict[str, object]:
+    payload_sha = _payload_digest(
+        [
+            ("requirements.lock", b"example==1 --hash=sha256:" + b"a" * 64 + b"\n", 0o644),
+            ("server/eoat_api/app.py", b"APP = 'EOAT'\n", 0o644),
+        ]
+    )
     value: dict[str, object] = {
         "schema_version": 1,
         "application": "EOAT Atlas",
@@ -46,7 +71,7 @@ def _manifest(**changes: object) -> dict[str, object]:
         "commit_sha": COMMIT,
         "branch": "development/mysql-api-consolidated",
         "created_at_utc": "2026-07-21T00:00:00Z",
-        "payload_sha256": "a" * 64,
+        "payload_sha256": payload_sha,
         "database": {"migration_system": "alembic", "target_revision": "20260717_0007"},
         "runtime": {"python": ">=3.13", "mysql": ">=8.4"},
         "services": ["eoat-atlas.service"],
@@ -128,7 +153,7 @@ class HarnessHelper(Helper):
     """
 
     def __init__(self, paths: Paths, runner: Runner) -> None:
-        super().__init__(paths, runner)
+        super().__init__(paths, runner, health_retry_delay_seconds=0)
         self.links = {"current": str(paths.releases / "eoat-atlas-server-0.17.1-b18de78")}
 
     def _current_target(self) -> str:
@@ -297,8 +322,37 @@ def test_corrupt_upload_unsafe_archive_missing_runtime_and_existing_target_are_r
     request4 = _request(paths4)
     helper4.begin(request4)
     (paths4.releases / "eoat-atlas-server-0.17.3-35dea12").mkdir()
-    with pytest.raises(Rejected, match="already exists"):
+    with pytest.raises(Rejected, match="existing release misses"):
         helper4.stage({"deployment_id": request4["deployment_id"]})
+
+
+def test_exact_existing_release_is_revalidated_and_reused(tmp_path: Path) -> None:
+    paths, helper, _request1, _runner = _staged(tmp_path)
+    helper.abort({"deployment_id": "deploy-0001"})
+    target = paths.releases / "eoat-atlas-server-0.17.3-35dea12"
+    python = target / "venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("placeholder", encoding="utf-8")
+    request2 = _request(paths, "deploy-0002")
+    helper.begin(request2)
+    state = helper.stage({"deployment_id": request2["deployment_id"]})
+    assert state["state"] == "STAGED_VALIDATED"
+    assert state["reused_existing_release"] is True
+    assert state["target_path"] == str(target)
+
+
+def test_tampered_existing_release_is_not_reused(tmp_path: Path) -> None:
+    paths, helper, _request1, _runner = _staged(tmp_path)
+    helper.abort({"deployment_id": "deploy-0001"})
+    target = paths.releases / "eoat-atlas-server-0.17.3-35dea12"
+    python = target / "venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("placeholder", encoding="utf-8")
+    (target / "server" / "eoat_api" / "app.py").write_text("tampered", encoding="utf-8")
+    request2 = _request(paths, "deploy-0002")
+    helper.begin(request2)
+    with pytest.raises(Rejected, match="does not match artifact"):
+        helper.stage({"deployment_id": request2["deployment_id"]})
 
 
 @pytest.mark.parametrize(
@@ -340,7 +394,7 @@ def test_lock_contention_abort_and_recovery_boundaries(tmp_path: Path) -> None:
 
 
 def test_health_failure_rolls_back_without_database_action(tmp_path: Path) -> None:
-    paths, helper, request, _ = _staged(tmp_path, runner=Runner(failures=("curl",)))
+    paths, helper, request, _ = _staged(tmp_path, runner=Runner(failures=("curl",) * HEALTH_RETRY_ATTEMPTS))
     result = helper.activate({"deployment_id": request["deployment_id"]})
     assert result["state"] == "ROLLED_BACK"
     assert Path(helper.links["current"]).name == "eoat-atlas-server-0.17.1-b18de78"
@@ -368,11 +422,21 @@ def test_identity_health_mismatch_rolls_back(tmp_path: Path) -> None:
 
 
 def test_failed_rollback_preserves_lock_and_requires_manual_intervention(tmp_path: Path) -> None:
-    paths, helper, request, _ = _staged(tmp_path, runner=Runner(failures=("curl", "curl")))
+    paths, helper, request, _ = _staged(
+        tmp_path, runner=Runner(failures=("curl",) * (HEALTH_RETRY_ATTEMPTS * 2))
+    )
     with pytest.raises(Rejected, match="manual intervention"):
         helper.activate({"deployment_id": request["deployment_id"]})
     assert helper.status({"deployment_id": request["deployment_id"]})["state"] == "MANUAL_INTERVENTION_REQUIRED"
     assert paths.lock.exists()
+
+
+def test_post_restart_health_retries_through_a_startup_race(tmp_path: Path) -> None:
+    paths, helper, request, runner = _staged(tmp_path, runner=Runner(failures=("curl",)))
+    result = helper.activate({"deployment_id": request["deployment_id"]})
+    assert result["state"] == "COMPLETED"
+    assert sum(command[0] == "/usr/bin/curl" for command in runner.commands) == 2
+    assert not paths.lock.exists()
 
 
 def test_current_change_after_staging_is_rejected_and_explicit_rollback_is_bounded(tmp_path: Path) -> None:
