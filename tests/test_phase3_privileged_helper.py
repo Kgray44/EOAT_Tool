@@ -361,3 +361,12 @@ def test_retention_status_is_machine_readable_without_a_previous_release(tmp_pat
     payload = helper.retention_status({})
     assert payload["previous"] == []
     assert json.loads(json.dumps(payload))["current"].endswith("eoat-atlas-server-0.17.1-b18de78")
+
+
+def test_self_check_reports_root_side_checksum_without_exposing_the_file(tmp_path: Path) -> None:
+    helper = HarnessHelper(_paths(tmp_path), Runner())
+    payload = helper.self_check({})
+    assert payload["helper_version"] == 1
+    assert payload["policy_version"] == 1
+    assert len(payload["installed_file_sha256"]) == 64
+    assert "self-check" in payload["operations"]

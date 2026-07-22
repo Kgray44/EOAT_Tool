@@ -30,6 +30,8 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 SAFE_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 SERVICE = "eoat-atlas.service"
+HELPER_POLICY_VERSION = 1
+HELPER_IMPLEMENTATION_COMMIT = "$Format:%H$"
 STATES = {
     "CREATED",
     "PREFLIGHT_PASSED",
@@ -536,6 +538,29 @@ class Helper:
             ),
         }
 
+    def self_check(self, _request: dict[str, Any]) -> dict[str, Any]:
+        """Root-side provenance proof without making the helper world-readable."""
+        implementation_commit = HELPER_IMPLEMENTATION_COMMIT
+        if not COMMIT.fullmatch(implementation_commit):
+            implementation_commit = "UNEXPANDED_WORKTREE"
+        return {
+            "helper_version": 1,
+            "implementation_commit": implementation_commit,
+            "installed_file_sha256": digest(Path(__file__)),
+            "policy_version": HELPER_POLICY_VERSION,
+            "operations": [
+                "begin",
+                "stage",
+                "activate",
+                "status",
+                "abort",
+                "rollback",
+                "recover",
+                "retention-status",
+                "self-check",
+            ],
+        }
+
     def dispatch(self, request: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(request, dict) or set(request) - {
             "operation",
@@ -558,6 +583,7 @@ class Helper:
             "rollback": self.rollback,
             "recover": self.recover,
             "retention-status": self.retention_status,
+            "self-check": self.self_check,
         }
         if operation not in methods:
             raise Rejected("unsupported privileged operation")

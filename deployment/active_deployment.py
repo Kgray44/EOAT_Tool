@@ -23,6 +23,7 @@ from .common import DeploymentError, redact_text, utc_text, write_json_atomic
 from .manifest import validate_external_manifest
 from .release_manager import validate_deployment_archive
 from .server_updater import ServerConfig, inspect_server, ssh_host_key_status
+from .sudo_policy import SudoPolicyAudit, require_safe_noninteractive_sudo
 
 HELPER = "/usr/local/libexec/eoat-atlas/eoat_atlas_deploy_helper.py"
 PYTHON = "/usr/bin/python3"
@@ -70,6 +71,11 @@ class PrivilegedHelperClient:
         if not isinstance(payload, dict):
             raise DeploymentError("privileged helper returned an invalid response")
         return payload
+
+    def audit_noninteractive_sudo(self) -> SudoPolicyAudit:
+        """Read policy only; deployment never falls back to password sudo."""
+        result = self._run([*self._ssh_prefix(), "sudo -n -l"])
+        return require_safe_noninteractive_sudo(result.stdout)
 
     def upload(self, local: Path, remote_name: str) -> None:
         if not local.is_file() or not re.fullmatch(r"\.[a-z0-9-]{8,64}\.[A-Za-z0-9._-]{1,220}", remote_name):
@@ -138,6 +144,7 @@ def stage_release(root: Path, release_dir: Path, external: dict[str, Any], confi
         raise DeploymentError("Phase 3 staging permits only a verified migration-not-required release")
     identifier = deployment_id(str(core["commit_sha"]))
     helper = PrivilegedHelperClient(config)
+    helper.audit_noninteractive_sudo()
     request = {
         "operation": "begin",
         "deployment_id": identifier,

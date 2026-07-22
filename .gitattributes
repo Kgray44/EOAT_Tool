@@ -7,3 +7,4 @@
 *.sudoers text eol=lf
 deployment/privileged/*.py text eol=lf
 deployment/privileged/*.md text eol=lf
+deployment/privileged/eoat_atlas_deploy_helper.py export-subst
