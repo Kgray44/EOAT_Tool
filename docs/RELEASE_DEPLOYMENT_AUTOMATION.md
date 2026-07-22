@@ -126,6 +126,13 @@ non-blocking infrastructure warning for any broader rollout. A MySQL login path 
 the updater reports its absence instead of falling back to credentials or
 environment-file contents.
 
+Release manifests use an `*.example.invalid` hostname deliberately. The
+approved, untracked server configuration supplies the real public hostname for
+that environment; the updater then checks the declared scheme, port, and paths
+exactly and sends the probe to `127.0.0.1` with curl's `--resolve`. A placeholder
+manifest hostname therefore cannot publish a production endpoint or weaken the
+local reverse-proxy check.
+
 Phase 2 enforces `BatchMode=yes` and `StrictHostKeyChecking=yes`. It never
 accepts arbitrary remote shell text. The only remote actions are a fixed
 read-only allowlist: host/OS/runtime facts, `df`/`free`, safe `/opt/eoat-atlas`

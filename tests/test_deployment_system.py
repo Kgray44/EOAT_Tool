@@ -324,6 +324,39 @@ def test_http_only_listener_is_nonblocking_infrastructure_warning() -> None:
     assert warnings == [server_updater.HTTP_ONLY_TLS_WARNING]
 
 
+def test_placeholder_manifest_hostname_requires_an_explicit_deployment_host() -> None:
+    config = ServerConfig(
+        "eoat-atlas",
+        22,
+        "kgray",
+        "/opt/eoat-atlas",
+        8765,
+        ("eoat-atlas.service",),
+        "nginx.service",
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+        public_hostname="eoat-atlas.internal.example",
+        public_scheme="http",
+        public_port=80,
+    )
+    compatibility = server_updater.public_health_compatibility(
+        config,
+        {
+            "health_checks": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            "public_health_endpoint": {
+                "scheme": "http",
+                "hostname": "eoat-atlas.example.invalid",
+                "port": 80,
+                "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            },
+        },
+    )
+    assert compatibility["status"] == "PASS"
+    assert compatibility["hostname_source"] == "deployment_configuration"
+    assert "placeholder hostname" in compatibility["detail"]
+
+
 def test_secured_schema_probe_is_not_misreported_as_an_api_or_tls_failure() -> None:
     protected = RemoteResult(
         "health",

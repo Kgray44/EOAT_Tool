@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -12,7 +15,20 @@ from server.eoat_api.database.base import Base
 
 TEST_URL = os.getenv("EOAT_MYSQL_TEST_URL")
 RUNTIME_URL = os.getenv("EOAT_MYSQL_RUNTIME_URL")
+ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(not TEST_URL, reason="EOAT_MYSQL_TEST_URL is required for real MySQL integration tests")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fresh_approved_mysql_schema():
+    """Keep structural MySQL assertions independent of prior import modules."""
+    if os.getenv("EOAT_DB_NAME") != "eoat_atlas_test":
+        pytest.fail("MySQL foundation tests require the approved eoat_atlas_test database.")
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "database" / "reset_mysql_test_database.py")],
+        cwd=ROOT,
+        check=True,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -46,10 +62,7 @@ def test_data_state_is_a_seeded_non_auto_increment_singleton(engine):
     assert "`ID` = 1" in create_statement.upper()
     assert len(state) == 1
     assert state[0]["id"] == 1
-    # This module can run after other MySQL integration modules.  The
-    # structural invariant is a valid non-negative singleton revision; the
-    # fresh-empty reset path separately exercises its initial value of zero.
-    assert state[0]["current_revision"] >= 0
+    assert state[0]["current_revision"] == 0
     assert state[0]["data_last_modified_at"] is not None
     assert state[0]["last_import_at"] is None
     assert state[0]["last_import_source"] is None

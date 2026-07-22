@@ -188,6 +188,8 @@ def test_application_change_classification_is_repository_specific() -> None:
         "app/main.py",
         "assets/icons/app.png",
         "scripts/build_package.py",
+        "deployment/server_updater.py",
+        "release_tools/versioning.py",
         "tests/test_main.py",
         "docs/design_notes.md",
         "reports/test-output.json",
