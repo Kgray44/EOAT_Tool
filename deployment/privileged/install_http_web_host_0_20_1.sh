@@ -7,6 +7,9 @@ umask 027
 HOST=eoat-atlas.gwplastics.com
 STATIC=/opt/eoat-atlas/releases/eoat-atlas-server-0.20.1-0a75860/web-static
 STATIC_MANIFEST_SHA256=58e18aa80dfe0065d5e0a5918b5fd261ea4649c4d456c3945f387054c53bcc14
+WEB_BASE=/var/www/eoat-atlas
+WEB_RELEASE=/var/www/eoat-atlas/releases/eoat-atlas-web-0.20.1-0a75860
+WEB_CURRENT=/var/www/eoat-atlas/current
 API_RELEASE=/opt/eoat-atlas/releases/eoat-atlas-server-0.18.0-8f0788e
 RUNTIME=/etc/eoat-atlas/runtime.env
 TOKEN=/etc/eoat-atlas/nginx-upstream-token.conf
@@ -36,7 +39,10 @@ restore() { rm -f "$1"; [ -f "$BACKUP/$2.present" ] && cp -a "$BACKUP/$2" "$1" |
 rollback() {
     code=$?
     trap - EXIT INT TERM
-    restore "$SITE" site; restore "$ENABLED" enabled; restore "$DEFAULT" default; restore "$LEGACY_API" legacy-api
+    restore "$SITE" site; restore "$ENABLED" enabled; restore "$DEFAULT" default; restore "$LEGACY_API" legacy-api; restore "$WEB_CURRENT" web-current
+    if [ -f "$BACKUP/web-release-created" ]; then
+        [ "$WEB_RELEASE" = "/var/www/eoat-atlas/releases/eoat-atlas-web-0.20.1-0a75860" ] && rm -rf -- "$WEB_RELEASE"
+    fi
     restore "$RUNTIME" runtime; restore "$TOKEN" token
     systemctl restart eoat-atlas.service >/dev/null 2>&1 || true
     nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true
@@ -45,8 +51,28 @@ rollback() {
 }
 backup "$SITE" site; backup "$ENABLED" enabled; backup "$DEFAULT" default; backup "$LEGACY_API" legacy-api
 backup "$RUNTIME" runtime; backup "$TOKEN" token
+backup "$WEB_CURRENT" web-current
 readlink -f /opt/eoat-atlas/current >"$BACKUP/active-api-release.txt"
 trap rollback EXIT INT TERM
+
+install -d -o root -g root -m 0755 "$WEB_BASE/releases"
+if [ ! -e "$WEB_RELEASE" ]; then
+    install -d -o root -g root -m 0755 "$WEB_RELEASE"
+    cp -a "$STATIC/." "$WEB_RELEASE/"
+    chown -R root:root "$WEB_RELEASE"
+    find "$WEB_RELEASE" -type d -exec chmod 0755 {} +
+    find "$WEB_RELEASE" -type f -exec chmod 0644 {} +
+    : >"$BACKUP/web-release-created"
+fi
+python3 - "$WEB_RELEASE" <<'PY'
+import hashlib, json, pathlib, sys
+root = pathlib.Path(sys.argv[1]); manifest_path = root / "web-static.manifest.json"
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+actual = {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in root.rglob("*") if path.is_file() and path != manifest_path}
+if manifest != actual:
+    raise SystemExit("staged web subtree hash verification failed")
+PY
+ln -sfn releases/eoat-atlas-web-0.20.1-0a75860 "$WEB_CURRENT"
 
 python3 - "$RUNTIME" "$TOKEN" <<'PY'
 import os, re, secrets, sys, tempfile
@@ -81,7 +107,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name $HOST;
-    root $STATIC;
+    root $WEB_CURRENT;
     index index.html;
     autoindex off;
     include $TOKEN;
@@ -139,8 +165,18 @@ systemctl reload nginx
 curl --fail --silent --show-error --resolve $HOST:80:127.0.0.1 http://$HOST/ | grep -qv 'Welcome to nginx!'
 curl --fail --silent --show-error --resolve $HOST:80:127.0.0.1 http://$HOST/api/v1/health >/dev/null
 curl --fail --silent --show-error --resolve $HOST:80:127.0.0.1 http://$HOST/fit-check | grep -q '<div id="root"></div>'
+for suffix in js css; do
+    asset=$(python3 - "$WEB_RELEASE/web-static.manifest.json" "$suffix" <<'PY'
+import json, sys
+manifest = json.load(open(sys.argv[1], encoding="utf-8"))
+print(next(path for path in manifest if path.endswith("." + sys.argv[2])))
+PY
+)
+    curl --fail --silent --show-error --resolve $HOST:80:127.0.0.1 http://$HOST/$asset >/dev/null
+done
 status=$(curl --silent --output "$BACKUP/api-404.body" --write-out '%{http_code}' --resolve $HOST:80:127.0.0.1 http://$HOST/api/v1/does-not-exist)
 [ "$status" = 404 ] && ! grep -qi '<!doctype html\|<html' "$BACKUP/api-404.body"
+! curl --silent --show-error --head --resolve $HOST:80:127.0.0.1 http://$HOST/ | grep -qi '^location: https://'
 ! ss -ltn | grep -qE '[:.]443[[:space:]]'
 ! nginx -T 2>&1 | grep -qi 'Strict-Transport-Security'
 [ "$(readlink -f /opt/eoat-atlas/current)" = "$API_RELEASE" ]

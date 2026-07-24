@@ -35,6 +35,10 @@ def test_http_host_installer_is_fixed_to_the_verified_static_release() -> None:
     assert "LEGACY_API=/etc/nginx/conf.d/eoat-atlas-api.conf" in text
     assert "rm -f \"$DEFAULT\" \"$LEGACY_API\"" in text
     assert "for attempt in range(20):" in text
+    assert "WEB_RELEASE=/var/www/eoat-atlas/releases/eoat-atlas-web-0.20.1-0a75860" in text
+    assert "root $WEB_CURRENT;" in text
+    assert "staged web subtree hash verification failed" in text
+    assert "for suffix in js css; do" in text
     assert "[ \"$(readlink -f /opt/eoat-atlas/current)\" = \"$API_RELEASE\" ]" in text
 
 
