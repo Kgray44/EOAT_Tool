@@ -120,14 +120,19 @@ def verify_bundle(root: Path, expected_sha: str) -> dict[str, object]:
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     current = bundle_files(root)
     if not isinstance(manifest, dict) or manifest != current:
-        raise InstallError("bundle manifest mismatch")
+        raise InstallError("payload file SHA-256 values do not match bundle manifest")
     metadata = json.loads((root / "bundle.json").read_text(encoding="utf-8"))
-    if metadata.get("content_sha256") != canonical(manifest):
-        raise InstallError("bundle content identity mismatch")
-    actual = canonical({**manifest, "bundle.json": sha256(root / "bundle.json"), "manifest.json": sha256(root / "manifest.json")})
-    if actual != expected_sha:
-        raise InstallError("bundle SHA-256 does not match approved policy")
-    return {"manifest": manifest, "metadata": metadata, "bundle_sha256": actual}
+    computed_payload_sha = canonical(current)
+    if metadata.get("content_sha256") != computed_payload_sha:
+        raise InstallError("payload content SHA-256 does not match bundle metadata")
+    computed_bundle_sha = canonical({**current, "bundle.json": sha256(root / "bundle.json"), "manifest.json": sha256(root / "manifest.json")})
+    if computed_bundle_sha != expected_sha:
+        raise InstallError(
+            "complete bundle SHA-256 does not match approved policy "
+            f"(verification_stage=complete_bundle_policy expected_hash_type=complete_bundle_sha256 "
+            f"expected_hash={expected_sha} computed_hash_type=complete_bundle_sha256 computed_hash={computed_bundle_sha})"
+        )
+    return {"manifest": current, "metadata": metadata, "bundle_sha256": computed_bundle_sha}
 
 
 def policy_load(path: Path, installer: Path) -> dict[str, object]:

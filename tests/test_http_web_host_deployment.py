@@ -5,6 +5,8 @@ import importlib.util
 import json
 import os
 import stat
+import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -33,6 +35,41 @@ def bundle(tmp_path: Path) -> tuple[Path, str]:
     return output, result["bundle_sha256"]
 
 
+def cli_preflight(monkeypatch: pytest.MonkeyPatch, bundle_root: Path, bundle_sha: str, policy_path: Path) -> int:
+    """Exercise installer.main() with its real CLI parser and verify_bundle path."""
+    policy_path.write_text(json.dumps({
+        "installer_sha256": installer.sha256(Path(SPEC.origin)),
+        "bundle_path": str(bundle_root),
+        "bundle_sha256": bundle_sha,
+        "application_version": "0.20.1",
+        "api_release": "/approved/api-release",
+        "schema": "20260721_0008",
+    }), encoding="utf-8")
+    legacy = policy_path.with_name("legacy.conf")
+    legacy.write_text("server_name eoat-atlas.gwplastics.com;", encoding="utf-8")
+    class DefaultSite:
+        def is_symlink(self) -> bool:
+            return True
+    monkeypatch.setattr(installer.os, "geteuid", lambda: 0, raising=False)
+    monkeypatch.setattr(installer, "require_root_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(installer, "require_root_chain", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(installer, "require_root_tree", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(installer, "active_release", lambda: "/approved/api-release")
+    monkeypatch.setattr(installer, "api_health", lambda _: {"writes_enabled": False})
+    monkeypatch.setattr(installer, "api_loopback_only", lambda: True)
+    monkeypatch.setattr(installer, "mysql_loopback_only", lambda: True)
+    monkeypatch.setattr(installer, "no_tls_listener", lambda: True)
+    monkeypatch.setattr(installer, "hostname_owners", lambda: [legacy])
+    monkeypatch.setattr(installer, "LEGACY_CONFIG", legacy)
+    monkeypatch.setattr(installer, "DEFAULT_ENABLED", DefaultSite())
+    monkeypatch.setattr(installer.os, "readlink", lambda _: "/etc/nginx/sites-available/default")
+    monkeypatch.setattr(installer, "validate_isolated", lambda *_args: None)
+    monkeypatch.setattr(installer, "nginx_worker_user", lambda: "www-data")
+    monkeypatch.setattr(installer.shutil, "disk_usage", lambda _: SimpleNamespace(free=1024 * 1024 * 1024))
+    monkeypatch.setattr(sys, "argv", [str(SPEC.origin), "--policy", str(policy_path), "preflight"])
+    return installer.main()
+
+
 def test_bundle_rejects_hash_mismatch_and_unexpected_files(tmp_path: Path) -> None:
     output, digest = bundle(tmp_path)
     assert verify_bundle(output, digest)["bundle_sha256"] == digest
@@ -43,6 +80,47 @@ def test_bundle_rejects_hash_mismatch_and_unexpected_files(tmp_path: Path) -> No
     (output / "unexpected").write_text("no", encoding="utf-8")
     with pytest.raises(BundleError, match="top-level"):
         verify_bundle(output, digest)
+
+
+def test_cli_preflight_separates_payload_and_complete_bundle_hash_domains(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    output, complete_bundle_sha = bundle(tmp_path)
+    payload_sha = json.loads((output / "bundle.json").read_text(encoding="utf-8"))["content_sha256"]
+    assert payload_sha != complete_bundle_sha
+    assert cli_preflight(monkeypatch, output, complete_bundle_sha, tmp_path / "policy.json") == 0
+    assert json.loads(capsys.readouterr().out)["bundle_sha256"] == complete_bundle_sha
+
+
+def test_cli_preflight_rejects_each_hash_domain_mutation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    payload_bundle, bundle_sha = bundle(tmp_path / "payload")
+    (payload_bundle / "web" / "assets" / "app.js").write_text("mutated", encoding="utf-8")
+    with pytest.raises(installer.InstallError, match="payload file SHA-256"):
+        cli_preflight(monkeypatch, payload_bundle, bundle_sha, tmp_path / "payload-policy.json")
+
+    manifest_bundle, bundle_sha = bundle(tmp_path / "manifest")
+    manifest_path = manifest_bundle / "manifest.json"
+    manifest_path.write_text(manifest_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(installer.InstallError, match="complete bundle SHA-256"):
+        cli_preflight(monkeypatch, manifest_bundle, bundle_sha, tmp_path / "manifest-policy.json")
+
+    metadata_bundle, bundle_sha = bundle(tmp_path / "metadata")
+    metadata_path = metadata_bundle / "bundle.json"
+    metadata_path.write_text(metadata_path.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    with pytest.raises(installer.InstallError, match="complete bundle SHA-256"):
+        cli_preflight(monkeypatch, metadata_bundle, bundle_sha, tmp_path / "metadata-policy.json")
+
+    policy_bundle, bundle_sha = bundle(tmp_path / "policy")
+    with pytest.raises(installer.InstallError, match="complete bundle SHA-256") as failure:
+        cli_preflight(monkeypatch, policy_bundle, "0" * 64, tmp_path / "wrong-policy.json")
+    assert "verification_stage=complete_bundle_policy" in str(failure.value)
+    assert "expected_hash_type=complete_bundle_sha256" in str(failure.value)
+    assert "computed_hash_type=complete_bundle_sha256" in str(failure.value)
+
+    content_bundle, bundle_sha = bundle(tmp_path / "content")
+    metadata = json.loads((content_bundle / "bundle.json").read_text(encoding="utf-8"))
+    metadata["content_sha256"] = "f" * 64
+    (content_bundle / "bundle.json").write_text(json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    with pytest.raises(installer.InstallError, match="payload content SHA-256"):
+        cli_preflight(monkeypatch, content_bundle, bundle_sha, tmp_path / "content-policy.json")
 
 
 def test_bundle_rejects_browser_secret_or_development_api_host(tmp_path: Path) -> None:
