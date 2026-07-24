@@ -166,6 +166,11 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def migration_hashes(root: Path, commit: str) -> dict[str, str]:
+    names = str(_git(root, "ls-tree", "-r", "--name-only", commit, "--", "server/migrations/versions")).splitlines()
+    return {name: hashlib.sha256(_git(root, "show", f"{commit}:{name}", binary=True)).hexdigest() for name in names if name.endswith(".py")}
+
+
 def _zip_info(name: str, timestamp: datetime, mode: int = 0o644) -> zipfile.ZipInfo:
     utc = timestamp.astimezone(timezone.utc)
     info = zipfile.ZipInfo(name, (max(1980, utc.year), utc.month, utc.day, utc.hour, utc.minute, utc.second))
@@ -264,6 +269,7 @@ def build_server_release(args: argparse.Namespace) -> tuple[Path, Path, Path, di
         "installer_version": metadata["installer_version"],
         "environment": metadata["environment"],
         "release_channel": metadata["release_channel"],
+        "migration_sha256": migration_hashes(root, commit),
     }
     _assert_no_secret_fields(manifest, label="release manifest")
     checksum_path.write_text(f"{archive_sha}  {archive_name}\n", encoding="ascii", newline="\n")

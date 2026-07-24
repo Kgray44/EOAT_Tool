@@ -8,6 +8,9 @@
 deployment/privileged/*.py text eol=lf
 deployment/privileged/*.md text eol=lf
 deployment/privileged/eoat_atlas_deploy_helper.py export-subst
+# Alembic revisions are immutable schema identity artifacts.  They must retain
+# their canonical Git LF bytes in checkouts and release archives.
+server/migrations/versions/*.py text eol=lf
 # The Vite/Prettier pipeline is also consumed on Linux in CI and during
 # release assembly; keep its committed text deterministic across Windows UNC
 # development worktrees.

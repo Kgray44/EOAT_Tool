@@ -190,6 +190,13 @@
       "state": "finalized",
       "task_id": "reconcile-machine-profile-schema-0008-20260724",
       "finalized_at_utc": "2026-07-24T20:03:06Z"
+    },
+    {
+      "application_version": "0.22.2",
+      "release_id": "eoat-atlas-0.22.2",
+      "state": "finalized",
+      "task_id": "deterministic-migration-packaging-20260724",
+      "finalized_at_utc": "2026-07-24T20:22:53Z"
     }
   ]
 }
