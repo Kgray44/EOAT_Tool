@@ -171,6 +171,15 @@ def migration_hashes(root: Path, commit: str) -> dict[str, str]:
     return {name: hashlib.sha256(_git(root, "show", f"{commit}:{name}", binary=True)).hexdigest() for name in names if name.endswith(".py")}
 
 
+def archive_migration_hashes(archive_path: Path) -> dict[str, str]:
+    with zipfile.ZipFile(archive_path) as archive:
+        return {
+            name: hashlib.sha256(archive.read(name)).hexdigest()
+            for name in archive.namelist()
+            if name.startswith("server/migrations/versions/") and name.endswith(".py")
+        }
+
+
 def _zip_info(name: str, timestamp: datetime, mode: int = 0o644) -> zipfile.ZipInfo:
     utc = timestamp.astimezone(timezone.utc)
     info = zipfile.ZipInfo(name, (max(1980, utc.year), utc.month, utc.day, utc.hour, utc.minute, utc.second))
@@ -196,7 +205,12 @@ def create_archive(root: Path, commit: str, destination: Path, metadata: dict[st
                 extracted = source.extractfile(member)
                 if extracted is None:
                     raise ReleaseBuildError(f"Could not read Git archive member: {member.name}")
-                archive.writestr(_zip_info(path.as_posix(), timestamp, member.mode), extracted.read())
+                payload = (
+                    _git(root, "show", f"{commit}:{path.as_posix()}", binary=True)
+                    if path.as_posix().startswith("server/migrations/versions/") and path.suffix == ".py"
+                    else extracted.read()
+                )
+                archive.writestr(_zip_info(path.as_posix(), timestamp, member.mode), payload)
             serialized = json.dumps(metadata, indent=2, sort_keys=True).encode("utf-8") + b"\n"
             archive.writestr(_zip_info("release_metadata.json", timestamp), serialized)
 
@@ -252,6 +266,10 @@ def build_server_release(args: argparse.Namespace) -> tuple[Path, Path, Path, di
     create_archive(root, commit, archive_path, metadata, timestamp)
     archive_sha = sha256_file(archive_path)
     validate_archive(archive_path, expected_commit=commit, expected_metadata=metadata, expected_sha256=archive_sha)
+    git_migrations = migration_hashes(root, commit)
+    zip_migrations = archive_migration_hashes(archive_path)
+    if git_migrations != zip_migrations:
+        raise ReleaseBuildError("ZIP-embedded migration bytes differ from declared Git commit")
     manifest = {
         "manifest_schema_version": 1,
         "app_name": metadata["app_name"],
@@ -269,7 +287,10 @@ def build_server_release(args: argparse.Namespace) -> tuple[Path, Path, Path, di
         "installer_version": metadata["installer_version"],
         "environment": metadata["environment"],
         "release_channel": metadata["release_channel"],
-        "migration_sha256": migration_hashes(root, commit),
+        "migration_inventory": {
+            path: {"git_blob_sha256": digest, "staged_file_sha256": zip_migrations[path], "zip_embedded_sha256": zip_migrations[path]}
+            for path, digest in git_migrations.items()
+        },
     }
     _assert_no_secret_fields(manifest, label="release manifest")
     checksum_path.write_text(f"{archive_sha}  {archive_name}\n", encoding="ascii", newline="\n")

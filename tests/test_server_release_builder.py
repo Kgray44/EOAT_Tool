@@ -121,6 +121,19 @@ def test_archive_checksum_manifest_and_linux_layout_are_consistent(tmp_path: Pat
     assert metadata["api_contract_version"] == "1.4.0"
     assert not any(builder.SECRET_KEY.search(key) for key in metadata)
     assert not any(builder.SECRET_KEY.search(key) for key in manifest)
+    assert manifest["migration_inventory"]
+    assert all(item["git_blob_sha256"] == item["staged_file_sha256"] == item["zip_embedded_sha256"] for item in manifest["migration_inventory"].values())
+
+
+def test_archive_migrations_are_git_bytes_even_when_worktree_is_crlf(tmp_path: Path) -> None:
+    root, commit = release_repository(tmp_path / "repo")
+    migration = root / "server/migrations/versions/20260721_0008_test.py"
+    migration.write_bytes(migration.read_bytes().replace(b"\n", b"\r\n"))
+    subprocess.run(["git", "update-index", "--assume-unchanged", migration.relative_to(root).as_posix()], cwd=root, check=True)
+    archive, _, _, manifest = builder.build_server_release(_args(root, tmp_path / "dist", commit))
+    expected = builder.migration_hashes(root, commit)
+    assert builder.archive_migration_hashes(archive) == expected
+    assert manifest["migration_inventory"][next(iter(expected))]["git_blob_sha256"] == next(iter(expected.values()))
 
 
 def test_same_commit_and_timestamp_produce_identical_archives(tmp_path: Path) -> None:
