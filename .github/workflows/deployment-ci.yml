@@ -20,19 +20,20 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: '3.13' }
       - uses: actions/setup-node@v4
-        with: { node-version: '22.13.0', cache: npm, cache-dependency-path: web/package-lock.json }
+        with: { node-version: '22.13.0', cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: corepack enable
       - run: python -m pip install -r requirements.txt
       - run: python -m ruff check deployment server/eoat_api tests/test_deployment_system.py tests/test_phase3_client.py tests/test_phase3_privileged_helper.py tests/test_web_content_delivery.py tests/test_web_hosting_assets.py
       - run: python -m pytest -q tests/test_deployment_system.py tests/test_phase3_client.py tests/test_phase3_privileged_helper.py tests/test_web_content_delivery.py tests/test_web_hosting_assets.py
       - run: bash -n deployment/privileged/install_helper.sh deployment/privileged/uninstall_helper.sh
       - working-directory: web
         run: |
-          npm ci
-          npx playwright install --with-deps chromium
-          npm run api:check
-          npm run format:check
-          npm run lint
-          npm run typecheck
-          npm test
-          npm run test:e2e
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+          pnpm run api:check
+          pnpm run format:check
+          pnpm run lint
+          pnpm run typecheck
+          pnpm test
+          pnpm run test:e2e
+          pnpm run build

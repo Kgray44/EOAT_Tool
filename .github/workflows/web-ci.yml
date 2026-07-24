@@ -18,23 +18,24 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
       - uses: actions/setup-node@v4
-        with: { node-version: "22.13.0", cache: npm, cache-dependency-path: web/package-lock.json }
+        with: { node-version: "22.13.0", cache: pnpm, cache-dependency-path: web/pnpm-lock.yaml }
+      - run: corepack enable
       - run: python -m pip install -r requirements.txt
       - working-directory: web
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       - working-directory: web
-        run: npm run format:check
+        run: pnpm run format:check
       - working-directory: web
-        run: npm run lint
+        run: pnpm run lint
       - working-directory: web
-        run: npm run typecheck
+        run: pnpm run typecheck
       - working-directory: web
-        run: npm test
+        run: pnpm test
       - working-directory: web
-        run: npm exec playwright install chromium
+        run: pnpm exec playwright install chromium
       - working-directory: web
-        run: npm run test:e2e
+        run: pnpm run test:e2e
       - working-directory: web
-        run: npm run api:check
+        run: pnpm run api:check
       - working-directory: web
-        run: npm run build
+        run: pnpm run build
