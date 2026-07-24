@@ -32,6 +32,9 @@ def test_http_host_installer_is_fixed_to_the_verified_static_release() -> None:
     assert "if (\\$request_method !~ ^(GET|HEAD)$)" in text
     assert "runtime_gid = os.stat(runtime_path).st_gid" in text
     assert "atomic(token_path, f'set $eoat_atlas_upstream_token \"{token}\";\\n', runtime_gid)" in text
+    assert "LEGACY_API=/etc/nginx/conf.d/eoat-atlas-api.conf" in text
+    assert "rm -f \"$DEFAULT\" \"$LEGACY_API\"" in text
+    assert "for attempt in range(20):" in text
     assert "[ \"$(readlink -f /opt/eoat-atlas/current)\" = \"$API_RELEASE\" ]" in text
 
 

@@ -13,6 +13,7 @@ TOKEN=/etc/eoat-atlas/nginx-upstream-token.conf
 SITE=/etc/nginx/sites-available/eoat-atlas
 ENABLED=/etc/nginx/sites-enabled/eoat-atlas
 DEFAULT=/etc/nginx/sites-enabled/default
+LEGACY_API=/etc/nginx/conf.d/eoat-atlas-api.conf
 BACKUP=/opt/eoat-atlas/shared/web-host-backups/web-host-$(date -u +%Y%m%dT%H%M%SZ)
 
 [ "$(id -u)" -eq 0 ] || { echo "must run as root" >&2; exit 77; }
@@ -35,14 +36,14 @@ restore() { rm -f "$1"; [ -f "$BACKUP/$2.present" ] && cp -a "$BACKUP/$2" "$1" |
 rollback() {
     code=$?
     trap - EXIT INT TERM
-    restore "$SITE" site; restore "$ENABLED" enabled; restore "$DEFAULT" default
+    restore "$SITE" site; restore "$ENABLED" enabled; restore "$DEFAULT" default; restore "$LEGACY_API" legacy-api
     restore "$RUNTIME" runtime; restore "$TOKEN" token
     systemctl restart eoat-atlas.service >/dev/null 2>&1 || true
     nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true
     echo "ROLLED_BACK backup=$BACKUP" >&2
     exit "$code"
 }
-backup "$SITE" site; backup "$ENABLED" enabled; backup "$DEFAULT" default
+backup "$SITE" site; backup "$ENABLED" enabled; backup "$DEFAULT" default; backup "$LEGACY_API" legacy-api
 backup "$RUNTIME" runtime; backup "$TOKEN" token
 readlink -f /opt/eoat-atlas/current >"$BACKUP/active-api-release.txt"
 trap rollback EXIT INT TERM
@@ -78,6 +79,7 @@ PY
 cat >"$SITE" <<EOF
 server {
     listen 80;
+    listen [::]:80;
     server_name $HOST;
     root $STATIC;
     index index.html;
@@ -112,17 +114,24 @@ EOF
 chmod 0644 "$SITE"
 ln -sfn ../sites-available/eoat-atlas "$ENABLED"
 nginx -t
-rm -f "$DEFAULT"
+rm -f "$DEFAULT" "$LEGACY_API"
+nginx -t
 systemctl restart eoat-atlas.service
 
 python3 - "$RUNTIME" <<'PY'
-import json, sys, urllib.request
+import json, sys, time, urllib.error, urllib.request
 from pathlib import Path
 token = next(line.split("=", 1)[1] for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines() if line.startswith("EOAT_API_DEVICE_TOKEN="))
-request = urllib.request.Request("http://127.0.0.1:8765/api/v1/eoats", headers={"X-EOAT-Device-Token": token})
-with urllib.request.urlopen(request, timeout=10) as response:
-    if response.status != 200: raise SystemExit("local authenticated API check failed")
-health = json.loads(urllib.request.urlopen("http://127.0.0.1:8765/api/v1/health", timeout=10).read())
+for attempt in range(20):
+    try:
+        request = urllib.request.Request("http://127.0.0.1:8765/api/v1/eoats", headers={"X-EOAT-Device-Token": token})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            if response.status != 200: raise SystemExit("local authenticated API check failed")
+        health = json.loads(urllib.request.urlopen("http://127.0.0.1:8765/api/v1/health", timeout=10).read())
+        break
+    except (urllib.error.URLError, urllib.error.HTTPError):
+        if attempt == 19: raise SystemExit("API did not become ready after restart")
+        time.sleep(1)
 if health.get("writes_enabled") is not False or health.get("current_schema_revision") != "20260721_0008": raise SystemExit("API safety check failed")
 PY
 
