@@ -148,6 +148,13 @@
       "state": "finalized",
       "task_id": "eoat-http-web-host-installer-20260724",
       "finalized_at_utc": "2026-07-24T13:21:39Z"
+    },
+    {
+      "application_version": "0.20.4",
+      "release_id": "eoat-atlas-0.20.4",
+      "state": "finalized",
+      "task_id": "eoat-http-web-host-installer-token-file-fix-20260724",
+      "finalized_at_utc": "2026-07-24T13:38:36Z"
     }
   ]
 }

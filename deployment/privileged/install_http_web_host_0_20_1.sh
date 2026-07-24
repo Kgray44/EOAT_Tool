@@ -63,15 +63,16 @@ if runtime_token and nginx_token and runtime_token != nginx_token: raise SystemE
 token = runtime_token or nginx_token or secrets.token_urlsafe(32)
 lines = [line for line in lines if not line.startswith("EOAT_API_DEVICE_TOKEN=")]
 lines.append(f"EOAT_API_DEVICE_TOKEN={token}")
-def atomic(path, text):
+runtime_gid = os.stat(runtime_path).st_gid
+def atomic(path, text, gid):
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream: stream.write(text); stream.flush(); os.fsync(stream.fileno())
-        os.chown(temporary, 0, os.stat(path).st_gid); os.chmod(temporary, 0o640); os.replace(temporary, path)
+        os.chown(temporary, 0, gid); os.chmod(temporary, 0o640); os.replace(temporary, path)
     finally:
         if os.path.exists(temporary): os.unlink(temporary)
-atomic(runtime_path, "\n".join(lines) + "\n")
-atomic(token_path, f'set $eoat_atlas_upstream_token "{token}";\n')
+atomic(runtime_path, "\n".join(lines) + "\n", runtime_gid)
+atomic(token_path, f'set $eoat_atlas_upstream_token "{token}";\n', runtime_gid)
 PY
 
 cat >"$SITE" <<EOF
