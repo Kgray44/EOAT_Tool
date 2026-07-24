@@ -169,6 +169,13 @@
       "state": "finalized",
       "task_id": "eoat-http-web-host-static-staging-fix-20260724",
       "finalized_at_utc": "2026-07-24T13:58:24Z"
+    },
+    {
+      "application_version": "0.21.0",
+      "release_id": "eoat-atlas-0.21.0",
+      "state": "finalized",
+      "task_id": "http-web-host-redesign-20260724",
+      "finalized_at_utc": "2026-07-24T14:57:57Z"
     }
   ]
 }

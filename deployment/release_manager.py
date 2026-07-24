@@ -183,8 +183,13 @@ def _source_members(root: Path, commit: str) -> list[tuple[str, bytes, int]]:
     with tempfile.TemporaryDirectory(prefix="eoat-release-source-") as temporary:
         source_tar = Path(temporary) / "source.tar"
         git = Git(root)
+        # ``git cat-file -e <commit>:directory`` is not portable across Git
+        # versions.  Ask the committed tree for at least one file instead so
+        # runtime configuration directories are packaged consistently.
         available = [
-            path for path in SERVER_PATHS if git.run("cat-file", "-e", f"{commit}:{path}", check=False).returncode == 0
+            path
+            for path in SERVER_PATHS
+            if git.run("ls-tree", "-r", "--name-only", commit, "--", path, check=False).stdout.strip()
         ]
         result = git.run("archive", "--format=tar", f"--output={source_tar}", commit, "--", *available, check=False)
         if result.returncode:
@@ -290,6 +295,7 @@ def build_deployment_archive(
     host_templates = {
         name: {"path": path, "sha256": hashlib.sha256(member_contents[path]).hexdigest()}
         for name, path in host_template_paths.items()
+        if path in member_contents
     }
     if "web-static/web-static.manifest.json" in member_contents:
         host_templates["static_manifest"] = {
