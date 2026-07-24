@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "attestations": [
+    {
+      "migration_path": "server/migrations/versions/20260721_0008_data_state_freshness.py",
+      "revision": "20260721_0008",
+      "parent_revision": "20260717_0007",
+      "canonical_sha256": "f3f8210decab193add9a09ad163d61d4b50517b05e9a6021ec0e7633afa1d642",
+      "legacy_production_sha256": "e2d0b1892d1144692e613d6de6d5faf03bfece9a12c57a19fda2288991675127",
+      "normalization": "CRLF_TO_LF_ONLY",
+      "normalized_production_sha256": "f3f8210decab193add9a09ad163d61d4b50517b05e9a6021ec0e7633afa1d642",
+      "canonical_ast_sha256": "4cdfed100cc7a1b18e7e4f814ae51b0e94ef2a34d7cdc0d12247bad88021b269",
+      "legacy_ast_sha256": "4cdfed100cc7a1b18e7e4f814ae51b0e94ef2a34d7cdc0d12247bad88021b269",
+      "active_production_release": "eoat-atlas-server-0.18.0-8f0788e",
+      "production_schema_revision": "20260721_0008",
+      "verified_at": "2026-07-24",
+      "verification_source_commit": "2819784dfe3cdd02c5e9edd61a8d194e893847b7",
+      "reason": "Historical Windows checkout converted the immutable migration from LF to CRLF before the active 0.18.0 package was assembled.",
+      "migration_execution_required": false,
+      "future_packages_must_use_canonical_lf": true
+    }
+  ]
+}
