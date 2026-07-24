@@ -86,3 +86,6 @@ operation ID. No commit, tag, push, release, or deployment is performed automati
 - [Disaster recovery](docs/DISASTER_RECOVERY.md)
 
 Historical migration reports may mention retired products or paths; they are not current operating instructions.
+# Release Tools GUI
+
+The Phase 1 read-only EOAT Atlas Release Tools GUI is documented in [docs/RELEASE_TOOLS_GUI.md](docs/RELEASE_TOOLS_GUI.md).  It is launched with `python tools\release_tools_gui.py`.
