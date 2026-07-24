@@ -26,7 +26,9 @@ export const routeDefinitions = [
   },
 ];
 
-export const router = createBrowserRouter(routeDefinitions);
+export function createAppRouter() {
+  return createBrowserRouter(routeDefinitions);
+}
 
 export function createTestRouter(initialEntries: string[]) {
   return createMemoryRouter(routeDefinitions, { initialEntries });

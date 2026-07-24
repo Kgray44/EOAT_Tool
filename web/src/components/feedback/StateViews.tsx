@@ -28,13 +28,21 @@ export function EmptyState({
   );
 }
 
-export function ErrorState({ error, title }: { error: unknown; title?: string }) {
+export function ErrorState({
+  error,
+  title,
+}: {
+  error: unknown;
+  title?: string;
+}) {
   const unavailable =
     error instanceof ApiError &&
     ["unavailable", "timeout"].includes(error.kind);
   return (
     <section className="state state--error" role="alert">
-      <h2>{title || (unavailable ? "API unavailable" : "Unable to load status")}</h2>
+      <h2>
+        {title || (unavailable ? "API unavailable" : "Unable to load status")}
+      </h2>
       <p>{apiErrorMessage(error)}</p>
     </section>
   );

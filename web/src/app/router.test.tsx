@@ -27,10 +27,11 @@ describe("router", () => {
   });
   it("supports keyboard-accessible navigation", async () => {
     const user = userEvent.setup();
-    renderAt("/search");
-    await user.click(screen.getByRole("link", { name: "Status" }));
-    expect(
-      screen.getByRole("heading", { name: /secure foundation/i }),
-    ).toBeInTheDocument();
+    renderAt("/");
+    const status = screen.getByRole("link", { name: "Status" });
+    await user.tab();
+    await user.tab();
+    expect(status).toHaveFocus();
+    expect(status).toHaveAttribute("href", "/");
   });
 });

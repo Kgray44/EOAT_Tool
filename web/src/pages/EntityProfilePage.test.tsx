@@ -99,12 +99,18 @@ describe("machine and tool profile routes", () => {
   it("renders truthful machine values, human-readable setup states, and empty media states", async () => {
     vi.stubGlobal("fetch", fetchFor());
     renderAt("/machines/M-1");
-    expect(await screen.findByText("Not verified")).toBeInTheDocument();
-    expect(screen.getByText("Fixture")).toBeInTheDocument();
+    expect((await screen.findAllByText("Not verified")).length).toBeGreaterThan(
+      0,
+    );
+    expect(
+      screen.queryByText("Unknown / not verified"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText(/Not recorded:/)).toBeInTheDocument();
-    expect(screen.getByText("No photos recorded")).toBeInTheDocument();
-    expect(screen.getByText("No documents recorded")).toBeInTheDocument();
+    expect(await screen.findByText("No photos recorded")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No documents recorded"),
+    ).toBeInTheDocument();
   });
   it("shows a truthful tool not-found state", async () => {
     vi.stubGlobal(

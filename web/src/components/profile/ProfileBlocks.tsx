@@ -45,7 +45,9 @@ export function Attribute({
     value === null || value === undefined || value === ""
       ? missingLabel
       : typeof value === "boolean" && booleanLabels
-        ? value ? booleanLabels[0] : booleanLabels[1]
+        ? value
+          ? booleanLabels[0]
+          : booleanLabels[1]
         : String(value);
   return (
     <div>
@@ -104,14 +106,22 @@ export function RelationshipList({
           relationship.relationship_type,
           relationship.identifier,
         );
-        const label = !relationship.display_name || relationship.display_name === relationship.identifier
-          ? relationship.identifier
-          : `${relationship.identifier} — ${relationship.display_name}`;
+        const label =
+          !relationship.display_name ||
+          relationship.display_name === relationship.identifier
+            ? relationship.identifier
+            : `${relationship.identifier} — ${relationship.display_name}`;
         return (
           <li
             key={`${relationship.relationship_type}-${relationship.identifier}`}
           >
-            <small>{relationship.relationship_type === "eoat" ? "EOAT" : relationship.relationship_type.replace(/^./, (value) => value.toUpperCase())}</small>
+            <small>
+              {relationship.relationship_type === "eoat"
+                ? "EOAT"
+                : relationship.relationship_type.replace(/^./, (value) =>
+                    value.toUpperCase(),
+                  )}
+            </small>
             {path ? <Link to={path}>{label}</Link> : <span>{label}</span>}
             <small>
               {[relationship.status, relationship.reason]

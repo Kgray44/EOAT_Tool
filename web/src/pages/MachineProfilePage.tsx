@@ -73,15 +73,14 @@ function MachineContent({
       label: profile.machine_name || number,
     });
   }, [number, profile.machine_name]);
-  const resolvedRelationships =
-    Array.from(
-      new Map(
-        (relationships.data ?? profile.relationships ?? []).map((value) => [
-          `${value.relationship_type}:${value.identifier}`,
-          value,
-        ]),
-      ).values(),
-    );
+  const resolvedRelationships = Array.from(
+    new Map(
+      (relationships.data ?? profile.relationships ?? []).map((value) => [
+        `${value.relationship_type}:${value.identifier}`,
+        value,
+      ]),
+    ).values(),
+  );
   const overview = [
     ["Manufacturer", profile.manufacturer],
     ["Model", profile.model],
@@ -89,7 +88,11 @@ function MachineContent({
     ["Press capacity (tons)", profile.press_capacity_tons],
     ["Cleanroom classification", profile.cleanroom_classification],
   ] as const;
-  const missingOverview = overview.filter(([, value]) => value === null || value === undefined || value === "").map(([label]) => label);
+  const missingOverview = overview
+    .filter(
+      ([, value]) => value === null || value === undefined || value === "",
+    )
+    .map(([label]) => label);
 
   return (
     <>
@@ -98,25 +101,44 @@ function MachineContent({
         identifier={profile.machine_number}
         title={profile.machine_name}
         summary={[
-          ["Status", profile.status],
+          ["Status", profile.status || "Not recorded"],
           [
             "Plant / area",
-            [profile.plant_code, profile.area].filter(Boolean).join(" · "),
+            [profile.plant_code, profile.area].filter(Boolean).join(" · ") ||
+              "Not recorded",
           ],
-          ["Current EOAT", assignmentLabel(setup.data?.current_eoat || profile.current_eoat)],
+          [
+            "Current EOAT",
+            assignmentLabel(setup.data?.current_eoat || profile.current_eoat),
+          ],
           [
             "Assignment truth",
-            setup.data?.verified ? "Verified" : "Unknown / not verified",
+            setup.data?.verified ? "Verified" : "Not verified",
           ],
         ]}
       />
       <div className="profile-sections">
         <ProfileSection title="Overview">
           <dl className="attribute-grid">
-            {overview.filter(([, value]) => value !== null && value !== undefined && value !== "").map(([label, value]) => <Attribute key={label} label={label} value={value} />)}
-            <Attribute label="Active record" value={profile.is_active} booleanLabels={["Active", "Inactive"]} />
+            {overview
+              .filter(
+                ([, value]) =>
+                  value !== null && value !== undefined && value !== "",
+              )
+              .map(([label, value]) => (
+                <Attribute key={label} label={label} value={value} />
+              ))}
+            <Attribute
+              label="Active record"
+              value={profile.is_active}
+              booleanLabels={["Active", "Inactive"]}
+            />
           </dl>
-          {missingOverview.length > 0 && <p className="notes"><strong>Not recorded:</strong> {missingOverview.join(", ")}.</p>}
+          {missingOverview.length > 0 && (
+            <p className="notes">
+              <strong>Not recorded:</strong> {missingOverview.join(", ")}.
+            </p>
+          )}
           {profile.notes && (
             <p className="notes">
               <strong>Notes:</strong> {profile.notes}
@@ -127,20 +149,31 @@ function MachineContent({
           {setup.isPending && <LoadingState label="Loading current setup…" />}
           {setup.isError && (
             <>
-              <ErrorState error={setup.error} title="Current assignment unavailable" />
+              <ErrorState
+                error={setup.error}
+                title="Current assignment unavailable"
+              />
               <Retry retry={() => setup.refetch()} />
             </>
           )}
           {setup.data && (
             <dl className="attribute-grid">
-              <Attribute label="Current EOAT" value={assignmentLabel(setup.data.current_eoat)} />
+              <Attribute
+                label="Current EOAT"
+                value={assignmentLabel(setup.data.current_eoat)}
+              />
               <Attribute
                 label="Current tool / mold"
                 value={assignmentLabel(setup.data.current_tool)}
               />
               <Attribute
                 label="Evidence semantics"
-                value={setup.data.location_semantics === "OBSERVATION_OR_LATER_LIFECYCLE_EVENT" ? "Observed assignment or later lifecycle event" : setup.data.location_semantics}
+                value={
+                  setup.data.location_semantics ===
+                  "OBSERVATION_OR_LATER_LIFECYCLE_EVENT"
+                    ? "Observed assignment or later lifecycle event"
+                    : setup.data.location_semantics
+                }
               />
             </dl>
           )}
@@ -181,7 +214,10 @@ function MachineContent({
             <LoadingState label="Loading documents…" />
           ) : documents.isError ? (
             <>
-              <ErrorState error={documents.error} title="Documents unavailable" />
+              <ErrorState
+                error={documents.error}
+                title="Documents unavailable"
+              />
               <Retry retry={() => documents.refetch()} />
             </>
           ) : (
