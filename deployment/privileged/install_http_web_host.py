@@ -263,7 +263,7 @@ def preflight(policy: dict[str, object]) -> dict[str, object]:
     require_root_tree(bundle)
     verified = verify_bundle(bundle, str(policy["bundle_sha256"]))
     metadata = verified["metadata"]
-    if metadata.get("application_version") != policy["application_version"] or metadata.get("api_upstream") != "127.0.0.1:8765":
+    if metadata.get("application_version") != policy["application_version"] or metadata.get("api_upstream") != "127.0.0.1:8765" or metadata.get("server_name") != HOST:
         raise InstallError("bundle metadata does not match approved policy")
     if active_release() != policy["api_release"]:
         raise InstallError("active API release differs from approved policy")
