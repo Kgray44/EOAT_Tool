@@ -163,8 +163,12 @@ def api_health(policy: dict[str, object]) -> dict[str, object]:
     status, content_type, data = http_json(API_HEALTH)
     if status != 200 or "json" not in content_type or not isinstance(data, dict):
         raise InstallError(f"local API health failed: status={status} content_type={content_type}")
+    # The production 1.4 health contract exposes flat revision names.  Accept
+    # the older nested shape too, but never silently accept an absent revision.
     schema = data.get("schema") if isinstance(data.get("schema"), dict) else {}
-    if schema.get("current") != policy["schema"] or schema.get("expected") != policy["schema"]:
+    current_schema = schema.get("current", data.get("current_schema_revision"))
+    expected_schema = schema.get("expected", data.get("expected_schema_revision"))
+    if current_schema != policy["schema"] or expected_schema != policy["schema"]:
         raise InstallError("active schema differs from approved policy")
     if data.get("writes_enabled") is not False:
         raise InstallError("production writes are not disabled")

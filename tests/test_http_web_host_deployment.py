@@ -92,6 +92,15 @@ def test_api_readiness_retries_and_times_out(monkeypatch: pytest.MonkeyPatch) ->
         installer.wait_api({}, attempts=2, interval=0)
 
 
+def test_api_health_accepts_the_production_flat_schema_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = {"current_schema_revision": "20260721_0008", "expected_schema_revision": "20260721_0008", "writes_enabled": False}
+    monkeypatch.setattr(installer, "http_json", lambda _: (200, "application/json", payload))
+    assert installer.api_health({"schema": "20260721_0008"}) == payload
+    payload["expected_schema_revision"] = "wrong"
+    with pytest.raises(installer.InstallError, match="schema"):
+        installer.api_health({"schema": "20260721_0008"})
+
+
 def test_hostname_and_default_discovery(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     legacy = tmp_path / "legacy.conf"
     legacy.write_text("server_name eoat-atlas.gwplastics.com;", encoding="utf-8")
