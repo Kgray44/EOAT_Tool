@@ -141,6 +141,13 @@
       "state": "finalized",
       "task_id": "codex-web-http-canary-template-20260722",
       "finalized_at_utc": "2026-07-22T19:35:08Z"
+    },
+    {
+      "application_version": "0.20.3",
+      "release_id": "eoat-atlas-0.20.3",
+      "state": "finalized",
+      "task_id": "eoat-http-web-host-installer-20260724",
+      "finalized_at_utc": "2026-07-24T13:21:39Z"
     }
   ]
 }
