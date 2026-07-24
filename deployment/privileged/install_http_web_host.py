@@ -39,7 +39,10 @@ SITE_CONFIG = Path("/etc/nginx/sites-available/eoat-atlas-http-web.conf")
 SITE_ENABLED = Path("/etc/nginx/sites-enabled/eoat-atlas-http-web.conf")
 DEFAULT_ENABLED = Path("/etc/nginx/sites-enabled/default")
 WEB_ROOT = Path("/var/www/eoat-atlas")
-TRANSACTION_ROOT = Path("/var/lib/eoat-atlas/http-web-host/transactions")
+# This must not sit below /var/lib/eoat-atlas: that service-owned parent is an
+# intentional EOAT boundary and therefore cannot anchor root-trusted files.
+CONTROL_ROOT = Path("/var/lib/eoat-atlas-http-web-host")
+TRANSACTION_ROOT = CONTROL_ROOT / "transactions"
 FORBIDDEN_CONTENT = (b"EOAT_API_DEVICE_TOKEN", b"X-EOAT-Device-Token", b"mysql://")
 DEVELOPMENT_API_URL = re.compile(rb"https?://(?:localhost|127[.]0[.]0[.]1)(?::[0-9]+)?/api(?:/|[^A-Za-z0-9_-])", re.I)
 FORBIDDEN_PATH_PARTS = {"node_modules"}

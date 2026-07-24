@@ -160,3 +160,8 @@ def test_http_only_template_keeps_api_errors_out_of_spa_fallback() -> None:
     assert "try_files $uri $uri/ /index.html" in text
     assert "listen 443" not in text and "ssl_" not in text and "Strict-Transport-Security" not in text
     assert "proxy_pass http://127.0.0.1:8765;" in text
+
+
+def test_root_control_directory_is_not_below_service_owned_var_lib_path() -> None:
+    assert installer.CONTROL_ROOT == Path("/var/lib/eoat-atlas-http-web-host")
+    assert installer.CONTROL_ROOT.parent == Path("/var/lib")

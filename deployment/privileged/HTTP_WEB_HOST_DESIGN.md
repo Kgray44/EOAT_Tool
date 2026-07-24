@@ -13,7 +13,7 @@ The installer has three actions:
   the legacy hostname owner, the enabled default site, static assets, and an
   isolated complete NGINX configuration.
 - `activate` creates a root-owned transaction under
-  `/var/lib/eoat-atlas/http-web-host/transactions`, backs up the legacy API
+  `/var/lib/eoat-atlas-http-web-host/transactions`, backs up the legacy API
   host config, site links, current frontend link, runtime token files, and
   then stages static files in `/var/www/eoat-atlas/releases/<release-id>`.
   Only after validation does it atomically point `current` at that release,
@@ -31,3 +31,7 @@ browser JavaScript.
 
 The previous `install_http_web_host_0_20_1.sh` is an incident artifact and is
 not a component of this mechanism.
+
+The deployment-control root is deliberately a sibling of `/var/lib/eoat-atlas`,
+not a child. The latter is service-owned and must remain outside the root trust
+chain.
