@@ -86,7 +86,7 @@ describe("machine and tool profile routes", () => {
     expect(
       await screen.findByRole("heading", { name: "M-1" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("API unavailable")).toBeInTheDocument();
+    expect(await screen.findByText("Photos unavailable")).toBeInTheDocument();
     await userEvent
       .setup()
       .click(screen.getAllByRole("button", { name: "Retry" })[0]);
@@ -95,6 +95,16 @@ describe("machine and tool profile routes", () => {
         fetcher.mock.calls.filter(([path]) => path === failingPath).length,
       ).toBeGreaterThan(1),
     );
+  });
+  it("renders truthful machine values, human-readable setup states, and empty media states", async () => {
+    vi.stubGlobal("fetch", fetchFor());
+    renderAt("/machines/M-1");
+    expect(await screen.findByText("Not verified")).toBeInTheDocument();
+    expect(screen.getByText("Fixture")).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText(/Not recorded:/)).toBeInTheDocument();
+    expect(screen.getByText("No photos recorded")).toBeInTheDocument();
+    expect(screen.getByText("No documents recorded")).toBeInTheDocument();
   });
   it("shows a truthful tool not-found state", async () => {
     vi.stubGlobal(

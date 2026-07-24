@@ -176,6 +176,13 @@
       "state": "finalized",
       "task_id": "http-web-host-redesign-20260724",
       "finalized_at_utc": "2026-07-24T14:57:57Z"
+    },
+    {
+      "application_version": "0.22.0",
+      "release_id": "eoat-atlas-0.22.0",
+      "state": "finalized",
+      "task_id": "machine-profile-vertical-slice-20260724",
+      "finalized_at_utc": "2026-07-24T18:47:37Z"
     }
   ]
 }

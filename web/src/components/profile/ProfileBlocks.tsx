@@ -33,14 +33,20 @@ export function ProfileSection({
 export function Attribute({
   label,
   value,
+  missingLabel = "Not recorded",
+  booleanLabels,
 }: {
   label: string;
   value: string | number | boolean | null | undefined;
+  missingLabel?: string;
+  booleanLabels?: [string, string];
 }) {
   const displayed =
     value === null || value === undefined || value === ""
-      ? "Unknown / unavailable"
-      : String(value);
+      ? missingLabel
+      : typeof value === "boolean" && booleanLabels
+        ? value ? booleanLabels[0] : booleanLabels[1]
+        : String(value);
   return (
     <div>
       <dt>{label}</dt>
@@ -98,14 +104,14 @@ export function RelationshipList({
           relationship.relationship_type,
           relationship.identifier,
         );
-        const label = relationship.display_name
-          ? `${relationship.identifier} — ${relationship.display_name}`
-          : relationship.identifier;
+        const label = !relationship.display_name || relationship.display_name === relationship.identifier
+          ? relationship.identifier
+          : `${relationship.identifier} — ${relationship.display_name}`;
         return (
           <li
             key={`${relationship.relationship_type}-${relationship.identifier}`}
           >
-            <small>{relationship.relationship_type}</small>
+            <small>{relationship.relationship_type === "eoat" ? "EOAT" : relationship.relationship_type.replace(/^./, (value) => value.toUpperCase())}</small>
             {path ? <Link to={path}>{label}</Link> : <span>{label}</span>}
             <small>
               {[relationship.status, relationship.reason]
@@ -122,7 +128,7 @@ export function RelationshipList({
 export function PhotoGallery({ photos }: { photos: WebPhoto[] }) {
   if (photos.length === 0)
     return (
-      <EmptyState title="No photos linked">
+      <EmptyState title="No photos recorded">
         No browser-safe photo metadata is recorded for this profile.
       </EmptyState>
     );
@@ -164,7 +170,7 @@ export function PhotoGallery({ photos }: { photos: WebPhoto[] }) {
 export function DocumentList({ documents }: { documents: WebDocument[] }) {
   if (documents.length === 0)
     return (
-      <EmptyState title="No documents linked">
+      <EmptyState title="No documents recorded">
         No browser-safe document metadata is recorded for this profile.
       </EmptyState>
     );
