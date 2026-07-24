@@ -218,6 +218,11 @@ def api_loopback_only() -> bool:
     return bool(lines) and all("127.0.0.1:8765" in line for line in lines)
 
 
+def no_tls_listener() -> bool:
+    output = subprocess.run(["/usr/bin/ss", "-ltn"], text=True, capture_output=True, check=True).stdout
+    return not any(re.search(r":443\s", line) for line in output.splitlines())
+
+
 def nginx_worker_user() -> str:
     config = Path("/etc/nginx/nginx.conf").read_text(encoding="utf-8", errors="replace")
     match = re.search(r"^\s*user\s+([^\s;]+)", config, re.MULTILINE)
@@ -275,8 +280,8 @@ def preflight(policy: dict[str, object]) -> dict[str, object]:
     if active_release() != policy["api_release"]:
         raise InstallError("active API release differs from approved policy")
     health = api_health(policy)
-    if not api_loopback_only() or not mysql_loopback_only():
-        raise InstallError("API or MySQL listener violates localhost-only policy")
+    if not api_loopback_only() or not mysql_loopback_only() or not no_tls_listener():
+        raise InstallError("API, MySQL, or HTTP-only listener policy failed")
     owners = hostname_owners()
     if owners != [LEGACY_CONFIG]:
         raise InstallError("unexpected hostname conflict(s): " + ", ".join(map(str, owners)))
@@ -312,6 +317,15 @@ def stage_frontend(bundle_web: Path, release_id: str) -> Path:
     assert_static_assets(staging)
     os.replace(staging, final)
     return final
+
+
+def deployed_frontend_hashes(release: Path, manifest: dict[str, str]) -> dict[str, str]:
+    """Verify the copied static release against its approved bundle manifest."""
+    expected = {path.removeprefix("web/"): digest for path, digest in manifest.items() if path.startswith("web/")}
+    actual = {path.relative_to(release).as_posix(): sha256(path) for path in sorted(release.rglob("*")) if path.is_file()}
+    if actual != expected:
+        raise InstallError("deployed frontend asset hashes do not match the approved bundle")
+    return actual
 
 
 def copy_file(source: Path, target: Path) -> None:
@@ -389,8 +403,8 @@ def acceptance(release: Path, policy: dict[str, object]) -> list[dict[str, objec
     header_text = headers.stdout.lower()
     if headers.returncode or "strict-transport-security:" in header_text or re.search(r"^location:\s*https://", header_text, re.MULTILINE):
         raise InstallError("HTTP-only acceptance failed")
-    if not api_loopback_only() or not mysql_loopback_only() or active_release() != policy["api_release"]:
-        raise InstallError("post-activation listener or release boundary failed")
+    if not api_loopback_only() or not mysql_loopback_only() or not no_tls_listener() or active_release() != policy["api_release"]:
+        raise InstallError("post-activation listener, HTTP-only, or release boundary failed")
     api_health(policy)
     return checks
 
@@ -440,14 +454,21 @@ def activate(policy: dict[str, object]) -> Path:
     receipt: dict[str, object] = {"timestamp": datetime.now(timezone.utc).isoformat(), "backups": backups, "completed_steps": ["backup"], "activation_state": "started", "rollback_state": "not_needed", "runtime_token_changed": False, "hashes": {"bundle": policy["bundle_sha256"]}}
     write_receipt(transaction, receipt)
     try:
-        release_id = str(verify_bundle(bundle, str(policy["bundle_sha256"]))["metadata"]["release_id"])
+        verified_bundle = verify_bundle(bundle, str(policy["bundle_sha256"]))
+        release_id = str(verified_bundle["metadata"]["release_id"])
         final = stage_frontend(bundle / "web", release_id)
+        frontend_hashes = deployed_frontend_hashes(final, verified_bundle["manifest"])
         receipt["installed_release"] = str(final)
+        receipt["hashes"]["frontend_assets"] = frontend_hashes
+        build_manifest = final / "web-static.manifest.json"
+        if build_manifest.is_file():
+            receipt["hashes"]["frontend_build_manifest"] = sha256(build_manifest)
         receipt["completed_steps"].append("frontend_staged")
         template = (bundle / "nginx" / "eoat-atlas-http-web.conf.template").read_text(encoding="utf-8")
         SITE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
         SITE_CONFIG.write_text(render(template, root=WEB_ROOT / "current", token_include=UPSTREAM_TOKEN), encoding="utf-8")
         os.chown(SITE_CONFIG, 0, 0); os.chmod(SITE_CONFIG, 0o644)
+        receipt["hashes"]["nginx_config"] = sha256(SITE_CONFIG)
         LEGACY_CONFIG.unlink()
         if DEFAULT_ENABLED.exists() or DEFAULT_ENABLED.is_symlink(): DEFAULT_ENABLED.unlink()
         atomic_symlink(SITE_CONFIG, SITE_ENABLED)

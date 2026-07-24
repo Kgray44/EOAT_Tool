@@ -135,6 +135,15 @@ def test_frontend_release_staging_permissions(monkeypatch: pytest.MonkeyPatch, t
         assert stat.S_IMODE(release.stat().st_mode) == 0o755
 
 
+def test_deployed_frontend_hashes_reject_a_changed_asset(tmp_path: Path) -> None:
+    release = web_source(tmp_path / "release")
+    approved = {"web/" + path.relative_to(release).as_posix(): installer.sha256(path) for path in release.rglob("*") if path.is_file()}
+    assert installer.deployed_frontend_hashes(release, approved)["index.html"] == installer.sha256(release / "index.html")
+    (release / "assets" / "app.js").write_text("changed", encoding="utf-8")
+    with pytest.raises(installer.InstallError, match="asset hashes"):
+        installer.deployed_frontend_hashes(release, approved)
+
+
 def test_rollback_after_nginx_or_acceptance_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     old = tmp_path / "old"; old.write_text("old", encoding="utf-8")
     live = tmp_path / "live"; live.write_text("new", encoding="utf-8")
