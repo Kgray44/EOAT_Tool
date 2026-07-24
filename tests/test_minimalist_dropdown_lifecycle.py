@@ -16,6 +16,7 @@ from core.packet_builder_packets import PacketSetup
 
 def test_home_lookup_closes_on_navigation_and_command_palette(qapp, tmp_path: Path) -> None:
     window = MinimalistAtlasWindow(UserConfig(project_root=str(tmp_path)), auto_refresh=False)
+    assert window._freshness_poller is None
     window.resize(1400, 900)
     window._data_loaded(_dropdown_bundle(tmp_path))
     window.show()

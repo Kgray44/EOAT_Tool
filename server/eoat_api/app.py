@@ -21,6 +21,7 @@ from .authentication.configuration import AuthenticationConfiguration
 from .authentication.routes import router as authentication_router
 from .contracts import (
     CurrentEOATLocation,
+    DataStatusResponse,
     DocumentMetadata,
     EOATProfile,
     FitCheckRequest,
@@ -42,7 +43,13 @@ from .contracts import (
     WebPhotoMetadata,
 )
 from .database import models as db
-from .database.session import create_session_factory, dispose_database_engines, get_runtime_session, get_write_session
+from .database.session import (
+    create_session_factory,
+    dispose_database_engines,
+    finalize_request_write_session,
+    get_runtime_session,
+    get_write_session,
+)
 from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
@@ -95,6 +102,18 @@ app.include_router(authentication_router)
 
 
 @app.middleware("http")
+async def finalize_write_transaction(request: Request, call_next):
+    """Commit successful request writes before the corresponding response leaves the API."""
+    try:
+        response = await call_next(request)
+    except Exception:
+        finalize_request_write_session(request, commit=False)
+        raise
+    finalize_request_write_session(request, commit=response.status_code < 400)
+    return response
+
+
+@app.middleware("http")
 async def request_logging(request: Request, call_next):
     started = datetime.now(timezone.utc)
     request.state.request_id = request.headers.get("X-Request-ID") or str(uuid4())
@@ -104,6 +123,7 @@ async def request_logging(request: Request, call_next):
         protected = request.url.path.startswith("/api/v1/") and request.url.path not in {
             "/api/v1/health",
             "/api/v1/version",
+            "/api/v1/data-status",
         }
         if environment == "production" and protected:
             configured_token = os.getenv("EOAT_API_DEVICE_TOKEN", "")
@@ -290,6 +310,12 @@ def server_status(svc: AtlasService = Depends(service)):
         "writes_enabled": os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold()
         in {"1", "true", "yes", "on"},
     }
+
+
+@app.get("/api/v1/data-status", response_model=DataStatusResponse)
+def data_status(svc: AtlasService = Depends(service)):
+    """Return only transaction-authoritative freshness metadata; never data rows."""
+    return svc.data_status()
 
 
 @app.get("/api/v1/lookups")

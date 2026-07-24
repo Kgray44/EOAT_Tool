@@ -35,7 +35,7 @@ def _repository(root: Path, *, destructive_migration: bool = False) -> tuple[Pat
     defaults = {
         "app_name": "EOAT Atlas",
         "api_contract_version": "1.4.0",
-        "database_schema_revision": "20260717_0007",
+        "database_schema_revision": "20260721_0008",
         "environment": "production",
         "release_channel": "server",
         "launcher_version": "0.1.0",
@@ -74,8 +74,8 @@ def _repository(root: Path, *, destructive_migration: bool = False) -> tuple[Pat
     _write(root / "server/migrations/env.py", "")
     dangerous = "\nop.drop_table('obsolete')\n" if destructive_migration else ""
     _write(
-        root / "server/migrations/versions/20260717_0007_fixture.py",
-        f"revision = '20260717_0007'\ndown_revision = None\n{dangerous}",
+        root / "server/migrations/versions/20260721_0008_fixture.py",
+        f"revision = '20260721_0008'\ndown_revision = None\n{dangerous}",
     )
     _write(root / "core/__init__.py", "")
     _write(root / "release_tools/__init__.py", "")
@@ -83,6 +83,10 @@ def _repository(root: Path, *, destructive_migration: bool = False) -> tuple[Pat
     _write(root / "requirements.txt", "-r requirements.lock\n")
     _write(root / "requirements.in", "")
     _write(root / "pyproject.toml", "")
+    # The immutable archive binds both host-side templates by digest.  Keep the
+    # minimal release fixture representative of the production payload.
+    _write(root / "deployment/runtime/nginx/eoat-atlas.conf", "server {}\n")
+    _write(root / "deployment/runtime/systemd/eoat-atlas.service", "[Service]\n")
     subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
     subprocess.run(["git", "config", "user.email", "release-test@example.invalid"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "Release Test"], cwd=root, check=True)
@@ -106,7 +110,7 @@ def test_tar_release_manifest_hash_and_safe_layout(tmp_path: Path) -> None:
     assert build.core["health_checks"] == ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"]
     assert build.core["public_health_endpoint"] == {
         "scheme": "http",
-        "hostname": "eoat-atlas.gwplastics.com",
+        "hostname": "eoat-atlas.example.invalid",
         "port": 80,
         "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
     }
@@ -274,14 +278,14 @@ def test_http_reverse_proxy_probes_use_declared_host_port_and_never_infer_https(
         "eoat-atlas-prod-runtime",
         "eoat_atlas_prod",
         "/var/lock/eoat-atlas-deploy.lock",
-        public_hostname="eoat-atlas.gwplastics.com",
+        public_hostname="eoat-atlas.example.invalid",
         public_scheme="http",
         public_port=80,
     )
     command = ReadonlySSH(config)._command("reverse-proxy-health", "/api/v1/version")
     assert "--resolve" in command
-    assert "eoat-atlas.gwplastics.com:80:127.0.0.1" in command
-    assert command[-1] == "http://eoat-atlas.gwplastics.com:80/api/v1/version"
+    assert "eoat-atlas.example.invalid:80:127.0.0.1" in command
+    assert command[-1] == "http://eoat-atlas.example.invalid:80/api/v1/version"
     assert all("https://" not in item for item in command)
     compatibility = server_updater.public_health_compatibility(
         config,
@@ -289,7 +293,7 @@ def test_http_reverse_proxy_probes_use_declared_host_port_and_never_infer_https(
             "health_checks": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
             "public_health_endpoint": {
                 "scheme": "http",
-                "hostname": "eoat-atlas.gwplastics.com",
+                "hostname": "eoat-atlas.example.invalid",
                 "port": 80,
                 "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
             },
@@ -310,7 +314,7 @@ def test_http_only_listener_is_nonblocking_infrastructure_warning() -> None:
         "eoat-atlas-prod-runtime",
         "eoat_atlas_prod",
         "/var/lock/eoat-atlas-deploy.lock",
-        public_hostname="eoat-atlas.gwplastics.com",
+        public_hostname="eoat-atlas.example.invalid",
         public_scheme="http",
         public_port=80,
     )
@@ -322,6 +326,39 @@ def test_http_only_listener_is_nonblocking_infrastructure_warning() -> None:
     }
     warnings = server_updater._reverse_proxy_warnings(config, proxy)
     assert warnings == [server_updater.HTTP_ONLY_TLS_WARNING]
+
+
+def test_placeholder_manifest_hostname_requires_an_explicit_deployment_host() -> None:
+    config = ServerConfig(
+        "eoat-atlas",
+        22,
+        "kgray",
+        "/opt/eoat-atlas",
+        8765,
+        ("eoat-atlas.service",),
+        "nginx.service",
+        "eoat-atlas-prod-runtime",
+        "eoat_atlas_prod",
+        "/var/lock/eoat-atlas-deploy.lock",
+        public_hostname="eoat-atlas.internal.example",
+        public_scheme="http",
+        public_port=80,
+    )
+    compatibility = server_updater.public_health_compatibility(
+        config,
+        {
+            "health_checks": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            "public_health_endpoint": {
+                "scheme": "http",
+                "hostname": "eoat-atlas.example.invalid",
+                "port": 80,
+                "paths": ["/api/v1/health", "/api/v1/version", "/api/v1/schema-status"],
+            },
+        },
+    )
+    assert compatibility["status"] == "PASS"
+    assert compatibility["hostname_source"] == "deployment_configuration"
+    assert "placeholder hostname" in compatibility["detail"]
 
 
 def test_secured_schema_probe_is_not_misreported_as_an_api_or_tls_failure() -> None:
@@ -573,7 +610,7 @@ def test_migration_preflight_flags_destructive_operations(tmp_path: Path) -> Non
     root, commit = _repository(tmp_path / "repo", destructive_migration=True)
     build = build_deployment_archive(root, commit, tmp_path / "output", branch="test/release")
     summary = migration_summary(build.archive)
-    assert summary["heads"] == ["20260717_0007"]
+    assert summary["heads"] == ["20260721_0008"]
     assert summary["destructive_warnings"]
     assert server_updater.migration_execution_warnings(summary, {"status": "NOT_REQUIRED"}) == []
     assert server_updater.migration_execution_warnings(summary, {"status": "REQUIRED"}) == summary["destructive_warnings"]

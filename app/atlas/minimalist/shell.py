@@ -132,7 +132,7 @@ class AtlasMinimalistShell(QWidget):
             self.search_overlay.set_search_text(initial_text)
         self.search_overlay.raise_()
         self.search_overlay.animate_open(rect)
-        QTimer.singleShot(80, lambda: self._focus_search_overlay(select_all=select_all))
+        QTimer.singleShot(80, self, lambda: self._focus_search_overlay(select_all=select_all))
 
     def _focus_search_overlay(self, *, select_all: bool = True) -> None:
         try:

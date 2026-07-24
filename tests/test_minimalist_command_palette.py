@@ -369,6 +369,25 @@ def test_non_palette_deep_refresh_still_uses_real_refresh_entrypoint(qapp, tmp_p
     _cleanup_widget(qapp, window)
 
 
+def test_palette_queued_command_is_cancelled_when_its_window_is_destroyed(qapp, tmp_path: Path, monkeypatch) -> None:
+    """A close-then-run callback must not cross its owning window's lifetime."""
+    window, overlay = _open_palette_window(qapp, tmp_path, monkeypatch)
+    calls: list[str] = []
+    window.deep_refresh_data = lambda: calls.append("deep_refresh")
+
+    overlay._close_then_run(window.deep_refresh_data)
+    assert overlay._callback_dispatch_pending is True
+
+    # Destroy before processing the zero-delay command callback.  The overlay
+    # owns and cancels that callback during Qt teardown.
+    window.close()
+    window.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
+
+    assert calls == []
+
+
 def test_palette_deep_refresh_rebuilds_once_with_stale_settings_generation_removed(qapp, tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("EOAT_ATLAS_USER_DATA_DIR", str(tmp_path / "user_data"))
     window = MinimalistAtlasWindow(UserConfig(project_root=str(tmp_path)), auto_refresh=False)

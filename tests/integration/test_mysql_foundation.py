@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -12,7 +15,20 @@ from server.eoat_api.database.base import Base
 
 TEST_URL = os.getenv("EOAT_MYSQL_TEST_URL")
 RUNTIME_URL = os.getenv("EOAT_MYSQL_RUNTIME_URL")
+ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(not TEST_URL, reason="EOAT_MYSQL_TEST_URL is required for real MySQL integration tests")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def fresh_approved_mysql_schema():
+    """Keep structural MySQL assertions independent of prior import modules."""
+    if os.getenv("EOAT_DB_NAME") != "eoat_atlas_test":
+        pytest.fail("MySQL foundation tests require the approved eoat_atlas_test database.")
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "database" / "reset_mysql_test_database.py")],
+        cwd=ROOT,
+        check=True,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -27,8 +43,29 @@ def test_migration_created_complete_mysql_schema(engine):
     tables = set(inspector.get_table_names())
     assert set(Base.metadata.tables) <= tables
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260717_0007"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260721_0008"
         assert connection.execute(text("SELECT VERSION()" )).scalar_one().startswith("8.4.")
+
+
+def test_data_state_is_a_seeded_non_auto_increment_singleton(engine):
+    """The freshness migration must work on real MySQL, not only SQLite."""
+    with engine.connect() as connection:
+        create_statement = connection.execute(text("SHOW CREATE TABLE data_state")).mappings().one()["Create Table"]
+        state = connection.execute(
+            text(
+                "SELECT id, current_revision, data_last_modified_at, last_import_at, last_import_source "
+                "FROM data_state"
+            )
+        ).mappings().all()
+    assert "AUTO_INCREMENT" not in create_statement.upper()
+    assert "CK_DATA_STATE_SINGLETON" in create_statement.upper()
+    assert "`ID` = 1" in create_statement.upper()
+    assert len(state) == 1
+    assert state[0]["id"] == 1
+    assert state[0]["current_revision"] == 0
+    assert state[0]["data_last_modified_at"] is not None
+    assert state[0]["last_import_at"] is None
+    assert state[0]["last_import_source"] is None
 
 
 def test_foreign_key_and_unique_constraints(engine):

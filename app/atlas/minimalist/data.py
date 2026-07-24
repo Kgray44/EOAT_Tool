@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from core.atlas_entity_search import (
@@ -442,23 +442,21 @@ def dedupe_entries(entries: list[MinimalistSearchEntry], *, limit: int) -> list[
 def loaded_status_text(bundle) -> str:
     if bundle is None:
         return "Data loading..."
-    loaded_at = str(getattr(bundle, "loaded_at", "") or "").strip()
-    if not loaded_at:
-        return "Data loaded"
-    parsed = parse_loaded_at(loaded_at)
-    if parsed is None:
-        return f"Data refreshed {loaded_at}"
-    delta = datetime.now() - parsed
-    seconds = max(0, int(delta.total_seconds()))
-    if seconds < 60:
-        return "Data updated just now"
-    minutes = seconds // 60
-    if minutes < 60:
-        return f"Data updated {minutes} min ago"
-    hours = minutes // 60
-    if hours < 24:
-        return f"Data updated {hours} hr ago"
-    return f"Data refreshed {parsed.strftime('%b %d, %Y')}"
+    metrics = getattr(bundle, "metrics", {}) or {}
+    primary = str(metrics.get("freshness_primary_text") or "").strip()
+    if primary:
+        return primary
+    # `loaded_at` records a client cache/page load.  It must never be labelled
+    # as a data update, even in an older server or explicit legacy mode.
+    authoritative = str(metrics.get("data_last_modified_at") or "").strip()
+    if authoritative:
+        try:
+            from core.data_freshness import format_relative_timestamp, parse_server_timestamp
+
+            return f"Data last updated {format_relative_timestamp(parse_server_timestamp(authoritative, 'data_last_modified_at'), now=datetime.now(timezone.utc))}"
+        except ValueError:
+            return "Data update time unavailable"
+    return "Data update time unavailable"
 
 
 def parse_loaded_at(value: str) -> datetime | None:

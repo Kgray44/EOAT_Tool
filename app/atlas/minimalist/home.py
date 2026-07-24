@@ -236,7 +236,7 @@ class MinimalistHomeCard(GlassPanel):
         if watched is self.search_bar.input and event.type() in {QEvent.Type.FocusIn, QEvent.Type.MouseButtonPress}:
             self._schedule_search_refresh(self.search_bar.input.text(), immediate=True)
         if watched is self.search_bar.input and event.type() == QEvent.Type.FocusOut:
-            QTimer.singleShot(0, self._hide_dropdown_if_focus_left)
+            QTimer.singleShot(0, self, self._hide_dropdown_if_focus_left)
         return super().eventFilter(watched, event)
 
     def _schedule_search_refresh(self, _text: str = "", *, immediate: bool = False) -> None:

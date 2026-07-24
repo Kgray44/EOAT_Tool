@@ -141,6 +141,13 @@
       "state": "finalized",
       "task_id": "codex-web-http-canary-template-20260722",
       "finalized_at_utc": "2026-07-22T19:35:08Z"
+    },
+    {
+      "application_version": "0.21.0",
+      "release_id": "eoat-atlas-0.21.0",
+      "state": "finalized",
+      "task_id": "codex-reconcile-web-data-freshness-0.21.0",
+      "finalized_at_utc": "2026-07-24T13:13:03Z"
     }
   ]
 }

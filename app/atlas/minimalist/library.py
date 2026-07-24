@@ -15,6 +15,7 @@ from typing import Any
 from PySide6.QtCore import (
     Property,
     QAbstractListModel,
+    QCoreApplication,
     QEasingCurve,
     QEvent,
     QModelIndex,
@@ -1682,7 +1683,7 @@ class AtlasMinimalistLibraryPage(QWidget):
         except RuntimeError:
             pass
         try:
-            self.library_content.shutdown_photo_service()
+            self.library_content.dispose()
         except RuntimeError:
             pass
 
@@ -1712,14 +1713,14 @@ class LibraryControlsShim:
 class MinimalistLibraryContent(QWidget):
     state_changed = Signal(str)
 
-    def __init__(self, controller, parent=None):
+    def __init__(self, controller, parent=None, *, photo_service: PhotoService | None = None):
         super().__init__(parent)
         self.controller = controller
         self.bundle: AtlasDataBundle | None = None
         self.data_service = LibraryDataService(_controller_project_root(controller))
         self.data_service.load_cached_index()
         self._service_generation = self.data_service.generation
-        self.photo_service = PhotoService(_controller_project_root(controller), self)
+        self.photo_service = photo_service or PhotoService(_controller_project_root(controller), self)
         self.catalog = LibraryCatalog(None, controller, self.data_service, self.photo_service)
         self.state = "hub"
         self.scope_type = _library_default_scope(controller)
@@ -1731,6 +1732,7 @@ class MinimalistLibraryContent(QWidget):
         self.current_view: QWidget | None = None
         self._record_view: LibraryRecordStateView | None = None
         self._active_photo_contexts: set[str] = set()
+        self._disposing = False
         self._loading_skeleton_visible = False
         self._cache_refresh_pending = bool(
             self.data_service.stale or (not self.data_service.is_index_ready() and _controller_project_root(controller))
@@ -1999,7 +2001,7 @@ class MinimalistLibraryContent(QWidget):
         ):
             self._body_fade.stop()
             self._body_opacity.setOpacity(0.0 if not prefers_reduced_motion() else 1.0)
-            self._clear_body_layout(preserve=self._record_view)
+            retired_body_widgets = self._clear_body_layout(preserve=self._record_view)
             if not self.catalog.entities and not self.data_service.is_index_ready():
                 loading_message = (
                     "Building Library Index..."
@@ -2080,12 +2082,22 @@ class MinimalistLibraryContent(QWidget):
                 self.body_layout.addWidget(self.current_view)
                 self.body_layout.addStretch(1)
             self.current_view.show()
+            self._drain_retired_body_widgets(retired_body_widgets)
             if self.state == "record":
-                QTimer.singleShot(0, self._log_record_navigation_state)
+                QTimer.singleShot(0, self, self._log_record_navigation_state)
             self.state_changed.emit(self.state)
             self._fade_body_in()
 
-    def _clear_body_layout(self, *, preserve: QWidget | None = None) -> None:
+    def _clear_body_layout(self, *, preserve: QWidget | None = None) -> list[QWidget]:
+        """Retire replaced body views before another view is allowed to render.
+
+        Removing a widget from a layout and clearing its Qt parent temporarily
+        promotes it to a hidden top-level window.  ``deleteLater`` alone lets
+        that orphan survive across ordinary event turns, including a later
+        test's paint cycle.  The caller drains only these explicitly detached
+        roots once their replacement is fully installed.
+        """
+        retired: list[QWidget] = []
         while self.body_layout.count():
             item = self.body_layout.takeAt(0)
             widget = item.widget()
@@ -2094,9 +2106,23 @@ class MinimalistLibraryContent(QWidget):
             if preserve is not None and widget is preserve:
                 widget.hide()
                 continue
+            dispose = getattr(widget, "dispose", None)
+            if callable(dispose):
+                # A retired browse view owns Python callbacks to this page.
+                # Qt parent deletion invalidates the C++ widget but cannot
+                # release those Python references by itself.
+                dispose()
             widget.hide()
             widget.setParent(None)
             widget.deleteLater()
+            retired.append(widget)
+        return retired
+
+    @staticmethod
+    def _drain_retired_body_widgets(widgets: list[QWidget]) -> None:
+        """Deliver the deferred deletes scheduled for explicitly detached views."""
+        for widget in widgets:
+            QCoreApplication.sendPostedEvents(widget, QEvent.Type.DeferredDelete)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -2321,16 +2347,86 @@ class MinimalistLibraryContent(QWidget):
                 self._active_photo_contexts.discard(context)
 
     def shutdown_photo_service(self) -> None:
-        self._index_poll.stop()
-        service = getattr(self, "photo_service", None)
-        if service is None:
+        index_poll = getattr(self, "_index_poll", None)
+        if index_poll is not None:
+            index_poll.stop()
+        services: list[object] = []
+        current_service = getattr(self, "photo_service", None)
+        if current_service is not None:
+            services.append(current_service)
+
+        # ``photo_service`` can be replaced by an injected implementation in
+        # diagnostics and tests.  The originally-created PhotoService remains
+        # a QObject child of this page, and therefore still owns its
+        # QThreadPool even when it is no longer the current attribute.  Shut
+        # down every page-owned service before Qt starts deleting children.
+        for owned_service in self.findChildren(PhotoService):
+            if owned_service not in services:
+                services.append(owned_service)
+
+        for service in services:
+            shutdown = getattr(service, "shutdown", None)
+            if callable(shutdown):
+                # Photo decoding uses a QThreadPool. Do not let its runnables
+                # outlive a closing library page and deliver queued image
+                # results into a later test/window generation.
+                shutdown(1_000)
+
+    def dispose(self) -> None:
+        """Break page/view callback cycles while every QObject is still valid.
+
+        A record view keeps bound navigation callbacks to this page, while the
+        page retains the record view for shell reuse.  If Qt deletes the
+        parent first, those two Python wrappers can survive as invalid
+        Shiboken objects into the next UI construction.  Dispose the view
+        graph before closing the page so its detached roots receive their
+        deferred deletes under the still-valid QApplication.
+        """
+        if self._disposing:
             return
-        shutdown = getattr(service, "shutdown", None)
-        if callable(shutdown):
-            shutdown()
+        self._disposing = True
+        try:
+            body_fade = getattr(self, "_body_fade", None)
+            if body_fade is not None:
+                body_fade.stop()
+            index_poll = getattr(self, "_index_poll", None)
+            if index_poll is not None:
+                index_poll.stop()
+                try:
+                    index_poll.timeout.disconnect(self._refresh_from_cache_if_ready)
+                except (RuntimeError, TypeError):
+                    pass
+            self._index_poll = None
+            self._body_fade = None
+            self._cancel_photo_contexts()
+            self.close_search_overlays()
+            views: list[QWidget] = []
+            for view in (self.current_view, self._record_view):
+                if view is not None and not any(view is existing for existing in views):
+                    views.append(view)
+            for view in views:
+                dispose = getattr(view, "dispose", None)
+                if callable(dispose):
+                    dispose()
+            self.current_view = None
+            self._record_view = None
+            self._drain_retired_body_widgets(self._clear_body_layout())
+        finally:
+            self.shutdown_photo_service()
+            controls = getattr(self, "controls", None)
+            if controls is not None:
+                # LibraryControlsShim is a pure-Python back-reference.  Unlike
+                # Qt parent ownership, it survives a C++ QWidget delete unless
+                # it is explicitly severed.
+                controls.content = None
+            self._active_photo_contexts.clear()
+            self.catalog = None
+            self.bundle = None
+            self.controller = None
+            self.photo_service = None
 
     def closeEvent(self, event) -> None:
-        self.shutdown_photo_service()
+        self.dispose()
         super().closeEvent(event)
 
     def _active_search_bar(self) -> LibrarySearchBar | None:
@@ -2531,6 +2627,7 @@ class LibraryBrowseStateView(QWidget):
         self._thumbnail_context_id = ""
         self._hero_prefetch_context_id = ""
         self._restoring_state = False
+        self._disposed = False
         self._search_debounce = QTimer(self)
         self._search_debounce.setSingleShot(True)
         self._search_debounce.setInterval(SEARCH_DEBOUNCE_MS)
@@ -2645,7 +2742,27 @@ class LibraryBrowseStateView(QWidget):
         self.advanced_popover.hide()
         self._sync_category_cards()
         self._render_active_chips()
-        QTimer.singleShot(0, self._deferred_refresh)
+        QTimer.singleShot(0, self, self._deferred_refresh)
+
+    def dispose(self) -> None:
+        """Stop owned timers and release callbacks to the enclosing Library page."""
+        if self._disposed:
+            return
+        self._disposed = True
+        for timer, callback in (
+            (self._search_debounce, self._execute_debounced_search),
+            (self._photo_resume_timer, self._resume_photo_prefetch),
+        ):
+            timer.stop()
+            try:
+                timer.timeout.disconnect(callback)
+            except (RuntimeError, TypeError):
+                pass
+        self.record_callback = None
+        self.lens_callback = None
+        self.clear_callback = None
+        self.photo_context_callback = None
+        self.controller = None
 
     def query_text(self) -> str:
         return self.search_bar.input.text().strip()
@@ -2836,7 +2953,7 @@ class LibraryBrowseStateView(QWidget):
         self._position_popover()
         columns = 1 if self.view_mode == "list" else self._column_count()
         if columns != self._rendered_columns and self.view_mode == "grid":
-            QTimer.singleShot(0, self._deferred_refresh)
+            QTimer.singleShot(0, self, self._deferred_refresh)
 
     def mousePressEvent(self, event) -> None:
         if self.lenses_open and not self.advanced_popover.geometry().contains(event.position().toPoint()):
@@ -4463,6 +4580,7 @@ class LibraryRecordStateView(QWidget):
         self._tab_placeholders: dict[int, QWidget] = {}
         self._tab_widgets: dict[int, QWidget] = {}
         self._pdf_export_running = False
+        self._disposed = False
         self._pdf_options_overlay: PDFOptionsOverlay | None = None
         self._pdf_status_overlay: PDFGenerationStatusOverlay | None = None
         self._pdf_preview_overlay: PDFPreviewOverlay | None = None
@@ -4600,6 +4718,37 @@ class LibraryRecordStateView(QWidget):
             return
         self._ensure_tab(index)
         self.stack.setCurrentIndex(index)
+
+    def dispose(self) -> None:
+        """Release callbacks that otherwise retain a closed Library page."""
+        if self._disposed:
+            return
+        self._disposed = True
+        self._pdf_export_running = False
+        for signal, callback in (
+            (self.pdf_export_complete, self._pdf_export_finished),
+            (self.pdf_export_failed, self._pdf_export_failed),
+        ):
+            try:
+                signal.disconnect(callback)
+            except (RuntimeError, TypeError):
+                pass
+        for overlay_name in ("_pdf_options_overlay", "_pdf_status_overlay", "_pdf_preview_overlay"):
+            overlay = getattr(self, overlay_name, None)
+            close = getattr(overlay, "close", None)
+            if callable(close):
+                close()
+            setattr(self, overlay_name, None)
+        overview = self.overview
+        if overview is not None:
+            overview.record_callback = None
+        for tile in self.findChildren(PhotoTile):
+            tile.dispose()
+        self.back_callback = None
+        self.record_callback = None
+        self._tab_placeholders.clear()
+        self._tab_widgets.clear()
+        self.catalog = None
 
     def _ensure_tab(self, index: int) -> QWidget | None:
         if self.detail_data is None or self.stack is None:
@@ -5794,7 +5943,7 @@ class PDFPreviewOverlay(QWidget):
         self._geometry_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._opacity_animation.start()
         self._geometry_animation.start()
-        QTimer.singleShot(0, self._log_first_page_render)
+        QTimer.singleShot(0, self, self._log_first_page_render)
 
     def close_preview(self) -> None:
         if self._closing:
@@ -6228,7 +6377,7 @@ class RecordOverviewTab(QWidget):
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
-        QTimer.singleShot(0, self._sync_relationship_height)
+        QTimer.singleShot(0, self, self._sync_relationship_height)
 
     def _sync_relationship_height(self) -> None:
         summary_height = max(118, self.summary_panel.sizeHint().height())
@@ -6299,7 +6448,7 @@ class RelationshipOverviewPanel(GlassPanel):
         self.hover_zone: RelationshipCanvasZone | None = None
         self.relationships_loaded = False
         self._first_paint_logged = False
-        QTimer.singleShot(0, self._populate)
+        QTimer.singleShot(0, self, self._populate)
 
     @property
     def left_visible_zones(self) -> list[RelationshipCanvasZone]:
@@ -7305,9 +7454,9 @@ class RecordHistoryTab(GlassPanel):
 
         self.setStyleSheet(self.styleSheet() + EOAT_HISTORY_STYLES)
         if initial_view_model is not None:
-            QTimer.singleShot(0, lambda: self._history_loaded(initial_view_model))
+            QTimer.singleShot(0, self, lambda: self._history_loaded(initial_view_model))
         else:
-            QTimer.singleShot(0, self.load_history)
+            QTimer.singleShot(0, self, self.load_history)
 
     def _combo(self, accessible_name: str, tooltip: str) -> QComboBox:
         combo = QComboBox()
@@ -8025,6 +8174,7 @@ class PhotoTile(QWidget):
         self._display_logged = False
         self._thumbnail_opacity = 1.0
         self._thumbnail_animation: QPropertyAnimation | None = None
+        self._disposed = False
         self.setObjectName("PhotoTile")
         self.setMouseTracking(True)
         self.load_error = ""
@@ -8043,6 +8193,8 @@ class PhotoTile(QWidget):
     thumbnailOpacity = Property(float, get_thumbnail_opacity, set_thumbnail_opacity)
 
     def _request_thumbnail(self, *, priority: int) -> None:
+        if self._disposed:
+            return
         if self.photo_service is None or not self.path_candidates:
             if not self.path_candidates:
                 self.load_error = "No photo path candidates"
@@ -8081,18 +8233,24 @@ class PhotoTile(QWidget):
 
     @Slot(str, object, str, str)
     def _thumbnail_ready(self, photo_id: str, image: QImage, resolved_path: str, context_id: str) -> None:
+        if self._disposed:
+            return
         if photo_id != self.photo_id or context_id != self.context_id:
             return
         self._apply_thumbnail(image, resolved_path)
 
     @Slot(str, str, str)
     def _photo_load_failed(self, photo_id: str, reason: str, context_id: str) -> None:
+        if self._disposed:
+            return
         if photo_id != self.photo_id or context_id != self.context_id:
             return
         self.load_error = reason
         self.update()
 
     def _apply_thumbnail(self, image: QImage, resolved_path: str) -> None:
+        if self._disposed:
+            return
         if image.isNull():
             return
         with _maybe_perf_timer(
@@ -8110,6 +8268,8 @@ class PhotoTile(QWidget):
         self._start_thumbnail_fade()
 
     def _start_thumbnail_fade(self) -> None:
+        if self._disposed:
+            return
         _log_ui_marker(
             self.project_root,
             "ui.thumbnail.fade_in",
@@ -8137,6 +8297,35 @@ class PhotoTile(QWidget):
         self._thumbnail_animation = animation
         animation.finished.connect(lambda: setattr(self, "_thumbnail_animation", None))
         animation.start()
+
+    def dispose(self) -> None:
+        """Stop animation and sever image-service callbacks before deletion."""
+        if self._disposed:
+            return
+        self._disposed = True
+        self.setUpdatesEnabled(False)
+        animation = self._thumbnail_animation
+        if animation is not None:
+            animation.stop()
+            try:
+                animation.finished.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            animation.deleteLater()
+        self._thumbnail_animation = None
+        service = self.photo_service
+        for signal_name, callback in (
+            ("thumbnail_ready", self._thumbnail_ready),
+            ("photo_load_failed", self._photo_load_failed),
+        ):
+            signal = getattr(service, signal_name, None)
+            disconnect = getattr(signal, "disconnect", None)
+            if callable(disconnect):
+                try:
+                    disconnect(callback)
+                except (RuntimeError, TypeError):
+                    pass
+        self.photo_service = None
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -8253,6 +8442,7 @@ class PhotoTile(QWidget):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             clipped_text(meta, 28),
         )
+        painter.end()
 
 
 class PhotoLightboxOverlay(QWidget):

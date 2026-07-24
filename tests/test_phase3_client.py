@@ -23,7 +23,7 @@ def _config() -> ServerConfig:
         "eoat-atlas-prod-runtime",
         "eoat_atlas_prod",
         "/var/lock/eoat-atlas-deploy.lock",
-        "eoat-atlas.gwplastics.com",
+        "eoat-atlas.example.invalid",
         "http",
         80,
     )

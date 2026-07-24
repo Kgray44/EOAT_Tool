@@ -501,6 +501,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/data-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Status
+         * @description Return only transaction-authoritative freshness metadata; never data rows.
+         */
+        get: operations["data_status_api_v1_data_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -2083,6 +2103,40 @@ export interface components {
             state: "INSTALLED" | "STORED" | "UNKNOWN" | "INACTIVE" | "CONFLICTING";
             /** Storage Location */
             storage_location?: string | null;
+        };
+        /**
+         * DataStatusResponse
+         * @description Small, server-authoritative freshness payload safe for frequent reads.
+         */
+        DataStatusResponse: {
+            /**
+             * Data Last Modified At
+             * Format: date-time
+             */
+            data_last_modified_at: string;
+            /** Data Revision */
+            data_revision: number;
+            /** Environment */
+            environment: string;
+            /** Last Import At */
+            last_import_at?: string | null;
+            /** Last Import Source */
+            last_import_source?: string | null;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "mysql";
+            /**
+             * Status
+             * @constant
+             */
+            status: "available";
         };
         /** DocumentCreate */
         DocumentCreate: {
@@ -4267,6 +4321,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    data_status_api_v1_data_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataStatusResponse"];
                 };
             };
         };

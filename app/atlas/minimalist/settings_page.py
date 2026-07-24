@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSignalBlocker, QSize, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QEasingCurve, QPropertyAnimation, QSignalBlocker, QSize, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
@@ -171,6 +171,12 @@ SETTINGS_REGISTRY: tuple[SettingDefinition, ...] = (
     SettingDefinition("refresh_cache", "data_loading.show_cached_data_warning", "Show cached-data warning", "checkbox", True, "MinimalistAtlasWindow cached-data status message", "after Save"),
     SettingDefinition("refresh_cache", "data_loading.warn_when_files_changed", "Warn when files changed", "checkbox", True, "MinimalistAtlasWindow source timestamp watcher", "after Save"),
     SettingDefinition("refresh_cache", "data_loading.show_last_refresh_timestamp", "Show last refresh timestamp", "checkbox", True, "MinimalistAtlasWindow and Settings status text", "after Save"),
+    SettingDefinition("refresh_cache", "data_loading.automatic_polling_enabled", "Automatic polling", "checkbox", True, "DataFreshnessService", "after Save"),
+    SettingDefinition("refresh_cache", "data_loading.polling_interval_seconds", "Polling interval", "segmented", 60, "DataFreshnessService", "after Save", options=(SettingOption(15, "15 sec"), SettingOption(30, "30 sec"), SettingOption(60, "1 min"), SettingOption(300, "5 min"), SettingOption(900, "15 min"), SettingOption(1800, "30 min"))),
+    SettingDefinition("refresh_cache", "data_loading.refresh_when_data_changes", "New-data behavior", "segmented", "notify", "DataFreshnessService", "after Save", options=(SettingOption("automatic", "Refresh safely"), SettingOption("notify", "Notify me"))),
+    SettingDefinition("refresh_cache", "data_loading.pause_refresh_while_editing", "Pause refresh while editing", "checkbox", True, "DataFreshnessService", "after Save"),
+    SettingDefinition("refresh_cache", "data_loading.poll_while_minimized", "Poll while minimized", "checkbox", True, "QtDataFreshnessPoller", "after Save"),
+    SettingDefinition("refresh_cache", "data_loading.timestamp_display", "Timestamp display", "segmented", "relative", "DataFreshnessService", "after Save", options=(SettingOption("relative", "Relative"), SettingOption("exact", "Exact"))),
     SettingDefinition("read_only_safety", "safety.read_only_mode", "Production workbook sync disabled", "locked", True, "production workbook mutation guard", "always enforced", locked=True),
     SettingDefinition("read_only_safety", "safety.block_workbook_writes", "Block production workbook writes", "locked", True, "production workbook write guard", "always enforced", "Prevents production workbook mutation unless an explicit config gate is enabled.", locked=True),
     SettingDefinition("read_only_safety", "safety.disable_status_updates", "Queue status updates locally", "locked", True, "pending update guard", "always enforced", locked=True),
@@ -356,7 +362,11 @@ class AtlasMinimalistSettingsPage(QWidget):
         return self.settings_content.confirm_navigation_away()
 
     def shutdown_admin_session(self) -> None:
-        self.settings_content.shutdown_admin_session()
+        self.settings_content.shutdown()
+
+    def closeEvent(self, event) -> None:
+        self.settings_content.shutdown()
+        super().closeEvent(event)
 
 
 class MinimalistSettingsContent(QWidget):
@@ -388,6 +398,7 @@ class MinimalistSettingsContent(QWidget):
         self._rebuilding_dynamic_rows = False
         self._refreshing_dynamic_rows = False
         self._dynamic_refresh_pending = False
+        self._tearing_down = False
         self.admin_active = False
         self._source_defaults_cache: dict[str, str] | None = None
         self._pending_admin_timeout_notice = ""
@@ -398,6 +409,12 @@ class MinimalistSettingsContent(QWidget):
         self._authentication_expiry_timer = QTimer(self)
         self._authentication_expiry_timer.setSingleShot(True)
         self._authentication_expiry_timer.timeout.connect(self._admin_timeout_elapsed)
+        # A receiver-owned timer makes a deferred dynamic refresh cancellable
+        # during teardown. A static ``singleShot`` can retain a Python callback
+        # after the page that queued it begins closing.
+        self._dynamic_refresh_timer = QTimer(self)
+        self._dynamic_refresh_timer.setSingleShot(True)
+        self._dynamic_refresh_timer.timeout.connect(self._run_deferred_dynamic_refresh)
         self.setObjectName("MinimalistSettingsContent")
         self.setStyleSheet(settings_page_styles(self._theme_preference))
 
@@ -669,6 +686,24 @@ class MinimalistSettingsContent(QWidget):
         self._end_admin_session(confirm_unsaved=False, notify=False, discard_unsaved=True)
         self.authentication_gateway.close()
 
+    def shutdown(self) -> None:
+        """Release settings-owned timers, rows, and API state exactly once."""
+        if self._tearing_down:
+            return
+        self._tearing_down = True
+        self._dynamic_refresh_pending = False
+        self._dynamic_refresh_timer.stop()
+        for row in tuple(self.source_rows.values()):
+            row.dispose()
+        self.source_rows = {}
+        self.source_dirty_rows = {}
+        self.setting_rows = {}
+        self.shutdown_admin_session()
+
+    def closeEvent(self, event) -> None:
+        self.shutdown()
+        super().closeEvent(event)
+
     def open_admin_overlay(self) -> None:
         if self.admin_active:
             self.sign_out_admin()
@@ -727,6 +762,13 @@ class MinimalistSettingsContent(QWidget):
         self.draft_settings = deepcopy(self.saved_settings)
         self._apply_draft_theme(rerender=True)
         self._sync_dirty_state()
+        self._notify_editing_resolved()
+
+    def _notify_editing_resolved(self) -> None:
+        """Tell a live window that a dirty Settings edit no longer blocks work."""
+        callback = getattr(self.controller, "on_minimalist_settings_editing_resolved", None)
+        if callable(callback):
+            callback()
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -774,10 +816,13 @@ class MinimalistSettingsContent(QWidget):
         self._sync_dirty_state()
 
     def _render_selected_section(self) -> None:
+        if self._tearing_down:
+            return
         if self._rebuilding_dynamic_rows:
             self._dynamic_refresh_pending = True
             return
         self._rebuilding_dynamic_rows = True
+        retired_widgets: list[QWidget] = []
         old_source_rows = self.source_rows
         # Active registries are replaced before Qt schedules any old widget for
         # deletion, so refreshes can never observe a mixture of generations.
@@ -788,7 +833,11 @@ class MinimalistSettingsContent(QWidget):
             row.dispose()
         try:
             with self._settings_ui_sync():
-                clear_layout(self.main_layout)
+                # Reset the previous section's scroll extent before deriving
+                # the new one.  Long MySQL diagnostics sections must remain
+                # scrollable rather than being compressed to the viewport.
+                self.main_body.setMinimumHeight(0)
+                clear_layout(self.main_layout, retired_widgets=retired_widgets)
                 spec = self._selected_spec()
                 self.panel_header.set_section(spec, self._status_for_section(spec.key))
                 self.panel_header.set_dirty(spec.key in self.dirty_sections)
@@ -801,9 +850,32 @@ class MinimalistSettingsContent(QWidget):
                 self.main_layout.addStretch(1)
         finally:
             self._rebuilding_dynamic_rows = False
+        # Qt finalizes expanded-section size hints on the next event turn.
+        # Derive the scroll body's height there, or a long diagnostics page
+        # can be forced into the viewport's height.
+        QTimer.singleShot(0, self, self._sync_main_scroll_extent)
+        # ``_settings_ui_sync`` owns QSignalBlockers for old controls.  Flush
+        # only the detached root widgets after that scope releases its blockers;
+        # otherwise repeated Settings rebuilds can carry deferred C++ deletions
+        # into a later UI generation.
+        self._drain_retired_widgets(retired_widgets)
         if self._dynamic_refresh_pending:
             self._dynamic_refresh_pending = False
-            QTimer.singleShot(0, self._refresh_dynamic_rows)
+            self._queue_dynamic_refresh()
+
+    @staticmethod
+    def _drain_retired_widgets(widgets: list[QWidget]) -> None:
+        for widget in widgets:
+            try:
+                QCoreApplication.sendPostedEvents(widget, QEvent.Type.DeferredDelete)
+            except RuntimeError:
+                continue
+
+    def _sync_main_scroll_extent(self) -> None:
+        if self._tearing_down:
+            return
+        self.main_layout.activate()
+        self.main_body.setMinimumHeight(max(0, self.main_layout.sizeHint().height()))
 
     def _selected_spec(self) -> SectionSpec:
         return next((spec for spec in SECTIONS if spec.key == self.selected_key), SECTIONS[0])
@@ -882,6 +954,7 @@ class MinimalistSettingsContent(QWidget):
     def _render_refresh_cache(self) -> None:
         if os.getenv("EOAT_ATLAS_DATA_BACKEND", "mysql_api").strip().casefold() == "mysql_api":
             metrics = self._mysql_api_metrics()
+            freshness = getattr(self.controller, "data_freshness", None)
             self.main_layout.addWidget(
                 CollapsibleSection.with_rows(
                     "Server Refresh Behavior",
@@ -892,6 +965,22 @@ class MinimalistSettingsContent(QWidget):
                         self._setting_row("Disposable cache", "", value_label(str(metrics.get("cache_path") or "Not built"), muted=True)),
                         self._setting_row("Refresh", "Incremental server synchronization.", action_button("Refresh", self.reload_data)),
                         self._setting_row("Deep Refresh", "Rebuild from authoritative API data.", action_button("Deep Refresh", self._request_api_deep_refresh)),
+                    ),
+                )
+            )
+            self.main_layout.addWidget(
+                CollapsibleSection.with_rows(
+                    "Data Freshness",
+                    "Checks the server revision without reloading cached data when nothing changed.",
+                    (
+                        self._setting_row("Automatic polling", "", self._check("data_loading.automatic_polling_enabled")),
+                        self._setting_row("Polling interval", "", self._segmented("data_loading.polling_interval_seconds", ((15, "15 sec"), (30, "30 sec"), (60, "1 min"), (300, "5 min"), (900, "15 min"), (1800, "30 min")))),
+                        self._setting_row("When data changes", "", self._segmented("data_loading.refresh_when_data_changes", (("automatic", "Refresh safely"), ("notify", "Notify me")))),
+                        self._setting_row("Pause refresh while editing", "", self._check("data_loading.pause_refresh_while_editing")),
+                        self._setting_row("Poll while minimized", "", self._check("data_loading.poll_while_minimized")),
+                        self._setting_row("Timestamp display", "", self._segmented("data_loading.timestamp_display", (("relative", "Relative"), ("exact", "Exact")))),
+                        self._setting_row("Last checked", "", value_label(str(getattr(freshness, "last_checked_at", "") or "Not yet checked"))),
+                        self._setting_row("Check data connection", "Safe status-only request; no data is changed.", action_button("Check", self._check_data_connection)),
                     ),
                 )
             )
@@ -1413,6 +1502,10 @@ class MinimalistSettingsContent(QWidget):
 
     def _mysql_api_metrics(self) -> dict[str, Any]:
         metrics = dict(getattr(self.bundle, "metrics", {}) or {})
+        freshness = getattr(self.controller, "data_freshness", None)
+        diagnostics = getattr(freshness, "diagnostics", None)
+        if callable(diagnostics):
+            metrics.update({f"freshness_{key}": value for key, value in diagnostics(page_key="settings").items()})
         if metrics.get("backend") == "mysql_api" and metrics.get("api_url"):
             return metrics
         try:
@@ -1467,6 +1560,34 @@ class MinimalistSettingsContent(QWidget):
                     self._setting_row("Last successful API contact", "", value_label(str(metrics.get("last_successful_api_contact") or "Not recorded"))),
                     self._setting_row("Last incremental refresh", "", value_label(str(metrics.get("last_incremental_refresh") or "Not recorded"))),
                     self._setting_row("Last Deep Refresh", "", value_label(str(metrics.get("last_deep_refresh") or "Not recorded"))),
+                ),
+            )
+        )
+        self.main_layout.addWidget(
+            CollapsibleSection.with_rows(
+                "Data Freshness",
+                "Authoritative revision polling and page freshness; no data is loaded for an unchanged revision.",
+                (
+                    self._setting_row("Polling enabled", "", value_label("Enabled" if metrics.get("freshness_polling_enabled") else "Disabled")),
+                    self._setting_row("Configured interval", "", value_label(f"{metrics.get('freshness_configured_interval_seconds', 'Unavailable')} sec")),
+                    self._setting_row("Effective interval", "", value_label(f"{metrics.get('freshness_effective_interval_seconds', 'Unavailable')} sec")),
+                    self._setting_row("Polling state", "", value_label(str(metrics.get("freshness_polling_state") or "Unavailable"))),
+                    self._setting_row("Last poll attempted", "", value_label(str(metrics.get("freshness_last_poll_attempted") or "Not recorded"))),
+                    self._setting_row("Last poll succeeded", "", value_label(str(metrics.get("freshness_last_poll_succeeded") or "Not recorded"))),
+                    self._setting_row("Consecutive failures", "", value_label(str(metrics.get("freshness_consecutive_failures", 0)))),
+                    self._setting_row("Current retry delay", "", value_label(f"{metrics.get('freshness_current_retry_delay_seconds', 0)} sec")),
+                    self._setting_row("Last error", "", value_label(str(metrics.get("freshness_last_error") or "None"), muted=True)),
+                    self._setting_row("Server data revision", "", value_label(str(metrics.get("freshness_current_server_revision") or "Unavailable"))),
+                    self._setting_row("Current page revision", "", value_label(str(metrics.get("freshness_current_page_revision") or "Unavailable"))),
+                    self._setting_row("Data last modified", "", value_label(str(metrics.get("freshness_data_last_modified_at") or "Unavailable"))),
+                    self._setting_row("Last import", "", value_label(str(metrics.get("freshness_last_import_at") or "Not recorded"))),
+                    self._setting_row("Last import source", "", value_label(str(metrics.get("freshness_last_import_source") or "Not recorded"), muted=True)),
+                    self._setting_row("Client/server clock offset", "", value_label(str(metrics.get("freshness_clock_offset_seconds") or "Unavailable"))),
+                    self._setting_row("Cache status", "", value_label(str(metrics.get("freshness_cache_status") or "Unavailable"))),
+                    self._setting_row("Refresh deferred", "", value_label(str(metrics.get("freshness_refresh_deferred", False)))),
+                    self._setting_row("Deferred reason", "", value_label(str(metrics.get("freshness_refresh_deferred_reason") or "None"))),
+                    self._setting_row("Active polling tasks", "", value_label(str(metrics.get("freshness_active_polling_tasks", 0)))),
+                    self._setting_row("Check data connection", "Status-only request; no data is changed.", action_button("Check", self._check_data_connection)),
                 ),
             )
         )
@@ -1820,6 +1941,8 @@ class MinimalistSettingsContent(QWidget):
         return panel
 
     def _refresh_dynamic_rows(self) -> None:
+        if self._tearing_down:
+            return
         if self._rebuilding_dynamic_rows or self._refreshing_dynamic_rows:
             self._dynamic_refresh_pending = True
             return
@@ -1840,7 +1963,15 @@ class MinimalistSettingsContent(QWidget):
             self._refreshing_dynamic_rows = False
         if self._dynamic_refresh_pending and not self._rebuilding_dynamic_rows:
             self._dynamic_refresh_pending = False
-            QTimer.singleShot(0, self._refresh_dynamic_rows)
+            self._queue_dynamic_refresh()
+
+    def _queue_dynamic_refresh(self) -> None:
+        if not self._tearing_down and not self._dynamic_refresh_timer.isActive():
+            self._dynamic_refresh_timer.start(0)
+
+    def _run_deferred_dynamic_refresh(self) -> None:
+        if not self._tearing_down:
+            self._refresh_dynamic_rows()
 
     def _dynamic_source_row_destroyed(self, key: str, row_ref) -> None:
         row = row_ref()
@@ -1930,6 +2061,16 @@ class MinimalistSettingsContent(QWidget):
                 return
         open_path_text(path_text, self.show_toast)
 
+    def _check_data_connection(self) -> None:
+        check = getattr(self.controller, "check_data_connection", None)
+        if not callable(check):
+            self.show_toast("Data-status checking is unavailable in this application mode.")
+            return
+        if check():
+            self.show_toast("Checking authoritative data status…")
+        else:
+            self.show_toast("A data-status check is already in progress.")
+
     def save_current_settings(self) -> bool:
         if not self._require_admin("Admin access required to save settings."):
             return False
@@ -1957,6 +2098,7 @@ class MinimalistSettingsContent(QWidget):
         except DataGatewayError:
             LOGGER.warning("Settings saved, but the authentication audit acknowledgement failed", exc_info=True)
         self._sync_dirty_state()
+        self._notify_editing_resolved()
         self.show_toast("Settings saved.")
         return True
 
@@ -2342,6 +2484,7 @@ class MinimalistSettingsContent(QWidget):
         self.draft_settings = deepcopy(self.saved_settings)
         self._apply_draft_theme(rerender=True)
         self._sync_dirty_state()
+        self._notify_editing_resolved()
         self.show_toast("Settings reloaded from disk.")
 
 
@@ -2959,17 +3102,19 @@ def show_settings_confirmation(
     return cancel_action
 
 
-def clear_layout(layout) -> None:
+def clear_layout(layout, retired_widgets: list[QWidget] | None = None) -> None:
     while layout.count():
         item = layout.takeAt(0)
         child_layout = item.layout()
         widget = item.widget()
         if child_layout is not None:
-            clear_layout(child_layout)
+            clear_layout(child_layout, retired_widgets=retired_widgets)
         if widget is not None:
             widget.hide()
             widget.setParent(None)
             widget.deleteLater()
+            if retired_widgets is not None:
+                retired_widgets.append(widget)
 
 
 def settings_button(

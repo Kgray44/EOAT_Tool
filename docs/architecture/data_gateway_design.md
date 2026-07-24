@@ -8,4 +8,6 @@ Connectivity states are `ONLINE`, `OFFLINE_READ_ONLY`, `INCOMPATIBLE_SERVER`, `I
 
 Both classic and minimalist background loaders select the gateway only when `EOAT_ATLAS_DATA_BACKEND=mysql_api`. Existing QThread loading keeps network/cache work off the PySide6 event loop. The Library index's independent rebuild path also uses the gateway in this mode, closing the hidden Excel-read path.
 
+For server freshness semantics, see [Data Freshness and Revision Truth](data_freshness.md). The status-only polling worker is separate from cache synchronization: an unchanged revision never triggers `SyncCoordinator.standard_refresh()` or rebuilds a page bundle.
+
 `core.annotations.AnnotationService` returns an API-backed compatibility facade in `mysql_api` mode, so the permanent SQLite annotation database cannot receive writes. Audit save similarly calls the gateway and skips Excel, Robot Info, and legacy queue writes. EOAT Profile page conversion remains explicitly deferred.

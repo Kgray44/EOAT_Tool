@@ -21,7 +21,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-REQUIRED_REVISION = "20260717_0007"
+REQUIRED_REVISION = "20260721_0008"
 TOOL_VERSION = "1.1.0"
 SEED_TABLE_KEYS = {
     "asset_statuses": "code",
@@ -122,6 +122,8 @@ TABLE_POLICIES: dict[str, TablePolicy] = {
         reason="Development authentication activity is transient and identity-environment-specific."),
     "cutover_sessions": _p("D", copy=False, exclude=True,
         reason="Active/development cutover coordination state must not cross environments."),
+    "data_state": _p("D", copy=False, exclude=True, preserve=False,
+        reason="Target freshness metadata is initialized by Alembic and advanced once by the completed operational import."),
     "idempotency_records": _p("D", copy=False, exclude=True,
         reason="Request replay state is transient and environment-specific."),
     "external_group_role_mappings": _p("D", copy=False, exclude=True,
@@ -729,6 +731,9 @@ def build(args: argparse.Namespace) -> int:
                 sql_lines.append(f"-- {table}: {len(rows)} row(s)")
                 sql_lines.extend(insert_sql(source, table, rows, source_meta[table]["column_names"]))
         sql_lines.extend([
+            "UPDATE `data_state` SET current_revision=current_revision+1,data_last_modified_at=UTC_TIMESTAMP(6),"
+            f"last_import_at=UTC_TIMESTAMP(6),last_import_source={sql_literal(source, f'operational-package:{migration_id}')},"
+            "updated_by='operational-data-import' WHERE id=1;",
             f"UPDATE `system_metadata` SET metadata_value='COMPLETED',updated_at=UTC_TIMESTAMP(6) "
             f"WHERE metadata_key={sql_literal(source, marker_key)};",
             "COMMIT;",

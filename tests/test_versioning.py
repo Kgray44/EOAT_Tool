@@ -188,6 +188,8 @@ def test_application_change_classification_is_repository_specific() -> None:
         "app/main.py",
         "assets/icons/app.png",
         "scripts/build_package.py",
+        "deployment/server_updater.py",
+        "release_tools/versioning.py",
         "tests/test_main.py",
         "docs/design_notes.md",
         "reports/test-output.json",
@@ -235,7 +237,7 @@ def test_runtime_launcher_and_build_reader_consume_canonical_without_gui(tmp_pat
                 "source_git_commit": commit,
                 "git_commit": commit,
                 "branch_name": "test",
-                "database_schema_revision": "20260717_0007",
+                    "database_schema_revision": "20260721_0008",
                 "api_contract_version": "1.4.0",
             }
         ),

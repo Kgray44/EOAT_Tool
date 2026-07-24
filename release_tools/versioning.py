@@ -400,10 +400,18 @@ def application_change_paths(paths: Iterable[str]) -> list[str]:
         "00_Project_Admin",
         "docs",
         "reports",
+        # Release bookkeeping is build-time tooling, not application runtime
+        # behavior. Keep a release-preparation guard repair from forcing an
+        # unrelated application version change.
+        "release_tools",
         "tests",
         "tmp",
         "output",
         "build",
+        # Deployment coordination is outside the immutable application archive.
+        # A release-preparation-only deployment-tool repair must not reuse or
+        # advance an already validated application version.
+        "deployment",
         "dist",
         "_migration_logs",
     }

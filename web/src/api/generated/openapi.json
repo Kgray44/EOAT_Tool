@@ -754,6 +754,73 @@
         "title": "CurrentEOATLocation",
         "type": "object"
       },
+      "DataStatusResponse": {
+        "description": "Small, server-authoritative freshness payload safe for frequent reads.",
+        "properties": {
+          "data_last_modified_at": {
+            "format": "date-time",
+            "title": "Data Last Modified At",
+            "type": "string"
+          },
+          "data_revision": {
+            "minimum": 0.0,
+            "title": "Data Revision",
+            "type": "integer"
+          },
+          "environment": {
+            "title": "Environment",
+            "type": "string"
+          },
+          "last_import_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Import At"
+          },
+          "last_import_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Import Source"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "source": {
+            "const": "mysql",
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "const": "available",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "data_revision",
+          "data_last_modified_at",
+          "server_time",
+          "source",
+          "environment"
+        ],
+        "title": "DataStatusResponse",
+        "type": "object"
+      },
       "DocumentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -6539,6 +6606,25 @@
           }
         },
         "summary": "Archive Tool Machine"
+      }
+    },
+    "/api/v1/data-status": {
+      "get": {
+        "description": "Return only transaction-authoritative freshness metadata; never data rows.",
+        "operationId": "data_status_api_v1_data_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Data Status"
       }
     },
     "/api/v1/documents": {

@@ -187,7 +187,7 @@ Atlas is designed to feel fast after data is loaded:
 - When the photo cache is full, Atlas stops queueing additional preload jobs and reports **Photo cache full. Additional photos will not be queued until cache space is available.** Clearing the cache or increasing the cache limit allows photo loading to resume. Source photos are never deleted.
 - Search and recommendation use normalized lookup keys.
 - Manual **Refresh Data** is available on Settings / Diagnostics.
-- The last refreshed timestamp is shown in the status bar and dashboard.
+- The status bar distinguishes **Data last updated** (a committed server-data change), **Last checked** (a status poll), and **This page refreshed**. It never treats a page render, cache read, or no-change poll as a data update; see [data freshness architecture](architecture/data_freshness.md).
 
 Diagnostics on Settings / Diagnostics include workbook load time, photo index time, cache build time, bundle counts, preload mode, cache status, idle status, event-loop lag, queued/active photo jobs, decoded image totals, thumbnail/full image counts, cache memory and limit, last preload reason, last completed preload file, last decode time, failed loads, **Clear Photo Cache**, and **Prime Photo Cache**.
 
