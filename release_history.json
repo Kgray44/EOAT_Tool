@@ -148,6 +148,13 @@
       "state": "finalized",
       "task_id": "codex-reconcile-web-data-freshness-0.21.0",
       "finalized_at_utc": "2026-07-24T13:13:03Z"
+    },
+    {
+      "application_version": "0.21.1",
+      "release_id": "eoat-atlas-0.21.1",
+      "state": "finalized",
+      "task_id": "codex-operational-api-smoke-ambiguity-fix-20260724",
+      "finalized_at_utc": "2026-07-24T15:36:34Z"
     }
   ]
 }

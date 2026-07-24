@@ -35,6 +35,44 @@ class LiteralConnection:
         return str(value)
 
 
+class ApiSmokeCursor:
+    def __init__(self, rows):
+        self.rows = rows
+        self.statement = None
+
+    def execute(self, statement):
+        self.statement = statement
+
+    def fetchall(self):
+        return self.rows
+
+
+def test_api_smoke_machine_candidate_is_deterministic_and_plant_qualified() -> None:
+    rows = [
+        {"plant_code": "DEMO-P5", "machine_number": "040", "machine_id": 7},
+        {"plant_code": "DEMO-P4", "machine_number": "041", "machine_id": 2},
+        {"plant_code": "DEMO-P4", "machine_number": "040", "machine_id": 1},
+    ]
+    first = migration.select_api_smoke_machine(ApiSmokeCursor(rows))
+    second = migration.select_api_smoke_machine(ApiSmokeCursor(list(reversed(rows))))
+    assert first == second == migration.ApiSmokeMachineCandidate("DEMO-P4", "040", 1)
+    assert first.profile_params == {"plant_code": "DEMO-P4"}
+
+
+def test_api_smoke_machine_candidate_never_uses_ambiguous_number_unqualified() -> None:
+    candidate = migration.select_api_smoke_machine(ApiSmokeCursor([
+        {"plant_code": "DEMO-P4", "machine_number": "040", "machine_id": 1},
+        {"plant_code": "DEMO-P5", "machine_number": "040", "machine_id": 7},
+    ]))
+    assert candidate.machine_number == "040"
+    assert candidate.profile_params == {"plant_code": "DEMO-P4"}
+
+
+def test_api_smoke_machine_candidate_fails_actionably_without_valid_machine() -> None:
+    with pytest.raises(RuntimeError, match="cannot select a machine profile candidate"):
+        migration.select_api_smoke_machine(ApiSmokeCursor([]))
+
+
 def test_table_classification_is_complete_for_all_56_tables() -> None:
     assert len(EXPECTED_TABLES) == 56
     assert set(migration.TABLE_POLICIES) == EXPECTED_TABLES
@@ -210,6 +248,10 @@ def test_duplicate_import_prevention_is_required_by_policy() -> None:
     source = Path(migration.__file__).read_text(encoding="utf-8")
     assert "migration marker already exists" in source
     assert "IN_PROGRESS" in source and "COMPLETED" in source
+    assert "@EOAT_IMPORT_GUARD_ERROR" in source
+    assert source.index("DROP PROCEDURE `__eoat_operational_import_guard`") < source.index(
+        "INSERT INTO `alembic_version`"
+    )
 
 
 def test_auto_increment_validation_requires_next_id_above_maximum() -> None:

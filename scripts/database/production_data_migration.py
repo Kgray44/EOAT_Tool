@@ -57,6 +57,19 @@ class TablePolicy:
     reason: str
 
 
+@dataclass(frozen=True)
+class ApiSmokeMachineCandidate:
+    """A deterministic, plant-qualified machine identity for API read smoke checks."""
+
+    plant_code: str
+    machine_number: str
+    machine_id: int
+
+    @property
+    def profile_params(self) -> dict[str, str]:
+        return {"plant_code": self.plant_code}
+
+
 def _p(group: str, *, copy: bool, exclude: bool = False, merge: bool = False,
        preserve: bool = True, reset: bool = False, reason: str) -> TablePolicy:
     return TablePolicy(group, copy, exclude, merge, preserve, reset, reason)
@@ -695,23 +708,24 @@ def build(args: argparse.Namespace) -> int:
             f"-- required-revision: {REQUIRED_REVISION}",
             f"-- migration-id: {migration_id}",
             "SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;",
+            "SET @EOAT_IMPORT_GUARD_ERROR=NULL;",
             "DELIMITER $$",
             "DROP PROCEDURE IF EXISTS `__eoat_operational_import_guard`$$",
             "CREATE PROCEDURE `__eoat_operational_import_guard`()",
             "BEGIN",
             f"  IF (SELECT version_num FROM alembic_version LIMIT 1) <> '{REQUIRED_REVISION}' THEN",
-            "    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='EOAT import refused: schema revision mismatch';",
+            "    SET @EOAT_IMPORT_GUARD_ERROR='EOAT import refused: schema revision mismatch';",
             "  END IF;",
-            f"  IF EXISTS (SELECT 1 FROM system_metadata WHERE metadata_key={sql_literal(source, marker_key)}) THEN",
-            "    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='EOAT import refused: migration marker already exists';",
+            f"  IF @EOAT_IMPORT_GUARD_ERROR IS NULL AND EXISTS (SELECT 1 FROM system_metadata WHERE metadata_key={sql_literal(source, marker_key)}) THEN",
+            "    SET @EOAT_IMPORT_GUARD_ERROR='EOAT import refused: migration marker already exists';",
             "  END IF;",
         ]
         for table in sorted(baseline_counts):
             if table == "alembic_version":
                 continue
             sql_lines.extend([
-                f"  IF (SELECT COUNT(*) FROM `{table}`) <> {baseline_counts[table]} THEN",
-                f"    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='EOAT import refused: non-baseline table {table}';",
+                f"  IF @EOAT_IMPORT_GUARD_ERROR IS NULL AND (SELECT COUNT(*) FROM `{table}`) <> {baseline_counts[table]} THEN",
+                f"    SET @EOAT_IMPORT_GUARD_ERROR='EOAT import refused: non-baseline table {table}';",
                 "  END IF;",
             ])
         sql_lines.extend([
@@ -719,6 +733,9 @@ def build(args: argparse.Namespace) -> int:
             "CALL `__eoat_operational_import_guard`()$$",
             "DROP PROCEDURE `__eoat_operational_import_guard`$$",
             "DELIMITER ;",
+            "SELECT @EOAT_IMPORT_GUARD_ERROR AS import_guard_error;",
+            "INSERT INTO `alembic_version` (`version_num`) SELECT `version_num` FROM `alembic_version` "
+            "WHERE @EOAT_IMPORT_GUARD_ERROR IS NOT NULL;",
             "INSERT INTO `system_metadata` (`metadata_key`,`metadata_value`,`created_at`,`updated_at`) VALUES "
             f"({sql_literal(source, marker_key)},'IN_PROGRESS',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6));",
             "SET @EOAT_OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS;",
@@ -1177,6 +1194,41 @@ def validate_database(args: argparse.Namespace) -> int:
     return 0 if status == "PASS" else 1
 
 
+def select_api_smoke_machine(cursor) -> ApiSmokeMachineCandidate:
+    """Select a stable machine record without treating machine numbers as globally unique.
+
+    Machine numbers are unique only within a plant.  The smoke request therefore always
+    uses the supported ``plant_code`` query parameter instead of relying on an arbitrary
+    unqualified lookup.  The primary-key tie breaker makes the selection repeatable.
+    """
+    cursor.execute(
+        "SELECT p.plant_code,m.machine_number,m.id machine_id "
+        "FROM machines m JOIN plants p ON p.id=m.plant_id "
+        "WHERE p.plant_code IS NOT NULL AND TRIM(p.plant_code) <> '' "
+        "AND m.machine_number IS NOT NULL AND TRIM(m.machine_number) <> '' "
+        "ORDER BY p.plant_code,m.machine_number,m.id"
+    )
+    rows = cursor.fetchall()
+    candidates = [
+        ApiSmokeMachineCandidate(
+            plant_code=str(row["plant_code"]).strip(),
+            machine_number=str(row["machine_number"]).strip(),
+            machine_id=int(row["machine_id"]),
+        )
+        for row in rows
+        if row.get("plant_code") and row.get("machine_number") and row.get("machine_id") is not None
+    ]
+    candidates = [candidate for candidate in candidates if candidate.machine_id > 0]
+    if not candidates:
+        raise RuntimeError(
+            "API smoke cannot select a machine profile candidate: imported operational data contains no "
+            "machine with both a plant code and machine number."
+        )
+    return min(candidates, key=lambda candidate: (
+        candidate.plant_code.casefold(), candidate.machine_number.casefold(), candidate.machine_id
+    ))
+
+
 def api_smoke(args: argparse.Namespace) -> int:
     package = Path(args.package_directory).resolve()
     verify_package(package)
@@ -1187,8 +1239,7 @@ def api_smoke(args: argparse.Namespace) -> int:
     with connect(values) as connection, connection.cursor() as cursor:
         cursor.execute("SELECT business_identifier FROM eoats ORDER BY id LIMIT 1")
         eoat = cursor.fetchone()["business_identifier"]
-        cursor.execute("SELECT machine_number FROM machines ORDER BY id LIMIT 1")
-        machine = cursor.fetchone()["machine_number"]
+        machine = select_api_smoke_machine(cursor)
         cursor.execute("SELECT tool_number FROM tools ORDER BY id LIMIT 1")
         tool = cursor.fetchone()["tool_number"]
         cursor.execute(
@@ -1197,12 +1248,13 @@ def api_smoke(args: argparse.Namespace) -> int:
             "JOIN machines m ON m.id=em.machine_id "
             "JOIN tool_machine_compatibility tm ON tm.machine_id=m.id JOIN tools t ON t.id=tm.tool_id "
             "JOIN eoat_tool_compatibility et ON et.eoat_id=e.id AND et.tool_id=t.id "
-            "ORDER BY e.id,m.id,t.id LIMIT 1"
+            "WHERE m.id=%s ORDER BY e.id,t.id LIMIT 1",
+            (machine.machine_id,),
         )
         triple_row = cursor.fetchone()
     triple = (
         (triple_row["business_identifier"], triple_row["machine_number"], triple_row["tool_number"])
-        if triple_row else (eoat, machine, tool)
+        if triple_row else (eoat, machine.machine_number, tool)
     )
     from fastapi.testclient import TestClient
 
@@ -1221,7 +1273,7 @@ def api_smoke(args: argparse.Namespace) -> int:
             "documents": ("get", f"/api/v1/eoats/{eoat}/documents", None),
             "photos": ("get", f"/api/v1/eoats/{eoat}/photos", None),
             "machine_list": ("get", "/api/v1/machines", {"limit": 5}),
-            "machine_detail": ("get", f"/api/v1/machines/{machine}", None),
+            "machine_detail": ("get", f"/api/v1/machines/{machine.machine_number}", machine.profile_params),
             "tool_list": ("get", "/api/v1/tools", {"limit": 5}),
             "tool_detail": ("get", f"/api/v1/tools/{tool}", None),
             "home_summary": ("get", "/api/v1/home-summary", None),
@@ -1231,11 +1283,18 @@ def api_smoke(args: argparse.Namespace) -> int:
             checks[name] = response.status_code
         e, m, t = triple
         response = client.post("/api/v1/fit-checks/evaluate", json={
-            "eoat_identifier": e, "machine_number": m, "tool_number": t, "persist": False,
+            "eoat_identifier": e,
+            "machine_number": m,
+            "plant_code": machine.plant_code,
+            "tool_number": t,
+            "persist": False,
         })
         checks["fit_check"] = response.status_code
         response = client.get("/api/v1/compatibility/alternatives", params={
-            "eoat_identifier": e, "machine_number": m, "tool_number": t,
+            "eoat_identifier": e,
+            "machine_number": m,
+            "plant_code": machine.plant_code,
+            "tool_number": t,
         })
         checks["compatibility_alternatives"] = response.status_code
     status = "PASS" if checks and all(code == 200 for code in checks.values()) else "FAIL"

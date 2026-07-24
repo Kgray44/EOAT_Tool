@@ -136,6 +136,11 @@ def test_paginated_filtered_entity_contracts(api):
     assert filtered["pagination"]["total"] > 0
 
 
+def test_ambiguous_machine_profile_requires_plant_context(api):
+    assert api.get("/api/v1/machines/040").status_code == 409
+    assert api.get("/api/v1/machines/040", params={"plant_code": "DEMO-P4"}).status_code == 200
+
+
 def test_profiles_relationships_history_documents_and_photos(api):
     eoat = api.get("/api/v1/eoats/DEMO-P4-EOAT-0002")
     assert eoat.status_code == 200

@@ -46,7 +46,11 @@ py -3.14 scripts/database/build_production_data_migration.py api-smoke `
 
 `validate-database` checks the revision, every expected count, all declared foreign keys, every unique index, AUTO_INCREMENT positions, transient database-name leakage, the completed marker, and runtime grants. Run `mysqlcheck --check --extended` separately with the migration account. The API smoke command uses FastAPI in-process and covers EOAT, machine, tool, compatibility, Fit Check, history, documents, photos, and home summary reads; it does not bind a network port.
 
+For machine-profile smoke coverage, the tool derives a deterministic imported machine record and sends its `plant_code` with the machine number. Machine numbers are unique only within a plant; this intentionally preserves the API's `409` response for an unqualified ambiguous number rather than choosing an arbitrary machine.
+
 Run `verify-empty-baseline` against production immediately before the backup and again after the disposable rehearsal. It requires the exact migrated baseline table counts, absent operational marker, and zero location observations/assertions. After a disposable or production import, attempt the same SQL a second time; the marker guard must refuse it, and a subsequent `validate-database` must still pass.
+
+The generated guard always drops its temporary stored procedure before a refusal is surfaced. A duplicate or non-baseline import reports its guard reason and aborts before any operational rows or freshness metadata can change; it must not leave a temporary routine behind.
 
 Run `tools/verify_master_tracker_mysql_parity.py` against the imported disposable database. The verifier is state-aware: compatibility rows never imply current installation; explicit cabinet/not-installed audit notes override a generic machine/context field; and conflicting simultaneous machine observations must be represented by `CONFLICTING` observations. It writes `eoat_location_state.csv` and `state_aware_location_parity.json` in addition to the general parity evidence.
 
