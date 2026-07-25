@@ -1,5 +1,19 @@
 # Release Notes
 
+## EOAT Atlas 0.22.8 Candidate — Machine Profile Browser Boundary
+
+- Removed imported `audit_evidence` rows from the browser-facing Machine Profile contract. Those legacy rows can contain internal path-like source details and are not required to render a Machine Profile.
+- Added a live Chromium/Playwright all-machine gate that obtains machine identifiers from the API, verifies direct navigation and refresh for every current machine, and checks relationship truth wording, read-only browser behavior, and console health.
+- Updated deterministic deployment test fixtures to model the canonical schema head `20260721_0008`.
+- This candidate is built from the post-0.22.7 source lineage and is **not deployed**. It requires its own zero-migration production transaction before production can claim the browser-boundary correction.
+
+## EOAT Atlas 0.22.7 — Deployed Production Release
+
+- Authoritative deployed source: `b39fb6057d6c18526a1802a47886b808194c47c9`; schema: `20260721_0008`.
+- Production activation was zero-migration and left writes disabled. The API and MySQL remain loopback-only; the internal web host remains HTTP port 80 only.
+- Machine 27 is an acceptance example, not a runtime special case. Machine Profile routing, API requests, relationships, media, and truthful empty/error states are parameterized by the current machine identifier.
+- The release is preserved by annotated tag `v0.22.7` and the corresponding GitHub Release. Current production API and frontend release paths are recorded in the root-owned deployment transaction receipt, not in source control.
+
 ## Phase 2.6 Pre-Onedir Readiness Gate
 
 - Added package-safe resource helpers for source and frozen modes.
