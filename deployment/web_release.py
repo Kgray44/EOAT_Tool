@@ -70,7 +70,13 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
     pnpm = shutil.which("pnpm")
     if not pnpm:
         raise DeploymentError("pnpm 11.9.0 is required to build the static web release")
-    with tempfile.TemporaryDirectory(prefix="eoat-web-release-") as temporary:
+    # Node's package manager can briefly retain Windows handles in the
+    # disposable archive.  A failed cleanup must not invalidate a completed
+    # deterministic artifact or touch the source worktree.
+    with tempfile.TemporaryDirectory(
+        prefix="eoat-web-release-",
+        ignore_cleanup_errors=True,
+    ) as temporary:
         source = Path(temporary) / "source"
         source.mkdir()
         bundle = Path(temporary) / "source.tar"
