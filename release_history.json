@@ -239,6 +239,13 @@
       "state": "finalized",
       "task_id": "generic-machine-profile-browser-boundary-0.22.8",
       "finalized_at_utc": "2026-07-25T18:49:11Z"
+    },
+    {
+      "application_version": "0.22.9",
+      "release_id": "eoat-atlas-0.22.9",
+      "state": "finalized",
+      "task_id": "main-convergence-ci-gates-0.22.9",
+      "finalized_at_utc": "2026-07-25T19:26:28Z"
     }
   ]
 }

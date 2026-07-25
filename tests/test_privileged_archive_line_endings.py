@@ -146,7 +146,11 @@ esac""",
     _write_fake_command(fake_bin, "rmdir", 'printf "rmdir %s\\n" "$*" >> "$EOAT_TEST_LOG"')
     environment = {
         **os.environ,
-        "PATH": str(fake_bin) + os.pathsep + os.environ["PATH"],
+        "PATH": (
+            f"{_shell_path(bash, fake_bin)}:/usr/bin:/bin"
+            if bash.suffix.casefold() == ".exe"
+            else str(fake_bin) + os.pathsep + os.environ["PATH"]
+        ),
         "EOAT_TEST_LOG": _shell_path(bash, log),
     }
     subprocess.run(

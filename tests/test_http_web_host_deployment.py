@@ -6,13 +6,12 @@ import json
 import os
 import stat
 import sys
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from deployment.http_web_bundle import BundleError, create_bundle, verify_bundle
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("http_web_installer", ROOT / "deployment" / "privileged" / "install_http_web_host.py")
@@ -201,8 +200,10 @@ def test_backup_restore_and_atomic_current_switch(tmp_path: Path) -> None:
     if os.name == "nt":
         pytest.skip("Windows test account cannot create symlinks; exercised on Debian deployment host")
     current = tmp_path / "current"
-    first = tmp_path / "first"; first.mkdir()
-    second = tmp_path / "second"; second.mkdir()
+    first = tmp_path / "first"
+    first.mkdir()
+    second = tmp_path / "second"
+    second.mkdir()
     installer.atomic_symlink(first, current)
     record = installer.copy_path_backup(current, tmp_path / "backup")
     installer.atomic_symlink(second, current)
@@ -286,11 +287,14 @@ def test_deployed_frontend_hashes_reject_a_changed_asset(tmp_path: Path) -> None
 
 
 def test_rollback_after_nginx_or_acceptance_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    old = tmp_path / "old"; old.write_text("old", encoding="utf-8")
-    live = tmp_path / "live"; live.write_text("new", encoding="utf-8")
+    old = tmp_path / "old"
+    old.write_text("old", encoding="utf-8")
+    live = tmp_path / "live"
+    live.write_text("new", encoding="utf-8")
     backup = tmp_path / "backup" / "old"
     installer.copy_file(old, backup)
-    transaction = tmp_path / "transaction"; transaction.mkdir()
+    transaction = tmp_path / "transaction"
+    transaction.mkdir()
     (transaction / "receipt.json").write_text(json.dumps({"backups": [{"path": str(live), "exists": True, "kind": "file", "backup": str(backup)}], "installed_release": None}), encoding="utf-8")
     monkeypatch.setattr(installer, "nginx_test_reload", lambda: None)
     monkeypatch.setattr(installer, "TRANSACTION_ROOT", tmp_path)
@@ -322,5 +326,5 @@ def test_http_only_template_keeps_api_errors_out_of_spa_fallback() -> None:
 
 
 def test_root_control_directory_is_not_below_service_owned_var_lib_path() -> None:
-    assert installer.CONTROL_ROOT == Path("/var/lib/eoat-atlas-http-web-host")
+    assert Path("/var/lib/eoat-atlas-http-web-host") == installer.CONTROL_ROOT
     assert installer.CONTROL_ROOT.parent == Path("/var/lib")

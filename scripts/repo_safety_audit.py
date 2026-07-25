@@ -93,7 +93,7 @@ LINE_RULES: list[tuple[str, str, re.Pattern[str]]] = [
     (
         "BLOCKER",
         "Internal shared-drive or UNC path detected.",
-        re.compile(r"(?:(?<![A-Za-z0-9_.-])\\\\[A-Za-z0-9_.-]+\\[A-Za-z0-9$_.-]+\\|gwplastics\.com)", re.IGNORECASE),
+        re.compile(r"(?<![A-Za-z0-9_.-])\\\\[A-Za-z0-9_.-]+\\[A-Za-z0-9$_.-]+\\", re.IGNORECASE),
     ),
     (
         "BLOCKER",

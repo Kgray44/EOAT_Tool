@@ -15,7 +15,8 @@ def _ast_sha256(data: bytes) -> str:
 
 
 def verify(path: str, revision: str, parent: str, canonical: bytes, production: bytes, attestations: Path, active_release: str) -> None:
-    canonical_sha = hashlib.sha256(canonical).hexdigest(); production_sha = hashlib.sha256(production).hexdigest()
+    canonical_sha = hashlib.sha256(canonical).hexdigest()
+    production_sha = hashlib.sha256(production).hexdigest()
     if b"\r\n" in canonical:
         raise MigrationIdentityError("package canonical-byte failure")
     if canonical_sha == production_sha:
