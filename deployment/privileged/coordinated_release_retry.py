@@ -105,7 +105,7 @@ def policy(path: Path) -> dict[str, object]:
     value = json.loads(path.read_text(encoding="utf-8"))
     required = {
         "helper_sha256", "web_helper_sha256", "server_archive_path", "server_archive_sha256", "server_manifest_path", "server_manifest_sha256",
-        "server_release_id", "bundle_path", "bundle_sha256", "application_version", "source_commit",
+        "server_release_id", "web_release_id", "bundle_path", "bundle_sha256", "application_version", "source_commit",
         "schema", "canonical_migration_sha256",
     }
     web_program = Path(web.__file__).resolve()
@@ -173,7 +173,7 @@ def activate(value: dict[str, object]) -> Path:
     server = None
     try:
         server = extract_server(value, transaction)
-        frontend = web.stage_frontend(Path(str(value["bundle_path"])) / "web", str(verified["metadata"]["release_id"]))
+        frontend = web.stage_frontend(Path(str(value["bundle_path"])) / "web", str(value["web_release_id"]))
         web.deployed_frontend_hashes(frontend, verified["manifest"])
         web.atomic_symlink(server, API_CURRENT)
         web.atomic_symlink(frontend, WEB_CURRENT)
