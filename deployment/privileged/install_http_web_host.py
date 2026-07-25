@@ -47,6 +47,7 @@ FORBIDDEN_CONTENT = (b"EOAT_API_DEVICE_TOKEN", b"X-EOAT-Device-Token", b"mysql:/
 DEVELOPMENT_API_URL = re.compile(rb"https?://(?:localhost|127[.]0[.]0[.]1)(?::[0-9]+)?/api(?:/|[^A-Za-z0-9_-])", re.I)
 FORBIDDEN_PATH_PARTS = {"node_modules"}
 FORBIDDEN_SUFFIXES = {".map", ".env", ".pem", ".key"}
+WEB_HOST_HELPER_VERSION = "1.1.0"
 
 
 def sha256(path: Path) -> str:
@@ -181,17 +182,42 @@ def api_health(policy: dict[str, object]) -> dict[str, object]:
 
 
 def wait_api(policy: dict[str, object], attempts: int = 12, interval: float = 1.0) -> None:
+    """Wait for health and prove it once more after the bounded retry loop.
+
+    A successful systemd restart is not readiness.  The final probe is kept
+    separate from the retry sequence so a caller cannot accidentally report a
+    successful rollback after the last failed attempt.
+    """
+    started = time.monotonic()
     errors: list[str] = []
     for attempt in range(1, attempts + 1):
         try:
             api_health(policy)
-            print(f"EOAT_API_READINESS attempt={attempt} result=ready", flush=True)
+            print(
+                f"EOAT_API_READINESS attempt={attempt} result=ready "
+                f"active_release={active_release()} elapsed_seconds={time.monotonic() - started:.1f}",
+                flush=True,
+            )
             return
         except Exception as error:  # readiness diagnostics intentionally contain no secrets
             errors.append(f"attempt={attempt} {error}")
             print(f"EOAT_API_READINESS attempt={attempt} result=not-ready detail={error}", flush=True)
             time.sleep(interval)
-    raise InstallError("API readiness timeout: " + "; ".join(errors))
+    try:
+        api_health(policy)
+    except Exception as error:
+        elapsed = time.monotonic() - started
+        print(
+            f"EOAT_API_READINESS final_check=not-ready active_release={active_release()} "
+            f"elapsed_seconds={elapsed:.1f} detail={error}",
+            flush=True,
+        )
+        raise InstallError("API readiness timeout: " + "; ".join(errors) + f"; final_check={error}") from error
+    print(
+        f"EOAT_API_READINESS final_check=ready active_release={active_release()} "
+        f"elapsed_seconds={time.monotonic() - started:.1f}",
+        flush=True,
+    )
 
 
 def active_release() -> str:
@@ -261,17 +287,138 @@ def validate_isolated(rendered: str, static_root: Path) -> None:
             raise InstallError("isolated nginx validation failed: " + (completed.stderr + completed.stdout).strip())
 
 
-def assert_static_assets(root: Path) -> tuple[str, str | None]:
+def static_asset_paths(root: Path) -> tuple[Path, list[Path], list[Path]]:
+    """Return only root-contained static assets referenced by index.html."""
     index = (root / "index.html").read_text(encoding="utf-8")
     if "EOAT" not in index.upper():
         raise InstallError("frontend index does not identify EOAT Atlas")
     scripts = re.findall(r"(?:src)=['\"]([^'\"]+\.js)['\"]", index)
     styles = re.findall(r"(?:href)=['\"]([^'\"]+\.css)['\"]", index)
-    if not scripts or not (root / scripts[0].lstrip("/")).is_file():
+    root_resolved = root.resolve()
+    def contained(value: str) -> Path:
+        candidate = (root / value.lstrip("/")).resolve()
+        if not candidate.is_relative_to(root_resolved):
+            raise InstallError(f"frontend asset path escapes release root: {value}")
+        if not candidate.is_file() or candidate.is_symlink():
+            raise InstallError(f"frontend referenced asset is missing or unsafe: {value}")
+        return candidate
+    javascript = [contained(value) for value in scripts]
+    css = [contained(value) for value in styles]
+    if not javascript:
         raise InstallError("frontend JavaScript asset is missing")
-    if styles and not (root / styles[0].lstrip("/")).is_file():
-        raise InstallError("frontend CSS asset is missing")
-    return scripts[0], styles[0] if styles else None
+    return root / "index.html", javascript, css
+
+
+def assert_static_assets(root: Path) -> tuple[str, str | None]:
+    _, javascript, css = static_asset_paths(root)
+    return "/" + javascript[0].relative_to(root).as_posix(), "/" + css[0].relative_to(root).as_posix() if css else None
+
+
+def _mode_text(path: Path) -> str:
+    return f"{stat.S_IMODE(path.lstat().st_mode):04o}"
+
+
+def _worker_run(worker: str, operation: str, path: Path) -> subprocess.CompletedProcess[str]:
+    """Run a single fixed access probe as the configured NGINX worker."""
+    return subprocess.run(
+        ["/usr/sbin/runuser", "-u", worker, "--", "/usr/bin/test", operation, str(path)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def _worker_check(worker: str, operation: str, path: Path) -> None:
+    result = _worker_run(worker, operation, path)
+    passed = result.returncode == 0
+    print(
+        "WEB_PERMISSION_CHECK "
+        f"path={path} owner={path.lstat().st_uid}:{path.lstat().st_gid} mode={_mode_text(path)} "
+        f"worker={worker} operation={operation} result={'pass' if passed else 'fail'}",
+        flush=True,
+    )
+    if not passed:
+        raise InstallError(f"NGINX worker access denied: path={path} operation={operation} worker={worker}")
+
+
+def _worker_read_byte(worker: str, path: Path) -> None:
+    result = subprocess.run(
+        ["/usr/sbin/runuser", "-u", worker, "--", "/usr/bin/head", "-c", "1", str(path)],
+        text=False,
+        capture_output=True,
+        check=False,
+    )
+    passed = result.returncode == 0
+    print(
+        "WEB_PERMISSION_CHECK "
+        f"path={path} owner={path.lstat().st_uid}:{path.lstat().st_gid} mode={_mode_text(path)} "
+        f"worker={worker} operation=read-byte result={'pass' if passed else 'fail'}",
+        flush=True,
+    )
+    if not passed:
+        raise InstallError(f"NGINX worker could not read staged asset: path={path} worker={worker}")
+
+
+def _worker_must_not_write(worker: str, path: Path) -> None:
+    result = _worker_run(worker, "-w", path)
+    writable = result.returncode == 0
+    print(
+        "WEB_PERMISSION_CHECK "
+        f"path={path} owner={path.lstat().st_uid}:{path.lstat().st_gid} mode={_mode_text(path)} "
+        f"worker={worker} operation=-w result={'fail' if writable else 'pass'}",
+        flush=True,
+    )
+    if writable:
+        raise InstallError(f"NGINX worker write access is forbidden: path={path} worker={worker}")
+
+
+def assert_web_worker_access(root: Path, *, worker: str | None = None) -> None:
+    """Verify the staged tree with the NGINX account, never as root alone."""
+    worker = worker or nginx_worker_user()
+    resolved = root.resolve()
+    if not resolved.is_relative_to((WEB_ROOT / "releases").resolve()):
+        raise InstallError("staged frontend release is outside the approved releases root")
+    for ancestor in reversed([resolved, *resolved.parents]):
+        # Checking from / through release root finds the first untraversable
+        # parent and emits its contextual diagnostic.
+        _worker_check(worker, "-x", ancestor)
+        if ancestor == Path("/"):
+            break
+    index, javascript, css = static_asset_paths(resolved)
+    served_directories = [resolved, *[path for path in resolved.rglob("*") if path.is_dir()]]
+    for directory in served_directories:
+        _worker_check(worker, "-x", directory)
+    for path in [index, *javascript, *css]:
+        _worker_check(worker, "-r", path)
+        _worker_read_byte(worker, path)
+        _worker_must_not_write(worker, path)
+    for directory in served_directories:
+        _worker_must_not_write(worker, directory)
+
+
+def reject_unsafe_static_tree(root: Path) -> None:
+    for path in [root, *root.rglob("*")]:
+        info = path.lstat()
+        if path.is_symlink() or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+            raise InstallError(f"unsafe static release member: {path}")
+
+
+def normalize_static_tree(root: Path) -> None:
+    """Apply destination policy independent of source mode or caller umask."""
+    reject_unsafe_static_tree(root)
+    for path in [root, *root.rglob("*")]:
+        os.chown(path, 0, 0)
+        os.chmod(path, 0o755 if path.is_dir() else 0o644)
+
+
+def ensure_static_release_parents() -> None:
+    """Create the dedicated NGINX tree with deterministic root-owned modes."""
+    for path in (WEB_ROOT, WEB_ROOT / "releases"):
+        path.mkdir(parents=True, exist_ok=True, mode=0o755)
+        if path.is_symlink() or not path.is_dir():
+            raise InstallError(f"unsafe static release parent: {path}")
+        os.chown(path, 0, 0)
+        os.chmod(path, 0o755)
 
 
 def preflight(policy: dict[str, object]) -> dict[str, object]:
@@ -315,12 +462,17 @@ def stage_frontend(bundle_web: Path, release_id: str) -> Path:
     final = WEB_ROOT / "releases" / release_id
     if final.exists() or staging.exists():
         raise InstallError("refusing to overwrite an existing frontend release")
-    shutil.copytree(bundle_web, staging, copy_function=shutil.copy2)
-    for item in [staging, *staging.rglob("*")]:
-        os.chown(item, 0, 0)
-        os.chmod(item, 0o755 if item.is_dir() else 0o644)
+    reject_unsafe_static_tree(bundle_web)
+    ensure_static_release_parents()
+    # copyfile deliberately copies bytes only; source archive and checkout
+    # modes must never govern the served destination.
+    shutil.copytree(bundle_web, staging, copy_function=shutil.copyfile, symlinks=False)
+    normalize_static_tree(staging)
     assert_static_assets(staging)
+    assert_web_worker_access(staging)
     os.replace(staging, final)
+    normalize_static_tree(final)
+    assert_web_worker_access(final)
     return final
 
 

@@ -6,7 +6,7 @@ copies the installer, bundle, and JSON policy to root-owned paths and verifies
 their SHA-256 values after the copy. The policy pins the installer hash, bundle
 hash, active API release, schema, and expected frontend version.
 
-The installer has three actions:
+The installer is currently versioned as `1.1.0` and has three actions:
 
 - `preflight` is non-destructive. It validates root control, the complete
   bundle manifest, active API/schema/write state, local listener boundaries,
@@ -35,3 +35,14 @@ not a component of this mechanism.
 The deployment-control root is deliberately a sibling of `/var/lib/eoat-atlas`,
 not a child. The latter is service-owned and must remain outside the root trust
 chain.
+
+Static release permissions are a destination policy, never a property copied
+from a bundle or developer checkout. The installer rejects links and special
+files, copies bytes without preserving modes, then makes every served directory
+`root:root 0755` and every regular file `root:root 0644`. Before it can point
+`/var/www/eoat-atlas/current` at the release, it drops to the configured NGINX
+worker account and verifies traversal, reads every index-referenced JavaScript
+and CSS asset, reads a byte from each, and proves that account cannot write the
+assets or their directories. Each result is emitted as a
+`WEB_PERMISSION_CHECK` diagnostic. This prevents a restrictive source tree
+such as `0750` from producing an activated but unreadable site.

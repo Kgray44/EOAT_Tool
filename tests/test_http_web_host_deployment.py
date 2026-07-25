@@ -163,11 +163,19 @@ def test_api_readiness_retries_and_times_out(monkeypatch: pytest.MonkeyPatch) ->
         return {}
     monkeypatch.setattr(installer, "api_health", eventually)
     monkeypatch.setattr(installer.time, "sleep", lambda _: None)
+    monkeypatch.setattr(installer, "active_release", lambda: "/approved/api-release")
     installer.wait_api({}, attempts=3, interval=0)
     assert len(attempts) == 3
-    monkeypatch.setattr(installer, "api_health", lambda _: (_ for _ in ()).throw(installer.InstallError("not ready")))
+    final_attempts: list[int] = []
+    def never(_: dict[str, object]) -> dict[str, object]:
+        final_attempts.append(1)
+        raise installer.InstallError("not ready")
+    monkeypatch.setattr(installer, "api_health", never)
     with pytest.raises(installer.InstallError, match="readiness timeout"):
         installer.wait_api({}, attempts=2, interval=0)
+    # Two bounded retries plus an explicit final probe are required before
+    # failure can be reported.
+    assert len(final_attempts) == 3
 
 
 def test_api_health_accepts_the_production_flat_schema_contract(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -204,13 +212,68 @@ def test_backup_restore_and_atomic_current_switch(tmp_path: Path) -> None:
 
 def test_frontend_release_staging_permissions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     source = web_source(tmp_path / "source")
+    for directory in (source, source / "assets"):
+        os.chmod(directory, 0o750)
+    for path in (source / "index.html", source / "assets" / "app.js", source / "assets" / "app.css"):
+        os.chmod(path, 0o600)
+    expected = {path.relative_to(source).as_posix(): installer.sha256(path) for path in source.rglob("*") if path.is_file()}
     monkeypatch.setattr(installer, "WEB_ROOT", tmp_path / "served")
     monkeypatch.setattr(installer.os, "chown", lambda *_: None, raising=False)
+    monkeypatch.setattr(installer, "nginx_worker_user", lambda: "www-data")
+    worker_checks: list[tuple[str, str, Path]] = []
+    monkeypatch.setattr(installer, "_worker_check", lambda worker, operation, path: worker_checks.append((worker, operation, path)))
+    monkeypatch.setattr(installer, "_worker_read_byte", lambda worker, path: worker_checks.append((worker, "read-byte", path)))
+    monkeypatch.setattr(installer, "_worker_must_not_write", lambda worker, path: worker_checks.append((worker, "not-writable", path)))
     release = installer.stage_frontend(source, "release-a")
     assert (release / "index.html").is_file()
+    assert {path.relative_to(release).as_posix(): installer.sha256(path) for path in release.rglob("*") if path.is_file()} == expected
+    assert any(operation == "-x" for _, operation, _ in worker_checks)
+    assert any(operation == "-r" for _, operation, _ in worker_checks)
+    assert any(operation == "read-byte" for _, operation, _ in worker_checks)
+    assert any(operation == "not-writable" for _, operation, _ in worker_checks)
     if os.name != "nt":
         assert stat.S_IMODE((release / "index.html").stat().st_mode) == 0o644
         assert stat.S_IMODE(release.stat().st_mode) == 0o755
+        assert stat.S_IMODE((release / "assets").stat().st_mode) == 0o755
+        assert stat.S_IMODE((release / "assets" / "app.js").stat().st_mode) == 0o644
+
+
+def test_frontend_staging_is_independent_of_caller_umask(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    if os.name == "nt":
+        pytest.skip("POSIX mode semantics are exercised on Debian deployment hosts")
+    source = web_source(tmp_path / "source")
+    monkeypatch.setattr(installer, "WEB_ROOT", tmp_path / "served")
+    monkeypatch.setattr(installer.os, "chown", lambda *_: None, raising=False)
+    monkeypatch.setattr(installer, "assert_web_worker_access", lambda *_args, **_kwargs: None)
+    prior = os.umask(0o077)
+    try:
+        release = installer.stage_frontend(source, "release-umask")
+    finally:
+        os.umask(prior)
+    assert stat.S_IMODE(release.stat().st_mode) == 0o755
+    assert stat.S_IMODE((release / "index.html").stat().st_mode) == 0o644
+
+
+def test_static_staging_rejects_symlink_escape_before_activation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    if os.name == "nt":
+        pytest.skip("Windows test account cannot create symlinks")
+    source = web_source(tmp_path / "source")
+    (source / "assets" / "escape.js").symlink_to(tmp_path / "outside.js")
+    monkeypatch.setattr(installer, "WEB_ROOT", tmp_path / "served")
+    monkeypatch.setattr(installer.os, "chown", lambda *_: None, raising=False)
+    with pytest.raises(installer.InstallError, match="unsafe static release member"):
+        installer.stage_frontend(source, "release-escape")
+    assert not (tmp_path / "served" / "current").exists()
+
+
+def test_worker_permission_failure_prevents_current_switch(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    source = web_source(tmp_path / "source")
+    monkeypatch.setattr(installer, "WEB_ROOT", tmp_path / "served")
+    monkeypatch.setattr(installer.os, "chown", lambda *_: None, raising=False)
+    monkeypatch.setattr(installer, "assert_web_worker_access", lambda *_args, **_kwargs: (_ for _ in ()).throw(installer.InstallError("NGINX worker access denied")))
+    with pytest.raises(installer.InstallError, match="NGINX worker access denied"):
+        installer.stage_frontend(source, "release-denied")
+    assert not (tmp_path / "served" / "current").exists()
 
 
 def test_deployed_frontend_hashes_reject_a_changed_asset(tmp_path: Path) -> None:
