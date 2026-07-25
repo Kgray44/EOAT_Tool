@@ -184,7 +184,10 @@ def activate(value: dict[str, object]) -> Path:
         subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
         web.wait_api(value)
         wait_target(value)
-        web.acceptance(frontend, value)
+        # The shared HTTP acceptance helper also asserts the API release
+        # symlink.  Bind that invariant to this just-activated immutable
+        # target rather than requiring a second policy field.
+        web.acceptance(frontend, {**value, "api_release": str(server.resolve())})
         receipt.update(state="active", new_api=str(server), new_web=str(frontend))
         (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         return transaction
