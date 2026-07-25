@@ -225,6 +225,13 @@
       "state": "finalized",
       "task_id": "coordinated-machine-profile-relationship-0.22.6",
       "finalized_at_utc": "2026-07-25T15:58:48Z"
+    },
+    {
+      "application_version": "0.22.7",
+      "release_id": "eoat-atlas-0.22.7",
+      "state": "finalized",
+      "task_id": "coordinated-live-console-acceptance-0.22.7",
+      "finalized_at_utc": "2026-07-25T16:44:00Z"
     }
   ]
 }

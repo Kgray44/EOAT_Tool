@@ -22,7 +22,18 @@ test("live Machine 27 is truthful, read-only, and free of redundant relationship
     }
   });
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    if (message.type() !== "error") return;
+    const location = message.location().url;
+    // The test deliberately verifies the established JSON 404 contract below.
+    // Chromium reports that expected response as a resource-load console error;
+    // it is not an application-console failure.
+    if (
+      location.endsWith("/api/v1/not-a-real-route") &&
+      message.text().includes("Failed to load resource")
+    ) {
+      return;
+    }
+    consoleErrors.push(message.text());
   });
 
   await page.goto("/machines/27", { waitUntil: "domcontentloaded" });
