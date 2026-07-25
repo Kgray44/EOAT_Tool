@@ -121,7 +121,6 @@ class MachineProfile(MachineSummary):
     notes: str | None = None
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     robots: list[RelationshipSummary] = Field(default_factory=list)
-    audit_evidence: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ToolSummary(BaseModel):

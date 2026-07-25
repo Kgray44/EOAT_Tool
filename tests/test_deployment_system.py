@@ -35,7 +35,7 @@ def _repository(root: Path, *, destructive_migration: bool = False) -> tuple[Pat
     defaults = {
         "app_name": "EOAT Atlas",
         "api_contract_version": "1.4.0",
-        "database_schema_revision": "20260717_0007",
+        "database_schema_revision": "20260721_0008",
         "environment": "production",
         "release_channel": "server",
         "launcher_version": "0.1.0",
@@ -72,10 +72,14 @@ def _repository(root: Path, *, destructive_migration: bool = False) -> tuple[Pat
     _write(root / "server/eoat_api/__init__.py", "")
     _write(root / "server/eoat_api/app.py", "APP_NAME = 'EOAT Atlas'\n")
     _write(root / "server/migrations/env.py", "")
-    dangerous = "\nop.drop_table('obsolete')\n" if destructive_migration else ""
     _write(
         root / "server/migrations/versions/20260717_0007_fixture.py",
-        f"revision = '20260717_0007'\ndown_revision = None\n{dangerous}",
+        "revision = '20260717_0007'\ndown_revision = None\n",
+    )
+    dangerous = "\nop.drop_table('obsolete')\n" if destructive_migration else ""
+    _write(
+        root / "server/migrations/versions/20260721_0008_fixture.py",
+        f"revision = '20260721_0008'\ndown_revision = '20260717_0007'\n{dangerous}",
     )
     _write(root / "core/__init__.py", "")
     _write(root / "release_tools/__init__.py", "")
@@ -573,7 +577,7 @@ def test_migration_preflight_flags_destructive_operations(tmp_path: Path) -> Non
     root, commit = _repository(tmp_path / "repo", destructive_migration=True)
     build = build_deployment_archive(root, commit, tmp_path / "output", branch="test/release")
     summary = migration_summary(build.archive)
-    assert summary["heads"] == ["20260717_0007"]
+    assert summary["heads"] == ["20260721_0008"]
     assert summary["destructive_warnings"]
     assert server_updater.migration_execution_warnings(summary, {"status": "NOT_REQUIRED"}) == []
     assert server_updater.migration_execution_warnings(summary, {"status": "REQUIRED"}) == summary["destructive_warnings"]

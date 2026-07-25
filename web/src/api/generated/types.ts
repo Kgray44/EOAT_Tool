@@ -2644,10 +2644,6 @@ export interface components {
         MachineProfile: {
             /** Area */
             area?: string | null;
-            /** Audit Evidence */
-            audit_evidence?: {
-                [key: string]: unknown;
-            }[];
             /** Cleanroom Classification */
             cleanroom_classification?: string | null;
             /** Controller Type */

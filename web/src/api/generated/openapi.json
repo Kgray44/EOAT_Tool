@@ -2906,14 +2906,6 @@
             ],
             "title": "Area"
           },
-          "audit_evidence": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Audit Evidence",
-            "type": "array"
-          },
           "cleanroom_classification": {
             "anyOf": [
               {

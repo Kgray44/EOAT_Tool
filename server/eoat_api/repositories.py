@@ -341,14 +341,6 @@ class AtlasRepository:
             notes=entity.notes,
             relationships=relationships,
             robots=robots,
-            audit_evidence=[
-                audit.details_json or {}
-                for audit in self.session.scalars(
-                    select(db.AuditRecord)
-                    .where(db.AuditRecord.machine_id == entity.id)
-                    .order_by(db.AuditRecord.source_row_number)
-                )
-            ],
         )
 
     def list_tools(

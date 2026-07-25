@@ -53,3 +53,18 @@ def test_machine_web_content_routes_are_declared_in_openapi():
     paths = api.app.openapi()["paths"]
     assert "/api/v1/machines/{number}/web-documents" in paths
     assert "/api/v1/machines/{number}/web-photos" in paths
+
+
+def test_machine_profile_contract_excludes_raw_audit_evidence_from_browser_json():
+    """Machine profile metadata must never carry imported path-bearing audit rows."""
+    profile = MachineProfile(
+        plant_code="P4",
+        machine_number="nonsequential-machine",
+        is_active=True,
+        row_version=1,
+        audit_evidence=[{"Photo Folder/Link": r"\\internal\\Cell_Photos\\machine"}],
+    )
+
+    assert "audit_evidence" not in profile.model_dump()
+    properties = api.app.openapi()["components"]["schemas"]["MachineProfile"]["properties"]
+    assert "audit_evidence" not in properties
