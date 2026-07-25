@@ -126,7 +126,8 @@ def test_archived_install_and_uninstall_scripts_use_only_expected_bootstrap_acti
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
     log = tmp_path / "commands.log"
-    _write_fake_command(fake_bin, "id", "echo 0")
+    bash_environment = tmp_path / "bash-env"
+    bash_environment.write_text("id() { printf '0\\n'; }\n", encoding="utf-8", newline="\n")
     _write_fake_command(
         fake_bin,
         "grep",
@@ -151,6 +152,11 @@ esac""",
             if bash.suffix.casefold() == ".exe"
             else str(fake_bin) + os.pathsep + os.environ["PATH"]
         ),
+        # Git Bash translates a Windows ``PATH`` before executing the script,
+        # so an ``id`` shim there is not reliable.  ``BASH_ENV`` is scoped to
+        # this non-interactive test child and gives the archived script the
+        # same root-result contract without weakening the real root check.
+        "BASH_ENV": _shell_path(bash, bash_environment),
         "EOAT_TEST_LOG": _shell_path(bash, log),
     }
     subprocess.run(

@@ -246,6 +246,13 @@
       "state": "finalized",
       "task_id": "main-convergence-ci-gates-0.22.9",
       "finalized_at_utc": "2026-07-25T19:26:28Z"
+    },
+    {
+      "application_version": "0.22.10",
+      "release_id": "eoat-atlas-0.22.10",
+      "state": "finalized",
+      "task_id": "main-convergence-windows-root-harness-0.22.10",
+      "finalized_at_utc": "2026-07-25T19:45:47Z"
     }
   ]
 }
