@@ -67,9 +67,9 @@ def _normalize_web_source_line_endings(directory: Path) -> None:
 
 def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, object]:
     """Build an exact committed web tree; Node is never included in the result."""
-    npm = shutil.which("npm")
-    if not npm:
-        raise DeploymentError("npm is required to build the static web release")
+    pnpm = shutil.which("pnpm")
+    if not pnpm:
+        raise DeploymentError("pnpm 11.9.0 is required to build the static web release")
     with tempfile.TemporaryDirectory(prefix="eoat-web-release-") as temporary:
         source = Path(temporary) / "source"
         source.mkdir()
@@ -101,17 +101,23 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         )
         web = source / "web"
         _normalize_web_source_line_endings(web)
-        _run(web, npm, "ci")
+        package = json.loads((web / "package.json").read_text(encoding="utf-8"))
+        if package.get("packageManager") != "pnpm@11.9.0":
+            raise DeploymentError("web package manager must be pinned to pnpm@11.9.0")
+        version = subprocess.run([pnpm, "--version"], text=True, capture_output=True, check=False)
+        if version.returncode or version.stdout.strip() != "11.9.0":
+            raise DeploymentError("the active pnpm version is not the pinned 11.9.0 release")
+        _run(web, pnpm, "install", "--frozen-lockfile")
         generated = web / "src" / "api" / "generated"
         _normalize_generated_line_endings(generated)
         before = {path.name: _sha256(path) for path in generated.glob("*") if path.is_file()}
-        _run(web, npm, "run", "api:generate")
+        _run(web, pnpm, "run", "api:generate")
         _normalize_generated_line_endings(generated)
         after = {path.name: _sha256(path) for path in generated.glob("*") if path.is_file()}
         if before != after:
             raise DeploymentError("generated OpenAPI TypeScript contract is stale")
         for script in ("format:check", "lint", "typecheck", "test", "test:e2e", "build"):
-            _run(web, npm, "run", script)
+            _run(web, pnpm, "run", script)
         dist = web / "dist"
         index = dist / "index.html"
         if not index.is_file() or not any((dist / "assets").glob("*")):

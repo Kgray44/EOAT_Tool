@@ -4,8 +4,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import shutil
 import re
+import shutil
 from pathlib import Path
 
 ALLOWED_TOP_LEVEL = {"bundle.json", "manifest.json", "nginx", "web"}
@@ -67,7 +67,17 @@ def _assert_bundle_tree(root: Path) -> None:
         raise BundleError("bundle nginx directory has unexpected members")
 
 
-def create_bundle(static_root: Path, template: Path, destination: Path, *, release_id: str, app_version: str) -> dict[str, str]:
+def create_bundle(
+    static_root: Path,
+    template: Path,
+    destination: Path,
+    *,
+    release_id: str,
+    app_version: str,
+    source_commit: str | None = None,
+    compatible_api_version: str | None = None,
+    compatible_schema: str | None = None,
+) -> dict[str, str]:
     if destination.exists():
         raise BundleError("bundle destination must not already exist")
     if not (static_root / "index.html").is_file():
@@ -84,6 +94,9 @@ def create_bundle(static_root: Path, template: Path, destination: Path, *, relea
         "schema": 1,
         "release_id": release_id,
         "application_version": app_version,
+        "source_commit": source_commit,
+        "compatible_api_version": compatible_api_version,
+        "compatible_schema": compatible_schema,
         "api_upstream": "127.0.0.1:8765",
         "server_name": "eoat-atlas.gwplastics.com",
         "content_sha256": _canonical(manifest),
@@ -120,11 +133,23 @@ def main() -> int:
     build.add_argument("--destination", type=Path, required=True)
     build.add_argument("--release-id", required=True)
     build.add_argument("--application-version", required=True)
+    build.add_argument("--source-commit")
+    build.add_argument("--compatible-api-version")
+    build.add_argument("--compatible-schema")
     verify = sub.add_parser("verify")
     verify.add_argument("--bundle", type=Path, required=True)
     verify.add_argument("--expected-sha256")
     args = parser.parse_args()
-    result = create_bundle(args.static_root, args.template, args.destination, release_id=args.release_id, app_version=args.application_version) if args.command == "build" else verify_bundle(args.bundle, args.expected_sha256)
+    result = create_bundle(
+        args.static_root,
+        args.template,
+        args.destination,
+        release_id=args.release_id,
+        app_version=args.application_version,
+        source_commit=args.source_commit,
+        compatible_api_version=args.compatible_api_version,
+        compatible_schema=args.compatible_schema,
+    ) if args.command == "build" else verify_bundle(args.bundle, args.expected_sha256)
     print(json.dumps(result, sort_keys=True))
     return 0
 

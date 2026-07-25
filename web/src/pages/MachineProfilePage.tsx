@@ -19,6 +19,7 @@ import {
   ProfileSection,
   RelationshipList,
 } from "@/components/profile/ProfileBlocks";
+import { deduplicateRelationships } from "@/components/profile/relationshipPresentation";
 import { QrLabel } from "@/components/qr/QrLabel";
 
 function Retry({ retry }: { retry: () => void }) {
@@ -73,13 +74,8 @@ function MachineContent({
       label: profile.machine_name || number,
     });
   }, [number, profile.machine_name]);
-  const resolvedRelationships = Array.from(
-    new Map(
-      (relationships.data ?? profile.relationships ?? []).map((value) => [
-        `${value.relationship_type}:${value.identifier}`,
-        value,
-      ]),
-    ).values(),
+  const resolvedRelationships = deduplicateRelationships(
+    relationships.data ?? profile.relationships ?? [],
   );
   const overview = [
     ["Manufacturer", profile.manufacturer],

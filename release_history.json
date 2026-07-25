@@ -218,6 +218,13 @@
       "state": "finalized",
       "task_id": "package-migration-attestation-20260725",
       "finalized_at_utc": "2026-07-25T13:34:56Z"
+    },
+    {
+      "application_version": "0.22.6",
+      "release_id": "eoat-atlas-0.22.6",
+      "state": "finalized",
+      "task_id": "coordinated-machine-profile-relationship-0.22.6",
+      "finalized_at_utc": "2026-07-25T15:58:48Z"
     }
   ]
 }

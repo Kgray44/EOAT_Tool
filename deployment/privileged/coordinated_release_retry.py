@@ -13,8 +13,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
-import tempfile
 import uuid
 import zipfile
 from datetime import datetime, timezone
@@ -22,8 +20,7 @@ from pathlib import Path
 
 import install_http_web_host as web
 
-
-HELPER_VERSION = "1.0.0"
+HELPER_VERSION = "1.1.0"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -59,44 +56,49 @@ def extract_server(policy: dict[str, object], transaction: Path) -> Path:
     staging = API_RELEASES / (".staging-" + transaction.name)
     if target.exists() or staging.exists():
         fail("refusing to overwrite an existing API release")
-    with zipfile.ZipFile(archive) as bundle:
-        members = safe_zip_members(bundle)
-        staging.mkdir(mode=0o750)
-        for member in members:
-            if member.is_dir():
-                (staging / member.filename).mkdir(parents=True, exist_ok=True)
-                continue
-            destination = staging / member.filename
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            with bundle.open(member) as source, destination.open("wb") as output:
-                shutil.copyfileobj(source, output)
-        metadata_path = staging / "release_metadata.json"
-        if not metadata_path.is_file():
-            fail("extracted server release metadata is missing")
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        for key, expected in {
-            "app_version": policy["application_version"],
-            "source_git_commit": policy["source_commit"],
-            "database_schema_revision": policy["schema"],
-        }.items():
-            if metadata.get(key) != expected:
-                fail(f"server release metadata {key} does not match approved policy")
-        inventory = external.get("migration_inventory", {})
-        migration_record = inventory.get("server/migrations/versions/20260721_0008_data_state_freshness.py", {})
-        if migration_record.get("zip_embedded_sha256") != policy["canonical_migration_sha256"]:
-            fail("server package manifest canonical migration hash is invalid")
-        migration = staging / "server/migrations/versions/20260721_0008_data_state_freshness.py"
-        if not migration.is_file() or web.sha256(migration) != policy["canonical_migration_sha256"]:
-            fail("extracted canonical migration SHA-256 does not match approved policy")
-        old_venv = API_CURRENT.resolve() / "venv"
-        if not old_venv.is_dir():
-            fail("current API virtual environment is unavailable")
-        (staging / "venv").symlink_to(old_venv)
-        # The staged release links its interpreter to the already-active
-        # immutable virtualenv.  Physical traversal is mandatory: following
-        # that link would mutate the previous release during staging.
-        subprocess.run(["/usr/bin/chown", "-hR", "eoat-atlas:eoat-atlas", str(staging)], check=True)
-        os.replace(staging, target)
+    try:
+        with zipfile.ZipFile(archive) as bundle:
+            members = safe_zip_members(bundle)
+            staging.mkdir(mode=0o750)
+            for member in members:
+                if member.is_dir():
+                    (staging / member.filename).mkdir(parents=True, exist_ok=True)
+                    continue
+                destination = staging / member.filename
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with bundle.open(member) as source, destination.open("wb") as output:
+                    shutil.copyfileobj(source, output)
+            metadata_path = staging / "release_metadata.json"
+            if not metadata_path.is_file():
+                fail("extracted server release metadata is missing")
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            for key, expected in {
+                "app_version": policy["application_version"],
+                "source_git_commit": policy["source_commit"],
+                "database_schema_revision": policy["schema"],
+            }.items():
+                if metadata.get(key) != expected:
+                    fail(f"server release metadata {key} does not match approved policy")
+            inventory = external.get("migration_inventory", {})
+            migration_record = inventory.get("server/migrations/versions/20260721_0008_data_state_freshness.py", {})
+            if migration_record.get("zip_embedded_sha256") != policy["canonical_migration_sha256"]:
+                fail("server package manifest canonical migration hash is invalid")
+            migration = staging / "server/migrations/versions/20260721_0008_data_state_freshness.py"
+            if not migration.is_file() or web.sha256(migration) != policy["canonical_migration_sha256"]:
+                fail("extracted canonical migration SHA-256 does not match approved policy")
+            old_venv = API_CURRENT.resolve() / "venv"
+            if not old_venv.is_dir():
+                fail("current API virtual environment is unavailable")
+            (staging / "venv").symlink_to(old_venv)
+            # The staged release links its interpreter to the already-active
+            # immutable virtualenv.  Physical traversal is mandatory: following
+            # that link would mutate the previous release during staging.
+            subprocess.run(["/usr/bin/chown", "-hR", "eoat-atlas:eoat-atlas", str(staging)], check=True)
+            os.replace(staging, target)
+    except Exception:
+        if staging.exists() or staging.is_symlink():
+            shutil.rmtree(staging, ignore_errors=True)
+        raise
     return target
 
 
@@ -109,7 +111,7 @@ def policy(path: Path) -> dict[str, object]:
     required = {
         "helper_sha256", "web_helper_sha256", "server_archive_path", "server_archive_sha256", "server_manifest_path", "server_manifest_sha256",
         "server_release_id", "web_release_id", "bundle_path", "bundle_sha256", "application_version", "source_commit",
-        "schema", "canonical_migration_sha256",
+        "schema", "canonical_migration_sha256", "expected_active_api", "expected_active_web",
     }
     web_program = Path(web.__file__).resolve()
     if (
@@ -125,6 +127,11 @@ def wait_target(value: dict[str, object]) -> None:
     health = web.api_health(value)
     if health.get("application_version") != value["application_version"]:
         fail("active API version does not match coordinated release")
+
+
+def acceptance_policy(value: dict[str, object], server: Path) -> dict[str, object]:
+    """Bind shared HTTP checks to this transaction's immutable API target."""
+    return {**value, "api_release": str(server.resolve())}
 
 
 def preflight(value: dict[str, object]) -> dict[str, object]:
@@ -143,6 +150,11 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
     verified = web.verify_bundle(bundle, str(value["bundle_sha256"]))
     if verified["metadata"].get("application_version") != value["application_version"]:
         fail("web bundle version does not match coordinated policy")
+    if (
+        str(API_CURRENT.resolve()) != value["expected_active_api"]
+        or str(WEB_CURRENT.resolve()) != value["expected_active_web"]
+    ):
+        fail("active release targets differ from the approved pre-activation policy")
     health = web.api_health(value)
     if not web.api_loopback_only() or not web.mysql_loopback_only() or not web.no_tls_listener():
         fail("API, MySQL, or HTTP-only listener policy failed")
@@ -171,7 +183,17 @@ def activate(value: dict[str, object]) -> Path:
     old_api, old_web = API_CURRENT.resolve(), WEB_CURRENT.resolve()
     transaction = CONTROL_ROOT / "transactions" / ("coordinated-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
     transaction.mkdir(parents=True, mode=0o700)
-    receipt = {"helper_version": HELPER_VERSION, "old_api": str(old_api), "old_web": str(old_web), "state": "started"}
+    receipt = {
+        "helper_version": HELPER_VERSION,
+        "old_api": str(old_api),
+        "old_web": str(old_web),
+        "source_commit": value["source_commit"],
+        "application_version": value["application_version"],
+        "server_archive_sha256": value["server_archive_sha256"],
+        "server_manifest_sha256": value["server_manifest_sha256"],
+        "web_bundle_sha256": value["bundle_sha256"],
+        "state": "started",
+    }
     (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     server = None
     try:
@@ -187,7 +209,7 @@ def activate(value: dict[str, object]) -> Path:
         # The shared HTTP acceptance helper also asserts the API release
         # symlink.  Bind that invariant to this just-activated immutable
         # target rather than requiring a second policy field.
-        web.acceptance(frontend, {**value, "api_release": str(server.resolve())})
+        web.acceptance(frontend, acceptance_policy(value, server))
         receipt.update(state="active", new_api=str(server), new_web=str(frontend))
         (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         return transaction
@@ -197,7 +219,12 @@ def activate(value: dict[str, object]) -> Path:
         web.nginx_test_reload()
         subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
         web.wait_api({"schema": value["schema"]})
+        if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
+            fail("rollback did not restore both prior release targets")
         web.request_check("rollback_homepage", "http://" + web.HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!")
+        rollback_health = web.api_health({"schema": value["schema"]})
+        if rollback_health.get("writes_enabled") is not False:
+            fail("rollback did not restore writes-disabled state")
         receipt.update(state="rolled_back", failure=str(error), rollback_api=str(old_api), rollback_web=str(old_web))
         (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         raise
@@ -223,4 +250,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except web.InstallError as error:
         print("EOAT_COORDINATED_DEPLOY_ERROR: " + str(error), flush=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

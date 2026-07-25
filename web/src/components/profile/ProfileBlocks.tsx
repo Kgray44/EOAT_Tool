@@ -9,6 +9,11 @@ import {
 } from "@/api/client";
 import { relationshipPath } from "@/api/routes";
 import { EmptyState } from "@/components/feedback/StateViews";
+import {
+  deduplicateRelationships,
+  relationshipDisplayLabel,
+  relationshipTypeLabel,
+} from "./relationshipPresentation";
 
 export function ProfileSection({
   title,
@@ -93,7 +98,8 @@ export function RelationshipList({
 }: {
   relationships: EoatRelationship[];
 }) {
-  if (relationships.length === 0)
+  const uniqueRelationships = deduplicateRelationships(relationships);
+  if (uniqueRelationships.length === 0)
     return (
       <EmptyState title="No current relationships">
         No linked relationships are recorded for this profile.
@@ -101,26 +107,18 @@ export function RelationshipList({
     );
   return (
     <ul className="relationship-list">
-      {relationships.map((relationship) => {
+      {uniqueRelationships.map((relationship) => {
         const path = relationshipPath(
           relationship.relationship_type,
           relationship.identifier,
         );
-        const label =
-          !relationship.display_name ||
-          relationship.display_name === relationship.identifier
-            ? relationship.identifier
-            : `${relationship.identifier} — ${relationship.display_name}`;
+        const label = relationshipDisplayLabel(relationship);
         return (
           <li
             key={`${relationship.relationship_type}-${relationship.identifier}`}
           >
             <small>
-              {relationship.relationship_type === "eoat"
-                ? "EOAT"
-                : relationship.relationship_type.replace(/^./, (value) =>
-                    value.toUpperCase(),
-                  )}
+              {relationshipTypeLabel(relationship.relationship_type)}
             </small>
             {path ? <Link to={path}>{label}</Link> : <span>{label}</span>}
             <small>

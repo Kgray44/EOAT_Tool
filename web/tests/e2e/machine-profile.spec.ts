@@ -30,6 +30,13 @@ const machine = {
       status: "Observed in legacy source",
       reason: null,
     },
+    {
+      relationship_type: "tool",
+      identifier: "6920150021",
+      display_name: "Tool 6920150021",
+      status: "Observed in legacy source",
+      reason: null,
+    },
   ],
   robots: [],
   audit_evidence: [],
@@ -103,7 +110,7 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
     relationshipItems.filter({ hasText: "P4-EOAT-0026" }),
   ).toBeVisible();
   await expect(
-    relationshipItems.filter({ hasText: "Tool 6920150021" }),
+    relationshipItems.filter({ hasText: "6920150021" }),
   ).toBeVisible();
   await expect(
     page.locator(".relationship-list li small").filter({ hasText: "EOAT" }),
@@ -111,6 +118,14 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
   await expect(
     page.locator(".relationship-list li small").filter({ hasText: "Tool" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "P4-EOAT-0026", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("link", { name: "6920150021", exact: true }),
+  ).toHaveCount(1);
+  await expect(page.getByText("Tool Tool 6920150021")).toHaveCount(0);
+  await expect(page.getByText("6920150021 — Tool 6920150021")).toHaveCount(0);
   await expect(page.getByText("P4-EOAT-0026 — P4-EOAT-0026")).toHaveCount(0);
   await expect(page.getByText("UNKNOWN_NOT_VERIFIED")).toHaveCount(0);
   await expect(

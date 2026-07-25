@@ -13,7 +13,6 @@ import json
 import os
 import re
 import shutil
-import socket
 import stat
 import subprocess
 import tempfile
@@ -555,7 +554,15 @@ def acceptance(release: Path, policy: dict[str, object]) -> list[dict[str, objec
     checks = [request_check("homepage", "http://" + HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!", content_type_contains="text/html"), request_check("javascript", "http://" + HOST + "/" + script.lstrip("/"), 200, content_type_contains="javascript")]
     if style:
         checks.append(request_check("css", "http://" + HOST + "/" + style.lstrip("/"), 200, content_type_contains="text/css"))
-    checks.extend([request_check("api_health", "http://" + HOST + "/api/v1/health", 200, json_body=True, excludes="<html"), request_check("frontend_refresh", "http://" + HOST + "/fit-check", 200, contains="EOAT"), request_check("api_404", "http://" + HOST + "/api/v1/not-a-real-route", 404, json_body=True, excludes="<html")])
+    checks.extend([
+        request_check("api_health", "http://" + HOST + "/api/v1/health", 200, json_body=True, excludes="<html"),
+        request_check("data_status", "http://" + HOST + "/api/v1/data-status", 200, json_body=True, excludes="<html"),
+        request_check("machine_27", "http://" + HOST + "/machines/27", 200, contains="EOAT", content_type_contains="text/html"),
+        request_check("frontend_refresh", "http://" + HOST + "/fit-check", 200, contains="EOAT"),
+        request_check("machine_27_web_photos", "http://" + HOST + "/api/v1/machines/27/web-photos", 200, json_body=True, excludes="<html"),
+        request_check("machine_27_web_documents", "http://" + HOST + "/api/v1/machines/27/web-documents", 200, json_body=True, excludes="<html"),
+        request_check("api_404", "http://" + HOST + "/api/v1/not-a-real-route", 404, json_body=True, excludes="<html"),
+    ])
     headers = subprocess.run(["/usr/bin/curl", "--silent", "--show-error", "--resolve", HOST + ":80:127.0.0.1", "-D", "-", "-o", "/dev/null", "http://" + HOST + "/"], text=True, capture_output=True)
     header_text = headers.stdout.lower()
     if headers.returncode or "strict-transport-security:" in header_text or re.search(r"^location:\s*https://", header_text, re.MULTILINE):
@@ -624,10 +631,12 @@ def activate(policy: dict[str, object]) -> Path:
         template = (bundle / "nginx" / "eoat-atlas-http-web.conf.template").read_text(encoding="utf-8")
         SITE_CONFIG.parent.mkdir(parents=True, exist_ok=True)
         SITE_CONFIG.write_text(render(template, root=WEB_ROOT / "current", token_include=UPSTREAM_TOKEN), encoding="utf-8")
-        os.chown(SITE_CONFIG, 0, 0); os.chmod(SITE_CONFIG, 0o644)
+        os.chown(SITE_CONFIG, 0, 0)
+        os.chmod(SITE_CONFIG, 0o644)
         receipt["hashes"]["nginx_config"] = sha256(SITE_CONFIG)
         LEGACY_CONFIG.unlink()
-        if DEFAULT_ENABLED.exists() or DEFAULT_ENABLED.is_symlink(): DEFAULT_ENABLED.unlink()
+        if DEFAULT_ENABLED.exists() or DEFAULT_ENABLED.is_symlink():
+            DEFAULT_ENABLED.unlink()
         atomic_symlink(SITE_CONFIG, SITE_ENABLED)
         atomic_symlink(final, WEB_ROOT / "current")
         receipt["completed_steps"].append("frontend_activated")
@@ -681,4 +690,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except InstallError as error:
         print("EOAT_HTTP_WEB_HOST_ERROR: " + str(error), flush=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
