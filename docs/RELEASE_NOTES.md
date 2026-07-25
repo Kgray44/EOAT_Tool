@@ -1,6 +1,6 @@
 # Release Notes
 
-## EOAT Atlas 0.22.11 Candidate — Machine Profile Browser Boundary and CI Gates
+## EOAT Atlas 0.22.12 Candidate — Machine Profile Browser Boundary and CI Gates
 
 - Removed imported `audit_evidence` rows from the browser-facing Machine Profile contract. Those legacy rows can contain internal path-like source details and are not required to render a Machine Profile.
 - Added a live Chromium/Playwright all-machine gate that obtains machine identifiers from the API, verifies direct navigation and refresh for every current machine, and checks relationship truth wording, read-only browser behavior, and console health.

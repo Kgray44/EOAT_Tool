@@ -123,39 +123,30 @@ def test_archived_install_and_uninstall_scripts_use_only_expected_bootstrap_acti
     privileged = _archive(tmp_path)
     bash = _git_bash()
     assert bash is not None
-    fake_bin = tmp_path / "fake-bin"
-    fake_bin.mkdir()
     log = tmp_path / "commands.log"
     bash_environment = tmp_path / "bash-env"
-    bash_environment.write_text("id() { printf '0\\n'; }\n", encoding="utf-8", newline="\n")
-    _write_fake_command(
-        fake_bin,
-        "grep",
-        """test "$1" = "-Fqx"
-case "$2" in
-  "kgray ALL=(root) NOPASSWD: EOAT_ATLAS_DEPLOY"|"Cmnd_Alias EOAT_ATLAS_DEPLOY = /usr/bin/python3 /usr/local/libexec/eoat-atlas/eoat_atlas_deploy_helper.py --request-b64 *") exit 0 ;;
-  *) exit 1 ;;
-esac""",
+    bash_environment.write_text(
+        """id() { printf '0\\n'; }
+grep() {
+  test "$1" = "-Fqx"
+  case "$2" in
+    "kgray ALL=(root) NOPASSWD: EOAT_ATLAS_DEPLOY"|"Cmnd_Alias EOAT_ATLAS_DEPLOY = /usr/bin/python3 /usr/local/libexec/eoat-atlas/eoat_atlas_deploy_helper.py --request-b64 *") return 0 ;;
+    *) return 1 ;;
+  esac
+}
+install() { printf 'install %s\\n' "$*" >> "$EOAT_TEST_LOG"; }
+visudo() { test "$1" = "-cf"; printf 'visudo %s %s\\n' "$1" "$2" >> "$EOAT_TEST_LOG"; }
+rm() { printf 'rm %s\\n' "$*" >> "$EOAT_TEST_LOG"; }
+rmdir() { printf 'rmdir %s\\n' "$*" >> "$EOAT_TEST_LOG"; }
+""",
+        encoding="utf-8",
+        newline="\n",
     )
-    _write_fake_command(fake_bin, "install", 'printf "install %s\\n" "$*" >> "$EOAT_TEST_LOG"')
-    _write_fake_command(
-        fake_bin,
-        "visudo",
-        'test "$1" = "-cf"; printf "visudo %s %s\\n" "$1" "$2" >> "$EOAT_TEST_LOG"',
-    )
-    _write_fake_command(fake_bin, "rm", 'printf "rm %s\\n" "$*" >> "$EOAT_TEST_LOG"')
-    _write_fake_command(fake_bin, "rmdir", 'printf "rmdir %s\\n" "$*" >> "$EOAT_TEST_LOG"')
     environment = {
         **os.environ,
-        "PATH": (
-            f"{_shell_path(bash, fake_bin)}:/usr/bin:/bin"
-            if bash.suffix.casefold() == ".exe"
-            else str(fake_bin) + os.pathsep + os.environ["PATH"]
-        ),
-        # Git Bash translates a Windows ``PATH`` before executing the script,
-        # so an ``id`` shim there is not reliable.  ``BASH_ENV`` is scoped to
-        # this non-interactive test child and gives the archived script the
-        # same root-result contract without weakening the real root check.
+        # Git Bash translates a Windows ``PATH`` before executing the script.
+        # ``BASH_ENV`` is scoped to this non-interactive test child and
+        # supplies every command double without weakening the real root check.
         "BASH_ENV": _shell_path(bash, bash_environment),
         "EOAT_TEST_LOG": _shell_path(bash, log),
     }

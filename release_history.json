@@ -260,6 +260,13 @@
       "state": "finalized",
       "task_id": "main-convergence-packaged-release-notes-0.22.11",
       "finalized_at_utc": "2026-07-25T19:53:35Z"
+    },
+    {
+      "application_version": "0.22.12",
+      "release_id": "eoat-atlas-0.22.12",
+      "state": "finalized",
+      "task_id": "main-convergence-bash-command-doubles-0.22.12",
+      "finalized_at_utc": "2026-07-25T20:02:13Z"
     }
   ]
 }
