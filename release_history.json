@@ -267,6 +267,13 @@
       "state": "finalized",
       "task_id": "main-convergence-bash-command-doubles-0.22.12",
       "finalized_at_utc": "2026-07-25T20:02:13Z"
+    },
+    {
+      "application_version": "0.23.0",
+      "release_id": "eoat-atlas-0.23.0",
+      "state": "finalized",
+      "task_id": "release-deployment-convergence-closure-0.23.0",
+      "finalized_at_utc": "2026-07-25T22:00:00Z"
     }
   ]
 }

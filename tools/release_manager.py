@@ -1,13 +1,8 @@
-"""Thin command-line entry point for the Phase 1 EOAT Atlas release manager."""
-
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from deployment.release_manager import main  # noqa: E402
+"""Deprecated compatibility entry point for the unified release CLI."""
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(
+        "DEPRECATED ENTRY POINT. Run `python tools/eoat_release.py candidate rehearse --bump patch` "
+        "or `python tools/eoat_release.py candidate prepare --bump patch`. "
+        "Legacy arguments are intentionally not forwarded."
+    )

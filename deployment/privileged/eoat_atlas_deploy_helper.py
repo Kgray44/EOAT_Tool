@@ -862,12 +862,79 @@ class Helper:
                 "recover",
                 "retention-status",
                 "self-check",
+                "diagnose",
                 "host-config-status",
                 "install-web-host-config",
                 "validate-web-host-config",
                 "rollback-web-host-config",
                 "rotate-web-upstream-token",
             ],
+        }
+
+    def diagnose(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Return one bounded, versioned, read-only diagnostic envelope.
+
+        This has no caller supplied commands, paths, units, or environment
+        fields.  It deliberately reports unavailable facts rather than reading
+        protected environment contents or fabricating a healthy state.
+        """
+        if set(request) != {"operation"}:
+            raise Rejected("structured diagnostic accepts no request fields")
+        unavailable: list[str] = []
+        active: dict[str, Any] = {}
+        try:
+            target = Path(self._current_target())
+            manifest = self._json(target / "release_manifest.json", "current release manifest")
+            active = {
+                "version": manifest.get("version"),
+                "release_id": manifest.get("release_id"),
+                "build_id": manifest.get("build_id"),
+                "commit_sha": manifest.get("commit_sha"),
+            }
+        except Rejected:
+            unavailable.append("active_release")
+        lock: dict[str, Any] = {"present": self.paths.lock.is_file()}
+        if self.paths.lock.is_file():
+            try:
+                value = self._json(self.paths.lock, "deployment lock")
+                lock.update({key: value.get(key) for key in ("deployment_id", "state", "updated_at_utc")})
+            except Rejected:
+                unavailable.append("deployment_lock_metadata")
+        try:
+            stat = os.statvfs(self.paths.root)
+            disk: dict[str, Any] = {"available_bytes": stat.f_bavail * stat.f_frsize}
+        except (AttributeError, OSError):
+            disk = {"status": "UNAVAILABLE"}
+            unavailable.append("disk")
+        transactions = []
+        if self.paths.transactions.is_dir():
+            for item in sorted(self.paths.transactions.glob("*.json"))[:100]:
+                try:
+                    value = self._json(item, "deployment transaction")
+                    transactions.append({key: value.get(key) for key in ("deployment_id", "state", "updated_at_utc")})
+                except Rejected:
+                    unavailable.append("transaction_metadata")
+                    break
+        return {
+            "schema_version": 1,
+            "operation": "diagnose",
+            "facts": {
+                "target": {"application_root": str(self.paths.root)},
+                "active_release": active,
+                "schema_revision": None,
+                "services": {"status": "NOT_QUERIED"},
+                "health": {"status": "NOT_QUERIED"},
+                "web": {"status": "NOT_QUERIED"},
+                "deployment_lock": lock,
+                "disk": disk,
+                "helper": self.self_check({}),
+                "writes_enabled": "UNAVAILABLE",
+                "transactions": transactions,
+            },
+            "unavailable": sorted(
+                set(unavailable + ["schema_revision", "services", "health", "web", "writes_enabled"])
+            ),
+            "permission_denied": [],
         }
 
     def dispatch(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -898,6 +965,7 @@ class Helper:
             "recover": self.recover,
             "retention-status": self.retention_status,
             "self-check": self.self_check,
+            "diagnose": self.diagnose,
         }
         if operation not in methods:
             raise Rejected("unsupported privileged operation")
