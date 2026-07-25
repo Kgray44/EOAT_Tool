@@ -253,6 +253,13 @@
       "state": "finalized",
       "task_id": "main-convergence-windows-root-harness-0.22.10",
       "finalized_at_utc": "2026-07-25T19:45:47Z"
+    },
+    {
+      "application_version": "0.22.11",
+      "release_id": "eoat-atlas-0.22.11",
+      "state": "finalized",
+      "task_id": "main-convergence-packaged-release-notes-0.22.11",
+      "finalized_at_utc": "2026-07-25T19:53:35Z"
     }
   ]
 }

@@ -424,6 +424,12 @@ def application_change_paths(paths: Iterable[str]) -> list[str]:
         normalized = raw.replace("\\", "/").lstrip("./")
         first = normalized.split("/", 1)[0]
         name = normalized.rsplit("/", 1)[-1]
+        # This is a packaged release-facing document, unlike ordinary
+        # developer notes under docs/. Its change must carry a release version
+        # so the generated server package and release evidence stay aligned.
+        if normalized == "docs/RELEASE_NOTES.md":
+            result.append(normalized)
+            continue
         if normalized in exempt_files or first in exempt_roots:
             continue
         if name.endswith((".log", ".pyc", ".tmp", ".bak")) or "__pycache__" in normalized.split("/"):

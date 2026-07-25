@@ -190,11 +190,17 @@ def test_application_change_classification_is_repository_specific() -> None:
         "scripts/build_package.py",
         "tests/test_main.py",
         "docs/design_notes.md",
+        "docs/RELEASE_NOTES.md",
         "reports/test-output.json",
         "AGENTS.md",
         "build/temp.bin",
     ]
-    assert application_change_paths(changed) == ["app/main.py", "assets/icons/app.png", "scripts/build_package.py"]
+    assert application_change_paths(changed) == [
+        "app/main.py",
+        "assets/icons/app.png",
+        "docs/RELEASE_NOTES.md",
+        "scripts/build_package.py",
+    ]
 
 
 def _git(root: Path, *args: str) -> None:
