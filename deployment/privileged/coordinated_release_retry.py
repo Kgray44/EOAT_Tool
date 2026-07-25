@@ -92,7 +92,10 @@ def extract_server(policy: dict[str, object], transaction: Path) -> Path:
         if not old_venv.is_dir():
             fail("current API virtual environment is unavailable")
         (staging / "venv").symlink_to(old_venv)
-        subprocess.run(["/usr/bin/chown", "-R", "eoat-atlas:eoat-atlas", str(staging)], check=True)
+        # The staged release links its interpreter to the already-active
+        # immutable virtualenv.  Physical traversal is mandatory: following
+        # that link would mutate the previous release during staging.
+        subprocess.run(["/usr/bin/chown", "-hR", "eoat-atlas:eoat-atlas", str(staging)], check=True)
         os.replace(staging, target)
     return target
 
