@@ -34,6 +34,8 @@ SERVER_PATHS = (
     "release_defaults.json",
     "launcher/launcher_version.json",
     "installer/installer_config.json",
+    "deployment/migration_identity.py",
+    "deployment/migration_identity_attestations.json",
 )
 RELEVANT_PREFIXES = (
     "server/",
@@ -46,6 +48,8 @@ RELEVANT_PREFIXES = (
     "release_defaults.json",
     "launcher/launcher_version.json",
     "installer/installer_config.json",
+    "deployment/migration_identity.py",
+    "deployment/migration_identity_attestations.json",
 )
 
 

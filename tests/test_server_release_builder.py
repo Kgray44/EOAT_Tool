@@ -34,6 +34,8 @@ def release_repository(root: Path) -> tuple[Path, str]:
     _write(root / "app/atlas/version.json", json.dumps({"appName": "EOAT Atlas", "version": "1.2.3", "channel": "development"}))
     _write(root / "launcher/launcher_version.json", json.dumps({"launcher_version": "0.1.0"}))
     _write(root / "installer/installer_config.json", json.dumps({"installer_version": "0.1.0"}))
+    _write(root / "deployment/migration_identity.py", "")
+    _write(root / "deployment/migration_identity_attestations.json", json.dumps({"schema": 1, "attestations": []}))
     _write(root / "server/eoat_api/__init__.py", "")
     _write(root / "server/migrations/versions/20260721_0008_test.py", 'revision = "20260721_0008"\ndown_revision = None\n')
     _write(root / "core/__init__.py", "")

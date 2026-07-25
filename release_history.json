@@ -211,6 +211,13 @@
       "state": "finalized",
       "task_id": "legacy-migration-attestation-20260724",
       "finalized_at_utc": "2026-07-24T21:03:55Z"
+    },
+    {
+      "application_version": "0.22.5",
+      "release_id": "eoat-atlas-0.22.5",
+      "state": "finalized",
+      "task_id": "package-migration-attestation-20260725",
+      "finalized_at_utc": "2026-07-25T13:34:56Z"
     }
   ]
 }
