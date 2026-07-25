@@ -124,7 +124,42 @@ def wait_target(value: dict[str, object]) -> None:
         fail("active API version does not match coordinated release")
 
 
+def preflight(value: dict[str, object]) -> dict[str, object]:
+    """Read-only identity and service checks before staging or activation."""
+    archive = Path(str(value["server_archive_path"]))
+    manifest = Path(str(value["server_manifest_path"]))
+    bundle = Path(str(value["bundle_path"]))
+    web.require_root_chain(archive)
+    web.require_root_chain(manifest)
+    web.require_root_chain(bundle)
+    web.require_root_tree(bundle)
+    if web.sha256(archive) != value["server_archive_sha256"]:
+        fail("server archive SHA-256 does not match approved policy")
+    if web.sha256(manifest) != value["server_manifest_sha256"]:
+        fail("server package manifest SHA-256 does not match approved policy")
+    verified = web.verify_bundle(bundle, str(value["bundle_sha256"]))
+    if verified["metadata"].get("application_version") != value["application_version"]:
+        fail("web bundle version does not match coordinated policy")
+    health = web.api_health(value)
+    if not web.api_loopback_only() or not web.mysql_loopback_only() or not web.no_tls_listener():
+        fail("API, MySQL, or HTTP-only listener policy failed")
+    nginx = subprocess.run(["/usr/sbin/nginx", "-t"], text=True, capture_output=True)
+    if nginx.returncode:
+        fail("nginx -t failed before coordinated deployment")
+    return {
+        "helper_version": HELPER_VERSION,
+        "server_archive_sha256": value["server_archive_sha256"],
+        "server_manifest_sha256": value["server_manifest_sha256"],
+        "web_bundle_sha256": verified["bundle_sha256"],
+        "active_api": str(API_CURRENT.resolve()),
+        "active_web": str(WEB_CURRENT.resolve()),
+        "api_health": health,
+        "nginx_worker_user": web.nginx_worker_user(),
+    }
+
+
 def activate(value: dict[str, object]) -> Path:
+    preflight(value)
     web.require_root_chain(Path(str(value["bundle_path"])))
     web.require_root_tree(Path(str(value["bundle_path"])))
     verified = web.verify_bundle(Path(str(value["bundle_path"])), str(value["bundle_sha256"]))
@@ -165,11 +200,15 @@ def activate(value: dict[str, object]) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", type=Path, required=True)
+    parser.add_argument("action", choices=("preflight", "activate"))
     args = parser.parse_args()
     if os.geteuid() != 0:
         fail("root execution is required")
     value = policy(args.policy)
-    print(json.dumps({"transaction": str(activate(value))}, sort_keys=True))
+    if args.action == "preflight":
+        print(json.dumps(preflight(value), sort_keys=True))
+    else:
+        print(json.dumps({"transaction": str(activate(value))}, sort_keys=True))
     return 0
 
 
