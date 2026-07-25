@@ -104,11 +104,16 @@ def policy(path: Path) -> dict[str, object]:
     web.require_root_chain(path)
     value = json.loads(path.read_text(encoding="utf-8"))
     required = {
-        "helper_sha256", "server_archive_path", "server_archive_sha256", "server_manifest_path", "server_manifest_sha256",
+        "helper_sha256", "web_helper_sha256", "server_archive_path", "server_archive_sha256", "server_manifest_path", "server_manifest_sha256",
         "server_release_id", "bundle_path", "bundle_sha256", "application_version", "source_commit",
         "schema", "canonical_migration_sha256",
     }
-    if not required.issubset(value) or web.sha256(Path(__file__).resolve()) != value["helper_sha256"]:
+    web_program = Path(web.__file__).resolve()
+    if (
+        not required.issubset(value)
+        or web.sha256(Path(__file__).resolve()) != value["helper_sha256"]
+        or web.sha256(web_program) != value["web_helper_sha256"]
+    ):
         fail("coordinated deployment policy or helper SHA-256 is invalid")
     return value
 
