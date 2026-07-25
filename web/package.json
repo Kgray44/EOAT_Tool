@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "api:generate": "python ../scripts/export_openapi_schema.py --output src/api/generated/openapi.json && openapi-typescript src/api/generated/openapi.json -o src/api/generated/types.ts",
-    "api:check": "npm run api:generate && git diff --exit-code -- src/api/generated"
+    "api:check": "pnpm run api:generate && git diff --exit-code -- src/api/generated"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.66.8",
