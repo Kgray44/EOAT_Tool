@@ -1,11 +1,11 @@
 # Release Notes
 
-## EOAT Atlas 0.22.12 Candidate — Machine Profile Browser Boundary and CI Gates
+## EOAT Atlas 0.22.12 — Deployed Production Release
 
 - Removed imported `audit_evidence` rows from the browser-facing Machine Profile contract. Those legacy rows can contain internal path-like source details and are not required to render a Machine Profile.
 - Added a live Chromium/Playwright all-machine gate that obtains machine identifiers from the API, verifies direct navigation and refresh for every current machine, and checks relationship truth wording, read-only browser behavior, and console health.
 - Updated deterministic deployment test fixtures to model the canonical schema head `20260721_0008`.
-- This candidate is built from the post-0.22.7 source lineage and is **not deployed**. It also restores the cross-platform CI root-simulation, repository-safety, lint, and real-MySQL gates. It requires its own zero-migration production transaction before production can claim the browser-boundary correction.
+- Production was activated through a zero-migration coordinated transaction from authoritative source `0ddf66bfff6dd23c07279d55576736290d040dca`. All 56 current production Machine Profiles passed the live browser sweep and all 336 supported Machine Profile API calls passed the browser-boundary/path-leak scan. Production writes remain disabled; the database was not changed.
 
 ## EOAT Atlas 0.22.7 — Deployed Production Release
 
