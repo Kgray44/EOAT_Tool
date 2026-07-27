@@ -408,7 +408,7 @@ class ReleaseDeploymentService:
             Diagnostic(
                 "working tree",
                 Status.PASS if state.clean else Status.BLOCKED,
-                "clean" if state.clean else "uncommitted changes are present",
+                "clean" if state.clean else "uncommitted changes are present: " + ", ".join((*state.modified, *state.staged, *state.untracked)[:12]),
                 "Use a clean worktree.",
                 True,
                 "candidate",
