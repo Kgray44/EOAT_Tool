@@ -55,6 +55,19 @@ inventory, deployment-plan, CLI/console, receipt compatibility, end-to-end,
 safety, version-governance, and documentation-command gates without GitHub
 publication credentials.
 
+The closing implementation run was **30313219952** for commit
+`2feab6f9c26abf7b09915509b38c06c7b4bd8c1d`. Every required job concluded
+successfully: `publication-eligibility`,
+`disposable-publication-state-machine`, `complete-asset-publication`,
+`release-inventory-verification`, `deployment-plan-integration`,
+`cli-console-smoke`, `receipt-compatibility`,
+`end-to-end-disposable-phase-1c`, `repository-safety`,
+`version-governance`, and `documentation-command-validation`. The first run
+exposed a missing Ubuntu Qt EGL runtime for console-inclusive tests; the final
+workflow installs `libegl1` before those tests, without changing test
+semantics. The intentionally skipped disposable-MySQL test remains outside
+this Phase 1C Git/filesystem publication scope and is not counted as passed.
+
 ## Remaining work
 
 Phase 2 owns bootstrap implementation. Later authorized phases own real
