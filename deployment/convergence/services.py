@@ -670,6 +670,14 @@ class ReleaseDeploymentService:
                 raise DeploymentError("could not select exact governed candidate commit")
         else:
             temporary, clone, commit = _clone_for_dry_run(self.root, version)
+        base_commit = state.commit
+        if commit == state.commit:
+            # A candidate for the already-governed product version is the
+            # canonical source tip.  Its recovery bundle is therefore a
+            # delta from the real parent, rather than an impossible
+            # ``commit ^commit`` range.  Keep that prerequisite in the
+            # receipt so independent verification proves real ancestry.
+            base_commit = Git(clone).output("rev-parse", f"{commit}^")
         candidate_id = f"candidate-{target}-{commit[:12]}"
         try:
             checks, _commands = run_validation(clone)
@@ -682,7 +690,7 @@ class ReleaseDeploymentService:
                     CandidateState.FAILED,
                     str(self.root),
                     state.branch,
-                    state.commit,
+                    base_commit,
                     commit,
                     None,
                     target,
@@ -709,7 +717,7 @@ class ReleaseDeploymentService:
                     CandidateState.FAILED,
                     str(self.root),
                     state.branch,
-                    state.commit,
+                    base_commit,
                     commit,
                     None,
                     target,
@@ -746,13 +754,7 @@ class ReleaseDeploymentService:
                     )
                 bundle = destination / "source" / "candidate.bundle"
                 bundle.parent.mkdir(parents=True)
-                # A governed-version candidate can intentionally resolve to
-                # the already committed source tip.  In that case excluding
-                # ``state.commit`` would ask Git to create an empty bundle.
-                # Retain the exact commit (and its history) instead; bundle
-                # verification still proves the declared commit/tree and the
-                # self-ancestry relation.
-                bundle_revisions = [commit] if commit == state.commit else [commit, f"^{state.commit}"]
+                bundle_revisions = [commit, f"^{base_commit}"]
                 bundle_result = subprocess.run(
                     ["git", "bundle", "create", str(bundle), *bundle_revisions],
                     cwd=clone,
@@ -761,7 +763,11 @@ class ReleaseDeploymentService:
                     check=False,
                 )
                 if bundle_result.returncode:
-                    raise DeploymentError("could not persist the exact candidate Git bundle")
+                    detail = redact_text((bundle_result.stdout + "\n" + bundle_result.stderr).strip())
+                    raise DeploymentError(
+                        "could not persist the exact candidate Git bundle"
+                        + (f": {detail[:800]}" if detail else "")
+                    )
                 notes = self.root / "docs" / "release_notes" / f"EOAT_Atlas_{target}.md"
                 copy_release_notes(notes, candidate_root=destination, version=str(target))
                 artifact_path, bundle_path = str(server_destination / first.archive.name), str(bundle)
@@ -771,7 +777,7 @@ class ReleaseDeploymentService:
                 CandidateState.CANDIDATE_VALIDATED,
                 str(self.root),
                 state.branch,
-                state.commit,
+                base_commit,
                 commit,
                 tree,
                 target,
