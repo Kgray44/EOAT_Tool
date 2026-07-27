@@ -754,7 +754,23 @@ class ReleaseDeploymentService:
                     )
                 bundle = destination / "source" / "candidate.bundle"
                 bundle.parent.mkdir(parents=True)
-                bundle_revisions = [commit, f"^{base_commit}"]
+                # ``git bundle`` must advertise a ref.  The isolated clone
+                # is detached at the exact candidate SHA, so a raw SHA
+                # revision can otherwise produce an empty bundle even when
+                # the commit delta exists.  This ref exists only in the
+                # disposable clone and is never written to the canonical
+                # worktree or any remote.
+                bundle_ref = "refs/heads/eoat-candidate-recovery"
+                ref_result = subprocess.run(
+                    ["git", "update-ref", bundle_ref, commit],
+                    cwd=clone,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                if ref_result.returncode:
+                    raise DeploymentError("could not create the isolated candidate recovery ref")
+                bundle_revisions = [bundle_ref, f"^{base_commit}"]
                 bundle_result = subprocess.run(
                     ["git", "bundle", "create", str(bundle), *bundle_revisions],
                     cwd=clone,
