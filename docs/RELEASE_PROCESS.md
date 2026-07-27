@@ -30,3 +30,19 @@ private signing key is supplied outside Git; signature verification uses only
 the configured trusted public-key set and rejects unknown or revoked keys.
 Sealing establishes eligibility for Phase 1C verification only. It does not
 publish, tag, activate, or promote a production release.
+
+## Phase 1C disposable publication
+
+Production-backed publication is deliberately disabled. For an isolated test
+remote and release registry only, use the shared CLI:
+
+```text
+python tools/eoat_release.py publish readiness candidate-0.24.0-<commit>
+python tools/eoat_release.py publish start-disposable candidate-0.24.0-<commit> --remote path/to/remote.git --registry path/to/registry --confirm "PUBLISH candidate-0.24.0-<commit>"
+python tools/eoat_release.py releases list-disposable --registry path/to/registry
+```
+
+The backend creates immutable Git refs and filesystem assets, accepts only
+exactly matching retries, and blocks conflicts. It is a verification backend,
+not authority to create a real tag, GitHub Release, production manifest, or
+deployment.

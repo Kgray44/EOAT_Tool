@@ -73,6 +73,13 @@ and publication eligibility. It never exposes private key material. The seal
 action remains unavailable for incomplete or blocked candidates and does not
 create a publication or production deployment.
 
+Phase 1C adds publication-readiness, disposable-backend publication/resume,
+asset inventory, trusted release inventory, and read-only planning views. The
+operator must provide a disposable bare remote and filesystem registry and
+type `PUBLISH <candidate-id>`. Production GitHub publication controls remain
+disabled; a trusted inventory result is planning evidence only and adds no
+stage or activation control.
+
 Publication requires typing the exact candidate version.  It records and
 verifies every step: candidate promotion, local tag, branch push, tag push,
 release creation, primary assets, and receipt attachment.  Resume first proves

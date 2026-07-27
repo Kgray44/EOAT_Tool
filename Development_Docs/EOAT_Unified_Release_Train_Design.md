@@ -179,3 +179,29 @@ After a valid seal the receipt has an empty derived missing-component list,
 publication eligibility is true, and the only next safe action is Phase 1C
 publication verification.  This is publication eligibility, not publication,
 deployment, stable promotion, tag creation, or any production operation.
+
+## Phase 1C disposable publication and planning boundary
+
+Phase 1C reopens a sealed candidate rather than trusting its eligibility flag:
+it verifies the receipt and outer-file hashes, deterministic payload digest,
+detached Ed25519 signature, trusted and non-revoked key, complete typed
+inventory, candidate-relative artifact hashes/sizes, and the governed Phase 2
+bootstrap exclusions. Only that result can enter publication.
+
+The Phase 1C backend is deliberately disposable: a temporary Git worktree and
+bare remote carry the exact candidate commit and immutable annotated tag, while
+a filesystem registry acts as a release record with immutable named assets and
+a hash index. Matching refs/assets reconcile idempotently; mismatched tags,
+release records, or bytes block without force, clobber, deletion, or cosmetic
+rollback. The durable schema-2 publication receipt records every transition,
+the complete asset inventory, remote identity, release-set digest, and failure
+state. Completed publication receipts are immutable.
+
+Inventory independently verifies the outer signature and every copied asset;
+it classifies trusted complete, incomplete, conflicting, legacy, unknown, and
+recovery-required release evidence. Deployment planning accepts only one
+`COMPLETE_TRUSTED` sealed release, proves server/web release identity through
+the signed set, and combines its target schema with the existing read-only
+inspection/helper facts. Unknown schema, incomplete migration capability, or
+recovery state remains blocking. Phase 1C creates no stage or activation
+transaction and never targets the production GitHub repository.

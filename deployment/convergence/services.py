@@ -76,6 +76,13 @@ from .models import (
     require_transition,
     validate_deployment_transition,
 )
+from .phase1c import (
+    DisposablePublicationBackend,
+    Phase1CPublicationState,
+    inventory_disposable,
+    run_disposable_publication,
+    verify_sealed_candidate,
+)
 from .receipts import ReceiptStore
 from .release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
 from .sealing import (
@@ -1168,6 +1175,8 @@ class ReleaseDeploymentService:
     def publish_start(
         self, candidate_id: str, confirmation: str, *, publisher: Publisher | None = None
     ) -> OperationResult:
+        if publisher is None:
+            raise DeploymentError("production-backed publication is disabled during Phase 1C; use the explicit disposable backend")
         candidate = self._candidate_identity(candidate_id)
         if confirmation != candidate["version"]:
             raise DeploymentError("publication confirmation must exactly match the candidate version")
@@ -1286,6 +1295,83 @@ class ReleaseDeploymentService:
             str(record.get("next_safe_action", "Review publication receipt.")),
             data={"publication": record},
         )
+
+    def publication_readiness(self, candidate_id: str) -> OperationResult:
+        receipt = self.store.read("candidate", candidate_id)
+        eligibility = verify_sealed_candidate(self.store.root / "candidates" / candidate_id, receipt, repository=self.root)
+        return OperationResult(
+            Status.PASS if eligibility.eligible else Status.BLOCKED,
+            "Sealed candidate publication eligibility was independently verified." if eligibility.eligible else "Sealed candidate is not eligible for publication.",
+            eligibility.next_safe_action,
+            data={"eligibility": asdict(eligibility)},
+        )
+
+    def publish_disposable(
+        self, candidate_id: str, confirmation: str, *, remote: Path, registry: Path,
+        fault_after: Phase1CPublicationState | None = None,
+    ) -> OperationResult:
+        backend = DisposablePublicationBackend(self.root, remote, registry, fault_after=fault_after)
+        try:
+            record = run_disposable_publication(
+                root=self.root, store=self.store, candidate_id=candidate_id, confirmation=confirmation, backend=backend
+            )
+        except DeploymentError as exc:
+            publication_id = f"publication-{candidate_id}"
+            record = self.store.read("publication", publication_id)
+            return OperationResult(Status.BLOCKED, "Disposable publication stopped without unsafe rollback.", str(record.get("next_safe_action")), (Diagnostic("publication", Status.BLOCKED, redact_text(str(exc))),), {"publication": record})
+        return OperationResult(Status.PASS, "Complete immutable release set published to the disposable backend.", str(record.get("next_safe_action")), data={"publication": record})
+
+    def resume_disposable_publication(self, publication_id: str, confirmation: str) -> OperationResult:
+        record = self.store.read("publication", publication_id)
+        if record.get("backend") != "DISPOSABLE_GIT_FILESYSTEM":
+            raise DeploymentError("only a disposable Phase 1C publication can be resumed")
+        remote = Path(str(record.get("repository_identity") or ""))
+        registry = Path(str(record.get("registry_identity") or ""))
+        if not remote.exists() or not registry:
+            raise DeploymentError("disposable publication backend identity is unavailable")
+        return self.publish_disposable(str(record["candidate_id"]), confirmation, remote=remote, registry=registry)
+
+    def inventory_disposable(self, registry: Path) -> OperationResult:
+        trusted, revoked = trust_material_from_environment()
+        items = inventory_disposable(registry, trusted_public_keys=trusted, revoked_key_ids=revoked)
+        return OperationResult(Status.PASS, f"{len(items)} disposable release(s) inventoried.", "Select a COMPLETE_TRUSTED release for read-only planning.", data={"releases": items})
+
+    def create_disposable_plan(self, publication_id: str, inspection_id: str) -> OperationResult:
+        publication = self.store.read("publication", publication_id)
+        if publication.get("state") != Phase1CPublicationState.PUBLICATION_COMPLETE.value:
+            raise DeploymentError("deployment planning requires a complete disposable publication")
+        registry = Path(str(publication.get("registry_identity") or ""))
+        inventory = self.inventory_disposable(registry).data["releases"]
+        selected = next((item for item in inventory if item.get("tag") == publication.get("tag")), None)
+        if not selected or selected.get("classification") != "COMPLETE_TRUSTED":
+            raise DeploymentError("deployment planning requires one COMPLETE_TRUSTED sealed release")
+        inspection = self.store.read("inspection", inspection_id)
+        facts = inspection.get("facts") if isinstance(inspection.get("facts"), dict) else {}
+        target_schema = selected.get("database_schema_revision") or None
+        # The signed canonical payload's target revision is copied into the release inventory below when present.
+        source_schema = facts.get("schema_revision")
+        helper = facts.get("helper") if isinstance(facts.get("helper"), dict) else {}
+        capabilities = set(helper.get("operations", []))
+        mode = self._plan_mode(source_schema, target_schema, capabilities, bool(facts.get("transactions")))
+        blockers: list[str] = list(inspection.get("blocking_failures", []))
+        if mode is DeploymentMode.MIGRATION_STATE_UNKNOWN:
+            blockers.append("target or signed release schema is unknown")
+        if mode is DeploymentMode.MIGRATION_BLOCKED:
+            blockers.append("migration helper capability is incomplete")
+        plan_id = f"plan-{publication_id.removeprefix('publication-')}"
+        payload = {
+            "schema_version": 2, "plan_id": plan_id, "mode": mode.value,
+            "selected_version": selected["product_version"], "selected_commit": selected["source_commit"],
+            "release_id": selected["release_id"], "build_id": selected["build_id"],
+            "source_tree": selected["source_tree"], "release_set_digest": selected["release_set_digest"],
+            "signing_key_id": selected["signing_key_id"], "source_schema": source_schema,
+            "target_schema": target_schema, "target_name": inspection.get("target_name"),
+            "server_web_release_identity": "MATCHED_SIGNED_RELEASE_SET", "required_capabilities": sorted(capabilities),
+            "blocking_reasons": blockers, "warnings": inspection.get("warnings", []),
+            "next_safe_action": next_action_for(mode), "expected_mutations": [],
+        }
+        self.store.write("plan", plan_id, payload)
+        return OperationResult(Status.BLOCKED if blockers else Status.PASS, "Deployment plan was created from one trusted sealed release and read-only inspection facts.", payload["next_safe_action"], data={"plan": payload})
 
     def inventory(self) -> OperationResult:
         try:

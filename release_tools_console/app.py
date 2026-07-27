@@ -121,6 +121,10 @@ class ReleaseDeploymentConsole(QMainWindow):
         self.candidate_id.setAccessibleName("Selected candidate ID")
         self.attachment_path = QLineEdit()
         self.attachment_path.setAccessibleName("Windows platform attachment path")
+        self.disposable_remote = QLineEdit()
+        self.disposable_remote.setAccessibleName("Disposable Git remote path")
+        self.disposable_registry = QLineEdit()
+        self.disposable_registry.setAccessibleName("Disposable release registry path")
         self.component_summary = QLabel("No component inventory loaded")
         self.component_summary.setWordWrap(True)
         self.sealing_summary = QLabel("Sealing readiness: NOT RUN")
@@ -129,6 +133,8 @@ class ReleaseDeploymentConsole(QMainWindow):
         layout.addRow("Explicit version (advanced)", self.explicit_version)
         layout.addRow("Candidate ID", self.candidate_id)
         layout.addRow("Windows attachment", self.attachment_path)
+        layout.addRow("Disposable Git remote", self.disposable_remote)
+        layout.addRow("Disposable release registry", self.disposable_registry)
         layout.addRow("Component inventory", self.component_summary)
         layout.addRow("Sealing readiness", self.sealing_summary)
         layout.addRow(self._button("Rehearse candidate", "Run dry-run candidate rehearsal", self._rehearse))
@@ -151,8 +157,9 @@ class ReleaseDeploymentConsole(QMainWindow):
             )
         )
         layout.addRow(self._button("Discard candidate", "Discard unpromoted candidate", self._discard_candidate))
-        layout.addRow(self._button("Start publication", "Start candidate publication", self._publish))
-        layout.addRow(self._button("Resume publication", "Resume publication", self._resume_publication))
+        layout.addRow(self._button("Verify Publication Readiness", "Verify sealed publication readiness", self._publication_readiness))
+        layout.addRow(self._button("Publish to Disposable Backend", "Publish only to disposable backend", self._publish_disposable))
+        layout.addRow(self._button("Resume Disposable Publication", "Resume disposable publication", self._resume_disposable_publication))
         return page
 
     def _inventory_page(self) -> QWidget:
@@ -167,8 +174,8 @@ class ReleaseDeploymentConsole(QMainWindow):
         layout.addWidget(
             self._button(
                 "Refresh release inventory",
-                "Refresh GitHub release inventory",
-                lambda: self._start("inventory", self.service.inventory),
+                "Refresh disposable release inventory",
+                self._inventory_disposable,
             )
         )
         return page
@@ -206,6 +213,7 @@ class ReleaseDeploymentConsole(QMainWindow):
         layout.addRow("Plan ID", self.plan_id)
         layout.addRow("Plan summary", self.plan_summary)
         layout.addRow(self._button("Verify selected release", "Verify selected release", self._verify_release))
+        layout.addRow(self._button("Create disposable plan", "Create plan from trusted disposable publication", self._create_disposable_plan))
         layout.addRow(self._button("Create plan from stored facts", "Create deployment plan", self._create_plan))
         return page
 
@@ -319,6 +327,24 @@ class ReleaseDeploymentConsole(QMainWindow):
         if accepted:
             self._start("publish", lambda: self.service.publish_start(candidate, version))
 
+    def _publication_readiness(self) -> None:
+        self._start("publication-readiness", lambda: self.service.publication_readiness(self.candidate_id.text()))
+
+    def _publish_disposable(self) -> None:
+        candidate = self.candidate_id.text()
+        confirmation, accepted = self._typed_confirmation("Disposable publication", f"Type PUBLISH {candidate}:")
+        if accepted:
+            self._start("publish", lambda: self.service.publish_disposable(candidate, confirmation, remote=Path(self.disposable_remote.text()), registry=Path(self.disposable_registry.text())))
+
+    def _resume_disposable_publication(self) -> None:
+        publication_id = self.candidate_id.text()
+        candidate, accepted = self._typed_confirmation("Resume disposable publication", "Type the candidate ID for this publication:")
+        if accepted:
+            self._start("publication", lambda: self.service.resume_disposable_publication(publication_id, f"PUBLISH {candidate}"))
+
+    def _inventory_disposable(self) -> None:
+        self._start("inventory", lambda: self.service.inventory_disposable(Path(self.disposable_registry.text())))
+
     def _resume_publication(self) -> None:
         self._start("publication", lambda: self.service.publish_resume(self.candidate_id.text()))
 
@@ -332,6 +358,9 @@ class ReleaseDeploymentConsole(QMainWindow):
         self._start(
             "plan", lambda: self.service.create_plan(self.release_version.text(), self.plan_inspection_id.text())
         )
+
+    def _create_disposable_plan(self) -> None:
+        self._start("plan", lambda: self.service.create_disposable_plan(self.release_version.text(), self.plan_inspection_id.text()))
 
     def _stage(self) -> None:
         version, accepted = self._typed_confirmation(

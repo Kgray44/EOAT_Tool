@@ -75,6 +75,18 @@ def _publish_commands(commands: argparse._SubParsersAction[Any]) -> None:
     resume.add_argument("publication_id")
     status = actions.add_parser("status", help="Show publication receipt")
     status.add_argument("publication_id")
+    readiness = actions.add_parser("readiness", help="Independently verify a sealed candidate for publication")
+    readiness.add_argument("candidate_id")
+    disposable = actions.add_parser("start-disposable", help="Publish only to an explicit disposable Git/filesystem backend")
+    disposable.add_argument("candidate_id")
+    disposable.add_argument("--remote", type=Path, required=True)
+    disposable.add_argument("--registry", type=Path, required=True)
+    disposable.add_argument("--confirm", required=True, help="Exact confirmation: PUBLISH <candidate-id>")
+    resume_disposable = actions.add_parser("resume-disposable", help="Resume a disposable publication")
+    resume_disposable.add_argument("publication_id")
+    resume_disposable.add_argument("--confirm", required=True, help="Exact confirmation: PUBLISH <candidate-id>")
+    assets = actions.add_parser("assets", help="List a durable complete asset inventory")
+    assets.add_argument("publication_id")
 
 
 def _target_plan_deploy_commands(commands: argparse._SubParsersAction[Any]) -> None:
@@ -92,6 +104,9 @@ def _target_plan_deploy_commands(commands: argparse._SubParsersAction[Any]) -> N
     create.add_argument("--inspection", required=True)
     show = actions.add_parser("show", help="Show a stored plan")
     show.add_argument("plan_id")
+    disposable_plan = actions.add_parser("create-disposable", help="Create a read-only plan from a trusted disposable publication")
+    disposable_plan.add_argument("--publication", required=True)
+    disposable_plan.add_argument("--inspection", required=True)
 
     deploy = commands.add_parser("deploy", help="State-aware deployment transaction controls")
     actions = deploy.add_subparsers(dest="deploy_command", required=True)
@@ -140,6 +155,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ):
         child = release_actions.add_parser(name, help=help_text)
         child.add_argument("--version", required=True)
+    disposable_list = release_actions.add_parser("list-disposable", help="Inventory an explicit disposable release registry")
+    disposable_list.add_argument("--registry", type=Path, required=True)
     _target_plan_deploy_commands(commands)
     receipts = commands.add_parser("receipts", help="Browse and export durable receipts")
     receipt_actions = receipts.add_subparsers(dest="receipt_command", required=True)
@@ -191,6 +208,12 @@ def main(argv: list[str] | None = None) -> int:
                 result = service.publish_start(args.candidate_id, args.confirm_version)
             elif args.publish_command == "resume":
                 result = service.publish_resume(args.publication_id)
+            elif args.publish_command == "readiness":
+                result = service.publication_readiness(args.candidate_id)
+            elif args.publish_command == "start-disposable":
+                result = service.publish_disposable(args.candidate_id, args.confirm, remote=args.remote, registry=args.registry)
+            elif args.publish_command == "resume-disposable":
+                result = service.resume_disposable_publication(args.publication_id, args.confirm)
             else:
                 result = service.publication(args.publication_id)
         elif args.command == "releases":
@@ -198,6 +221,8 @@ def main(argv: list[str] | None = None) -> int:
                 result = service.inventory()
             elif args.release_command == "verify":
                 result = service.verify_release(args.version)
+            elif args.release_command == "list-disposable":
+                result = service.inventory_disposable(args.registry)
             else:
                 result = service.receipt(f"release-{args.version}")
         elif args.command == "target":
@@ -207,11 +232,12 @@ def main(argv: list[str] | None = None) -> int:
                 else service.receipt(args.inspection)
             )
         elif args.command == "plan":
-            result = (
-                service.create_plan(args.release, args.inspection)
-                if args.plan_command == "create"
-                else service.plan(args.plan_id)
-            )
+            if args.plan_command == "create":
+                result = service.create_plan(args.release, args.inspection)
+            elif args.plan_command == "create-disposable":
+                result = service.create_disposable_plan(args.publication, args.inspection)
+            else:
+                result = service.plan(args.plan_id)
         elif args.command == "deploy":
             if args.deploy_command == "stage":
                 result = service.begin_transaction(args.plan, args.confirm_version)

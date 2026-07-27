@@ -1,0 +1,113 @@
+name: Unified Release Train Phase 1C
+
+on:
+  push:
+    branches: [codex/unified-release-train]
+    paths:
+      - deployment/convergence/**
+      - release_tools_console/**
+      - tools/eoat_release.py
+      - tests/test_release_phase_1c.py
+      - tests/test_release_deployment_convergence.py
+      - .github/workflows/unified-release-train-phase-1c.yml
+      - Development_Docs/EOAT_Unified_Release_Train_Design.md
+      - Development_Docs/EOAT_Unified_Release_Train_Phase_1C_Implementation.md
+      - docs/RELEASE_PROCESS.md
+      - docs/RELEASE_DEPLOYMENT_CONSOLE.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publication-eligibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_phase_1c.py
+  disposable-publication-state-machine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_phase_1c.py
+  complete-asset-publication:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_phase_1c.py
+  release-inventory-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_phase_1c.py
+  deployment-plan-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_phase_1c.py tests/test_release_deployment_convergence.py
+  cli-console-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python tools/eoat_release.py publish --help
+      - run: python tools/eoat_release.py releases --help
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py
+  receipt-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_set_v2.py tests/test_release_deployment_convergence.py
+  end-to-end-disposable-phase-1c:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_phase_1c.py
+  repository-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/repo_safety_audit.py
+  version-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/check_version_bump.py --base 170d9fb3d8f2ab2dabe6eb86ee7898ccbbd3a6ab
+  documentation-command-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python tools/eoat_release.py publish --help
+      - run: python scripts/validate_documented_commands.py
