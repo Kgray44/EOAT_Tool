@@ -93,7 +93,10 @@ def main(argv: list[str] | None = None) -> int:
     _zip_tree(desktop_dist, desktop_zip)
     env["EOAT_RELEASE_PACKAGE_SHA256"] = _sha256(desktop_zip)
     _run([str(desktop_exe), "--smoke-test", "--smoke-receipt", str(output / "desktop" / "smoke.json")], env=env)
-    _copy(desktop_dist / "release_metadata.json", output / "desktop" / "release_metadata.json")
+    desktop_metadata = list(desktop_dist.rglob("release_metadata.json"))
+    if len(desktop_metadata) != 1:
+        raise RuntimeError("desktop package must contain exactly one release metadata file")
+    _copy(desktop_metadata[0], output / "desktop" / "release_metadata.json")
     _copy(desktop_dist / "package_manifest.json", output / "desktop" / "package_manifest.json")
     desktop_update = {"schema_version": 1, **identity, "component_kind": "desktop_update_manifest", "package_locator": "desktop/EOAT-Atlas-desktop.zip", "size_bytes": desktop_zip.stat().st_size, "sha256": _sha256(desktop_zip), "release_channel": "candidate"}
     (output / "desktop" / "update-manifest.json").write_text(json.dumps(desktop_update, indent=2, sort_keys=True) + "\n", encoding="utf-8")
