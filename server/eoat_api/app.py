@@ -15,6 +15,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from core.versioning import configure_release_logging, get_release_info
+from release_tools.versioning import Version
 
 from .authentication.audit import record_auth_event
 from .authentication.configuration import AuthenticationConfiguration
@@ -123,6 +124,7 @@ async def request_logging(request: Request, call_next):
         protected = request.url.path.startswith("/api/v1/") and request.url.path not in {
             "/api/v1/health",
             "/api/v1/version",
+            "/api/v1/release-status",
             "/api/v1/data-status",
         }
         if environment == "production" and protected:
@@ -282,6 +284,33 @@ def version():
         "api_contract_version": API_VERSION,
         "database_schema_revision": EXPECTED_SCHEMA_REVISION,
         "server_revision": SERVER_REVISION,
+    }
+
+
+@app.get("/api/v1/release-status")
+def release_status(request: Request):
+    """Safe, authoritative active-release status for launchers and web clients."""
+
+    minimum_desktop = os.getenv("EOAT_MINIMUM_SUPPORTED_DESKTOP_VERSION", "0.0.0").strip()
+    client_version = request.headers.get("X-EOAT-Client-Version", "").strip()
+    try:
+        supported = not client_version or Version.parse(client_version) >= Version.parse(minimum_desktop)
+    except ValueError:
+        supported = False
+    return {
+        "product_version": RELEASE_INFO.application_version,
+        "release_id": RELEASE_INFO.release_id,
+        "build_id": RELEASE_INFO.build_id,
+        "source_commit": RELEASE_INFO.source_git_commit,
+        "release_channel": RELEASE_INFO.release_channel,
+        "api_contract_version": API_VERSION,
+        "database_schema_revision": EXPECTED_SCHEMA_REVISION,
+        "minimum_supported_desktop_version": minimum_desktop,
+        "minimum_supported_launcher_version": os.getenv("EOAT_MINIMUM_SUPPORTED_LAUNCHER_VERSION", "0.1.0"),
+        "minimum_supported_bootstrap_version": os.getenv("EOAT_MINIMUM_SUPPORTED_BOOTSTRAP_VERSION", "0.1.0"),
+        "client_version": client_version or None,
+        "client_supported": supported,
+        "server_time": datetime.now(timezone.utc).isoformat(),
     }
 
 
