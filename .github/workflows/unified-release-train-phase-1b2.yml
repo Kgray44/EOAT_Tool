@@ -111,7 +111,10 @@ jobs:
     needs: [core-artifacts, windows-packaged-artifacts]
     runs-on: windows-latest
     steps:
+      # Version governance compares this candidate to the declared convergence
+      # base, which is intentionally older than a depth-one checkout.
       - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - uses: actions/download-artifact@v4
