@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +21,48 @@ from .core import (
 from .diagnostics import DiagnosticsWriter
 from .repair import RepairService
 from .ui import Notifier
+
+
+def _signed_release_source(config: Any) -> str:
+    return config.releaseSetManifestUrl or config.releaseSetManifestPath
+
+
+def _read_signed_release_set(source: str) -> dict[str, Any]:
+    if source.casefold().startswith(("http://", "https://")):
+        with urllib.request.urlopen(source, timeout=15) as response:
+            raw = response.read().decode("utf-8")
+    else:
+        raw = Path(source).read_text(encoding="utf-8-sig")
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError("signed release-set manifest must be a JSON object")
+    return value
+
+
+def _signed_transport_root(source: str, config: Any) -> str:
+    if config.releaseArtifactTransport:
+        return config.releaseArtifactTransport
+    if source.casefold().startswith(("http://", "https://")):
+        return source.rsplit("/", 1)[0]
+    return str(Path(source).parent)
+
+
+def _install_approved_update(config: Any, diagnostics: DiagnosticsWriter) -> Path | None:
+    source = _signed_release_source(config)
+    if not source:
+        return None
+    from release_tools.launcher import install_signed_release_set
+
+    root = Path(os.environ.get("EOAT_ATLAS_INSTALL_ROOT") or Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "EOAT_Atlas")
+    target = install_signed_release_set(
+        _read_signed_release_set(source),
+        transport_root=_signed_transport_root(source, config),
+        root=root,
+        trusted_public_keys=config.trustedManifestKeys,
+        revoked_key_ids=set(config.revokedManifestKeyIds),
+    )
+    diagnostics.log_event("signed_release_set_activated", manifestSource=source, target=str(target))
+    return target
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,6 +124,15 @@ def _run_launch_flow(
 
     resolver = PathResolver(config, loader)
     resolved = resolver.resolve(override_app_path=args.app_path or None)
+    signed_update_error = ""
+    if not args.no_update_check and not args.app_path and _signed_release_source(config):
+        try:
+            updated_root = _install_approved_update(config, diagnostics)
+            if updated_root is not None:
+                resolved = resolver.resolve(override_app_path=updated_root)
+        except Exception as exc:
+            signed_update_error = str(exc)
+            diagnostics.log_event("signed_release_set_update_failed", error=signed_update_error)
     version = VersionReader().read(resolved.install_path) if resolved.found else None
     resources = ResourceChecker(config).check()
     update_result = (
@@ -113,6 +167,13 @@ def _run_launch_flow(
 
     if load_result.corrupt:
         diagnostics.log_event("config_corrupt_using_defaults", error=load_result.error)
+    if signed_update_error:
+        notifier.error(
+            "EOAT Atlas update required",
+            "The approved EOAT Atlas update could not be validated or activated. "
+            f"No ordinary launch was attempted.\n\nDiagnostics: {diagnostics.log_path}",
+        )
+        return 1
     if not resolved.found:
         return _show_error_with_retry(
             args,

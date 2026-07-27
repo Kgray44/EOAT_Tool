@@ -52,6 +52,11 @@ class LauncherConfig:
     channel: str = "stable"
     updateManifestPath: str = ""
     updateManifestUrl: str = ""
+    releaseSetManifestPath: str = ""
+    releaseSetManifestUrl: str = ""
+    releaseArtifactTransport: str = ""
+    trustedManifestKeys: dict[str, str] = field(default_factory=dict)
+    revokedManifestKeyIds: list[str] = field(default_factory=list)
     networkRequiredPaths: list[Any] = field(default_factory=list)
     logLevel: str = "INFO"
     lastKnownGoodVersion: str = ""
@@ -74,6 +79,12 @@ class LauncherConfig:
         network_paths = data.get("networkRequiredPaths")
         if not isinstance(network_paths, list):
             network_paths = []
+        trusted_keys = data.get("trustedManifestKeys")
+        if not isinstance(trusted_keys, dict):
+            trusted_keys = {}
+        revoked_keys = data.get("revokedManifestKeyIds")
+        if not isinstance(revoked_keys, list):
+            revoked_keys = []
         try:
             startup_wait = float(data.get("startupWaitSeconds", 2.0))
         except (TypeError, ValueError):
@@ -85,6 +96,11 @@ class LauncherConfig:
             channel=str(data.get("channel") or "stable").strip() or "stable",
             updateManifestPath=str(data.get("updateManifestPath") or "").strip(),
             updateManifestUrl=str(data.get("updateManifestUrl") or "").strip(),
+            releaseSetManifestPath=str(data.get("releaseSetManifestPath") or "").strip(),
+            releaseSetManifestUrl=str(data.get("releaseSetManifestUrl") or "").strip(),
+            releaseArtifactTransport=str(data.get("releaseArtifactTransport") or "").strip(),
+            trustedManifestKeys={str(key): str(value) for key, value in trusted_keys.items() if str(key).strip() and str(value).strip()},
+            revokedManifestKeyIds=[str(value) for value in revoked_keys if str(value).strip()],
             networkRequiredPaths=network_paths,
             logLevel=str(data.get("logLevel") or "INFO").strip().upper() or "INFO",
             lastKnownGoodVersion=str(data.get("lastKnownGoodVersion") or "").strip(),
