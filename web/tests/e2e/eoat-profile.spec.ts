@@ -108,9 +108,7 @@ test("landing, back navigation, not-found, and mobile overflow are truthful", as
   const seen: import("@playwright/test").Request[] = [];
   await routeApi(page, seen);
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: /secure foundation/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Home" })).toBeVisible();
   await page.goto("/eoats/QR-EOAT-1");
   await expect(page.getByRole("heading", { name: "QR-EOAT-1" })).toBeVisible();
   await page.goto("/search");

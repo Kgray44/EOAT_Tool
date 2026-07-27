@@ -283,8 +283,8 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
   await expect(page.getByRole("link", { name: /Press 1/ })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("link", { name: /Press 1/ })).toBeVisible();
-  await page.getByLabel("Search").fill("press");
-  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("textbox", { name: "Search" }).fill("press");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("link", { name: /Press 1/ })).toBeVisible();
   await page.goto("/fit-check?machine=M-1&tool=TOOL-1&eoat=EOAT-1");
   await page.getByRole("button", { name: /Evaluate without saving/ }).click();

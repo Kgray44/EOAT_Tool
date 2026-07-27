@@ -5,3 +5,5 @@ playwright-report
 test-results
 src/api/generated/openapi.json
 src/api/generated/types.ts
+src/styles/generated-theme-tokens.css
+src/styles/generated-theme-tokens.json

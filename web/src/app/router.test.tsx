@@ -25,13 +25,25 @@ describe("router", () => {
       screen.getByRole("heading", { name: "Page not found" }),
     ).toBeInTheDocument();
   });
-  it("supports keyboard-accessible navigation", async () => {
+  it("opens the keyboard-accessible desktop-style navigation overlay", async () => {
     const user = userEvent.setup();
     renderAt("/");
-    const status = screen.getByRole("link", { name: "Status" });
+    const menu = screen.getByRole("button", { name: "Open navigation menu" });
+    await user.click(menu);
+    const library = screen.getByRole("link", { name: "Library" });
+    expect(library).toHaveAttribute("href", "/library");
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("link", { name: "Library" }),
+    ).not.toBeInTheDocument();
+  });
+  it("keeps keyboard focus inside the global search dialog", async () => {
+    const user = userEvent.setup();
+    renderAt("/");
+    await user.click(screen.getByRole("button", { name: "Open search" }));
+    const input = screen.getByRole("textbox", { name: "Search EOAT Atlas" });
+    expect(input).toHaveFocus();
     await user.tab();
-    await user.tab();
-    expect(status).toHaveFocus();
-    expect(status).toHaveAttribute("href", "/");
+    expect(input).toHaveFocus();
   });
 });

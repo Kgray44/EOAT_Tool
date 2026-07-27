@@ -7,6 +7,7 @@ import { LibraryPage } from "@/pages/LibraryPage";
 import { MachineProfilePage } from "@/pages/MachineProfilePage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SearchPage } from "@/pages/SearchPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 import { ToolProfilePage } from "@/pages/ToolProfilePage";
 
 export const routeDefinitions = [
@@ -21,6 +22,7 @@ export const routeDefinitions = [
       { path: "machines/:number", element: <MachineProfilePage /> },
       { path: "tools/:identifier", element: <ToolProfilePage /> },
       { path: "fit-check", element: <FitCheckPage /> },
+      { path: "settings", element: <SettingsPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
