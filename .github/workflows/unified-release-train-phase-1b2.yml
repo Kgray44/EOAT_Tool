@@ -160,22 +160,38 @@ jobs:
           private = Ed25519PrivateKey.generate()
           raw_private = private.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
           raw_public = private.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+          from pathlib import Path
+          key_path = Path(__import__("os").environ["RUNNER_TEMP"]) / "eoat-phase-1b3-private.key"
+          key_path.write_bytes(raw_private)
           print("EOAT_RELEASE_SIGNING_KEY_ID=ci-phase-1b3-test")
-          print("EOAT_RELEASE_TEST_PRIVATE_KEY_B64=" + base64.b64encode(raw_private).decode("ascii"))
+          print("EOAT_RELEASE_TEST_PRIVATE_KEY_FILE=" + str(key_path))
           print("EOAT_RELEASE_TRUSTED_PUBLIC_KEYS_JSON=" + json.dumps({"ci-phase-1b3-test": base64.b64encode(raw_public).decode("ascii")}, separators=(",", ":")))
           '@ | python - | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Revalidate, seal, and verify a complete candidate
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          function Invoke-Release { & python @args; if ($LASTEXITCODE -ne 0) { throw "eoat_release failed: $args" } }
           $id = (Get-Content candidate-id.txt -Raw).Trim()
-          python tools/eoat_release.py candidate attach-platform-artifacts $id windows-attachment
-          python tools/eoat_release.py candidate verify-for-sealing $id
-          python tools/eoat_release.py candidate seal-release-set $id --confirm "SEAL $id"
-          python tools/eoat_release.py candidate seal-release-set $id --confirm "SEAL $id"
-          python tools/eoat_release.py candidate verify-sealed-release-set $id
-          python tools/eoat_release.py --json candidate show $id | Out-File -Encoding utf8 sealed-candidate.json
+          Invoke-Release tools/eoat_release.py candidate attach-platform-artifacts $id windows-attachment
+          Invoke-Release tools/eoat_release.py candidate verify-for-sealing $id
+          Invoke-Release tools/eoat_release.py candidate seal-release-set $id --confirm "SEAL $id"
+          Invoke-Release tools/eoat_release.py candidate seal-release-set $id --confirm "SEAL $id"
+          Invoke-Release tools/eoat_release.py candidate verify-sealed-release-set $id
+          & python tools/eoat_release.py --json candidate show $id | Out-File -Encoding utf8 sealed-candidate.json
+          if ($LASTEXITCODE -ne 0) { throw 'sealed candidate inspection failed' }
           $sealed = Get-Content sealed-candidate.json -Raw
           if ($sealed -notmatch 'RELEASE_SET_VALIDATED' -or $sealed -notmatch 'publication_eligible') { throw 'sealed candidate status was not recorded' }
+          Remove-Item -LiteralPath $env:EOAT_RELEASE_TEST_PRIVATE_KEY_FILE -Force
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sealed-release-set-evidence
+          path: |
+            sealed-candidate.json
+            .local/release-deployment-console/candidates/**/sealing
+            .local/release-deployment-console/candidates/**/receipts/sealing-*.json
+          if-no-files-found: warn
       - run: python -m pytest -q tests/test_release_set_sealing.py
       - run: python scripts/repo_safety_audit.py
       - run: python scripts/check_version_bump.py --base 170d9fb3d8f2ab2dabe6eb86ee7898ccbbd3a6ab

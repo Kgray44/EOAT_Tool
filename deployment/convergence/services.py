@@ -1067,6 +1067,14 @@ class ReleaseDeploymentService:
         if confirmation != f"SEAL {candidate_id}":
             raise DeploymentError("sealing requires the exact confirmation: SEAL <candidate-id>")
         receipt = self.store.read("candidate", candidate_id)
+        if receipt.get("state") == "RELEASE_SET_VALIDATED":
+            verification = self.verify_sealed_release_set(candidate_id)
+            return OperationResult(
+                Status.PASS,
+                "Existing immutable release-set seal was reverified without replacement.",
+                verification.next_safe_action,
+                data={"candidate_id": candidate_id, "canonical_digest": receipt.get("release_set_digest"), "idempotent": True, "publication_eligible": True},
+            )
         candidate_root = self.store.root / "candidates" / candidate_id
         try:
             key_id, private_key, trusted, revoked = signing_material_from_environment()

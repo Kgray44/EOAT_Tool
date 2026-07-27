@@ -264,16 +264,17 @@ def signing_material_from_environment() -> tuple[str, bytes, dict[str, bytes], f
 
     key_id = os.environ.get("EOAT_RELEASE_SIGNING_KEY_ID", "").strip()
     private_encoded = os.environ.get("EOAT_RELEASE_TEST_PRIVATE_KEY_B64", "").strip()
+    private_file = os.environ.get("EOAT_RELEASE_TEST_PRIVATE_KEY_FILE", "").strip()
     trusted_encoded = os.environ.get("EOAT_RELEASE_TRUSTED_PUBLIC_KEYS_JSON", "").strip()
-    if not key_id or not private_encoded or not trusted_encoded:
+    if not key_id or not trusted_encoded or not (private_encoded or private_file):
         raise DeploymentError("non-production signing material is not configured")
     try:
-        private_key = base64.b64decode(private_encoded.encode("ascii"), validate=True)
+        private_key = Path(private_file).read_bytes() if private_file else base64.b64decode(private_encoded.encode("ascii"), validate=True)
         raw_keys = json.loads(trusted_encoded)
         trusted = {str(name): base64.b64decode(str(value).encode("ascii"), validate=True) for name, value in dict(raw_keys).items()}
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         raise DeploymentError("non-production signing material is malformed") from exc
-    if public_key_bytes(private_key) != trusted.get(key_id):
+    if len(private_key) != 32 or public_key_bytes(private_key) != trusted.get(key_id):
         raise DeploymentError("configured trusted key does not match signing key")
     revoked = frozenset(item.strip() for item in os.environ.get("EOAT_RELEASE_REVOKED_KEY_IDS", "").split(",") if item.strip())
     if key_id in revoked:
