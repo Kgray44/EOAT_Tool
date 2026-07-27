@@ -251,10 +251,34 @@ def seal_candidate(
         "release_set_digest": digest, "release_set_manifest_path": "sealing/release-set-manifest.json", "release_set_manifest_sha256": sha256_file(manifest),
         "release_set_signature": {"path": "sealing/release-set-signature.json", "sha256": sha256_file(detached), "key_id": key_id, "algorithm": "Ed25519", "trusted": True},
         "sealing_validation_evidence": evidence, "publication_eligible": True, "blocking_reasons": [],
+        # This persisted value is deliberately derived from the final inventory
+        # rather than carrying the unsigned receipt's stale pending list.
+        "missing_components": sorted(
+            str(component.get("kind"))
+            for component in components
+            if component.get("disposition") == ArtifactDisposition.PENDING.value
+        ),
         "next_safe_action": "Phase 1C publication verification.",
     })
     receipt_payload = {"schema_version": 1, "candidate_id": identity.candidate_id if (identity := release_set.identity) else "", "status": "PASS", "release_set_digest": digest, "manifest_sha256": sha256_file(manifest), "signature_sha256": sha256_file(detached), "key_id": key_id, "recorded_at_utc": utc_text()}
     return updated, receipt_payload
+
+
+def trust_material_from_environment() -> tuple[dict[str, bytes], frozenset[str]]:
+    """Load public verification policy without requiring a private signing key."""
+
+    import os
+
+    trusted_encoded = os.environ.get("EOAT_RELEASE_TRUSTED_PUBLIC_KEYS_JSON", "").strip()
+    if not trusted_encoded:
+        raise DeploymentError("trusted public release-set keys are not configured")
+    try:
+        raw_keys = json.loads(trusted_encoded)
+        trusted = {str(name): base64.b64decode(str(value).encode("ascii"), validate=True) for name, value in dict(raw_keys).items()}
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise DeploymentError("trusted public release-set keys are malformed") from exc
+    revoked = frozenset(item.strip() for item in os.environ.get("EOAT_RELEASE_REVOKED_KEY_IDS", "").split(",") if item.strip())
+    return trusted, revoked
 
 
 def signing_material_from_environment() -> tuple[str, bytes, dict[str, bytes], frozenset[str]]:
@@ -265,18 +289,15 @@ def signing_material_from_environment() -> tuple[str, bytes, dict[str, bytes], f
     key_id = os.environ.get("EOAT_RELEASE_SIGNING_KEY_ID", "").strip()
     private_encoded = os.environ.get("EOAT_RELEASE_TEST_PRIVATE_KEY_B64", "").strip()
     private_file = os.environ.get("EOAT_RELEASE_TEST_PRIVATE_KEY_FILE", "").strip()
-    trusted_encoded = os.environ.get("EOAT_RELEASE_TRUSTED_PUBLIC_KEYS_JSON", "").strip()
-    if not key_id or not trusted_encoded or not (private_encoded or private_file):
+    if not key_id or not (private_encoded or private_file):
         raise DeploymentError("non-production signing material is not configured")
     try:
         private_key = Path(private_file).read_bytes() if private_file else base64.b64decode(private_encoded.encode("ascii"), validate=True)
-        raw_keys = json.loads(trusted_encoded)
-        trusted = {str(name): base64.b64decode(str(value).encode("ascii"), validate=True) for name, value in dict(raw_keys).items()}
-    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+    except (ValueError, OSError) as exc:
         raise DeploymentError("non-production signing material is malformed") from exc
+    trusted, revoked = trust_material_from_environment()
     if len(private_key) != 32 or public_key_bytes(private_key) != trusted.get(key_id):
         raise DeploymentError("configured trusted key does not match signing key")
-    revoked = frozenset(item.strip() for item in os.environ.get("EOAT_RELEASE_REVOKED_KEY_IDS", "").split(",") if item.strip())
     if key_id in revoked:
         raise DeploymentError("configured signing key is revoked")
     return key_id, private_key, trusted, revoked

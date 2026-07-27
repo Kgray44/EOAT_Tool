@@ -78,7 +78,13 @@ from .models import (
 )
 from .receipts import ReceiptStore
 from .release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
-from .sealing import revalidate_candidate, seal_candidate, signing_material_from_environment, verify_signed_release_set
+from .sealing import (
+    revalidate_candidate,
+    seal_candidate,
+    signing_material_from_environment,
+    trust_material_from_environment,
+    verify_signed_release_set,
+)
 
 _PINNED_PNPM = re.compile(r"^pnpm@(?P<version>[0-9][0-9A-Za-z.+-]*)$")
 _PRODUCTION_HOSTS = {"eoat-atlas.gwplastics.com", "eoat-atlas-prod"}
@@ -1105,9 +1111,10 @@ class ReleaseDeploymentService:
         manifest = read_json_object(candidate_root / str(receipt["release_set_manifest_path"]))
         signature_record = dict(receipt.get("release_set_signature") or {})
         signature = read_json_object(candidate_root / str(signature_record.get("path") or ""))
-        key_id, _private, trusted, revoked = signing_material_from_environment()
-        if signature.get("key_id") != key_id:
-            raise DeploymentError("configured trust key does not match sealed signature key")
+        trusted, revoked = trust_material_from_environment()
+        key_id = str(signature.get("key_id") or "")
+        if key_id not in trusted:
+            raise DeploymentError("sealed signature key is not in the configured trust set")
         verify_signed_release_set(
             {"release_set": manifest.get("canonical_payload"), "canonical_digest": manifest.get("canonical_payload_sha256"), "signature": {"key_id": signature.get("key_id"), "algorithm": signature.get("algorithm"), "signature": signature.get("signature")}},
             trusted_public_keys=trusted, revoked_key_ids=revoked,

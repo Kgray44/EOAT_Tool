@@ -142,3 +142,40 @@ only required pending items are `release_set_manifest` and
 `release_set_signature`; bootstrap and its update manifest remain
 `NOT_APPLICABLE` because Unified Release Train Phase 2 owns bootstrap. Phase
 1B-3 alone serializes, signs, and seals the final release-set envelope.
+
+## Phase 1B-3 sealing boundary
+
+Sealing is a separate, explicit transition from `PLATFORM_ARTIFACTS_PENDING`
+to `RELEASE_SET_VALIDATED`.  Before the transition the convergence service
+reopens every built component from candidate-relative storage, recomputes its
+size and SHA-256, validates safe ZIP members, revalidates the server archive
+and external manifest, validates the web package, independently verifies the
+Git recovery bundle's commit/tree/ancestry, and reopens the desktop and
+launcher smoke receipts.  Every component must still match the one candidate
+product, release, build, commit, tree, and candidate ID.  Unknown, failed,
+missing, stale, mixed, or platform-unavailable evidence blocks sealing.
+
+The canonical signed payload is sorted-key compact UTF-8 JSON and contains the
+complete typed component inventory, product identity, schema/API/migration and
+compatibility data, and revalidation evidence.  It intentionally does **not**
+include the hashes or locators of the outer `release_set_manifest` and
+`release_set_signature` files; including those would make a circular
+self-hash.  The outer manifest holds the canonical payload and its digest; a
+separate detached Ed25519 signature file signs that digest.  The durable
+candidate receipt records the real candidate-relative outer-file locators,
+sizes, and hashes only after both files reopen and the trusted, non-revoked
+public key verifies them.
+
+Sealing requires an exact typed `SEAL <candidate-id>` confirmation.  It writes
+through candidate-local staging, rejects conflicting immutable outputs, and is
+idempotent only when the reopened envelope and detached signature are exactly
+the same.  Public signature verification needs only the configured trusted
+public-key set; signing needs external non-production or production-authorized
+private material.  CI creates a disposable Ed25519 key file for its job,
+never uploads or prints it, and removes it before evidence upload. Production
+channel signing remains externally authorized and is not a Phase 1B-3 action.
+
+After a valid seal the receipt has an empty derived missing-component list,
+publication eligibility is true, and the only next safe action is Phase 1C
+publication verification.  This is publication eligibility, not publication,
+deployment, stable promotion, tag creation, or any production operation.

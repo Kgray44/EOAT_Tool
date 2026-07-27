@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -59,6 +61,7 @@ def test_sealing_is_deterministic_idempotent_and_detached(tmp_path: Path, monkey
     assert (candidate_root / "sealing" / "release-set-manifest.json").is_file()
     assert (candidate_root / "sealing" / "release-set-signature.json").is_file()
     assert first["publication_eligible"] is True
+    assert first["missing_components"] == []
     assert read_json_object(candidate_root / "sealing" / "release-set-signature.json")["algorithm"] == "Ed25519"
 
 
@@ -89,3 +92,20 @@ def test_signature_trust_unknown_revoked_and_mutated_payload_fail() -> None:
     envelope["canonical_digest"] = "0" * 64
     with pytest.raises(ValueError, match="digest"):
         verify_signed_release_set(envelope, trusted_public_keys={"test-key": public})
+
+
+def test_public_verification_trust_does_not_require_private_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    private = Ed25519PrivateKey.generate().private_bytes(
+        serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption()
+    )
+    public = Ed25519PrivateKey.from_private_bytes(private).public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw
+    )
+    monkeypatch.delenv("EOAT_RELEASE_TEST_PRIVATE_KEY_B64", raising=False)
+    monkeypatch.delenv("EOAT_RELEASE_TEST_PRIVATE_KEY_FILE", raising=False)
+    monkeypatch.setenv("EOAT_RELEASE_TRUSTED_PUBLIC_KEYS_JSON", json.dumps({"public-only": base64.b64encode(public).decode("ascii")}))
+    trusted, revoked = sealing.trust_material_from_environment()
+    assert trusted == {"public-only": public}
+    assert not revoked
+    with pytest.raises(DeploymentError, match="signing material"):
+        sealing.signing_material_from_environment()

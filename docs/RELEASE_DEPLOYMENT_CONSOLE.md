@@ -26,6 +26,9 @@ python tools/eoat_release.py candidate inspect-platform-attachment candidate-0.2
 python tools/eoat_release.py candidate attach-platform-artifacts candidate-0.24.0-<commit> path/to/windows-attachment
 python tools/eoat_release.py candidate verify-platform-artifacts candidate-0.24.0-<commit>
 python tools/eoat_release.py candidate show-components candidate-0.24.0-<commit>
+python tools/eoat_release.py candidate verify-for-sealing candidate-0.24.0-<commit>
+python tools/eoat_release.py candidate seal-release-set candidate-0.24.0-<commit> --confirm "SEAL candidate-0.24.0-<commit>"
+python tools/eoat_release.py candidate verify-sealed-release-set candidate-0.24.0-<commit>
 python tools/eoat_release.py candidate discard candidate-0.23.0-<commit>
 python tools/eoat_release.py publish start candidate-0.23.0-<commit> --confirm-version 0.23.0
 python tools/eoat_release.py publish resume publication-candidate-0.23.0-<commit>
@@ -61,6 +64,14 @@ or attach a Windows bundle only when candidate ID, product/release/build
 identity, commit/tree, hashes, metadata, manifests, and packaged smoke
 receipts agree. Bootstrap remains explicitly not applicable until Phase 2;
 the final release-set manifest and signature remain pending until Phase 1B-3.
+
+Phase 1B-3 adds background-worker actions to revalidate a complete candidate,
+seal it with a typed candidate-ID confirmation, and verify the detached
+signature. The preparation page shows the canonical digest, signature key and
+trust result, outer manifest/signature components, derived missing components,
+and publication eligibility. It never exposes private key material. The seal
+action remains unavailable for incomplete or blocked candidates and does not
+create a publication or production deployment.
 
 Publication requires typing the exact candidate version.  It records and
 verifies every step: candidate promotion, local tag, branch push, tag push,
