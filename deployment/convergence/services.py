@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -385,6 +386,15 @@ class ReleaseDeploymentService:
         match = _PINNED_PNPM.fullmatch(str(package.get("packageManager", "")))
         return match.group("version") if match else None
 
+    @staticmethod
+    def _pnpm_command() -> str:
+        candidate = shutil.which("pnpm")
+        if candidate:
+            return candidate
+        home = Path(str(os.environ.get("PNPM_HOME") or ""))
+        executable = home / ("pnpm.cmd" if os.name == "nt" else "pnpm")
+        return str(executable) if executable.is_file() else "pnpm"
+
     def readiness(self, scope: str = "candidate") -> OperationResult:
         state = inspect_git_state(self.root)
         diagnostics: list[Diagnostic] = [
@@ -460,7 +470,7 @@ class ReleaseDeploymentService:
                 [
                     self._tool("Node", ["node", "--version"], required=True, scope="candidate"),
                     self._tool(
-                        "pnpm", ["pnpm", "--version"], required=True, scope="candidate", expected=self._pinned_pnpm()
+                        "pnpm", [self._pnpm_command(), "--version"], required=True, scope="candidate", expected=self._pinned_pnpm()
                     ),
                     Diagnostic(
                         "frozen lockfile",

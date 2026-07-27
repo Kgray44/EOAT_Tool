@@ -49,7 +49,9 @@ jobs:
           $env:PATH = "$env:PNPM_HOME;$env:PATH"
           pnpm --version
           git status --short
-      - run: python tools/eoat_release.py --json candidate prepare --version 0.24.0 | Out-File -Encoding utf8 candidate-result.json
+      - run: |
+          $env:PATH = "$env:PNPM_HOME;$env:PATH"
+          python tools/eoat_release.py --json candidate prepare --version 0.24.0 | Out-File -Encoding utf8 candidate-result.json
       - run: |
           $result = Get-Content candidate-result.json -Raw | ConvertFrom-Json
           $result.data.candidate.candidate_id | Out-File -Encoding ascii candidate-id.txt

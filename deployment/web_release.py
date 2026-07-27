@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -68,6 +69,10 @@ def _normalize_web_source_line_endings(directory: Path) -> None:
 def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, object]:
     """Build an exact committed web tree; Node is never included in the result."""
     pnpm = shutil.which("pnpm")
+    if not pnpm and os.environ.get("PNPM_HOME"):
+        candidate = Path(os.environ["PNPM_HOME"]) / ("pnpm.cmd" if os.name == "nt" else "pnpm")
+        if candidate.is_file():
+            pnpm = str(candidate)
     if not pnpm:
         raise DeploymentError("pnpm 11.9.0 is required to build the static web release")
     # Node's package manager can briefly retain Windows handles in the
