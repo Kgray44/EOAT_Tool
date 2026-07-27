@@ -79,19 +79,23 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - uses: actions/download-artifact@v4
-        with: {name: unsigned-candidate, path: .}
+        # Keep transferred candidate receipts out of the checkout: the
+        # package builder deliberately refuses any dirty source tree.
+        with: {name: unsigned-candidate, path: ${{ runner.temp }}/unsigned-candidate}
       - run: python -m pip install -r requirements.txt -r requirements-dev.txt
       # Desktop and launcher packaging use the repository-pinned PyInstaller
       # toolchain, which is intentionally isolated from the general runtime
       # and test dependency locks.
       - run: python -m pip install -r requirements-build.lock
       - run: |
-          $id = (Get-Content candidate-id.txt -Raw).Trim()
-          python scripts/export_windows_attachment.py --candidate-receipt ".local/release-deployment-console/candidate/$id.json" --output windows-attachment
+          $candidateRoot = Join-Path $env:RUNNER_TEMP 'unsigned-candidate'
+          $id = (Get-Content (Join-Path $candidateRoot 'candidate-id.txt') -Raw).Trim()
+          $receipt = Join-Path $candidateRoot ".local/release-deployment-console/candidate/$id.json"
+          python scripts/export_windows_attachment.py --candidate-receipt $receipt --output (Join-Path $env:RUNNER_TEMP 'windows-attachment')
       - uses: actions/upload-artifact@v4
         with:
           name: windows-platform-attachment
-          path: windows-attachment
+          path: ${{ runner.temp }}/windows-attachment
           if-no-files-found: error
 
   attachment-verification:
