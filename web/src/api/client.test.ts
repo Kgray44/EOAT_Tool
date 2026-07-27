@@ -37,6 +37,30 @@ describe("apiClient", () => {
     });
   });
 
+  it("reads truthful freshness metadata through the read-only data-status endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "available",
+          data_revision: 7,
+          data_last_modified_at: "2026-07-27T12:00:00Z",
+          server_time: "2026-07-27T12:01:00Z",
+          source: "mysql",
+          environment: "fixture",
+        }),
+        { status: 200 },
+      ),
+    );
+    await expect(apiClient.getDataStatus(fetcher)).resolves.toMatchObject({
+      data_revision: 7,
+      status: "available",
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/data-status",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("rejects malformed successful responses", async () => {
     const fetcher = vi
       .fn()

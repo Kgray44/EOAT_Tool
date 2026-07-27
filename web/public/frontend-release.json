@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "ui_generation": "mirrorline",
+  "source_identity": "source_checkout",
+  "selection_scope": "deployment-only",
+  "description": "EOAT Atlas Project Mirrorline browser UI. This is not a user-facing theme selector."
+}

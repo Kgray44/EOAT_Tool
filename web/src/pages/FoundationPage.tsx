@@ -1,72 +1,89 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { apiClient } from "@/api/client";
-import {
-  ErrorState,
-  LoadingState,
-  StatusValue,
-} from "@/components/feedback/StateViews";
+import { entityPath } from "@/api/routes";
+import { readRecentItems } from "@/api/recent";
 
 export function FoundationPage() {
-  const health = useQuery({
-    queryKey: ["health"],
-    queryFn: () => apiClient.getHealth(),
+  const [query, setQuery] = useState("");
+  const recents = readRecentItems();
+  const dataStatus = useQuery({
+    queryKey: ["data-status"],
+    queryFn: () => apiClient.getDataStatus(),
   });
+  const openSearch = (value = query) =>
+    window.dispatchEvent(
+      new CustomEvent("atlas-open-search", { detail: value }),
+    );
+  const dataAgeMs = dataStatus.data
+    ? Date.now() - new Date(dataStatus.data.data_last_modified_at).valueOf()
+    : 0;
+  const staleData =
+    Number.isFinite(dataAgeMs) && dataAgeMs > 24 * 60 * 60 * 1000;
   return (
-    <section className="foundation-page">
-      <p className="eyebrow">Phase 0</p>
-      <h2>A secure foundation for EOAT Atlas on the web</h2>
-      <p className="lede">
-        This read-only shell uses the existing EOAT Atlas API. It does not
-        replace the desktop client or invent operational data.
-      </p>
-      <section className="status-card" aria-labelledby="connection-status">
-        <h3 id="connection-status">API connection status</h3>
-        {health.isPending && <LoadingState />}
-        {health.isError && <ErrorState error={health.error} />}
-        {health.data && (
-          <dl className="status-grid">
-            <div>
-              <dt>Connection</dt>
-              <dd>Confirmed by API response</dd>
+    <section className="atlas-home-page" aria-labelledby="home-title">
+      <header className="atlas-page-title">
+        <h1 id="home-title">Home</h1>
+        <span />
+      </header>
+      <section className="atlas-home-card">
+        <h2>Get Started</h2>
+        <p>Find the right EOAT for your application</p>
+        <form
+          className="atlas-home-search"
+          onSubmit={(event) => {
+            event.preventDefault();
+            openSearch();
+          }}
+        >
+          <label className="visually-hidden" htmlFor="home-search">
+            Search the EOAT Atlas Library
+          </label>
+          <span aria-hidden="true">⌕</span>
+          <input
+            id="home-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => openSearch(query)}
+            placeholder="Enter Tool #, Mold #, Machine #, or EOAT ID…"
+          />
+          <button type="submit" aria-label="Search EOAT Atlas">
+            →
+          </button>
+        </form>
+        <div className="atlas-recents">
+          <h3>Recent Searches</h3>
+          {recents.length ? (
+            <div className="atlas-recent-links">
+              {recents.slice(0, 3).map((item) => (
+                <Link
+                  key={`${item.category}-${item.identifier}`}
+                  to={entityPath(item.category, item.identifier)}
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
-            <div>
-              <dt>API contract</dt>
-              <dd>
-                <StatusValue value={health.data.api_contract_version} />
-              </dd>
-            </div>
-            <div>
-              <dt>Application version</dt>
-              <dd>
-                <StatusValue value={health.data.application_version} />
-              </dd>
-            </div>
-            <div>
-              <dt>Schema compatibility</dt>
-              <dd>
-                {health.data.compatible ? "Compatible" : "Not compatible"}
-              </dd>
-            </div>
-            <div>
-              <dt>Current schema</dt>
-              <dd>
-                <StatusValue value={health.data.current_schema_revision} />
-              </dd>
-            </div>
-            <div>
-              <dt>Writes</dt>
-              <dd>
-                {health.data.writes_enabled ? "Enabled by API" : "Disabled"}
-              </dd>
-            </div>
-          </dl>
-        )}
+          ) : (
+            <p>No recent searches yet</p>
+          )}
+        </div>
       </section>
-      <p className="foundation-note">
-        Profile pages, search, library, and fit checks are registered for direct
-        navigation but intentionally deferred to later phases.
-      </p>
-      <p className="build-note">Web build {__EOAT_WEB_VERSION__}</p>
+      <div className="atlas-data-status" aria-live="polite">
+        <span
+          className={`atlas-status-dot ${dataStatus.isError ? "error" : ""}`}
+        />
+        {dataStatus.isPending
+          ? "Read-only browser · checking API freshness…"
+          : dataStatus.isError
+            ? "Read-only browser · API unavailable · data freshness unknown"
+            : dataStatus.data && staleData
+              ? "Read-only browser · API available · data may be stale · use the shown modification time before relying on this view"
+              : dataStatus.data
+                ? `Read-only browser · API available · data modified ${new Date(dataStatus.data.data_last_modified_at).toLocaleString()} · fetched ${new Date(dataStatus.dataUpdatedAt).toLocaleTimeString()}`
+                : "Read-only browser · data status unavailable"}
+      </div>
     </section>
   );
 }

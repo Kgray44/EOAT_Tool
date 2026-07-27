@@ -216,6 +216,17 @@ async function routeApi(
           },
         ],
       });
+    if (path === "/api/v1/data-status")
+      return route.fulfill({
+        json: {
+          status: "available",
+          data_revision: 7,
+          data_last_modified_at: "2026-07-27T12:00:00Z",
+          server_time: "2026-07-27T12:01:00Z",
+          source: "mysql",
+          environment: "fixture",
+        },
+      });
     if (path === "/api/v1/machines")
       return route.fulfill({
         json: {
@@ -280,23 +291,49 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
   const seen: import("@playwright/test").Request[] = [];
   await routeApi(page, seen);
   await page.goto("/library?type=machine");
-  await expect(page.getByRole("link", { name: /Press 1/ })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Press 1/ }).first(),
+  ).toBeVisible();
   await page.reload();
   await expect(page.getByRole("link", { name: /Press 1/ })).toBeVisible();
-  await page.getByLabel("Search").fill("press");
-  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("textbox", { name: "Search" }).fill("press");
+  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("link", { name: /Press 1/ })).toBeVisible();
   await page.goto("/fit-check?machine=M-1&tool=TOOL-1&eoat=EOAT-1");
   await page.getByRole("button", { name: /Evaluate without saving/ }).click();
   await expect(
     page.getByRole("heading", { name: /compatible/i }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Recent Fit Checks" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect(page.getByRole("combobox", { name: "Machine" })).toHaveValue("");
+  await page.getByRole("button", { name: /Machine M-1/ }).click();
+  await expect(page.getByRole("combobox", { name: "Machine" })).toHaveValue(
+    "M-1",
+  );
+  await expect(page.getByRole("combobox", { name: "Tool" })).toHaveValue(
+    "TOOL-1",
+  );
+  await expect(page.getByRole("combobox", { name: "EOAT" })).toHaveValue(
+    "EOAT-1",
+  );
   await page.goto("/machines/M-1");
   await expect(
     page.getByText(/http:\/\/127\.0\.0\.1:4173\/machines\/M-1/),
   ).toBeVisible();
-  for (const width of [360, 390, 768, 1280]) {
-    await page.setViewportSize({ width, height: 844 });
+  for (const [width, height] of [
+    [1760, 1080],
+    [1440, 900],
+    [1280, 820],
+    [1024, 768],
+    [768, 1024],
+    [430, 932],
+    [390, 844],
+    [360, 800],
+  ]) {
+    await page.setViewportSize({ width, height });
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -309,4 +346,55 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
         request.url().includes("web-fit-checks") && request.method() === "POST",
     ),
   ).toBeTruthy();
+});
+
+test("Mirrorline shell traps overlays, restores Library context, and fades top chrome", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  await page.goto("/library?type=machine&page=1");
+  await page.getByRole("link", { name: /Press 1/ }).click();
+  await expect(page.getByRole("heading", { name: "M-1" })).toBeVisible();
+  await page.getByRole("button", { name: "Back to Library" }).click();
+  await expect(page).toHaveURL(/\/library\?type=machine&page=1/);
+  await expect(
+    page.getByRole("link", { name: /Press 1/ }).first(),
+  ).toBeVisible();
+
+  const menu = page.getByRole("button", { name: "Open navigation menu" });
+  await menu.click();
+  const menuDialog = page.getByRole("dialog", { name: "Atlas navigation" });
+  await expect(menuDialog).toBeVisible();
+  await expect(
+    menuDialog.getByRole("button", { name: "Close navigation menu" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeFocused();
+
+  await page.keyboard.press("Control+k");
+  await expect(
+    page.getByRole("dialog", { name: "Search EOAT Atlas" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("m");
+  const search = page.getByRole("textbox", { name: "Search EOAT Atlas" });
+  await expect(search).toHaveValue("m");
+  await page.waitForTimeout(150);
+  await expect(
+    page
+      .getByRole("dialog", { name: "Search EOAT Atlas" })
+      .getByRole("button", { name: /Press 1/ }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(() => {
+    document.body.style.minHeight = "3000px";
+    window.scrollTo(0, 60);
+  });
+  await expect(page.locator(".atlas-app-shell")).toHaveAttribute(
+    "data-scrolled",
+    "true",
+  );
+  expect(seen.every((request) => request.method() === "GET")).toBeTruthy();
 });

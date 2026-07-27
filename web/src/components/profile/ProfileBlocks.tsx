@@ -75,9 +75,14 @@ export function EntityHeader({
 }) {
   return (
     <header className="profile-header">
-      <p className="eyebrow">Read-only {category} profile</p>
-      <h1>{identifier}</h1>
-      {title && <p className="profile-name">{title}</p>}
+      <div className="profile-medallion" aria-hidden="true">
+        ◇
+      </div>
+      <div className="profile-identity">
+        <p className="eyebrow">Read-only {category} profile</p>
+        <h1>{identifier}</h1>
+        {title && <p className="profile-name">{title}</p>}
+      </div>
       <div
         className="profile-summary"
         aria-label={`${category} critical status`}
@@ -90,6 +95,99 @@ export function EntityHeader({
         ))}
       </div>
     </header>
+  );
+}
+
+type RelationshipNode = {
+  identifier: string;
+  label?: string | null;
+  relationshipType: string;
+  status?: string | null;
+};
+
+function RelationshipNodeList({
+  label,
+  nodes,
+}: {
+  label: string;
+  nodes: RelationshipNode[];
+}) {
+  return (
+    <div className="relationship-flow__column">
+      <span>{label}</span>
+      <div className="relationship-flow__nodes">
+        {nodes.length === 0 ? (
+          <small>No recorded {label.toLowerCase()}</small>
+        ) : (
+          nodes.map((node) => {
+            const path = relationshipPath(
+              node.relationshipType,
+              node.identifier,
+            );
+            const text = node.label || node.identifier;
+            return path ? (
+              <Link
+                key={`${node.relationshipType}-${node.identifier}`}
+                to={path}
+              >
+                <strong>{text}</strong>
+                <small>{node.status || "Current relationship"}</small>
+              </Link>
+            ) : (
+              <div key={`${node.relationshipType}-${node.identifier}`}>
+                <strong>{text}</strong>
+                <small>{node.status || "Current relationship"}</small>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function RelationshipFlow({
+  identifier,
+  category,
+  leftLabel,
+  leftNodes,
+  rightLabel,
+  rightNodes,
+}: {
+  identifier: string;
+  category: string;
+  leftLabel: string;
+  leftNodes: RelationshipNode[];
+  rightLabel: string;
+  rightNodes: RelationshipNode[];
+}) {
+  return (
+    <section className="relationship-flow" aria-label="Relationship overview">
+      <header>
+        <h2>Relationship overview</h2>
+        <p>Current compatibility and assignment context for this profile.</p>
+      </header>
+      <div className="relationship-flow__body">
+        <RelationshipNodeList label={leftLabel} nodes={leftNodes} />
+        <div className="relationship-flow__primary">
+          <span>{category}</span>
+          <strong>{identifier}</strong>
+          <small>Active profile</small>
+        </div>
+        <RelationshipNodeList label={rightLabel} nodes={rightNodes} />
+      </div>
+    </section>
+  );
+}
+
+export function ProfileTabs() {
+  return (
+    <nav className="profile-tabs" aria-label="Profile sections">
+      <a href="#section-overview">Overview</a>
+      <a href="#section-relationships">Relationships</a>
+      <a href="#section-photos">Docs &amp; photos</a>
+      <a href="#section-recent-history">History</a>
+    </nav>
   );
 }
 

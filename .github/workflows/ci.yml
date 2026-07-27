@@ -39,7 +39,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
+        with:
+          fetch-depth: 0
+          # Validate the pushed review head, not GitHub's synthetic PR merge
+          # commit, so the one-bump invariant is evaluated against its parent.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: python scripts/check_version_bump.py --base HEAD~1 | Tee-Object -FilePath version-validation.txt

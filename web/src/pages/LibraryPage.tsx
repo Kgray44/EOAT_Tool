@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { apiClient, type SearchResult } from "@/api/client";
 import { entityPath, type EntityCategory } from "@/api/routes";
 import {
@@ -13,10 +13,16 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/feedback/StateViews";
+import {
+  captureLibraryContext,
+  readLibraryContext,
+  saveLibraryContext,
+} from "@/app/libraryContext";
 
 type Filter = "all" | EntityCategory;
 
 function ResultCard({ result }: { result: SearchResult | RecentItem }) {
+  const location = useLocation();
   const category = result.category as EntityCategory;
   const title = "title" in result ? result.title : result.label;
   const subtitle =
@@ -24,9 +30,24 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
       ? result.subtitle
       : new Date(result.viewedAt).toLocaleDateString();
   return (
-    <Link className="result-card" to={entityPath(category, result.identifier)}>
-      <span>{category}</span>
-      <strong>{title}</strong>
+    <Link
+      className="result-card"
+      to={entityPath(category, result.identifier)}
+      state={{
+        libraryContext: captureLibraryContext(location, result.identifier),
+      }}
+      onClick={() =>
+        saveLibraryContext(captureLibraryContext(location, result.identifier))
+      }
+    >
+      <span className="result-card__media" aria-hidden="true">
+        {category === "eoat" ? "◇" : category === "machine" ? "▣" : "▤"}
+      </span>
+      <span className="result-card__body">
+        <small className="result-card__status">In Service</small>
+        <strong>{title}</strong>
+        <span>{category === "eoat" ? "Vacuum" : category}</span>
+      </span>
       <small>
         {result.identifier}
         {subtitle ? ` · ${subtitle}` : ""}
@@ -36,6 +57,7 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
 }
 
 export function LibraryPage() {
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const query = params.get("q") || "";
   const filter = (params.get("type") || "all") as Filter;
@@ -46,6 +68,14 @@ export function LibraryPage() {
     setDraft(query);
     setRecent(readRecentItems());
   }, [query]);
+  useEffect(() => {
+    const context = readLibraryContext(location.state);
+    if (!context) return;
+    const frame = window.requestAnimationFrame(() =>
+      window.scrollTo(0, context.scrollY),
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.state]);
   const search = useQuery({
     queryKey: ["library", "search", query],
     queryFn: () => apiClient.search(query),
@@ -126,11 +156,10 @@ export function LibraryPage() {
 
   return (
     <section className="library-page">
-      <p className="eyebrow">Discovery</p>
       <h2>Library</h2>
+      <span className="library-title-accent" aria-hidden="true" />
       <p className="lede">
-        Search the authoritative EOAT Atlas catalog. Results and filters remain
-        in this URL.
+        Browse and manage all EOATs, Tools, and Machines in one place.
       </p>
       <form
         className="library-controls"
@@ -161,9 +190,57 @@ export function LibraryPage() {
             <option value="tool">Tools</option>
           </select>
         </label>
+        <label>
+          Status{" "}
+          <select
+            disabled
+            aria-label="Status filtering is unavailable in the browser"
+          >
+            <option>All</option>
+          </select>
+        </label>
+        <label>
+          Location / Machine{" "}
+          <select
+            disabled
+            aria-label="Location filtering is unavailable in the browser"
+          >
+            <option>All</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          className="library-secondary-control"
+          disabled
+          title="Advanced desktop Library filters are unavailable in the read-only browser."
+        >
+          Advanced filters
+        </button>
         <button type="submit">Search</button>
       </form>
-      {!query && recent.length > 0 && (
+      <div className="library-category-rail" aria-label="Library category">
+        {(
+          [
+            ["eoat", "EOATs"],
+            ["tool", "Tools"],
+            ["machine", "Machines"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={filter === value ? "is-active" : ""}
+            aria-pressed={filter === value}
+            onClick={() => update({ type: value, page: "1" })}
+          >
+            <span aria-hidden="true">
+              {value === "eoat" ? "◇" : value === "tool" ? "▤" : "▣"}
+            </span>
+            {label}
+          </button>
+        ))}
+      </div>
+      {!query && filter === "all" && recent.length > 0 && (
         <section className="recent-items" aria-labelledby="recent-title">
           <h3 id="recent-title">Recently viewed on this browser</h3>
           <div className="result-deck">

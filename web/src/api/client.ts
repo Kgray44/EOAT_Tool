@@ -2,6 +2,7 @@ import type { components } from "@/api/generated/types";
 import { ApiError } from "@/api/errors";
 
 export type HealthStatus = components["schemas"]["HealthResult"];
+export type DataStatus = components["schemas"]["DataStatusResponse"];
 export type EoatProfile = components["schemas"]["EOATProfile"];
 export type EoatLocation = components["schemas"]["CurrentEOATLocation"];
 export type EoatRelationship = components["schemas"]["RelationshipSummary"];
@@ -36,6 +37,17 @@ function isHealthStatus(value: unknown): value is HealthStatus {
     typeof result.compatible === "boolean" &&
     typeof result.writes_enabled === "boolean" &&
     typeof result.expected_schema_revision === "string"
+  );
+}
+
+function isDataStatus(value: unknown): value is DataStatus {
+  const result = asRecord(value);
+  return (
+    !!result &&
+    result.status === "available" &&
+    typeof result.data_last_modified_at === "string" &&
+    typeof result.server_time === "string" &&
+    typeof result.data_revision === "number"
   );
 }
 
@@ -132,6 +144,15 @@ export const apiClient = {
       throw new ApiError(
         "malformed-response",
         "EOAT Atlas returned an incomplete health response.",
+      );
+    return payload;
+  },
+  async getDataStatus(fetcher?: typeof fetch): Promise<DataStatus> {
+    const payload = await requestJson("/api/v1/data-status", fetcher);
+    if (!isDataStatus(payload))
+      throw new ApiError(
+        "malformed-response",
+        "EOAT Atlas returned an incomplete data-status response.",
       );
     return payload;
   },

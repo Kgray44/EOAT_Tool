@@ -22,7 +22,8 @@ UNC_PATH = re.compile(rb"\\\\\\\\[A-Za-z0-9][A-Za-z0-9._-]{0,62}\\\\")
 def _run(root: Path, *args: str) -> None:
     result = subprocess.run(list(args), cwd=root, text=True, capture_output=True, check=False)
     if result.returncode:
-        raise DeploymentError(f"web release validation failed: {' '.join(args[:2])}")
+        detail = (result.stderr or result.stdout).strip().replace("\n", " ")[:600]
+        raise DeploymentError(f"web release validation failed: {' '.join(args[:2])}: {detail}")
 
 
 def _sha256(path: Path) -> str:
@@ -31,6 +32,31 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _frontend_release_identity(source: Path, web: Path, dist: Path, commit: str) -> None:
+    """Write build facts into static metadata without making them source truth."""
+    descriptor = dist / "frontend-release.json"
+    try:
+        payload = json.loads(descriptor.read_text(encoding="utf-8")) if descriptor.is_file() else {}
+    except json.JSONDecodeError as exc:
+        raise DeploymentError("frontend release descriptor is invalid") from exc
+    version = json.loads((source / "app" / "atlas" / "version.json").read_text(encoding="utf-8")).get("version")
+    node = subprocess.run(["node", "--version"], text=True, capture_output=True, check=False)
+    if node.returncode:
+        raise DeploymentError("cannot determine Node version for frontend release")
+    payload.update(
+        {
+            "schema": 1,
+            "ui_generation": payload.get("ui_generation", "legacy"),
+            "source_commit": commit,
+            "application_version": version,
+            "node_version": node.stdout.strip(),
+            "package_lock_sha256": _sha256(web / "package-lock.json"),
+            "build_command": "pnpm run build",
+        }
+    )
+    descriptor.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _commit_timestamp(root: Path, commit: str) -> datetime:
@@ -122,7 +148,13 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         after = {path.name: _sha256(path) for path in generated.glob("*") if path.is_file()}
         if before != after:
             raise DeploymentError("generated OpenAPI TypeScript contract is stale")
-        for script in ("format:check", "lint", "typecheck", "test", "test:e2e", "build"):
+        scripts = ["format:check", "lint", "typecheck", "test", "test:e2e", "build"]
+        frontend_release = web / "public" / "frontend-release.json"
+        if frontend_release.is_file():
+            generation = json.loads(frontend_release.read_text(encoding="utf-8")).get("ui_generation")
+            if generation == "mirrorline":
+                scripts.insert(4, "theme:check")
+        for script in scripts:
             _run(web, pnpm, "run", script)
         dist = web / "dist"
         index = dist / "index.html"
@@ -131,6 +163,8 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         files = [path for path in sorted(dist.rglob("*")) if path.is_file()]
         if any(path.suffix == ".map" for path in files):
             raise DeploymentError("web production build contains source maps")
+        _frontend_release_identity(source, web, dist, commit)
+        files = [path for path in sorted(dist.rglob("*")) if path.is_file()]
         forbidden = (b"X-EOAT-Device-Token", b"EOAT_API_DEVICE_TOKEN", b"mysql://")
         if any(token in path.read_bytes() for path in files for token in forbidden) or any(
             UNC_PATH.search(path.read_bytes()) for path in files
