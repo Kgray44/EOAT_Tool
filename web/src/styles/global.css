@@ -139,14 +139,29 @@ a {
 }
 
 .atlas-topbar {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 10;
   height: 106px;
+  margin-bottom: -106px;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--atlas-app-background) 78%, transparent),
     transparent
   );
+  transition:
+    background calc(180ms * var(--atlas-motion-scale)) ease,
+    box-shadow calc(180ms * var(--atlas-motion-scale)) ease,
+    backdrop-filter calc(180ms * var(--atlas-motion-scale)) ease;
+}
+.atlas-app-shell[data-scrolled] .atlas-topbar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--atlas-app-background) 96%, transparent),
+    color-mix(in srgb, var(--atlas-page-background) 72%, transparent)
+  );
+  box-shadow: 0 8px 30px rgb(0 0 0 / 14%);
+  backdrop-filter: blur(16px);
 }
 .atlas-icon-button {
   position: absolute;
@@ -178,8 +193,8 @@ a {
 }
 .atlas-menu-button span {
   display: block;
-  width: 23px;
-  height: 2px;
+  width: 34px;
+  height: 3px;
   background: currentColor;
   border-radius: 2px;
 }
@@ -260,7 +275,7 @@ a {
   width: min(100% - 88px, 1500px);
   min-height: calc(100vh - 162px);
   margin: 0 auto;
-  padding: 24px 0 58px;
+  padding: 140px 0 58px;
 }
 .atlas-footer {
   display: flex;
@@ -286,13 +301,13 @@ a {
 }
 
 .atlas-page-title {
-  margin: 18px auto 31px;
+  margin: 18px auto 82px;
   text-align: center;
 }
 .atlas-page-title h1 {
   margin: 0;
-  font-size: clamp(2.4rem, 4vw, 3.4rem);
-  font-weight: 760;
+  font-size: 2.5rem;
+  font-weight: 420;
   line-height: 1.05;
 }
 .atlas-page-title span {
@@ -312,7 +327,7 @@ a {
 }
 .atlas-home-page {
   position: relative;
-  min-height: 760px;
+  min-height: 874px;
 }
 .atlas-home-card,
 .profile-header,
@@ -349,18 +364,29 @@ a {
 }
 .atlas-home-card {
   width: min(940px, calc(100% - 30px));
-  min-height: 450px;
+  min-height: 536px;
   margin: 0 auto;
   padding: clamp(32px, 5vw, 52px);
-  border-radius: 13px;
+  border-radius: 20px;
+}
+:root[data-atlas-theme="light"] .atlas-home-card {
+  background: linear-gradient(135deg, rgb(16 39 73 / 72%), rgb(36 59 96 / 66%));
+  border-color: rgb(97 146 203 / 48%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 18px 55px rgb(25 50 84 / 22%);
+}
+:root[data-atlas-theme="light"] .atlas-home-search {
+  background: rgb(8 25 51 / 68%);
+  border-color: rgb(122 169 224 / 54%);
 }
 .atlas-home-card h2 {
   margin: 0;
-  font-size: 1.9rem;
-  font-weight: 750;
+  font-size: 2rem;
+  font-weight: 500;
 }
 .atlas-home-card > p {
-  margin: 8px 0 32px;
+  margin: 18px 0 65px;
   color: var(--atlas-text-secondary);
   font-size: 1.05rem;
 }

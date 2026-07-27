@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
   resolvedTheme,
   type BrowserSettings,
 } from "@/app/browserSettings";
+import { readLibraryContext } from "@/app/libraryContext";
 import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
 
 const navigation = [
@@ -29,32 +31,75 @@ function isEditable(target: EventTarget | null) {
   );
 }
 
+function trapFocus(
+  event: KeyboardEvent<HTMLElement>,
+  root: HTMLElement | null,
+) {
+  if (event.key !== "Tab" || !root) return;
+  const focusable = root.querySelectorAll<HTMLElement>(
+    "button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
+  );
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function isActiveNavigation(pathname: string, destination: string) {
+  if (destination === "/library")
+    return (
+      pathname === "/library" || /^\/(eoats|machines|tools)\//.test(pathname)
+    );
+  return pathname === destination;
+}
+
 export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation();
   const navigate = useNavigate();
-  const restoreFocus = useRef<HTMLElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
+  const restoreSearchFocus = useRef<HTMLElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [initialQuery, setInitialQuery] = useState("");
+  const [scrolled, setScrolled] = useState(false);
   const [settings, setSettings] = useState<BrowserSettings>(() =>
     readBrowserSettings(),
   );
   const theme = resolvedTheme(settings.theme);
   const profileRoute = /^\/(eoats|machines|tools)\//.test(location.pathname);
-  const openSearch = (text = "") => {
-    restoreFocus.current =
+
+  const closeMenu = useCallback((restore = true) => {
+    setMenuOpen(false);
+    if (restore) window.setTimeout(() => menuButtonRef.current?.focus(), 0);
+  }, []);
+  const openMenu = useCallback(() => {
+    setSearchOpen(false);
+    setMenuOpen(true);
+    window.setTimeout(
+      () => menuRef.current?.querySelector<HTMLElement>("button")?.focus(),
+      0,
+    );
+  }, []);
+  const openSearch = useCallback((text = "") => {
+    restoreSearchFocus.current =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
     setMenuOpen(false);
     setInitialQuery(text);
     setSearchOpen(true);
-  };
-  const closeSearch = () => {
+  }, []);
+  const closeSearch = useCallback(() => {
     setSearchOpen(false);
-    window.setTimeout(() => restoreFocus.current?.focus(), 0);
-  };
-  const closeMenu = () => setMenuOpen(false);
+    window.setTimeout(() => restoreSearchFocus.current?.focus(), 0);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.atlasTheme = theme;
@@ -83,17 +128,21 @@ export function AppShell({ children }: PropsWithChildren) {
       openSearch((event as CustomEvent<string>).detail || "");
     window.addEventListener("atlas-open-search", handler);
     return () => window.removeEventListener("atlas-open-search", handler);
-  });
+  }, [openSearch]);
   useEffect(() => {
     const handler = () => setSettings(readBrowserSettings());
     window.addEventListener("atlas-settings-changed", handler);
     return () => window.removeEventListener("atlas-settings-changed", handler);
   }, []);
   useEffect(() => {
-    closeMenu();
-    if (searchOpen) closeSearch();
-    // Route changes must not leave an active overlay above a new page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const refresh = () => setScrolled(window.scrollY > 10);
+    refresh();
+    window.addEventListener("scroll", refresh, { passive: true });
+    return () => window.removeEventListener("scroll", refresh);
+  }, []);
+  useEffect(() => {
+    setMenuOpen(false);
+    setSearchOpen(false);
   }, [location.pathname, location.search]);
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
@@ -122,17 +171,27 @@ export function AppShell({ children }: PropsWithChildren) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  });
-  const onOverlayKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeMenu();
+  }, [closeMenu, closeSearch, menuOpen, openSearch, searchOpen]);
+
+  const returnToLibrary = () => {
+    const context = readLibraryContext(location.state);
+    const historyIndex =
+      (window.history.state as { idx?: number } | null)?.idx || 0;
+    if (context && historyIndex > 0) {
+      navigate(-1);
+      return;
     }
+    navigate(`/library${context?.search || ""}`, {
+      replace: true,
+      state: context ? { restoreLibraryContext: context } : undefined,
+    });
   };
+
   return (
     <div
       className="atlas-app-shell"
       data-motion-reduced={settings.reduceMotion || undefined}
+      data-scrolled={scrolled || undefined}
     >
       <a className="skip-link" href="#main-content">
         Skip to content
@@ -144,16 +203,15 @@ export function AppShell({ children }: PropsWithChildren) {
       </div>
       <header className="atlas-topbar">
         <button
+          ref={menuButtonRef}
           className="atlas-icon-button atlas-menu-button"
           type="button"
           aria-label={
             menuOpen ? "Close navigation menu" : "Open navigation menu"
           }
           aria-expanded={menuOpen}
-          onClick={() => {
-            setSearchOpen(false);
-            setMenuOpen((value) => !value);
-          }}
+          aria-haspopup="dialog"
+          onClick={() => (menuOpen ? closeMenu(false) : openMenu())}
         >
           <span />
           <span />
@@ -163,7 +221,7 @@ export function AppShell({ children }: PropsWithChildren) {
           <button
             className="atlas-back-button"
             type="button"
-            onClick={() => navigate("/library")}
+            onClick={returnToLibrary}
           >
             ← Back to Library
           </button>
@@ -182,6 +240,7 @@ export function AppShell({ children }: PropsWithChildren) {
           type="button"
           aria-label={searchOpen ? "Close search" : "Open search"}
           aria-expanded={searchOpen}
+          aria-haspopup="dialog"
           onClick={() => (searchOpen ? closeSearch() : openSearch())}
         >
           <span aria-hidden="true">⌕</span>
@@ -195,41 +254,55 @@ export function AppShell({ children }: PropsWithChildren) {
             if (event.target === event.currentTarget) closeMenu();
           }}
         >
-          <nav
+          <section
+            ref={menuRef}
             className="atlas-menu-overlay"
+            role="dialog"
+            aria-modal="true"
             aria-label="Atlas navigation"
-            onKeyDown={onOverlayKeyDown}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeMenu();
+                return;
+              }
+              trapFocus(event, menuRef.current);
+            }}
           >
             <button
               className="atlas-menu-close"
               type="button"
-              onClick={closeMenu}
+              onClick={() => closeMenu()}
               aria-label="Close navigation menu"
             >
               ×
             </button>
-            {navigation.map(([to, label, icon]) => (
-              <Link
-                key={to}
-                to={to}
-                className={location.pathname === to ? "active" : ""}
-                onClick={closeMenu}
-              >
-                <span aria-hidden="true">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </nav>
+            <nav aria-label="Atlas navigation">
+              {navigation.map(([to, label, icon]) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className={
+                    isActiveNavigation(location.pathname, to) ? "active" : ""
+                  }
+                  aria-current={
+                    isActiveNavigation(location.pathname, to)
+                      ? "page"
+                      : undefined
+                  }
+                  onClick={() => closeMenu(false)}
+                >
+                  <span aria-hidden="true">{icon}</span>
+                  {label}
+                </Link>
+              ))}
+            </nav>
+          </section>
         </div>
       )}
       <main id="main-content" className="atlas-main">
         {children}
       </main>
-      <footer className="atlas-footer">
-        <span className="atlas-status-dot" />
-        Read-only browser interface · Data is authoritative only when confirmed
-        by the EOAT Atlas API.
-      </footer>
       <GlobalSearchOverlay
         open={searchOpen}
         initialQuery={initialQuery}

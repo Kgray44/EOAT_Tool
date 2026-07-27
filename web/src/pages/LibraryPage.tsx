@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { apiClient, type SearchResult } from "@/api/client";
 import { entityPath, type EntityCategory } from "@/api/routes";
 import {
@@ -13,10 +13,16 @@ import {
   ErrorState,
   LoadingState,
 } from "@/components/feedback/StateViews";
+import {
+  captureLibraryContext,
+  readLibraryContext,
+  saveLibraryContext,
+} from "@/app/libraryContext";
 
 type Filter = "all" | EntityCategory;
 
 function ResultCard({ result }: { result: SearchResult | RecentItem }) {
+  const location = useLocation();
   const category = result.category as EntityCategory;
   const title = "title" in result ? result.title : result.label;
   const subtitle =
@@ -24,7 +30,16 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
       ? result.subtitle
       : new Date(result.viewedAt).toLocaleDateString();
   return (
-    <Link className="result-card" to={entityPath(category, result.identifier)}>
+    <Link
+      className="result-card"
+      to={entityPath(category, result.identifier)}
+      state={{
+        libraryContext: captureLibraryContext(location, result.identifier),
+      }}
+      onClick={() =>
+        saveLibraryContext(captureLibraryContext(location, result.identifier))
+      }
+    >
       <span>{category}</span>
       <strong>{title}</strong>
       <small>
@@ -36,6 +51,7 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
 }
 
 export function LibraryPage() {
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const query = params.get("q") || "";
   const filter = (params.get("type") || "all") as Filter;
@@ -46,6 +62,14 @@ export function LibraryPage() {
     setDraft(query);
     setRecent(readRecentItems());
   }, [query]);
+  useEffect(() => {
+    const context = readLibraryContext(location.state);
+    if (!context) return;
+    const frame = window.requestAnimationFrame(() =>
+      window.scrollTo(0, context.scrollY),
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [location.state]);
   const search = useQuery({
     queryKey: ["library", "search", query],
     queryFn: () => apiClient.search(query),

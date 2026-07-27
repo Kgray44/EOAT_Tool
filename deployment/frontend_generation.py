@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,10 @@ from typing import Any
 
 class FrontendGenerationError(RuntimeError):
     pass
+
+
+SELECTIONS = frozenset({"atlas", "legacy"})
+UI_GENERATIONS = frozenset({"mirrorline", "legacy"})
 
 
 def _sha256(path: Path) -> str:
@@ -39,16 +44,27 @@ def _read_registry(path: Path) -> dict[str, Any]:
 
 def _release_path(releases_root: Path, configured: str) -> Path:
     candidate = (releases_root / configured).resolve()
-    if not candidate.is_relative_to(releases_root.resolve()) or not candidate.is_dir() or candidate.is_symlink():
+    if not candidate.is_relative_to(releases_root.resolve()) or not candidate.is_dir() or _is_link_or_reparse(candidate):
         raise FrontendGenerationError("registered frontend release is unsafe or missing")
     return candidate
+
+
+def _is_link_or_reparse(path: Path) -> bool:
+    """Reject Unix links and Windows reparse points, including directory junctions."""
+    if path.is_symlink():
+        return True
+    attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
 def validate_generation(releases_root: Path, registry_path: Path, generation: str) -> dict[str, str]:
     registry = _read_registry(registry_path)
     entry = registry["generations"].get(generation)
-    if generation not in {"atlas", "legacy"} or not isinstance(entry, dict):
+    if generation not in SELECTIONS or not isinstance(entry, dict):
         raise FrontendGenerationError("requested frontend generation is not registered")
+    expected_identity = entry.get("expected_ui_generation")
+    if not isinstance(expected_identity, str) or expected_identity not in UI_GENERATIONS:
+        raise FrontendGenerationError("registered frontend generation has no valid expected UI identity")
     release = _release_path(releases_root, str(entry.get("release_directory") or ""))
     descriptor_path = release / "frontend-release.json"
     manifest_path = release / "web-static.manifest.json"
@@ -57,7 +73,8 @@ def validate_generation(releases_root: Path, registry_path: Path, generation: st
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise FrontendGenerationError("registered frontend release has invalid metadata") from exc
-    if descriptor.get("ui_generation") != generation or not isinstance(manifest, dict):
+    descriptor_identity = descriptor.get("ui_generation")
+    if descriptor_identity not in UI_GENERATIONS or descriptor_identity != expected_identity or not isinstance(manifest, dict):
         raise FrontendGenerationError("registered frontend generation identity is invalid")
     actual = {
         item.relative_to(release).as_posix(): _sha256(item)
@@ -78,7 +95,9 @@ def select_generation(releases_root: Path, registry_path: Path, generation: str,
     if dry_run:
         return {**verified, "activated": "false"}
     current = releases_root / "current"
-    temporary = Path(tempfile.mkstemp(prefix=".current-", dir=releases_root)[1])
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".current-", dir=releases_root)
+    os.close(descriptor)
+    temporary = Path(temporary_name)
     try:
         temporary.unlink()
         relative = os.path.relpath(verified["release"], releases_root)

@@ -28,18 +28,25 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     setQuery(initialQuery);
-    setDebouncedQuery(initialQuery);
+    setDebouncedQuery("");
     setHighlight(0);
     setRecents(readRecentItems());
     window.setTimeout(() => inputRef.current?.focus(), 0);
   }, [initialQuery, open]);
 
   useEffect(() => {
+    if (!open) return;
     const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 125);
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [open, query]);
 
   const results = search.data || [];
+  const resultIdentity = results
+    .map((result) => `${result.category}:${result.identifier}`)
+    .join("|");
+  useEffect(() => {
+    setHighlight(0);
+  }, [debouncedQuery, resultIdentity, results.length]);
   const openResult = (result: SearchResult) => {
     const category = result.category as EntityCategory;
     rememberItem({
@@ -53,6 +60,16 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
   const openRecent = (category: EntityCategory, identifier: string) => {
     onClose();
     navigate(entityPath(category, identifier));
+  };
+  const openHighlightedOrExact = () => {
+    const normalized = query.trim().toLocaleLowerCase();
+    const exact = results.find(
+      (result) =>
+        result.identifier.toLocaleLowerCase() === normalized ||
+        result.title.toLocaleLowerCase() === normalized,
+    );
+    if (exact) openResult(exact);
+    else if (results[highlight]) openResult(results[highlight]);
   };
   const trapFocus = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Tab") return;
@@ -114,9 +131,9 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
                   (value) => (value - 1 + results.length) % results.length,
                 );
               }
-              if (event.key === "Enter" && results[highlight]) {
+              if (event.key === "Enter" && results.length) {
                 event.preventDefault();
-                openResult(results[highlight]);
+                openHighlightedOrExact();
               }
             }}
           />
@@ -124,6 +141,11 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
         </div>
         {query.trim() ? (
           <div className="atlas-search-results" aria-live="polite">
+            {!search.isPending && !search.isError && (
+              <p className="visually-hidden">
+                {results.length} search results available.
+              </p>
+            )}
             {search.isPending && (
               <p className="atlas-empty">
                 Searching the authoritative catalog…

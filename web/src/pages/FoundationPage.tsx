@@ -8,9 +8,9 @@ import { readRecentItems } from "@/api/recent";
 export function FoundationPage() {
   const [query, setQuery] = useState("");
   const recents = readRecentItems();
-  const health = useQuery({
-    queryKey: ["health"],
-    queryFn: () => apiClient.getHealth(),
+  const dataStatus = useQuery({
+    queryKey: ["data-status"],
+    queryFn: () => apiClient.getDataStatus(),
   });
   const openSearch = (value = query) =>
     window.dispatchEvent(
@@ -66,14 +66,16 @@ export function FoundationPage() {
         </div>
       </section>
       <div className="atlas-data-status" aria-live="polite">
-        <span className={`atlas-status-dot ${health.isError ? "error" : ""}`} />
-        {health.isPending
-          ? "Checking EOAT Atlas data…"
-          : health.isError
-            ? "EOAT Atlas API unavailable"
-            : health.data
-              ? `API connected · Version ${health.data.application_version} · Writes ${health.data.writes_enabled ? "enabled" : "disabled"}`
-              : "Data status unavailable"}
+        <span
+          className={`atlas-status-dot ${dataStatus.isError ? "error" : ""}`}
+        />
+        {dataStatus.isPending
+          ? "Read-only browser · checking API freshness…"
+          : dataStatus.isError
+            ? "Read-only browser · API unavailable · data freshness unknown"
+            : dataStatus.data
+              ? `Read-only browser · API available · data modified ${new Date(dataStatus.data.data_last_modified_at).toLocaleString()} · fetched ${new Date(dataStatus.dataUpdatedAt).toLocaleTimeString()}`
+              : "Read-only browser · data status unavailable"}
       </div>
     </section>
   );
