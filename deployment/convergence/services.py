@@ -17,10 +17,12 @@ from typing import Any, Protocol
 from deployment.common import (
     CheckStatus,
     DeploymentError,
+    read_json_object,
     redact_text,
     sha256_file,
     utc_now,
     utc_text,
+    write_json_atomic,
 )
 from deployment.convergence.artifacts import (
     build_web_package,
@@ -76,6 +78,7 @@ from .models import (
 )
 from .receipts import ReceiptStore
 from .release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
+from .sealing import revalidate_candidate, seal_candidate, signing_material_from_environment, verify_signed_release_set
 
 _PINNED_PNPM = re.compile(r"^pnpm@(?P<version>[0-9][0-9A-Za-z.+-]*)$")
 _PRODUCTION_HOSTS = {"eoat-atlas.gwplastics.com", "eoat-atlas-prod"}
@@ -1044,6 +1047,64 @@ class ReleaseDeploymentService:
         if blocked:
             return OperationResult(Status.BLOCKED, "Platform artifact verification is incomplete.", "Attach a validated Windows artifact bundle.", data={"blocking_components": blocked})
         return OperationResult(Status.PASS, "Attached Windows platform artifacts remain identity-valid.", str(candidate.get("next_safe_action")), data={"missing_components": candidate["missing_components"]})
+
+    def verify_candidate_for_sealing(self, candidate_id: str) -> OperationResult:
+        """Independently reopen the complete candidate inventory before sealing."""
+
+        receipt = self.store.read("candidate", candidate_id)
+        candidate_root = self.store.root / "candidates" / candidate_id
+        release_set, evidence = revalidate_candidate(candidate_root, receipt, self.root)
+        return OperationResult(
+            Status.PASS,
+            "Candidate components, source bundle, and accepted smoke evidence are ready for sealing.",
+            "Seal the release set with an explicit candidate confirmation.",
+            data={"candidate_id": candidate_id, "canonical_digest": release_set.digest(), "evidence": evidence},
+        )
+
+    def seal_release_set(self, candidate_id: str, confirmation: str) -> OperationResult:
+        """Atomically create and verify the non-production sealed release set."""
+
+        if confirmation != f"SEAL {candidate_id}":
+            raise DeploymentError("sealing requires the exact confirmation: SEAL <candidate-id>")
+        receipt = self.store.read("candidate", candidate_id)
+        candidate_root = self.store.root / "candidates" / candidate_id
+        try:
+            key_id, private_key, trusted, revoked = signing_material_from_environment()
+            updated, sealing_receipt = seal_candidate(
+                candidate_root, receipt, self.root, key_id=key_id, private_key=private_key,
+                trusted_public_keys=trusted, revoked_key_ids=revoked,
+            )
+        except Exception as exc:
+            failure = candidate_root / "receipts" / f"sealing-failure-{utc_text().replace(':', '')}.json"
+            write_json_atomic(failure, {"schema_version": 1, "candidate_id": candidate_id, "status": "BLOCKED", "detail": redact_text(str(exc)), "next_safe_action": "Correct the immutable candidate inputs and retry sealing."})
+            raise
+        sealing_path = candidate_root / "receipts" / f"sealing-{utc_text().replace(':', '')}.json"
+        write_json_atomic(sealing_path, sealing_receipt)
+        updated["sealing_receipt_path"] = candidate_locator(candidate_root, sealing_path)
+        receipt_path = self.store.write("candidate", candidate_id, updated)
+        return OperationResult(
+            Status.PASS,
+            "Release-set manifest and detached signature were sealed and trusted using non-production material.",
+            "Phase 1C publication verification.",
+            data={"candidate_id": candidate_id, "canonical_digest": updated["release_set_digest"], "manifest": updated["release_set_manifest_path"], "signature": updated["release_set_signature"], "receipt_path": str(receipt_path), "publication_eligible": True},
+        )
+
+    def verify_sealed_release_set(self, candidate_id: str) -> OperationResult:
+        receipt = self.store.read("candidate", candidate_id)
+        if receipt.get("state") != "RELEASE_SET_VALIDATED" or not receipt.get("publication_eligible"):
+            raise DeploymentError("candidate is not a sealed publication-eligible release set")
+        candidate_root = self.store.root / "candidates" / candidate_id
+        manifest = read_json_object(candidate_root / str(receipt["release_set_manifest_path"]))
+        signature_record = dict(receipt.get("release_set_signature") or {})
+        signature = read_json_object(candidate_root / str(signature_record.get("path") or ""))
+        key_id, _private, trusted, revoked = signing_material_from_environment()
+        if signature.get("key_id") != key_id:
+            raise DeploymentError("configured trust key does not match sealed signature key")
+        verify_signed_release_set(
+            {"release_set": manifest.get("canonical_payload"), "canonical_digest": manifest.get("canonical_payload_sha256"), "signature": {"key_id": signature.get("key_id"), "algorithm": signature.get("algorithm"), "signature": signature.get("signature")}},
+            trusted_public_keys=trusted, revoked_key_ids=revoked,
+        )
+        return OperationResult(Status.PASS, "Sealed release-set manifest and detached signature verify with the trusted non-revoked key.", "Phase 1C publication verification.", data={"candidate_id": candidate_id, "canonical_digest": receipt.get("release_set_digest"), "key_id": key_id, "publication_eligible": True})
 
     def candidates(self) -> OperationResult:
         return OperationResult(

@@ -214,6 +214,7 @@ def attach_platform_artifacts(candidate_root: Path, candidate: dict[str, Any], a
         staging = candidate_root / "attachment-staging" / f"{utc_text().replace(':', '').replace('+', '')}"
         staging.mkdir(parents=True, exist_ok=False)
         try:
+            support_targets: dict[tuple[str, str], tuple[Path, Path]] = {}
             for component in components:
                 current = declared.get(component.kind)
                 if current is None:
@@ -232,6 +233,20 @@ def attach_platform_artifacts(candidate_root: Path, candidate: dict[str, Any], a
                 shutil.copy2(source, staged)
                 if staged.stat().st_size != component.size_bytes or sha256_file(staged) != component.sha256:
                     raise DeploymentError("attachment changed while staging")
+                # Retain the supporting evidence with the package, rather
+                # than depending on a transient CI download during Phase 1B-3
+                # revalidation.  These paths never become absolute release
+                # identity and are revalidated after promotion.
+                for label, locator in (("metadata", component.metadata), ("package_manifest", component.package_manifest), ("smoke_receipt", component.smoke_receipt)):
+                    if not locator:
+                        continue
+                    source_support = root / _safe_relative(locator)
+                    if not source_support.is_file():
+                        raise DeploymentError("attachment supporting evidence is missing")
+                    staged_support = staging / f"{component.kind}-{label}.part"
+                    shutil.copy2(source_support, staged_support)
+                    destination = candidate_root / "platform" / "windows" / component.kind / source_support.name
+                    support_targets[(component.kind, label)] = (staged_support, destination)
             # Promote only after *all* bytes validate. os.replace is atomic per
             # file; the receipt is written last and is the visibility gate.
             for component in components:
@@ -245,12 +260,25 @@ def attach_platform_artifacts(candidate_root: Path, candidate: dict[str, Any], a
                     raise DeploymentError("immutable candidate locator already contains conflicting bytes")
                 if not target.exists():
                     os_replace(staged, target)
+                retained_metadata: dict[str, str] = {"attachment_manifest_sha256": sha256_file(root / "attachment-manifest.json"), "attachment_artifact": component.artifact}
+                for label in ("metadata", "package_manifest", "smoke_receipt"):
+                    retained = support_targets.get((component.kind, label))
+                    if retained is None:
+                        continue
+                    staged_support, destination = retained
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    if destination.exists() and sha256_file(destination) != sha256_file(staged_support):
+                        raise DeploymentError("immutable candidate support evidence conflicts with attachment")
+                    if not destination.exists():
+                        os_replace(staged_support, destination)
+                    retained_metadata[f"{label}_locator"] = candidate_locator(candidate_root, destination)
+                    retained_metadata[f"{label}_sha256"] = sha256_file(destination)
                 current.update({
                     "disposition": "BUILT", "artifact_filename": target.name,
                     "artifact_locator": candidate_locator(candidate_root, target), "size_bytes": component.size_bytes,
                     "sha256": component.sha256, "media_type": "application/json" if component.kind.endswith("manifest") else "application/zip",
                     "validation_status": "PASS", "smoke_test_status": "PASS" if component.smoke_receipt else "NOT_APPLICABLE",
-                    "metadata": {"attachment_manifest_sha256": sha256_file(root / "attachment-manifest.json"), "attachment_artifact": component.artifact},
+                    "metadata": retained_metadata,
                 })
             working["components"] = list(declared.values())
             candidate["working_release_set"] = working

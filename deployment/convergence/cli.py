@@ -46,10 +46,15 @@ def _candidate_commands(commands: argparse._SubParsersAction[Any]) -> None:
         ("build-core-artifacts", "Validate retained server, web, bundle, and release-note artifacts"),
         ("verify-core-artifacts", "Revalidate retained immutable core artifacts"),
         ("verify-platform-artifacts", "Verify attached Windows component inventory"),
+        ("verify-for-sealing", "Independently revalidate the complete candidate before sealing"),
+        ("verify-sealed-release-set", "Verify a sealed release-set manifest and detached signature"),
         ("show-components", "Show explicit schema-2 component inventory"),
     ):
         child = actions.add_parser(name, help=help_text)
         child.add_argument("candidate_id")
+    seal = actions.add_parser("seal-release-set", help="Seal a complete candidate with non-production signing material")
+    seal.add_argument("candidate_id")
+    seal.add_argument("--confirm", required=True, help="Exact confirmation: SEAL <candidate-id>")
     inspect_attachment = actions.add_parser("inspect-platform-attachment", help="Inspect an identity-bound Windows attachment")
     inspect_attachment.add_argument("candidate_id")
     inspect_attachment.add_argument("attachment", type=Path)
@@ -170,6 +175,12 @@ def main(argv: list[str] | None = None) -> int:
                 result = service.attach_platform_artifacts(args.candidate_id, args.attachment)
             elif args.candidate_command == "verify-platform-artifacts":
                 result = service.verify_platform_artifacts(args.candidate_id)
+            elif args.candidate_command == "verify-for-sealing":
+                result = service.verify_candidate_for_sealing(args.candidate_id)
+            elif args.candidate_command == "seal-release-set":
+                result = service.seal_release_set(args.candidate_id, args.confirm)
+            elif args.candidate_command == "verify-sealed-release-set":
+                result = service.verify_sealed_release_set(args.candidate_id)
             elif args.candidate_command == "show-components":
                 receipt = service.candidate(args.candidate_id)
                 result = {"candidate_id": args.candidate_id, "components": (receipt.get("working_release_set") or {}).get("components", []), "missing_components": service.store.candidate_representation(args.candidate_id).get("missing_components", [])}

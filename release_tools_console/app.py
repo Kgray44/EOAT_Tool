@@ -123,11 +123,14 @@ class ReleaseDeploymentConsole(QMainWindow):
         self.attachment_path.setAccessibleName("Windows platform attachment path")
         self.component_summary = QLabel("No component inventory loaded")
         self.component_summary.setWordWrap(True)
+        self.sealing_summary = QLabel("Sealing readiness: NOT RUN")
+        self.sealing_summary.setWordWrap(True)
         layout.addRow("Increment", self.bump)
         layout.addRow("Explicit version (advanced)", self.explicit_version)
         layout.addRow("Candidate ID", self.candidate_id)
         layout.addRow("Windows attachment", self.attachment_path)
         layout.addRow("Component inventory", self.component_summary)
+        layout.addRow("Sealing readiness", self.sealing_summary)
         layout.addRow(self._button("Rehearse candidate", "Run dry-run candidate rehearsal", self._rehearse))
         self.prepare = self._button("Prepare immutable candidate", "Prepare immutable release candidate", self._prepare)
         layout.addRow(self.prepare)
@@ -136,6 +139,9 @@ class ReleaseDeploymentConsole(QMainWindow):
         layout.addRow(self._button("Inspect Windows Attachment", "Inspect Windows artifact attachment", self._inspect_attachment))
         layout.addRow(self._button("Attach Platform Artifacts", "Attach validated Windows artifacts", self._attach_platform_artifacts))
         layout.addRow(self._button("Verify Attached Artifacts", "Verify attached Windows artifacts", self._verify_platform_artifacts))
+        layout.addRow(self._button("Verify Candidate for Sealing", "Revalidate candidate before sealing", self._verify_for_sealing))
+        layout.addRow(self._button("Seal Release Set", "Seal release set with explicit confirmation", self._seal_release_set))
+        layout.addRow(self._button("Verify Signature", "Verify sealed release-set signature", self._verify_sealed_release_set))
         layout.addRow(self._button("Show Candidate Components", "Show candidate component inventory", self._show_components))
         layout.addRow(
             self._button(
@@ -290,6 +296,18 @@ class ReleaseDeploymentConsole(QMainWindow):
     def _verify_platform_artifacts(self) -> None:
         self._start("platform-verify", lambda: self.service.verify_platform_artifacts(self.candidate_id.text()))
 
+    def _verify_for_sealing(self) -> None:
+        self._start("sealing-verify", lambda: self.service.verify_candidate_for_sealing(self.candidate_id.text()))
+
+    def _seal_release_set(self) -> None:
+        candidate = self.candidate_id.text()
+        confirmation, accepted = self._typed_confirmation("Seal Release Set", f"Type exactly: SEAL {candidate}")
+        if accepted:
+            self._start("sealing", lambda: self.service.seal_release_set(candidate, confirmation))
+
+    def _verify_sealed_release_set(self) -> None:
+        self._start("sealing-signature", lambda: self.service.verify_sealed_release_set(self.candidate_id.text()))
+
     def _show_components(self) -> None:
         self._start("components", lambda: self.service.candidate(self.candidate_id.text()))
 
@@ -386,13 +404,17 @@ class ReleaseDeploymentConsole(QMainWindow):
             self.candidate_card.setText(
                 f"{candidate.get('state')} | {candidate.get('version')} | {candidate.get('artifact_sha256', '')[:12]}"
             )
-        elif name in {"core-build", "core-verify", "attachment-inspect", "attachment-attach", "platform-verify", "components"}:
+        elif name in {"core-build", "core-verify", "attachment-inspect", "attachment-attach", "platform-verify", "components", "sealing-verify", "sealing", "sealing-signature"}:
             receipt = self.service.candidate(self.candidate_id.text()) if self.candidate_id.text() else {}
             working = receipt.get("working_release_set") or {}
             components = working.get("components") or []
             pending = [str(item.get("kind")) for item in components if isinstance(item, dict) and item.get("disposition") == "PENDING"]
             self.component_summary.setText(f"{len(components)} components; pending: {', '.join(sorted(pending)) or 'none'}")
             self.candidate_card.setText(f"{receipt.get('state', 'UNKNOWN')} | publication eligible: {receipt.get('publication_eligible', False)}")
+            if name.startswith("sealing"):
+                self.sealing_summary.setText(
+                    f"digest: {data.get('canonical_digest', receipt.get('release_set_digest', 'pending'))} | key: {data.get('key_id', (receipt.get('release_set_signature') or {}).get('key_id', 'pending'))}"
+                )
         elif name == "inventory":
             releases = data.get("releases", [])
             self.inventory_table.setRowCount(len(releases))
