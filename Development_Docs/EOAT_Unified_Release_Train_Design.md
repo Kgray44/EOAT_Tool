@@ -86,3 +86,30 @@ identities, unknown drift, unsafe archives, invalid signatures, and incomplete
 release sets block the relevant transition.  Browser HTML/release metadata will
 not be cache-immutable; content-hashed assets can be immutable.  A web/API
 mismatch allows one controlled reload and otherwise blocks ordinary operation.
+
+## Continuation gap inventory (2026-07-27)
+
+The initial foundation is deliberately not a completed release train.  The
+convergence service still persists a schema-1, single-server-artifact candidate
+record; publication, release inventory, deployment planning, and the console
+therefore cannot yet require the signed release-set digest.  Candidate
+preparation also does not yet construct desktop, launcher, or bootstrap
+artifacts from one candidate commit.
+
+There is no bootstrap executable, immutable launcher-version store, launcher
+self-update policy, shortcut migration, or launcher smoke receipt.  The
+launcher has a signed desktop transaction when configured, but offline policy,
+post-launch health rollback, retention, and installer-provisioned policy remain
+unfinished.
+
+`/api/v1/release-status` now exposes safe identity facts, but server/web
+activation does not yet verify a shared release set or switch both targets as
+one rollbackable transaction.  The frontend does not yet embed full identity or
+block stale browser assets after one controlled reload.  The desktop does not
+yet enforce the release-status contract before enabling connected operation.
+
+Candidate/canary/stable signed promotion, a drift scanner, console actions,
+disposable MySQL coverage, built bootstrap/launcher tests, a black-box release
+train, the required CI jobs, and the final completion report remain open.  No
+open item may be reported as production-ready without its corresponding real
+test evidence.
