@@ -121,7 +121,14 @@ class ReceiptStore:
             required = {"candidate_id", "working_release_set", "candidate_commit", "candidate_tree", "bundle_path", "bundle_sha256"}
             if not required <= payload.keys():
                 raise DeploymentError("malformed unsigned schema-2 candidate receipt")
-            return {**payload, "receipt_compatibility": "SCHEMA_2_UNSIGNED", "publication_eligible": False, "missing_components": ["desktop", "launcher"]}
+            working = payload.get("working_release_set", {})
+            components = working.get("components", []) if isinstance(working, dict) else []
+            missing = sorted(
+                str(component.get("kind"))
+                for component in components
+                if isinstance(component, dict) and component.get("disposition") == "PENDING"
+            )
+            return {**payload, "receipt_compatibility": "SCHEMA_2_UNSIGNED", "publication_eligible": False, "missing_components": missing}
         required = {
             "candidate_id", "state", "release_set", "release_set_manifest_path", "release_set_manifest_sha256",
             "release_set_signature", "candidate_commit", "candidate_tree", "bundle_path", "bundle_sha256",

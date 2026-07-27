@@ -785,9 +785,16 @@ class ReleaseDeploymentService:
                 components.append(item(kind, ArtifactDisposition.BUILT, path=Path(candidate.bundle_path)))
             elif kind in {ComponentKind.RELEASE_SET_MANIFEST, ComponentKind.RELEASE_SET_SIGNATURE}:
                 components.append(item(kind, ArtifactDisposition.PENDING, reason="Created only by explicit final release-set sealing."))
+            elif kind in {ComponentKind.BOOTSTRAP, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST}:
+                components.append(
+                    item(
+                        kind,
+                        ArtifactDisposition.NOT_APPLICABLE,
+                        reason="Bootstrap implementation is owned by Unified Release Train Phase 2.",
+                    )
+                )
             else:
-                reason = "Bootstrap executable is introduced in Unified Release Train Phase 2." if kind in {ComponentKind.BOOTSTRAP, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST} else "Required platform artifact is pending validated Windows build attachment."
-                components.append(item(kind, ArtifactDisposition.PENDING, reason=reason))
+                components.append(item(kind, ArtifactDisposition.PENDING, reason="Required platform artifact is pending validated Windows build attachment."))
         release_set = SignedReleaseSet(
             identity, tuple(components), str(core["api_contract_version"]), str(core["database"]["target_revision"]),
             "UNKNOWN", "0.0.0", "0.0.0", "0.0.0", ("server archive validated",),

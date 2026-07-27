@@ -53,6 +53,23 @@ def test_candidate_receipt_schema_compatibility_is_truthful(tmp_path: Path) -> N
         store.candidate_representation("candidate-future")
 
 
+def test_unsigned_candidate_derives_pending_components_and_keeps_bootstrap_not_applicable(tmp_path: Path) -> None:
+    store = ReceiptStore(tmp_path)
+    store.write(
+        "candidate", "candidate-working", {
+            "schema_version": 2, "candidate_id": "candidate-working", "state": "PLATFORM_ARTIFACTS_PENDING",
+            "candidate_commit": "a" * 40, "candidate_tree": "b" * 40, "bundle_path": "candidate.bundle", "bundle_sha256": "c" * 64,
+            "working_release_set": {"components": [
+                {"kind": "desktop", "disposition": "PENDING"},
+                {"kind": "launcher", "disposition": "PENDING"},
+                {"kind": "bootstrap", "disposition": "NOT_APPLICABLE", "not_applicable_justification": "Phase 2"},
+            ]},
+        },
+    )
+    candidate = store.candidate_representation("candidate-working")
+    assert candidate["missing_components"] == ["desktop", "launcher"]
+
+
 def test_deployment_plan_is_truthful_for_unknown_required_and_no_migration(tmp_path: Path) -> None:
     service = ReleaseDeploymentService(tmp_path)
 
