@@ -23,7 +23,8 @@ UNC_PATH = re.compile(rb"\\\\\\\\[A-Za-z0-9][A-Za-z0-9._-]{0,62}\\\\")
 def _run(root: Path, *args: str) -> None:
     result = subprocess.run(list(args), cwd=root, text=True, capture_output=True, check=False)
     if result.returncode:
-        detail = ((result.stdout or "") + "\n" + (result.stderr or "")).strip().replace("\r", " ").replace("\n", " ")[-1200:]
+        raw = ((result.stdout or "") + "\n" + (result.stderr or "")).strip().replace("\r", " ").replace("\n", " ")
+        detail = raw if len(raw) <= 3800 else raw[:1900] + " ... " + raw[-1900:]
         raise DeploymentError(f"web release validation failed: {' '.join(args[:2])}: {detail or 'no diagnostic output'}")
 
 
