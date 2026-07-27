@@ -40,8 +40,14 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
         saveLibraryContext(captureLibraryContext(location, result.identifier))
       }
     >
-      <span>{category}</span>
-      <strong>{title}</strong>
+      <span className="result-card__media" aria-hidden="true">
+        {category === "eoat" ? "◇" : category === "machine" ? "▣" : "▤"}
+      </span>
+      <span className="result-card__body">
+        <small className="result-card__status">In Service</small>
+        <strong>{title}</strong>
+        <span>{category === "eoat" ? "Vacuum" : category}</span>
+      </span>
       <small>
         {result.identifier}
         {subtitle ? ` · ${subtitle}` : ""}
@@ -150,11 +156,10 @@ export function LibraryPage() {
 
   return (
     <section className="library-page">
-      <p className="eyebrow">Discovery</p>
       <h2>Library</h2>
+      <span className="library-title-accent" aria-hidden="true" />
       <p className="lede">
-        Search the authoritative EOAT Atlas catalog. Results and filters remain
-        in this URL.
+        Browse and manage all EOATs, Tools, and Machines in one place.
       </p>
       <form
         className="library-controls"
@@ -185,8 +190,56 @@ export function LibraryPage() {
             <option value="tool">Tools</option>
           </select>
         </label>
+        <label>
+          Status{" "}
+          <select
+            disabled
+            aria-label="Status filtering is unavailable in the browser"
+          >
+            <option>All</option>
+          </select>
+        </label>
+        <label>
+          Location / Machine{" "}
+          <select
+            disabled
+            aria-label="Location filtering is unavailable in the browser"
+          >
+            <option>All</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          className="library-secondary-control"
+          disabled
+          title="Advanced desktop Library filters are unavailable in the read-only browser."
+        >
+          Advanced filters
+        </button>
         <button type="submit">Search</button>
       </form>
+      <div className="library-category-rail" aria-label="Library category">
+        {(
+          [
+            ["eoat", "EOATs"],
+            ["tool", "Tools"],
+            ["machine", "Machines"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={filter === value ? "is-active" : ""}
+            aria-pressed={filter === value}
+            onClick={() => update({ type: value, page: "1" })}
+          >
+            <span aria-hidden="true">
+              {value === "eoat" ? "◇" : value === "tool" ? "▤" : "▣"}
+            </span>
+            {label}
+          </button>
+        ))}
+      </div>
       {!query && recent.length > 0 && (
         <section className="recent-items" aria-labelledby="recent-title">
           <h3 id="recent-title">Recently viewed on this browser</h3>

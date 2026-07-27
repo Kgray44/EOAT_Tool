@@ -7,13 +7,13 @@ API and must never reproduce compatibility decisions or hold credentials.
 
 ## Acceptance state
 
-**Current state: implementation candidate, not an accepted or deployed
-release.** The canonical application version remains `0.22.12` while this
-branch completes its deterministic convergence gates. The intended acceptance
-version is `0.23.0`; it must be created once through the repository's version
-finalization workflow only after the evidence below passes. This is required
-by the canonical ledger policy: `release_history.json` records finalized
-versions only and its latest entry must equal `app/atlas/version.json`.
+**Current state: Phase 2 acceptance-complete on the Project Mirrorline review
+branch, not deployed.** The canonical application version is `0.23.0` after
+the deterministic convergence gates and final evidence review passed. This
+does not authorize a mainline merge, a deployment, API writes, MySQL changes,
+or production activity. The canonical ledger records the finalized application
+version only; a separately authorized host transaction is still required to
+activate any generated artifact.
 
 The states are deliberately separate:
 
@@ -48,21 +48,21 @@ OutCubic/320ms transitions translated to CSS.
 
 | Desktop surface/state | Browser route/component | Status | Evidence / intentional difference |
 | --- | --- | --- | --- |
-| Home, atmospheric shell, title accent, Get Started card | `/`, `FoundationPage` | Implemented, focused validation | 1760px desktop geometry translated responsively; API state remains truthful. |
+| Home, atmospheric shell, title accent, Get Started card | `/`, `FoundationPage` | Complete, visual + focused validation | 1760px desktop geometry translated responsively; API state remains truthful. |
 | Hamburger menu, active page, outside/Escape close | `AppShell` menu overlay | Implemented, unit + Playwright coverage | Browser uses semantic navigation and focusable links. |
 | Global command/entity search | `GlobalSearchOverlay` | Implemented, focused unit coverage | Browser limits results to API entities; desktop-only commands/reports remain unavailable. |
 | Home contextual search | Home search dispatches global overlay | Implemented | Same 125ms debounce and exact entity route activation. |
-| Library and retained filters | `/library` | Existing behavior restyled, regression covered | URL query/filter context survives direct navigation; scroll restoration remains a follow-up visual gate. |
-| EOAT profile | `/eoats/:identifier` | Existing behavior restyled, regression covered | Browser-safe document/photo routes only; desktop filesystem metadata remains excluded. |
-| Machine profile | `/machines/:number` | Existing behavior restyled, regression covered | Browser-safe media only. |
-| Tool profile | `/tools/:identifier` | Existing behavior restyled, regression covered | Browser-safe media only. |
-| Fit Check | `/fit-check` | Existing behavior restyled, regression covered | Uses the authoritative non-persisting API endpoint only. |
-| Settings: display/accessibility | `/settings` | Implemented | Theme, accent, animation, reduced motion, and contrast are browser-local. |
+| Library and retained filters | `/library` | Complete, visual + regression coverage | URL query/filter context and scroll restoration survive profile navigation. |
+| EOAT profile | `/eoats/:identifier` | Complete, visual + regression coverage | Browser-safe document/photo routes only; desktop filesystem metadata remains excluded. |
+| Machine profile | `/machines/:number` | Complete, visual + regression coverage | Browser-safe media only. |
+| Tool profile | `/tools/:identifier` | Complete, visual + regression coverage | Browser-safe media only. |
+| Fit Check | `/fit-check` | Complete, visual + regression coverage | Uses the authoritative non-persisting API endpoint only. |
+| Settings: display/accessibility | `/settings` | Complete | Theme, accent, animation, reduced motion, and contrast are browser-local and persist only in browser storage. |
 | Settings: privileged/data-source/file controls | `/settings` | Intentional safe exception | Clearly unavailable; no browser simulation or write path. |
 | Setup packet, standards/work instructions, data health | Desktop-only command/profile surfaces | Intentional safe exception | Browser preserves profile facts but does not fabricate filesystem-dependent exports or privileged workflows. |
-| Loading, empty, malformed, unavailable, unauthorized, not found | existing `StateViews`, API client | Regression covered | API client preserves typed failures; no invented success state. |
-| Dark/light/system/reduced motion | shell settings + generated tokens | Implemented, focused validation | System follows the browser media preference. |
-| Responsive viewports | global styles and existing Playwright suite | Partial validation | Existing responsive test passes; governed visual capture comparison remains required before release acceptance. |
+| Loading, empty, malformed, unavailable, unauthorized, not found | existing `StateViews`, API client | Complete, visual + regression coverage | API client preserves typed failures; no invented success state. |
+| Dark/light/system/reduced motion | shell settings + generated tokens | Complete, focused validation | System follows the browser media preference; contrast and reduced motion use persistent, local-only preferences. |
+| Responsive viewports | global styles and existing Playwright suite | Complete, desktop and responsive validation | Tested at 360, 390, 768, and 1280px without horizontal overflow. |
 
 Do not label a row complete until its cited evidence is current. Qt and browser
 font rasterization can differ; that is not permission to hide layout defects.
@@ -130,7 +130,7 @@ $env:EOAT_MIRRORLINE_VISUAL_EVIDENCE = $evidence
 Set-Location web
 pnpm exec playwright test tests/e2e/mirrorline-visual-capture.spec.ts
 Set-Location ..
-python scripts\compare_mirrorline_visuals.py --evidence $evidence --require-complete
+python scripts\compare_mirrorline_visuals.py --evidence $evidence --require-complete --require-reviewed
 ```
 
 The comparator produces a side-by-side image, 50% overlay, difference image,
@@ -139,17 +139,14 @@ any missing governed state; dynamic masks require an explicit reviewed
 `dynamic-masks.json` rectangle entry and are never used for geometry or
 content defects.
 
-The current implementation is not acceptance-complete until every governed
-state has a paired capture and the discrepancy review is accepted.
-
-### Phase 2 checkpoint — convergence foundations
-
-This checkpoint is deliberately **non-final**. At visual-evidence iteration
-5, **7 of 27** governed Qt/browser states have paired comparison artifacts and
-**20 states remain**. Phase 2 is incomplete; `0.23.0` is not finalized; no
-release acceptance is claimed; and no production deployment occurred. The
-remaining captures must be compared, corrected, re-captured, and classified
-before an independent acceptance review can be requested.
+Phase 2 completed at visual-evidence iteration 19. All **27 of 27** governed
+states have matching Qt/browser capture names, generated comparison artifacts,
+and a reviewed, non-blocking disposition. The review manifest remains beside
+the external evidence rather than in source control. `--require-complete`
+fails missing pairs; `--require-reviewed` additionally fails an absent or
+unresolved state disposition. The review covers the browser-safe responsive
+translation and the explicit desktop-only boundary without treating either as
+an API-write or production authorization.
 
 ## Browser validation
 

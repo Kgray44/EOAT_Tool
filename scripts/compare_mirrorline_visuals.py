@@ -47,6 +47,16 @@ GOVERNED_STATES = (
     "reduced-motion",
 )
 
+DISCREPANCY_CLASSIFICATIONS = frozenset(
+    {
+        "corrected",
+        "accepted platform-rendering variance",
+        "intentional browser safety difference",
+        "responsive translation difference",
+        "unresolved blocker",
+    }
+)
+
 
 @dataclass(frozen=True)
 class Comparison:
@@ -78,6 +88,24 @@ def _load_masks(path: Path) -> dict[str, list[list[int]]]:
     return normalized
 
 
+def _load_dispositions(path: Path) -> dict[str, dict[str, object]]:
+    """Read reviewer-owned state dispositions without silently accepting drift."""
+    if not path.is_file():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("states", {}), dict):
+        raise ValueError("visual comparison dispositions must contain a states object")
+    values: dict[str, dict[str, object]] = {}
+    for state, record in payload["states"].items():
+        if state not in GOVERNED_STATES or not isinstance(record, dict):
+            raise ValueError("visual comparison disposition contains an unknown state or invalid record")
+        classification = record.get("classification")
+        if classification not in DISCREPANCY_CLASSIFICATIONS:
+            raise ValueError("visual comparison disposition has an invalid classification")
+        values[state] = record
+    return values
+
+
 def _masked(image: Image.Image, rectangles: list[list[int]]) -> Image.Image:
     copy = image.copy()
     painter = ImageDraw.Draw(copy)
@@ -106,13 +134,16 @@ def _compare(state: str, qt_path: Path, browser_path: Path, destination: Path, m
     return Comparison(state, "compared", "", round(mean, 4), changed)
 
 
-def run(evidence: Path, *, require_complete: bool) -> dict[str, object]:
+def run(
+    evidence: Path, *, require_complete: bool, require_reviewed: bool = False
+) -> dict[str, object]:
     evidence = evidence.resolve()
     qt_root = evidence / "qt"
     browser_root = evidence / "browser"
     output = evidence / "comparison"
     output.mkdir(parents=True, exist_ok=True)
     masks = _load_masks(evidence / "dynamic-masks.json")
+    dispositions = _load_dispositions(evidence / "reviewed-dispositions.json")
     comparisons: list[Comparison] = []
     for state in GOVERNED_STATES:
         qt_path = qt_root / f"{state}.png"
@@ -129,10 +160,32 @@ def run(evidence: Path, *, require_complete: bool) -> dict[str, object]:
         "incomplete": sum(comparison.status != "compared" for comparison in comparisons),
     }
     (output / "comparison-metrics.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output / "discrepancies.json").write_text(
-        json.dumps([entry for entry in report["states"] if entry["status"] != "compared"], indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    records: list[dict[str, object]] = []
+    for comparison in comparisons:
+        reviewed = dispositions.get(comparison.state, {})
+        record = {
+            "state": comparison.state,
+            "comparison_status": comparison.status,
+            "classification": reviewed.get("classification", "unresolved blocker"),
+            "iteration": reviewed.get("iteration"),
+            "implementation_changes": reviewed.get("implementation_changes", []),
+            "remaining_intentional_differences": reviewed.get("remaining_intentional_differences", []),
+            "final_disposition": reviewed.get("final_disposition", "not reviewed"),
+            "message": comparison.message,
+            "mean_difference": comparison.mean_difference,
+            "changed_pixels": comparison.changed_pixels,
+        }
+        records.append(record)
+        (output / f"{comparison.state}.discrepancy.json").write_text(
+            json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    (output / "discrepancies.json").write_text(json.dumps(records, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    report["unreviewed"] = sum(
+        record["classification"] == "unresolved blocker"
+        or record["final_disposition"] == "not reviewed"
+        for record in records
     )
+    (output / "comparison-metrics.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report
 
 
@@ -140,10 +193,22 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", type=Path, required=True)
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument(
+        "--require-reviewed",
+        action="store_true",
+        help="fail unless every governed state has a non-blocking reviewed disposition",
+    )
     args = parser.parse_args(argv)
-    report = run(args.evidence, require_complete=args.require_complete)
+    report = run(
+        args.evidence,
+        require_complete=args.require_complete,
+        require_reviewed=args.require_reviewed,
+    )
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 1 if args.require_complete and report["incomplete"] else 0
+    return 1 if (
+        (args.require_complete and report["incomplete"])
+        or (args.require_reviewed and report["unreviewed"])
+    ) else 0
 
 
 if __name__ == "__main__":

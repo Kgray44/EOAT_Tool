@@ -16,6 +16,11 @@ export function FoundationPage() {
     window.dispatchEvent(
       new CustomEvent("atlas-open-search", { detail: value }),
     );
+  const dataAgeMs = dataStatus.data
+    ? Date.now() - new Date(dataStatus.data.data_last_modified_at).valueOf()
+    : 0;
+  const staleData =
+    Number.isFinite(dataAgeMs) && dataAgeMs > 24 * 60 * 60 * 1000;
   return (
     <section className="atlas-home-page" aria-labelledby="home-title">
       <header className="atlas-page-title">
@@ -73,9 +78,11 @@ export function FoundationPage() {
           ? "Read-only browser · checking API freshness…"
           : dataStatus.isError
             ? "Read-only browser · API unavailable · data freshness unknown"
-            : dataStatus.data
-              ? `Read-only browser · API available · data modified ${new Date(dataStatus.data.data_last_modified_at).toLocaleString()} · fetched ${new Date(dataStatus.dataUpdatedAt).toLocaleTimeString()}`
-              : "Read-only browser · data status unavailable"}
+            : dataStatus.data && staleData
+              ? "Read-only browser · API available · data may be stale · use the shown modification time before relying on this view"
+              : dataStatus.data
+                ? `Read-only browser · API available · data modified ${new Date(dataStatus.data.data_last_modified_at).toLocaleString()} · fetched ${new Date(dataStatus.dataUpdatedAt).toLocaleTimeString()}`
+                : "Read-only browser · data status unavailable"}
       </div>
     </section>
   );

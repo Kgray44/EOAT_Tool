@@ -13,9 +13,11 @@ def test_visual_comparison_emits_review_artifacts_for_matching_state(tmp_path) -
     home = next(state for state in report["states"] if state["state"] == "home-dark")
     assert home["status"] == "compared"
     assert home["changed_pixels"] == 0
+    assert report["unreviewed"] == 27
     comparison = tmp_path / "comparison"
     assert (comparison / "home-dark.side-by-side.png").is_file()
     assert (comparison / "home-dark.overlay.png").is_file()
     assert (comparison / "home-dark.difference.png").is_file()
     assert (comparison / "comparison-metrics.json").is_file()
     assert (comparison / "discrepancies.json").is_file()
+    assert (comparison / "home-dark.discrepancy.json").is_file()
