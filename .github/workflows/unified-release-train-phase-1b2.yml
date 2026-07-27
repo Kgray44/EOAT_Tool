@@ -126,9 +126,14 @@ jobs:
           $id = (Get-Content candidate-id.txt -Raw).Trim()
           python tools/eoat_release.py candidate inspect-platform-attachment $id windows-attachment
           python tools/eoat_release.py candidate attach-platform-artifacts $id windows-attachment
+          # Reattaching byte-identical immutable CI output is explicitly
+          # idempotent; a focused service test below also proves conflicts and
+          # failed transactions preserve the existing receipt.
+          python tools/eoat_release.py candidate attach-platform-artifacts $id windows-attachment
           python tools/eoat_release.py candidate verify-platform-artifacts $id
           python tools/eoat_release.py --json candidate show-components $id | Out-File -Encoding utf8 components.json
           if ((Get-Content components.json -Raw) -notmatch 'release_set_manifest') { throw 'final sealing components not reported' }
+      - run: python -m pytest -q tests/test_release_train_phase_1b2.py
       - run: python scripts/repo_safety_audit.py
       - run: python scripts/check_version_bump.py --base 170d9fb3d8f2ab2dabe6eb86ee7898ccbbd3a6ab
 
