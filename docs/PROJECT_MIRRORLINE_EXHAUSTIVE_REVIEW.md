@@ -6,7 +6,7 @@ application remains the visual and interaction authority. Browser facts come
 only from the read-only API; the browser never recreates compatibility or
 location logic.
 
-The final deterministic visual evidence is iteration 20 in the external,
+The final deterministic visual evidence is iteration 21 in the external,
 task-owned evidence directory (intentionally not recorded in source): it
 contains all 27 governed Qt/browser pairs, comparison artifacts, metrics, and
 reviewed dispositions.
@@ -38,7 +38,7 @@ reviewed dispositions.
 
 ## Governed visual-state matrix
 
-The iteration-20 comparison is complete and reviewed for every governed
+The iteration-21 comparison is complete and reviewed for every governed
 state: `home-dark`, `home-light`, `home-recents`, `home-live-search`,
 `global-search`, `navigation-home`, `navigation-fit-check`,
 `navigation-library`, `navigation-settings`, `library-default`,

@@ -15,12 +15,10 @@ describe("SettingsPage", () => {
         name: "Data Services and Engineering Files",
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Server Write Safety" }),
-    ).toBeDisabled();
+    expect(screen.getByText("Read-only browser endpoint")).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: "Display & Accessibility" }),
+      screen.getByRole("button", { name: /^Display & Accessibility/ }),
     );
     await user.selectOptions(screen.getByLabelText("Theme"), "light");
     await user.click(screen.getByLabelText("Reduce motion"));

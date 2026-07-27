@@ -139,7 +139,7 @@ any missing governed state; dynamic masks require an explicit reviewed
 `dynamic-masks.json` rectangle entry and are never used for geometry or
 content defects.
 
-The exhaustive review completed at visual-evidence iteration 20. All **27 of 27** governed
+The exhaustive review completed at visual-evidence iteration 21. All **27 of 27** governed
 states have matching Qt/browser capture names, generated comparison artifacts,
 and a reviewed, non-blocking disposition. The review manifest remains beside
 the external evidence rather than in source control. `--require-complete`
