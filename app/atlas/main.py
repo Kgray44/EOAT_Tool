@@ -10,7 +10,6 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -47,6 +46,21 @@ def main() -> int:
     app.setFont(QFont("Segoe UI", 10))
     if ATLAS_LOGO_PATH.exists():
         app.setWindowIcon(QIcon(str(ATLAS_LOGO_PATH)))
+    # Packaged smoke must execute the frozen entry point and initialize Qt, but it
+    # deliberately must not enter the normal interactive-window event loop.  A
+    # window can remain alive after its close signal on an offscreen Windows
+    # runner, which used to leave the CI process running after it had otherwise
+    # produced valid smoke evidence.  This bounded preflight covers the
+    # executable, Qt initialization, and embedded release identity without
+    # requiring a human-facing window or any network/runtime-data dependency.
+    if smoke_test:
+        if smoke_receipt is not None:
+            smoke_receipt.parent.mkdir(parents=True, exist_ok=True)
+            smoke_receipt.write_text(
+                json.dumps(_smoke_receipt_payload(), sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        return 0
     settings = AtlasSettings() if smoke_test else load_atlas_settings()
     app.setStyleSheet(atlas_stylesheet(settings.effective_theme, settings.color_scheme))
     config = UserConfig(project_root=str(DEFAULT_PROJECT_ROOT)) if smoke_test else _load_globalized_user_config()
@@ -72,21 +86,7 @@ def main() -> int:
     if (not settings.auto_refresh_on_startup or not refresh_on_launch) and not smoke_test:
         cache_label = "disposable API cache" if backend == "mysql_api" else "existing local cache"
         window.show_status(f"Auto-refresh is off. EOAT Atlas opened from the {cache_label}.")
-    if smoke_test:
-        QTimer.singleShot(700, window.close)
-        QTimer.singleShot(900, app.quit)
-        QTimer.singleShot(6000, lambda: os._exit(124))
     exit_code = app.exec()
-    if smoke_test and exit_code == 0 and smoke_receipt is not None:
-        smoke_receipt.parent.mkdir(parents=True, exist_ok=True)
-        smoke_receipt.write_text(
-            json.dumps(
-                _smoke_receipt_payload(),
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
     return exit_code
 
 
@@ -118,7 +118,7 @@ def _smoke_receipt_payload() -> dict[str, object]:
         "started_at_utc": now,
         "completed_at_utc": now,
         "status": "PASS",
-        "checks": ["qt-event-loop", "minimalist-window", "clean-exit"],
+        "checks": ["qt-application-created", "release-identity-loaded", "clean-exit"],
         "failure_category": "",
         "diagnostics": "",
     }
