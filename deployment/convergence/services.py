@@ -645,7 +645,14 @@ class ReleaseDeploymentService:
             # The single 0.24.0 product operation is already governed on this
             # branch.  Phase 1B-2 must build that exact committed tree, never
             # synthesize a second version/history bump just to make a candidate.
-            temporary = tempfile.TemporaryDirectory(prefix="eoat-release-candidate-")
+            # Stage exact candidate clones beneath the ignored receipt store
+            # rather than the Windows user TEMP directory.  Besides keeping
+            # all candidate mutation out of the canonical tree, this avoids
+            # Windows 8.3 TEMP aliases which break Vite's virtual-module
+            # resolution in the real web test suite.
+            staging = self.store.root / "staging"
+            staging.mkdir(parents=True, exist_ok=True)
+            temporary = tempfile.TemporaryDirectory(prefix="eoat-release-candidate-", dir=staging)
             clone = Path(temporary.name) / "source"
             copied = subprocess.run(
                 ["git", "clone", "--quiet", "--shared", str(self.root), str(clone)],

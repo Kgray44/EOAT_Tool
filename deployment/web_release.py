@@ -80,8 +80,15 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
     # Node's package manager can briefly retain Windows handles in the
     # disposable archive.  A failed cleanup must not invalidate a completed
     # deterministic artifact or touch the source worktree.
+    # Keep the disposable web tree beside the isolated candidate checkout.
+    # Vitest/Vite resolve their virtual ``/@vite/env`` module through URL-like
+    # paths.  Windows can render the default user temporary root with an 8.3
+    # segment (for example ``RUNNER~1``), which Vite then fails to resolve.
+    # Candidate staging is an ignored, candidate-local workspace path and is
+    # therefore both isolated from the canonical checkout and safe for Vite.
     with tempfile.TemporaryDirectory(
         prefix="eoat-web-release-",
+        dir=root.parent,
         ignore_cleanup_errors=True,
     ) as temporary:
         source = Path(temporary) / "source"
