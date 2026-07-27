@@ -113,3 +113,32 @@ disposable MySQL coverage, built bootstrap/launcher tests, a black-box release
 train, the required CI jobs, and the final completion report remain open.  No
 open item may be reported as production-ready without its corresponding real
 test evidence.
+
+## Phase 1B-2 artifact collection boundary
+
+An unsigned schema-2 candidate now owns an immutable candidate-relative
+directory: `source/`, `core/server/`, `core/web/`, `core/release-notes/`,
+`platform/windows/`, `receipts/`, and a reserved `sealing/` boundary. Core
+construction retains the actual server archive, checksum and external manifest;
+an immutable deployable web ZIP rather than only its static manifest; a
+version-specific governed release-note artifact; and a Git bundle verified by
+`git bundle verify`, isolated fetch, exact commit/tree resolution, and base
+ancestry. All locators in the working release set are candidate-relative.
+
+Windows builders receive the exact candidate identity through controlled
+environment variables, build the governed PyInstaller specifications, produce
+package manifests, run the packaged executable entry points, and write bounded
+machine-readable smoke receipts. A self-contained attachment declares the four
+Windows component kinds, package bytes, supporting metadata, package manifests,
+smoke receipts, update manifests, and GitHub workflow provenance. The service
+does not trust provenance alone: attachment verifies exact candidate/product/
+release/build/commit/tree identity, hashes and sizes, safe paths, packaged
+metadata, smoke evidence, and update-manifest package binding before staging
+and atomically promoting the bytes.
+
+Attachment is idempotent only when the immutable component hash already agrees;
+different bytes at an occupied component locator block. After attachment the
+only required pending items are `release_set_manifest` and
+`release_set_signature`; bootstrap and its update manifest remain
+`NOT_APPLICABLE` because Unified Release Train Phase 2 owns bootstrap. Phase
+1B-3 alone serializes, signs, and seals the final release-set envelope.

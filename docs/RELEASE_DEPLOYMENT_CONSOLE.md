@@ -17,9 +17,15 @@ summary is the primary UI and expanded, redacted diagnostics remain in Logs.
 python tools/eoat_release.py status
 python tools/eoat_release.py diagnose
 python tools/eoat_release.py candidate rehearse --bump patch
-python tools/eoat_release.py candidate prepare --version 0.23.0
+python tools/eoat_release.py candidate prepare --version 0.24.0
 python tools/eoat_release.py candidate list
 python tools/eoat_release.py candidate show candidate-0.23.0-<commit>
+python tools/eoat_release.py candidate build-core-artifacts candidate-0.24.0-<commit>
+python tools/eoat_release.py candidate verify-core-artifacts candidate-0.24.0-<commit>
+python tools/eoat_release.py candidate inspect-platform-attachment candidate-0.24.0-<commit> path/to/windows-attachment
+python tools/eoat_release.py candidate attach-platform-artifacts candidate-0.24.0-<commit> path/to/windows-attachment
+python tools/eoat_release.py candidate verify-platform-artifacts candidate-0.24.0-<commit>
+python tools/eoat_release.py candidate show-components candidate-0.24.0-<commit>
 python tools/eoat_release.py candidate discard candidate-0.23.0-<commit>
 python tools/eoat_release.py publish start candidate-0.23.0-<commit> --confirm-version 0.23.0
 python tools/eoat_release.py publish resume publication-candidate-0.23.0-<commit>
@@ -47,6 +53,14 @@ release, target, or tracked version.  A retained candidate contains the exact
 source and candidate commits/trees, server artifact and manifest hashes, and a
 Git bundle.  The candidate is built twice with the same timestamp and is
 blocked when hashes differ.
+
+Phase 1B-2 candidates are deliberately unsigned and publication-ineligible.
+The Release Preparation page runs core evidence validation through its existing
+background worker, displays the complete component inventory, and can inspect
+or attach a Windows bundle only when candidate ID, product/release/build
+identity, commit/tree, hashes, metadata, manifests, and packaged smoke
+receipts agree. Bootstrap remains explicitly not applicable until Phase 2;
+the final release-set manifest and signature remain pending until Phase 1B-3.
 
 Publication requires typing the exact candidate version.  It records and
 verifies every step: candidate promotion, local tag, branch push, tag push,

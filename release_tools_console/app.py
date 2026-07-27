@@ -119,12 +119,24 @@ class ReleaseDeploymentConsole(QMainWindow):
         self.explicit_version.setAccessibleName("Explicit candidate version")
         self.candidate_id = QLineEdit()
         self.candidate_id.setAccessibleName("Selected candidate ID")
+        self.attachment_path = QLineEdit()
+        self.attachment_path.setAccessibleName("Windows platform attachment path")
+        self.component_summary = QLabel("No component inventory loaded")
+        self.component_summary.setWordWrap(True)
         layout.addRow("Increment", self.bump)
         layout.addRow("Explicit version (advanced)", self.explicit_version)
         layout.addRow("Candidate ID", self.candidate_id)
+        layout.addRow("Windows attachment", self.attachment_path)
+        layout.addRow("Component inventory", self.component_summary)
         layout.addRow(self._button("Rehearse candidate", "Run dry-run candidate rehearsal", self._rehearse))
         self.prepare = self._button("Prepare immutable candidate", "Prepare immutable release candidate", self._prepare)
         layout.addRow(self.prepare)
+        layout.addRow(self._button("Build Core Artifacts", "Build and verify core artifacts", self._build_core_artifacts))
+        layout.addRow(self._button("Verify Core Artifacts", "Verify retained core artifacts", self._verify_core_artifacts))
+        layout.addRow(self._button("Inspect Windows Attachment", "Inspect Windows artifact attachment", self._inspect_attachment))
+        layout.addRow(self._button("Attach Platform Artifacts", "Attach validated Windows artifacts", self._attach_platform_artifacts))
+        layout.addRow(self._button("Verify Attached Artifacts", "Verify attached Windows artifacts", self._verify_platform_artifacts))
+        layout.addRow(self._button("Show Candidate Components", "Show candidate component inventory", self._show_components))
         layout.addRow(
             self._button(
                 "Refresh candidates",
@@ -263,6 +275,24 @@ class ReleaseDeploymentConsole(QMainWindow):
     def _discard_candidate(self) -> None:
         self._start("discard", lambda: self.service.discard_candidate(self.candidate_id.text()))
 
+    def _build_core_artifacts(self) -> None:
+        self._start("core-build", lambda: self.service.build_core_artifacts(self.candidate_id.text()))
+
+    def _verify_core_artifacts(self) -> None:
+        self._start("core-verify", lambda: self.service.verify_core_artifacts(self.candidate_id.text()))
+
+    def _inspect_attachment(self) -> None:
+        self._start("attachment-inspect", lambda: self.service.inspect_platform_attachment(self.candidate_id.text(), Path(self.attachment_path.text())))
+
+    def _attach_platform_artifacts(self) -> None:
+        self._start("attachment-attach", lambda: self.service.attach_platform_artifacts(self.candidate_id.text(), Path(self.attachment_path.text())))
+
+    def _verify_platform_artifacts(self) -> None:
+        self._start("platform-verify", lambda: self.service.verify_platform_artifacts(self.candidate_id.text()))
+
+    def _show_components(self) -> None:
+        self._start("components", lambda: self.service.candidate(self.candidate_id.text()))
+
     def _publish(self) -> None:
         candidate = self.candidate_id.text()
         version, accepted = self._typed_confirmation(
@@ -356,6 +386,13 @@ class ReleaseDeploymentConsole(QMainWindow):
             self.candidate_card.setText(
                 f"{candidate.get('state')} | {candidate.get('version')} | {candidate.get('artifact_sha256', '')[:12]}"
             )
+        elif name in {"core-build", "core-verify", "attachment-inspect", "attachment-attach", "platform-verify", "components"}:
+            receipt = self.service.candidate(self.candidate_id.text()) if self.candidate_id.text() else {}
+            working = receipt.get("working_release_set") or {}
+            components = working.get("components") or []
+            pending = [str(item.get("kind")) for item in components if isinstance(item, dict) and item.get("disposition") == "PENDING"]
+            self.component_summary.setText(f"{len(components)} components; pending: {', '.join(sorted(pending)) or 'none'}")
+            self.candidate_card.setText(f"{receipt.get('state', 'UNKNOWN')} | publication eligible: {receipt.get('publication_eligible', False)}")
         elif name == "inventory":
             releases = data.get("releases", [])
             self.inventory_table.setRowCount(len(releases))

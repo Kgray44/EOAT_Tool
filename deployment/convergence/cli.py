@@ -42,6 +42,20 @@ def _candidate_commands(commands: argparse._SubParsersAction[Any]) -> None:
     actions.add_parser("list", help="List retained candidates")
     show = actions.add_parser("show", help="Show one retained candidate")
     show.add_argument("candidate_id")
+    for name, help_text in (
+        ("build-core-artifacts", "Validate retained server, web, bundle, and release-note artifacts"),
+        ("verify-core-artifacts", "Revalidate retained immutable core artifacts"),
+        ("verify-platform-artifacts", "Verify attached Windows component inventory"),
+        ("show-components", "Show explicit schema-2 component inventory"),
+    ):
+        child = actions.add_parser(name, help=help_text)
+        child.add_argument("candidate_id")
+    inspect_attachment = actions.add_parser("inspect-platform-attachment", help="Inspect an identity-bound Windows attachment")
+    inspect_attachment.add_argument("candidate_id")
+    inspect_attachment.add_argument("attachment", type=Path)
+    attach = actions.add_parser("attach-platform-artifacts", help="Attach a validated Windows artifact bundle")
+    attach.add_argument("candidate_id")
+    attach.add_argument("attachment", type=Path)
     discard = actions.add_parser("discard", help="Discard an unpromoted candidate")
     discard.add_argument("candidate_id")
 
@@ -148,6 +162,17 @@ def main(argv: list[str] | None = None) -> int:
                 result = service.candidates()
             elif args.candidate_command == "show":
                 result = service.receipt(args.candidate_id)
+            elif args.candidate_command in {"build-core-artifacts", "verify-core-artifacts"}:
+                result = service.build_core_artifacts(args.candidate_id)
+            elif args.candidate_command == "inspect-platform-attachment":
+                result = service.inspect_platform_attachment(args.candidate_id, args.attachment)
+            elif args.candidate_command == "attach-platform-artifacts":
+                result = service.attach_platform_artifacts(args.candidate_id, args.attachment)
+            elif args.candidate_command == "verify-platform-artifacts":
+                result = service.verify_platform_artifacts(args.candidate_id)
+            elif args.candidate_command == "show-components":
+                receipt = service.candidate(args.candidate_id)
+                result = {"candidate_id": args.candidate_id, "components": (receipt.get("working_release_set") or {}).get("components", []), "missing_components": service.store.candidate_representation(args.candidate_id).get("missing_components", [])}
             else:
                 result = service.discard_candidate(args.candidate_id)
         elif args.command == "publish":

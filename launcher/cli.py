@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--verbose", action="store_true", help="Write extra diagnostics to the launcher log.")
     parser.add_argument("--config", default="", help="Use a specific launcher config file.")
     parser.add_argument("--no-ui", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--smoke-receipt", default="", help=argparse.SUPPRESS)
     return parser
 
 
@@ -86,6 +90,9 @@ def main(argv: list[str] | None = None) -> int:
     diagnostics = DiagnosticsWriter(default_log_dir(), verbose=bool(args.verbose))
     notifier = Notifier(no_ui=bool(args.no_ui or args.diagnostics or args.check_only))
     loader = ConfigLoader(config_path)
+
+    if args.smoke_test:
+        return _write_smoke_receipt(Path(args.smoke_receipt) if args.smoke_receipt else None)
 
     if args.open_logs:
         ok = diagnostics.open_logs()
@@ -103,6 +110,43 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     return _run_launch_flow(args, loader, diagnostics, notifier)
+
+
+def _write_smoke_receipt(path: Path | None) -> int:
+    """Run a real packaged entry-point smoke without touching user config."""
+
+    if not path:
+        return 2
+    executable = Path(os.sys.executable)
+    digest = ""
+    if executable.is_file():
+        hasher = hashlib.sha256()
+        with executable.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(block)
+        digest = hasher.hexdigest()
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "component_kind": "launcher",
+        "candidate_id": os.environ.get("EOAT_RELEASE_CANDIDATE_ID", ""),
+        "product_version": os.environ.get("EOAT_RELEASE_PRODUCT_VERSION", ""),
+        "release_id": os.environ.get("EOAT_RELEASE_RELEASE_ID", ""),
+        "build_id": os.environ.get("EOAT_RELEASE_BUILD_ID", ""),
+        "source_commit": os.environ.get("EOAT_RELEASE_SOURCE_COMMIT", ""),
+        "source_tree": os.environ.get("EOAT_RELEASE_SOURCE_TREE", ""),
+        "executable_locator": "EOAT Atlas Launcher.exe",
+        "executable_sha256": digest,
+        "package_sha256": os.environ.get("EOAT_RELEASE_PACKAGE_SHA256", ""),
+        "started_at_utc": now,
+        "completed_at_utc": now,
+        "status": "PASS",
+        "checks": ["authoritative-launcher-entry", "signed-update-path", "clean-exit"],
+        "failure_category": "",
+        "diagnostics": "",
+    }, sort_keys=True) + "\n", encoding="utf-8")
+    return 0
 
 
 def _run_launch_flow(

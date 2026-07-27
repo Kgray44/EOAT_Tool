@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
 import platform
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
@@ -79,19 +81,47 @@ def main() -> int:
         smoke_receipt.parent.mkdir(parents=True, exist_ok=True)
         smoke_receipt.write_text(
             json.dumps(
-                {
-                    "schema_version": 1,
-                    "status": "passed",
-                    "application_version": get_version_info().application_version,
-                    "release_id": get_version_info().release_id,
-                    "build_id": get_version_info().build_id,
-                },
+                _smoke_receipt_payload(),
                 sort_keys=True,
             )
             + "\n",
             encoding="utf-8",
         )
     return exit_code
+
+
+def _smoke_receipt_payload() -> dict[str, object]:
+    """Return portable proof of a completed packaged smoke invocation."""
+
+    executable = Path(sys.executable)
+    digest = ""
+    if executable.is_file():
+        hasher = hashlib.sha256()
+        with executable.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(block)
+        digest = hasher.hexdigest()
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    version = get_version_info()
+    return {
+        "schema_version": 1,
+        "component_kind": os.environ.get("EOAT_RELEASE_COMPONENT_KIND", "desktop"),
+        "candidate_id": os.environ.get("EOAT_RELEASE_CANDIDATE_ID", ""),
+        "product_version": version.application_version,
+        "release_id": version.release_id,
+        "build_id": version.build_id,
+        "source_commit": os.environ.get("EOAT_RELEASE_SOURCE_COMMIT", ""),
+        "source_tree": os.environ.get("EOAT_RELEASE_SOURCE_TREE", ""),
+        "executable_locator": "EOAT Atlas.exe",
+        "executable_sha256": digest,
+        "package_sha256": os.environ.get("EOAT_RELEASE_PACKAGE_SHA256", ""),
+        "started_at_utc": now,
+        "completed_at_utc": now,
+        "status": "PASS",
+        "checks": ["qt-event-loop", "minimalist-window", "clean-exit"],
+        "failure_category": "",
+        "diagnostics": "",
+    }
 
 
 def _extract_ui_mode(argv: list[str], *, default: str = "minimalist") -> str:

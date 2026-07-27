@@ -20,7 +20,19 @@ from deployment.common import (
     utc_now,
     utc_text,
 )
+from deployment.convergence.artifacts import (
+    build_web_package,
+    candidate_locator,
+    copy_release_notes,
+    validate_web_package,
+    verify_source_bundle,
+)
 from deployment.convergence.diagnostics import diagnostic_request, fallback_envelope, validate_diagnostic_envelope
+from deployment.convergence.platform_artifacts import (
+    attach_platform_artifacts,
+    inspect_attachment,
+    write_attachment_receipt,
+)
 from deployment.manifest import manifest_identity, validate_external_manifest
 from deployment.release_manager import (
     Git,
@@ -675,12 +687,20 @@ class ReleaseDeploymentService:
                 if destination.exists():
                     raise DeploymentError("candidate identity already exists locally; refusing overwrite")
                 destination.mkdir(parents=True)
+                server_destination = destination / "core" / "server"
+                web_destination = destination / "core" / "web"
+                server_destination.mkdir(parents=True)
                 for item in (first.archive, first.checksum, first.manifest):
-                    shutil.copy2(item, destination / item.name)
+                    shutil.copy2(item, server_destination / item.name)
                 web = first.archive.parent / "web-static"
                 if web.is_dir():
-                    shutil.copytree(web, destination / "web-static")
-                bundle = destination / "candidate.bundle"
+                    shutil.copytree(web, web_destination / "static")
+                    build_web_package(
+                        web_destination / "static",
+                        web_destination / f"eoat-atlas-web-{target}-{commit[:7]}.zip",
+                    )
+                bundle = destination / "source" / "candidate.bundle"
+                bundle.parent.mkdir(parents=True)
                 bundle_result = subprocess.run(
                     ["git", "bundle", "create", str(bundle), commit, f"^{state.commit}"],
                     cwd=clone,
@@ -690,7 +710,9 @@ class ReleaseDeploymentService:
                 )
                 if bundle_result.returncode:
                     raise DeploymentError("could not persist the exact candidate Git bundle")
-                artifact_path, bundle_path = str(destination / first.archive.name), str(bundle)
+                notes = self.root / "docs" / "release_notes" / f"EOAT_Atlas_{target}.md"
+                copy_release_notes(notes, candidate_root=destination, version=str(target))
+                artifact_path, bundle_path = str(server_destination / first.archive.name), str(bundle)
             return CandidateRecord(
                 1,
                 candidate_id,
@@ -759,30 +781,49 @@ class ReleaseDeploymentService:
             raise DeploymentError("validated candidate is missing immutable source or artifact paths")
         artifact = Path(candidate.artifact_path)
         directory = artifact.parent
+        candidate_root = directory.parents[1] if directory.name == "server" and directory.parent.name == "core" else directory
         external = json.loads((directory / "release_manifest.json").read_text(encoding="utf-8"))
         core, _ = validate_external_manifest(external)
         identity = ProductReleaseIdentity(
             str(candidate.version), str(core["release_id"]), str(core["build_id"]), str(candidate.candidate_commit),
             str(candidate.candidate_tree), str(candidate.branch), "candidate", str(core["created_at_utc"]), candidate.candidate_id,
         )
-        def item(kind: ComponentKind, disposition: ArtifactDisposition, *, path: Path | None = None, reason: str = "") -> ReleaseSetComponent:
+        def item(
+            kind: ComponentKind,
+            disposition: ArtifactDisposition,
+            *,
+            path: Path | None = None,
+            reason: str = "",
+            metadata: dict[str, str] | None = None,
+            media_type: str = "application/octet-stream",
+        ) -> ReleaseSetComponent:
             return ReleaseSetComponent(
                 kind, disposition, identity.product_version, identity.release_id, identity.build_id, identity.source_commit,
                 identity.source_tree, identity.candidate_id, artifact_filename=path.name if path else "",
-                artifact_locator=path.name if path else "", size_bytes=path.stat().st_size if path else 0,
-                sha256=sha256_file(path) if path else "", media_type="application/octet-stream" if path else "",
-                validation_status=ComponentValidation.PASS if path else ComponentValidation.NOT_APPLICABLE,
+                artifact_locator=candidate_locator(candidate_root, path) if path else "", size_bytes=path.stat().st_size if path else 0,
+                sha256=sha256_file(path) if path else "", media_type=media_type if path else "",
+                validation_status=ComponentValidation.PASS if path else (ComponentValidation.NOT_APPLICABLE if disposition is ArtifactDisposition.NOT_APPLICABLE else ComponentValidation.NOT_RUN),
                 not_applicable_justification=reason,
+                metadata=metadata or {},
             )
-        web_manifest = directory / "web-static" / "web-static.manifest.json"
+        web_package = candidate_root / "core" / "web" / f"eoat-atlas-web-{candidate.version}-{candidate.candidate_commit[:7]}.zip"
+        web_manifest = candidate_root / "core" / "web" / "static" / "web-static.manifest.json"
+        notes = candidate_root / "core" / "release-notes" / f"EOAT-Atlas-{candidate.version}-release-notes.md"
         components = []
         for kind in ComponentKind:
             if kind is ComponentKind.SERVER:
-                components.append(item(kind, ArtifactDisposition.BUILT, path=artifact))
-            elif kind is ComponentKind.WEB and web_manifest.is_file():
-                components.append(item(kind, ArtifactDisposition.BUILT, path=web_manifest))
+                components.append(item(kind, ArtifactDisposition.BUILT, path=artifact, metadata={
+                    "external_manifest_locator": candidate_locator(candidate_root, directory / "release_manifest.json"),
+                    "checksum_locator": candidate_locator(candidate_root, directory / f"{artifact.name}.sha256"),
+                }, media_type="application/gzip"))
+            elif kind is ComponentKind.WEB and web_package.is_file():
+                components.append(item(kind, ArtifactDisposition.BUILT, path=web_package, metadata={
+                    "file_manifest_locator": candidate_locator(candidate_root, web_manifest),
+                }, media_type="application/zip"))
             elif kind is ComponentKind.SOURCE_BUNDLE:
-                components.append(item(kind, ArtifactDisposition.BUILT, path=Path(candidate.bundle_path)))
+                components.append(item(kind, ArtifactDisposition.BUILT, path=Path(candidate.bundle_path), media_type="application/x-git-bundle"))
+            elif kind is ComponentKind.RELEASE_NOTES and notes.is_file():
+                components.append(item(kind, ArtifactDisposition.BUILT, path=notes, media_type="text/markdown"))
             elif kind in {ComponentKind.RELEASE_SET_MANIFEST, ComponentKind.RELEASE_SET_SIGNATURE}:
                 components.append(item(kind, ArtifactDisposition.PENDING, reason="Created only by explicit final release-set sealing."))
             elif kind in {ComponentKind.BOOTSTRAP, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST}:
@@ -818,6 +859,117 @@ class ReleaseDeploymentService:
 
     def candidate(self, candidate_id: str) -> dict[str, Any]:
         return self.store.read("candidate", candidate_id)
+
+    def build_core_artifacts(self, candidate_id: str) -> OperationResult:
+        """Re-validate retained immutable core artifacts and record evidence.
+
+        Candidate preparation creates the bytes in an isolated clone.  This
+        operation deliberately does not rebuild them from the operator's
+        checkout; it proves the retained files and their exact source bundle
+        before a Windows attachment can be accepted.
+        """
+
+        receipt = self.store.candidate_representation(candidate_id)
+        if receipt.get("receipt_compatibility") != "SCHEMA_2_UNSIGNED":
+            raise DeploymentError("core artifact construction requires an unsigned schema-2 candidate")
+        root = self.store.root / "candidates" / candidate_id
+        server = root / "core" / "server"
+        archive = Path(str(receipt.get("artifact_path") or ""))
+        if archive.parent != server:
+            raise DeploymentError("candidate server artifact is outside its immutable core directory")
+        validate_deployment_archive(archive, server / "release_manifest.json", server / f"{archive.name}.sha256")
+        web = root / "core" / "web"
+        packages = sorted(web.glob("eoat-atlas-web-*.zip"))
+        if len(packages) != 1:
+            raise DeploymentError("candidate must contain exactly one immutable web package")
+        validate_web_package(packages[0])
+        bundle = Path(str(receipt["bundle_path"]))
+        verified_bundle = verify_source_bundle(
+            bundle,
+            candidate_root=root,
+            commit=str(receipt["candidate_commit"]),
+            tree=str(receipt["candidate_tree"]),
+            base_commit=str(receipt["base_commit"]),
+            repository=self.root,
+        )
+        notes = root / "core" / "release-notes" / f"EOAT-Atlas-{receipt['version']}-release-notes.md"
+        copied_notes = copy_release_notes(
+            self.root / "docs" / "release_notes" / f"EOAT_Atlas_{receipt['version']}.md",
+            candidate_root=root,
+            version=str(receipt["version"]),
+        )
+        if copied_notes.path != notes:
+            raise DeploymentError("candidate release notes locator is not deterministic")
+        working = dict(receipt["working_release_set"])
+        components = list(working.get("components") or [])
+        evidence = {
+            "server": sha256_file(archive),
+            "web": sha256_file(packages[0]),
+            "source_bundle": verified_bundle.sha256,
+            "release_notes": copied_notes.sha256,
+        }
+        for component in components:
+            if component.get("kind") in evidence:
+                component["validation_status"] = "PASS"
+                metadata = dict(component.get("metadata") or {})
+                metadata["core_validation_sha256"] = evidence[str(component["kind"])]
+                if component.get("kind") == "source_bundle":
+                    metadata["verification_receipt_locator"] = candidate_locator(root, verified_bundle.manifest_path or bundle)
+                component["metadata"] = metadata
+        working["components"] = components
+        receipt["working_release_set"] = working
+        receipt["core_artifacts_verified_at_utc"] = utc_text()
+        receipt["next_safe_action"] = "Attach validated Windows platform artifacts, then complete Phase 1B-3 sealing."
+        path = self.store.write("candidate", candidate_id, receipt)
+        return OperationResult(Status.PASS, "Retained core artifacts were validated from exact candidate identity.", receipt["next_safe_action"], data={"receipt_path": str(path), "evidence": evidence})
+
+    def verify_core_artifacts(self, candidate_id: str) -> OperationResult:
+        return self.build_core_artifacts(candidate_id)
+
+    def inspect_platform_attachment(self, candidate_id: str, attachment_path: Path) -> OperationResult:
+        candidate = self.store.candidate_representation(candidate_id)
+        if candidate.get("receipt_compatibility") != "SCHEMA_2_UNSIGNED":
+            raise DeploymentError("platform attachment inspection requires an unsigned schema-2 candidate")
+        info = inspect_attachment(attachment_path, candidate)
+        return OperationResult(
+            Status.PASS,
+            "Windows platform attachment identity and artifact inventory are valid.",
+            "Attach the validated platform artifact bundle.",
+            data={"attachment": info["manifest"], "components": [item.kind for item in info["components"]]},
+        )
+
+    def attach_platform_artifacts(self, candidate_id: str, attachment_path: Path) -> OperationResult:
+        candidate = self.store.candidate_representation(candidate_id)
+        if candidate.get("receipt_compatibility") != "SCHEMA_2_UNSIGNED" or candidate.get("state") != "PLATFORM_ARTIFACTS_PENDING":
+            raise DeploymentError("platform artifacts may only attach to an unsigned platform-pending candidate")
+        candidate_root = self.store.root / "candidates" / candidate_id
+        result = attach_platform_artifacts(candidate_root, candidate, attachment_path)
+        receipt_path = self.store.write("candidate", candidate_id, result["candidate"])
+        attachment_receipt = write_attachment_receipt(
+            candidate_root,
+            candidate_id=candidate_id,
+            manifest=result["attachment"],
+            components=result["components"],
+        )
+        view = self.store.candidate_representation(candidate_id)
+        return OperationResult(
+            Status.PASS,
+            "Windows platform artifacts were attached to the exact unsigned candidate.",
+            str(view["next_safe_action"]),
+            data={"receipt_path": str(receipt_path), "attachment_receipt": str(attachment_receipt), "missing_components": view["missing_components"]},
+        )
+
+    def verify_platform_artifacts(self, candidate_id: str) -> OperationResult:
+        candidate = self.store.candidate_representation(candidate_id)
+        if candidate.get("receipt_compatibility") != "SCHEMA_2_UNSIGNED":
+            raise DeploymentError("platform verification requires an unsigned schema-2 candidate")
+        working = candidate.get("working_release_set") or {}
+        components = {str(item.get("kind")): item for item in working.get("components", []) if isinstance(item, dict)}
+        required = {ComponentKind.DESKTOP.value, ComponentKind.DESKTOP_UPDATE_MANIFEST.value, ComponentKind.LAUNCHER.value, ComponentKind.LAUNCHER_UPDATE_MANIFEST.value}
+        blocked = sorted(kind for kind in required if components.get(kind, {}).get("validation_status") != "PASS")
+        if blocked:
+            return OperationResult(Status.BLOCKED, "Platform artifact verification is incomplete.", "Attach a validated Windows artifact bundle.", data={"blocking_components": blocked})
+        return OperationResult(Status.PASS, "Attached Windows platform artifacts remain identity-valid.", str(candidate.get("next_safe_action")), data={"missing_components": candidate["missing_components"]})
 
     def candidates(self) -> OperationResult:
         return OperationResult(
