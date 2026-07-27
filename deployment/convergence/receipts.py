@@ -100,6 +100,31 @@ class ReceiptStore:
                 return kind, self.read(kind, identifier)
         raise DeploymentError("receipt was not found")
 
+    def candidate_representation(self, identifier: str) -> dict[str, Any]:
+        """Return a non-mutating compatibility view of a candidate receipt."""
+
+        payload = self.read("candidate", identifier)
+        schema = payload.get("schema_version", 1)
+        if schema == 1:
+            required = {"candidate_id", "state", "version", "candidate_commit", "artifact_path", "artifact_sha256"}
+            if not required <= payload.keys():
+                raise DeploymentError("malformed legacy schema-1 candidate receipt")
+            return {
+                **payload,
+                "receipt_compatibility": "LEGACY_SINGLE_ARTIFACT",
+                "publication_eligible": False,
+                "missing_components": ["web", "desktop", "launcher", "bootstrap", "signed_release_set"],
+            }
+        if schema != 2:
+            raise DeploymentError(f"unsupported future candidate receipt schema: {schema}")
+        required = {
+            "candidate_id", "state", "release_set", "release_set_manifest_path", "release_set_manifest_sha256",
+            "release_set_signature", "candidate_commit", "candidate_tree", "bundle_path", "bundle_sha256",
+        }
+        if not required <= payload.keys():
+            raise DeploymentError("malformed schema-2 candidate receipt")
+        return {**payload, "receipt_compatibility": "SCHEMA_2", "publication_eligible": True, "missing_components": []}
+
     def discard_candidate(self, identifier: str) -> None:
         payload = self.read("candidate", identifier)
         if payload.get("state") != "CANDIDATE_VALIDATED":

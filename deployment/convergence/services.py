@@ -771,7 +771,9 @@ class ReleaseDeploymentService:
         )
 
     def _candidate_identity(self, candidate_id: str) -> dict[str, Any]:
-        candidate = self.candidate(candidate_id)
+        candidate = self.store.candidate_representation(candidate_id)
+        if candidate.get("receipt_compatibility") != "SCHEMA_2":
+            raise DeploymentError("legacy schema-1 candidates cannot enter unified release-set publication")
         required = (
             "candidate_commit",
             "candidate_tree",

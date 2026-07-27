@@ -36,6 +36,23 @@ def test_receipt_store_quarantines_corrupt_record(tmp_path: Path) -> None:
     assert list((store.root / "quarantine").glob("candidate-candidate-0.1.0-test-*.json"))
 
 
+def test_candidate_receipt_schema_compatibility_is_truthful(tmp_path: Path) -> None:
+    store = ReceiptStore(tmp_path)
+    store.write(
+        "candidate", "candidate-legacy", {
+            "schema_version": 1, "candidate_id": "candidate-legacy", "state": "CANDIDATE_VALIDATED", "version": "0.23.0",
+            "candidate_commit": "a" * 40, "artifact_path": "archive.tar.gz", "artifact_sha256": "b" * 64,
+        }
+    )
+    legacy = store.candidate_representation("candidate-legacy")
+    assert legacy["receipt_compatibility"] == "LEGACY_SINGLE_ARTIFACT"
+    assert not legacy["publication_eligible"]
+
+    store.write("candidate", "candidate-future", {"schema_version": 99, "candidate_id": "candidate-future"})
+    with pytest.raises(RuntimeError, match="unsupported future"):
+        store.candidate_representation("candidate-future")
+
+
 def test_deployment_plan_is_truthful_for_unknown_required_and_no_migration(tmp_path: Path) -> None:
     service = ReleaseDeploymentService(tmp_path)
 
@@ -140,7 +157,7 @@ class FakePublisher:
         return True
 
 
-def test_publication_uses_all_durable_steps_once(tmp_path: Path) -> None:
+def test_legacy_candidate_is_blocked_from_new_publication(tmp_path: Path) -> None:
     service = ReleaseDeploymentService(tmp_path)
     candidate_dir = service.store.root / "candidates" / "candidate-0.2.0-unit"
     candidate_dir.mkdir(parents=True)
@@ -170,12 +187,9 @@ def test_publication_uses_all_durable_steps_once(tmp_path: Path) -> None:
     )
 
     publisher = FakePublisher()
-    result = service.publish("candidate-0.2.0-unit", "0.2.0", publisher=publisher)
-
-    assert result.status.value == "PASS"
-    assert publisher.calls == ["promote", "tag", "branch", "tag-push", "release", "assets", "receipt"]
-    record = service.store.read("publication", "publication-candidate-0.2.0-unit")
-    assert record["state"] == PublicationState.PUBLICATION_COMPLETE.value
+    with pytest.raises(RuntimeError, match="legacy schema-1"):
+        service.publish("candidate-0.2.0-unit", "0.2.0", publisher=publisher)
+    assert publisher.calls == []
 
 
 def test_console_starts_in_truthful_not_run_state(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -355,10 +369,10 @@ def test_disposable_black_box_publication_and_recovery_transaction(tmp_path: Pat
         },
     )
     publisher = LocalBarePublisher(source, remote)
-    result = service.publish_start(candidate_id, "0.23.0", publisher=publisher)
-    assert result.status.value == "PASS"
-    assert publisher.receipt_attached
-    assert _git(source, "rev-parse", "HEAD") == candidate_commit
+    with pytest.raises(RuntimeError, match="legacy schema-1"):
+        service.publish_start(candidate_id, "0.23.0", publisher=publisher)
+    assert not publisher.receipt_attached
+    assert _git(source, "rev-parse", "HEAD") == base
 
     release = {
         "state": "RELEASE_VERIFIED",
