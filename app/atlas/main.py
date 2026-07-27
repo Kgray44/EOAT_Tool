@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import platform
 import sys
 import threading
+from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QIcon
@@ -26,6 +28,7 @@ def main() -> int:
     if backend not in {"mysql_api", "legacy"}:
         raise SystemExit(f"Invalid EOAT_ATLAS_DATA_BACKEND: {backend}")
     _extract_ui_mode(sys.argv, default="minimalist")
+    smoke_receipt = _extract_smoke_receipt(sys.argv)
     smoke_test_arg = "--smoke-test" in sys.argv
     if smoke_test_arg:
         sys.argv.remove("--smoke-test")
@@ -71,7 +74,24 @@ def main() -> int:
         QTimer.singleShot(700, window.close)
         QTimer.singleShot(900, app.quit)
         QTimer.singleShot(6000, lambda: os._exit(124))
-    return app.exec()
+    exit_code = app.exec()
+    if smoke_test and exit_code == 0 and smoke_receipt is not None:
+        smoke_receipt.parent.mkdir(parents=True, exist_ok=True)
+        smoke_receipt.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "status": "passed",
+                    "application_version": get_version_info().application_version,
+                    "release_id": get_version_info().release_id,
+                    "build_id": get_version_info().build_id,
+                },
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    return exit_code
 
 
 def _extract_ui_mode(argv: list[str], *, default: str = "minimalist") -> str:
@@ -87,6 +107,21 @@ def _extract_ui_mode(argv: list[str], *, default: str = "minimalist") -> str:
             continue
         index += 1
     return "minimalist"
+
+
+def _extract_smoke_receipt(argv: list[str]) -> Path | None:
+    """Remove the packaged-smoke receipt argument before Qt sees it."""
+
+    for index, arg in enumerate(argv):
+        if arg == "--smoke-receipt" and index + 1 < len(argv):
+            value = Path(argv[index + 1])
+            del argv[index : index + 2]
+            return value
+        if arg.startswith("--smoke-receipt="):
+            value = Path(arg.split("=", 1)[1])
+            del argv[index]
+            return value
+    return None
 
 
 def _load_globalized_user_config() -> UserConfig:

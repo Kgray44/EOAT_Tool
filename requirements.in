@@ -1,4 +1,5 @@
 openpyxl
+cryptography>=46,<50
 python-docx
 pypdf>=6.13.3
 PySide6
