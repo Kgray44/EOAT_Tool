@@ -617,7 +617,12 @@ class ReleaseDeploymentService:
             raise DeploymentError("specify exactly one candidate --bump or --version")
         readiness = self.readiness("candidate")
         if readiness.status is not Status.PASS:
-            raise DeploymentError("candidate readiness is blocked")
+            blockers = "; ".join(
+                f"{item.name}: {item.detail}"
+                for item in readiness.diagnostics
+                if item.required and item.status in {Status.BLOCKED, Status.UNKNOWN, Status.NOT_RUN}
+            )
+            raise DeploymentError("candidate readiness is blocked" + (f": {blockers}" if blockers else ""))
         from release_tools.versioning import Version
 
         state = inspect_git_state(self.root)
