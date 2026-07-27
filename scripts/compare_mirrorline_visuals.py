@@ -16,7 +16,6 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageStat
 
-
 GOVERNED_STATES = (
     "home-dark",
     "home-light",

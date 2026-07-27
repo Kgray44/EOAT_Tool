@@ -288,6 +288,13 @@
       "state": "finalized",
       "task_id": "codex-project-mirrorline-composition-corrections-20260727",
       "finalized_at_utc": "2026-07-27T21:26:31Z"
+    },
+    {
+      "application_version": "0.23.3",
+      "release_id": "eoat-atlas-0.23.3",
+      "state": "finalized",
+      "task_id": "codex-project-mirrorline-final-integration-20260727",
+      "finalized_at_utc": "2026-07-27T22:29:49Z"
     }
   ]
 }

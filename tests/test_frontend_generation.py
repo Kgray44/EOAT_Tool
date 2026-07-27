@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from deployment.frontend_generation import FrontendGenerationError, select_generation, validate_generation
-
+from deployment.web_release import build_web_static
 
 ROOT = Path(__file__).resolve().parents[1]
 MIRRORLINE_DESCRIPTOR = ROOT / "web" / "public" / "frontend-release.json"
@@ -148,5 +150,62 @@ def test_path_traversal_and_symlinked_release_are_rejected(tmp_path: Path, monke
         lambda path: path == linked.resolve(),
     )
     registry.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(FrontendGenerationError, match="unsafe or missing"):
+        validate_generation(releases, registry, "atlas")
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or os.environ.get("EOAT_RUN_REAL_FRONTEND_GENERATION_ACTIVATION") != "1",
+    reason="requires the isolated Linux generation-activation harness",
+)
+def test_linux_real_static_generations_activate_and_roll_back_safely(tmp_path: Path) -> None:
+    """Exercise real Linux symlinks against built Mirrorline and legacy bundles only."""
+    def commit(revision: str) -> str:
+        result = subprocess.run(
+            ["git", "rev-parse", f"{revision}^{{commit}}"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        return result.stdout.strip()
+
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    atlas = releases / "eoat-atlas-mirrorline"
+    legacy = releases / "eoat-atlas-legacy"
+    build_web_static(ROOT, commit("HEAD"), atlas)
+    build_web_static(ROOT, commit("web-ui-legacy-0.22.12"), legacy)
+    registry = _registry(
+        tmp_path / "frontend-generations.json",
+        {
+            "atlas": _entry(atlas, _sha256(atlas / "web-static.manifest.json"), "mirrorline"),
+            "legacy": _entry(legacy, _sha256(legacy / "web-static.manifest.json"), "legacy"),
+        },
+    )
+
+    assert validate_generation(releases, registry, "atlas")["generation"] == "atlas"
+    assert validate_generation(releases, registry, "legacy")["generation"] == "legacy"
+    assert select_generation(releases, registry, "atlas")["activated"] == "true"
+    current = releases / "current"
+    assert current.is_symlink() and current.resolve() == atlas.resolve()
+    assert select_generation(releases, registry, "legacy")["activated"] == "true"
+    assert current.is_symlink() and current.resolve() == legacy.resolve()
+    assert select_generation(releases, registry, "atlas")["activated"] == "true"
+    assert current.is_symlink() and current.resolve() == atlas.resolve()
+
+    (atlas / "index.html").write_text("tampered bundle", encoding="utf-8")
+    with pytest.raises(FrontendGenerationError, match="hash manifest"):
+        validate_generation(releases, registry, "atlas")
+    manifest = json.loads((legacy / "web-static.manifest.json").read_text(encoding="utf-8"))
+    manifest["index.html"] = "0" * 64
+    (legacy / "web-static.manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(FrontendGenerationError, match="hash manifest"):
+        validate_generation(releases, registry, "legacy")
+
+    unsafe = json.loads(registry.read_text(encoding="utf-8"))
+    unsafe["generations"]["atlas"]["release_directory"] = "../unsafe"
+    registry.write_text(json.dumps(unsafe), encoding="utf-8")
     with pytest.raises(FrontendGenerationError, match="unsafe or missing"):
         validate_generation(releases, registry, "atlas")

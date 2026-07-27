@@ -7,10 +7,10 @@ API and must never reproduce compatibility decisions or hold credentials.
 
 ## Acceptance state
 
-**Current state: the exhaustive Mirrorline review candidate is validated on
-its isolated review branch, not deployed.** The canonical application version
-is `0.23.1` after the deterministic convergence gates and final evidence
-review passed. This does not authorize a mainline merge, a deployment, API
+**Current state: the desktop-composition corrections are finalized as a source
+release candidate and are not deployed.** The canonical application version
+is `0.23.3` after the deterministic convergence gates and final evidence
+review passed. This does not authorize a deployment, API
 writes, MySQL changes, or production activity. The canonical ledger records
 the finalized application version only; a separately authorized host
 transaction is still required to activate any generated artifact.

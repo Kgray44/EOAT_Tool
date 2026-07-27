@@ -16,8 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.atlas.minimalist.theme import GLASS_TOKENS, THEME_TOKENS
-
+from app.atlas.minimalist.theme import GLASS_TOKENS, THEME_TOKENS  # noqa: E402
 
 CSS_PATH = ROOT / "web" / "src" / "styles" / "generated-theme-tokens.css"
 JSON_PATH = ROOT / "web" / "src" / "styles" / "generated-theme-tokens.json"
