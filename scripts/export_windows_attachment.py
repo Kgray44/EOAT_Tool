@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -58,10 +59,24 @@ def _identity(receipt: dict[str, Any]) -> dict[str, str]:
     return result
 
 
-def _run(command: list[str], *, env: dict[str, str]) -> None:
-    result = subprocess.run(command, cwd=ROOT, env=env, check=False)
-    if result.returncode:
-        raise RuntimeError("Windows package build or smoke command failed")
+def _run(command: list[str], *, env: dict[str, str], timeout: int, label: str, diagnostics: Path) -> None:
+    """Run one owned Windows operation with a bounded, diagnosable lifetime."""
+    started = time.monotonic()
+    print(f"[{label}] start; timeout={timeout}s", flush=True)
+    process = subprocess.Popen(command, cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        stdout, _ = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # This PID is the one started by this exporter; /T scopes termination
+        # to its owned child tree rather than unrelated runner processes.
+        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, text=True, check=False)
+        stdout, _ = process.communicate(timeout=30)
+        diagnostics.write_text(json.dumps({"operation": label, "status": "TIMEOUT", "timeout_seconds": timeout, "output": stdout[-12000:]}, indent=2), encoding="utf-8")
+        raise RuntimeError(f"{label} timed out after {timeout}s") from None
+    diagnostics.write_text(json.dumps({"operation": label, "status": "PASS" if process.returncode == 0 else "FAILED", "elapsed_seconds": round(time.monotonic() - started, 2), "output": stdout[-12000:]}, indent=2), encoding="utf-8")
+    print(stdout[-4000:], end="", flush=True)
+    if process.returncode:
+        raise RuntimeError(f"{label} failed with exit code {process.returncode}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -79,20 +94,22 @@ def main(argv: list[str] | None = None) -> int:
     if output.exists():
         raise RuntimeError("refusing to overwrite an immutable attachment output")
     output.mkdir(parents=True)
+    diagnostics_root = output / "diagnostics"
+    diagnostics_root.mkdir()
     env = os.environ.copy()
     env.update({
         "EOAT_RELEASE_CANDIDATE_ID": identity["candidate_id"], "EOAT_RELEASE_PRODUCT_VERSION": identity["product_version"],
         "EOAT_RELEASE_RELEASE_ID": identity["release_id"], "EOAT_RELEASE_BUILD_ID": identity["build_id"],
         "EOAT_RELEASE_SOURCE_COMMIT": identity["source_commit"], "EOAT_RELEASE_SOURCE_TREE": identity["source_tree"],
     })
-    _run([sys.executable, "scripts/build_package.py"], env=env)
+    _run([sys.executable, "scripts/build_package.py"], env=env, timeout=1200, label="desktop-build", diagnostics=diagnostics_root / "desktop-build.json")
     desktop_dist = ROOT / "dist" / "EOAT Atlas"
     desktop_exe = desktop_dist / "EOAT Atlas.exe"
     desktop_zip = output / "desktop" / "EOAT-Atlas-desktop.zip"
     desktop_zip.parent.mkdir(parents=True)
     _zip_tree(desktop_dist, desktop_zip)
     env["EOAT_RELEASE_PACKAGE_SHA256"] = _sha256(desktop_zip)
-    _run([str(desktop_exe), "--smoke-test", "--smoke-receipt", str(output / "desktop" / "smoke.json")], env=env)
+    _run([str(desktop_exe), "--smoke-test", "--smoke-receipt", str(output / "desktop" / "smoke.json")], env=env, timeout=120, label="desktop-smoke", diagnostics=diagnostics_root / "desktop-smoke.json")
     desktop_metadata = list(desktop_dist.rglob("release_metadata.json"))
     if len(desktop_metadata) != 1:
         raise RuntimeError("desktop package must contain exactly one release metadata file")
@@ -101,14 +118,14 @@ def main(argv: list[str] | None = None) -> int:
     desktop_update = {"schema_version": 1, **identity, "component_kind": "desktop_update_manifest", "package_locator": "desktop/EOAT-Atlas-desktop.zip", "size_bytes": desktop_zip.stat().st_size, "sha256": _sha256(desktop_zip), "release_channel": "candidate"}
     (output / "desktop" / "update-manifest.json").write_text(json.dumps(desktop_update, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    _run([sys.executable, "scripts/build_launcher.py"], env=env)
+    _run([sys.executable, "scripts/build_launcher.py"], env=env, timeout=900, label="launcher-build", diagnostics=diagnostics_root / "launcher-build.json")
     launcher_dist = ROOT / "dist" / "launcher"
     launcher_exe = launcher_dist / "EOAT Atlas Launcher.exe"
     launcher_zip = output / "launcher" / "EOAT-Atlas-launcher.zip"
     launcher_zip.parent.mkdir(parents=True)
     _zip_tree(launcher_dist, launcher_zip)
     env["EOAT_RELEASE_PACKAGE_SHA256"] = _sha256(launcher_zip)
-    _run([str(launcher_exe), "--smoke-test", "--smoke-receipt", str(output / "launcher" / "smoke.json")], env=env)
+    _run([str(launcher_exe), "--smoke-test", "--smoke-receipt", str(output / "launcher" / "smoke.json")], env=env, timeout=120, label="launcher-smoke", diagnostics=diagnostics_root / "launcher-smoke.json")
     _copy(launcher_dist / "launcher_release_metadata.json", output / "launcher" / "release_metadata.json")
     _copy(launcher_dist / "launcher_package_manifest.json", output / "launcher" / "package_manifest.json")
     launcher_update = {"schema_version": 1, **identity, "component_kind": "launcher_update_manifest", "package_locator": "launcher/EOAT-Atlas-launcher.zip", "size_bytes": launcher_zip.stat().st_size, "sha256": _sha256(launcher_zip), "release_channel": "candidate"}
