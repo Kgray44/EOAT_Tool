@@ -9,7 +9,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from deployment.common import DeploymentError, read_json_object
 from deployment.convergence import sealing
-from deployment.convergence.release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
+from deployment.convergence.release_set import (
+    ComponentKind,
+    ComponentValidation,
+    ReleaseSetComponent,
+    SignedReleaseSet,
+    verify_signed_release_set,
+)
 from release_tools.release_identity import ArtifactDisposition, ProductReleaseIdentity
 
 
@@ -67,3 +73,19 @@ def test_sealing_rejects_conflicting_immutable_output(tmp_path: Path, monkeypatc
     (candidate_root / "sealing" / "release-set-manifest.json").write_text("{}", encoding="utf-8")
     with pytest.raises(DeploymentError, match="conflicts"):
         sealing.seal_candidate(candidate_root, _receipt(release_set), tmp_path, key_id="test-key", private_key=private, trusted_public_keys={"test-key": public})
+
+
+def test_signature_trust_unknown_revoked_and_mutated_payload_fail() -> None:
+    release_set = _release_set()
+    private = Ed25519PrivateKey.generate().private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
+    public = Ed25519PrivateKey.from_private_bytes(private).public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    signature = release_set.sign(key_id="test-key", private_key=private)
+    envelope = release_set.envelope(signature)
+    verify_signed_release_set(envelope, trusted_public_keys={"test-key": public})
+    with pytest.raises(ValueError, match="unknown"):
+        verify_signed_release_set(envelope, trusted_public_keys={})
+    with pytest.raises(ValueError, match="revoked"):
+        verify_signed_release_set(envelope, trusted_public_keys={"test-key": public}, revoked_key_ids=frozenset({"test-key"}))
+    envelope["canonical_digest"] = "0" * 64
+    with pytest.raises(ValueError, match="digest"):
+        verify_signed_release_set(envelope, trusted_public_keys={"test-key": public})
