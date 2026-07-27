@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import base64
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -21,7 +19,6 @@ from deployment.common import (
     sha256_file,
     utc_now,
     utc_text,
-    write_json_atomic,
 )
 from deployment.convergence.diagnostics import diagnostic_request, fallback_envelope, validate_diagnostic_envelope
 from deployment.manifest import manifest_identity, validate_external_manifest
@@ -756,17 +753,10 @@ class ReleaseDeploymentService:
         )
 
     def _schema_two_candidate_receipt(self, candidate: CandidateRecord) -> dict[str, Any]:
-        """Persist new candidates as signed schema-2 records; never rewrite legacy receipts."""
+        """Persist an unsigned working set; Phase 1B sealing is explicit."""
 
         if not candidate.artifact_path or not candidate.bundle_path or not candidate.candidate_tree or not candidate.candidate_commit:
             raise DeploymentError("validated candidate is missing immutable source or artifact paths")
-        private_text = os.environ.get("EOAT_RELEASE_TEST_SIGNING_KEY_B64", "").strip()
-        if not private_text:
-            raise DeploymentError("candidate signing key is not configured; schema-2 candidate cannot be validated")
-        try:
-            private_key = base64.b64decode(private_text.encode("ascii"), validate=True)
-        except ValueError as exc:
-            raise DeploymentError("configured candidate signing key is malformed") from exc
         artifact = Path(candidate.artifact_path)
         directory = artifact.parent
         external = json.loads((directory / "release_manifest.json").read_text(encoding="utf-8"))
@@ -794,23 +784,20 @@ class ReleaseDeploymentService:
             elif kind is ComponentKind.SOURCE_BUNDLE:
                 components.append(item(kind, ArtifactDisposition.BUILT, path=Path(candidate.bundle_path)))
             elif kind in {ComponentKind.RELEASE_SET_MANIFEST, ComponentKind.RELEASE_SET_SIGNATURE}:
-                components.append(item(kind, ArtifactDisposition.BUILT))
+                components.append(item(kind, ArtifactDisposition.PENDING, reason="Created only by explicit final release-set sealing."))
             else:
-                components.append(item(kind, ArtifactDisposition.NOT_APPLICABLE, reason="No immutable artifact is attached for this Phase 1 candidate."))
+                reason = "Bootstrap executable is introduced in Unified Release Train Phase 2." if kind in {ComponentKind.BOOTSTRAP, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST} else "Required platform artifact is pending validated Windows build attachment."
+                components.append(item(kind, ArtifactDisposition.PENDING, reason=reason))
         release_set = SignedReleaseSet(
             identity, tuple(components), str(core["api_contract_version"]), str(core["database"]["target_revision"]),
             "UNKNOWN", "0.0.0", "0.0.0", "0.0.0", ("server archive validated",),
         )
-        signature = release_set.sign(key_id=os.environ.get("EOAT_RELEASE_TEST_SIGNING_KEY_ID", "development-test-key"), private_key=private_key)
-        envelope = release_set.envelope(signature)
-        manifest_path = directory / "release_set.json"
-        write_json_atomic(manifest_path, envelope)
         raw = self._serialize(candidate)
         raw.update({
-            "schema_version": 2, "release_set": envelope["release_set"], "release_set_manifest_path": str(manifest_path),
-            "release_set_manifest_sha256": sha256_file(manifest_path), "release_set_signature": signature.to_dict(),
-            "signing_key_id": signature.key_id, "bundle_sha256": sha256_file(Path(candidate.bundle_path)),
-            "publication_eligible": False, "blocking_reasons": ["Desktop and launcher artifacts require validated Windows CI attachment."],
+            "schema_version": 2, "state": "PLATFORM_ARTIFACTS_PENDING", "working_release_set": release_set.unsigned_dict(),
+            "release_set": None, "bundle_sha256": sha256_file(Path(candidate.bundle_path)), "publication_eligible": False,
+            "blocking_reasons": ["Desktop and launcher artifacts require validated Windows CI attachment."],
+            "next_safe_action": "Attach validated Windows platform artifacts, then seal the release set.",
         })
         return raw
 

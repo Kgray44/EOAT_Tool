@@ -32,6 +32,7 @@ class ArtifactDisposition(str, Enum):
     BUILT = "BUILT"
     REUSED = "REUSED"
     NOT_APPLICABLE = "NOT_APPLICABLE"
+    PENDING = "PENDING"
 
 
 @dataclass(frozen=True)
