@@ -36,7 +36,11 @@ jobs:
   core-artifacts:
     runs-on: windows-latest
     steps:
+      # The retained candidate bundle is deliberately a delta from its
+      # declared base commit, so a depth-1 checkout cannot construct or
+      # independently prove that recovery artifact.
       - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       - uses: actions/setup-node@v4
