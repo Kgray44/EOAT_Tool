@@ -746,8 +746,15 @@ class ReleaseDeploymentService:
                     )
                 bundle = destination / "source" / "candidate.bundle"
                 bundle.parent.mkdir(parents=True)
+                # A governed-version candidate can intentionally resolve to
+                # the already committed source tip.  In that case excluding
+                # ``state.commit`` would ask Git to create an empty bundle.
+                # Retain the exact commit (and its history) instead; bundle
+                # verification still proves the declared commit/tree and the
+                # self-ancestry relation.
+                bundle_revisions = [commit] if commit == state.commit else [commit, f"^{state.commit}"]
                 bundle_result = subprocess.run(
-                    ["git", "bundle", "create", str(bundle), commit, f"^{state.commit}"],
+                    ["git", "bundle", "create", str(bundle), *bundle_revisions],
                     cwd=clone,
                     text=True,
                     capture_output=True,
