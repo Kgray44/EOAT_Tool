@@ -44,6 +44,11 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: {version: "11.9.0", run_install: false}
       - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: |
+          "$env:PNPM_HOME" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $env:PATH = "$env:PNPM_HOME;$env:PATH"
+          pnpm --version
+          git status --short
       - run: python tools/eoat_release.py --json candidate prepare --version 0.24.0 | Out-File -Encoding utf8 candidate-result.json
       - run: |
           $result = Get-Content candidate-result.json -Raw | ConvertFrom-Json
