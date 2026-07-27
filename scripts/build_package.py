@@ -43,6 +43,9 @@ def _generated_build_metadata() -> Path:
     run_id = os.getenv("GITHUB_RUN_ID") or f"local-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
     payload = generate_release_metadata(ROOT, commit, branch_name=branch, build_timestamp=timestamp)
     payload.update({
+        "release_id": os.getenv("EOAT_RELEASE_RELEASE_ID", payload.get("release_id", "")),
+        "build_id": os.getenv("EOAT_RELEASE_BUILD_ID", payload.get("build_id", "")),
+        "commit": os.getenv("EOAT_RELEASE_SOURCE_COMMIT", payload.get("commit", "")),
         "ci_run_id": run_id,
         "build_run_id": run_id,
         "dirty_tree": False,
