@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.atlas import main as atlas_main
+from scripts import build_package
 
 
 class _SmokeApplication:
@@ -67,3 +68,11 @@ def test_packaged_smoke_fails_before_qt_startup_for_invalid_backend(monkeypatch:
 
     with pytest.raises(SystemExit, match="Invalid EOAT_ATLAS_DATA_BACKEND"):
         atlas_main.main()
+
+
+def test_candidate_package_timestamp_is_explicit_and_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EOAT_RELEASE_BUILD_TIMESTAMP", "2026-07-27T19:28:32Z")
+    assert build_package._candidate_build_timestamp().isoformat() == "2026-07-27T19:28:32+00:00"
+    monkeypatch.setenv("EOAT_RELEASE_BUILD_TIMESTAMP", "not-a-timestamp")
+    with pytest.raises(RuntimeError, match="EOAT_RELEASE_BUILD_TIMESTAMP"):
+        build_package._candidate_build_timestamp()

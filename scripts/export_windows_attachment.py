@@ -51,6 +51,7 @@ def _identity(receipt: dict[str, Any]) -> dict[str, str]:
         "product_version": str(receipt.get("version") or ""),
         "release_id": str(identity.get("release_id") or ""),
         "build_id": str(identity.get("build_id") or ""),
+        "build_timestamp": str(identity.get("build_timestamp") or ""),
         "source_commit": str(receipt.get("candidate_commit") or ""),
         "source_tree": str(receipt.get("candidate_tree") or ""),
     }
@@ -101,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         "EOAT_RELEASE_CANDIDATE_ID": identity["candidate_id"], "EOAT_RELEASE_PRODUCT_VERSION": identity["product_version"],
         "EOAT_RELEASE_RELEASE_ID": identity["release_id"], "EOAT_RELEASE_BUILD_ID": identity["build_id"],
         "EOAT_RELEASE_SOURCE_COMMIT": identity["source_commit"], "EOAT_RELEASE_SOURCE_TREE": identity["source_tree"],
+        "EOAT_RELEASE_BUILD_TIMESTAMP": identity["build_timestamp"],
     })
     _run([sys.executable, "scripts/build_package.py"], env=env, timeout=1200, label="desktop-build", diagnostics=diagnostics_root / "desktop-build.json")
     desktop_dist = ROOT / "dist" / "EOAT Atlas"
