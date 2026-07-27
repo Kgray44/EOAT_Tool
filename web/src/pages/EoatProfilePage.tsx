@@ -16,7 +16,12 @@ import {
   NotFoundState,
   StatusValue,
 } from "@/components/feedback/StateViews";
-import { DocumentList, PhotoGallery } from "@/components/profile/ProfileBlocks";
+import {
+  DocumentList,
+  PhotoGallery,
+  ProfileTabs,
+  RelationshipFlow,
+} from "@/components/profile/ProfileBlocks";
 import { QrLabel } from "@/components/qr/QrLabel";
 
 function decodeEoatIdentifier(pathname: string): string | undefined {
@@ -86,7 +91,9 @@ function ProfileSection({
 }) {
   return (
     <section className="profile-section" aria-labelledby={`section-${title}`}>
-      <h2 id={`section-${title}`}>{title}</h2>
+      <h2 id={`section-${title.toLowerCase().replaceAll(" ", "-")}`}>
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -125,11 +132,16 @@ function ProfileHeader({
         : profile.current_location;
   return (
     <header className="profile-header">
-      <p className="eyebrow">Read-only EOAT profile</p>
-      <h1>{profile.business_identifier}</h1>
-      <p className="profile-name">
-        <StatusValue value={profile.display_name ?? profile.description} />
-      </p>
+      <div className="profile-medallion" aria-hidden="true">
+        ◇
+      </div>
+      <div className="profile-identity">
+        <p className="eyebrow">Read-only EOAT profile</p>
+        <h1>{profile.business_identifier}</h1>
+        <p className="profile-name">
+          <StatusValue value={profile.display_name ?? profile.description} />
+        </p>
+      </div>
       <div className="profile-summary" aria-label="EOAT critical status">
         <div>
           <span>Status</span>
@@ -194,11 +206,44 @@ function ProfileContent({
     location.data ?? profile.current_location_detail ?? undefined;
   const resolvedRelationships =
     relationships.data ?? profile.relationships ?? [];
+  const relatedMachines = resolvedRelationships
+    .filter((item) => item.relationship_type === "machine")
+    .map((item) => ({
+      identifier: item.identifier,
+      label: item.display_name,
+      relationshipType: item.relationship_type,
+      status: item.status,
+    }));
+  const relatedTools = resolvedRelationships
+    .filter((item) => item.relationship_type === "tool")
+    .map((item) => ({
+      identifier: item.identifier,
+      label: item.display_name,
+      relationshipType: item.relationship_type,
+      status: item.status,
+    }));
+  if (currentLocation?.machine_number && relatedMachines.length === 0) {
+    relatedMachines.push({
+      identifier: currentLocation.machine_number,
+      label: undefined,
+      relationshipType: "machine",
+      status: "Current assignment",
+    });
+  }
 
   return (
     <>
       <ProfileHeader profile={profile} location={currentLocation} />
+      <ProfileTabs />
       <div className="profile-sections">
+        <RelationshipFlow
+          identifier={profile.business_identifier}
+          category="EOAT"
+          leftLabel="Machines"
+          leftNodes={relatedMachines}
+          rightLabel="Tools"
+          rightNodes={relatedTools}
+        />
         <ProfileSection title="Overview">
           <dl className="attribute-grid">
             <Attribute label="Description" value={profile.description} />

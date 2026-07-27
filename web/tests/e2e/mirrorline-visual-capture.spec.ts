@@ -332,7 +332,7 @@ test("captures governed Mirrorline browser shell references", async ({
   await capture(page, "tool-profile");
   await page.goto("/fit-check");
   await expect(
-    page.getByRole("heading", { name: "Read-only Fit Check" }),
+    page.getByRole("heading", { name: "Fit Check", exact: true }),
   ).toBeVisible();
   await capture(page, "fit-empty");
   await page.goto("/fit-check?tool=6201510010");

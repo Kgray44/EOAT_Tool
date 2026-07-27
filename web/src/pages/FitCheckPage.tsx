@@ -55,7 +55,7 @@ export function FitCheckPage() {
   return (
     <section className="fit-check-page">
       <p className="eyebrow">Compatibility</p>
-      <h2>Read-only Fit Check</h2>
+      <h2>Fit Check</h2>
       <p className="lede">
         This evaluation uses EOAT Atlas compatibility rules and never stores a
         Fit Check, assignment, audit record, or history event.
@@ -137,28 +137,35 @@ export function FitCheckPage() {
           Clear
         </button>
       </form>
+      <section
+        className="fit-selection-flow"
+        aria-label="Selected fit check setup"
+      >
+        {[
+          ["Tool", tool || "Choose a tool"],
+          ["Machine", machine || "Choose a machine"],
+          ["EOAT", eoat || "Choose an EOAT"],
+        ].map(([label, value]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </section>
       {evaluation.isPending && (
         <LoadingState label="Evaluating authoritative compatibility…" />
       )}
       {evaluation.isError && <ErrorState error={evaluation.error} />}
       {result && (
         <section className="fit-result" aria-live="polite">
-          <h3>{resultLabel(result.overall_result)}</h3>
-          <p>
-            {result.reasons.join(" ") ||
-              "EOAT Atlas did not provide a conclusive recommendation."}
-          </p>
-          {result.warnings.length > 0 && (
+          <header className="fit-result__headline">
+            <span>Match result</span>
+            <h3>{resultLabel(result.overall_result)}</h3>
             <p>
-              <strong>Warnings:</strong> {result.warnings.join(" ")}
+              {result.reasons.join(" ") ||
+                "EOAT Atlas did not provide a conclusive recommendation."}
             </p>
-          )}
-          {result.unknown_relationships.length > 0 && (
-            <p>
-              <strong>Unknown / insufficient:</strong>{" "}
-              {result.unknown_relationships.join(", ")}
-            </p>
-          )}
+          </header>
           <dl className="attribute-grid">
             {[
               result.machine_tool_result,
@@ -175,12 +182,28 @@ export function FitCheckPage() {
               </div>
             ))}
           </dl>
-          {result.alternative_compatible_eoats.length > 0 && (
+          <section className="fit-result__warnings">
+            <h4>Warnings and requirements</h4>
+            {result.warnings.length > 0 ? (
+              <p>{result.warnings.join(" ")}</p>
+            ) : (
+              <p>No setup warnings from the authoritative evaluation.</p>
+            )}
+            {result.unknown_relationships.length > 0 && (
+              <p>
+                <strong>Unknown / insufficient:</strong>{" "}
+                {result.unknown_relationships.join(", ")}
+              </p>
+            )}
+          </section>
+          <section className="fit-result__alternatives">
+            <h4>Alternative options</h4>
             <p>
-              <strong>Alternative compatible EOATs:</strong>{" "}
-              {result.alternative_compatible_eoats.join(", ")}
+              {result.alternative_compatible_eoats.length > 0
+                ? result.alternative_compatible_eoats.join(", ")
+                : "No alternative EOAT is required for this result."}
             </p>
-          )}
+          </section>
         </section>
       )}
       <section

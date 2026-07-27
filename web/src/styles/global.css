@@ -1408,6 +1408,411 @@ a {
   font-weight: 700;
 }
 
+/* Mirrorline composition: preserve the desktop's compact relationship and
+   workflow workspaces instead of expanding their content into card decks. */
+.profile-page {
+  width: min(calc(100vw - 64px), 1680px);
+  max-width: none;
+  margin: 0 auto;
+}
+.profile-header {
+  display: grid;
+  min-height: 176px;
+  grid-template-columns: minmax(255px, 0.62fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  padding: 26px 38px 26px 190px;
+}
+.profile-header::before {
+  content: none;
+}
+.profile-medallion {
+  position: absolute;
+  top: 28px;
+  left: 34px;
+  display: grid;
+  width: 122px;
+  height: 122px;
+  place-items: center;
+  color: #d8e8ff;
+  border: 2px solid var(--atlas-success);
+  border-radius: 50%;
+  box-shadow: inset 0 0 28px
+    color-mix(in srgb, var(--atlas-accent) 20%, transparent);
+  font-size: 4rem;
+}
+.profile-identity {
+  min-width: 0;
+}
+.profile-header .profile-summary {
+  position: static;
+  width: auto;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 6px 22px;
+  margin: 0;
+}
+.profile-header .profile-summary div {
+  padding: 5px 0;
+}
+.profile-sections {
+  gap: 14px;
+  margin-top: 14px;
+}
+.profile-tabs {
+  display: flex;
+  gap: 28px;
+  height: 40px;
+  align-items: end;
+  padding: 0 2px;
+}
+.profile-tabs a {
+  height: 32px;
+  padding: 0 2px 9px;
+  color: var(--atlas-text-secondary);
+  border-bottom: 2px solid transparent;
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+.profile-tabs a:first-child,
+.profile-tabs a:hover {
+  color: var(--atlas-accent-hover);
+  border-color: var(--atlas-accent-hover);
+}
+.profile-section {
+  padding: 18px 20px;
+}
+.profile-sections > .profile-section:first-child {
+  min-height: 0;
+}
+.relationship-flow {
+  min-height: 250px;
+  padding: 18px 24px;
+  border: 1px solid
+    color-mix(in srgb, var(--atlas-border-strong) 52%, transparent);
+  border-radius: 11px;
+  background: color-mix(
+    in srgb,
+    var(--atlas-panel-background) 62%,
+    transparent
+  );
+}
+.relationship-flow > header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.relationship-flow > header p {
+  margin: 4px 0 0;
+  color: var(--atlas-text-secondary);
+  font-size: 0.78rem;
+}
+.relationship-flow__body {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) 210px minmax(210px, 1fr);
+  gap: 34px;
+  align-items: center;
+  min-height: 176px;
+}
+.relationship-flow__column {
+  display: grid;
+  gap: 8px;
+}
+.relationship-flow__column > span {
+  color: var(--atlas-accent-hover);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.relationship-flow__nodes {
+  display: grid;
+  gap: 7px;
+}
+.relationship-flow__nodes > a,
+.relationship-flow__nodes > div,
+.relationship-flow__nodes > small {
+  position: relative;
+  display: grid;
+  min-height: 44px;
+  align-content: center;
+  padding: 7px 12px;
+  color: var(--atlas-text-primary);
+  background: color-mix(in srgb, var(--atlas-card-background) 64%, transparent);
+  border: 1px solid color-mix(in srgb, var(--atlas-border) 44%, transparent);
+  border-radius: 7px;
+  text-decoration: none;
+}
+.relationship-flow__nodes > a:first-child::after,
+.relationship-flow__nodes > div:first-child::after {
+  position: absolute;
+  top: 50%;
+  width: 34px;
+  border-top: 1px solid var(--atlas-accent-hover);
+  content: "";
+}
+.relationship-flow__column:first-child
+  .relationship-flow__nodes
+  > a:first-child::after,
+.relationship-flow__column:first-child
+  .relationship-flow__nodes
+  > div:first-child::after {
+  left: 100%;
+}
+.relationship-flow__column:last-child
+  .relationship-flow__nodes
+  > a:first-child::after,
+.relationship-flow__column:last-child
+  .relationship-flow__nodes
+  > div:first-child::after {
+  right: 100%;
+}
+.relationship-flow__nodes strong {
+  font-size: 0.82rem;
+}
+.relationship-flow__nodes small {
+  color: var(--atlas-text-muted);
+  font-size: 0.68rem;
+}
+.relationship-flow__primary {
+  display: grid;
+  width: 168px;
+  height: 168px;
+  margin: 0 auto;
+  place-content: center;
+  gap: 6px;
+  color: var(--atlas-text-primary);
+  text-align: center;
+  border: 2px solid var(--atlas-success);
+  border-radius: 50%;
+  box-shadow: inset 0 0 26px
+    color-mix(in srgb, var(--atlas-accent) 18%, transparent);
+}
+.relationship-flow__primary span,
+.relationship-flow__primary small {
+  color: var(--atlas-text-secondary);
+  font-size: 0.7rem;
+}
+.relationship-flow__primary strong {
+  max-width: 138px;
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}
+.library-page {
+  width: min(calc(100vw - 64px), 1680px);
+  margin: 0 auto;
+}
+.library-page .result-deck {
+  grid-template-columns: repeat(auto-fit, minmax(330px, 390px));
+  gap: 12px;
+}
+.result-card {
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 184px;
+  padding: 12px;
+}
+.result-card__media {
+  width: 118px;
+  height: 118px;
+  font-size: 4.25rem;
+}
+.result-card__body {
+  gap: 5px;
+}
+.result-card__body strong {
+  font-size: 1.08rem;
+}
+.result-card > small:last-child {
+  padding-top: 8px;
+}
+.library-category-rail {
+  width: min(100%, 930px);
+  margin: 14px 0;
+}
+.library-category-rail button {
+  height: 58px;
+  font-size: 0.94rem;
+}
+.library-category-rail button span {
+  font-size: 1.35rem;
+}
+.fit-check-page {
+  width: min(calc(100vw - 64px), 1240px);
+  margin: 0 auto;
+}
+.fit-check-page > .eyebrow,
+.fit-check-page > h2,
+.fit-check-page > .lede {
+  text-align: center;
+}
+.fit-check-page > h2 {
+  margin: 0;
+  font-size: 2.3rem;
+  font-weight: 480;
+}
+.fit-check-page > .lede {
+  max-width: 680px;
+  margin: 8px auto 16px;
+  font-size: 0.8rem;
+}
+.fit-check-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 14px 18px;
+}
+.fit-check-form label {
+  font-size: 0.72rem;
+}
+.fit-check-form input {
+  height: 38px;
+}
+.fit-check-form button {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 0.74rem;
+}
+.fit-selection-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 0 14px;
+  padding: 12px 18px;
+  border: 1px solid
+    color-mix(in srgb, var(--atlas-border-strong) 52%, transparent);
+  border-radius: 10px;
+}
+.fit-selection-flow div {
+  position: relative;
+  display: grid;
+  min-height: 50px;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 12px 8px 58px;
+  background: color-mix(in srgb, var(--atlas-card-background) 56%, transparent);
+  border: 1px solid color-mix(in srgb, var(--atlas-border) 38%, transparent);
+  border-radius: 7px;
+}
+.fit-selection-flow div:not(:last-child)::after {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: 14px;
+  border-top: 1px solid var(--atlas-success);
+  content: "";
+}
+.fit-selection-flow span {
+  color: var(--atlas-accent-hover);
+  font-size: 0.66rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.fit-selection-flow strong {
+  font-size: 0.84rem;
+}
+.fit-result {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  min-height: 260px;
+  padding: 18px;
+}
+.fit-result__headline,
+.fit-result .attribute-grid {
+  grid-column: 1 / -1;
+}
+.fit-result__headline {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--atlas-border) 42%, transparent);
+}
+.fit-result__headline > span {
+  color: var(--atlas-accent-hover);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.fit-result h3 {
+  grid-row: span 2;
+  margin: 0;
+  color: var(--atlas-success);
+  font-size: 1.16rem;
+}
+.fit-result__headline p {
+  grid-column: 2;
+  margin: 0;
+  color: var(--atlas-text-secondary);
+  font-size: 0.8rem;
+}
+.fit-result .attribute-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.fit-result__warnings,
+.fit-result__alternatives {
+  min-height: 96px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--atlas-card-background) 52%, transparent);
+  border: 1px solid color-mix(in srgb, var(--atlas-border) 42%, transparent);
+  border-radius: 8px;
+}
+.fit-result__warnings {
+  grid-column: span 2;
+}
+.fit-result__warnings h4,
+.fit-result__alternatives h4 {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.fit-result__warnings p,
+.fit-result__alternatives p {
+  margin: 7px 0 0;
+  color: var(--atlas-text-secondary);
+  font-size: 0.78rem;
+}
+.fit-check-recents {
+  margin-top: 14px;
+  padding: 14px 18px;
+}
+.settings-page {
+  width: min(calc(100vw - 48px), 1680px);
+  margin: 0 auto;
+  transform: none;
+}
+.settings-heading {
+  margin: -14px 0 12px;
+}
+.settings-workspace {
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: 760px;
+}
+.settings-nav,
+.settings-content {
+  padding: 12px;
+}
+.settings-nav button {
+  min-height: 42px;
+  padding: 6px 8px;
+}
+.settings-desktop-boundary {
+  padding: 14px;
+}
+:root[data-atlas-theme="light"] .settings-nav,
+:root[data-atlas-theme="light"] .settings-content {
+  background: rgb(255 255 255 / 96%);
+  border-color: #9eb8d3;
+  box-shadow: 0 10px 28px rgb(75 106 142 / 10%);
+}
+:root[data-atlas-theme="light"] .settings-desktop-boundary {
+  color: #14283f;
+  background: rgb(250 253 255 / 96%);
+  border-color: #4a9c74;
+}
+
 @keyframes atlas-overlay-in {
   from {
     opacity: 0;
@@ -1514,6 +1919,7 @@ a {
   .profile-header {
     min-height: 0;
     padding: 138px 20px 22px;
+    grid-template-columns: 1fr;
   }
   .profile-header::before {
     top: 22px;
@@ -1531,6 +1937,39 @@ a {
   }
   .profile-header .profile-summary div {
     padding: 8px 0;
+  }
+  .profile-medallion {
+    top: 22px;
+    left: 50%;
+    width: 92px;
+    height: 92px;
+    font-size: 3.1rem;
+    transform: translateX(-50%);
+  }
+  .relationship-flow__body,
+  .fit-selection-flow,
+  .fit-result {
+    grid-template-columns: 1fr;
+  }
+  .relationship-flow__primary {
+    grid-row: 1;
+  }
+  .relationship-flow__nodes > a:first-child::after,
+  .relationship-flow__nodes > div:first-child::after,
+  .fit-selection-flow div:not(:last-child)::after {
+    content: none;
+  }
+  .fit-result__headline,
+  .fit-result__headline p,
+  .fit-result .attribute-grid,
+  .fit-result__warnings {
+    grid-column: auto;
+  }
+  .fit-result__headline {
+    grid-template-columns: 1fr;
+  }
+  .fit-result h3 {
+    grid-row: auto;
   }
   .profile-sections > .profile-section:first-child {
     min-height: 0;

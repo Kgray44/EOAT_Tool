@@ -17,6 +17,8 @@ import {
   HistoryList,
   PhotoGallery,
   ProfileSection,
+  ProfileTabs,
+  RelationshipFlow,
   RelationshipList,
 } from "@/components/profile/ProfileBlocks";
 import { deduplicateRelationships } from "@/components/profile/relationshipPresentation";
@@ -89,6 +91,42 @@ function MachineContent({
       ([, value]) => value === null || value === undefined || value === "",
     )
     .map(([label]) => label);
+  const currentEoat = setup.data?.current_eoat || profile.current_eoat;
+  const currentTool = setup.data?.current_tool;
+  const relatedEoats = resolvedRelationships
+    .filter((item) => item.relationship_type === "eoat")
+    .map((item) => ({
+      identifier: item.identifier,
+      label: item.display_name,
+      relationshipType: item.relationship_type,
+      status: item.status,
+    }));
+  const relatedTools = resolvedRelationships
+    .filter((item) => item.relationship_type === "tool")
+    .map((item) => ({
+      identifier: item.identifier,
+      label: item.display_name,
+      relationshipType: item.relationship_type,
+      status: item.status,
+    }));
+  if (currentEoat && relatedEoats.length === 0) {
+    relatedEoats.push({
+      identifier: currentEoat,
+      label: undefined,
+      relationshipType: "eoat",
+      status: setup.data?.verified
+        ? "Current / verified"
+        : "Current assignment",
+    });
+  }
+  if (currentTool && relatedTools.length === 0) {
+    relatedTools.push({
+      identifier: currentTool,
+      label: undefined,
+      relationshipType: "tool",
+      status: "Current tool / mold",
+    });
+  }
 
   return (
     <>
@@ -113,7 +151,16 @@ function MachineContent({
           ],
         ]}
       />
+      <ProfileTabs />
       <div className="profile-sections">
+        <RelationshipFlow
+          identifier={profile.machine_number}
+          category="Machine"
+          leftLabel="EOATs"
+          leftNodes={relatedEoats}
+          rightLabel="Tools"
+          rightNodes={relatedTools}
+        />
         <ProfileSection title="Overview">
           <dl className="attribute-grid">
             {overview

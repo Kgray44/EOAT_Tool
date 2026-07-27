@@ -281,6 +281,13 @@
       "state": "finalized",
       "task_id": "codex-project-mirrorline-exhaustive-parity-20260727",
       "finalized_at_utc": "2026-07-27T19:39:36Z"
+    },
+    {
+      "application_version": "0.23.2",
+      "release_id": "eoat-atlas-0.23.2",
+      "state": "finalized",
+      "task_id": "codex-project-mirrorline-composition-corrections-20260727",
+      "finalized_at_utc": "2026-07-27T21:26:31Z"
     }
   ]
 }

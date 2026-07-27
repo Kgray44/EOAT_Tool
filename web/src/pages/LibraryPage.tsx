@@ -240,7 +240,7 @@ export function LibraryPage() {
           </button>
         ))}
       </div>
-      {!query && recent.length > 0 && (
+      {!query && filter === "all" && recent.length > 0 && (
         <section className="recent-items" aria-labelledby="recent-title">
           <h3 id="recent-title">Recently viewed on this browser</h3>
           <div className="result-deck">

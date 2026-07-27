@@ -17,6 +17,8 @@ import {
   HistoryList,
   PhotoGallery,
   ProfileSection,
+  ProfileTabs,
+  RelationshipFlow,
   RelationshipList,
 } from "@/components/profile/ProfileBlocks";
 import { QrLabel } from "@/components/qr/QrLabel";
@@ -65,6 +67,22 @@ function ToolContent({
   }, [identifier, profile.display_name, profile.tool_number]);
   const resolvedRelationships =
     relationships.data ?? profile.relationships ?? [];
+  const relatedEoats = resolvedRelationships
+    .filter((item) => item.relationship_type === "eoat")
+    .map((item) => ({
+      identifier: item.identifier,
+      label: item.display_name,
+      relationshipType: item.relationship_type,
+      status: item.status,
+    }));
+  const relatedMachines = resolvedRelationships
+    .filter((item) => item.relationship_type === "machine")
+    .map((item) => ({
+      identifier: item.identifier,
+      label: item.display_name,
+      relationshipType: item.relationship_type,
+      status: item.status,
+    }));
   return (
     <>
       <EntityHeader
@@ -78,7 +96,16 @@ function ToolContent({
           ["Part verification", profile.part_status],
         ]}
       />
+      <ProfileTabs />
       <div className="profile-sections">
+        <RelationshipFlow
+          identifier={profile.business_identifier}
+          category="Tool / mold"
+          leftLabel="EOATs"
+          leftNodes={relatedEoats}
+          rightLabel="Machines"
+          rightNodes={relatedMachines}
+        />
         <ProfileSection title="Overview">
           <dl className="attribute-grid">
             <Attribute label="Description" value={profile.description} />
