@@ -58,6 +58,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - run: sudo apt-get update && sudo apt-get install -y libegl1
       - run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - run: python -m pytest -q tests/test_release_phase_1c.py tests/test_release_deployment_convergence.py
   cli-console-smoke:
@@ -76,6 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
+      - run: sudo apt-get update && sudo apt-get install -y libegl1
       - run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - run: python -m pytest -q tests/test_release_set_v2.py tests/test_release_deployment_convergence.py
   end-to-end-disposable-phase-1c:
