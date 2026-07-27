@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -12,7 +14,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from deployment.common import CheckStatus, DeploymentError, redact_text, sha256_file, utc_now, utc_text
+from deployment.common import (
+    CheckStatus,
+    DeploymentError,
+    redact_text,
+    sha256_file,
+    utc_now,
+    utc_text,
+    write_json_atomic,
+)
 from deployment.convergence.diagnostics import diagnostic_request, fallback_envelope, validate_diagnostic_envelope
 from deployment.manifest import manifest_identity, validate_external_manifest
 from deployment.release_manager import (
@@ -34,6 +44,7 @@ from deployment.server_updater import (
     release_tag_commit,
     select_release,
 )
+from release_tools.release_identity import ArtifactDisposition, ProductReleaseIdentity
 
 from .models import (
     CandidateRecord,
@@ -53,6 +64,7 @@ from .models import (
     validate_deployment_transition,
 )
 from .receipts import ReceiptStore
+from .release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
 
 _PINNED_PNPM = re.compile(r"^pnpm@(?P<version>[0-9][0-9A-Za-z.+-]*)$")
 _PRODUCTION_HOSTS = {"eoat-atlas.gwplastics.com", "eoat-atlas-prod"}
@@ -732,7 +744,8 @@ class ReleaseDeploymentService:
 
     def prepare_candidate(self, bump: str | None = None, explicit_version: str | None = None) -> OperationResult:
         candidate = self._candidate(bump=bump, explicit_version=explicit_version, persist=True)
-        path = self.store.write("candidate", candidate.candidate_id, self._serialize(candidate))
+        receipt = self._schema_two_candidate_receipt(candidate) if candidate.state is CandidateState.CANDIDATE_VALIDATED else self._serialize(candidate)
+        path = self.store.write("candidate", candidate.candidate_id, receipt)
         return OperationResult(
             Status.PASS if candidate.state is CandidateState.CANDIDATE_VALIDATED else Status.BLOCKED,
             "Candidate prepared and validated."
@@ -741,6 +754,65 @@ class ReleaseDeploymentService:
             candidate.next_safe_action,
             data={"candidate": candidate, "receipt_path": str(path)},
         )
+
+    def _schema_two_candidate_receipt(self, candidate: CandidateRecord) -> dict[str, Any]:
+        """Persist new candidates as signed schema-2 records; never rewrite legacy receipts."""
+
+        if not candidate.artifact_path or not candidate.bundle_path or not candidate.candidate_tree or not candidate.candidate_commit:
+            raise DeploymentError("validated candidate is missing immutable source or artifact paths")
+        private_text = os.environ.get("EOAT_RELEASE_TEST_SIGNING_KEY_B64", "").strip()
+        if not private_text:
+            raise DeploymentError("candidate signing key is not configured; schema-2 candidate cannot be validated")
+        try:
+            private_key = base64.b64decode(private_text.encode("ascii"), validate=True)
+        except ValueError as exc:
+            raise DeploymentError("configured candidate signing key is malformed") from exc
+        artifact = Path(candidate.artifact_path)
+        directory = artifact.parent
+        external = json.loads((directory / "release_manifest.json").read_text(encoding="utf-8"))
+        core, _ = validate_external_manifest(external)
+        identity = ProductReleaseIdentity(
+            str(candidate.version), str(core["release_id"]), str(core["build_id"]), str(candidate.candidate_commit),
+            str(candidate.candidate_tree), str(candidate.branch), "candidate", str(core["created_at_utc"]), candidate.candidate_id,
+        )
+        def item(kind: ComponentKind, disposition: ArtifactDisposition, *, path: Path | None = None, reason: str = "") -> ReleaseSetComponent:
+            return ReleaseSetComponent(
+                kind, disposition, identity.product_version, identity.release_id, identity.build_id, identity.source_commit,
+                identity.source_tree, identity.candidate_id, artifact_filename=path.name if path else "",
+                artifact_locator=path.name if path else "", size_bytes=path.stat().st_size if path else 0,
+                sha256=sha256_file(path) if path else "", media_type="application/octet-stream" if path else "",
+                validation_status=ComponentValidation.PASS if path else ComponentValidation.NOT_APPLICABLE,
+                not_applicable_justification=reason,
+            )
+        web_manifest = directory / "web-static" / "web-static.manifest.json"
+        components = []
+        for kind in ComponentKind:
+            if kind is ComponentKind.SERVER:
+                components.append(item(kind, ArtifactDisposition.BUILT, path=artifact))
+            elif kind is ComponentKind.WEB and web_manifest.is_file():
+                components.append(item(kind, ArtifactDisposition.BUILT, path=web_manifest))
+            elif kind is ComponentKind.SOURCE_BUNDLE:
+                components.append(item(kind, ArtifactDisposition.BUILT, path=Path(candidate.bundle_path)))
+            elif kind in {ComponentKind.RELEASE_SET_MANIFEST, ComponentKind.RELEASE_SET_SIGNATURE}:
+                components.append(item(kind, ArtifactDisposition.BUILT))
+            else:
+                components.append(item(kind, ArtifactDisposition.NOT_APPLICABLE, reason="No immutable artifact is attached for this Phase 1 candidate."))
+        release_set = SignedReleaseSet(
+            identity, tuple(components), str(core["api_contract_version"]), str(core["database"]["target_revision"]),
+            "UNKNOWN", "0.0.0", "0.0.0", "0.0.0", ("server archive validated",),
+        )
+        signature = release_set.sign(key_id=os.environ.get("EOAT_RELEASE_TEST_SIGNING_KEY_ID", "development-test-key"), private_key=private_key)
+        envelope = release_set.envelope(signature)
+        manifest_path = directory / "release_set.json"
+        write_json_atomic(manifest_path, envelope)
+        raw = self._serialize(candidate)
+        raw.update({
+            "schema_version": 2, "release_set": envelope["release_set"], "release_set_manifest_path": str(manifest_path),
+            "release_set_manifest_sha256": sha256_file(manifest_path), "release_set_signature": signature.to_dict(),
+            "signing_key_id": signature.key_id, "bundle_sha256": sha256_file(Path(candidate.bundle_path)),
+            "publication_eligible": False, "blocking_reasons": ["Desktop and launcher artifacts require validated Windows CI attachment."],
+        })
+        return raw
 
     @staticmethod
     def _serialize(value: Any) -> dict[str, Any]:
