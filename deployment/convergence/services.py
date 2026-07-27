@@ -6,6 +6,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import asdict
 from datetime import datetime
@@ -622,9 +623,31 @@ class ReleaseDeploymentService:
         state = inspect_git_state(self.root)
         target = explicit_version or str(Version.parse(str(state.version)).bump(str(bump)))
         version = Version.parse(target)
-        if version <= Version.parse(str(state.version)):
-            raise DeploymentError("candidate version must be greater than the source version")
-        temporary, clone, commit = _clone_for_dry_run(self.root, version)
+        source_version = Version.parse(str(state.version))
+        if version < source_version:
+            raise DeploymentError("candidate version cannot be older than the governed source version")
+        if version == source_version:
+            # The single 0.24.0 product operation is already governed on this
+            # branch.  Phase 1B-2 must build that exact committed tree, never
+            # synthesize a second version/history bump just to make a candidate.
+            temporary = tempfile.TemporaryDirectory(prefix="eoat-release-candidate-")
+            clone = Path(temporary.name) / "source"
+            copied = subprocess.run(
+                ["git", "clone", "--quiet", "--shared", str(self.root), str(clone)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if copied.returncode:
+                temporary.cleanup()
+                raise DeploymentError("could not create isolated exact candidate repository")
+            commit = Git(clone).output("rev-parse", state.commit)
+            checked_out = subprocess.run(["git", "checkout", "--quiet", "--detach", commit], cwd=clone, check=False)
+            if checked_out.returncode:
+                temporary.cleanup()
+                raise DeploymentError("could not select exact governed candidate commit")
+        else:
+            temporary, clone, commit = _clone_for_dry_run(self.root, version)
         candidate_id = f"candidate-{target}-{commit[:12]}"
         try:
             checks, _commands = run_validation(clone)
