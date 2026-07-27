@@ -48,6 +48,9 @@ jobs:
           "$env:PNPM_HOME" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           $env:PATH = "$env:PNPM_HOME;$env:PATH"
           pnpm --version
+          Push-Location web
+          pnpm exec playwright install chromium
+          Pop-Location
           git status --short
       - run: |
           $env:PATH = "$env:PNPM_HOME;$env:PATH"
