@@ -7,13 +7,13 @@ API and must never reproduce compatibility decisions or hold credentials.
 
 ## Acceptance state
 
-**Current state: Phase 2 acceptance-complete on the Project Mirrorline review
-branch, not deployed.** The canonical application version is `0.23.0` after
-the deterministic convergence gates and final evidence review passed. This
-does not authorize a mainline merge, a deployment, API writes, MySQL changes,
-or production activity. The canonical ledger records the finalized application
-version only; a separately authorized host transaction is still required to
-activate any generated artifact.
+**Current state: the exhaustive Mirrorline review candidate is validated on
+its isolated review branch, not deployed.** The canonical application version
+is `0.23.1` after the deterministic convergence gates and final evidence
+review passed. This does not authorize a mainline merge, a deployment, API
+writes, MySQL changes, or production activity. The canonical ledger records
+the finalized application version only; a separately authorized host
+transaction is still required to activate any generated artifact.
 
 The states are deliberately separate:
 
@@ -56,13 +56,13 @@ OutCubic/320ms transitions translated to CSS.
 | EOAT profile | `/eoats/:identifier` | Complete, visual + regression coverage | Browser-safe document/photo routes only; desktop filesystem metadata remains excluded. |
 | Machine profile | `/machines/:number` | Complete, visual + regression coverage | Browser-safe media only. |
 | Tool profile | `/tools/:identifier` | Complete, visual + regression coverage | Browser-safe media only. |
-| Fit Check | `/fit-check` | Complete, visual + regression coverage | Uses the authoritative non-persisting API endpoint only. |
+| Fit Check | `/fit-check` | Complete, visual + regression coverage | Uses the authoritative non-persisting API endpoint only; browser-local recents can be restored or cleared without creating server history. |
 | Settings: display/accessibility | `/settings` | Complete | Theme, accent, animation, reduced motion, and contrast are browser-local and persist only in browser storage. |
 | Settings: privileged/data-source/file controls | `/settings` | Intentional safe exception | Clearly unavailable; no browser simulation or write path. |
-| Setup packet, standards/work instructions, data health | Desktop-only command/profile surfaces | Intentional safe exception | Browser preserves profile facts but does not fabricate filesystem-dependent exports or privileged workflows. |
+| Setup packet, standards/work instructions, data health | `/setup-packet`, `/standards`, `/data-health` | Complete browser-safe boundary | Truthful direct routes preserve the coming-later desktop state or link to a read-only Fit Check; they never fabricate filesystem-dependent exports or privileged workflows. |
 | Loading, empty, malformed, unavailable, unauthorized, not found | existing `StateViews`, API client | Complete, visual + regression coverage | API client preserves typed failures; no invented success state. |
 | Dark/light/system/reduced motion | shell settings + generated tokens | Complete, focused validation | System follows the browser media preference; contrast and reduced motion use persistent, local-only preferences. |
-| Responsive viewports | global styles and existing Playwright suite | Complete, desktop and responsive validation | Tested at 360, 390, 768, and 1280px without horizontal overflow. |
+| Responsive viewports | global styles and existing Playwright suite | Complete, desktop and responsive validation | Tested at 1760x1080, 1440x900, 1280x820, 1024x768, 768x1024, 430x932, 390x844, and 360x800 without horizontal overflow. |
 
 Do not label a row complete until its cited evidence is current. Qt and browser
 font rasterization can differ; that is not permission to hide layout defects.
@@ -139,7 +139,7 @@ any missing governed state; dynamic masks require an explicit reviewed
 `dynamic-masks.json` rectangle entry and are never used for geometry or
 content defects.
 
-Phase 2 completed at visual-evidence iteration 19. All **27 of 27** governed
+The exhaustive review completed at visual-evidence iteration 20. All **27 of 27** governed
 states have matching Qt/browser capture names, generated comparison artifacts,
 and a reviewed, non-blocking disposition. The review manifest remains beside
 the external evidence rather than in source control. `--require-complete`

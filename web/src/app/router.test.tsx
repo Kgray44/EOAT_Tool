@@ -25,6 +25,25 @@ describe("router", () => {
       screen.getByRole("heading", { name: "Page not found" }),
     ).toBeInTheDocument();
   });
+  it("accounts for desktop-only auxiliary pages with explicit browser-safe routes", () => {
+    const setupPacket = renderAt("/setup-packet");
+    expect(
+      screen.getByRole("heading", { name: "Setup Packet" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Run a read-only Fit Check" }),
+    ).toHaveAttribute("href", "/fit-check");
+    setupPacket.unmount();
+    const standards = renderAt("/standards");
+    expect(
+      screen.getByRole("heading", { name: "Standards & WI" }),
+    ).toBeInTheDocument();
+    standards.unmount();
+    renderAt("/data-health");
+    expect(
+      screen.getByRole("heading", { name: "Data Health" }),
+    ).toBeInTheDocument();
+  });
   it("opens the keyboard-accessible desktop-style navigation overlay", async () => {
     const user = userEvent.setup();
     renderAt("/");

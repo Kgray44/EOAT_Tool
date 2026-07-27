@@ -304,12 +304,36 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
   await expect(
     page.getByRole("heading", { name: /compatible/i }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Recent Fit Checks" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear" }).click();
+  await expect(page.getByRole("combobox", { name: "Machine" })).toHaveValue("");
+  await page.getByRole("button", { name: /Machine M-1/ }).click();
+  await expect(page.getByRole("combobox", { name: "Machine" })).toHaveValue(
+    "M-1",
+  );
+  await expect(page.getByRole("combobox", { name: "Tool" })).toHaveValue(
+    "TOOL-1",
+  );
+  await expect(page.getByRole("combobox", { name: "EOAT" })).toHaveValue(
+    "EOAT-1",
+  );
   await page.goto("/machines/M-1");
   await expect(
     page.getByText(/http:\/\/127\.0\.0\.1:4173\/machines\/M-1/),
   ).toBeVisible();
-  for (const width of [360, 390, 768, 1280]) {
-    await page.setViewportSize({ width, height: 844 });
+  for (const [width, height] of [
+    [1760, 1080],
+    [1440, 900],
+    [1280, 820],
+    [1024, 768],
+    [768, 1024],
+    [430, 932],
+    [390, 844],
+    [360, 800],
+  ]) {
+    await page.setViewportSize({ width, height });
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
