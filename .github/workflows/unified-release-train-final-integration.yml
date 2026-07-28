@@ -2,7 +2,7 @@ name: Unified Release Train Final Integration
 
 on:
   push:
-    branches: [integration/unified-release-train-final, main]
+    branches: [integration/unified-release-train-final, integration/production-signing-foundation-0.24.0, main]
   workflow_dispatch:
 
 permissions: {contents: read}
