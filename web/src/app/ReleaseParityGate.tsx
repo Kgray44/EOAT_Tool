@@ -27,7 +27,8 @@ function equalIdentity(web: ReleaseIdentity, api: ReleaseIdentity) {
     web.product_version === api.product_version &&
     web.release_id === api.release_id &&
     web.build_id === api.build_id &&
-    (!web.release_set_digest || web.release_set_digest === api.release_set_digest)
+    (!web.release_set_digest ||
+      web.release_set_digest === api.release_set_digest)
   );
 }
 
@@ -35,7 +36,9 @@ export function ReleaseParityGate({ children }: PropsWithChildren) {
   const [state, setState] = useState<"checking" | "ready" | "blocked">(
     parityRequired ? "checking" : "ready",
   );
-  const [detail, setDetail] = useState("Checking active EOAT Atlas release identity.");
+  const [detail, setDetail] = useState(
+    "Checking active EOAT Atlas release identity.",
+  );
 
   useEffect(() => {
     if (!parityRequired || !configuredIdentity) return;
@@ -43,8 +46,11 @@ export function ReleaseParityGate({ children }: PropsWithChildren) {
     const guardKey = `eoat-release-parity-reload:${configuredIdentity.release_id}:${configuredIdentity.build_id}`;
     const check = async () => {
       try {
-        const response = await fetch("/api/v1/release-status", { cache: "no-store" });
-        if (!response.ok) throw new Error(`Release status returned ${response.status}`);
+        const response = await fetch("/api/v1/release-status", {
+          cache: "no-store",
+        });
+        if (!response.ok)
+          throw new Error(`Release status returned ${response.status}`);
         const api = (await response.json()) as ReleaseIdentity;
         if (equalIdentity(configuredIdentity, api)) {
           if (!cancelled) setState("ready");
@@ -56,12 +62,16 @@ export function ReleaseParityGate({ children }: PropsWithChildren) {
           return;
         }
         if (!cancelled) {
-          setDetail("The web release does not match the active API. Reload after the coordinated release is healthy.");
+          setDetail(
+            "The web release does not match the active API. Reload after the coordinated release is healthy.",
+          );
           setState("blocked");
         }
       } catch {
         if (!cancelled) {
-          setDetail("The active API release identity is unavailable. Normal operations remain blocked.");
+          setDetail(
+            "The active API release identity is unavailable. Normal operations remain blocked.",
+          );
           setState("blocked");
         }
       }
@@ -80,7 +90,11 @@ export function ReleaseParityGate({ children }: PropsWithChildren) {
     <main aria-live="polite" role="status">
       <h1>{state === "checking" ? "Checking release" : "Update required"}</h1>
       <p>{detail}</p>
-      {state === "blocked" && <button onClick={() => window.location.reload()}>Retry release check</button>}
+      {state === "blocked" && (
+        <button onClick={() => window.location.reload()}>
+          Retry release check
+        </button>
+      )}
     </main>
   );
 }

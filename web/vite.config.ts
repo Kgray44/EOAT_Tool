@@ -11,7 +11,10 @@ export default defineConfig(({ mode }) => {
   let releaseIdentity: Record<string, string> | null = null;
   try {
     releaseIdentity = JSON.parse(
-      readFileSync(new URL("../release_metadata.json", import.meta.url), "utf8"),
+      readFileSync(
+        new URL("../release_metadata.json", import.meta.url),
+        "utf8",
+      ),
     ) as Record<string, string>;
   } catch {
     // Local development has no generated immutable candidate metadata.
