@@ -1,4 +1,5 @@
 """Focused contract tests for the root-owned coordinated release helper."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -71,7 +72,8 @@ def test_extract_failure_removes_only_temporary_api_staging(monkeypatch: pytest.
 
 @pytest.mark.skipif(os.name == "nt", reason="atomic replacement of directory symlinks is Linux-only")
 def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     control = tmp_path / "control"
     api_releases = tmp_path / "api" / "releases"
@@ -88,12 +90,24 @@ def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
         pytest.skip("directory symlinks require Linux/root or Windows developer mode")
     transaction = control / "transactions" / "coordinated-20260728T001346Z-f99297d1"
     transaction.mkdir(parents=True)
-    transaction.joinpath("receipt.json").write_text(json.dumps({
-        "receipt_schema_version": 2, "helper_version": "1.2.0", "state": "active",
-        "activation_complete": True, "old_api": str(old_api), "old_web": str(old_web),
-        "new_api": str(new_api), "new_web": str(new_web), "schema": "20260721_0008",
-        "service": "eoat-atlas.service", "writes_enabled": False,
-    }), encoding="utf-8")
+    transaction.joinpath("receipt.json").write_text(
+        json.dumps(
+            {
+                "receipt_schema_version": 2,
+                "helper_version": "1.2.0",
+                "state": "active",
+                "activation_complete": True,
+                "old_api": str(old_api),
+                "old_web": str(old_web),
+                "new_api": str(new_api),
+                "new_web": str(new_web),
+                "schema": "20260721_0008",
+                "service": "eoat-atlas.service",
+                "writes_enabled": False,
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setattr(coordinator, "CONTROL_ROOT", control)
     monkeypatch.setattr(coordinator, "API_RELEASES", api_releases)
     monkeypatch.setattr(coordinator, "WEB_RELEASES", web_releases)
@@ -130,3 +144,28 @@ def test_coordinated_sudoers_exposes_only_fixed_governed_operations() -> None:
     rules = "\n".join(line for line in source.splitlines() if not line.startswith("#"))
     assert "systemctl" not in rules and "nginx" not in rules and "/bin/sh" not in rules
     assert "ALL=(ALL)" not in rules
+
+
+def test_upload_zone_rejects_traversal_and_wrong_roots(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    upload = tmp_path / "incoming"
+    upload.mkdir()
+    artifact = upload / "candidate.zip"
+    artifact.write_bytes(b"candidate")
+    monkeypatch.setattr(coordinator, "UPLOAD_ROOT", upload)
+    assert coordinator._upload_member(artifact) == artifact
+    with pytest.raises(coordinator.web.InstallError, match="approved upload root"):
+        coordinator._upload_member(tmp_path / "outside.zip")
+    with pytest.raises(coordinator.web.InstallError, match="expected non-symlink"):
+        coordinator._upload_member(upload / "missing.zip")
+
+
+def test_policy_reports_a_bom_as_a_governed_diagnostic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    policy = tmp_path / "policy.json"
+    policy.write_bytes(b"\xef\xbb\xbf{}")
+    helper = tmp_path / "helper.py"
+    helper.write_text("helper", encoding="utf-8")
+    monkeypatch.setattr(coordinator, "__file__", str(helper))
+    monkeypatch.setattr(coordinator.web, "require_root_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_args, **_kwargs: None)
+    with pytest.raises(coordinator.web.InstallError, match="without a BOM"):
+        coordinator.policy(policy)
