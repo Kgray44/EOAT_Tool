@@ -19,3 +19,19 @@ The readiness result remains `IMPLEMENTATION_READY_LIVE_AUTHORIZATION_REQUIRED`
 without an unexpired external authorization, known baseline, and verified
 helper capability. No production channel, tag, GitHub Release, server, MySQL,
 NGINX, systemd, sudo policy, or workstation is touched.
+
+## Accepted disposable CI evidence
+
+Implementation commit `781fc45d51` was accepted by **Unified Release Train
+Phase 3B** workflow run
+[`30364313689`](https://github.com/Kgray44/EOAT_Tool/actions/runs/30364313689).
+All required jobs succeeded: channel-model, signed-channel-manifests,
+immutable-channel-history, candidate-promotion, canary-promotion,
+stable-promotion, channel-rollback, cohort-policy, Bootstrap-channel-
+consumption, Launcher-desktop-channel-consumption, observation-gates,
+rollout-status-privacy, production-publisher-adapter,
+production-deployment-adapter, change-package, go-no-go-evaluator,
+drift-scanner, CLI-console-smoke, black-box-disposable-promotion,
+receipt-compatibility, repository-safety, version-governance, and
+documentation-command-validation. The run used disposable signing material
+only; no test was intentionally skipped.
