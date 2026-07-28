@@ -91,7 +91,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--base", help="Git baseline; defaults to CI base or HEAD~1")
     parser.add_argument("--staged", action="store_true", help="Validate the staged snapshot against HEAD")
     parser.add_argument("--skip-change-check", action="store_true", help="Validate metadata consistency only")
-    parser.add_argument("--allow-governed-component-change", action="store_true", help="Permit the explicitly governed 0.24.0 signing/trust component foundation without a second product release")
+    parser.add_argument(
+        "--allow-governed-component-change",
+        action="store_true",
+        help="Permit only explicitly governed pre-release signing and release-infrastructure changes without a second product release",
+    )
     parser.add_argument("--root", type=Path, default=ROOT, help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 

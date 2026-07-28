@@ -239,6 +239,12 @@ def test_governed_component_exception_is_explicit_and_never_applies_to_app_code(
     assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 0
     (root / "app" / "main.py").write_text("VALUE = 2\n", encoding="utf-8")
     assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
+    (root / "app" / "main.py").unlink()
+    ledger_path = root / "release_history.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+    ledger["releases"].append(dict(ledger["releases"][0]))
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
 
 
 def test_runtime_launcher_and_build_reader_consume_canonical_without_gui(tmp_path: Path) -> None:
