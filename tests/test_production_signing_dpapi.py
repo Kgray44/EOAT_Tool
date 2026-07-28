@@ -10,12 +10,11 @@ import json
 import os
 from pathlib import Path
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from deployment.common import DeploymentError
 from deployment.convergence.production_signing import WindowsDpapiProductionProvider
-
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI is required")
 
