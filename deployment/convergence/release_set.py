@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any
@@ -177,6 +177,14 @@ class SignedReleaseSet:
         # The repository signature primitive signs an object exposing
         # canonical_bytes; this avoids duplicate crypto implementations.
         return sign_manifest(self, key_id=key_id, private_key=private_key)  # type: ignore[arg-type]
+
+    def sign_with_provider(self, *, key_id: str, signer: Callable[[bytes], bytes]) -> ManifestSignature:
+        """Sign canonical bytes without exposing a provider's private seed."""
+
+        signature = signer(self.canonical_bytes())
+        if not isinstance(signature, bytes) or len(signature) != 64:
+            raise ValueError("Ed25519 signing provider returned an invalid signature")
+        return ManifestSignature(key_id, "Ed25519", base64.b64encode(signature).decode("ascii"))
 
     def envelope(self, signature: ManifestSignature) -> dict[str, Any]:
         return {"release_set": self.unsigned_dict(), "canonical_digest": self.digest(), "signature": signature.to_dict()}

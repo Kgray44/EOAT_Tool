@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "policy_revision": 1,
+  "minimum_supported_schema": 1,
+  "environment": "PRODUCTION",
+  "purpose": "EOAT Atlas production release-set, update-manifest, and channel-manifest verification",
+  "active_key_ids": [
+    "eoat-prod-ed25519-57ad43b39781f36a"
+  ],
+  "keys": [
+    {
+      "key_id": "eoat-prod-ed25519-57ad43b39781f36a",
+      "algorithm": "Ed25519",
+      "public_key": "HexUelr0EarhqdMabdL27CaGvIPE1UggXfWFT3bVtdI=",
+      "public_key_sha256": "57ad43b39781f36a9607d22707b0e204b60d80c06749270c1fc8839b8ac63e42",
+      "purpose": "EOAT Atlas production release-set and update-manifest signing",
+      "environment": "PRODUCTION",
+      "status": "ACTIVE",
+      "revoked": false
+    }
+  ],
+  "revoked_key_ids": [],
+  "created_at_utc": "2026-07-28T17:20:00Z"
+}

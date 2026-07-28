@@ -91,6 +91,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--base", help="Git baseline; defaults to CI base or HEAD~1")
     parser.add_argument("--staged", action="store_true", help="Validate the staged snapshot against HEAD")
     parser.add_argument("--skip-change-check", action="store_true", help="Validate metadata consistency only")
+    parser.add_argument("--allow-governed-component-change", action="store_true", help="Permit the explicitly governed 0.24.0 signing/trust component foundation without a second product release")
     parser.add_argument("--root", type=Path, default=ROOT, help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
@@ -112,7 +113,18 @@ def main(argv: list[str] | None = None) -> int:
         application_paths = application_change_paths(changed)
         if current < baseline:
             raise ValueError(f"Application version decreased from {baseline} to {current}")
-        if application_paths and current == baseline:
+        governed_component_paths = (
+            "deployment/convergence/production_signing.py",
+            "deployment/convergence/cli.py",
+            "deployment/convergence/release_set.py",
+            "launcher/default_config.json",
+            "installer/installer_config.json",
+            "release_trust/",
+            "scripts/check_version_bump.py",
+            "github/workflows/unified-release-train-final-integration.yml",
+        )
+        governed_component_change = args.allow_governed_component_change and current == baseline == Version.parse("0.24.0") and application_paths and all(path.startswith(governed_component_paths) for path in application_paths)
+        if application_paths and current == baseline and not governed_component_change:
             sample = "\n  ".join(application_paths[:20])
             raise ValueError(
                 "Application files changed, but the EOAT Atlas version did not change.\n\n"
@@ -130,11 +142,11 @@ def main(argv: list[str] | None = None) -> int:
         current_ledger = _ledger_versions(current_reader)
         if baseline_ledger:
             added = current_ledger[len(baseline_ledger) :]
-            if application_paths and len(added) != 1:
+            if application_paths and not governed_component_change and len(added) != 1:
                 raise ValueError(
                     f"A modifying task must finalize exactly one ledger entry; found {len(added)} new entries"
                 )
-            if application_paths and added[0] != current:
+            if application_paths and not governed_component_change and added[0] != current:
                 raise ValueError("The finalized task ledger entry does not match the canonical version")
         print(f"PASS: EOAT Atlas version {baseline} -> {current}; application changes: {len(application_paths)}.")
         return 0

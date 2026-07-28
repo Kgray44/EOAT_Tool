@@ -69,6 +69,15 @@ def _candidate_commands(commands: argparse._SubParsersAction[Any]) -> None:
     discard.add_argument("candidate_id")
 
 
+def _signing_commands(commands: argparse._SubParsersAction[Any]) -> None:
+    signing = commands.add_parser("signing", help="Production signing-provider diagnostics and guarded provisioning")
+    actions = signing.add_subparsers(dest="signing_command", required=True)
+    provision = actions.add_parser("provision-production-key", help="Create one CurrentUser-DPAPI production signing key")
+    provision.add_argument("--confirm", required=True, help="Exact confirmation: PROVISION EOAT ATLAS PRODUCTION SIGNING KEY")
+    for name in ("status", "verify-production-key", "show-public-key", "verify-trust-propagation", "scan-private-material", "rotate-readiness"):
+        actions.add_parser(name)
+
+
 def _publish_commands(commands: argparse._SubParsersAction[Any]) -> None:
     publish = commands.add_parser("publish", help="Start, resume, or inspect immutable publication")
     actions = publish.add_subparsers(dest="publish_command", required=True)
@@ -208,6 +217,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("status", help="Show candidate readiness")
     commands.add_parser("diagnose", help="Show candidate readiness diagnostics")
+    _signing_commands(commands)
     _candidate_commands(commands)
     _publish_commands(commands)
     releases = commands.add_parser("releases", help="Release inventory and verification")
@@ -244,6 +254,18 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command in {"status", "diagnose"}:
             result = service.status()
+        elif args.command == "signing":
+            from .production_signing import WindowsDpapiProductionProvider, load_production_trust_policy
+
+            if args.signing_command == "provision-production-key":
+                result = WindowsDpapiProductionProvider.provision(confirmation=args.confirm).to_dict()
+            else:
+                provider = WindowsDpapiProductionProvider()
+                status = provider.status()
+                trusted, revoked, policy = load_production_trust_policy()
+                if status.key_id not in trusted or status.key_id in revoked or trusted[status.key_id] != provider.public_key_bytes():
+                    raise DeploymentError("production signing provider does not match the governed trust policy")
+                result = status.to_dict() | {"trust_policy_revision": policy["policy_revision"], "revoked": status.key_id in revoked}
         elif args.command == "bootstrap":
             from bootstrap.core import BootstrapService
 

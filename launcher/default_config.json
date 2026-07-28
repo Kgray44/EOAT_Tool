@@ -8,7 +8,9 @@
   "releaseSetManifestPath": "",
   "releaseSetManifestUrl": "",
   "releaseArtifactTransport": "",
-  "trustedManifestKeys": {},
+  "trustedManifestKeys": {
+    "eoat-prod-ed25519-57ad43b39781f36a": "HexUelr0EarhqdMabdL27CaGvIPE1UggXfWFT3bVtdI="
+  },
   "revokedManifestKeyIds": [],
   "networkRequiredPaths": [],
   "logLevel": "INFO",

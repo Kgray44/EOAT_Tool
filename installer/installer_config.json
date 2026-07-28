@@ -28,6 +28,9 @@
   "require_admin": false,
   "allow_elevated_run": false,
   "validate_manifest": true,
+  "production_trust_policy_path": "..\\release_trust\\production_manifest_keys.json",
+  "production_trust_policy_schema": 1,
+  "production_signing_key_id": "eoat-prod-ed25519-57ad43b39781f36a",
   "manifest_path": "..\\dist\\EOAT Atlas\\package_manifest.json",
   "log_level": "INFO"
 }
