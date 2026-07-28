@@ -179,7 +179,7 @@ test("Machine Photos preserves a real API failure while Documents keeps its succ
   await expect(page.getByText("No documents recorded")).toBeVisible();
 });
 
-test("production-shaped Machine 14 never creates a Tool sentinel relationship", async ({
+test("production-shaped Machine 14 presents an unverified Tool assignment without an entity", async ({
   page,
 }) => {
   const machine14 = {
@@ -202,14 +202,77 @@ test("production-shaped Machine 14 never creates a Tool sentinel relationship", 
     return route.fulfill({ json: machine14 });
   });
   await page.goto("/machines/14");
-  await expect(page.getByText("Not verified").first()).toBeVisible();
+  await expect(
+    page.getByText("Current tool / mold not verified"),
+  ).toBeVisible();
   await expect(
     page
       .getByLabel("Relationship overview")
-      .getByText("No verified tools recorded"),
+      .getByText("Current tool / mold not verified"),
   ).toBeVisible();
+  await expect(page.getByText("No verified tools recorded")).toHaveCount(0);
   await expect(
     page.locator('a[href="/tools/UNKNOWN_NOT_VERIFIED"]'),
   ).toHaveCount(0);
+  await expect(page.locator("code")).not.toContainText("UNKNOWN_NOT_VERIFIED");
+  await expect(page.locator('a[href*="fit-check"]')).toHaveCount(1);
+  const recentState = await page.evaluate(() => JSON.stringify(localStorage));
+  expect(recentState).not.toContain("UNKNOWN_NOT_VERIFIED");
   await expectNoInternalSentinels(page);
+});
+
+test.describe("Machine relationship-flow assignment semantics", () => {
+  const cases = [
+    {
+      currentTool: "NONE_OBSERVED",
+      expected: "No current tool / mold assignment observed",
+    },
+    { currentTool: null, expected: "Current tool / mold unavailable" },
+    { currentTool: "", expected: "Current tool / mold unavailable" },
+    { currentTool: "TOOL-ABC-17", expected: "TOOL-ABC-17" },
+  ] as const;
+
+  for (const { currentTool, expected } of cases) {
+    test(`keeps ${String(currentTool)} semantically distinct`, async ({
+      page,
+    }) => {
+      const fixture = {
+        ...machine,
+        machine_number: "14",
+        machine_name: "Machine 14",
+        relationships: [],
+      };
+      await page.route("**/api/v1/**", async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.endsWith("/current-setup"))
+          return route.fulfill({
+            json: {
+              ...currentSetup,
+              machine_number: "14",
+              current_tool: currentTool,
+            },
+          });
+        if (
+          path.endsWith("/relationships") ||
+          path.endsWith("/web-documents") ||
+          path.endsWith("/web-photos") ||
+          path.endsWith("/history")
+        )
+          return route.fulfill({ json: [] });
+        return route.fulfill({ json: fixture });
+      });
+      await page.goto("/machines/14");
+      await expect(
+        page.getByLabel("Relationship overview").getByText(expected),
+      ).toBeVisible();
+      if (currentTool === "TOOL-ABC-17") {
+        await expect(page.locator('a[href="/tools/TOOL-ABC-17"]')).toHaveCount(
+          1,
+        );
+      } else {
+        await expect(page.locator('a[href^="/tools/"]')).toHaveCount(0);
+      }
+      await expectNoInternalSentinels(page);
+    });
+  }
 });

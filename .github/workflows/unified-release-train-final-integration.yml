@@ -136,7 +136,8 @@ jobs:
           pnpm exec playwright install chromium
           Pop-Location
           $env:EOAT_FINAL_RELEASE_CANDIDATE = '1'
-          python tools/eoat_release.py --json candidate prepare --version 0.24.0 | Out-File -Encoding utf8 "$env:RUNNER_TEMP/candidate-result.json"
+          $version = (Get-Content app/atlas/version.json -Raw | ConvertFrom-Json).version
+          python tools/eoat_release.py --json candidate prepare --version $version | Out-File -Encoding utf8 "$env:RUNNER_TEMP/candidate-result.json"
           if ($LASTEXITCODE -ne 0) { throw 'fresh candidate preparation failed' }
           $result = Get-Content "$env:RUNNER_TEMP/candidate-result.json" -Raw | ConvertFrom-Json
           $result.data.candidate.candidate_id | Out-File -Encoding ascii candidate-id.txt
@@ -245,7 +246,7 @@ jobs:
       - run: |
           git fetch --no-tags origin main
           if [ "$GITHUB_REF_NAME" = "main" ]; then
-            python -c "import json; assert json.load(open('app/atlas/version.json'))['version'] == '0.24.0'; assert sum(r['application_version'] == '0.24.0' for r in json.load(open('release_history.json'))['releases']) == 1"
+            python -c "import json; version=json.load(open('app/atlas/version.json'))['version']; assert sum(r['application_version'] == version for r in json.load(open('release_history.json'))['releases']) == 1"
           elif [ "$GITHUB_REF_NAME" = "integration/production-signing-foundation-0.24.0" ]; then
             python scripts/check_version_bump.py --base origin/main --allow-governed-component-change
           else

@@ -12,6 +12,9 @@ from deployment.convergence.mysql_phase3a import DisposableMySQLError, Disposabl
 
 
 def _connection():
+    required = ("EOAT_MYSQL_HOST", "EOAT_MYSQL_USER", "EOAT_MYSQL_PASSWORD")
+    if any(not os.environ.get(name) for name in required):
+        pytest.skip("requires the dedicated disposable MySQL 8.4 Phase 3A service")
     return pymysql.connect(
         host=os.environ["EOAT_MYSQL_HOST"], port=int(os.environ.get("EOAT_MYSQL_PORT", "3306")),
         user=os.environ["EOAT_MYSQL_USER"], password=os.environ["EOAT_MYSQL_PASSWORD"], database="eoat_disposable",

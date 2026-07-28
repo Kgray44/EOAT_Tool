@@ -159,6 +159,8 @@ def revalidate_candidate(candidate_root: Path, receipt: Mapping[str, Any], repos
     # Windows support evidence is copied into candidate storage at attachment
     # time; require it here rather than trusting a runner-local attachment.
     for kind in (ComponentKind.DESKTOP.value, ComponentKind.LAUNCHER.value, ComponentKind.BOOTSTRAP.value):
+        if components[kind].get("disposition") == ArtifactDisposition.NOT_APPLICABLE.value:
+            continue
         metadata = dict(components[kind].get("metadata") or {})
         smoke_locator = metadata.get("smoke_receipt_locator", "")
         if not smoke_locator:

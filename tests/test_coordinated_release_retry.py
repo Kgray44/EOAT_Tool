@@ -183,7 +183,7 @@ def test_preflight_seals_then_uses_only_final_paths_without_changing_active_poin
     )
     before = (api_current.resolve(), web_current.resolve())
     result = coordinator.preflight(value)
-    assert result["helper_version"] == "1.3.1"
+    assert result["helper_version"] == "1.3.2"
     assert (api_current.resolve(), web_current.resolve()) == before
     sealed = coordinator.sealed_policy(value)
     assert Path(sealed["server_archive_path"]).is_relative_to(coordinator.SEALED_ROOT)
@@ -245,10 +245,30 @@ def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
     control = tmp_path / "control"
     api_releases = tmp_path / "api" / "releases"
     web_releases = tmp_path / "web" / "releases"
-    old_api, new_api = api_releases / "old", api_releases / "new"
+    old_api = api_releases / "eoat-atlas-server-0.22.12-old"
+    new_api = api_releases / "eoat-atlas-server-0.24.0-new"
     old_web, new_web = web_releases / "old", web_releases / "new"
-    for path in (old_api, new_api, old_web, new_web):
+    for path in (old_web, new_web):
         path.mkdir(parents=True)
+    venv_source = api_releases / "eoat-atlas-server-0.22.12-venv-source" / "venv"
+    venv_source.mkdir(parents=True)
+    for path, version, commit in (
+        (old_api, "0.22.12", "a" * 40),
+        (new_api, "0.24.0", "b" * 40),
+    ):
+        path.mkdir(parents=True)
+        path.joinpath("release_metadata.json").write_text(
+            json.dumps(
+                {
+                    "app_version": version,
+                    "release_id": f"eoat-atlas-{version}",
+                    "source_git_commit": commit,
+                    "database_schema_revision": "20260721_0008",
+                }
+            ),
+            encoding="utf-8",
+        )
+        path.joinpath("venv").symlink_to(venv_source, target_is_directory=True)
     api_current, web_current = tmp_path / "api-current", tmp_path / "web-current"
     try:
         api_current.symlink_to(new_api, target_is_directory=True)
@@ -257,11 +277,20 @@ def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
         pytest.skip("directory symlinks require Linux/root or Windows developer mode")
     transaction = control / "transactions" / "coordinated-20260728T001346Z-f99297d1"
     transaction.mkdir(parents=True)
+    monkeypatch.setattr(coordinator, "API_RELEASES", api_releases)
+    monkeypatch.setattr(coordinator, "WEB_RELEASES", web_releases)
+    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_: None)
+    monkeypatch.setattr(coordinator.web, "require_root_tree", lambda *_: None)
+    monkeypatch.setattr(coordinator.web, "require_root_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator, "_service_identity", lambda: (os.getuid(), os.getgid()))
+    monkeypatch.setattr(coordinator, "_api_release_parent_chain", lambda *_args: None)
+    old_api_attestation = coordinator._api_release_attestation(old_api, "old_api")[1]
+    old_web_attestation = coordinator._web_release_attestation(old_web, "old_web")[1]
     transaction.joinpath("receipt.json").write_text(
         json.dumps(
             {
-                "receipt_schema_version": 2,
-                "helper_version": "1.2.0",
+                "receipt_schema_version": 3,
+                "helper_version": "1.3.2",
                 "state": "active",
                 "activation_complete": True,
                 "old_api": str(old_api),
@@ -271,18 +300,19 @@ def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
                 "schema": "20260721_0008",
                 "service": "eoat-atlas.service",
                 "writes_enabled": False,
+                "old_api_attestation": old_api_attestation,
+                "old_web_attestation": old_web_attestation,
+                "active_pointer_identities": {
+                    "api": {"path": str(api_current), "target": str(old_api)},
+                    "web": {"path": str(web_current), "target": str(old_web)},
+                },
             }
         ),
         encoding="utf-8",
     )
     monkeypatch.setattr(coordinator, "CONTROL_ROOT", control)
-    monkeypatch.setattr(coordinator, "API_RELEASES", api_releases)
-    monkeypatch.setattr(coordinator, "WEB_RELEASES", web_releases)
     monkeypatch.setattr(coordinator, "API_CURRENT", api_current)
     monkeypatch.setattr(coordinator, "WEB_CURRENT", web_current)
-    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_: None)
-    monkeypatch.setattr(coordinator.web, "require_root_tree", lambda *_: None)
-    monkeypatch.setattr(coordinator.web, "require_root_owned", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(coordinator.web, "nginx_test_reload", lambda: None)
     monkeypatch.setattr(coordinator.web, "wait_api", lambda *_: None)
     monkeypatch.setattr(coordinator.web, "request_check", lambda *_args, **_kwargs: None)
@@ -295,6 +325,59 @@ def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
     receipt = json.loads(transaction.joinpath("post-activation-rollback.json").read_text(encoding="utf-8"))
     assert receipt["rollback_frontend_generation"] == "old"
     assert coordinator.post_activation_rollback(transaction.name)["idempotent"] is True
+
+
+@pytest.mark.skipif(os.name == "nt", reason="service-owned rollback validation is Linux-only")
+def test_legacy_transaction_receipt_requires_preserved_fallback_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    transaction = tmp_path / "control" / "transactions" / "coordinated-20260728T001346Z-f99297d1"
+    transaction.mkdir(parents=True)
+    receipt = transaction / "receipt.json"
+    original = {"receipt_schema_version": 2, "state": "active"}
+    receipt.write_text(json.dumps(original), encoding="utf-8")
+    monkeypatch.setattr(coordinator, "CONTROL_ROOT", tmp_path / "control")
+    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_: None)
+    monkeypatch.setattr(coordinator.web, "require_root_owned", lambda *_args, **_kwargs: None)
+    with pytest.raises(coordinator.web.InstallError, match="lacks rollback attestations"):
+        coordinator._transaction_receipt(transaction.name)
+    assert json.loads(receipt.read_text(encoding="utf-8")) == original
+
+
+@pytest.mark.skipif(os.name == "nt", reason="service-owned rollback validation is Linux-only")
+def test_service_owned_api_release_attestation_rejects_drift_and_unsafe_members(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    releases = tmp_path / "opt" / "eoat-atlas" / "releases"
+    release = releases / "eoat-atlas-server-0.22.12-accepted"
+    venv = releases / "eoat-atlas-server-0.22.12-venv-source" / "venv"
+    venv.mkdir(parents=True)
+    release.mkdir(parents=True)
+    metadata = release / "release_metadata.json"
+    metadata.write_text(
+        json.dumps(
+            {
+                "app_version": "0.22.12",
+                "release_id": "eoat-atlas-0.22.12",
+                "source_git_commit": "a" * 40,
+                "database_schema_revision": "20260721_0008",
+            }
+        ),
+        encoding="utf-8",
+    )
+    release.joinpath("venv").symlink_to(venv, target_is_directory=True)
+    monkeypatch.setattr(coordinator, "API_RELEASES", releases)
+    monkeypatch.setattr(coordinator, "_service_identity", lambda: (os.getuid(), os.getgid()))
+    monkeypatch.setattr(coordinator, "_api_release_parent_chain", lambda *_args: None)
+    _, attestation = coordinator._api_release_attestation(release, "old_api")
+    metadata.write_text(metadata.read_text(encoding="utf-8").replace("a" * 40, "b" * 40), encoding="utf-8")
+    _, changed = coordinator._api_release_attestation(release, "old_api")
+    with pytest.raises(coordinator.web.InstallError, match="activation attestation"):
+        coordinator._require_attestation(changed, attestation, "old_api")
+    metadata.write_text(metadata.read_text(encoding="utf-8").replace("b" * 40, "a" * 40), encoding="utf-8")
+    release.joinpath("unsafe").symlink_to(venv, target_is_directory=True)
+    with pytest.raises(coordinator.web.InstallError, match="unsafe API release symlink"):
+        coordinator._api_release_attestation(release, "old_api")
 
 
 @pytest.mark.parametrize("identifier", ["../receipt", "coordinated-20260728T001346Z-f99297d1/../x"])

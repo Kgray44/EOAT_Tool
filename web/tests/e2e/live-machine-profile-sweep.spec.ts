@@ -57,6 +57,30 @@ async function assertTruthfulMachinePage(page: Page, number: string) {
   expect(text).not.toContain("Unable to load status");
   expect(text).not.toContain("Unexpected Application Error");
 
+  const setupResponse = await page.request.get(
+    `/api/v1/machines/${encodeURIComponent(number)}/current-setup`,
+  );
+  expect(setupResponse.ok()).toBeTruthy();
+  const setup = (await setupResponse.json()) as { current_tool?: unknown };
+  if (setup.current_tool === "UNKNOWN_NOT_VERIFIED") {
+    await expect(
+      page
+        .getByLabel("Relationship overview")
+        .getByText("Current tool / mold not verified"),
+    ).toBeVisible();
+    await expect(page.getByText("No verified tools recorded")).toHaveCount(0);
+    await expect(
+      page.locator('a[href="/tools/UNKNOWN_NOT_VERIFIED"]'),
+    ).toHaveCount(0);
+  }
+  if (setup.current_tool === "NONE_OBSERVED") {
+    await expect(
+      page
+        .getByLabel("Relationship overview")
+        .getByText("No current tool / mold assignment observed"),
+    ).toBeVisible();
+  }
+
   const relationshipItems = page.locator(".relationship-list li");
   const relationshipCount = await relationshipItems.count();
   if (relationshipCount === 0) {
