@@ -218,6 +218,8 @@ jobs:
           $source = Join-Path $env:RUNNER_TEMP 'disposable-publication-source'
           git init --bare $remote
           git clone --no-local $PWD $source
+          git -C $source config user.name 'EOAT Atlas disposable validation'
+          git -C $source config user.email 'eoat-validation@invalid.example'
           git -C $source remote set-url origin $remote
           Copy-Item -LiteralPath '.local' -Destination (Join-Path $source '.local') -Recurse
           Push-Location $source
