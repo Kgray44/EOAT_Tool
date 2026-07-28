@@ -944,6 +944,11 @@ class ReleaseDeploymentService:
         web_package = candidate_root / "core" / "web" / f"eoat-atlas-web-{candidate.version}-{candidate.candidate_commit[:7]}.zip"
         web_manifest = candidate_root / "core" / "web" / "static" / "web-static.manifest.json"
         notes = candidate_root / "core" / "release-notes" / f"EOAT-Atlas-{candidate.version}-release-notes.md"
+        # Historical Phase-1 receipts retain the explicit Phase-2 bootstrap
+        # exclusion.  A fresh final integration candidate opts in explicitly,
+        # which makes Bootstrap and its governed installer/update policy
+        # required Windows attachment components rather than silently absent.
+        final_component_profile = os.getenv("EOAT_FINAL_RELEASE_CANDIDATE", "") == "1"
         components = []
         for kind in ComponentKind:
             if kind is ComponentKind.SERVER:
@@ -962,13 +967,10 @@ class ReleaseDeploymentService:
             elif kind in {ComponentKind.RELEASE_SET_MANIFEST, ComponentKind.RELEASE_SET_SIGNATURE}:
                 components.append(item(kind, ArtifactDisposition.PENDING, reason="Created only by explicit final release-set sealing."))
             elif kind in {ComponentKind.BOOTSTRAP, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST}:
-                components.append(
-                    item(
-                        kind,
-                        ArtifactDisposition.NOT_APPLICABLE,
-                        reason="Bootstrap implementation is owned by Unified Release Train Phase 2.",
-                    )
-                )
+                if final_component_profile:
+                    components.append(item(kind, ArtifactDisposition.PENDING, reason="Required final Bootstrap package and governed installer/update policy are pending validated Windows attachment."))
+                else:
+                    components.append(item(kind, ArtifactDisposition.NOT_APPLICABLE, reason="Bootstrap implementation is owned by Unified Release Train Phase 2."))
             else:
                 components.append(item(kind, ArtifactDisposition.PENDING, reason="Required platform artifact is pending validated Windows build attachment."))
         release_set = SignedReleaseSet(
@@ -979,7 +981,8 @@ class ReleaseDeploymentService:
         raw.update({
             "schema_version": 2, "state": "PLATFORM_ARTIFACTS_PENDING", "working_release_set": release_set.unsigned_dict(),
             "release_set": None, "bundle_sha256": sha256_file(Path(candidate.bundle_path)), "publication_eligible": False,
-            "blocking_reasons": ["Desktop and launcher artifacts require validated Windows CI attachment."],
+            "release_set_profile": "FINAL_CURRENT_COMPONENTS" if final_component_profile else "PHASE_1_LEGACY_COMPONENTS",
+            "blocking_reasons": ["Desktop, launcher, and Bootstrap artifacts require validated Windows CI attachment."] if final_component_profile else ["Desktop and launcher artifacts require validated Windows CI attachment."],
             "next_safe_action": "Attach validated Windows platform artifacts, then seal the release set.",
         })
         return raw

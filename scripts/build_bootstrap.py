@@ -60,6 +60,11 @@ def main() -> int:
                 "product_version": json.loads((ROOT / "app" / "atlas" / "version.json").read_text(encoding="utf-8"))[
                     "version"
                 ],
+                "release_id": os.getenv("EOAT_RELEASE_RELEASE_ID", ""),
+                "build_id": os.getenv("EOAT_RELEASE_BUILD_ID", ""),
+                "candidate_id": os.getenv("EOAT_RELEASE_CANDIDATE_ID", ""),
+                "source_commit": os.getenv("EOAT_RELEASE_SOURCE_COMMIT", ""),
+                "source_tree": os.getenv("EOAT_RELEASE_SOURCE_TREE", ""),
                 "artifact_sha256": _sha(executable),
             },
             indent=2,

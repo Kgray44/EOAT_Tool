@@ -44,10 +44,7 @@ from .release_set import (
 
 _BOOTSTRAP_REASON = "Bootstrap implementation is owned by Unified Release Train Phase 2."
 _PENDING_OUTER = {ComponentKind.RELEASE_SET_MANIFEST.value, ComponentKind.RELEASE_SET_SIGNATURE.value}
-_REQUIRED_BUILT = {kind.value for kind in ComponentKind} - _PENDING_OUTER - {
-    ComponentKind.BOOTSTRAP.value,
-    ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value,
-}
+_REQUIRED_BUILT = {kind.value for kind in ComponentKind} - _PENDING_OUTER
 
 
 def _safe_locator(candidate_root: Path, locator: str) -> Path:
@@ -125,11 +122,11 @@ def revalidate_candidate(candidate_root: Path, receipt: Mapping[str, Any], repos
     evidence: dict[str, str] = {}
     for kind, component in components.items():
         disposition = str(component.get("disposition") or "")
-        if kind in {ComponentKind.BOOTSTRAP.value, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value}:
-            if disposition != ArtifactDisposition.NOT_APPLICABLE.value or component.get("not_applicable_justification") != _BOOTSTRAP_REASON:
-                raise DeploymentError("bootstrap may only be the governed Phase 2 not-applicable exclusion")
-            if component.get("artifact_locator"):
-                raise DeploymentError("not-applicable bootstrap component may not have an artifact")
+        if kind in {ComponentKind.BOOTSTRAP.value, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value} and disposition == ArtifactDisposition.NOT_APPLICABLE.value:
+            if receipt.get("release_set_profile") == "FINAL_CURRENT_COMPONENTS":
+                raise DeploymentError("final integrated candidates require built Bootstrap components")
+            if component.get("not_applicable_justification") != _BOOTSTRAP_REASON or component.get("artifact_locator"):
+                raise DeploymentError("bootstrap legacy exclusion is not governed")
             continue
         if kind in _PENDING_OUTER:
             if disposition != ArtifactDisposition.PENDING.value:
@@ -161,7 +158,7 @@ def revalidate_candidate(candidate_root: Path, receipt: Mapping[str, Any], repos
 
     # Windows support evidence is copied into candidate storage at attachment
     # time; require it here rather than trusting a runner-local attachment.
-    for kind in (ComponentKind.DESKTOP.value, ComponentKind.LAUNCHER.value):
+    for kind in (ComponentKind.DESKTOP.value, ComponentKind.LAUNCHER.value, ComponentKind.BOOTSTRAP.value):
         metadata = dict(components[kind].get("metadata") or {})
         smoke_locator = metadata.get("smoke_receipt_locator", "")
         if not smoke_locator:

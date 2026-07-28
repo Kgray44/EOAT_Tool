@@ -9,6 +9,7 @@ import pytest
 
 from deployment.common import DeploymentError
 from deployment.convergence.artifacts import build_web_package, validate_web_package
+from deployment.convergence.platform_artifacts import _expected_platform_kinds
 from deployment.convergence.services import ReleaseDeploymentService
 
 
@@ -96,3 +97,21 @@ def test_attachment_rejects_same_version_different_source_tree(tmp_path: Path) -
     _candidate(service, candidate_id)
     with pytest.raises(DeploymentError):
         service.attach_platform_artifacts(candidate_id, _attachment(tmp_path, candidate_id, mismatch=True))
+
+
+def test_final_component_profile_requires_bootstrap_attachment() -> None:
+    candidate = {
+        "working_release_set": {
+            "components": [
+                {"kind": kind, "disposition": "PENDING"}
+                for kind in (
+                    "desktop", "desktop_update_manifest", "launcher", "launcher_update_manifest",
+                    "bootstrap", "bootstrap_update_manifest",
+                )
+            ]
+        }
+    }
+    assert _expected_platform_kinds(candidate) == {
+        "desktop", "desktop_update_manifest", "launcher", "launcher_update_manifest",
+        "bootstrap", "bootstrap_update_manifest",
+    }

@@ -133,6 +133,28 @@ def main(argv: list[str] | None = None) -> int:
     launcher_update = {"schema_version": 1, **identity, "component_kind": "launcher_update_manifest", "package_locator": "launcher/EOAT-Atlas-launcher.zip", "size_bytes": launcher_zip.stat().st_size, "sha256": _sha256(launcher_zip), "release_channel": "candidate"}
     (output / "launcher" / "update-manifest.json").write_text(json.dumps(launcher_update, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
+    # Final integrated candidates explicitly require Bootstrap.  Earlier
+    # schema-2 candidates remain attachable with their governed Phase-1
+    # exclusion, so only build this package when the retained inventory
+    # actually declares it pending.
+    declared = {str(item.get("kind") or ""): str(item.get("disposition") or "") for item in (receipt.get("working_release_set") or {}).get("components", []) if isinstance(item, dict)}
+    include_bootstrap = declared.get("bootstrap") == "PENDING"
+    if include_bootstrap:
+        _run([sys.executable, "scripts/build_bootstrap.py"], env=env, timeout=1200, label="bootstrap-build", diagnostics=diagnostics_root / "bootstrap-build.json")
+        bootstrap_dist = ROOT / "dist" / "bootstrap"
+        bootstrap_exe = bootstrap_dist / "EOAT Atlas Bootstrap.exe"
+        bootstrap_zip = output / "bootstrap" / "EOAT-Atlas-bootstrap.zip"
+        bootstrap_zip.parent.mkdir(parents=True)
+        _zip_tree(bootstrap_dist, bootstrap_zip)
+        env["EOAT_RELEASE_PACKAGE_SHA256"] = _sha256(bootstrap_zip)
+        _run([str(bootstrap_exe), "--smoke-test", "--smoke-receipt", str(output / "bootstrap" / "smoke.json")], env=env, timeout=120, label="bootstrap-smoke", diagnostics=diagnostics_root / "bootstrap-smoke.json")
+        _copy(bootstrap_dist / "bootstrap_release_metadata.json", output / "bootstrap" / "release_metadata.json")
+        bootstrap_manifest = {"manifest_schema_version": 1, "files": [{"path": path.relative_to(bootstrap_dist).as_posix(), "size": path.stat().st_size, "sha256": _sha256(path)} for path in sorted(bootstrap_dist.rglob("*")) if path.is_file()]}
+        (output / "bootstrap" / "package_manifest.json").write_text(json.dumps(bootstrap_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _copy(ROOT / "installer" / "installer_config.json", output / "bootstrap" / "installer_config.json")
+        bootstrap_update = {"schema_version": 1, **identity, "component_kind": "bootstrap_update_manifest", "package_locator": "bootstrap/EOAT-Atlas-bootstrap.zip", "size_bytes": bootstrap_zip.stat().st_size, "sha256": _sha256(bootstrap_zip), "release_channel": "candidate", "installer_config_sha256": _sha256(output / "bootstrap" / "installer_config.json")}
+        (output / "bootstrap" / "update-manifest.json").write_text(json.dumps(bootstrap_update, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
     def component(kind: str, artifact: Path, *, metadata: str = "", package_manifest: str = "", smoke: str = "") -> dict[str, Any]:
         return {"kind": kind, "artifact": artifact.relative_to(output).as_posix(), "sha256": _sha256(artifact), "size_bytes": artifact.stat().st_size, "metadata": metadata, "package_manifest": package_manifest, "smoke_receipt": smoke, "target_locator": f"platform/windows/{kind}/{artifact.name}"}
 
@@ -143,7 +165,10 @@ def main(argv: list[str] | None = None) -> int:
             component("desktop_update_manifest", output / "desktop" / "update-manifest.json"),
             component("launcher", launcher_zip, metadata="launcher/release_metadata.json", package_manifest="launcher/package_manifest.json", smoke="launcher/smoke.json"),
             component("launcher_update_manifest", output / "launcher" / "update-manifest.json"),
-        ],
+        ] + ([
+            component("bootstrap", bootstrap_zip, metadata="bootstrap/release_metadata.json", package_manifest="bootstrap/package_manifest.json", smoke="bootstrap/smoke.json"),
+            component("bootstrap_update_manifest", output / "bootstrap" / "update-manifest.json"),
+        ] if include_bootstrap else []),
     }
     (output / "attachment-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0

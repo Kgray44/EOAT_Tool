@@ -19,7 +19,23 @@ _PLATFORM_KINDS = {
     ComponentKind.DESKTOP_UPDATE_MANIFEST.value,
     ComponentKind.LAUNCHER.value,
     ComponentKind.LAUNCHER_UPDATE_MANIFEST.value,
+    ComponentKind.BOOTSTRAP.value,
+    ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value,
 }
+
+
+def _expected_platform_kinds(candidate: dict[str, Any] | None) -> set[str]:
+    """Derive required Windows components from the immutable candidate, not a phase-specific constant."""
+    if candidate is None:
+        return set(_PLATFORM_KINDS)
+    working = candidate.get("working_release_set") or {}
+    components = working.get("components") if isinstance(working, dict) else []
+    return {
+        str(item.get("kind") or "")
+        for item in components if isinstance(item, dict)
+        and str(item.get("kind") or "") in _PLATFORM_KINDS
+        and str(item.get("disposition") or "") == "PENDING"
+    }
 
 
 @dataclass(frozen=True)
@@ -116,8 +132,22 @@ def inspect_attachment(path: Path, candidate: dict[str, Any] | None = None) -> d
         if candidate is not None:
             _identity_matches(manifest, candidate)
         raw_components = manifest.get("components")
-        if not isinstance(raw_components, list) or len(raw_components) != len(_PLATFORM_KINDS):
-            raise DeploymentError("attachment must declare all four Windows components exactly once")
+        expected_kinds = _expected_platform_kinds(candidate)
+        # A byte-identical retry remains valid after the first transaction
+        # changes the inventory from PENDING to BUILT.  It is still checked
+        # against the declared immutable component set below.
+        declared_platform_kinds: set[str] = set()
+        if candidate is not None:
+            working = candidate.get("working_release_set") or {}
+            declared_platform_kinds = {
+                str(item.get("kind") or "") for item in working.get("components", [])
+                if isinstance(item, dict)
+                and str(item.get("kind") or "") in _PLATFORM_KINDS
+                and str(item.get("disposition") or "") in {"PENDING", "BUILT"}
+            }
+        allowed_kinds = expected_kinds or declared_platform_kinds
+        if not isinstance(raw_components, list):
+            raise DeploymentError("attachment must declare a component inventory")
         components: list[AttachmentComponent] = []
         seen: set[str] = set()
         for raw in raw_components:
@@ -129,7 +159,7 @@ def inspect_attachment(path: Path, candidate: dict[str, Any] | None = None) -> d
                 metadata=str(raw.get("metadata") or ""), package_manifest=str(raw.get("package_manifest") or ""),
                 smoke_receipt=str(raw.get("smoke_receipt") or ""), target_locator=str(raw.get("target_locator") or ""),
             )
-            if component.kind not in _PLATFORM_KINDS or component.kind in seen or len(component.sha256) != 64 or component.size_bytes <= 0:
+            if component.kind not in allowed_kinds or component.kind in seen or len(component.sha256) != 64 or component.size_bytes <= 0:
                 raise DeploymentError("attachment has invalid or duplicate component identity")
             seen.add(component.kind)
             file = root / _safe_relative(component.artifact)
@@ -164,9 +194,9 @@ def inspect_attachment(path: Path, candidate: dict[str, Any] | None = None) -> d
                             actual = metadata.get("source_git_commit")
                         if str(actual or "") != str(expected or ""):
                             raise DeploymentError("attachment embedded metadata identity mismatch")
-            if component.kind in {ComponentKind.DESKTOP.value, ComponentKind.LAUNCHER.value}:
+            if component.kind in {ComponentKind.DESKTOP.value, ComponentKind.LAUNCHER.value, ComponentKind.BOOTSTRAP.value}:
                 if not component.smoke_receipt:
-                    raise DeploymentError("desktop and launcher attachments require smoke receipts")
+                    raise DeploymentError("desktop, launcher, and bootstrap attachments require smoke receipts")
                 if candidate is not None:
                     _validate_receipt(root / _safe_relative(component.smoke_receipt), component, candidate, component.sha256)
                 if not component.package_manifest:
@@ -175,8 +205,12 @@ def inspect_attachment(path: Path, candidate: dict[str, Any] | None = None) -> d
                 if not isinstance(package_manifest.get("files"), list) or not package_manifest["files"]:
                     raise DeploymentError("attached package manifest has no file inventory")
             components.append(component)
+        if seen != allowed_kinds:
+            raise DeploymentError("attachment does not declare every required Windows component exactly once")
         by_kind = {component.kind: component for component in components}
-        for kind, package_kind in ((ComponentKind.DESKTOP_UPDATE_MANIFEST.value, ComponentKind.DESKTOP.value), (ComponentKind.LAUNCHER_UPDATE_MANIFEST.value, ComponentKind.LAUNCHER.value)):
+        for kind, package_kind in ((ComponentKind.DESKTOP_UPDATE_MANIFEST.value, ComponentKind.DESKTOP.value), (ComponentKind.LAUNCHER_UPDATE_MANIFEST.value, ComponentKind.LAUNCHER.value), (ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value, ComponentKind.BOOTSTRAP.value)):
+            if kind not in by_kind:
+                continue
             update = by_kind[kind]
             update_payload = read_json_object(root / _safe_relative(update.artifact))
             package = by_kind[package_kind]

@@ -1,0 +1,143 @@
+name: Unified Release Train Final Integration
+
+on:
+  push:
+    branches: [integration/unified-release-train-final, main]
+  workflow_dispatch:
+
+permissions: {contents: read}
+
+env:
+  PYTHONUTF8: '1'
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  release-set-and-receipt-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_set_v2.py tests/test_release_set_sealing.py tests/test_release_phase_1c.py tests/test_release_train_phase_1b2.py
+
+  server-web-and-source-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0'}
+      - uses: pnpm/action-setup@v4
+        with: {version: '11.9.0'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web run api:check
+      - run: pnpm --dir web run typecheck && pnpm --dir web run lint && pnpm --dir web run test && pnpm --dir web run build
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py tests/test_release_train_phase_1b2.py -k 'web or bundle or server'
+
+  windows-packaged-startup-chain:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt -r requirements-build.lock
+      - run: python scripts/build_package.py
+      - run: '& "dist/EOAT Atlas/EOAT Atlas.exe" --smoke-test --smoke-receipt "$env:RUNNER_TEMP/desktop-smoke.json"'
+      - run: python scripts/build_launcher.py
+      - run: '& "dist/launcher/EOAT Atlas Launcher.exe" --smoke-test --smoke-receipt "$env:RUNNER_TEMP/launcher-smoke.json"'
+      - run: python scripts/build_bootstrap.py
+      - run: '& "dist/bootstrap/EOAT Atlas Bootstrap.exe" --smoke-test --smoke-receipt "$env:RUNNER_TEMP/bootstrap-smoke.json"'
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py tests/test_signed_launcher_update.py tests/test_packaged_smoke_mode.py
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-integration-windows-packages
+          path: |
+            dist
+            ${{ runner.temp }}/desktop-smoke.json
+            ${{ runner.temp }}/launcher-smoke.json
+            ${{ runner.temp }}/bootstrap-smoke.json
+          if-no-files-found: error
+
+  mysql-activation-and-recovery:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env: {MYSQL_ROOT_PASSWORD: disposable-root-password, MYSQL_DATABASE: eoat_disposable}
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pdisposable-root-password"
+          --health-interval=10s --health-timeout=5s --health-retries=15
+    env:
+      EOAT_MYSQL_HOST: 127.0.0.1
+      EOAT_MYSQL_PORT: '3306'
+      EOAT_MYSQL_USER: root
+      EOAT_MYSQL_PASSWORD: disposable-root-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/integration/test_phase_3a_mysql84.py tests/test_phase_3a_coordinated_deployment.py
+
+  browser-api-desktop-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0'}
+      - uses: pnpm/action-setup@v4
+        with: {version: '11.9.0'}
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web exec playwright install --with-deps chromium
+      - run: pnpm --dir web run test:e2e
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_status_contract.py tests/test_phase_3a_coordinated_deployment.py -k 'parity or drift or status'
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: final-integration-playwright, path: web/test-results, if-no-files-found: ignore}
+
+  signed-channels-publication-and-planning:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3b_channels.py tests/test_phase_3a_receipts_and_cli.py tests/test_release_status_contract.py
+
+  repository-safety-and-version-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/repo_safety_audit.py
+      - run: |
+          git fetch --no-tags origin main
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            python -c "import json; assert json.load(open('app/atlas/version.json'))['version'] == '0.24.0'; assert sum(r['application_version'] == '0.24.0' for r in json.load(open('release_history.json'))['releases']) == 1"
+          else
+            python scripts/check_version_bump.py --base origin/main
+          fi
+      - run: python -m compileall -q app bootstrap deployment launcher release_tools server tools
+      - run: python -m ruff check app bootstrap deployment launcher release_tools server scripts tools
+      - run: python scripts/validate_documented_commands.py
+
+  final-integration-acceptance:
+    needs: [release-set-and-receipt-regression, server-web-and-source-candidate, windows-packaged-startup-chain, mysql-activation-and-recovery, browser-api-desktop-parity, signed-channels-publication-and-planning, repository-safety-and-version-governance]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Final integration gates completed using disposable CI infrastructure only.'
