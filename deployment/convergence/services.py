@@ -1167,11 +1167,16 @@ class ReleaseDeploymentService:
     def seal_release_set_with_production_provider(self, candidate_id: str, confirmation: str) -> OperationResult:
         """Seal only through the CurrentUser-DPAPI production provider."""
 
-        if confirmation != "SEAL EOAT ATLAS 0.24.0 WITH PRODUCTION KEY":
+        receipt = self.store.read("candidate", candidate_id)
+        working = receipt.get("working_release_set")
+        if not isinstance(working, dict) or not isinstance(working.get("identity"), dict):
+            raise DeploymentError("production sealing candidate has no governed release identity")
+        identity = ProductReleaseIdentity.from_dict(working["identity"])
+        required_confirmation = f"SEAL EOAT ATLAS {identity.product_version} WITH PRODUCTION KEY"
+        if confirmation != required_confirmation:
             raise DeploymentError("exact production sealing confirmation is required")
         from .production_signing import WindowsDpapiProductionProvider, load_production_trust_policy
 
-        receipt = self.store.read("candidate", candidate_id)
         candidate_root = self.store.root / "candidates" / candidate_id
         provider = WindowsDpapiProductionProvider()
         status = provider.status()

@@ -59,7 +59,7 @@ def _candidate_commands(commands: argparse._SubParsersAction[Any]) -> None:
     seal.add_argument("--confirm", required=True, help="Exact confirmation: SEAL <candidate-id>")
     production_seal = actions.add_parser("seal-production-release-set", help="Seal with the Windows DPAPI production provider")
     production_seal.add_argument("candidate_id")
-    production_seal.add_argument("--confirm", required=True, help="Exact confirmation: SEAL EOAT ATLAS 0.24.0 WITH PRODUCTION KEY")
+    production_seal.add_argument("--confirm", required=True, help="Exact confirmation: SEAL EOAT ATLAS <governed-product-version> WITH PRODUCTION KEY")
     inspect_attachment = actions.add_parser(
         "inspect-platform-attachment", help="Inspect an identity-bound Windows attachment"
     )
