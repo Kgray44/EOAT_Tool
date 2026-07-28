@@ -20,6 +20,7 @@ class ReceiptStore:
         "inspection",
         "plan",
         "transaction",
+        "promotion",
         "migration",
         "recovery",
     )

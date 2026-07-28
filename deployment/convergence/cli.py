@@ -12,6 +12,7 @@ from deployment.common import DeploymentError, redact_text, to_jsonable
 
 from .models import DeploymentState
 from .phase3a import VerifiedDeploymentInput
+from .phase3b import build_change_package, cohort_included, production_readiness
 from .services import ReleaseDeploymentService
 
 
@@ -182,6 +183,24 @@ def _phase3a_commands(commands: argparse._SubParsersAction[Any]) -> None:
     drift.add_argument("--disposable-root", type=Path, required=True)
 
 
+def _channel_commands(commands: argparse._SubParsersAction[Any]) -> None:
+    channel = commands.add_parser("channel", help="Signed Phase 3B client-channel inspection and dry-run readiness")
+    actions = channel.add_subparsers(dest="channel_command", required=True)
+    inspect = actions.add_parser("inspect", help="Inspect a channel pointer in an explicit disposable store")
+    inspect.add_argument("--root", type=Path, required=True)
+    inspect.add_argument("--channel", choices=("candidate", "canary", "stable"), required=True)
+    history = actions.add_parser("history", help="List immutable channel history")
+    history.add_argument("--root", type=Path, required=True)
+    history.add_argument("--channel", choices=("candidate", "canary", "stable"), required=True)
+    cohort = actions.add_parser("cohort-evaluate", help="Evaluate a privacy-safe installation cohort")
+    cohort.add_argument("--installation-id", required=True)
+    cohort.add_argument("--policy", type=Path, required=True)
+    change = actions.add_parser("change-package", help="Build a non-production production-change package")
+    change.add_argument("--release", type=Path, required=True)
+    readiness = actions.add_parser("production-readiness", help="Evaluate implementation readiness; never executes production")
+    readiness.add_argument("--release", type=Path, required=True)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EOAT Atlas unified release and deployment console CLI")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2], help=argparse.SUPPRESS)
@@ -207,6 +226,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     _target_plan_deploy_commands(commands)
     _bootstrap_commands(commands)
     _phase3a_commands(commands)
+    _channel_commands(commands)
     receipts = commands.add_parser("receipts", help="Browse and export durable receipts")
     receipt_actions = receipts.add_subparsers(dest="receipt_command", required=True)
     receipt_actions.add_parser("list", help="List all receipt inventories")
@@ -252,6 +272,19 @@ def main(argv: list[str] | None = None) -> int:
                 result = service.phase3a_activate(args.transaction, disposable_root=args.disposable_root, release_id=args.release_id, confirmation=args.confirm)
             else:
                 result = service.phase3a_drift(args.transaction, disposable_root=args.disposable_root)
+        elif args.command == "channel":
+            from .phase3b import ImmutableChannelStore
+
+            if args.channel_command == "inspect":
+                result = {"mode": "DISPOSABLE_READ_ONLY", "channel": args.channel, "current": ImmutableChannelStore(args.root).current(args.channel)}
+            elif args.channel_command == "history":
+                result = {"mode": "DISPOSABLE_READ_ONLY", "channel": args.channel, "history": ImmutableChannelStore(args.root).history(args.channel)}
+            elif args.channel_command == "cohort-evaluate":
+                policy = json.loads(args.policy.read_text(encoding="utf-8"))
+                result = {"mode": "DISPOSABLE_READ_ONLY", "included": cohort_included(args.installation_id, policy)}
+            else:
+                release = json.loads(args.release.read_text(encoding="utf-8"))
+                result = build_change_package(release) if args.channel_command == "change-package" else production_readiness(release, authorization=None, helper_verified=False, baseline_known=False)
         elif args.command == "candidate":
             if args.candidate_command == "rehearse":
                 result = service.rehearse_candidate(args.bump, args.explicit_version)
