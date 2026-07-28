@@ -1,0 +1,65 @@
+name: Unified Release Train Phase 3A
+
+on:
+  push:
+    branches: [codex/unified-release-train]
+    paths:
+      - deployment/convergence/phase3a.py
+      - server/eoat_api/app.py
+      - tests/test_phase_3a_coordinated_deployment.py
+      - tests/test_release_status_contract.py
+      - .github/workflows/unified-release-train-phase-3a.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deployment-input-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py
+  transaction-state-machine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py
+  runtime-release-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_status_contract.py
+  rollback-and-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py
+  repository-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/repo_safety_audit.py
+  version-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/check_version_bump.py --base 170d9fb3d8f2ab2dabe6eb86ee7898ccbbd3a6ab
