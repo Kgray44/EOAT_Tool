@@ -92,3 +92,16 @@ def test_staging_rejects_mutated_embedded_identity_and_unsafe_web_content(tmp_pa
         assert "identity" in str(error)
     else:
         raise AssertionError("mutated embedded server identity was accepted")
+
+
+def test_drift_scanner_reports_match_mismatch_and_recovery_truth(tmp_path: Path) -> None:
+    item = _input(tmp_path)
+    deployment = DisposableCoordinatedDeployment(tmp_path / "runtime")
+    staged = deployment.stage(item, active_schema="schema-1")
+    assert deployment.activate(staged["transaction_id"])["state"] == "ACTIVE_CONFIRMED"
+    assert deployment.drift(staged["transaction_id"])["classification"] == "MATCH"
+    assert deployment.drift(staged["transaction_id"], desktop_identity={"release_id": "other"})["classification"] == "MISMATCH"
+    failed = DisposableCoordinatedDeployment(tmp_path / "failed", health=lambda *_: False)
+    rejected = failed.stage(item, active_schema="schema-1")
+    assert failed.activate(rejected["transaction_id"])["state"] == "ROLLED_BACK"
+    assert failed.drift(rejected["transaction_id"])["classification"] == "RECOVERY_REQUIRED"
