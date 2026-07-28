@@ -205,3 +205,16 @@ the signed set, and combines its target schema with the existing read-only
 inspection/helper facts. Unknown schema, incomplete migration capability, or
 recovery state remains blocking. Phase 1C creates no stage or activation
 transaction and never targets the production GitHub repository.
+
+## Phase 2 bootstrap and launcher recovery boundary
+
+Phase 2 introduces a separately versioned, installer-governed bootstrap that
+only discovers, validates, activates, and rolls back immutable launcher
+versions. It never updates the desktop itself and never overwrites its running
+executable. Launcher update manifests are Ed25519 signed canonical payloads;
+the bootstrap verifies trust, revocation, package/metadata/manifests, packaged
+smoke, and machine-readable startup health before replacing atomic active/LKG
+pointers. Offline fallback is permitted only for a confirmed-good launcher
+still supported by cached signed policy. The installer owns bootstrap
+replacement and current-user shortcut migration; production update transport
+and channel promotion remain out of scope.

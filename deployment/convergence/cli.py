@@ -55,7 +55,9 @@ def _candidate_commands(commands: argparse._SubParsersAction[Any]) -> None:
     seal = actions.add_parser("seal-release-set", help="Seal a complete candidate with non-production signing material")
     seal.add_argument("candidate_id")
     seal.add_argument("--confirm", required=True, help="Exact confirmation: SEAL <candidate-id>")
-    inspect_attachment = actions.add_parser("inspect-platform-attachment", help="Inspect an identity-bound Windows attachment")
+    inspect_attachment = actions.add_parser(
+        "inspect-platform-attachment", help="Inspect an identity-bound Windows attachment"
+    )
     inspect_attachment.add_argument("candidate_id")
     inspect_attachment.add_argument("attachment", type=Path)
     attach = actions.add_parser("attach-platform-artifacts", help="Attach a validated Windows artifact bundle")
@@ -77,7 +79,9 @@ def _publish_commands(commands: argparse._SubParsersAction[Any]) -> None:
     status.add_argument("publication_id")
     readiness = actions.add_parser("readiness", help="Independently verify a sealed candidate for publication")
     readiness.add_argument("candidate_id")
-    disposable = actions.add_parser("start-disposable", help="Publish only to an explicit disposable Git/filesystem backend")
+    disposable = actions.add_parser(
+        "start-disposable", help="Publish only to an explicit disposable Git/filesystem backend"
+    )
     disposable.add_argument("candidate_id")
     disposable.add_argument("--remote", type=Path, required=True)
     disposable.add_argument("--registry", type=Path, required=True)
@@ -104,7 +108,9 @@ def _target_plan_deploy_commands(commands: argparse._SubParsersAction[Any]) -> N
     create.add_argument("--inspection", required=True)
     show = actions.add_parser("show", help="Show a stored plan")
     show.add_argument("plan_id")
-    disposable_plan = actions.add_parser("create-disposable", help="Create a read-only plan from a trusted disposable publication")
+    disposable_plan = actions.add_parser(
+        "create-disposable", help="Create a read-only plan from a trusted disposable publication"
+    )
     disposable_plan.add_argument("--publication", required=True)
     disposable_plan.add_argument("--inspection", required=True)
 
@@ -137,6 +143,22 @@ def _target_plan_deploy_commands(commands: argparse._SubParsersAction[Any]) -> N
     recover.add_argument("--transaction", required=True)
 
 
+def _bootstrap_commands(commands: argparse._SubParsersAction[Any]) -> None:
+    bootstrap = commands.add_parser("bootstrap", help="Per-user bootstrap and launcher startup diagnostics")
+    bootstrap.add_argument("--install-root", type=Path, required=True)
+    bootstrap.add_argument(
+        "--trusted-keys", type=Path, required=True, help="Public-key JSON; private keys are never accepted"
+    )
+    actions = bootstrap.add_subparsers(dest="bootstrap_command", required=True)
+    actions.add_parser("status", help="Show bootstrap, active launcher, and last-known-good state")
+    actions.add_parser("offline-policy", help="Evaluate cached signed launcher policy without contacting transport")
+    update = actions.add_parser(
+        "update", help="Install a signed launcher update from an explicit non-production transport"
+    )
+    update.add_argument("--manifest", type=Path, required=True)
+    update.add_argument("--transport", required=True)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EOAT Atlas unified release and deployment console CLI")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2], help=argparse.SUPPRESS)
@@ -155,9 +177,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ):
         child = release_actions.add_parser(name, help=help_text)
         child.add_argument("--version", required=True)
-    disposable_list = release_actions.add_parser("list-disposable", help="Inventory an explicit disposable release registry")
+    disposable_list = release_actions.add_parser(
+        "list-disposable", help="Inventory an explicit disposable release registry"
+    )
     disposable_list.add_argument("--registry", type=Path, required=True)
     _target_plan_deploy_commands(commands)
+    _bootstrap_commands(commands)
     receipts = commands.add_parser("receipts", help="Browse and export durable receipts")
     receipt_actions = receipts.add_subparsers(dest="receipt_command", required=True)
     receipt_actions.add_parser("list", help="List all receipt inventories")
@@ -175,6 +200,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command in {"status", "diagnose"}:
             result = service.status()
+        elif args.command == "bootstrap":
+            from bootstrap.core import BootstrapService
+
+            keys = json.loads(args.trusted_keys.read_text(encoding="utf-8"))
+            if not isinstance(keys, dict):
+                raise ValueError("trusted launcher public-key file must contain a JSON object")
+            bootstrap = BootstrapService(
+                args.install_root, trusted_public_keys={str(key): str(value) for key, value in keys.items()}
+            )
+            if args.bootstrap_command == "status":
+                result = bootstrap.status()
+            elif args.bootstrap_command == "offline-policy":
+                result = bootstrap.offline_launch().__dict__
+            else:
+                envelope = json.loads(args.manifest.read_text(encoding="utf-8"))
+                result = bootstrap.update(envelope, transport=args.transport).__dict__
         elif args.command == "candidate":
             if args.candidate_command == "rehearse":
                 result = service.rehearse_candidate(args.bump, args.explicit_version)
@@ -200,7 +241,13 @@ def main(argv: list[str] | None = None) -> int:
                 result = service.verify_sealed_release_set(args.candidate_id)
             elif args.candidate_command == "show-components":
                 receipt = service.candidate(args.candidate_id)
-                result = {"candidate_id": args.candidate_id, "components": (receipt.get("working_release_set") or {}).get("components", []), "missing_components": service.store.candidate_representation(args.candidate_id).get("missing_components", [])}
+                result = {
+                    "candidate_id": args.candidate_id,
+                    "components": (receipt.get("working_release_set") or {}).get("components", []),
+                    "missing_components": service.store.candidate_representation(args.candidate_id).get(
+                        "missing_components", []
+                    ),
+                }
             else:
                 result = service.discard_candidate(args.candidate_id)
         elif args.command == "publish":
@@ -211,7 +258,9 @@ def main(argv: list[str] | None = None) -> int:
             elif args.publish_command == "readiness":
                 result = service.publication_readiness(args.candidate_id)
             elif args.publish_command == "start-disposable":
-                result = service.publish_disposable(args.candidate_id, args.confirm, remote=args.remote, registry=args.registry)
+                result = service.publish_disposable(
+                    args.candidate_id, args.confirm, remote=args.remote, registry=args.registry
+                )
             elif args.publish_command == "resume-disposable":
                 result = service.resume_disposable_publication(args.publication_id, args.confirm)
             else:

@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from bootstrap.core import BootstrapService
 from deployment.common import to_jsonable
 from deployment.convergence.models import DeploymentState
 from deployment.convergence.services import ReleaseDeploymentService
@@ -67,6 +68,7 @@ class ReleaseDeploymentConsole(QMainWindow):
         self.tabs.addTab(self._target_page(), "Target Inspection")
         self.tabs.addTab(self._plan_page(), "Deployment Plan")
         self.tabs.addTab(self._transaction_page(), "Deployment Transaction")
+        self.tabs.addTab(self._startup_page(), "Workstation Startup")
         self.tabs.addTab(self._receipts_page(), "Logs and Receipts")
         self.tabs.addTab(self._settings_page(), "Settings")
         self.setCentralWidget(self.tabs)
@@ -140,15 +142,39 @@ class ReleaseDeploymentConsole(QMainWindow):
         layout.addRow(self._button("Rehearse candidate", "Run dry-run candidate rehearsal", self._rehearse))
         self.prepare = self._button("Prepare immutable candidate", "Prepare immutable release candidate", self._prepare)
         layout.addRow(self.prepare)
-        layout.addRow(self._button("Build Core Artifacts", "Build and verify core artifacts", self._build_core_artifacts))
-        layout.addRow(self._button("Verify Core Artifacts", "Verify retained core artifacts", self._verify_core_artifacts))
-        layout.addRow(self._button("Inspect Windows Attachment", "Inspect Windows artifact attachment", self._inspect_attachment))
-        layout.addRow(self._button("Attach Platform Artifacts", "Attach validated Windows artifacts", self._attach_platform_artifacts))
-        layout.addRow(self._button("Verify Attached Artifacts", "Verify attached Windows artifacts", self._verify_platform_artifacts))
-        layout.addRow(self._button("Verify Candidate for Sealing", "Revalidate candidate before sealing", self._verify_for_sealing))
-        layout.addRow(self._button("Seal Release Set", "Seal release set with explicit confirmation", self._seal_release_set))
-        layout.addRow(self._button("Verify Signature", "Verify sealed release-set signature", self._verify_sealed_release_set))
-        layout.addRow(self._button("Show Candidate Components", "Show candidate component inventory", self._show_components))
+        layout.addRow(
+            self._button("Build Core Artifacts", "Build and verify core artifacts", self._build_core_artifacts)
+        )
+        layout.addRow(
+            self._button("Verify Core Artifacts", "Verify retained core artifacts", self._verify_core_artifacts)
+        )
+        layout.addRow(
+            self._button("Inspect Windows Attachment", "Inspect Windows artifact attachment", self._inspect_attachment)
+        )
+        layout.addRow(
+            self._button(
+                "Attach Platform Artifacts", "Attach validated Windows artifacts", self._attach_platform_artifacts
+            )
+        )
+        layout.addRow(
+            self._button(
+                "Verify Attached Artifacts", "Verify attached Windows artifacts", self._verify_platform_artifacts
+            )
+        )
+        layout.addRow(
+            self._button(
+                "Verify Candidate for Sealing", "Revalidate candidate before sealing", self._verify_for_sealing
+            )
+        )
+        layout.addRow(
+            self._button("Seal Release Set", "Seal release set with explicit confirmation", self._seal_release_set)
+        )
+        layout.addRow(
+            self._button("Verify Signature", "Verify sealed release-set signature", self._verify_sealed_release_set)
+        )
+        layout.addRow(
+            self._button("Show Candidate Components", "Show candidate component inventory", self._show_components)
+        )
         layout.addRow(
             self._button(
                 "Refresh candidates",
@@ -157,9 +183,21 @@ class ReleaseDeploymentConsole(QMainWindow):
             )
         )
         layout.addRow(self._button("Discard candidate", "Discard unpromoted candidate", self._discard_candidate))
-        layout.addRow(self._button("Verify Publication Readiness", "Verify sealed publication readiness", self._publication_readiness))
-        layout.addRow(self._button("Publish to Disposable Backend", "Publish only to disposable backend", self._publish_disposable))
-        layout.addRow(self._button("Resume Disposable Publication", "Resume disposable publication", self._resume_disposable_publication))
+        layout.addRow(
+            self._button(
+                "Verify Publication Readiness", "Verify sealed publication readiness", self._publication_readiness
+            )
+        )
+        layout.addRow(
+            self._button(
+                "Publish to Disposable Backend", "Publish only to disposable backend", self._publish_disposable
+            )
+        )
+        layout.addRow(
+            self._button(
+                "Resume Disposable Publication", "Resume disposable publication", self._resume_disposable_publication
+            )
+        )
         return page
 
     def _inventory_page(self) -> QWidget:
@@ -213,7 +251,13 @@ class ReleaseDeploymentConsole(QMainWindow):
         layout.addRow("Plan ID", self.plan_id)
         layout.addRow("Plan summary", self.plan_summary)
         layout.addRow(self._button("Verify selected release", "Verify selected release", self._verify_release))
-        layout.addRow(self._button("Create disposable plan", "Create plan from trusted disposable publication", self._create_disposable_plan))
+        layout.addRow(
+            self._button(
+                "Create disposable plan",
+                "Create plan from trusted disposable publication",
+                self._create_disposable_plan,
+            )
+        )
         layout.addRow(self._button("Create plan from stored facts", "Create deployment plan", self._create_plan))
         return page
 
@@ -260,6 +304,26 @@ class ReleaseDeploymentConsole(QMainWindow):
         )
         return page
 
+    def _startup_page(self) -> QWidget:
+        page = QWidget()
+        layout = QFormLayout(page)
+        self.bootstrap_root = QLineEdit()
+        self.bootstrap_root.setAccessibleName("Per-user bootstrap installation root")
+        self.bootstrap_keys = QLineEdit()
+        self.bootstrap_keys.setAccessibleName("Bootstrap public-key JSON path")
+        self.bootstrap_summary = QLabel("Bootstrap status: NOT RUN")
+        self.bootstrap_summary.setWordWrap(True)
+        layout.addRow("Installation root", self.bootstrap_root)
+        layout.addRow("Trusted public keys", self.bootstrap_keys)
+        layout.addRow("Startup chain", self.bootstrap_summary)
+        layout.addRow(self._button("Inspect Bootstrap", "Inspect bootstrap launcher inventory", self._bootstrap_status))
+        layout.addRow(
+            self._button(
+                "Inspect Offline Policy", "Inspect cached signed offline launcher policy", self._bootstrap_offline
+            )
+        )
+        return page
+
     def _settings_page(self) -> QWidget:
         page = QWidget()
         layout = QFormLayout(page)
@@ -296,10 +360,18 @@ class ReleaseDeploymentConsole(QMainWindow):
         self._start("core-verify", lambda: self.service.verify_core_artifacts(self.candidate_id.text()))
 
     def _inspect_attachment(self) -> None:
-        self._start("attachment-inspect", lambda: self.service.inspect_platform_attachment(self.candidate_id.text(), Path(self.attachment_path.text())))
+        self._start(
+            "attachment-inspect",
+            lambda: self.service.inspect_platform_attachment(
+                self.candidate_id.text(), Path(self.attachment_path.text())
+            ),
+        )
 
     def _attach_platform_artifacts(self) -> None:
-        self._start("attachment-attach", lambda: self.service.attach_platform_artifacts(self.candidate_id.text(), Path(self.attachment_path.text())))
+        self._start(
+            "attachment-attach",
+            lambda: self.service.attach_platform_artifacts(self.candidate_id.text(), Path(self.attachment_path.text())),
+        )
 
     def _verify_platform_artifacts(self) -> None:
         self._start("platform-verify", lambda: self.service.verify_platform_artifacts(self.candidate_id.text()))
@@ -334,16 +406,43 @@ class ReleaseDeploymentConsole(QMainWindow):
         candidate = self.candidate_id.text()
         confirmation, accepted = self._typed_confirmation("Disposable publication", f"Type PUBLISH {candidate}:")
         if accepted:
-            self._start("publish", lambda: self.service.publish_disposable(candidate, confirmation, remote=Path(self.disposable_remote.text()), registry=Path(self.disposable_registry.text())))
+            self._start(
+                "publish",
+                lambda: self.service.publish_disposable(
+                    candidate,
+                    confirmation,
+                    remote=Path(self.disposable_remote.text()),
+                    registry=Path(self.disposable_registry.text()),
+                ),
+            )
 
     def _resume_disposable_publication(self) -> None:
         publication_id = self.candidate_id.text()
-        candidate, accepted = self._typed_confirmation("Resume disposable publication", "Type the candidate ID for this publication:")
+        candidate, accepted = self._typed_confirmation(
+            "Resume disposable publication", "Type the candidate ID for this publication:"
+        )
         if accepted:
-            self._start("publication", lambda: self.service.resume_disposable_publication(publication_id, f"PUBLISH {candidate}"))
+            self._start(
+                "publication",
+                lambda: self.service.resume_disposable_publication(publication_id, f"PUBLISH {candidate}"),
+            )
 
     def _inventory_disposable(self) -> None:
         self._start("inventory", lambda: self.service.inventory_disposable(Path(self.disposable_registry.text())))
+
+    def _bootstrap_service(self) -> BootstrapService:
+        keys = json.loads(Path(self.bootstrap_keys.text()).read_text(encoding="utf-8"))
+        if not isinstance(keys, dict):
+            raise ValueError("Bootstrap trusted-key file must contain a JSON object")
+        return BootstrapService(
+            Path(self.bootstrap_root.text()), trusted_public_keys={str(key): str(value) for key, value in keys.items()}
+        )
+
+    def _bootstrap_status(self) -> None:
+        self._start("bootstrap-status", lambda: self._bootstrap_service().status())
+
+    def _bootstrap_offline(self) -> None:
+        self._start("bootstrap-offline", lambda: self._bootstrap_service().offline_launch().__dict__)
 
     def _resume_publication(self) -> None:
         self._start("publication", lambda: self.service.publish_resume(self.candidate_id.text()))
@@ -360,7 +459,10 @@ class ReleaseDeploymentConsole(QMainWindow):
         )
 
     def _create_disposable_plan(self) -> None:
-        self._start("plan", lambda: self.service.create_disposable_plan(self.release_version.text(), self.plan_inspection_id.text()))
+        self._start(
+            "plan",
+            lambda: self.service.create_disposable_plan(self.release_version.text(), self.plan_inspection_id.text()),
+        )
 
     def _stage(self) -> None:
         version, accepted = self._typed_confirmation(
@@ -419,7 +521,13 @@ class ReleaseDeploymentConsole(QMainWindow):
         self.decision_card.setText(
             f"{payload.get('status', 'UNKNOWN')}: {payload.get('next_safe_action', 'Review receipt.')}"
         )
-        if name == "readiness":
+        if name.startswith("bootstrap-"):
+            startup = payload if "bootstrap_version" in payload or "state" in payload else data
+            active = startup.get("active_launcher", {})
+            self.bootstrap_summary.setText(
+                f"bootstrap {startup.get('bootstrap_version', '0.1.0')} | active launcher {active.get('version', startup.get('active_version', 'none'))} | {startup.get('state', 'READY')}"
+            )
+        elif name == "readiness":
             repository = data.get("repository", {})
             self.local_card.setText(
                 f"{repository.get('branch', 'unknown')} @ {repository.get('commit', '')[:12]} | version {repository.get('version', 'unknown')}"
@@ -433,13 +541,31 @@ class ReleaseDeploymentConsole(QMainWindow):
             self.candidate_card.setText(
                 f"{candidate.get('state')} | {candidate.get('version')} | {candidate.get('artifact_sha256', '')[:12]}"
             )
-        elif name in {"core-build", "core-verify", "attachment-inspect", "attachment-attach", "platform-verify", "components", "sealing-verify", "sealing", "sealing-signature"}:
+        elif name in {
+            "core-build",
+            "core-verify",
+            "attachment-inspect",
+            "attachment-attach",
+            "platform-verify",
+            "components",
+            "sealing-verify",
+            "sealing",
+            "sealing-signature",
+        }:
             receipt = self.service.candidate(self.candidate_id.text()) if self.candidate_id.text() else {}
             working = receipt.get("working_release_set") or {}
             components = working.get("components") or []
-            pending = [str(item.get("kind")) for item in components if isinstance(item, dict) and item.get("disposition") == "PENDING"]
-            self.component_summary.setText(f"{len(components)} components; pending: {', '.join(sorted(pending)) or 'none'}")
-            self.candidate_card.setText(f"{receipt.get('state', 'UNKNOWN')} | publication eligible: {receipt.get('publication_eligible', False)}")
+            pending = [
+                str(item.get("kind"))
+                for item in components
+                if isinstance(item, dict) and item.get("disposition") == "PENDING"
+            ]
+            self.component_summary.setText(
+                f"{len(components)} components; pending: {', '.join(sorted(pending)) or 'none'}"
+            )
+            self.candidate_card.setText(
+                f"{receipt.get('state', 'UNKNOWN')} | publication eligible: {receipt.get('publication_eligible', False)}"
+            )
             if name.startswith("sealing"):
                 self.sealing_summary.setText(
                     f"digest: {data.get('canonical_digest', receipt.get('release_set_digest', 'pending'))} | key: {data.get('key_id', (receipt.get('release_set_signature') or {}).get('key_id', 'pending'))}"

@@ -32,7 +32,7 @@ if (Test-Path -LiteralPath $shortcut -PathType Leaf) {
     }
 }
 
-foreach ($relative in @("App", "Launcher", "current_app.json", "current_launcher.json", "install_receipt.json")) {
+foreach ($relative in @("App", "Launcher", "launcher_versions", "bootstrap", "active_launcher.json", "last_known_good_launcher.json", "launcher_update_receipts", "current_app.json", "current_launcher.json", "install_receipt.json")) {
     $path = Join-Path $root $relative
     if (Test-Path -LiteralPath $path) {
         Remove-Item -LiteralPath $path -Recurse -Force
