@@ -75,6 +75,7 @@ if RELEASE_INFO.api_contract_version != API_VERSION:
 if RELEASE_INFO.database_schema_revision != EXPECTED_SCHEMA_REVISION:
     raise RuntimeError("Canonical release schema revision does not match server expectation")
 
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Reject development authentication in production without contacting an IdP."""
@@ -127,6 +128,42 @@ async def request_logging(request: Request, call_next):
             "/api/v1/release-status",
             "/api/v1/data-status",
         }
+        # Phase 3A runtime parity is opt-in for existing deployments until the
+        # signed release-set activation path provisions its authoritative
+        # identity.  Once enabled, ordinary API operations fail closed while
+        # health, release discovery, and diagnostics remain recoverable.
+        if protected and os.getenv("EOAT_REQUIRE_CLIENT_RELEASE_PARITY", "false").strip().casefold() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            active = {
+                "product_version": RELEASE_INFO.application_version,
+                "release_id": RELEASE_INFO.release_id,
+                "build_id": RELEASE_INFO.build_id,
+                "release_set_digest": os.getenv("EOAT_RELEASE_SET_DIGEST", "").strip(),
+            }
+            supplied = {
+                "product_version": request.headers.get("X-EOAT-Client-Version", "").strip(),
+                "release_id": request.headers.get("X-EOAT-Client-Release-ID", "").strip(),
+                "build_id": request.headers.get("X-EOAT-Client-Build-ID", "").strip(),
+                "release_set_digest": request.headers.get("X-EOAT-Client-Release-Set-Digest", "").strip(),
+            }
+            if any(active[key] and supplied[key] != active[key] for key in active):
+                status = 409
+                return JSONResponse(
+                    status_code=409,
+                    content={
+                        "error_code": "CLIENT_RELEASE_MISMATCH",
+                        "active_release": active,
+                        "supplied_client": supplied,
+                        "restart_action": "restart-through-bootstrap",
+                        "retryable": True,
+                        "request_id": request.state.request_id,
+                    },
+                    headers={"X-Request-ID": request.state.request_id},
+                )
         if environment == "production" and protected:
             configured_token = os.getenv("EOAT_API_DEVICE_TOKEN", "")
             supplied_token = request.headers.get("X-EOAT-Device-Token", "")
@@ -134,14 +171,22 @@ async def request_logging(request: Request, call_next):
                 status = 503
                 return JSONResponse(
                     status_code=503,
-                    content={"error_code": "DEVICE_AUTH_NOT_CONFIGURED", "message": "Production read authentication is not configured.", "request_id": request.state.request_id},
+                    content={
+                        "error_code": "DEVICE_AUTH_NOT_CONFIGURED",
+                        "message": "Production read authentication is not configured.",
+                        "request_id": request.state.request_id,
+                    },
                     headers={"X-Request-ID": request.state.request_id},
                 )
             if not supplied_token or not secrets.compare_digest(supplied_token, configured_token):
                 status = 401
                 return JSONResponse(
                     status_code=401,
-                    content={"error_code": "DEVICE_AUTH_REQUIRED", "message": "An approved device credential is required.", "request_id": request.state.request_id},
+                    content={
+                        "error_code": "DEVICE_AUTH_REQUIRED",
+                        "message": "An approved device credential is required.",
+                        "request_id": request.state.request_id,
+                    },
                     headers={"X-Request-ID": request.state.request_id},
                 )
         response = await call_next(request)
@@ -178,9 +223,7 @@ async def api_error(request: Request, exc: APIError):
                 with factory() as audit_session, audit_session.begin():
                     record_auth_event(
                         audit_session,
-                        "SETTINGS_ADMIN_LOGIN_FAILED"
-                        if exc.status_code == 401
-                        else "SETTINGS_ADMIN_ACCESS_DENIED",
+                        "SETTINGS_ADMIN_LOGIN_FAILED" if exc.status_code == 401 else "SETTINGS_ADMIN_ACCESS_DENIED",
                         result="DENIED",
                         provider=os.getenv("EOAT_AUTH_PROVIDER", "development"),
                         request_id=getattr(request.state, "request_id", None),
@@ -293,15 +336,26 @@ def release_status(request: Request):
 
     minimum_desktop = os.getenv("EOAT_MINIMUM_SUPPORTED_DESKTOP_VERSION", "0.0.0").strip()
     client_version = request.headers.get("X-EOAT-Client-Version", "").strip()
+    supplied_release = request.headers.get("X-EOAT-Client-Release-ID", "").strip()
+    supplied_build = request.headers.get("X-EOAT-Client-Build-ID", "").strip()
+    supplied_digest = request.headers.get("X-EOAT-Client-Release-Set-Digest", "").strip()
+    release_set_digest = os.getenv("EOAT_RELEASE_SET_DIGEST", "").strip()
     try:
         supported = not client_version or Version.parse(client_version) >= Version.parse(minimum_desktop)
     except ValueError:
         supported = False
+    identity_match = (
+        (not supplied_release or supplied_release == RELEASE_INFO.release_id)
+        and (not supplied_build or supplied_build == RELEASE_INFO.build_id)
+        and (not release_set_digest or supplied_digest == release_set_digest)
+    )
     return {
         "product_version": RELEASE_INFO.application_version,
         "release_id": RELEASE_INFO.release_id,
         "build_id": RELEASE_INFO.build_id,
         "source_commit": RELEASE_INFO.source_git_commit,
+        "source_tree": os.getenv("EOAT_RELEASE_SOURCE_TREE", "").strip() or None,
+        "release_set_digest": release_set_digest or None,
         "release_channel": RELEASE_INFO.release_channel,
         "api_contract_version": API_VERSION,
         "database_schema_revision": EXPECTED_SCHEMA_REVISION,
@@ -309,7 +363,18 @@ def release_status(request: Request):
         "minimum_supported_launcher_version": os.getenv("EOAT_MINIMUM_SUPPORTED_LAUNCHER_VERSION", "0.1.0"),
         "minimum_supported_bootstrap_version": os.getenv("EOAT_MINIMUM_SUPPORTED_BOOTSTRAP_VERSION", "0.1.0"),
         "client_version": client_version or None,
-        "client_supported": supported,
+        "client_identity": {
+            "product_version": client_version or None,
+            "release_id": supplied_release or None,
+            "build_id": supplied_build or None,
+            "release_set_digest": supplied_digest or None,
+        },
+        "client_supported": supported and identity_match,
+        "client_compatibility": "MATCH" if supported and identity_match else "MISMATCH",
+        "mismatch_reason": "release identity does not match active API"
+        if not identity_match
+        else ("minimum desktop version is not met" if not supported else None),
+        "deployment_transaction_id": os.getenv("EOAT_DEPLOYMENT_TRANSACTION_ID", "").strip() or None,
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -400,6 +465,7 @@ def eoat_current_location(identifier: str, repo: AtlasRepository = Depends(repos
     if entity is None:
         raise not_found("EOAT", identifier)
     from .location_resolver import resolve_eoat_location
+
     return resolve_eoat_location(repo.session, entity.id)
 
 
@@ -411,7 +477,8 @@ def eoat_location_observations(identifier: str, repo: AtlasRepository = Depends(
     if entity is None:
         raise not_found("EOAT", identifier)
     rows = repo.session.scalars(
-        __import__("sqlalchemy").select(db.EOATLocationObservation)
+        __import__("sqlalchemy")
+        .select(db.EOATLocationObservation)
         .where(db.EOATLocationObservation.eoat_id == entity.id)
         .order_by(db.EOATLocationObservation.observed_on.desc(), db.EOATLocationObservation.id.desc())
     )
@@ -504,7 +571,9 @@ def _web_document_metadata(value: DocumentMetadata | PhotoMetadata) -> WebDocume
         "file_name": value.file_name,
         "mime_type": value.mime_type,
         "related_entities": value.related_entities,
-        "content_delivery_state": "AVAILABLE" if content_is_available(value.storage_path) else "NOT_AVAILABLE_THROUGH_WEB",
+        "content_delivery_state": "AVAILABLE"
+        if content_is_available(value.storage_path)
+        else "NOT_AVAILABLE_THROUGH_WEB",
     }
     if isinstance(value, PhotoMetadata):
         return WebPhotoMetadata(
@@ -525,7 +594,11 @@ def eoat_web_documents(identifier: str, repo: AtlasRepository = Depends(reposito
     )
     if entity is None:
         raise not_found("EOAT", identifier)
-    return [_web_document_metadata(value) for value in repo.documents("eoat", entity.id) if not isinstance(value, PhotoMetadata)]
+    return [
+        _web_document_metadata(value)
+        for value in repo.documents("eoat", entity.id)
+        if not isinstance(value, PhotoMetadata)
+    ]
 
 
 @app.get("/api/v1/eoats/{identifier}/web-photos", response_model=list[WebPhotoMetadata])
