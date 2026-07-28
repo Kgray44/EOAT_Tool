@@ -18,12 +18,13 @@ import stat
 import subprocess
 import uuid
 import zipfile
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.3.0"
+HELPER_VERSION = "1.3.1"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -34,6 +35,19 @@ RECEIPT_SCHEMA_VERSION = 2
 TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
 UPLOAD_ROOT = Path("/opt/eoat-atlas/incoming")
 SEALED_ROOT = CONTROL_ROOT / "sealed-artifacts"
+
+
+@dataclass(frozen=True)
+class SealedArtifacts:
+    """Validated final paths for one immutable, coordinator-sealed release."""
+
+    root: Path
+    server_archive: Path
+    server_manifest: Path
+    bundle: Path
+    receipt_path: Path
+    policy_semantic_sha256: str
+    bundle_sha256: str
 
 
 def fail(message: str) -> None:
@@ -55,7 +69,7 @@ def _upload_member(value: object, *, directory: bool = False) -> Path:
     return path
 
 
-def _copy_sealed_file(source: Path, destination: Path, expected: str) -> dict[str, object]:
+def _copy_sealed_file(source: Path, destination: Path, expected: str, sealed_relative: Path) -> dict[str, object]:
     before = source.lstat()
     if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
         fail("upload artifact must be a singly-linked regular file")
@@ -95,10 +109,91 @@ def _copy_sealed_file(source: Path, destination: Path, expected: str) -> dict[st
         destination.unlink(missing_ok=True)
         fail("sealed artifact SHA-256 does not match approved policy")
     os.chmod(destination, 0o640)
-    return {"source": str(source), "sealed": str(destination), "sha256": actual, "size": size}
+    return {"source": str(source), "sealed": str(sealed_relative), "sha256": actual, "size": size}
 
 
-def seal_artifacts(value: dict[str, object]) -> dict[str, object]:
+def _sealed_member(root: Path, value: object, *, directory: bool = False) -> Path:
+    """Resolve a receipt-relative member without allowing receipt redirection."""
+    if not isinstance(value, str):
+        fail("sealed artifact receipt member is invalid")
+    relative = Path(value)
+    if not value or value.startswith(("/", "\\")) or relative.is_absolute() or ".." in relative.parts:
+        fail("sealed artifact receipt member must be a relative non-traversing path")
+    member = root / relative
+    try:
+        member.relative_to(root)
+    except ValueError:
+        fail("sealed artifact receipt member escapes the sealed release root")
+    if member.is_symlink() or not member.exists() or (not member.is_dir() if directory else not member.is_file()):
+        fail("sealed artifact receipt member is missing or unsafe")
+    return member
+
+
+def _validate_sealed_artifacts(value: dict[str, object], final: Path, policy_hash: str) -> SealedArtifacts:
+    """Reopen only the fixed final release directory and verify its receipt."""
+    release = str(value["server_release_id"])
+    if final != SEALED_ROOT / release or final.is_symlink() or not final.is_dir():
+        fail("existing sealed artifact directory is unsafe")
+    web.require_root_chain(final)
+    web.require_root_tree(final)
+    receipt_path = final / "sealing-receipt.json"
+    if receipt_path.is_symlink() or not receipt_path.is_file():
+        fail("existing sealed artifact directory is unsafe")
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"sealed artifact receipt is invalid: {error}")
+    if receipt.get("schema") != 2:
+        if ".sealing-" in json.dumps(receipt, sort_keys=True):
+            fail("sealed artifact receipt uses obsolete temporary-path schema and cannot be reused")
+        fail("sealed artifact receipt schema is unsupported")
+    if (
+        receipt.get("application_version") != value["application_version"]
+        or receipt.get("source_commit") != value["source_commit"]
+        or receipt.get("coordinator_version") != HELPER_VERSION
+        or receipt.get("policy_semantic_sha256") != policy_hash
+        or receipt.get("sealed_release_id") != release
+    ):
+        fail("sealed artifact receipt does not match the approved policy or coordinator")
+    archive = _sealed_member(final, receipt.get("server_archive"))
+    manifest = _sealed_member(final, receipt.get("server_manifest"))
+    bundle = _sealed_member(final, receipt.get("sealed_bundle"), directory=True)
+    records = receipt.get("files")
+    if not isinstance(records, list):
+        fail("sealed artifact receipt file inventory is invalid")
+    recorded: set[str] = set()
+    for record in records:
+        if (
+            not isinstance(record, dict)
+            or not isinstance(record.get("sha256"), str)
+            or not isinstance(record.get("size"), int)
+        ):
+            fail("sealed artifact receipt file record is invalid")
+        member = _sealed_member(final, record.get("sealed"))
+        relative = str(member.relative_to(final))
+        if relative in recorded:
+            fail("sealed artifact receipt has duplicate file records")
+        recorded.add(relative)
+        if web.sha256(member) != record["sha256"] or member.stat().st_size != record["size"]:
+            fail("sealed artifact receipt member no longer matches its recorded hash or size")
+    required = {str(archive.relative_to(final)), str(manifest.relative_to(final))}
+    if not required.issubset(recorded):
+        fail("sealed artifact receipt does not record required server artifacts")
+    verified = web.verify_bundle(bundle, str(value["bundle_sha256"]))
+    if receipt.get("bundle_sha256") != verified["bundle_sha256"]:
+        fail("sealed artifact receipt bundle hash does not match the verified bundle")
+    return SealedArtifacts(
+        root=final,
+        server_archive=archive,
+        server_manifest=manifest,
+        bundle=bundle,
+        receipt_path=receipt_path,
+        policy_semantic_sha256=policy_hash,
+        bundle_sha256=verified["bundle_sha256"],
+    )
+
+
+def seal_artifacts(value: dict[str, object]) -> SealedArtifacts:
     """Copy approved uploads into a root-owned immutable coordinator zone."""
     archive = _upload_member(value["server_archive_path"])
     manifest = _upload_member(value["server_manifest_path"])
@@ -107,25 +202,25 @@ def seal_artifacts(value: dict[str, object]) -> dict[str, object]:
     release = str(value["server_release_id"])
     if not __import__("re").fullmatch(r"[A-Za-z0-9._-]+", release):
         fail("sealed release identifier is invalid")
-    SEALED_ROOT.mkdir(parents=True, mode=0o700)
+    SEALED_ROOT.mkdir(parents=True, mode=0o700, exist_ok=True)
     web.require_root_owned(SEALED_ROOT)
     web.require_root_chain(SEALED_ROOT)
     final = SEALED_ROOT / release
-    receipt_path = final / "sealing-receipt.json"
     if final.exists():
-        if final.is_symlink() or not receipt_path.is_file():
-            fail("existing sealed artifact directory is unsafe")
-        web.require_root_tree(final)
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-        if receipt.get("policy_semantic_sha256") != policy_hash:
-            fail("existing sealed artifacts are bound to a different policy")
-        return receipt
+        return _validate_sealed_artifacts(value, final, policy_hash)
     temporary = SEALED_ROOT / (".sealing-" + uuid.uuid4().hex)
     try:
         temporary.mkdir(mode=0o700)
         records = [
-            _copy_sealed_file(archive, temporary / "server.zip", str(value["server_archive_sha256"])),
-            _copy_sealed_file(manifest, temporary / "server.manifest.json", str(value["server_manifest_sha256"])),
+            _copy_sealed_file(
+                archive, temporary / "server.zip", str(value["server_archive_sha256"]), Path("server.zip")
+            ),
+            _copy_sealed_file(
+                manifest,
+                temporary / "server.manifest.json",
+                str(value["server_manifest_sha256"]),
+                Path("server.manifest.json"),
+            ),
         ]
         sealed_bundle = temporary / "bundle"
         sealed_bundle.mkdir(mode=0o700)
@@ -139,17 +234,20 @@ def seal_artifacts(value: dict[str, object]) -> dict[str, object]:
             destination = sealed_bundle / relative
             destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             # Bundle files are verified by the signed bundle manifest after copy.
-            records.append(_copy_sealed_file(item, destination, web.sha256(item)))
+            records.append(_copy_sealed_file(item, destination, web.sha256(item), Path("bundle") / relative))
         verified = web.verify_bundle(sealed_bundle, str(value["bundle_sha256"]))
         receipt = {
-            "schema": 1,
+            "schema": 2,
             "application_version": value["application_version"],
             "source_commit": value["source_commit"],
             "coordinator_version": HELPER_VERSION,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "policy_semantic_sha256": policy_hash,
+            "sealed_release_id": release,
+            "server_archive": "server.zip",
+            "server_manifest": "server.manifest.json",
             "files": records,
-            "sealed_bundle": str(sealed_bundle),
+            "sealed_bundle": "bundle",
             "bundle_sha256": verified["bundle_sha256"],
         }
         (temporary / "sealing-receipt.json").write_text(
@@ -158,8 +256,13 @@ def seal_artifacts(value: dict[str, object]) -> dict[str, object]:
         os.chmod(temporary / "sealing-receipt.json", 0o600)
         web.require_root_tree(temporary)
         os.replace(temporary, final)
-        web.require_root_tree(final)
-        return receipt
+        if os.name != "nt" and hasattr(os, "O_DIRECTORY"):
+            descriptor = os.open(SEALED_ROOT, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        return _validate_sealed_artifacts(value, final, policy_hash)
     except Exception:
         if temporary.exists():
             shutil.rmtree(temporary, ignore_errors=True)
@@ -167,13 +270,12 @@ def seal_artifacts(value: dict[str, object]) -> dict[str, object]:
 
 
 def sealed_policy(value: dict[str, object]) -> dict[str, object]:
-    receipt = seal_artifacts(value)
+    sealed = seal_artifacts(value)
     result = dict(value)
-    root = Path(str(receipt["sealed_bundle"])).parent
     result.update(
-        server_archive_path=str(root / "server.zip"),
-        server_manifest_path=str(root / "server.manifest.json"),
-        bundle_path=str(receipt["sealed_bundle"]),
+        server_archive_path=str(sealed.server_archive),
+        server_manifest_path=str(sealed.server_manifest),
+        bundle_path=str(sealed.bundle),
     )
     return result
 
