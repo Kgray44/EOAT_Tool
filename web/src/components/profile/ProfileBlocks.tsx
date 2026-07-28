@@ -10,6 +10,7 @@ import {
 import { relationshipPath } from "@/api/routes";
 import {
   isRoutableAuthoritativeIdentifier,
+  normalizeAuthoritativeValue,
   presentationText,
 } from "@/api/presentation";
 import { EmptyState } from "@/components/feedback/StateViews";
@@ -109,24 +110,85 @@ type RelationshipNode = {
   status?: string | null;
 };
 
+/**
+ * A relationship column can be empty because no relationship is recorded, or
+ * because the authoritative current-assignment value is deliberately
+ * non-routable.  Keep those cases distinct: the latter is evidence about an
+ * assignment and must not become a fake entity, link, or route.
+ */
+type RelationshipColumnState =
+  | { kind: "nodes"; nodes: RelationshipNode[] }
+  | { kind: "authoritative-unverified"; message: string }
+  | { kind: "authoritative-none-observed"; message: string }
+  | { kind: "authoritative-unavailable"; message: string }
+  | { kind: "no-recorded-relationships"; message: string };
+
+function relationshipColumnState(
+  label: string,
+  nodes: RelationshipNode[],
+  authoritativeValue: unknown,
+  hasAuthoritativeValue: boolean,
+  authoritativeLabel?: string,
+): RelationshipColumnState {
+  const safeNodes = nodes.filter((node) =>
+    isRoutableAuthoritativeIdentifier(node.identifier),
+  );
+  if (safeNodes.length > 0) return { kind: "nodes", nodes: safeNodes };
+  if (!hasAuthoritativeValue) {
+    return {
+      kind: "no-recorded-relationships",
+      message: `No verified ${label.toLowerCase()} recorded`,
+    };
+  }
+  const value = normalizeAuthoritativeValue(authoritativeValue);
+  const assignmentLabel =
+    authoritativeLabel ?? label.toLowerCase().replace(/s$/, "");
+  if (value.kind === "sentinel" && value.value === "UNKNOWN_NOT_VERIFIED") {
+    return {
+      kind: "authoritative-unverified",
+      message: `Current ${assignmentLabel} not verified`,
+    };
+  }
+  if (value.kind === "sentinel" && value.value === "NONE_OBSERVED") {
+    return {
+      kind: "authoritative-none-observed",
+      message: `No current ${assignmentLabel} assignment observed`,
+    };
+  }
+  return {
+    kind: "authoritative-unavailable",
+    message: `Current ${assignmentLabel} unavailable`,
+  };
+}
+
 function RelationshipNodeList({
   label,
   nodes,
+  authoritativeValue,
+  hasAuthoritativeValue = false,
+  authoritativeLabel,
 }: {
   label: string;
   nodes: RelationshipNode[];
+  authoritativeValue?: unknown;
+  hasAuthoritativeValue?: boolean;
+  authoritativeLabel?: string;
 }) {
-  const safeNodes = nodes.filter((node) =>
-    isRoutableAuthoritativeIdentifier(node.identifier),
+  const state = relationshipColumnState(
+    label,
+    nodes,
+    authoritativeValue,
+    hasAuthoritativeValue,
+    authoritativeLabel,
   );
   return (
     <div className="relationship-flow__column">
       <span>{label}</span>
       <div className="relationship-flow__nodes">
-        {safeNodes.length === 0 ? (
-          <small>No verified {label.toLowerCase()} recorded</small>
+        {state.kind !== "nodes" ? (
+          <small data-relationship-state={state.kind}>{state.message}</small>
         ) : (
-          safeNodes.map((node) => {
+          state.nodes.map((node) => {
             const path = relationshipPath(
               node.relationshipType,
               node.identifier,
@@ -162,15 +224,27 @@ export function RelationshipFlow({
   category,
   leftLabel,
   leftNodes,
+  leftAuthoritativeValue,
+  hasLeftAuthoritativeValue,
+  leftAuthoritativeLabel,
   rightLabel,
   rightNodes,
+  rightAuthoritativeValue,
+  hasRightAuthoritativeValue,
+  rightAuthoritativeLabel,
 }: {
   identifier: string;
   category: string;
   leftLabel: string;
   leftNodes: RelationshipNode[];
+  leftAuthoritativeValue?: unknown;
+  hasLeftAuthoritativeValue?: boolean;
+  leftAuthoritativeLabel?: string;
   rightLabel: string;
   rightNodes: RelationshipNode[];
+  rightAuthoritativeValue?: unknown;
+  hasRightAuthoritativeValue?: boolean;
+  rightAuthoritativeLabel?: string;
 }) {
   return (
     <section className="relationship-flow" aria-label="Relationship overview">
@@ -179,13 +253,25 @@ export function RelationshipFlow({
         <p>Current compatibility and assignment context for this profile.</p>
       </header>
       <div className="relationship-flow__body">
-        <RelationshipNodeList label={leftLabel} nodes={leftNodes} />
+        <RelationshipNodeList
+          label={leftLabel}
+          nodes={leftNodes}
+          authoritativeValue={leftAuthoritativeValue}
+          hasAuthoritativeValue={hasLeftAuthoritativeValue}
+          authoritativeLabel={leftAuthoritativeLabel}
+        />
         <div className="relationship-flow__primary">
           <span>{category}</span>
           <strong>{presentationText(identifier)}</strong>
           <small>Active profile</small>
         </div>
-        <RelationshipNodeList label={rightLabel} nodes={rightNodes} />
+        <RelationshipNodeList
+          label={rightLabel}
+          nodes={rightNodes}
+          authoritativeValue={rightAuthoritativeValue}
+          hasAuthoritativeValue={hasRightAuthoritativeValue}
+          authoritativeLabel={rightAuthoritativeLabel}
+        />
       </div>
     </section>
   );

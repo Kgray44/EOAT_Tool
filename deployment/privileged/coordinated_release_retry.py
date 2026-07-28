@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -22,16 +23,24 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:  # The installed coordinator is Linux-only; keeping import lazy helps CI collection on Windows.
+    import grp
+    import pwd
+except ImportError:  # pragma: no cover - exercised by Linux deployment gates
+    grp = None  # type: ignore[assignment]
+    pwd = None  # type: ignore[assignment]
+
 import install_http_web_host as web
 
-HELPER_VERSION = "1.3.1"
+HELPER_VERSION = "1.3.2"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
 WEB_RELEASES = web.WEB_ROOT / "releases"
 CONTROL_ROOT = Path("/var/lib/eoat-atlas-http-web-host")
 SERVICE = "eoat-atlas.service"
-RECEIPT_SCHEMA_VERSION = 2
+SEALING_RECEIPT_SCHEMA_VERSION = 2
+TRANSACTION_RECEIPT_SCHEMA_VERSION = 3
 TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
 UPLOAD_ROOT = Path("/opt/eoat-atlas/incoming")
 SEALED_ROOT = CONTROL_ROOT / "sealed-artifacts"
@@ -143,7 +152,7 @@ def _validate_sealed_artifacts(value: dict[str, object], final: Path, policy_has
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         fail(f"sealed artifact receipt is invalid: {error}")
-    if receipt.get("schema") != 2:
+    if receipt.get("schema") != SEALING_RECEIPT_SCHEMA_VERSION:
         if ".sealing-" in json.dumps(receipt, sort_keys=True):
             fail("sealed artifact receipt uses obsolete temporary-path schema and cannot be reused")
         fail("sealed artifact receipt schema is unsupported")
@@ -237,7 +246,7 @@ def seal_artifacts(value: dict[str, object]) -> SealedArtifacts:
             records.append(_copy_sealed_file(item, destination, web.sha256(item), Path("bundle") / relative))
         verified = web.verify_bundle(sealed_bundle, str(value["bundle_sha256"]))
         receipt = {
-            "schema": 2,
+            "schema": SEALING_RECEIPT_SCHEMA_VERSION,
             "application_version": value["application_version"],
             "source_commit": value["source_commit"],
             "coordinator_version": HELPER_VERSION,
@@ -403,13 +412,176 @@ def _within(path: Path, root: Path) -> bool:
         return False
 
 
-def _immutable_release(path_text: object, root: Path, field: str) -> Path:
+def _direct_release(path_text: object, root: Path, field: str) -> Path:
     path = Path(str(path_text))
-    if path.is_symlink() or not path.is_dir() or not _within(path, root):
-        fail(f"receipt {field} is not an approved immutable release directory")
+    if (
+        not path.is_absolute()
+        or ".." in path.parts
+        or path.is_symlink()
+        or not path.is_dir()
+        or path.parent != root
+        or path == root
+    ):
+        fail(f"receipt {field} is not a direct approved release directory")
+    return path
+
+
+def _service_identity() -> tuple[int, int]:
+    """Return the fixed service account only on the Linux coordinator host."""
+    if pwd is None or grp is None:
+        fail("service-owned API release validation requires the Linux coordinator host")
+    try:
+        account = pwd.getpwnam("eoat-atlas")
+        group = grp.getgrnam("eoat-atlas")
+    except KeyError:
+        fail("configured EOAT Atlas service account is unavailable")
+    if account.pw_gid != group.gr_gid:
+        fail("configured EOAT Atlas service account/group identity is inconsistent")
+    return account.pw_uid, group.gr_gid
+
+
+def _safe_mode(path: Path, info: os.stat_result, *, owner_uid: int, owner_gid: int) -> None:
+    if info.st_uid != owner_uid or info.st_gid != owner_gid:
+        fail(f"service-owned API release ownership is invalid: {path}")
+    if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        fail(f"service-owned API release contains group/world writable content: {path}")
+
+
+def _api_release_parent_chain(service_gid: int) -> None:
+    """Validate the governed root/service-group release-root boundary.
+
+    The API payload itself is deliberately owned by eoat-atlas.  Its release
+    root and ancestors remain root-owned, non-writable control points and may
+    use the fixed service group for read/execute access.
+    """
+    current = API_RELEASES
+    while current != current.parent:
+        if current.is_symlink() or not current.is_dir():
+            fail("API release root chain is unsafe")
+        info = current.lstat()
+        if info.st_uid != 0 or info.st_gid not in {0, service_gid}:
+            fail(f"API release root ownership is invalid: {current}")
+        if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            fail(f"API release root is group/world writable: {current}")
+        current = current.parent
+
+
+def _metadata_identity(path: Path, release: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"API release metadata is invalid: {error}")
+    if not isinstance(payload, dict):
+        fail("API release metadata is invalid")
+    version = payload.get("app_version")
+    source = payload.get("source_git_commit")
+    schema = payload.get("database_schema_revision")
+    release_id = payload.get("release_id")
+    if (
+        not isinstance(version, str)
+        or not re.fullmatch(r"\d+\.\d+\.\d+", version)
+        or not isinstance(source, str)
+        or not re.fullmatch(r"[0-9a-f]{40}", source.lower())
+        or not isinstance(schema, str)
+        or not re.fullmatch(r"\d{8}_\d{4}(?:_[A-Za-z0-9_-]+)?", schema)
+        or release_id != f"eoat-atlas-{version}"
+        or not release.name.startswith(f"eoat-atlas-server-{version}-")
+    ):
+        fail("API release metadata does not match its governed release identity")
+    return {
+        "metadata_sha256": web.sha256(path),
+        "application_version": version,
+        "source_commit": source.lower(),
+        "schema": schema,
+        "release_id": release_id,
+    }
+
+
+def _api_release_attestation(path_text: object, field: str) -> tuple[Path, dict[str, object]]:
+    """Validate and identify a service-owned immutable API release.
+
+    This is intentionally separate from root-tree validation.  It is the only
+    approved exception for API payloads created by extract_server(), which
+    applies eoat-atlas:eoat-atlas ownership before the release is made active.
+    """
+    path = _direct_release(path_text, API_RELEASES, field)
+    service_uid, service_gid = _service_identity()
+    _api_release_parent_chain(service_gid)
+    root_info = path.lstat()
+    _safe_mode(path, root_info, owner_uid=service_uid, owner_gid=service_gid)
+    metadata_path = path / "release_metadata.json"
+    if metadata_path.is_symlink() or not metadata_path.is_file():
+        fail("API release metadata is missing or unsafe")
+    inventory: dict[str, str] = {}
+    venv: dict[str, str] | None = None
+    for current, directories, files in os.walk(path, followlinks=False):
+        directory = Path(current)
+        for name in [*directories, *files]:
+            member = directory / name
+            relative = member.relative_to(path).as_posix()
+            info = member.lstat()
+            if stat.S_ISLNK(info.st_mode):
+                if relative != "venv":
+                    fail(f"unsafe API release symlink: {member}")
+                raw_target = os.readlink(member)
+                resolved = member.resolve(strict=False)
+                if (
+                    not raw_target
+                    or not resolved.is_dir()
+                    or not _within(resolved, API_RELEASES)
+                    or resolved.name != "venv"
+                    or resolved.parent.parent != API_RELEASES
+                ):
+                    fail("API release virtual-environment linkage is unsafe")
+                venv = {"path": relative, "target": str(resolved)}
+                continue
+            if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+                fail(f"unsafe API release member: {member}")
+            _safe_mode(member, info, owner_uid=service_uid, owner_gid=service_gid)
+            if stat.S_ISREG(info.st_mode):
+                inventory[relative] = web.sha256(member)
+    if venv is None:
+        fail("API release virtual-environment linkage is missing")
+    metadata = _metadata_identity(metadata_path, path)
+    identity = {
+        "path": str(path),
+        **metadata,
+        "uid": root_info.st_uid,
+        "gid": root_info.st_gid,
+        "mode": stat.S_IMODE(root_info.st_mode),
+        "venv": venv,
+        "tree_sha256": hashlib.sha256(
+            json.dumps(inventory, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
+    return path, identity
+
+
+def _web_release_attestation(path_text: object, field: str) -> tuple[Path, dict[str, object]]:
+    path = _direct_release(path_text, WEB_RELEASES, field)
     web.require_root_chain(path)
     web.require_root_tree(path)
-    return path.resolve()
+    inventory = {
+        member.relative_to(path).as_posix(): web.sha256(member)
+        for member in sorted(path.rglob("*"))
+        if member.is_file()
+    }
+    root_info = path.lstat()
+    return path, {
+        "path": str(path),
+        "uid": root_info.st_uid,
+        "gid": root_info.st_gid,
+        "mode": stat.S_IMODE(root_info.st_mode),
+        "frontend_generation": path.name,
+        "tree_sha256": hashlib.sha256(
+            json.dumps(inventory, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
+
+
+def _require_attestation(actual: dict[str, object], expected: object, field: str) -> None:
+    if not isinstance(expected, dict) or actual != expected:
+        fail(f"receipt {field} no longer matches its activation attestation")
 
 
 def _transaction_receipt(transaction_id: str) -> tuple[Path, dict[str, object]]:
@@ -448,15 +620,34 @@ def _transaction_receipt(transaction_id: str) -> tuple[Path, dict[str, object]]:
         "schema",
         "service",
         "writes_enabled",
+        "old_api_attestation",
+        "old_web_attestation",
+        "active_pointer_identities",
     }
-    if not required.issubset(receipt) or receipt["receipt_schema_version"] != RECEIPT_SCHEMA_VERSION:
+    schema_version = receipt.get("receipt_schema_version")
+    if schema_version == 2:
+        fail("transaction receipt schema 2 lacks rollback attestations; preserved fallback evidence is required")
+    if (
+        not required.issubset(receipt)
+        or schema_version != TRANSACTION_RECEIPT_SCHEMA_VERSION
+        or receipt["helper_version"] != HELPER_VERSION
+    ):
         fail("transaction receipt schema is invalid")
     if receipt["state"] != "active" or receipt["activation_complete"] is not True:
         fail("transaction did not complete activation")
     if receipt["service"] != SERVICE or receipt["writes_enabled"] is not False:
         fail("transaction receipt violates governed rollback policy")
-    _immutable_release(receipt["old_api"], API_RELEASES, "old_api")
-    _immutable_release(receipt["old_web"], WEB_RELEASES, "old_web")
+    old_api, api_attestation = _api_release_attestation(receipt["old_api"], "old_api")
+    old_web, web_attestation = _web_release_attestation(receipt["old_web"], "old_web")
+    _require_attestation(api_attestation, receipt["old_api_attestation"], "old_api")
+    _require_attestation(web_attestation, receipt["old_web_attestation"], "old_web")
+    pointers = receipt["active_pointer_identities"]
+    if (
+        not isinstance(pointers, dict)
+        or pointers.get("api") != {"path": str(API_CURRENT), "target": str(old_api)}
+        or pointers.get("web") != {"path": str(WEB_CURRENT), "target": str(old_web)}
+    ):
+        fail("transaction receipt active-pointer identity is invalid")
     return transaction, receipt
 
 
@@ -473,8 +664,10 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
     the fixed API service.
     """
     transaction, receipt = _transaction_receipt(transaction_id)
-    old_api = _immutable_release(receipt["old_api"], API_RELEASES, "old_api")
-    old_web = _immutable_release(receipt["old_web"], WEB_RELEASES, "old_web")
+    old_api, api_attestation = _api_release_attestation(receipt["old_api"], "old_api")
+    old_web, web_attestation = _web_release_attestation(receipt["old_web"], "old_web")
+    _require_attestation(api_attestation, receipt["old_api_attestation"], "old_api")
+    _require_attestation(web_attestation, receipt["old_web_attestation"], "old_web")
     rollback_receipt = _rollback_receipt_path(transaction)
     if rollback_receipt.exists() or rollback_receipt.is_symlink():
         if rollback_receipt.is_symlink() or not rollback_receipt.is_file():
@@ -506,7 +699,7 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
     if health.get("writes_enabled") is not False:
         fail("post-activation rollback did not preserve writes-disabled state")
     evidence = {
-        "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
+        "receipt_schema_version": TRANSACTION_RECEIPT_SCHEMA_VERSION,
         "transaction": transaction_id,
         "state": "rolled_back",
         "rollback_api": str(old_api),
@@ -578,7 +771,8 @@ def activate(value: dict[str, object]) -> Path:
     verified = web.verify_bundle(Path(str(value["bundle_path"])), str(value["bundle_sha256"]))
     if verified["metadata"].get("application_version") != value["application_version"]:
         fail("web bundle version does not match coordinated policy")
-    old_api, old_web = API_CURRENT.resolve(), WEB_CURRENT.resolve()
+    old_api, old_api_attestation = _api_release_attestation(API_CURRENT.resolve(), "active_api")
+    old_web, old_web_attestation = _web_release_attestation(WEB_CURRENT.resolve(), "active_web")
     transaction = (
         CONTROL_ROOT
         / "transactions"
@@ -586,10 +780,16 @@ def activate(value: dict[str, object]) -> Path:
     )
     transaction.mkdir(parents=True, mode=0o700)
     receipt = {
-        "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
+        "receipt_schema_version": TRANSACTION_RECEIPT_SCHEMA_VERSION,
         "helper_version": HELPER_VERSION,
         "old_api": str(old_api),
         "old_web": str(old_web),
+        "old_api_attestation": old_api_attestation,
+        "old_web_attestation": old_web_attestation,
+        "active_pointer_identities": {
+            "api": {"path": str(API_CURRENT), "target": str(old_api)},
+            "web": {"path": str(WEB_CURRENT), "target": str(old_web)},
+        },
         "source_commit": value["source_commit"],
         "application_version": value["application_version"],
         "server_archive_sha256": value["server_archive_sha256"],

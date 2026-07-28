@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from core.versioning import get_app_version
 from server.eoat_api.app import app
 
 
@@ -11,8 +12,9 @@ def test_release_status_is_safe_and_reports_product_identity(monkeypatch) -> Non
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["product_version"] == "0.24.0"
-    assert payload["release_id"] == "eoat-atlas-0.24.0"
+    version = get_app_version()
+    assert payload["product_version"] == version
+    assert payload["release_id"] == f"eoat-atlas-{version}"
     assert payload["client_supported"] is False
     assert "path" not in payload and "secret" not in payload
 

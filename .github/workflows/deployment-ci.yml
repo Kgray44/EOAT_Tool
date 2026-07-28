@@ -35,7 +35,7 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
       - run: python -m ruff check deployment server/eoat_api tests/test_deployment_system.py tests/test_frontend_generation.py tests/test_phase3_client.py tests/test_phase3_privileged_helper.py tests/test_web_content_delivery.py tests/test_web_hosting_assets.py
-      - run: python -m pytest -q tests/test_deployment_system.py tests/test_frontend_generation.py tests/test_phase3_client.py tests/test_phase3_privileged_helper.py tests/test_web_content_delivery.py tests/test_web_hosting_assets.py
+      - run: python -m pytest -q tests/test_coordinated_release_retry.py tests/test_deployment_system.py tests/test_frontend_generation.py tests/test_phase3_client.py tests/test_phase3_privileged_helper.py tests/test_web_content_delivery.py tests/test_web_hosting_assets.py
       - run: bash -n deployment/privileged/install_helper.sh deployment/privileged/uninstall_helper.sh
       - working-directory: web
         run: |

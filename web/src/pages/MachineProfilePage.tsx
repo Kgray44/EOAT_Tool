@@ -166,8 +166,14 @@ function MachineContent({
           category="Machine"
           leftLabel="EOATs"
           leftNodes={relatedEoats}
+          leftAuthoritativeValue={currentEoat}
+          hasLeftAuthoritativeValue={!!setup.data || currentEoat !== undefined}
+          leftAuthoritativeLabel="EOAT"
           rightLabel="Tools"
           rightNodes={relatedTools}
+          rightAuthoritativeValue={currentTool}
+          hasRightAuthoritativeValue={!!setup.data || currentTool !== undefined}
+          rightAuthoritativeLabel="tool / mold"
         />
         <ProfileSection title="Overview">
           <dl className="attribute-grid">

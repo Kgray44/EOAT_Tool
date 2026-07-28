@@ -257,6 +257,8 @@ function ProfileContent({
           category="EOAT"
           leftLabel="Machines"
           leftNodes={relatedMachines}
+          leftAuthoritativeValue={currentLocation?.machine_number}
+          hasLeftAuthoritativeValue={!!currentLocation}
           rightLabel="Tools"
           rightNodes={relatedTools}
         />
