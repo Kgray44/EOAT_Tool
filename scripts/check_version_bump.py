@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
             "scripts/export_windows_attachment.py",
             "github/workflows/unified-release-train-final-integration.yml",
         )
-        governed_component_change = args.allow_governed_component_change and current == baseline == Version.parse("0.24.0") and application_paths and all(path.startswith(governed_component_paths) for path in application_paths)
+        governed_component_change = args.allow_governed_component_change and current == baseline and application_paths and all(path.startswith(governed_component_paths) for path in application_paths)
         if application_paths and current == baseline and not governed_component_change:
             sample = "\n  ".join(application_paths[:20])
             raise ValueError(

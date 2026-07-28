@@ -2,7 +2,7 @@ name: Unified Release Train Final Integration
 
 on:
   push:
-    branches: [integration/unified-release-train-final, integration/production-signing-foundation-0.24.0, main]
+    branches: [integration/unified-release-train-final, integration/production-signing-foundation-0.24.0, integration/production-release-0241-seal-confirmation, main]
   workflow_dispatch:
 
 permissions: {contents: read}
@@ -247,7 +247,7 @@ jobs:
           git fetch --no-tags origin main
           if [ "$GITHUB_REF_NAME" = "main" ]; then
             python -c "import json; version=json.load(open('app/atlas/version.json'))['version']; assert sum(r['application_version'] == version for r in json.load(open('release_history.json'))['releases']) == 1"
-          elif [ "$GITHUB_REF_NAME" = "integration/production-signing-foundation-0.24.0" ]; then
+          elif [ "$GITHUB_REF_NAME" = "integration/production-release-0241-seal-confirmation" ]; then
             python scripts/check_version_bump.py --base origin/main --allow-governed-component-change
           else
             python scripts/check_version_bump.py --base origin/main

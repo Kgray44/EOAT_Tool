@@ -225,6 +225,22 @@ def test_application_change_without_bump_fails_but_developer_docs_only_pass(tmp_
     assert check_version_main(["--root", str(root), "--base", "HEAD"]) == 0
 
 
+def test_governed_component_exception_is_explicit_and_never_applies_to_app_code(tmp_path: Path) -> None:
+    root = make_repository(tmp_path, "0.24.1")
+    (root / "deployment" / "convergence").mkdir(parents=True)
+    governed = root / "deployment" / "convergence" / "services.py"
+    governed.write_text("VALUE = 1\n", encoding="utf-8")
+    _git(root, "init")
+    _git(root, "config", "user.email", "version-test@example.invalid")
+    _git(root, "config", "user.name", "Version Test")
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "baseline")
+    governed.write_text("VALUE = 2\n", encoding="utf-8")
+    assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 0
+    (root / "app" / "main.py").write_text("VALUE = 2\n", encoding="utf-8")
+    assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
+
+
 def test_runtime_launcher_and_build_reader_consume_canonical_without_gui(tmp_path: Path) -> None:
     root = make_repository(tmp_path, "4.5.6")
     commit = "a" * 40
