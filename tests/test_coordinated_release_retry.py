@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from deployment.http_web_bundle import create_bundle
+
 ROOT = Path(__file__).resolve().parents[1]
 PRIVILEGED = ROOT / "deployment" / "privileged"
 sys.path.insert(0, str(PRIVILEGED))
@@ -20,7 +22,172 @@ SPEC = importlib.util.spec_from_file_location(
 )
 assert SPEC and SPEC.loader
 coordinator = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = coordinator
 SPEC.loader.exec_module(coordinator)
+
+
+def sealing_policy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dict[str, object], Path]:
+    """Create real upload files and a real static bundle for sealing tests."""
+    upload = tmp_path / "incoming"
+    upload.mkdir()
+    archive = upload / "server.zip"
+    archive.write_bytes(b"immutable-server-archive")
+    manifest = upload / "server.manifest.json"
+    manifest.write_text('{"archive_sha256":"fixture"}', encoding="utf-8")
+    static = tmp_path / "static"
+    (static / "assets").mkdir(parents=True)
+    (static / "assets" / "app.js").write_text("console.log('EOAT');", encoding="utf-8")
+    (static / "index.html").write_text("<title>EOAT</title><script src='/assets/app.js'></script>", encoding="utf-8")
+    bundle = upload / "bundle"
+    bundle_sha = create_bundle(
+        static,
+        ROOT / "deployment" / "runtime" / "nginx" / "eoat-atlas-http-web.conf.template",
+        bundle,
+        release_id="web-0.23.6-test",
+        app_version="0.23.6",
+        source_commit="a" * 40,
+        compatible_api_version="1.4.0",
+        compatible_schema="20260721_0008",
+    )["bundle_sha256"]
+    sealed = tmp_path / "sealed-artifacts"
+    sealed.mkdir()
+    monkeypatch.setattr(coordinator, "UPLOAD_ROOT", upload)
+    monkeypatch.setattr(coordinator, "SEALED_ROOT", sealed)
+    monkeypatch.setattr(coordinator.web, "require_root_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "require_root_tree", lambda *_args, **_kwargs: None)
+    return {
+        "server_archive_path": str(archive),
+        "server_archive_sha256": coordinator.web.sha256(archive),
+        "server_manifest_path": str(manifest),
+        "server_manifest_sha256": coordinator.web.sha256(manifest),
+        "server_release_id": "sealed-0.23.6-fixture",
+        "web_release_id": "web-0.23.6-test",
+        "bundle_path": str(bundle),
+        "bundle_sha256": bundle_sha,
+        "application_version": "0.23.6",
+        "source_commit": "a" * 40,
+        "schema": "20260721_0008",
+        "canonical_migration_sha256": "b" * 64,
+        "expected_active_api": str(tmp_path / "api-current-target"),
+        "expected_active_web": str(tmp_path / "web-current-target"),
+        "helper_sha256": "fixture",
+        "web_helper_sha256": "fixture",
+    }, sealed
+
+
+def test_sealing_receipt_uses_final_relative_paths_and_reopens_safely(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, sealed_root = sealing_policy(monkeypatch, tmp_path)
+    sealed = coordinator.seal_artifacts(value)
+    assert sealed.root == sealed_root / value["server_release_id"]
+    assert sealed.server_archive.is_file() and sealed.server_manifest.is_file() and sealed.bundle.is_dir()
+    assert sealed.receipt_path == sealed.root / "sealing-receipt.json"
+    receipt = json.loads(sealed.receipt_path.read_text(encoding="utf-8"))
+    assert receipt["schema"] == 2
+    assert ".sealing-" not in json.dumps(receipt, sort_keys=True)
+    assert receipt["sealed_bundle"] == "bundle"
+    for record in receipt["files"]:
+        member = sealed.root / record["sealed"]
+        assert member.is_file() and member.stat().st_size == record["size"]
+        assert coordinator.web.sha256(member) == record["sha256"]
+        assert member.is_relative_to(sealed.root)
+    Path(str(value["server_archive_path"])).write_bytes(b"untrusted upload changed after sealing")
+    returned = coordinator.sealed_policy(value)
+    assert all(".sealing-" not in str(item) for item in returned.values())
+    assert Path(returned["server_archive_path"]).is_file()
+    assert coordinator.seal_artifacts(value) == sealed
+
+
+def test_sealed_receipt_rejects_obsolete_temporary_paths_without_rewriting_evidence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    sealed = coordinator.seal_artifacts(value)
+    stale = json.loads(sealed.receipt_path.read_text(encoding="utf-8"))
+    stale.update({"schema": 1, "sealed_bundle": "/root/.sealing-deadbeef/bundle"})
+    original = json.dumps(stale, sort_keys=True, indent=2) + "\n"
+    sealed.receipt_path.write_text(original, encoding="utf-8")
+    with pytest.raises(coordinator.web.InstallError, match="obsolete temporary-path schema"):
+        coordinator.seal_artifacts(value)
+    assert sealed.receipt_path.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.parametrize("field, member", [("server_archive", "../outside"), ("server_manifest", "/tmp/outside")])
+def test_sealed_receipt_rejects_traversal_and_absolute_members(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, field: str, member: str
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    sealed = coordinator.seal_artifacts(value)
+    receipt = json.loads(sealed.receipt_path.read_text(encoding="utf-8"))
+    receipt[field] = member
+    sealed.receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    with pytest.raises(coordinator.web.InstallError, match="relative non-traversing"):
+        coordinator.seal_artifacts(value)
+
+
+def test_sealed_receipt_detects_changed_or_missing_sealed_members(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    sealed = coordinator.seal_artifacts(value)
+    sealed.server_archive.write_bytes(b"changed")
+    with pytest.raises(coordinator.web.InstallError, match="recorded hash or size"):
+        coordinator.seal_artifacts(value)
+
+
+def test_sealed_receipt_rejects_policy_hash_mismatch_and_symlink_members(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    sealed = coordinator.seal_artifacts(value)
+    receipt = json.loads(sealed.receipt_path.read_text(encoding="utf-8"))
+    receipt["policy_semantic_sha256"] = "0" * 64
+    sealed.receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    with pytest.raises(coordinator.web.InstallError, match="approved policy or coordinator"):
+        coordinator.seal_artifacts(value)
+    receipt["policy_semantic_sha256"] = coordinator._policy_digest(value)
+    sealed.receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    target = sealed.root / "real-server.zip"
+    sealed.server_archive.rename(target)
+    try:
+        sealed.server_archive.symlink_to(target.name)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this test host")
+    with pytest.raises(coordinator.web.InstallError, match="missing or unsafe"):
+        coordinator.seal_artifacts(value)
+
+
+def test_preflight_seals_then_uses_only_final_paths_without_changing_active_pointers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    api, web = tmp_path / "api-current-target", tmp_path / "web-current-target"
+    api.mkdir()
+    web.mkdir()
+    api_current, web_current = tmp_path / "api-current", tmp_path / "web-current"
+    api_current.mkdir()
+    web_current.mkdir()
+    value["expected_active_api"] = str(api_current)
+    value["expected_active_web"] = str(web_current)
+    monkeypatch.setattr(coordinator, "API_CURRENT", api_current)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web_current)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda *_: {"writes_enabled": False})
+    monkeypatch.setattr(coordinator.web, "api_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "mysql_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "no_tls_listener", lambda: True)
+    monkeypatch.setattr(coordinator.web, "nginx_worker_user", lambda: "www-data")
+    monkeypatch.setattr(
+        coordinator.subprocess, "run", lambda *_args, **_kwargs: type("Result", (), {"returncode": 0})()
+    )
+    before = (api_current.resolve(), web_current.resolve())
+    result = coordinator.preflight(value)
+    assert result["helper_version"] == "1.3.1"
+    assert (api_current.resolve(), web_current.resolve()) == before
+    sealed = coordinator.sealed_policy(value)
+    assert Path(sealed["server_archive_path"]).is_relative_to(coordinator.SEALED_ROOT)
+    assert Path(sealed["bundle_path"]).is_relative_to(coordinator.SEALED_ROOT)
 
 
 def test_policy_requires_explicit_pre_activation_targets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
