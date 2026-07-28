@@ -309,6 +309,13 @@
       "state": "finalized",
       "task_id": "codex-coordinator-artifact-sealing-hotfix-20260728",
       "finalized_at_utc": "2026-07-28T13:35:03Z"
+    },
+    {
+      "application_version": "0.23.6",
+      "release_id": "eoat-atlas-0.23.6",
+      "state": "finalized",
+      "task_id": "coordinator-sealed-receipt-path-hotfix-20260728",
+      "finalized_at_utc": "2026-07-28T15:11:35Z"
     }
   ]
 }
