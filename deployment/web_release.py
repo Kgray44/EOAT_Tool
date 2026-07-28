@@ -161,7 +161,12 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         after = {path.name: _sha256(path) for path in generated.glob("*") if path.is_file()}
         if before != after:
             raise DeploymentError("generated OpenAPI TypeScript contract is stale")
-        scripts = ["format:check", "lint", "typecheck", "test", "test:e2e", "build"]
+        # A release package is built from a Git archive, which intentionally
+        # has no mutable E2E fixture/runtime context.  Browser acceptance is
+        # a separate required final-integration gate against a disposable
+        # server; keeping it out of this hermetic builder avoids conflating a
+        # fixture-only failure with static-package validity.
+        scripts = ["format:check", "lint", "typecheck", "test", "build"]
         frontend_release = web / "public" / "frontend-release.json"
         if frontend_release.is_file():
             generation = json.loads(frontend_release.read_text(encoding="utf-8")).get("ui_generation")
