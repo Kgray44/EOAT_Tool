@@ -121,6 +121,11 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         prefix="eoat-web-release-",
         dir=temporary_parent,
         ignore_cleanup_errors=True,
+        # pnpm can retain a short-lived Windows junction handle after its
+        # child has exited.  Retain only this ignored disposable staging tree
+        # for later bounded reconciliation instead of converting a completed
+        # build into a candidate failure during context-manager cleanup.
+        delete=False,
     ) as temporary:
         source = Path(temporary) / "source"
         source.mkdir()
