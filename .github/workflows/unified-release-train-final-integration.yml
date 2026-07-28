@@ -132,8 +132,12 @@ jobs:
       - shell: pwsh
         run: |
           $env:PATH = "$env:PNPM_HOME;$env:PATH"
+          Push-Location web
+          pnpm exec playwright install chromium
+          Pop-Location
           $env:EOAT_FINAL_RELEASE_CANDIDATE = '1'
           python tools/eoat_release.py --json candidate prepare --version 0.24.0 | Out-File -Encoding utf8 "$env:RUNNER_TEMP/candidate-result.json"
+          if ($LASTEXITCODE -ne 0) { throw 'fresh candidate preparation failed' }
           $result = Get-Content "$env:RUNNER_TEMP/candidate-result.json" -Raw | ConvertFrom-Json
           $result.data.candidate.candidate_id | Out-File -Encoding ascii candidate-id.txt
           python tools/eoat_release.py candidate build-core-artifacts $result.data.candidate.candidate_id
