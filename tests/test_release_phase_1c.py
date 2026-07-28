@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from deployment.common import DeploymentError, sha256_file, write_json_atomic
 from deployment.convergence.cli import parse_args
 from deployment.convergence.models import DeploymentMode
-from deployment.convergence.phase1c import Phase1CPublicationState
+from deployment.convergence.phase1c import Phase1CPublicationState, _required_built
 from deployment.convergence.release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
 from deployment.convergence.services import ReleaseDeploymentService
 from release_tools.release_identity import ArtifactDisposition, ProductReleaseIdentity
@@ -168,3 +168,12 @@ def test_phase1c_cli_requires_disposable_parameters_and_typed_confirmation() -> 
     assert args.confirm == "PUBLISH candidate-unit"
     args = parse_args(["plan", "create-disposable", "--publication", "publication-unit", "--inspection", "inspection-unit"])
     assert args.plan_command == "create-disposable"
+
+
+def test_final_current_component_profile_requires_bootstrap_publication_assets() -> None:
+    legacy = _required_built(final_current_components=False)
+    final = _required_built(final_current_components=True)
+    assert ComponentKind.BOOTSTRAP.value not in legacy
+    assert ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value not in legacy
+    assert ComponentKind.BOOTSTRAP.value in final
+    assert ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value in final

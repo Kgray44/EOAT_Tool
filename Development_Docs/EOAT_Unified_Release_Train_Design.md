@@ -218,6 +218,18 @@ pointers. Offline fallback is permitted only for a confirmed-good launcher
 still supported by cached signed policy. The installer owns bootstrap
 replacement and current-user shortcut migration; production update transport
 and channel promotion remain out of scope.
+
+## Phase 4A final-mainline candidate profile
+
+The final-mainline validation profile is distinct from legacy Phase 1
+receipts.  Once Bootstrap is implemented, a fresh final candidate declares
+`FINAL_CURRENT_COMPONENTS` and requires built, validated Bootstrap and
+Bootstrap update-policy artifacts alongside desktop, Launcher, server, web,
+source recovery, outer manifest, and signature components.  The historical
+Bootstrap `NOT_APPLICABLE` rationale remains readable only for legacy Phase 1
+records; it cannot satisfy final publication.  This keeps a fresh candidate's
+complete inventory tied to one exact final source commit/tree and avoids
+combining pre-Bootstrap artifacts with current components.
 # Phase 3A coordinated disposable activation
 
 Phase 3A consumes only a `COMPLETE_TRUSTED` publication inventory item and

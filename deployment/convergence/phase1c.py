@@ -92,6 +92,21 @@ _REQUIRED_BUILT = {
 }
 
 
+def _required_built(*, final_current_components: bool) -> set[str]:
+    """Return the publication components required by the candidate profile.
+
+    Phase 1 receipts predate the Bootstrap implementation, so their sealed
+    inventory legitimately preserves the governed Phase 2 exclusion.  A fresh
+    final candidate explicitly opts into the current-component profile and
+    must instead carry real Bootstrap bytes and its update-policy artifact.
+    """
+
+    required = set(_REQUIRED_BUILT)
+    if final_current_components:
+        required.update({ComponentKind.BOOTSTRAP.value, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value})
+    return required
+
+
 def _relative(root: Path, locator: str) -> Path:
     pure = PurePosixPath(locator)
     if not locator or pure.is_absolute() or ".." in pure.parts or "\\" in locator:
@@ -146,6 +161,7 @@ def verify_sealed_candidate(root: Path, receipt: Mapping[str, Any], *, repositor
 
     component_summary: dict[str, str] = {}
     identity: dict[str, str] = {}
+    final_current_components = receipt.get("release_set_profile") == "FINAL_CURRENT_COMPONENTS"
     if release_set is not None:
         identity = release_set.identity.to_dict()
         components = {component.kind.value: component.to_dict() for component in release_set.components}
@@ -155,10 +171,11 @@ def verify_sealed_candidate(root: Path, receipt: Mapping[str, Any], *, repositor
             disposition, validation = component["disposition"], component["validation_status"]
             component_summary[kind] = f"{disposition}/{validation}"
             if kind in {ComponentKind.BOOTSTRAP.value, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value}:
-                if disposition != ArtifactDisposition.NOT_APPLICABLE.value or component["not_applicable_justification"] != _BOOTSTRAP_REASON:
-                    reasons.append(f"{kind} is not the governed Phase 2 exclusion")
-                continue
-            if kind in _REQUIRED_BUILT and (disposition != ArtifactDisposition.BUILT.value or validation != ComponentValidation.PASS.value):
+                if not final_current_components:
+                    if disposition != ArtifactDisposition.NOT_APPLICABLE.value or component["not_applicable_justification"] != _BOOTSTRAP_REASON:
+                        reasons.append(f"{kind} is not the governed Phase 2 exclusion")
+                    continue
+            if kind in _required_built(final_current_components=final_current_components) and (disposition != ArtifactDisposition.BUILT.value or validation != ComponentValidation.PASS.value):
                 reasons.append(f"required component {kind} is not built and validated")
                 continue
             # Outer files are bound by the receipt/envelope checks above.
@@ -177,7 +194,11 @@ def verify_sealed_candidate(root: Path, receipt: Mapping[str, Any], *, repositor
                         verified = verify_source_bundle(artifact, candidate_root=root, commit=release_set.identity.source_commit, tree=release_set.identity.source_tree, base_commit=str(receipt.get("base_commit") or ""), repository=repository)
                         if verified.sha256 != component["sha256"]:
                             raise DeploymentError("source recovery bundle digest changed during verification")
-                    elif kind in {ComponentKind.DESKTOP.value, ComponentKind.LAUNCHER.value} and metadata.get("smoke_receipt_locator"):
+                    elif kind in {
+                        ComponentKind.DESKTOP.value,
+                        ComponentKind.LAUNCHER.value,
+                        ComponentKind.BOOTSTRAP.value,
+                    } and metadata.get("smoke_receipt_locator"):
                         _validate_smoke(_relative(root, str(metadata["smoke_receipt_locator"])), component, release_set.identity)
                 except DeploymentError as exc:
                     reasons.append(str(exc))
@@ -232,7 +253,9 @@ def publication_assets(root: Path, receipt: Mapping[str, Any]) -> list[Publicati
             filename = support.name if support.name.casefold() not in names else f"{asset.component_kind}-{support.name}"
             names.add(filename.casefold())
             output.append(PublicationAsset(asset.component_kind, filename, locator, support.stat().st_size, sha256_file(support), "application/json"))
-    if {item.component_kind for item in output} < _REQUIRED_BUILT:
+    if {item.component_kind for item in output} < _required_built(
+        final_current_components=receipt.get("release_set_profile") == "FINAL_CURRENT_COMPONENTS"
+    ):
         raise DeploymentError("complete publication asset inventory is missing a required component")
     return sorted(output, key=lambda item: item.filename.casefold())
 
