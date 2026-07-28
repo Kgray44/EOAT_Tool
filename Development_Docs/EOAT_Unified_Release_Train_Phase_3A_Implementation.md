@@ -73,3 +73,25 @@ Phase 3B is limited to separately authorized non-disposable promotion,
 operational change control, and production activation. It must reverify the
 same sealed release-set and never bypass the Phase 3A receipts or recovery
 gates.
+
+## CI acceptance evidence
+
+The Phase 3A implementation commit `1fa446f61516bfbb21c3c9ff5126a77773f43133`
+was accepted by GitHub Actions workflow **Unified Release Train Phase 3A**, run
+[`30361496422`](https://github.com/Kgray44/EOAT_Tool/actions/runs/30361496422).
+All required jobs concluded `success`: deployment-input-verification,
+transaction-state-machine, api-staging, web-staging, coordinated-activation,
+rollback-and-recovery, runtime-release-status,
+api-compatibility-enforcement, web-parity-playwright,
+desktop-parity-windows, drift-scanner, disposable-mysql-8-4,
+migration-and-recovery, cli-console-smoke, end-to-end-disposable-deployment,
+receipt-compatibility, repository-safety, version-governance, and
+documentation-command-validation.
+
+The run exercised the real MySQL 8.4 service and a Chromium Playwright
+installation, and the Windows job ran the Bootstrap startup-chain and API
+parity contract tests. The only intentional non-run in local development is
+the disposable MySQL integration test, which requires CI's ephemeral MySQL
+8.4 service; it was not skipped in the accepted workflow. No production
+credential, production signing material, production target, tag, release, or
+manifest channel was used.
