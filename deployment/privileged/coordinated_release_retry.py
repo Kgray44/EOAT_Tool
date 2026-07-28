@@ -6,12 +6,15 @@ whose hashes pin the server ZIP and the already sealed static bundle.  It is
 used for zero-migration coordinated activation where the NGINX architecture is
 already installed.  It never executes a migration or accepts caller commands.
 """
+
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import uuid
 import zipfile
@@ -20,7 +23,7 @@ from pathlib import Path
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.2.0"
+HELPER_VERSION = "1.3.0"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -29,10 +32,150 @@ CONTROL_ROOT = Path("/var/lib/eoat-atlas-http-web-host")
 SERVICE = "eoat-atlas.service"
 RECEIPT_SCHEMA_VERSION = 2
 TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
+UPLOAD_ROOT = Path("/opt/eoat-atlas/incoming")
+SEALED_ROOT = CONTROL_ROOT / "sealed-artifacts"
 
 
 def fail(message: str) -> None:
     raise web.InstallError(message)
+
+
+def _policy_digest(value: dict[str, object]) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _upload_member(value: object, *, directory: bool = False) -> Path:
+    path = Path(str(value))
+    try:
+        path.relative_to(UPLOAD_ROOT)
+    except ValueError:
+        fail("artifact source is outside the approved upload root")
+    if path.is_symlink() or not path.exists() or (not path.is_dir() if directory else not path.is_file()):
+        fail("artifact source is not an expected non-symlink upload member")
+    return path
+
+
+def _copy_sealed_file(source: Path, destination: Path, expected: str) -> dict[str, object]:
+    before = source.lstat()
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+        fail("upload artifact must be a singly-linked regular file")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(source, flags)
+    digest = hashlib.sha256()
+    size = 0
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns) != (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ):
+            fail("upload artifact changed before opening")
+        with os.fdopen(descriptor, "rb", closefd=True) as input_stream, destination.open("xb") as output:
+            while block := input_stream.read(1024 * 1024):
+                digest.update(block)
+                size += len(block)
+                output.write(block)
+            output.flush()
+            os.fsync(output.fileno())
+        after = source.lstat()
+        if (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns) != (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ):
+            fail("upload artifact changed during sealing")
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+    actual = digest.hexdigest()
+    if actual != expected:
+        destination.unlink(missing_ok=True)
+        fail("sealed artifact SHA-256 does not match approved policy")
+    os.chmod(destination, 0o640)
+    return {"source": str(source), "sealed": str(destination), "sha256": actual, "size": size}
+
+
+def seal_artifacts(value: dict[str, object]) -> dict[str, object]:
+    """Copy approved uploads into a root-owned immutable coordinator zone."""
+    archive = _upload_member(value["server_archive_path"])
+    manifest = _upload_member(value["server_manifest_path"])
+    bundle = _upload_member(value["bundle_path"], directory=True)
+    policy_hash = _policy_digest(value)
+    release = str(value["server_release_id"])
+    if not __import__("re").fullmatch(r"[A-Za-z0-9._-]+", release):
+        fail("sealed release identifier is invalid")
+    SEALED_ROOT.mkdir(parents=True, mode=0o700)
+    web.require_root_owned(SEALED_ROOT)
+    web.require_root_chain(SEALED_ROOT)
+    final = SEALED_ROOT / release
+    receipt_path = final / "sealing-receipt.json"
+    if final.exists():
+        if final.is_symlink() or not receipt_path.is_file():
+            fail("existing sealed artifact directory is unsafe")
+        web.require_root_tree(final)
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if receipt.get("policy_semantic_sha256") != policy_hash:
+            fail("existing sealed artifacts are bound to a different policy")
+        return receipt
+    temporary = SEALED_ROOT / (".sealing-" + uuid.uuid4().hex)
+    try:
+        temporary.mkdir(mode=0o700)
+        records = [
+            _copy_sealed_file(archive, temporary / "server.zip", str(value["server_archive_sha256"])),
+            _copy_sealed_file(manifest, temporary / "server.manifest.json", str(value["server_manifest_sha256"])),
+        ]
+        sealed_bundle = temporary / "bundle"
+        sealed_bundle.mkdir(mode=0o700)
+        for item in sorted(bundle.rglob("*")):
+            relative = item.relative_to(bundle)
+            if item.is_symlink() or not item.is_file():
+                if item.is_dir():
+                    (sealed_bundle / relative).mkdir(mode=0o700, parents=True, exist_ok=True)
+                    continue
+                fail("frontend upload bundle contains an unsafe member")
+            destination = sealed_bundle / relative
+            destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            # Bundle files are verified by the signed bundle manifest after copy.
+            records.append(_copy_sealed_file(item, destination, web.sha256(item)))
+        verified = web.verify_bundle(sealed_bundle, str(value["bundle_sha256"]))
+        receipt = {
+            "schema": 1,
+            "application_version": value["application_version"],
+            "source_commit": value["source_commit"],
+            "coordinator_version": HELPER_VERSION,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "policy_semantic_sha256": policy_hash,
+            "files": records,
+            "sealed_bundle": str(sealed_bundle),
+            "bundle_sha256": verified["bundle_sha256"],
+        }
+        (temporary / "sealing-receipt.json").write_text(
+            json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
+        os.chmod(temporary / "sealing-receipt.json", 0o600)
+        web.require_root_tree(temporary)
+        os.replace(temporary, final)
+        web.require_root_tree(final)
+        return receipt
+    except Exception:
+        if temporary.exists():
+            shutil.rmtree(temporary, ignore_errors=True)
+        raise
+
+
+def sealed_policy(value: dict[str, object]) -> dict[str, object]:
+    receipt = seal_artifacts(value)
+    result = dict(value)
+    root = Path(str(receipt["sealed_bundle"])).parent
+    result.update(
+        server_archive_path=str(root / "server.zip"),
+        server_manifest_path=str(root / "server.manifest.json"),
+        bundle_path=str(receipt["sealed_bundle"]),
+    )
+    return result
 
 
 def safe_zip_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
@@ -110,11 +253,29 @@ def policy(path: Path) -> dict[str, object]:
     web.require_root_owned(path)
     web.require_root_chain(Path(__file__).resolve())
     web.require_root_chain(path)
-    value = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        if path.read_bytes().startswith(b"\xef\xbb\xbf"):
+            fail("coordinated policy must be UTF-8 without a BOM")
+        raise
     required = {
-        "helper_sha256", "web_helper_sha256", "server_archive_path", "server_archive_sha256", "server_manifest_path", "server_manifest_sha256",
-        "server_release_id", "web_release_id", "bundle_path", "bundle_sha256", "application_version", "source_commit",
-        "schema", "canonical_migration_sha256", "expected_active_api", "expected_active_web",
+        "helper_sha256",
+        "web_helper_sha256",
+        "server_archive_path",
+        "server_archive_sha256",
+        "server_manifest_path",
+        "server_manifest_sha256",
+        "server_release_id",
+        "web_release_id",
+        "bundle_path",
+        "bundle_sha256",
+        "application_version",
+        "source_commit",
+        "schema",
+        "canonical_migration_sha256",
+        "expected_active_api",
+        "expected_active_web",
     }
     web_program = Path(web.__file__).resolve()
     if (
@@ -174,8 +335,16 @@ def _transaction_receipt(transaction_id: str) -> tuple[Path, dict[str, object]]:
     if not isinstance(receipt, dict):
         fail("transaction receipt is malformed")
     required = {
-        "receipt_schema_version", "helper_version", "state", "activation_complete",
-        "old_api", "old_web", "new_api", "new_web", "schema", "service",
+        "receipt_schema_version",
+        "helper_version",
+        "state",
+        "activation_complete",
+        "old_api",
+        "old_web",
+        "new_api",
+        "new_web",
+        "schema",
+        "service",
         "writes_enabled",
     }
     if not required.issubset(receipt) or receipt["receipt_schema_version"] != RECEIPT_SCHEMA_VERSION:
@@ -224,7 +393,13 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
     web.wait_api({"schema": receipt["schema"]})
     if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
         fail("post-activation rollback did not restore both prior release targets")
-    web.request_check("post_activation_rollback_homepage", "http://" + web.HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!")
+    web.request_check(
+        "post_activation_rollback_homepage",
+        "http://" + web.HOST + "/",
+        200,
+        contains="EOAT",
+        excludes="Welcome to nginx!",
+    )
     health = web.api_health({"schema": receipt["schema"]})
     if health.get("writes_enabled") is not False:
         fail("post-activation rollback did not preserve writes-disabled state")
@@ -254,6 +429,8 @@ def acceptance_policy(value: dict[str, object], server: Path) -> dict[str, objec
 
 def preflight(value: dict[str, object]) -> dict[str, object]:
     """Read-only identity and service checks before staging or activation."""
+    if not _within(Path(str(value["bundle_path"])), SEALED_ROOT):
+        value = sealed_policy(value)
     archive = Path(str(value["server_archive_path"]))
     manifest = Path(str(value["server_manifest_path"]))
     bundle = Path(str(value["bundle_path"]))
@@ -292,6 +469,7 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
 
 
 def activate(value: dict[str, object]) -> Path:
+    value = sealed_policy(value)
     preflight(value)
     web.require_root_chain(Path(str(value["bundle_path"])))
     web.require_root_tree(Path(str(value["bundle_path"])))
@@ -299,7 +477,11 @@ def activate(value: dict[str, object]) -> Path:
     if verified["metadata"].get("application_version") != value["application_version"]:
         fail("web bundle version does not match coordinated policy")
     old_api, old_web = API_CURRENT.resolve(), WEB_CURRENT.resolve()
-    transaction = CONTROL_ROOT / "transactions" / ("coordinated-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
+    transaction = (
+        CONTROL_ROOT
+        / "transactions"
+        / ("coordinated-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
+    )
     transaction.mkdir(parents=True, mode=0o700)
     receipt = {
         "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
@@ -333,8 +515,16 @@ def activate(value: dict[str, object]) -> Path:
         # symlink.  Bind that invariant to this just-activated immutable
         # target rather than requiring a second policy field.
         web.acceptance(frontend, acceptance_policy(value, server))
-        receipt.update(state="active", activation_complete=True, new_api=str(server), new_web=str(frontend), frontend_generation=frontend.name)
-        (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        receipt.update(
+            state="active",
+            activation_complete=True,
+            new_api=str(server),
+            new_web=str(frontend),
+            frontend_generation=frontend.name,
+        )
+        (transaction / "receipt.json").write_text(
+            json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
         return transaction
     except Exception as error:
         web.atomic_symlink(old_api, API_CURRENT)
@@ -344,12 +534,22 @@ def activate(value: dict[str, object]) -> Path:
         web.wait_api({"schema": value["schema"]})
         if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
             fail("rollback did not restore both prior release targets")
-        web.request_check("rollback_homepage", "http://" + web.HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!")
+        web.request_check(
+            "rollback_homepage", "http://" + web.HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!"
+        )
         rollback_health = web.api_health({"schema": value["schema"]})
         if rollback_health.get("writes_enabled") is not False:
             fail("rollback did not restore writes-disabled state")
-        receipt.update(state="rolled_back", failure=str(error), rollback_api=str(old_api), rollback_web=str(old_web), activation_complete=False)
-        (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        receipt.update(
+            state="rolled_back",
+            failure=str(error),
+            rollback_api=str(old_api),
+            rollback_web=str(old_web),
+            activation_complete=False,
+        )
+        (transaction / "receipt.json").write_text(
+            json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+        )
         raise
 
 
