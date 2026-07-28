@@ -61,6 +61,28 @@ integration branch advances `main`, Phase 4A records those values in this
 document and reruns the exact final workflow for the resulting documentation
 commit when that commit changes source identity.
 
+The first complete pre-handoff proof was workflow `30376935315` for source
+commit `40880f79d40dc155c37fa80ef14da5e531532521` and tree
+`997b123fad850499f8caaea4dfab1c008c9b4f7d`.  It passed regression, server
+and web construction, real Windows desktop/Launcher/Bootstrap packaging and
+smoke receipts, MySQL 8.4, browser parity, signed channels, fresh candidate
+construction, Windows attachment, ephemeral sealing, disposable publication,
+and final acceptance.  Its candidate was
+`candidate-0.24.0-40880f79d40d`, with canonical digest
+`ecb9da0cfa375fd42b7d1aa590ef9aa3c1866ccc107bb7cf6325abd17dda0a7c` and
+ephemeral key ID `final-validation-ephemeral`.
+
+The material component SHA-256 values were server
+`06f8f2ed52fa0d8c7838d0e2087ab8a87ee7ec4d41e3368c4d5d53fcbee12219`, web
+`00c24cd9eaa3b19d6a9473b36667ee35d1588e88f075756547526edc0ed64a6f`, desktop
+`ab5f2eb26f32de52ae8fade05003df3a51e47aef00d2f9490af411b8aa10347b`, Launcher
+`5b1b6cd7042f57284c473e8db9f28e47fe5857fd8b2408906c608447e1f9c131`, Bootstrap
+`8469df4fc9bc39192c257f4bdcffcaf0de1778496afe275f23b489806fb0895b`, and source
+bundle `6b322dc350e7f242a01783d56fd38135c793456a9db5f741fb9c58d3af7518d4`.
+The outer manifest and detached-signature SHA-256 values were respectively
+`b991bb9956ccfb311febc532b21a2efc6589b8f3cf4ad5028f18c4c0f1662531` and
+`10e2560c009e46fa16663940b0ad1bd8f135092ff3c99cb2075faf6d6e9d2563`.
+
 ## Production handoff
 
 Successful Phase 4A classifies the exact mainline source as:
