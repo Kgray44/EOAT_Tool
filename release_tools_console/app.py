@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from bootstrap.core import BootstrapService
 from deployment.common import to_jsonable
 from deployment.convergence.models import DeploymentState
+from deployment.convergence.phase3a import VerifiedDeploymentInput
 from deployment.convergence.services import ReleaseDeploymentService
 
 
@@ -68,6 +69,7 @@ class ReleaseDeploymentConsole(QMainWindow):
         self.tabs.addTab(self._target_page(), "Target Inspection")
         self.tabs.addTab(self._plan_page(), "Deployment Plan")
         self.tabs.addTab(self._transaction_page(), "Deployment Transaction")
+        self.tabs.addTab(self._phase3a_page(), "Coordinated Activation")
         self.tabs.addTab(self._startup_page(), "Workstation Startup")
         self.tabs.addTab(self._receipts_page(), "Logs and Receipts")
         self.tabs.addTab(self._settings_page(), "Settings")
@@ -288,6 +290,26 @@ class ReleaseDeploymentConsole(QMainWindow):
         )
         return page
 
+    def _phase3a_page(self) -> QWidget:
+        page = QWidget()
+        layout = QFormLayout(page)
+        self.phase3a_input = QLineEdit()
+        self.phase3a_input.setAccessibleName("Phase 3A verified input JSON path")
+        self.phase3a_root = QLineEdit()
+        self.phase3a_root.setAccessibleName("Phase 3A disposable root")
+        self.phase3a_schema = QLineEdit()
+        self.phase3a_schema.setAccessibleName("Phase 3A active schema")
+        self.phase3a_summary = QLabel("NOT STARTED")
+        self.phase3a_summary.setWordWrap(True)
+        layout.addRow("Verified input JSON", self.phase3a_input)
+        layout.addRow("Disposable root", self.phase3a_root)
+        layout.addRow("Active schema", self.phase3a_schema)
+        layout.addRow("Coordinated state", self.phase3a_summary)
+        layout.addRow(self._button("Stage API and Web", "Stage disposable coordinated deployment", self._phase3a_stage))
+        layout.addRow(self._button("Activate API and Web", "Activate disposable coordinated deployment", self._phase3a_activate))
+        layout.addRow(self._button("Scan Runtime Drift", "Scan coordinated deployment drift", self._phase3a_drift))
+        return page
+
     def _receipts_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -482,6 +504,28 @@ class ReleaseDeploymentConsole(QMainWindow):
     def _transaction_status(self) -> None:
         self._start("transaction", lambda: self.service.transaction(self.transaction_id.text()))
 
+    def _phase3a_item(self) -> VerifiedDeploymentInput:
+        payload = json.loads(Path(self.phase3a_input.text()).read_text(encoding="utf-8"))
+        payload["server_archive"] = Path(payload["server_archive"])
+        payload["web_archive"] = Path(payload["web_archive"])
+        return VerifiedDeploymentInput(**payload)
+
+    def _phase3a_stage(self) -> None:
+        item = self._phase3a_item()
+        confirmation, accepted = self._typed_confirmation("Stage coordinated deployment", f"Type exactly: STAGE {item.release_id}")
+        if accepted:
+            self._start("phase3a-stage", lambda: self.service.phase3a_stage(item, disposable_root=Path(self.phase3a_root.text()), active_schema=self.phase3a_schema.text(), confirmation=confirmation))
+
+    def _phase3a_activate(self) -> None:
+        transaction = self.transaction_id.text()
+        item = self._phase3a_item()
+        confirmation, accepted = self._typed_confirmation("Activate coordinated deployment", f"Type exactly: ACTIVATE {item.release_id}")
+        if accepted:
+            self._start("phase3a-activate", lambda: self.service.phase3a_activate(transaction, disposable_root=Path(self.phase3a_root.text()), release_id=item.release_id, confirmation=confirmation))
+
+    def _phase3a_drift(self) -> None:
+        self._start("phase3a-drift", lambda: self.service.phase3a_drift(self.transaction_id.text(), disposable_root=Path(self.phase3a_root.text())))
+
     def _confirm(self, title: str, text: str) -> bool:
         return QMessageBox.question(self, title, text) == QMessageBox.StandardButton.Yes
 
@@ -604,6 +648,10 @@ class ReleaseDeploymentConsole(QMainWindow):
             transaction = data.get("transaction", {})
             self.transaction_id.setText(transaction.get("transaction_id", self.transaction_id.text()))
             self.transaction_summary.setText(f"{transaction.get('state')} | {transaction.get('next_safe_action')}")
+        elif name.startswith("phase3a-"):
+            transaction = data.get("transaction", {})
+            self.transaction_id.setText(transaction.get("transaction_id", self.transaction_id.text()))
+            self.phase3a_summary.setText(f"{transaction.get('state', data.get('drift', {}).get('classification'))} | {transaction.get('next_safe_action', data.get('drift', {}).get('next_safe_action', 'Review receipt.'))}")
         elif name == "receipts":
             self.receipt_summary.setPlainText(self._receipt_text(data))
 

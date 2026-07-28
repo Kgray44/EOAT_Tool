@@ -153,6 +153,24 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         if destination.exists():
             shutil.rmtree(destination)
         shutil.copytree(dist, destination)
+        # Release identity is a separately cache-controlled static document.
+        # It is generated from the same exact source commit as the bundle and
+        # lets the browser compare the web bytes with /release-status before
+        # normal API operations begin.
+        identity = {
+            "product_version": str(metadata.get("app_version") or metadata.get("application_version") or metadata.get("version") or ""),
+            "release_id": str(metadata.get("release_id") or ""),
+            "build_id": str(metadata.get("build_id") or ""),
+            "candidate_id": str(metadata.get("candidate_id") or "") or None,
+            "source_commit": str(metadata.get("source_git_commit") or metadata.get("source_commit") or ""),
+            "source_tree": str(metadata.get("source_tree") or "") or None,
+            "release_set_digest": str(metadata.get("release_set_digest") or "") or None,
+        }
+        if not all(identity[key] for key in ("product_version", "release_id", "build_id", "source_commit")):
+            raise DeploymentError("exact web build metadata lacks a safe release identity")
+        (destination / "release_identity.json").write_text(
+            json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     manifest = {path.relative_to(destination).as_posix(): _sha256(path) for path in sorted(destination.rglob("*")) if path.is_file()}
     (destination / "web-static.manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return {"files": manifest, "manifest_sha256": _sha256(destination / "web-static.manifest.json")}

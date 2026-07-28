@@ -218,3 +218,12 @@ pointers. Offline fallback is permitted only for a confirmed-good launcher
 still supported by cached signed policy. The installer owns bootstrap
 replacement and current-user shortcut migration; production update transport
 and channel promotion remain out of scope.
+# Phase 3A coordinated disposable activation
+
+Phase 3A consumes only a `COMPLETE_TRUSTED` publication inventory item and
+records schema-2, immutable coordinated-deployment receipts. API and web
+artifacts stage independently into immutable paths, then activate together
+only after identity, HTTP/cache, browser, desktop-parity, migration, and
+recovery gates pass. See
+`EOAT_Unified_Release_Train_Phase_3A_Implementation.md` for the current
+non-production implementation and Phase 3B boundary.
