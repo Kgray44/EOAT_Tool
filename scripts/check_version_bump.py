@@ -117,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
             "deployment/convergence/production_signing.py",
             "deployment/convergence/cli.py",
             "deployment/convergence/release_set.py",
+            "deployment/convergence/sealing.py",
+            "deployment/convergence/services.py",
             "launcher/default_config.json",
             "installer/installer_config.json",
             "release_trust/",
