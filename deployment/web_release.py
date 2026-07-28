@@ -10,6 +10,8 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +20,90 @@ from scripts.release.build_server_release import generate_release_metadata
 from .common import DeploymentError
 
 UNC_PATH = re.compile(rb"\\\\\\\\[A-Za-z0-9][A-Za-z0-9._-]{0,62}\\\\")
+
+_WEB_STAGING_PREFIX = "eoat-web-release-"
+_WEB_STAGING_CLEANUP_ATTEMPTS = 5
+_WEB_STAGING_CLEANUP_BACKOFF_SECONDS = 0.25
+_WEB_STAGING_MAX_RETAINED_DIRECTORIES = 3
+_WEB_STAGING_MAX_RETAINED_BYTES = 3 * 1024 * 1024 * 1024
+_TRANSIENT_WINDOWS_CLEANUP_ERRORS = frozenset({5, 32, 145})
+
+
+def _is_governed_staging_directory(parent: Path, candidate: Path) -> bool:
+    """Return true only for a direct, non-link child owned by this builder."""
+    try:
+        return (
+            candidate.parent.resolve() == parent.resolve()
+            and candidate.is_dir()
+            and not candidate.is_symlink()
+            and candidate.name.startswith(_WEB_STAGING_PREFIX)
+        )
+    except OSError:
+        return False
+
+
+def _is_transient_cleanup_error(error: OSError) -> bool:
+    return (getattr(error, "winerror", None) or error.errno) in _TRANSIENT_WINDOWS_CLEANUP_ERRORS
+
+
+def _cleanup_web_staging_with_retry(
+    parent: Path,
+    staging: Path,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, object]:
+    """Remove one builder-owned staging tree with bounded Windows lock retries."""
+    if not _is_governed_staging_directory(parent, staging):
+        raise DeploymentError("refusing unsafe web staging cleanup target")
+    last_error: OSError | None = None
+    for attempt in range(1, _WEB_STAGING_CLEANUP_ATTEMPTS + 1):
+        try:
+            shutil.rmtree(staging)
+            return {"status": "REMOVED", "attempts": attempt}
+        except FileNotFoundError:
+            return {"status": "REMOVED", "attempts": attempt}
+        except OSError as error:
+            last_error = error
+            if not _is_transient_cleanup_error(error) or attempt == _WEB_STAGING_CLEANUP_ATTEMPTS:
+                break
+            sleep(_WEB_STAGING_CLEANUP_BACKOFF_SECONDS * attempt)
+    category = "TRANSIENT_LOCK_EXHAUSTED" if last_error and _is_transient_cleanup_error(last_error) else "CLEANUP_FAILED"
+    return {
+        "status": "RETAINED",
+        "attempts": _WEB_STAGING_CLEANUP_ATTEMPTS,
+        "category": category,
+        "diagnostic": "web staging cleanup retained one governed disposable directory; reconciliation is required",
+    }
+
+
+def _governed_staging_tree_size(directory: Path) -> int:
+    total = 0
+    for current, directories, files in os.walk(directory, followlinks=False):
+        directories[:] = [entry for entry in directories if not (Path(current) / entry).is_symlink()]
+        for entry in files:
+            path = Path(current) / entry
+            if not path.is_symlink():
+                try:
+                    total += path.stat().st_size
+                except OSError:
+                    continue
+    return total
+
+
+def _reconcile_stale_web_staging(parent: Path, *, active: Path | None = None) -> None:
+    """Bound retention without scanning or deleting outside the governed parent."""
+    parent.mkdir(parents=True, exist_ok=True)
+    candidates = [
+        path for path in parent.iterdir() if _is_governed_staging_directory(parent, path) and path != active
+    ]
+    for candidate in sorted(candidates, key=lambda path: path.stat().st_mtime if path.exists() else 0):
+        _cleanup_web_staging_with_retry(parent, candidate)
+    retained = [path for path in parent.iterdir() if _is_governed_staging_directory(parent, path) and path != active]
+    retained_size = sum(_governed_staging_tree_size(path) for path in retained)
+    # Reserve one slot for the build that is about to create its own staging
+    # tree.  A blocked cleanup must therefore stop before crossing the cap.
+    if len(retained) >= _WEB_STAGING_MAX_RETAINED_DIRECTORIES or retained_size > _WEB_STAGING_MAX_RETAINED_BYTES:
+        raise DeploymentError("web staging retention limit blocks another build; run governed staging reconciliation")
 
 
 def _run(root: Path, *args: str) -> None:
@@ -117,16 +203,10 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
     # It remains adjacent to (and isolated from) the candidate checkout.
     temporary_parent = root.parent / "w"
     temporary_parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(
-        prefix="eoat-web-release-",
-        dir=temporary_parent,
-        ignore_cleanup_errors=True,
-        # pnpm can retain a short-lived Windows junction handle after its
-        # child has exited.  Retain only this ignored disposable staging tree
-        # for later bounded reconciliation instead of converting a completed
-        # build into a candidate failure during context-manager cleanup.
-        delete=False,
-    ) as temporary:
+    _reconcile_stale_web_staging(temporary_parent)
+    temporary = Path(tempfile.mkdtemp(prefix=_WEB_STAGING_PREFIX, dir=temporary_parent))
+    cleanup: dict[str, object] = {}
+    try:
         source = Path(temporary) / "source"
         source.mkdir()
         bundle = Path(temporary) / "source.tar"
@@ -220,6 +300,20 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         (destination / "release_identity.json").write_text(
             json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
-    manifest = {path.relative_to(destination).as_posix(): _sha256(path) for path in sorted(destination.rglob("*")) if path.is_file()}
-    (destination / "web-static.manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"files": manifest, "manifest_sha256": _sha256(destination / "web-static.manifest.json")}
+        manifest = {
+            path.relative_to(destination).as_posix(): _sha256(path)
+            for path in sorted(destination.rglob("*"))
+            if path.is_file()
+        }
+        (destination / "web-static.manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        result = {"files": manifest, "manifest_sha256": _sha256(destination / "web-static.manifest.json")}
+    finally:
+        # Do not replace the original build exception with a cleanup error.
+        # A successful package may retain only its exact governed staging tree,
+        # with a bounded redacted receipt for the next build to reconcile.
+        cleanup = _cleanup_web_staging_with_retry(temporary_parent, temporary)
+    if cleanup.get("status") == "RETAINED":
+        result["staging_cleanup"] = cleanup
+    return result

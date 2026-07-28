@@ -25,6 +25,20 @@ package from an explicit, separately authorized server activation.
   manifest health probes. No production systemd unit names are hard-coded in
   source, so an approved non-secret server config must provide verified units.
 
+## Disposable web-build staging cleanup
+
+The hermetic web builder uses a uniquely named `eoat-web-release-*` directory
+only beneath its candidate-local short staging parent. After the validated
+static destination and file manifest have been written, it retries deletion of
+that one directory a bounded number of times for transient Windows package
+manager locks. A persistent lock retains only that governed directory and
+records a redacted reconciliation diagnostic; it never becomes a release
+component. Before a later build, reconciliation scans only direct,
+non-link children with that exact prefix, skips the active directory, and
+blocks another build if the bounded retained-count or aggregate-size limit
+cannot be restored safely. It never scans `%TEMP%`, follows links, or removes
+candidate source/destination directories.
+
 ## Phase 1: release manager
 
 Run from a clean, isolated checkout:

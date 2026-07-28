@@ -240,6 +240,11 @@ def test_governed_component_exception_is_explicit_and_never_applies_to_app_code(
     (root / "app" / "main.py").write_text("VALUE = 2\n", encoding="utf-8")
     assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
     (root / "app" / "main.py").unlink()
+    web_ui = root / "web" / "src" / "main.tsx"
+    web_ui.parent.mkdir(parents=True)
+    web_ui.write_text("export const value = 2;\n", encoding="utf-8")
+    assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
+    web_ui.unlink()
     ledger_path = root / "release_history.json"
     ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
     ledger["releases"].append(dict(ledger["releases"][0]))
