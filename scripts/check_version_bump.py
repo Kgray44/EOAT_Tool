@@ -120,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             "deployment/convergence/sealing.py",
             "deployment/convergence/services.py",
             "deployment/convergence/phase1c.py",
+            "deployment/web_release.py",
             "EOAT_Atlas_Bootstrap.spec",
             "EOAT_Atlas_Launcher.spec",
             "bootstrap/cli.py",

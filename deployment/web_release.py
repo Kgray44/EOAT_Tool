@@ -111,9 +111,15 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
     # segment (for example ``RUNNER~1``), which Vite then fails to resolve.
     # Candidate staging is an ignored, candidate-local workspace path and is
     # therefore both isolated from the canonical checkout and safe for Vite.
+    # Candidate roots are intentionally nested beneath durable receipt
+    # storage.  Keep this disposable archive root short on Windows so deeply
+    # nested, committed static fixtures cannot exceed the Win32 path limit.
+    # It remains adjacent to (and isolated from) the candidate checkout.
+    temporary_parent = root.parent / "w"
+    temporary_parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
         prefix="eoat-web-release-",
-        dir=root.parent,
+        dir=temporary_parent,
         ignore_cleanup_errors=True,
     ) as temporary:
         source = Path(temporary) / "source"
