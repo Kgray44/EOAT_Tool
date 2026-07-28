@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectNoInternalSentinels } from "./sentinelAssertions";
 
 const machine = {
   plant_code: "P4",
@@ -176,4 +177,39 @@ test("Machine Photos preserves a real API failure while Documents keeps its succ
   await expect(page.getByText("Photos unavailable")).toBeVisible();
   await expect(page.getByText("No photos recorded")).toHaveCount(0);
   await expect(page.getByText("No documents recorded")).toBeVisible();
+});
+
+test("production-shaped Machine 14 never creates a Tool sentinel relationship", async ({
+  page,
+}) => {
+  const machine14 = {
+    ...machine,
+    machine_number: "14",
+    machine_name: "Machine 14",
+    relationships: [],
+  };
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/current-setup"))
+      return route.fulfill({ json: { ...currentSetup, machine_number: "14" } });
+    if (
+      path.endsWith("/relationships") ||
+      path.endsWith("/web-documents") ||
+      path.endsWith("/web-photos") ||
+      path.endsWith("/history")
+    )
+      return route.fulfill({ json: [] });
+    return route.fulfill({ json: machine14 });
+  });
+  await page.goto("/machines/14");
+  await expect(page.getByText("Not verified").first()).toBeVisible();
+  await expect(
+    page
+      .getByLabel("Relationship overview")
+      .getByText("No verified tools recorded"),
+  ).toBeVisible();
+  await expect(
+    page.locator('a[href="/tools/UNKNOWN_NOT_VERIFIED"]'),
+  ).toHaveCount(0);
+  await expectNoInternalSentinels(page);
 });

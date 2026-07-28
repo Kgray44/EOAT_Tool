@@ -5,7 +5,10 @@ export function canonicalQrPayload(
   identifier: string,
   origin: string,
 ): string {
-  return new URL(entityPath(category, identifier), origin).toString();
+  const path = entityPath(category, identifier);
+  if (!path)
+    throw new Error("QR labels require a routable authoritative identifier");
+  return new URL(path, origin).toString();
 }
 
 export function isUnsafeQrOrigin(origin: string): boolean {

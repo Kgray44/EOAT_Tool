@@ -1,0 +1,4 @@
+# Fixed EOAT Atlas coordinated-release surface; no shell, systemctl, nginx,
+# filesystem, Python module, or caller-selected policy authority is granted.
+Cmnd_Alias EOAT_ATLAS_COORDINATED = /usr/bin/python3 /usr/local/libexec/eoat-atlas/coordinated_release_retry.py preflight --policy /etc/eoat-atlas/coordinated-release-policy.json, /usr/bin/python3 /usr/local/libexec/eoat-atlas/coordinated_release_retry.py activate --policy /etc/eoat-atlas/coordinated-release-policy.json, /usr/bin/python3 /usr/local/libexec/eoat-atlas/coordinated_release_retry.py post-activation-rollback --transaction *
+kgray ALL=(root) NOPASSWD: EOAT_ATLAS_COORDINATED

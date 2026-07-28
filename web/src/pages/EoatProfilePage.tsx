@@ -23,6 +23,10 @@ import {
   RelationshipFlow,
 } from "@/components/profile/ProfileBlocks";
 import { QrLabel } from "@/components/qr/QrLabel";
+import {
+  isRoutableAuthoritativeIdentifier,
+  presentationText,
+} from "@/api/presentation";
 
 function decodeEoatIdentifier(pathname: string): string | undefined {
   const prefix = "/eoats/";
@@ -62,6 +66,8 @@ function truthLabel(location: EoatLocation | undefined): string {
 }
 
 function relationshipTo(relationship: EoatRelationship): string | undefined {
+  if (!isRoutableAuthoritativeIdentifier(relationship.identifier))
+    return undefined;
   if (relationship.relationship_type === "machine") {
     return `/machines/${encodeURIComponent(relationship.identifier)}`;
   }
@@ -129,7 +135,7 @@ function ProfileHeader({
       ? `Installed on machine ${location.machine_number}`
       : location?.state === "STORED"
         ? (location.storage_location ?? "Stored; exact location unavailable")
-        : profile.current_location;
+        : presentationText(profile.current_location);
   return (
     <header className="profile-header">
       <div className="profile-medallion" aria-hidden="true">
@@ -137,7 +143,7 @@ function ProfileHeader({
       </div>
       <div className="profile-identity">
         <p className="eyebrow">Read-only EOAT profile</p>
-        <h1>{profile.business_identifier}</h1>
+        <h1>{presentationText(profile.business_identifier)}</h1>
         <p className="profile-name">
           <StatusValue value={profile.display_name ?? profile.description} />
         </p>
@@ -153,7 +159,9 @@ function ProfileHeader({
         </div>
         <div>
           <span>Current location</span>
-          <strong>{locationText || "Unknown / unavailable"}</strong>
+          <strong>
+            {presentationText(locationText, "Unknown / unavailable")}
+          </strong>
         </div>
         <div>
           <span>Verification</span>
@@ -204,8 +212,13 @@ function ProfileContent({
   });
   const currentLocation =
     location.data ?? profile.current_location_detail ?? undefined;
-  const resolvedRelationships =
-    relationships.data ?? profile.relationships ?? [];
+  const resolvedRelationships = (
+    relationships.data ??
+    profile.relationships ??
+    []
+  ).filter((relationship) =>
+    isRoutableAuthoritativeIdentifier(relationship.identifier),
+  );
   const relatedMachines = resolvedRelationships
     .filter((item) => item.relationship_type === "machine")
     .map((item) => ({
@@ -222,7 +235,10 @@ function ProfileContent({
       relationshipType: item.relationship_type,
       status: item.status,
     }));
-  if (currentLocation?.machine_number && relatedMachines.length === 0) {
+  if (
+    isRoutableAuthoritativeIdentifier(currentLocation?.machine_number) &&
+    relatedMachines.length === 0
+  ) {
     relatedMachines.push({
       identifier: currentLocation.machine_number,
       label: undefined,
@@ -352,9 +368,11 @@ function ProfileContent({
             <ul className="relationship-list">
               {resolvedRelationships.map((relationship) => {
                 const to = relationshipTo(relationship);
-                const text = relationship.display_name
-                  ? `${relationship.identifier} — ${relationship.display_name}`
-                  : relationship.identifier;
+                const text =
+                  relationship.display_name &&
+                  isRoutableAuthoritativeIdentifier(relationship.display_name)
+                    ? `${relationship.identifier} — ${relationship.display_name}`
+                    : relationship.identifier;
                 return (
                   <li
                     key={`${relationship.relationship_type}-${relationship.identifier}`}
@@ -362,7 +380,7 @@ function ProfileContent({
                     <span>{relationship.relationship_type}: </span>
                     {to ? <Link to={to}>{text}</Link> : <span>{text}</span>}
                     <small>
-                      {relationship.status}
+                      {presentationText(relationship.status)}
                       {relationship.reason ? ` · ${relationship.reason}` : ""}
                     </small>
                   </li>

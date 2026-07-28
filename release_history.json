@@ -295,6 +295,13 @@
       "state": "finalized",
       "task_id": "codex-project-mirrorline-final-integration-20260727",
       "finalized_at_utc": "2026-07-27T22:29:49Z"
+    },
+    {
+      "application_version": "0.23.4",
+      "release_id": "eoat-atlas-0.23.4",
+      "state": "finalized",
+      "task_id": "codex-mirrorline-sentinel-and-rollback-hotfix-20260728",
+      "finalized_at_utc": "2026-07-28T12:27:22Z"
     }
   ]
 }

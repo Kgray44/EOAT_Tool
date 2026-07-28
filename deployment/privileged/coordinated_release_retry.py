@@ -20,12 +20,15 @@ from pathlib import Path
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.1.0"
+HELPER_VERSION = "1.2.0"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
+WEB_RELEASES = web.WEB_ROOT / "releases"
 CONTROL_ROOT = Path("/var/lib/eoat-atlas-http-web-host")
 SERVICE = "eoat-atlas.service"
+RECEIPT_SCHEMA_VERSION = 2
+TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
 
 
 def fail(message: str) -> None:
@@ -129,6 +132,121 @@ def wait_target(value: dict[str, object]) -> None:
         fail("active API version does not match coordinated release")
 
 
+def _within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _immutable_release(path_text: object, root: Path, field: str) -> Path:
+    path = Path(str(path_text))
+    if path.is_symlink() or not path.is_dir() or not _within(path, root):
+        fail(f"receipt {field} is not an approved immutable release directory")
+    web.require_root_chain(path)
+    web.require_root_tree(path)
+    return path.resolve()
+
+
+def _transaction_receipt(transaction_id: str) -> tuple[Path, dict[str, object]]:
+    """Load only a direct, root-owned receipt under the governed root."""
+    if not TRANSACTION_ID.fullmatch(transaction_id):
+        fail("transaction identifier is invalid")
+    transactions = CONTROL_ROOT / "transactions"
+    transaction = transactions / transaction_id
+    receipt_path = transaction / "receipt.json"
+    if (
+        transaction.is_symlink()
+        or receipt_path.is_symlink()
+        or not transaction.is_dir()
+        or not receipt_path.is_file()
+        or not _within(transaction, transactions)
+    ):
+        fail("transaction receipt is not a direct governed receipt")
+    web.require_root_chain(transactions)
+    web.require_root_chain(transaction)
+    web.require_root_owned(receipt_path)
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail("transaction receipt is malformed")
+    if not isinstance(receipt, dict):
+        fail("transaction receipt is malformed")
+    required = {
+        "receipt_schema_version", "helper_version", "state", "activation_complete",
+        "old_api", "old_web", "new_api", "new_web", "schema", "service",
+        "writes_enabled",
+    }
+    if not required.issubset(receipt) or receipt["receipt_schema_version"] != RECEIPT_SCHEMA_VERSION:
+        fail("transaction receipt schema is invalid")
+    if receipt["state"] != "active" or receipt["activation_complete"] is not True:
+        fail("transaction did not complete activation")
+    if receipt["service"] != SERVICE or receipt["writes_enabled"] is not False:
+        fail("transaction receipt violates governed rollback policy")
+    _immutable_release(receipt["old_api"], API_RELEASES, "old_api")
+    _immutable_release(receipt["old_web"], WEB_RELEASES, "old_web")
+    return transaction, receipt
+
+
+def _rollback_receipt_path(transaction: Path) -> Path:
+    return transaction / "post-activation-rollback.json"
+
+
+def post_activation_rollback(transaction_id: str) -> dict[str, object]:
+    """Restore the exact prior immutable targets from an activated receipt.
+
+    This intentionally has no policy/archive/migration input.  Its sole
+    authority is one validated receipt beneath the root-owned transaction
+    directory, and it only touches the already governed API/web symlinks and
+    the fixed API service.
+    """
+    transaction, receipt = _transaction_receipt(transaction_id)
+    old_api = _immutable_release(receipt["old_api"], API_RELEASES, "old_api")
+    old_web = _immutable_release(receipt["old_web"], WEB_RELEASES, "old_web")
+    rollback_receipt = _rollback_receipt_path(transaction)
+    if rollback_receipt.exists() or rollback_receipt.is_symlink():
+        if rollback_receipt.is_symlink() or not rollback_receipt.is_file():
+            fail("rollback receipt is unsafe")
+        prior = json.loads(rollback_receipt.read_text(encoding="utf-8"))
+        if not isinstance(prior, dict) or prior.get("state") != "rolled_back":
+            fail("rollback receipt is malformed")
+        if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
+            fail("already rolled-back transaction no longer has its prior targets active")
+        health = web.api_health({"schema": receipt["schema"]})
+        if health.get("writes_enabled") is not False:
+            fail("already rolled-back transaction has writes enabled")
+        return {"transaction": transaction_id, "state": "rolled_back", "idempotent": True}
+    web.atomic_symlink(old_api, API_CURRENT)
+    web.atomic_symlink(old_web, WEB_CURRENT)
+    web.nginx_test_reload()
+    subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
+    web.wait_api({"schema": receipt["schema"]})
+    if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
+        fail("post-activation rollback did not restore both prior release targets")
+    web.request_check("post_activation_rollback_homepage", "http://" + web.HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!")
+    health = web.api_health({"schema": receipt["schema"]})
+    if health.get("writes_enabled") is not False:
+        fail("post-activation rollback did not preserve writes-disabled state")
+    evidence = {
+        "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
+        "transaction": transaction_id,
+        "state": "rolled_back",
+        "rollback_api": str(old_api),
+        "rollback_web": str(old_web),
+        "rollback_frontend_generation": old_web.name,
+        "helper_version": HELPER_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        descriptor = os.open(rollback_receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return post_activation_rollback(transaction_id)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        output.write(json.dumps(evidence, sort_keys=True, indent=2) + "\n")
+    return {"transaction": transaction_id, "state": "rolled_back", "idempotent": False}
+
+
 def acceptance_policy(value: dict[str, object], server: Path) -> dict[str, object]:
     """Bind shared HTTP checks to this transaction's immutable API target."""
     return {**value, "api_release": str(server.resolve())}
@@ -184,6 +302,7 @@ def activate(value: dict[str, object]) -> Path:
     transaction = CONTROL_ROOT / "transactions" / ("coordinated-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8])
     transaction.mkdir(parents=True, mode=0o700)
     receipt = {
+        "receipt_schema_version": RECEIPT_SCHEMA_VERSION,
         "helper_version": HELPER_VERSION,
         "old_api": str(old_api),
         "old_web": str(old_web),
@@ -192,6 +311,10 @@ def activate(value: dict[str, object]) -> Path:
         "server_archive_sha256": value["server_archive_sha256"],
         "server_manifest_sha256": value["server_manifest_sha256"],
         "web_bundle_sha256": value["bundle_sha256"],
+        "schema": value["schema"],
+        "service": SERVICE,
+        "writes_enabled": False,
+        "activation_complete": False,
         "state": "started",
     }
     (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
@@ -210,7 +333,7 @@ def activate(value: dict[str, object]) -> Path:
         # symlink.  Bind that invariant to this just-activated immutable
         # target rather than requiring a second policy field.
         web.acceptance(frontend, acceptance_policy(value, server))
-        receipt.update(state="active", new_api=str(server), new_web=str(frontend))
+        receipt.update(state="active", activation_complete=True, new_api=str(server), new_web=str(frontend), frontend_generation=frontend.name)
         (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         return transaction
     except Exception as error:
@@ -225,18 +348,26 @@ def activate(value: dict[str, object]) -> Path:
         rollback_health = web.api_health({"schema": value["schema"]})
         if rollback_health.get("writes_enabled") is not False:
             fail("rollback did not restore writes-disabled state")
-        receipt.update(state="rolled_back", failure=str(error), rollback_api=str(old_api), rollback_web=str(old_web))
+        receipt.update(state="rolled_back", failure=str(error), rollback_api=str(old_api), rollback_web=str(old_web), activation_complete=False)
         (transaction / "receipt.json").write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         raise
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--policy", type=Path, required=True)
-    parser.add_argument("action", choices=("preflight", "activate"))
+    parser.add_argument("action", choices=("preflight", "activate", "post-activation-rollback"))
+    parser.add_argument("--policy", type=Path)
+    parser.add_argument("--transaction")
     args = parser.parse_args()
     if os.geteuid() != 0:
         fail("root execution is required")
+    if args.action == "post-activation-rollback":
+        if args.policy is not None or not args.transaction:
+            fail("post-activation rollback requires only a governed transaction identifier")
+        print(json.dumps(post_activation_rollback(args.transaction), sort_keys=True))
+        return 0
+    if args.policy is None or args.transaction is not None:
+        fail("preflight and activate require only a governed policy")
     value = policy(args.policy)
     if args.action == "preflight":
         print(json.dumps(preflight(value), sort_keys=True))

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -65,3 +67,66 @@ def test_extract_failure_removes_only_temporary_api_staging(monkeypatch: pytest.
         coordinator.extract_server(policy, transaction)
     assert not list(releases.glob(".staging-*"))
     assert not (releases / "release").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="atomic replacement of directory symlinks is Linux-only")
+def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    control = tmp_path / "control"
+    api_releases = tmp_path / "api" / "releases"
+    web_releases = tmp_path / "web" / "releases"
+    old_api, new_api = api_releases / "old", api_releases / "new"
+    old_web, new_web = web_releases / "old", web_releases / "new"
+    for path in (old_api, new_api, old_web, new_web):
+        path.mkdir(parents=True)
+    api_current, web_current = tmp_path / "api-current", tmp_path / "web-current"
+    try:
+        api_current.symlink_to(new_api, target_is_directory=True)
+        web_current.symlink_to(new_web, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks require Linux/root or Windows developer mode")
+    transaction = control / "transactions" / "coordinated-20260728T001346Z-f99297d1"
+    transaction.mkdir(parents=True)
+    transaction.joinpath("receipt.json").write_text(json.dumps({
+        "receipt_schema_version": 2, "helper_version": "1.2.0", "state": "active",
+        "activation_complete": True, "old_api": str(old_api), "old_web": str(old_web),
+        "new_api": str(new_api), "new_web": str(new_web), "schema": "20260721_0008",
+        "service": "eoat-atlas.service", "writes_enabled": False,
+    }), encoding="utf-8")
+    monkeypatch.setattr(coordinator, "CONTROL_ROOT", control)
+    monkeypatch.setattr(coordinator, "API_RELEASES", api_releases)
+    monkeypatch.setattr(coordinator, "WEB_RELEASES", web_releases)
+    monkeypatch.setattr(coordinator, "API_CURRENT", api_current)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web_current)
+    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_: None)
+    monkeypatch.setattr(coordinator.web, "require_root_tree", lambda *_: None)
+    monkeypatch.setattr(coordinator.web, "require_root_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "nginx_test_reload", lambda: None)
+    monkeypatch.setattr(coordinator.web, "wait_api", lambda *_: None)
+    monkeypatch.setattr(coordinator.web, "request_check", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda *_: {"writes_enabled": False})
+    monkeypatch.setattr(coordinator.subprocess, "run", lambda *_args, **_kwargs: None)
+    result = coordinator.post_activation_rollback(transaction.name)
+    assert result == {"transaction": transaction.name, "state": "rolled_back", "idempotent": False}
+    assert api_current.resolve() == old_api.resolve()
+    assert web_current.resolve() == old_web.resolve()
+    receipt = json.loads(transaction.joinpath("post-activation-rollback.json").read_text(encoding="utf-8"))
+    assert receipt["rollback_frontend_generation"] == "old"
+    assert coordinator.post_activation_rollback(transaction.name)["idempotent"] is True
+
+
+@pytest.mark.parametrize("identifier", ["../receipt", "coordinated-20260728T001346Z-f99297d1/../x"])
+def test_post_activation_rollback_rejects_traversal(identifier: str) -> None:
+    with pytest.raises(coordinator.web.InstallError, match="identifier is invalid"):
+        coordinator.post_activation_rollback(identifier)
+
+
+def test_coordinated_sudoers_exposes_only_fixed_governed_operations() -> None:
+    source = (PRIVILEGED / "eoat-atlas-coordinated.sudoers").read_text(encoding="utf-8")
+    assert "preflight --policy /etc/eoat-atlas/coordinated-release-policy.json" in source
+    assert "activate --policy /etc/eoat-atlas/coordinated-release-policy.json" in source
+    assert "post-activation-rollback --transaction *" in source
+    rules = "\n".join(line for line in source.splitlines() if not line.startswith("#"))
+    assert "systemctl" not in rules and "nginx" not in rules and "/bin/sh" not in rules
+    assert "ALL=(ALL)" not in rules

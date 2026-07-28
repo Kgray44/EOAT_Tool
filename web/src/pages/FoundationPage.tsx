@@ -56,14 +56,19 @@ export function FoundationPage() {
           <h3>Recent Searches</h3>
           {recents.length ? (
             <div className="atlas-recent-links">
-              {recents.slice(0, 3).map((item) => (
-                <Link
-                  key={`${item.category}-${item.identifier}`}
-                  to={entityPath(item.category, item.identifier)}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {recents.slice(0, 3).flatMap((item) => {
+                const path = entityPath(item.category, item.identifier);
+                return path
+                  ? [
+                      <Link
+                        key={`${item.category}-${item.identifier}`}
+                        to={path}
+                      >
+                        {item.label}
+                      </Link>,
+                    ]
+                  : [];
+              })}
             </div>
           ) : (
             <p>No recent searches yet</p>

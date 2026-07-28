@@ -23,6 +23,10 @@ import {
 } from "@/components/profile/ProfileBlocks";
 import { deduplicateRelationships } from "@/components/profile/relationshipPresentation";
 import { QrLabel } from "@/components/qr/QrLabel";
+import {
+  isRoutableAuthoritativeIdentifier,
+  presentationText,
+} from "@/api/presentation";
 
 function Retry({ retry }: { retry: () => void }) {
   return (
@@ -33,9 +37,7 @@ function Retry({ retry }: { retry: () => void }) {
 }
 
 function assignmentLabel(value: string | null | undefined) {
-  if (value === "UNKNOWN_NOT_VERIFIED") return "Not verified";
-  if (value === "NONE_OBSERVED") return "No assignment observed";
-  return value || "Not recorded";
+  return presentationText(value, "Not recorded");
 }
 
 function MachineContent({
@@ -109,7 +111,10 @@ function MachineContent({
       relationshipType: item.relationship_type,
       status: item.status,
     }));
-  if (currentEoat && relatedEoats.length === 0) {
+  if (
+    isRoutableAuthoritativeIdentifier(currentEoat) &&
+    relatedEoats.length === 0
+  ) {
     relatedEoats.push({
       identifier: currentEoat,
       label: undefined,
@@ -119,7 +124,10 @@ function MachineContent({
         : "Current assignment",
     });
   }
-  if (currentTool && relatedTools.length === 0) {
+  if (
+    isRoutableAuthoritativeIdentifier(currentTool) &&
+    relatedTools.length === 0
+  ) {
     relatedTools.push({
       identifier: currentTool,
       label: undefined,
@@ -184,7 +192,7 @@ function MachineContent({
           )}
           {profile.notes && (
             <p className="notes">
-              <strong>Notes:</strong> {profile.notes}
+              <strong>Notes:</strong> {presentationText(profile.notes)}
             </p>
           )}
         </ProfileSection>

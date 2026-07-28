@@ -8,6 +8,10 @@ import {
   type WebPhoto,
 } from "@/api/client";
 import { relationshipPath } from "@/api/routes";
+import {
+  isRoutableAuthoritativeIdentifier,
+  presentationText,
+} from "@/api/presentation";
 import { EmptyState } from "@/components/feedback/StateViews";
 import {
   deduplicateRelationships,
@@ -53,7 +57,7 @@ export function Attribute({
         ? value
           ? booleanLabels[0]
           : booleanLabels[1]
-        : String(value);
+        : presentationText(value, missingLabel);
   return (
     <div>
       <dt>{label}</dt>
@@ -80,8 +84,8 @@ export function EntityHeader({
       </div>
       <div className="profile-identity">
         <p className="eyebrow">Read-only {category} profile</p>
-        <h1>{identifier}</h1>
-        {title && <p className="profile-name">{title}</p>}
+        <h1>{presentationText(identifier)}</h1>
+        {title && <p className="profile-name">{presentationText(title)}</p>}
       </div>
       <div
         className="profile-summary"
@@ -90,7 +94,7 @@ export function EntityHeader({
         {summary.map(([label, value]) => (
           <div key={label}>
             <span>{label}</span>
-            <strong>{value || "Unknown / unavailable"}</strong>
+            <strong>{presentationText(value, "Unknown / unavailable")}</strong>
           </div>
         ))}
       </div>
@@ -112,31 +116,38 @@ function RelationshipNodeList({
   label: string;
   nodes: RelationshipNode[];
 }) {
+  const safeNodes = nodes.filter((node) =>
+    isRoutableAuthoritativeIdentifier(node.identifier),
+  );
   return (
     <div className="relationship-flow__column">
       <span>{label}</span>
       <div className="relationship-flow__nodes">
-        {nodes.length === 0 ? (
-          <small>No recorded {label.toLowerCase()}</small>
+        {safeNodes.length === 0 ? (
+          <small>No verified {label.toLowerCase()} recorded</small>
         ) : (
-          nodes.map((node) => {
+          safeNodes.map((node) => {
             const path = relationshipPath(
               node.relationshipType,
               node.identifier,
             );
-            const text = node.label || node.identifier;
+            const text = presentationText(node.label || node.identifier);
             return path ? (
               <Link
                 key={`${node.relationshipType}-${node.identifier}`}
                 to={path}
               >
                 <strong>{text}</strong>
-                <small>{node.status || "Current relationship"}</small>
+                <small>
+                  {presentationText(node.status, "Current relationship")}
+                </small>
               </Link>
             ) : (
               <div key={`${node.relationshipType}-${node.identifier}`}>
                 <strong>{text}</strong>
-                <small>{node.status || "Current relationship"}</small>
+                <small>
+                  {presentationText(node.status, "Current relationship")}
+                </small>
               </div>
             );
           })
@@ -171,7 +182,7 @@ export function RelationshipFlow({
         <RelationshipNodeList label={leftLabel} nodes={leftNodes} />
         <div className="relationship-flow__primary">
           <span>{category}</span>
-          <strong>{identifier}</strong>
+          <strong>{presentationText(identifier)}</strong>
           <small>Active profile</small>
         </div>
         <RelationshipNodeList label={rightLabel} nodes={rightNodes} />
