@@ -80,3 +80,31 @@ local artifacts.
 Bootstrap replacement itself remains installer-governed. Production publication,
 deployment, API/web activation, and candidate/canary/stable channel promotion
 remain separately authorized later work.
+
+## Closure evidence
+
+Commit `0cdee43a9be5bd8c5df6fae4f9a0cce38f2b10e0` was validated by the dedicated
+Windows workflow run `30316264496`. All required jobs succeeded:
+`bootstrap-model-policy`, `signed-launcher-manifest`, `package-validation`,
+`bootstrap-packaged-build`, `launcher-packaged-fixtures`,
+`activation-rollback`, `shortcut-migration`, `installer-integration`,
+`offline-policy`, `cli-console-smoke`, `black-box-windows-startup-chain`,
+`repository-safety`, `version-governance`, and
+`documentation-command-validation`.
+
+The uploaded real Windows bootstrap executable had SHA-256
+`6e40352a4ef1e69dc0ad16f771d774daa5b6aefc9de1d74122bce11351608242` and its
+smoke receipt had SHA-256
+`f729f21a021a1d9f7c9cad43235db8f044f05aa4219276803325704aea36f849`. The real
+launcher executable had SHA-256
+`6fc8b578c1236eafdb6b84d548745fd53710cc211c06ba7cf0e7e761611333e3`; its
+immutable launcher update package had SHA-256
+`3159cac5481c50da37aaceac0b2e7feb8258c3b2324ba620cf10ba0ef572440b`; and its
+packaged smoke receipt had SHA-256
+`caa579870bc464b4535c1aa8b5b2d6638fec9f661464f474921dedaaa9b63e0c`.
+
+Focused local validation reported `35 passed, 1 skipped`; the skip is the
+pre-existing disposable-MySQL test outside this per-user bootstrap scope and
+was not counted as a success. No production credentials, private signing keys,
+production transport, tags, releases, manifests, or deployment actions were
+used.
