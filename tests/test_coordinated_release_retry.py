@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -68,6 +69,7 @@ def test_extract_failure_removes_only_temporary_api_staging(monkeypatch: pytest.
     assert not (releases / "release").exists()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="atomic replacement of directory symlinks is Linux-only")
 def test_post_activation_rollback_restores_receipt_targets_and_is_idempotent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
 ) -> None:
