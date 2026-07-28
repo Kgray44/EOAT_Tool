@@ -1,0 +1,219 @@
+name: Unified Release Train Phase 3A
+
+on:
+  push:
+    branches: [codex/unified-release-train]
+    paths:
+      - deployment/convergence/**
+      - deployment/web_release.py
+      - server/eoat_api/**
+      - web/**
+      - release_tools_console/**
+      - tests/test_phase_3a_*.py
+      - tests/test_release_status_contract.py
+      - tests/integration/test_phase_3a_mysql84.py
+      - .github/workflows/unified-release-train-phase-3a.yml
+      - Development_Docs/EOAT_Unified_Release_Train_Phase_3A_Implementation.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deployment-input-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_receipts_and_cli.py -k 'cli or future'
+
+  transaction-state-machine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_receipts_and_cli.py -k durable
+
+  api-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py -k 'unsafe or migration'
+
+  web-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py -k parity
+
+  coordinated-activation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py -k stage_activate
+
+  rollback-and-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py -k rollback
+
+  runtime-release-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_status_contract.py
+
+  api-compatibility-enforcement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_status_contract.py -k mismatch
+
+  web-parity-playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0'}
+      - uses: pnpm/action-setup@v4
+        with: {version: '11.9.0'}
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web exec playwright install --with-deps chromium
+      - run: pnpm --dir web run test:e2e
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: phase3a-playwright, path: web/test-results, if-no-files-found: ignore}
+
+  desktop-parity-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py tests/test_release_status_contract.py
+
+  drift-scanner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py -k drift
+
+  disposable-mysql-8-4:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env: {MYSQL_ROOT_PASSWORD: disposable-root-password, MYSQL_DATABASE: eoat_disposable}
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pdisposable-root-password"
+          --health-interval=10s --health-timeout=5s --health-retries=15
+    env:
+      EOAT_MYSQL_HOST: 127.0.0.1
+      EOAT_MYSQL_PORT: '3306'
+      EOAT_MYSQL_USER: root
+      EOAT_MYSQL_PASSWORD: disposable-root-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/integration/test_phase_3a_mysql84.py
+
+  migration-and-recovery:
+    needs: disposable-mysql-8-4
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py -k migration
+
+  cli-console-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: sudo apt-get update && sudo apt-get install -y libegl1
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_receipts_and_cli.py
+      - run: python -c "from release_tools_console.app import ReleaseDeploymentConsole; print(ReleaseDeploymentConsole.__name__)"
+
+  end-to-end-disposable-deployment:
+    needs: [coordinated-activation, rollback-and-recovery, disposable-mysql-8-4]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3a_coordinated_deployment.py tests/test_phase_3a_receipts_and_cli.py
+
+  receipt-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_train_phase_1b2.py tests/test_phase_3a_receipts_and_cli.py
+
+  repository-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/repo_safety_audit.py
+
+  version-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/check_version_bump.py --base 170d9fb3d8f2ab2dabe6eb86ee7898ccbbd3a6ab
+
+  documentation-command-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m compileall -q deployment server release_tools_console
+      - run: python -m ruff check deployment/convergence server/eoat_api release_tools_console

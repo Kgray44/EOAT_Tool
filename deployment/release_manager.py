@@ -152,9 +152,13 @@ def inspect_git_state(root: Path) -> GitState:
                 behind, ahead = (int(value) for value in relation.stdout.split())
             except ValueError:
                 pass
-    modified = [line for line in git.output("diff", "--name-only").splitlines() if line]
-    staged = [line for line in git.output("diff", "--cached", "--name-only").splitlines() if line]
-    untracked = [line for line in git.output("ls-files", "--others", "--exclude-standard").splitlines() if line]
+    # Porcelain is the authoritative cleanliness view. On Windows, a raw
+    # ``git diff`` can report checkout line-ending conversion even when Git
+    # correctly considers the worktree clean.
+    porcelain = git.output("status", "--porcelain").splitlines()
+    modified = [line[3:] for line in porcelain if len(line) > 3 and line[:2] not in {"??", "!!"} and line[1] != " "]
+    staged = [line[3:] for line in porcelain if len(line) > 3 and line[:2] not in {"??", "!!"} and line[0] != " "]
+    untracked = [line[3:] for line in porcelain if line.startswith("?? ")]
     conflicts = [line for line in git.output("diff", "--name-only", "--diff-filter=U").splitlines() if line]
     tag = git.run("describe", "--tags", "--abbrev=0", check=False)
     try:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -22,8 +23,9 @@ UNC_PATH = re.compile(rb"\\\\\\\\[A-Za-z0-9][A-Za-z0-9._-]{0,62}\\\\")
 def _run(root: Path, *args: str) -> None:
     result = subprocess.run(list(args), cwd=root, text=True, capture_output=True, check=False)
     if result.returncode:
-        detail = (result.stderr or result.stdout).strip().replace("\n", " ")[:600]
-        raise DeploymentError(f"web release validation failed: {' '.join(args[:2])}: {detail}")
+        raw = ((result.stdout or "") + "\n" + (result.stderr or "")).strip().replace("\r", " ").replace("\n", " ")
+        detail = raw if len(raw) <= 3800 else raw[:1900] + " ... " + raw[-1900:]
+        raise DeploymentError(f"web release validation failed: {' '.join(args[:2])}: {detail or 'no diagnostic output'}")
 
 
 def _sha256(path: Path) -> str:
@@ -94,13 +96,24 @@ def _normalize_web_source_line_endings(directory: Path) -> None:
 def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, object]:
     """Build an exact committed web tree; Node is never included in the result."""
     pnpm = shutil.which("pnpm")
+    if not pnpm and os.environ.get("PNPM_HOME"):
+        candidate = Path(os.environ["PNPM_HOME"]) / ("pnpm.cmd" if os.name == "nt" else "pnpm")
+        if candidate.is_file():
+            pnpm = str(candidate)
     if not pnpm:
         raise DeploymentError("pnpm 11.9.0 is required to build the static web release")
     # Node's package manager can briefly retain Windows handles in the
     # disposable archive.  A failed cleanup must not invalidate a completed
     # deterministic artifact or touch the source worktree.
+    # Keep the disposable web tree beside the isolated candidate checkout.
+    # Vitest/Vite resolve their virtual ``/@vite/env`` module through URL-like
+    # paths.  Windows can render the default user temporary root with an 8.3
+    # segment (for example ``RUNNER~1``), which Vite then fails to resolve.
+    # Candidate staging is an ignored, candidate-local workspace path and is
+    # therefore both isolated from the canonical checkout and safe for Vite.
     with tempfile.TemporaryDirectory(
         prefix="eoat-web-release-",
+        dir=root.parent,
         ignore_cleanup_errors=True,
     ) as temporary:
         source = Path(temporary) / "source"
@@ -173,6 +186,24 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
         if destination.exists():
             shutil.rmtree(destination)
         shutil.copytree(dist, destination)
+        # Release identity is a separately cache-controlled static document.
+        # It is generated from the same exact source commit as the bundle and
+        # lets the browser compare the web bytes with /release-status before
+        # normal API operations begin.
+        identity = {
+            "product_version": str(metadata.get("app_version") or metadata.get("application_version") or metadata.get("version") or ""),
+            "release_id": str(metadata.get("release_id") or ""),
+            "build_id": str(metadata.get("build_id") or ""),
+            "candidate_id": str(metadata.get("candidate_id") or "") or None,
+            "source_commit": str(metadata.get("source_git_commit") or metadata.get("source_commit") or ""),
+            "source_tree": str(metadata.get("source_tree") or "") or None,
+            "release_set_digest": str(metadata.get("release_set_digest") or "") or None,
+        }
+        if not all(identity[key] for key in ("product_version", "release_id", "build_id", "source_commit")):
+            raise DeploymentError("exact web build metadata lacks a safe release identity")
+        (destination / "release_identity.json").write_text(
+            json.dumps(identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
     manifest = {path.relative_to(destination).as_posix(): _sha256(path) for path in sorted(destination.rglob("*")) if path.is_file()}
     (destination / "web-static.manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return {"files": manifest, "manifest_sha256": _sha256(destination / "web-static.manifest.json")}

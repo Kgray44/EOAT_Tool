@@ -219,7 +219,9 @@ def test_successful_transaction_creates_previous_current_and_receipt(tmp_path: P
     assert not paths.lock.exists()
     assert json.loads((paths.receipts / "deploy-0001.json").read_text())["state"] == "COMPLETED"
     assert any(command[0] == "/usr/bin/chown" for command in runner.commands)
-    staged = next(call for call in runner.calls if any("EOAT_STAGE_RUNTIME_VALIDATION" in str(part) for part in call[0]))
+    staged = next(
+        call for call in runner.calls if any("EOAT_STAGE_RUNTIME_VALIDATION" in str(part) for part in call[0])
+    )
     assert staged[1]["cwd"].name.startswith(".staging-")
     assert staged[1]["env"]["EOAT_API_ENVIRONMENT"] == "production"
     assert staged[1]["env"]["EOAT_DB_PASSWORD"] == "never-display"
@@ -422,9 +424,7 @@ def test_identity_health_mismatch_rolls_back(tmp_path: Path) -> None:
 
 
 def test_failed_rollback_preserves_lock_and_requires_manual_intervention(tmp_path: Path) -> None:
-    paths, helper, request, _ = _staged(
-        tmp_path, runner=Runner(failures=("curl",) * (HEALTH_RETRY_ATTEMPTS * 2))
-    )
+    paths, helper, request, _ = _staged(tmp_path, runner=Runner(failures=("curl",) * (HEALTH_RETRY_ATTEMPTS * 2)))
     with pytest.raises(Rejected, match="manual intervention"):
         helper.activate({"deployment_id": request["deployment_id"]})
     assert helper.status({"deployment_id": request["deployment_id"]})["state"] == "MANUAL_INTERVENTION_REQUIRED"
@@ -465,3 +465,14 @@ def test_self_check_reports_root_side_checksum_without_exposing_the_file(tmp_pat
     assert payload["policy_version"] == 1
     assert len(payload["installed_file_sha256"]) == 64
     assert "self-check" in payload["operations"]
+
+
+def test_diagnose_is_fixed_shape_read_only_and_rejects_caller_selected_fields(tmp_path: Path) -> None:
+    helper = HarnessHelper(_paths(tmp_path), Runner())
+    payload = helper.dispatch({"operation": "diagnose"})
+    assert payload["schema_version"] == 1
+    assert payload["operation"] == "diagnose"
+    assert {"target", "active_release", "schema_revision", "helper", "transactions"} <= set(payload["facts"])
+    assert "EOAT_DB_PASSWORD" not in json.dumps(payload)
+    with pytest.raises(Rejected, match="unknown request fields"):
+        helper.dispatch({"operation": "diagnose", "command": "cat /etc/shadow"})

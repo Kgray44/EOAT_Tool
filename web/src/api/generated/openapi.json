@@ -9369,6 +9369,23 @@
         "summary": "Set Profile Photo Route"
       }
     },
+    "/api/v1/release-status": {
+      "get": {
+        "description": "Safe, authoritative active-release status for launchers and web clients.",
+        "operationId": "release_status_api_v1_release_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Release Status"
+      }
+    },
     "/api/v1/robots": {
       "get": {
         "operationId": "list_robots_api_v1_robots_get",

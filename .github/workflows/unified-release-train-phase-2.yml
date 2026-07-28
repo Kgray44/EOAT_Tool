@@ -1,0 +1,161 @@
+name: Unified Release Train Phase 2
+
+on:
+  push:
+    branches: [codex/unified-release-train]
+    paths:
+      - bootstrap/**
+      - launcher/**
+      - packaging/eoat_atlas_bootstrap_entry.py
+      - EOAT_Atlas_Bootstrap.spec
+      - scripts/build_bootstrap.py
+      - scripts/package_launcher_update.py
+      - installer/**
+      - deployment/convergence/cli.py
+      - release_tools_console/**
+      - tests/test_bootstrap_startup_chain.py
+      - .github/workflows/unified-release-train-phase-2.yml
+      - Development_Docs/EOAT_Unified_Release_Train_Phase_2_Implementation.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  bootstrap-model-policy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py
+  signed-launcher-manifest:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py
+  package-validation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py tests/test_signed_launcher_update.py
+  bootstrap-packaged-build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt -r requirements-build.lock
+      - run: python scripts/build_bootstrap.py
+      - run: '& "dist/bootstrap/EOAT Atlas Bootstrap.exe" --smoke-test --smoke-receipt "$env:RUNNER_TEMP/bootstrap-smoke.json"'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase-2-bootstrap-package
+          path: |
+            dist/bootstrap
+            ${{ runner.temp }}/bootstrap-smoke.json
+          if-no-files-found: error
+  launcher-packaged-fixtures:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt -r requirements-build.lock
+      - run: python scripts/build_launcher.py
+      - run: '& "dist/launcher/EOAT Atlas Launcher.exe" --smoke-test --smoke-receipt "$env:RUNNER_TEMP/launcher-smoke.json"'
+      - run: python scripts/package_launcher_update.py dist/launcher "$env:RUNNER_TEMP/launcher-update.zip" --smoke-receipt "$env:RUNNER_TEMP/launcher-smoke.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase-2-launcher-package
+          path: |
+            dist/launcher
+            ${{ runner.temp }}/launcher-smoke.json
+            ${{ runner.temp }}/launcher-update.zip
+          if-no-files-found: error
+  activation-rollback:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py
+  shortcut-migration:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m compileall -q bootstrap installer
+  installer-integration:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        run: powershell -NoProfile -Command "[void][scriptblock]::Create((Get-Content installer/Install_EOAT_Atlas.ps1 -Raw)); 'installer syntax PASS'"
+  offline-policy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py
+  cli-console-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python tools/eoat_release.py bootstrap --help
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py
+  black-box-windows-startup-chain:
+    needs: [bootstrap-packaged-build, launcher-packaged-fixtures]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_bootstrap_startup_chain.py
+  repository-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/repo_safety_audit.py
+  version-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python scripts/check_version_bump.py --base 170d9fb3d8f2ab2dabe6eb86ee7898ccbbd3a6ab
+  documentation-command-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python tools/eoat_release.py bootstrap --help
+      - run: python scripts/validate_documented_commands.py

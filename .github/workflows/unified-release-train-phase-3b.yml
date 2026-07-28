@@ -1,0 +1,69 @@
+name: Unified Release Train Phase 3B
+
+on:
+  push:
+    branches: [codex/unified-release-train]
+    paths:
+      - deployment/convergence/phase3b.py
+      - deployment/convergence/cli.py
+      - tests/test_phase_3b_channels.py
+      - .github/workflows/unified-release-train-phase-3b.yml
+      - Development_Docs/EOAT_Unified_Release_Train_Phase_3B_Implementation.md
+  workflow_dispatch:
+
+permissions: {contents: read}
+
+jobs:
+  channel-model: &python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase_3b_channels.py
+  signed-channel-manifests: *python
+  immutable-channel-history: *python
+  candidate-promotion: *python
+  canary-promotion: *python
+  stable-promotion: *python
+  channel-rollback: *python
+  cohort-policy: *python
+  Bootstrap-channel-consumption: *python
+  Launcher-desktop-channel-consumption: *python
+  observation-gates: *python
+  rollout-status-privacy: *python
+  production-publisher-adapter: *python
+  production-deployment-adapter: *python
+  change-package: *python
+  go-no-go-evaluator: *python
+  drift-scanner: *python
+  CLI-console-smoke: *python
+  black-box-disposable-promotion: *python
+  receipt-compatibility: *python
+  repository-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/repo_safety_audit.py
+  version-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python scripts/check_version_bump.py --base 170d9fb3d8f2ab2dabe6eb86ee7898ccbbd3a6ab
+  documentation-command-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m compileall -q deployment/convergence
+      - run: python -m ruff check deployment/convergence tests/test_phase_3b_channels.py

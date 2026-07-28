@@ -600,6 +600,25 @@ function Install-LauncherIfAvailable {
     }
 }
 
+function Install-BootstrapIfAvailable {
+    param(
+        [Parameter(Mandatory = $true)]$Config,
+        [Parameter(Mandatory = $true)][string]$ConfigDir,
+        [Parameter(Mandatory = $true)][string]$BootstrapInstallRoot
+    )
+    $mode = [string](Get-ConfigValue $Config "install_bootstrap" "required")
+    $sourceText = [string](Get-ConfigValue $Config "bootstrap_source_path" "")
+    $expectedExe = [string](Get-ConfigValue $Config "bootstrap_expected_exe_name" "EOAT Atlas Bootstrap.exe")
+    if ([string]::IsNullOrWhiteSpace($sourceText)) { Stop-WithError "Bootstrap install was required, but bootstrap_source_path is empty." }
+    $source = ConvertTo-FullPath $sourceText $ConfigDir
+    if (!(Test-Path -LiteralPath $source -PathType Leaf)) { Stop-WithError "Bootstrap source was not found: $source" }
+    New-Item -ItemType Directory -Force -Path $BootstrapInstallRoot | Out-Null
+    $target = Join-Path $BootstrapInstallRoot $expectedExe
+    Copy-Item -LiteralPath $source -Destination $target -Force
+    if (!(Test-Path -LiteralPath $target -PathType Leaf)) { Stop-WithError "Bootstrap staging verification failed: $target" }
+    return [ordered]@{ status = "installed"; bootstrap_install_path = $BootstrapInstallRoot; bootstrap_exe_path = $target; updated_at = (New-NowIso) }
+}
+
 function New-AppInstanceId {
     $machine = $env:COMPUTERNAME
     if ([string]::IsNullOrWhiteSpace($machine)) {
@@ -761,9 +780,14 @@ function Get-ShortcutTarget {
     param(
         [Parameter(Mandatory = $true)]$InstallState,
         [Parameter(Mandatory = $true)]$LauncherState,
+        [Parameter(Mandatory = $true)]$BootstrapState,
         [Parameter(Mandatory = $true)]$Config
     )
     $mode = [string](Get-ConfigValue $Config "shortcut_target_mode" "launcher_if_available_else_app")
+    if ($mode -eq "bootstrap") {
+        if ([string]$BootstrapState.status -ne "installed") { Stop-WithError "Shortcut mode requires bootstrap, but bootstrap is not installed." }
+        return [ordered]@{ target = [string]$BootstrapState.bootstrap_exe_path; working_directory = [string]$BootstrapState.bootstrap_install_path; icon = [string]$BootstrapState.bootstrap_exe_path; target_kind = "bootstrap" }
+    }
     if ($mode -eq "launcher" -and [string]$LauncherState.status -ne "installed") {
         Stop-WithError "Shortcut mode requires launcher, but launcher is not installed."
     }
@@ -933,7 +957,8 @@ try {
             launcher_install_path = $resolvedLauncherRoot
             launcher_exe_path = ""
         }
-        $dryShortcut = Get-ShortcutTarget $dryInstallState $dryLauncherState $config
+        $dryBootstrapState = [ordered]@{ status = "installed"; bootstrap_install_path = (Join-Path $resolvedRuntimeRoot "bootstrap"); bootstrap_exe_path = (Join-Path $resolvedRuntimeRoot "bootstrap\\EOAT Atlas Bootstrap.exe") }
+        $dryShortcut = Get-ShortcutTarget $dryInstallState $dryLauncherState $dryBootstrapState $config
         Ensure-RuntimeLayout $resolvedRuntimeRoot -WhatIfOnly
         Write-InstallLog "Dry run: would copy complete onedir release to $dryTarget using staging under $(Join-Path $resolvedAppVersionsRoot ".staging")"
         Write-InstallLog "Dry run: would create/update install identity at $(Join-Path $resolvedRuntimeRoot "install_identity.json")"
@@ -954,6 +979,7 @@ try {
         $installState = Install-AppRelease $resolvedSource $resolvedAppVersionsRoot $sourceSummary $config
         $stagingPathForCleanup = [string]$installState.staging_path
         $launcherState = Install-LauncherIfAvailable $config $configDir $resolvedLauncherRoot
+        $bootstrapState = Install-BootstrapIfAvailable $config $configDir (Join-Path $resolvedRuntimeRoot "bootstrap")
 
         $currentAppPath = Join-Path $resolvedRuntimeRoot "current_app.json"
         $currentLauncherPath = Join-Path $resolvedRuntimeRoot "current_launcher.json"
@@ -978,6 +1004,25 @@ try {
         }
         Write-JsonObject $currentAppPath $currentApp
         Write-JsonObject $currentLauncherPath $launcherState
+        if ([string]$launcherState.status -eq "installed") {
+            $launcherMetadataPath = Join-Path ([string]$launcherState.launcher_install_path) "launcher_release_metadata.json"
+            $launcherMetadata = Read-JsonObject $launcherMetadataPath
+            if ($null -eq $launcherMetadata -or [string]::IsNullOrWhiteSpace([string]$launcherMetadata.component_version)) {
+                Stop-WithError "Installed launcher metadata is missing or invalid: $launcherMetadataPath"
+            }
+            $pointer = [ordered]@{
+                version = [string]$launcherMetadata.component_version
+                release_id = [string]$launcherMetadata.release_id
+                build_id = [string]$launcherMetadata.build_id
+                source_commit = [string]$launcherMetadata.source_commit
+                source_tree = [string]$launcherMetadata.source_tree
+                path = [string]$launcherState.launcher_install_path
+                manifest_digest = "installer-provisioned"
+                activated_at = New-NowIso
+            }
+            Write-JsonObject (Join-Path $resolvedRuntimeRoot "active_launcher.json") $pointer
+            Write-JsonObject (Join-Path $resolvedRuntimeRoot "last_known_good_launcher.json") $pointer
+        }
 
         $identity = Update-InstallIdentity $identityPath $config $sourceSummary $installState $launcherState $resolvedInstallRoot $resolvedRuntimeRoot
         $globalConfig = Update-GlobalConfig $globalConfigPath $config $sourceSummary $installState $launcherState $identity $resolvedRuntimeRoot
@@ -986,7 +1031,7 @@ try {
         if (!$shortcutConfigValue) {
             Write-InstallLog "Config create_desktop_shortcut is false, but EOAT Atlas installer policy requires the current-user Desktop shortcut. Creating it anyway." "WARN"
         }
-        $shortcutTarget = Get-ShortcutTarget $installState $launcherState $config
+        $shortcutTarget = Get-ShortcutTarget $installState $launcherState $bootstrapState $config
         Set-DesktopShortcut $shortcutPath $shortcutTarget
         Write-InstallLog "Desktop shortcut updated: $shortcutPath -> $($shortcutTarget.target) [$($shortcutTarget.target_kind)]"
 
@@ -1002,6 +1047,7 @@ try {
             runtime_root = $resolvedRuntimeRoot
             app = $currentApp
             launcher = $launcherState
+            bootstrap = $bootstrapState
             shortcut = [ordered]@{
                 shortcut_path = $shortcutPath
                 target = [string]$shortcutTarget.target

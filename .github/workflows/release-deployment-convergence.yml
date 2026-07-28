@@ -1,0 +1,159 @@
+name: Release Deployment Convergence
+
+on:
+  pull_request:
+    paths:
+      - deployment/**
+      - release_tools_console/**
+      - tools/eoat_release.py
+      - tools/release_deployment_console.py
+      - tests/test_release_deployment_convergence.py
+      - .github/workflows/release-deployment-convergence.yml
+  push:
+    branches: [main, "codex/**"]
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+  QT_QPA_PLATFORM: offscreen
+
+jobs:
+  release-domain-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py tests/test_release_system.py
+
+  release-candidate-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_propagation.py tests/test_release_readiness.py tests/test_server_release_builder.py
+
+  release-publication-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py -k publication
+
+  deployment-inspection-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_deployment_system.py tests/test_phase3_client.py
+
+  privileged-helper-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_phase3_privileged_helper.py tests/test_privileged_archive_line_endings.py
+
+  release-console-ui-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py
+      - run: python -c "from release_tools_console.app import ReleaseDeploymentConsole; print(ReleaseDeploymentConsole.__name__)"
+
+  release-workflow-blackbox:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py tests/test_deployment_system.py
+
+  disposable-mysql84-rollback:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: disposable-root-password
+          MYSQL_DATABASE: eoat_disposable
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pdisposable-root-password"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      EOAT_DISPOSABLE_MYSQL: "1"
+      EOAT_MYSQL_HOST: 127.0.0.1
+      EOAT_MYSQL_PORT: "3306"
+      EOAT_MYSQL_USER: root
+      EOAT_MYSQL_PASSWORD: disposable-root-password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_release_deployment_convergence.py -k disposable
+
+  full-nonintegration-regression:
+    # The complete application suite includes Windows installer-path and
+    # Windows font assertions. Linux helper coverage remains a separate job.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests --ignore=tests/integration
+
+  web-pinned-validation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - uses: actions/setup-node@v4
+        # setup-node resolves a pnpm cache before Corepack can activate the
+        # repository-pinned pnpm.  Activate first; correctness beats cache use.
+        with: {node-version: "22.13.0"}
+      # Use the exact package.json-pinned pnpm without relying on Node's
+      # bundled Corepack signing-key snapshot.
+      - uses: pnpm/action-setup@v4
+        with: {version: "11.9.0", run_install: false}
+      - working-directory: web
+        run: |
+          if ((pnpm --version) -ne "11.9.0") { throw "pnpm 11.9.0 is required" }
+          pnpm install --frozen-lockfile
+          pnpm run api:check
+          pnpm run format:check
+          pnpm run lint
+          pnpm run typecheck
+          pnpm test
+          pnpm exec playwright install chromium
+          pnpm run test:e2e
+          pnpm run build
+
+  documentation-command-validation:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12", cache: pip}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python tools/eoat_release.py --help
+      - run: python scripts/validate_documented_commands.py

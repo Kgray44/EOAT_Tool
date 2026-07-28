@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import os
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +25,51 @@ from .repair import RepairService
 from .ui import Notifier
 
 
+def _signed_release_source(config: Any) -> str:
+    return config.releaseSetManifestUrl or config.releaseSetManifestPath
+
+
+def _read_signed_release_set(source: str) -> dict[str, Any]:
+    if source.casefold().startswith(("http://", "https://")):
+        with urllib.request.urlopen(source, timeout=15) as response:
+            raw = response.read().decode("utf-8")
+    else:
+        raw = Path(source).read_text(encoding="utf-8-sig")
+    value = json.loads(raw)
+    if not isinstance(value, dict):
+        raise ValueError("signed release-set manifest must be a JSON object")
+    return value
+
+
+def _signed_transport_root(source: str, config: Any) -> str:
+    if config.releaseArtifactTransport:
+        return config.releaseArtifactTransport
+    if source.casefold().startswith(("http://", "https://")):
+        return source.rsplit("/", 1)[0]
+    return str(Path(source).parent)
+
+
+def _install_approved_update(config: Any, diagnostics: DiagnosticsWriter) -> Path | None:
+    source = _signed_release_source(config)
+    if not source:
+        return None
+    from release_tools.launcher import install_signed_release_set
+
+    root = Path(
+        os.environ.get("EOAT_ATLAS_INSTALL_ROOT")
+        or Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "EOAT_Atlas"
+    )
+    target = install_signed_release_set(
+        _read_signed_release_set(source),
+        transport_root=_signed_transport_root(source, config),
+        root=root,
+        trusted_public_keys=config.trustedManifestKeys,
+        revoked_key_ids=set(config.revokedManifestKeyIds),
+    )
+    diagnostics.log_event("signed_release_set_activated", manifestSource=source, target=str(target))
+    return target
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Safely start EOAT Atlas.")
     parser.add_argument("--version", action="version", version=f"{LAUNCHER_NAME} {LAUNCHER_VERSION}")
@@ -32,6 +82,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--verbose", action="store_true", help="Write extra diagnostics to the launcher log.")
     parser.add_argument("--config", default="", help="Use a specific launcher config file.")
     parser.add_argument("--no-ui", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--smoke-receipt", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--startup-health-receipt", default="", help=argparse.SUPPRESS)
     return parser
 
 
@@ -41,6 +94,15 @@ def main(argv: list[str] | None = None) -> int:
     diagnostics = DiagnosticsWriter(default_log_dir(), verbose=bool(args.verbose))
     notifier = Notifier(no_ui=bool(args.no_ui or args.diagnostics or args.check_only))
     loader = ConfigLoader(config_path)
+
+    if args.smoke_test:
+        return _write_smoke_receipt(Path(args.smoke_receipt) if args.smoke_receipt else None)
+
+    # Bootstrap uses this bounded, machine-readable acknowledgement before it
+    # trusts a newly activated launcher.  It intentionally performs no desktop
+    # application launch and no network access.
+    if args.startup_health_receipt:
+        return _write_startup_health_receipt(Path(args.startup_health_receipt), loader)
 
     if args.open_logs:
         ok = diagnostics.open_logs()
@@ -58,6 +120,67 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     return _run_launch_flow(args, loader, diagnostics, notifier)
+
+
+def _write_smoke_receipt(path: Path | None) -> int:
+    """Run a real packaged entry-point smoke without touching user config."""
+
+    if not path:
+        return 2
+    executable = Path(os.sys.executable)
+    digest = ""
+    if executable.is_file():
+        hasher = hashlib.sha256()
+        with executable.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(block)
+        digest = hasher.hexdigest()
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "component_kind": "launcher",
+                "candidate_id": os.environ.get("EOAT_RELEASE_CANDIDATE_ID", ""),
+                "product_version": os.environ.get("EOAT_RELEASE_PRODUCT_VERSION", ""),
+                "release_id": os.environ.get("EOAT_RELEASE_RELEASE_ID", ""),
+                "build_id": os.environ.get("EOAT_RELEASE_BUILD_ID", ""),
+                "source_commit": os.environ.get("EOAT_RELEASE_SOURCE_COMMIT", ""),
+                "source_tree": os.environ.get("EOAT_RELEASE_SOURCE_TREE", ""),
+                "executable_locator": "EOAT Atlas Launcher.exe",
+                "executable_sha256": digest,
+                "package_sha256": os.environ.get("EOAT_RELEASE_PACKAGE_SHA256", ""),
+                "started_at_utc": now,
+                "completed_at_utc": now,
+                "status": "PASS",
+                "checks": ["authoritative-launcher-entry", "signed-update-path", "clean-exit"],
+                "failure_category": "",
+                "diagnostics": "",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return 0
+
+
+def _write_startup_health_receipt(path: Path, loader: ConfigLoader) -> int:
+    loaded = loader.load(create_if_missing=True)
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    payload = {
+        "schema_version": 1,
+        "component_kind": "launcher",
+        "component_version": LAUNCHER_VERSION,
+        "status": "PASS" if not loaded.corrupt else "FAILED",
+        "checks": ["configuration-load", "desktop-resolution-policy", "update-service-initialization"],
+        "failure_category": "config_corrupt" if loaded.corrupt else "",
+        "completed_at_utc": now,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    return 0 if payload["status"] == "PASS" else 1
 
 
 def _run_launch_flow(
@@ -79,12 +202,19 @@ def _run_launch_flow(
 
     resolver = PathResolver(config, loader)
     resolved = resolver.resolve(override_app_path=args.app_path or None)
+    signed_update_error = ""
+    if not args.no_update_check and not args.app_path and _signed_release_source(config):
+        try:
+            updated_root = _install_approved_update(config, diagnostics)
+            if updated_root is not None:
+                resolved = resolver.resolve(override_app_path=updated_root)
+        except Exception as exc:
+            signed_update_error = str(exc)
+            diagnostics.log_event("signed_release_set_update_failed", error=signed_update_error)
     version = VersionReader().read(resolved.install_path) if resolved.found else None
     resources = ResourceChecker(config).check()
     update_result = (
-        UpdateChecker(config).check(version, install_path=resolved.install_path)
-        if not args.no_update_check
-        else None
+        UpdateChecker(config).check(version, install_path=resolved.install_path) if not args.no_update_check else None
     )
 
     diagnostics.log_event(
@@ -113,6 +243,13 @@ def _run_launch_flow(
 
     if load_result.corrupt:
         diagnostics.log_event("config_corrupt_using_defaults", error=load_result.error)
+    if signed_update_error:
+        notifier.error(
+            "EOAT Atlas update required",
+            "The approved EOAT Atlas update could not be validated or activated. "
+            f"No ordinary launch was attempted.\n\nDiagnostics: {diagnostics.log_path}",
+        )
+        return 1
     if not resolved.found:
         return _show_error_with_retry(
             args,
@@ -212,7 +349,9 @@ def _show_error_with_retry(
     return 1
 
 
-def _diagnostic_sections(load_result: Any, resolved: Any, version: Any, resources: Any, update_result: Any) -> dict[str, Any]:
+def _diagnostic_sections(
+    load_result: Any, resolved: Any, version: Any, resources: Any, update_result: Any
+) -> dict[str, Any]:
     return {
         "Config": {
             "path": str(load_result.path),

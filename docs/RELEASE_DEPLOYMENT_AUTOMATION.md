@@ -1,5 +1,10 @@
 # EOAT Atlas release packaging and deployment preflight
 
+> **Superseded operator model.** This document records the historical phased
+> implementation. Use [Release and Deployment Console](RELEASE_DEPLOYMENT_CONSOLE.md)
+> for the current capability-based workflow. Historical phase language below
+> does not describe the current console or unified CLI.
+
 This is the Phase 1/2 release foundation plus the Phase 3 controlled deployment
 client.  It deliberately separates a GitHub-published, immutable release
 package from an explicit, separately authorized server activation.

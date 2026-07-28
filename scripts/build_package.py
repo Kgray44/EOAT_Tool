@@ -33,16 +33,51 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _candidate_build_timestamp() -> datetime:
+    """Return the candidate's declared build time, never a later package time.
+
+    A package is a component of an already-created candidate release identity.
+    Replacing only its build ID while retaining a fresh timestamp creates an
+    internally inconsistent release-metadata tuple that frozen applications
+    correctly reject at startup.
+    """
+
+    value = os.getenv("EOAT_RELEASE_BUILD_TIMESTAMP", "").strip()
+    if not value:
+        return datetime.now(timezone.utc).replace(microsecond=0)
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise RuntimeError("EOAT_RELEASE_BUILD_TIMESTAMP must use YYYY-MM-DDTHH:MM:SSZ") from exc
+
+
 def _generated_build_metadata() -> Path:
     dirty = _git("status", "--porcelain")
     if dirty and os.getenv("EOAT_ATLAS_ALLOW_DIRTY_BUILD") != "1":
         raise RuntimeError("Refusing to package a dirty tracked tree; exact source provenance would be ambiguous.")
-    commit = os.getenv("GITHUB_SHA") or _git("rev-parse", "HEAD")
+    actual_commit = _git("rev-parse", "HEAD")
+    expected_commit = os.getenv("EOAT_RELEASE_SOURCE_COMMIT", "").strip()
+    if expected_commit and actual_commit.lower() != expected_commit.lower():
+        raise RuntimeError("packaging checkout does not match EOAT_RELEASE_SOURCE_COMMIT")
+    commit = expected_commit or os.getenv("GITHUB_SHA") or actual_commit
     branch = os.getenv("GITHUB_REF_NAME") or _git("branch", "--show-current")
-    timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+    timestamp = _candidate_build_timestamp()
     run_id = os.getenv("GITHUB_RUN_ID") or f"local-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
     payload = generate_release_metadata(ROOT, commit, branch_name=branch, build_timestamp=timestamp)
-    payload.update({"ci_run_id": run_id, "build_run_id": run_id, "dirty_tree": False, "artifact_sha256": None})
+    expected_release_id = os.getenv("EOAT_RELEASE_RELEASE_ID", "").strip()
+    expected_build_id = os.getenv("EOAT_RELEASE_BUILD_ID", "").strip()
+    if expected_release_id and payload.get("release_id") != expected_release_id:
+        raise RuntimeError("candidate release ID does not match generated package metadata")
+    if expected_build_id and payload.get("build_id") != expected_build_id:
+        raise RuntimeError("candidate build ID does not match generated package metadata")
+    payload.update({
+        "ci_run_id": run_id,
+        "build_run_id": run_id,
+        "dirty_tree": False,
+        "artifact_sha256": None,
+        "candidate_id": os.getenv("EOAT_RELEASE_CANDIDATE_ID", ""),
+        "source_tree": os.getenv("EOAT_RELEASE_SOURCE_TREE", ""),
+    })
     destination = ROOT / "build" / "release_metadata.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")

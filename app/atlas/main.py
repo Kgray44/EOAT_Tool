@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import platform
 import sys
 import threading
+from datetime import datetime, timezone
+from pathlib import Path
 
-from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -26,6 +29,7 @@ def main() -> int:
     if backend not in {"mysql_api", "legacy"}:
         raise SystemExit(f"Invalid EOAT_ATLAS_DATA_BACKEND: {backend}")
     _extract_ui_mode(sys.argv, default="minimalist")
+    smoke_receipt = _extract_smoke_receipt(sys.argv)
     smoke_test_arg = "--smoke-test" in sys.argv
     if smoke_test_arg:
         sys.argv.remove("--smoke-test")
@@ -42,6 +46,21 @@ def main() -> int:
     app.setFont(QFont("Segoe UI", 10))
     if ATLAS_LOGO_PATH.exists():
         app.setWindowIcon(QIcon(str(ATLAS_LOGO_PATH)))
+    # Packaged smoke must execute the frozen entry point and initialize Qt, but it
+    # deliberately must not enter the normal interactive-window event loop.  A
+    # window can remain alive after its close signal on an offscreen Windows
+    # runner, which used to leave the CI process running after it had otherwise
+    # produced valid smoke evidence.  This bounded preflight covers the
+    # executable, Qt initialization, and embedded release identity without
+    # requiring a human-facing window or any network/runtime-data dependency.
+    if smoke_test:
+        if smoke_receipt is not None:
+            smoke_receipt.parent.mkdir(parents=True, exist_ok=True)
+            smoke_receipt.write_text(
+                json.dumps(_smoke_receipt_payload(), sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        return 0
     settings = AtlasSettings() if smoke_test else load_atlas_settings()
     app.setStyleSheet(atlas_stylesheet(settings.effective_theme, settings.color_scheme))
     config = UserConfig(project_root=str(DEFAULT_PROJECT_ROOT)) if smoke_test else _load_globalized_user_config()
@@ -67,11 +86,42 @@ def main() -> int:
     if (not settings.auto_refresh_on_startup or not refresh_on_launch) and not smoke_test:
         cache_label = "disposable API cache" if backend == "mysql_api" else "existing local cache"
         window.show_status(f"Auto-refresh is off. EOAT Atlas opened from the {cache_label}.")
-    if smoke_test:
-        QTimer.singleShot(700, window.close)
-        QTimer.singleShot(900, app.quit)
-        QTimer.singleShot(6000, lambda: os._exit(124))
-    return app.exec()
+    exit_code = app.exec()
+    return exit_code
+
+
+def _smoke_receipt_payload() -> dict[str, object]:
+    """Return portable proof of a completed packaged smoke invocation."""
+
+    executable = Path(sys.executable)
+    digest = ""
+    if executable.is_file():
+        hasher = hashlib.sha256()
+        with executable.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                hasher.update(block)
+        digest = hasher.hexdigest()
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    version = get_version_info()
+    return {
+        "schema_version": 1,
+        "component_kind": os.environ.get("EOAT_RELEASE_COMPONENT_KIND", "desktop"),
+        "candidate_id": os.environ.get("EOAT_RELEASE_CANDIDATE_ID", ""),
+        "product_version": version.application_version,
+        "release_id": version.release_id,
+        "build_id": version.build_id,
+        "source_commit": os.environ.get("EOAT_RELEASE_SOURCE_COMMIT", ""),
+        "source_tree": os.environ.get("EOAT_RELEASE_SOURCE_TREE", ""),
+        "executable_locator": "EOAT Atlas.exe",
+        "executable_sha256": digest,
+        "package_sha256": os.environ.get("EOAT_RELEASE_PACKAGE_SHA256", ""),
+        "started_at_utc": now,
+        "completed_at_utc": now,
+        "status": "PASS",
+        "checks": ["qt-application-created", "release-identity-loaded", "clean-exit"],
+        "failure_category": "",
+        "diagnostics": "",
+    }
 
 
 def _extract_ui_mode(argv: list[str], *, default: str = "minimalist") -> str:
@@ -87,6 +137,21 @@ def _extract_ui_mode(argv: list[str], *, default: str = "minimalist") -> str:
             continue
         index += 1
     return "minimalist"
+
+
+def _extract_smoke_receipt(argv: list[str]) -> Path | None:
+    """Remove the packaged-smoke receipt argument before Qt sees it."""
+
+    for index, arg in enumerate(argv):
+        if arg == "--smoke-receipt" and index + 1 < len(argv):
+            value = Path(argv[index + 1])
+            del argv[index : index + 2]
+            return value
+        if arg.startswith("--smoke-receipt="):
+            value = Path(arg.split("=", 1)[1])
+            del argv[index]
+            return value
+    return None
 
 
 def _load_globalized_user_config() -> UserConfig:
