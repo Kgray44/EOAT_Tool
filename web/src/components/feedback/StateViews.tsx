@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { apiErrorMessage, ApiError } from "@/api/errors";
+import { presentationText } from "@/api/presentation";
 
 export function LoadingState({
   label = "Loading EOAT Atlas status…",
@@ -59,8 +60,8 @@ export function NotFoundState({
     <section className="state" aria-labelledby="not-found-title">
       <h2 id="not-found-title">{entityName} not found</h2>
       <p>
-        EOAT Atlas did not find <code>{identifier}</code>. Check the QR link or
-        identifier and try again.
+        EOAT Atlas did not find <code>{presentationText(identifier)}</code>.
+        Check the QR link or identifier and try again.
       </p>
     </section>
   );
@@ -73,5 +74,5 @@ export function StatusValue({
 }) {
   if (value === null || value === undefined || value === "")
     return <span>Unknown / unavailable</span>;
-  return <span>{String(value)}</span>;
+  return <span>{presentationText(value)}</span>;
 }

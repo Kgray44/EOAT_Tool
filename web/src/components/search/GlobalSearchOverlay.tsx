@@ -4,11 +4,15 @@ import { useNavigate } from "react-router-dom";
 import { apiClient, type SearchResult } from "@/api/client";
 import { entityPath, type EntityCategory } from "@/api/routes";
 import { readRecentItems, rememberItem } from "@/api/recent";
+import {
+  isRoutableAuthoritativeIdentifier,
+  presentationText,
+} from "@/api/presentation";
 
 type Props = { open: boolean; initialQuery: string; onClose: () => void };
 
 function resultLabel(result: SearchResult) {
-  return `${result.category}: ${result.title} ${result.identifier}`;
+  return `${result.category}: ${presentationText(result.title)} ${presentationText(result.identifier)}`;
 }
 
 export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
@@ -40,7 +44,9 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
     return () => window.clearTimeout(timer);
   }, [open, query]);
 
-  const results = search.data || [];
+  const results = (search.data || []).filter((result) =>
+    isRoutableAuthoritativeIdentifier(result.identifier),
+  );
   const resultIdentity = results
     .map((result) => `${result.category}:${result.identifier}`)
     .join("|");
@@ -55,11 +61,13 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
       label: result.title || result.identifier,
     });
     onClose();
-    navigate(entityPath(category, result.identifier));
+    const path = entityPath(category, result.identifier);
+    if (path) navigate(path);
   };
   const openRecent = (category: EntityCategory, identifier: string) => {
     onClose();
-    navigate(entityPath(category, identifier));
+    const path = entityPath(category, identifier);
+    if (path) navigate(path);
   };
   const openHighlightedOrExact = () => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -176,8 +184,12 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
                       : "◉"}
                 </span>
                 <span>
-                  <strong>{result.title || result.identifier}</strong>
-                  <small>{result.subtitle || result.identifier}</small>
+                  <strong>
+                    {presentationText(result.title || result.identifier)}
+                  </strong>
+                  <small>
+                    {presentationText(result.subtitle || result.identifier)}
+                  </small>
                 </span>
                 <em>{result.category}</em>
                 <span className="visually-hidden">{resultLabel(result)}</span>

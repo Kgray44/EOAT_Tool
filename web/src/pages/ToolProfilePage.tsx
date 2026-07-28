@@ -22,6 +22,7 @@ import {
   RelationshipList,
 } from "@/components/profile/ProfileBlocks";
 import { QrLabel } from "@/components/qr/QrLabel";
+import { presentationText } from "@/api/presentation";
 
 function Retry({ retry }: { retry: () => void }) {
   return (
@@ -119,7 +120,7 @@ function ToolContent({
           </dl>
           {profile.notes && (
             <p className="notes">
-              <strong>Notes:</strong> {profile.notes}
+              <strong>Notes:</strong> {presentationText(profile.notes)}
             </p>
           )}
         </ProfileSection>

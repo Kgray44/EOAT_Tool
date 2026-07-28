@@ -4,6 +4,10 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { apiClient, type SearchResult } from "@/api/client";
 import { entityPath, type EntityCategory } from "@/api/routes";
 import {
+  isRoutableAuthoritativeIdentifier,
+  presentationText,
+} from "@/api/presentation";
+import {
   readRecentItems,
   removeRecentItem,
   type RecentItem,
@@ -29,10 +33,12 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
     "subtitle" in result
       ? result.subtitle
       : new Date(result.viewedAt).toLocaleDateString();
+  const path = entityPath(category, result.identifier);
+  if (!path) return null;
   return (
     <Link
       className="result-card"
-      to={entityPath(category, result.identifier)}
+      to={path}
       state={{
         libraryContext: captureLibraryContext(location, result.identifier),
       }}
@@ -45,11 +51,11 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
       </span>
       <span className="result-card__body">
         <small className="result-card__status">In Service</small>
-        <strong>{title}</strong>
+        <strong>{presentationText(title)}</strong>
         <span>{category === "eoat" ? "Vacuum" : category}</span>
       </span>
       <small>
-        {result.identifier}
+        {presentationText(result.identifier)}
         {subtitle ? ` · ${subtitle}` : ""}
       </small>
     </Link>
@@ -99,7 +105,9 @@ export function LibraryPage() {
   const results = useMemo(
     () =>
       (search.data || []).filter(
-        (result) => filter === "all" || result.category === filter,
+        (result) =>
+          (filter === "all" || result.category === filter) &&
+          isRoutableAuthoritativeIdentifier(result.identifier),
       ),
     [filter, search.data],
   );

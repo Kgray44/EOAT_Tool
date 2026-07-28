@@ -1,3 +1,4 @@
+import { isRoutableAuthoritativeIdentifier } from "@/api/presentation";
 import type { EntityCategory } from "@/api/routes";
 
 export type RecentItem = {
@@ -17,7 +18,12 @@ export function readRecentItems(): RecentItem[] {
       ? value
           .filter(
             (item): item is RecentItem =>
-              !!item && typeof item === "object" && "identifier" in item,
+              !!item &&
+              typeof item === "object" &&
+              "identifier" in item &&
+              isRoutableAuthoritativeIdentifier(
+                (item as { identifier?: unknown }).identifier,
+              ),
           )
           .slice(0, limit)
       : [];
@@ -27,6 +33,8 @@ export function readRecentItems(): RecentItem[] {
 }
 
 export function rememberItem(item: Omit<RecentItem, "viewedAt">): RecentItem[] {
+  if (!isRoutableAuthoritativeIdentifier(item.identifier))
+    return readRecentItems();
   const next = [
     { ...item, viewedAt: new Date().toISOString() },
     ...readRecentItems().filter(

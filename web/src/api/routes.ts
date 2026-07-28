@@ -1,4 +1,5 @@
 export type EntityCategory = "eoat" | "machine" | "tool";
+import { isRoutableAuthoritativeIdentifier } from "./presentation";
 
 const prefixes: Record<EntityCategory, string> = {
   eoat: "/eoats/",
@@ -9,7 +10,8 @@ const prefixes: Record<EntityCategory, string> = {
 export function entityPath(
   category: EntityCategory,
   identifier: string,
-): string {
+): string | undefined {
+  if (!isRoutableAuthoritativeIdentifier(identifier)) return undefined;
   return `${prefixes[category]}${encodeURIComponent(identifier)}`;
 }
 
@@ -21,7 +23,10 @@ export function decodeRouteIdentifier(
   if (!encoded) return undefined;
   try {
     const decoded = decodeURIComponent(encoded);
-    return decoded && !decoded.includes("/") && !decoded.includes("\\")
+    return decoded &&
+      !decoded.includes("/") &&
+      !decoded.includes("\\") &&
+      isRoutableAuthoritativeIdentifier(decoded)
       ? decoded
       : undefined;
   } catch {

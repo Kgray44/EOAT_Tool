@@ -1,4 +1,8 @@
 import type { EoatRelationship } from "@/api/client";
+import {
+  isRoutableAuthoritativeIdentifier,
+  presentationText,
+} from "@/api/presentation";
 
 export function relationshipTypeLabel(value: string): string {
   return value.toLocaleLowerCase() === "eoat"
@@ -13,8 +17,12 @@ function comparableRelationshipText(value: string): string {
 export function relationshipDisplayLabel(
   relationship: EoatRelationship,
 ): string {
-  const identifier = relationship.identifier.trim();
-  const displayName = relationship.display_name?.trim();
+  const identifier = presentationText(relationship.identifier);
+  const displayName =
+    relationship.display_name &&
+    isRoutableAuthoritativeIdentifier(relationship.display_name)
+      ? relationship.display_name.trim()
+      : undefined;
   const typeAndIdentifier = `${relationshipTypeLabel(relationship.relationship_type)} ${identifier}`;
   if (
     !displayName ||
@@ -33,6 +41,8 @@ export function deduplicateRelationships(
 ): EoatRelationship[] {
   const seen = new Set<string>();
   return relationships.filter((relationship) => {
+    if (!isRoutableAuthoritativeIdentifier(relationship.identifier))
+      return false;
     const identity = `${relationship.relationship_type}\u0000${relationship.identifier}`;
     if (seen.has(identity)) return false;
     seen.add(identity);
