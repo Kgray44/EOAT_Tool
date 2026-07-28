@@ -1370,7 +1370,22 @@ class ReleaseDeploymentService:
             )
         except DeploymentError as exc:
             publication_id = f"publication-{candidate_id}"
-            record = self.store.read("publication", publication_id)
+            # A failure before the first durable publication checkpoint (for
+            # example an invalid disposable remote) must remain truthful and
+            # must not mask the original diagnostic by assuming a receipt was
+            # already written.
+            try:
+                record = self.store.read("publication", publication_id)
+            except DeploymentError:
+                record = {
+                    "schema_version": 2,
+                    "publication_id": publication_id,
+                    "candidate_id": candidate_id,
+                    "state": "FAILED_RECOVERABLE",
+                    "failure": redact_text(str(exc)),
+                    "next_safe_action": "Correct the disposable backend and resume publication.",
+                }
+                self.store.write("publication", publication_id, record)
             return OperationResult(Status.BLOCKED, "Disposable publication stopped without unsafe rollback.", str(record.get("next_safe_action")), (Diagnostic("publication", Status.BLOCKED, redact_text(str(exc))),), {"publication": record})
         return OperationResult(Status.PASS, "Complete immutable release set published to the disposable backend.", str(record.get("next_safe_action")), data={"publication": record})
 

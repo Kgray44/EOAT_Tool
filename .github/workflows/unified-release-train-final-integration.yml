@@ -213,8 +213,16 @@ jobs:
           python tools/eoat_release.py candidate verify-for-sealing $id
           python tools/eoat_release.py candidate seal-release-set $id --confirm "SEAL $id"
           python tools/eoat_release.py candidate verify-sealed-release-set $id
-          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/disposable-remote", "$env:RUNNER_TEMP/disposable-registry" | Out-Null
-          python tools/eoat_release.py publish start-disposable $id --remote "$env:RUNNER_TEMP/disposable-remote" --registry "$env:RUNNER_TEMP/disposable-registry" --confirm "PUBLISH $id"
+          $remote = Join-Path $env:RUNNER_TEMP 'disposable-remote.git'
+          $registry = Join-Path $env:RUNNER_TEMP 'disposable-registry'
+          $source = Join-Path $env:RUNNER_TEMP 'disposable-publication-source'
+          git init --bare $remote
+          git clone --no-local $PWD $source
+          git -C $source remote set-url origin $remote
+          Copy-Item -LiteralPath '.local' -Destination (Join-Path $source '.local') -Recurse
+          Push-Location $source
+          python tools/eoat_release.py publish start-disposable $id --remote $remote --registry $registry --confirm "PUBLISH $id"
+          Pop-Location
           Remove-Item -LiteralPath $env:EOAT_RELEASE_TEST_PRIVATE_KEY_FILE -Force
       - if: always()
         uses: actions/upload-artifact@v4
