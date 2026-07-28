@@ -90,6 +90,7 @@ from .sealing import (
     revalidate_candidate,
     seal_candidate,
     signing_material_from_environment,
+    trust_material_for_signature_key,
     trust_material_from_environment,
     verify_signed_release_set,
 )
@@ -1195,8 +1196,8 @@ class ReleaseDeploymentService:
         manifest = read_json_object(candidate_root / str(receipt["release_set_manifest_path"]))
         signature_record = dict(receipt.get("release_set_signature") or {})
         signature = read_json_object(candidate_root / str(signature_record.get("path") or ""))
-        trusted, revoked = trust_material_from_environment()
         key_id = str(signature.get("key_id") or "")
+        trusted, revoked = trust_material_for_signature_key(key_id)
         if key_id not in trusted:
             raise DeploymentError("sealed signature key is not in the configured trust set")
         verify_signed_release_set(

@@ -124,6 +124,12 @@ Copy-Item -LiteralPath (Join-Path $scriptDir "Install_EOAT_Atlas.ps1") -Destinat
 Copy-Item -LiteralPath (Join-Path $scriptDir "Uninstall_EOAT_Atlas.ps1") -Destination $distDir -Force
 Copy-Item -LiteralPath (Join-Path $scriptDir "installer_config.json") -Destination $distDir -Force
 $repositoryRoot = Split-Path -Parent $scriptDir
+$trustPolicy = Join-Path $repositoryRoot "release_trust\production_manifest_keys.json"
+if (!(Test-Path -LiteralPath $trustPolicy)) {
+    throw "The governed production manifest trust policy is required for installer packaging."
+}
+New-Item -ItemType Directory -Force -Path (Join-Path $distDir "release_trust") | Out-Null
+Copy-Item -LiteralPath $trustPolicy -Destination (Join-Path $distDir "release_trust\production_manifest_keys.json") -Force
 $appSource = Join-Path $repositoryRoot "dist\EOAT Atlas"
 $launcherSource = Join-Path $repositoryRoot "dist\launcher"
 if (!(Test-Path -LiteralPath (Join-Path $appSource "EOAT Atlas.exe"))) {

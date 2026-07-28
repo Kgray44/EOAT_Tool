@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 
 from . import BOOTSTRAP_NAME, BOOTSTRAP_VERSION
@@ -16,10 +17,31 @@ def _root(value: str) -> Path:
     )
 
 
+def _packaged_trusted_keys() -> dict[str, str]:
+    """Load the signed-manifest public policy bundled with Bootstrap."""
+
+    bundle_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+    path = bundle_root / "release_trust" / "production_manifest_keys.json"
+    try:
+        policy = json.loads(path.read_text(encoding="utf-8"))
+        if policy.get("schema_version") != 1 or policy.get("environment") != "PRODUCTION":
+            raise ValueError("unsupported policy")
+        keys = {
+            str(item["key_id"]): str(item["public_key"])
+            for item in policy.get("keys", [])
+            if isinstance(item, dict) and item.get("status") == "ACTIVE" and not item.get("revoked")
+        }
+        if not keys or set(policy.get("active_key_ids", [])) != set(keys):
+            raise ValueError("invalid active keys")
+        return keys
+    except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise BootstrapError("packaged production trust policy is unavailable or malformed") from exc
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=f"{BOOTSTRAP_NAME} {BOOTSTRAP_VERSION}")
     parser.add_argument("--root", default=os.environ.get("EOAT_ATLAS_INSTALL_ROOT", ""))
-    parser.add_argument("--trusted-keys", default=os.environ.get("EOAT_BOOTSTRAP_TRUSTED_KEYS", "{}"))
+    parser.add_argument("--trusted-keys", default="", help="Non-production test-only trusted key JSON")
     parser.add_argument("--status", action="store_true")
     parser.add_argument("--diagnostics", action="store_true")
     parser.add_argument("--smoke-test", action="store_true")
@@ -30,8 +52,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = _root(args.root)
     try:
-        keys = json.loads(args.trusted_keys)
-        service = BootstrapService(root, trusted_public_keys=keys if isinstance(keys, dict) else {})
+        keys = _packaged_trusted_keys()
+        if args.trusted_keys:
+            if os.environ.get("EOAT_ATLAS_NON_PRODUCTION_TEST_CONTEXT") != "1":
+                raise BootstrapError("trusted-key overrides are forbidden outside explicit non-production tests")
+            supplied = json.loads(args.trusted_keys)
+            if not isinstance(supplied, dict):
+                raise BootstrapError("test trusted-key override must be a JSON object")
+            keys.update({str(key): str(value) for key, value in supplied.items()})
+        service = BootstrapService(root, trusted_public_keys=keys)
         if args.smoke_test:
             executable = Path(os.sys.executable)
             digest = hashlib.sha256(executable.read_bytes()).hexdigest() if executable.is_file() else ""

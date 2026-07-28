@@ -152,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         bootstrap_manifest = {"manifest_schema_version": 1, "files": [{"path": path.relative_to(bootstrap_dist).as_posix(), "size": path.stat().st_size, "sha256": _sha256(path)} for path in sorted(bootstrap_dist.rglob("*")) if path.is_file()]}
         (output / "bootstrap" / "package_manifest.json").write_text(json.dumps(bootstrap_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         _copy(ROOT / "installer" / "installer_config.json", output / "bootstrap" / "installer_config.json")
+        _copy(ROOT / "release_trust" / "production_manifest_keys.json", output / "bootstrap" / "production_manifest_keys.json")
         bootstrap_update = {"schema_version": 1, **identity, "component_kind": "bootstrap_update_manifest", "package_locator": "bootstrap/EOAT-Atlas-bootstrap.zip", "size_bytes": bootstrap_zip.stat().st_size, "sha256": _sha256(bootstrap_zip), "release_channel": "candidate", "installer_config_sha256": _sha256(output / "bootstrap" / "installer_config.json")}
         (output / "bootstrap" / "update-manifest.json").write_text(json.dumps(bootstrap_update, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 

@@ -23,7 +23,7 @@ from deployment.release_manager import validate_deployment_archive
 from release_tools.release_identity import ArtifactDisposition
 
 from .release_set import ComponentKind, ComponentValidation, verify_signed_release_set
-from .sealing import _BOOTSTRAP_REASON, _validate_smoke, _validate_zip, trust_material_from_environment
+from .sealing import _BOOTSTRAP_REASON, _validate_smoke, _validate_zip, trust_material_for_signature_key
 
 
 class Phase1CPublicationState(str, Enum):
@@ -147,7 +147,7 @@ def verify_sealed_candidate(root: Path, receipt: Mapping[str, Any], *, repositor
         if sha256_file(signature_path) != signature_info.get("sha256"):
             raise DeploymentError("release-set signature digest differs from receipt")
         manifest, signature = read_json_object(manifest_path), read_json_object(signature_path)
-        trusted, revoked = trust_material_from_environment()
+        trusted, revoked = trust_material_for_signature_key(str(signature.get("key_id") or ""))
         release_set = verify_signed_release_set(
             {"release_set": manifest.get("canonical_payload"), "canonical_digest": manifest.get("canonical_payload_sha256"),
              "signature": {"key_id": signature.get("key_id"), "algorithm": signature.get("algorithm"), "signature": signature.get("signature")}},

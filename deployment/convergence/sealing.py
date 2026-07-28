@@ -284,6 +284,22 @@ def trust_material_from_environment() -> tuple[dict[str, bytes], frozenset[str]]
     return trusted, revoked
 
 
+def trust_material_for_signature_key(key_id: str) -> tuple[dict[str, bytes], frozenset[str]]:
+    """Resolve verification material without allowing an environment override of production trust.
+
+    A signature made by a governed production key is always verified against
+    the repository policy.  Environment material remains available only for
+    explicitly non-production disposable and test signatures.
+    """
+
+    from .production_signing import load_production_trust_policy
+
+    trusted, revoked, _policy = load_production_trust_policy()
+    if key_id in trusted or key_id in revoked:
+        return trusted, revoked
+    return trust_material_from_environment()
+
+
 def signing_material_from_environment() -> tuple[str, bytes, dict[str, bytes], frozenset[str]]:
     """Load ephemeral development material without echoing private bytes."""
 

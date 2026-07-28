@@ -119,10 +119,16 @@ def main(argv: list[str] | None = None) -> int:
             "deployment/convergence/release_set.py",
             "deployment/convergence/sealing.py",
             "deployment/convergence/services.py",
+            "deployment/convergence/phase1c.py",
+            "EOAT_Atlas_Bootstrap.spec",
+            "EOAT_Atlas_Launcher.spec",
+            "bootstrap/cli.py",
             "launcher/default_config.json",
             "installer/installer_config.json",
+            "installer/Build_Installer_Exe.ps1",
             "release_trust/",
             "scripts/check_version_bump.py",
+            "scripts/export_windows_attachment.py",
             "github/workflows/unified-release-train-final-integration.yml",
         )
         governed_component_change = args.allow_governed_component_change and current == baseline == Version.parse("0.24.0") and application_paths and all(path.startswith(governed_component_paths) for path in application_paths)
