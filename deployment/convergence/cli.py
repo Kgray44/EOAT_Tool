@@ -57,6 +57,9 @@ def _candidate_commands(commands: argparse._SubParsersAction[Any]) -> None:
     seal = actions.add_parser("seal-release-set", help="Seal a complete candidate with non-production signing material")
     seal.add_argument("candidate_id")
     seal.add_argument("--confirm", required=True, help="Exact confirmation: SEAL <candidate-id>")
+    production_seal = actions.add_parser("seal-production-release-set", help="Seal with the Windows DPAPI production provider")
+    production_seal.add_argument("candidate_id")
+    production_seal.add_argument("--confirm", required=True, help="Exact confirmation: SEAL EOAT ATLAS 0.24.0 WITH PRODUCTION KEY")
     inspect_attachment = actions.add_parser(
         "inspect-platform-attachment", help="Inspect an identity-bound Windows attachment"
     )
@@ -328,6 +331,8 @@ def main(argv: list[str] | None = None) -> int:
                 result = service.verify_candidate_for_sealing(args.candidate_id)
             elif args.candidate_command == "seal-release-set":
                 result = service.seal_release_set(args.candidate_id, args.confirm)
+            elif args.candidate_command == "seal-production-release-set":
+                result = service.seal_release_set_with_production_provider(args.candidate_id, args.confirm)
             elif args.candidate_command == "verify-sealed-release-set":
                 result = service.verify_sealed_release_set(args.candidate_id)
             elif args.candidate_command == "show-components":

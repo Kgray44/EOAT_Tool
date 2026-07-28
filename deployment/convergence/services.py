@@ -1163,6 +1163,30 @@ class ReleaseDeploymentService:
             data={"candidate_id": candidate_id, "canonical_digest": updated["release_set_digest"], "manifest": updated["release_set_manifest_path"], "signature": updated["release_set_signature"], "receipt_path": str(receipt_path), "publication_eligible": True},
         )
 
+    def seal_release_set_with_production_provider(self, candidate_id: str, confirmation: str) -> OperationResult:
+        """Seal only through the CurrentUser-DPAPI production provider."""
+
+        if confirmation != "SEAL EOAT ATLAS 0.24.0 WITH PRODUCTION KEY":
+            raise DeploymentError("exact production sealing confirmation is required")
+        from .production_signing import WindowsDpapiProductionProvider, load_production_trust_policy
+
+        receipt = self.store.read("candidate", candidate_id)
+        candidate_root = self.store.root / "candidates" / candidate_id
+        provider = WindowsDpapiProductionProvider()
+        status = provider.status()
+        trusted, revoked, _policy = load_production_trust_policy()
+        if status.key_id in revoked or trusted.get(status.key_id) != provider.public_key_bytes():
+            raise DeploymentError("production provider does not match active governed public trust")
+        updated, sealing_receipt = seal_candidate(
+            candidate_root, receipt, self.root, key_id=status.key_id, signer=provider.sign,
+            trusted_public_keys=trusted, revoked_key_ids=revoked,
+        )
+        sealing_path = candidate_root / "receipts" / f"production-sealing-{utc_text().replace(':', '')}.json"
+        write_json_atomic(sealing_path, sealing_receipt | {"provider": status.provider.value, "environment": "PRODUCTION"})
+        updated["sealing_receipt_path"] = candidate_locator(candidate_root, sealing_path)
+        receipt_path = self.store.write("candidate", candidate_id, updated)
+        return OperationResult(Status.PASS, "Release set sealed with the protected production provider.", "Publish only after immutable GitHub preflight.", data={"candidate_id": candidate_id, "canonical_digest": updated["release_set_digest"], "key_id": status.key_id, "receipt_path": str(receipt_path)})
+
     def verify_sealed_release_set(self, candidate_id: str) -> OperationResult:
         receipt = self.store.read("candidate", candidate_id)
         if receipt.get("state") != "RELEASE_SET_VALIDATED" or not receipt.get("publication_eligible"):

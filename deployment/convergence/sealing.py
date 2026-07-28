@@ -13,7 +13,7 @@ import json
 import shutil
 import tempfile
 import zipfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -196,13 +196,19 @@ def seal_candidate(
     repository: Path,
     *,
     key_id: str,
-    private_key: bytes,
+    private_key: bytes | None = None,
+    signer: Callable[[bytes], bytes] | None = None,
     trusted_public_keys: Mapping[str, bytes],
     revoked_key_ids: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     release_set, evidence = revalidate_candidate(candidate_root, receipt, repository)
     digest = release_set.digest()
-    signature = release_set.sign(key_id=key_id, private_key=private_key)
+    if signer is not None:
+        signature = release_set.sign_with_provider(key_id=key_id, signer=signer)
+    elif private_key is not None:
+        signature = release_set.sign(key_id=key_id, private_key=private_key)
+    else:
+        raise DeploymentError("a signing provider or non-production private key is required")
     verify_signed_release_set(release_set.envelope(signature), trusted_public_keys=trusted_public_keys, revoked_key_ids=revoked_key_ids)
     sealing = candidate_root / "sealing"
     manifest = sealing / "release-set-manifest.json"
