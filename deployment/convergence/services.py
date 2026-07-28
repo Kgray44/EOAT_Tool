@@ -83,6 +83,7 @@ from .phase1c import (
     run_disposable_publication,
     verify_sealed_candidate,
 )
+from .phase3a import DisposableCoordinatedDeployment, VerifiedDeploymentInput
 from .receipts import ReceiptStore
 from .release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
 from .sealing import (
@@ -361,6 +362,50 @@ class ReleaseDeploymentService:
         self.root = root.resolve()
         self.runner = runner or ProcessRunner()
         self.store = store or ReceiptStore(self.root)
+
+    def verify_phase3a_input(
+        self, inventory_item: dict[str, Any], *, server_archive: Path, web_archive: Path
+    ) -> OperationResult:
+        """Build a disposable activation input only from trusted inventory facts."""
+
+        item = VerifiedDeploymentInput.from_complete_trusted_inventory(
+            inventory_item, server_archive=server_archive, web_archive=web_archive
+        )
+        deployment = DisposableCoordinatedDeployment(self.root / ".local" / "phase3a-verify", store=self.store)
+        preflight = deployment.preflight(item, active_schema=item.target_schema)
+        return OperationResult(
+            Status.PASS,
+            "Complete trusted release input was independently verified for disposable activation.",
+            "Stage immutable server and web bytes only in an explicit disposable root.",
+            data={"deployment_input": item.identity(), "preflight": preflight},
+        )
+
+    def phase3a_stage(
+        self, item: VerifiedDeploymentInput, *, disposable_root: Path, active_schema: str, confirmation: str
+    ) -> OperationResult:
+        if confirmation != f"STAGE {item.release_id}":
+            raise DeploymentError("disposable staging requires exact confirmation: STAGE <release-id>")
+        if disposable_root.resolve() == self.root.resolve() or "production" in str(disposable_root).casefold():
+            raise DeploymentError("Phase 3A service accepts only an explicit non-production disposable root")
+        receipt = DisposableCoordinatedDeployment(disposable_root, store=self.store).stage(item, active_schema=active_schema)
+        return OperationResult(Status.PASS, "API and web artifacts were staged immutably in the disposable root.", str(receipt["next_safe_action"]), data={"transaction": receipt})
+
+    def phase3a_activate(self, transaction_id: str, *, disposable_root: Path, release_id: str, confirmation: str) -> OperationResult:
+        if confirmation != f"ACTIVATE {release_id}":
+            raise DeploymentError("disposable activation requires exact confirmation: ACTIVATE <release-id>")
+        receipt = DisposableCoordinatedDeployment(disposable_root, store=self.store).activate(transaction_id)
+        passed = receipt.get("state") == "ACTIVE_CONFIRMED"
+        return OperationResult(
+            Status.PASS if passed else Status.BLOCKED,
+            "Coordinated API/web activation passed all disposable acceptance gates." if passed else "Activation failed and both application pointers were restored.",
+            str(receipt.get("next_safe_action")),
+            data={"transaction": receipt},
+        )
+
+    def phase3a_drift(self, transaction_id: str, *, disposable_root: Path) -> OperationResult:
+        payload = DisposableCoordinatedDeployment(disposable_root, store=self.store).drift(transaction_id)
+        passed = payload.get("classification") == "MATCH"
+        return OperationResult(Status.PASS if passed else Status.BLOCKED, "Runtime deployment drift was scanned.", str(payload.get("next_safe_action", "Review runtime identities.")), data={"drift": payload})
 
     def _tool(
         self, name: str, command: list[str], *, required: bool, scope: str, expected: str | None = None

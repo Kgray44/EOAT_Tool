@@ -14,8 +14,22 @@ def _zip(path: Path, name: str) -> None:
 
 def _input(tmp_path: Path) -> VerifiedDeploymentInput:
     server, web = tmp_path / "server.zip", tmp_path / "web.zip"
-    _zip(server, "server.txt")
-    _zip(web, "index.html")
+    identity = {
+        "product_version": "0.24.0",
+        "release_id": "eoat-atlas-0.24.0",
+        "build_id": "build-1",
+        "source_commit": "a" * 40,
+        "source_tree": "b" * 40,
+        "release_set_digest": "c" * 64,
+    }
+    with zipfile.ZipFile(server, "w") as archive:
+        archive.writestr("release_identity.json", __import__("json").dumps(identity))
+        archive.writestr("app.py", "# immutable API entry point\n")
+    index = b"<html><body>EOAT Atlas</body></html>"
+    with zipfile.ZipFile(web, "w") as archive:
+        archive.writestr("index.html", index)
+        archive.writestr("release_identity.json", __import__("json").dumps(identity))
+        archive.writestr("web-static.manifest.json", __import__("json").dumps({"index.html": hashlib.sha256(index).hexdigest()}))
 
     def digest(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -63,3 +77,18 @@ def test_unknown_or_migration_required_modes_block_before_staging(tmp_path: Path
             assert "migration" in str(error)
         else:
             raise AssertionError("unsafe migration mode staged")
+
+
+def test_staging_rejects_mutated_embedded_identity_and_unsafe_web_content(tmp_path: Path) -> None:
+    item = _input(tmp_path)
+    tampered = tmp_path / "tampered.zip"
+    with zipfile.ZipFile(tampered, "w") as archive:
+        archive.writestr("release_identity.json", '{"release_id":"wrong"}')
+        archive.writestr("app.py", "# no")
+    bad = VerifiedDeploymentInput(**{**item.__dict__, "server_archive": tampered, "server_sha256": hashlib.sha256(tampered.read_bytes()).hexdigest()})
+    try:
+        DisposableCoordinatedDeployment(tmp_path / "root").stage(bad, active_schema="schema-1")
+    except Exception as error:
+        assert "identity" in str(error)
+    else:
+        raise AssertionError("mutated embedded server identity was accepted")

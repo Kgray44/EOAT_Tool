@@ -43,3 +43,10 @@ def test_release_status_and_protected_routes_fail_closed_for_release_identity_mi
     )
     assert response.status_code == 409
     assert response.json()["error_code"] == "CLIENT_RELEASE_MISMATCH"
+    write = client.post(
+        "/api/v1/eoats",
+        json={"description": "must never reach authorization or a write session"},
+        headers={"X-EOAT-Client-Version": "0.24.0"},
+    )
+    assert write.status_code == 409
+    assert write.json()["error_code"] == "CLIENT_RELEASE_MISMATCH"

@@ -44,11 +44,11 @@ class ReceiptStore:
         payload["receipt_kind"] = kind
         payload["receipt_id"] = identifier
         payload["receipt_path"] = str(path)
-        if kind == "publication" and path.is_file():
+        if kind in {"publication", "transaction"} and path.is_file():
             existing = self.read(kind, identifier)
-            complete_states = {"PUBLICATION_COMPLETE"}
+            complete_states = {"PUBLICATION_COMPLETE", "ACTIVE_CONFIRMED", "ROLLED_BACK"}
             if existing.get("schema_version") == 2 and existing.get("state") in complete_states and existing != payload:
-                raise DeploymentError("completed schema-2 publication receipts are immutable")
+                raise DeploymentError("completed schema-2 receipts are immutable")
         write_json_atomic(path, payload)
         return path
 
@@ -68,8 +68,8 @@ class ReceiptStore:
             raise DeploymentError("receipt kind does not match its storage location")
         if payload.get("receipt_id") not in {None, identifier}:
             raise DeploymentError("receipt ID does not match its storage location")
-        if kind == "publication" and payload.get("schema_version", 1) not in {1, 2}:
-            raise DeploymentError("unsupported future publication receipt schema")
+        if kind in {"publication", "transaction"} and payload.get("schema_version", 1) not in {1, 2}:
+            raise DeploymentError(f"unsupported future {kind} receipt schema")
         return payload
 
     def list(self, kind: str) -> list[dict[str, Any]]:

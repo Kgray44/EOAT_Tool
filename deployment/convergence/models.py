@@ -85,6 +85,35 @@ class DeploymentState(str, Enum):
     FAILED_MANUAL_INTERVENTION = "FAILED_MANUAL_INTERVENTION"
 
 
+class CoordinatedDeploymentState(str, Enum):
+    """Durable Phase 3A states for one API/web activation transaction.
+
+    This deliberately does not reuse the older helper-facing DeploymentState:
+    the latter describes privileged production operations, while this model is
+    also used by the disposable, black-box activation harness.
+    """
+
+    NOT_STARTED = "NOT_STARTED"
+    PREFLIGHT_COMPLETE = "PREFLIGHT_COMPLETE"
+    INPUT_VERIFIED = "INPUT_VERIFIED"
+    BACKUP_REQUIRED = "BACKUP_REQUIRED"
+    BACKUP_VERIFIED = "BACKUP_VERIFIED"
+    MIGRATION_READY = "MIGRATION_READY"
+    SERVER_STAGED = "SERVER_STAGED"
+    WEB_STAGED = "WEB_STAGED"
+    STAGED_COMPLETE = "STAGED_COMPLETE"
+    ACTIVATING = "ACTIVATING"
+    API_ACTIVE_PENDING_HEALTH = "API_ACTIVE_PENDING_HEALTH"
+    WEB_ACTIVE_PENDING_HEALTH = "WEB_ACTIVE_PENDING_HEALTH"
+    LIVE_ACCEPTANCE_RUNNING = "LIVE_ACCEPTANCE_RUNNING"
+    ACTIVE_CONFIRMED = "ACTIVE_CONFIRMED"
+    FAILED_RECOVERABLE = "FAILED_RECOVERABLE"
+    ROLLING_BACK = "ROLLING_BACK"
+    ROLLED_BACK = "ROLLED_BACK"
+    DATABASE_RECOVERY_REQUIRED = "DATABASE_RECOVERY_REQUIRED"
+    FAILED_MANUAL_INTERVENTION = "FAILED_MANUAL_INTERVENTION"
+
+
 @dataclass(frozen=True)
 class Diagnostic:
     name: str

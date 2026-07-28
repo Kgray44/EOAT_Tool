@@ -76,6 +76,27 @@ if RELEASE_INFO.database_schema_revision != EXPECTED_SCHEMA_REVISION:
     raise RuntimeError("Canonical release schema revision does not match server expectation")
 
 
+def runtime_release_identity() -> dict[str, str | None]:
+    """The one safe runtime identity source used by parity-aware API routes.
+
+    Activation writes these values as process environment in a real target;
+    development uses the governed immutable release metadata defaults.  No
+    route reads deployment pointers or filesystem paths directly.
+    """
+
+    return {
+        "product_version": RELEASE_INFO.application_version,
+        "release_id": RELEASE_INFO.release_id,
+        "build_id": RELEASE_INFO.build_id,
+        "candidate_id": os.getenv("EOAT_RELEASE_CANDIDATE_ID", "").strip() or None,
+        "source_commit": RELEASE_INFO.source_git_commit,
+        "source_tree": os.getenv("EOAT_RELEASE_SOURCE_TREE", "").strip() or None,
+        "release_set_digest": os.getenv("EOAT_RELEASE_SET_DIGEST", "").strip() or None,
+        "release_channel": RELEASE_INFO.release_channel,
+        "deployment_transaction_id": os.getenv("EOAT_DEPLOYMENT_TRANSACTION_ID", "").strip() or None,
+    }
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Reject development authentication in production without contacting an IdP."""
@@ -138,12 +159,9 @@ async def request_logging(request: Request, call_next):
             "yes",
             "on",
         }:
-            active = {
-                "product_version": RELEASE_INFO.application_version,
-                "release_id": RELEASE_INFO.release_id,
-                "build_id": RELEASE_INFO.build_id,
-                "release_set_digest": os.getenv("EOAT_RELEASE_SET_DIGEST", "").strip(),
-            }
+            active = {key: value or "" for key, value in runtime_release_identity().items() if key in {
+                "product_version", "release_id", "build_id", "release_set_digest"
+            }}
             supplied = {
                 "product_version": request.headers.get("X-EOAT-Client-Version", "").strip(),
                 "release_id": request.headers.get("X-EOAT-Client-Release-ID", "").strip(),
@@ -339,24 +357,19 @@ def release_status(request: Request):
     supplied_release = request.headers.get("X-EOAT-Client-Release-ID", "").strip()
     supplied_build = request.headers.get("X-EOAT-Client-Build-ID", "").strip()
     supplied_digest = request.headers.get("X-EOAT-Client-Release-Set-Digest", "").strip()
-    release_set_digest = os.getenv("EOAT_RELEASE_SET_DIGEST", "").strip()
+    identity = runtime_release_identity()
+    release_set_digest = str(identity["release_set_digest"] or "")
     try:
         supported = not client_version or Version.parse(client_version) >= Version.parse(minimum_desktop)
     except ValueError:
         supported = False
     identity_match = (
-        (not supplied_release or supplied_release == RELEASE_INFO.release_id)
-        and (not supplied_build or supplied_build == RELEASE_INFO.build_id)
+        (not supplied_release or supplied_release == identity["release_id"])
+        and (not supplied_build or supplied_build == identity["build_id"])
         and (not release_set_digest or supplied_digest == release_set_digest)
     )
     return {
-        "product_version": RELEASE_INFO.application_version,
-        "release_id": RELEASE_INFO.release_id,
-        "build_id": RELEASE_INFO.build_id,
-        "source_commit": RELEASE_INFO.source_git_commit,
-        "source_tree": os.getenv("EOAT_RELEASE_SOURCE_TREE", "").strip() or None,
-        "release_set_digest": release_set_digest or None,
-        "release_channel": RELEASE_INFO.release_channel,
+        **identity,
         "api_contract_version": API_VERSION,
         "database_schema_revision": EXPECTED_SCHEMA_REVISION,
         "minimum_supported_desktop_version": minimum_desktop,
@@ -374,7 +387,6 @@ def release_status(request: Request):
         "mismatch_reason": "release identity does not match active API"
         if not identity_match
         else ("minimum desktop version is not met" if not supported else None),
-        "deployment_transaction_id": os.getenv("EOAT_DEPLOYMENT_TRANSACTION_ID", "").strip() or None,
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
 

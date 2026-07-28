@@ -11,6 +11,7 @@ from typing import Any
 from deployment.common import DeploymentError, redact_text, to_jsonable
 
 from .models import DeploymentState
+from .phase3a import VerifiedDeploymentInput
 from .services import ReleaseDeploymentService
 
 
@@ -159,6 +160,28 @@ def _bootstrap_commands(commands: argparse._SubParsersAction[Any]) -> None:
     update.add_argument("--transport", required=True)
 
 
+def _phase3a_commands(commands: argparse._SubParsersAction[Any]) -> None:
+    deployment = commands.add_parser("coordinated-deploy", help="Disposable Phase 3A API/web activation only")
+    actions = deployment.add_subparsers(dest="phase3a_command", required=True)
+    verify = actions.add_parser("verify-input", help="Verify COMPLETE_TRUSTED release inventory before staging")
+    verify.add_argument("--inventory-item", type=Path, required=True)
+    verify.add_argument("--server-archive", type=Path, required=True)
+    verify.add_argument("--web-archive", type=Path, required=True)
+    stage = actions.add_parser("stage", help="Stage a verified input into a disposable root")
+    stage.add_argument("--input", type=Path, required=True)
+    stage.add_argument("--disposable-root", type=Path, required=True)
+    stage.add_argument("--active-schema", required=True)
+    stage.add_argument("--confirm", required=True, help="Exact confirmation: STAGE <release-id>")
+    activate = actions.add_parser("activate", help="Activate staged disposable API/web artifacts")
+    activate.add_argument("--transaction", required=True)
+    activate.add_argument("--release-id", required=True)
+    activate.add_argument("--disposable-root", type=Path, required=True)
+    activate.add_argument("--confirm", required=True, help="Exact confirmation: ACTIVATE <release-id>")
+    drift = actions.add_parser("drift-scan", help="Inspect selected, active, and runtime release identity")
+    drift.add_argument("--transaction", required=True)
+    drift.add_argument("--disposable-root", type=Path, required=True)
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EOAT Atlas unified release and deployment console CLI")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2], help=argparse.SUPPRESS)
@@ -183,6 +206,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     disposable_list.add_argument("--registry", type=Path, required=True)
     _target_plan_deploy_commands(commands)
     _bootstrap_commands(commands)
+    _phase3a_commands(commands)
     receipts = commands.add_parser("receipts", help="Browse and export durable receipts")
     receipt_actions = receipts.add_subparsers(dest="receipt_command", required=True)
     receipt_actions.add_parser("list", help="List all receipt inventories")
@@ -216,6 +240,18 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 envelope = json.loads(args.manifest.read_text(encoding="utf-8"))
                 result = bootstrap.update(envelope, transport=args.transport).__dict__
+        elif args.command == "coordinated-deploy":
+            if args.phase3a_command == "verify-input":
+                item = json.loads(args.inventory_item.read_text(encoding="utf-8"))
+                result = service.verify_phase3a_input(item, server_archive=args.server_archive, web_archive=args.web_archive)
+            elif args.phase3a_command == "stage":
+                payload = json.loads(args.input.read_text(encoding="utf-8"))
+                item = VerifiedDeploymentInput(**{**payload, "server_archive": Path(payload["server_archive"]), "web_archive": Path(payload["web_archive"])})
+                result = service.phase3a_stage(item, disposable_root=args.disposable_root, active_schema=args.active_schema, confirmation=args.confirm)
+            elif args.phase3a_command == "activate":
+                result = service.phase3a_activate(args.transaction, disposable_root=args.disposable_root, release_id=args.release_id, confirmation=args.confirm)
+            else:
+                result = service.phase3a_drift(args.transaction, disposable_root=args.disposable_root)
         elif args.command == "candidate":
             if args.candidate_command == "rehearse":
                 result = service.rehearse_candidate(args.bump, args.explicit_version)
