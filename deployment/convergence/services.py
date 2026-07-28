@@ -1103,7 +1103,12 @@ class ReleaseDeploymentService:
             raise DeploymentError("platform verification requires an unsigned schema-2 candidate")
         working = candidate.get("working_release_set") or {}
         components = {str(item.get("kind")): item for item in working.get("components", []) if isinstance(item, dict)}
-        required = {ComponentKind.DESKTOP.value, ComponentKind.DESKTOP_UPDATE_MANIFEST.value, ComponentKind.LAUNCHER.value, ComponentKind.LAUNCHER_UPDATE_MANIFEST.value}
+        required = {
+            ComponentKind.DESKTOP.value, ComponentKind.DESKTOP_UPDATE_MANIFEST.value,
+            ComponentKind.LAUNCHER.value, ComponentKind.LAUNCHER_UPDATE_MANIFEST.value,
+        }
+        if candidate.get("release_set_profile") == "FINAL_CURRENT_COMPONENTS":
+            required.update({ComponentKind.BOOTSTRAP.value, ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value})
         blocked = sorted(kind for kind in required if components.get(kind, {}).get("validation_status") != "PASS")
         if blocked:
             return OperationResult(Status.BLOCKED, "Platform artifact verification is incomplete.", "Attach a validated Windows artifact bundle.", data={"blocking_components": blocked})

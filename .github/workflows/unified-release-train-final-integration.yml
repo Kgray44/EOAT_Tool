@@ -116,6 +116,109 @@ jobs:
       - run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - run: python -m pytest -q tests/test_phase_3b_channels.py tests/test_phase_3a_receipts_and_cli.py tests/test_release_status_contract.py
 
+  fresh-final-candidate-core:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.13.0'}
+      - uses: pnpm/action-setup@v4
+        with: {version: '11.9.0'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - shell: pwsh
+        run: |
+          $env:PATH = "$env:PNPM_HOME;$env:PATH"
+          $env:EOAT_FINAL_RELEASE_CANDIDATE = '1'
+          python tools/eoat_release.py --json candidate prepare --version 0.24.0 | Out-File -Encoding utf8 "$env:RUNNER_TEMP/candidate-result.json"
+          $result = Get-Content "$env:RUNNER_TEMP/candidate-result.json" -Raw | ConvertFrom-Json
+          $result.data.candidate.candidate_id | Out-File -Encoding ascii candidate-id.txt
+          python tools/eoat_release.py candidate build-core-artifacts $result.data.candidate.candidate_id
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-fresh-unsigned-candidate
+          path: |
+            .local/release-deployment-console
+            candidate-id.txt
+          if-no-files-found: error
+
+  fresh-final-windows-attachment:
+    needs: fresh-final-candidate-core
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/download-artifact@v4
+        with: {name: final-fresh-unsigned-candidate, path: "${{ runner.temp }}/final-candidate"}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt -r requirements-build.lock
+      - shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'final-candidate'
+          $id = (Get-Content (Join-Path $root 'candidate-id.txt') -Raw).Trim()
+          $receipt = Join-Path $root ".local/release-deployment-console/candidate/$id.json"
+          python scripts/export_windows_attachment.py --candidate-receipt $receipt --output (Join-Path $env:RUNNER_TEMP 'final-windows-attachment')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-fresh-windows-attachment
+          path: "${{ runner.temp }}/final-windows-attachment"
+          if-no-files-found: error
+
+  fresh-final-sealing-and-disposable-publication:
+    needs: [fresh-final-candidate-core, fresh-final-windows-attachment]
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/download-artifact@v4
+        with: {name: final-fresh-unsigned-candidate, path: .}
+      - uses: actions/download-artifact@v4
+        with: {name: final-fresh-windows-attachment, path: final-windows-attachment}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Create ephemeral final-validation signing key
+        shell: pwsh
+        run: |
+          @'
+          import base64, json, os
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          key = Ed25519PrivateKey.generate()
+          raw = key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
+          public = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+          path = Path(os.environ['RUNNER_TEMP']) / 'final-validation-ed25519.key'
+          path.write_bytes(raw)
+          print('EOAT_RELEASE_SIGNING_KEY_ID=final-validation-ephemeral')
+          print('EOAT_RELEASE_TEST_PRIVATE_KEY_FILE=' + str(path))
+          print('EOAT_RELEASE_TRUSTED_PUBLIC_KEYS_JSON=' + json.dumps({'final-validation-ephemeral': base64.b64encode(public).decode('ascii')}, separators=(',', ':')))
+          '@ | python - | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Attach, seal, verify, and publish only to disposable roots
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $id = (Get-Content candidate-id.txt -Raw).Trim()
+          python tools/eoat_release.py candidate attach-platform-artifacts $id final-windows-attachment
+          python tools/eoat_release.py candidate verify-platform-artifacts $id
+          python tools/eoat_release.py candidate verify-for-sealing $id
+          python tools/eoat_release.py candidate seal-release-set $id --confirm "SEAL $id"
+          python tools/eoat_release.py candidate verify-sealed-release-set $id
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP/disposable-remote", "$env:RUNNER_TEMP/disposable-registry" | Out-Null
+          python tools/eoat_release.py publish start-disposable $id --remote "$env:RUNNER_TEMP/disposable-remote" --registry "$env:RUNNER_TEMP/disposable-registry" --confirm "PUBLISH $id"
+          Remove-Item -LiteralPath $env:EOAT_RELEASE_TEST_PRIVATE_KEY_FILE -Force
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-fresh-candidate-evidence
+          path: .local/release-deployment-console/candidates/**
+          if-no-files-found: warn
+
   repository-safety-and-version-governance:
     runs-on: ubuntu-latest
     steps:
@@ -137,7 +240,7 @@ jobs:
       - run: python scripts/validate_documented_commands.py
 
   final-integration-acceptance:
-    needs: [release-set-and-receipt-regression, server-web-and-source-candidate, windows-packaged-startup-chain, mysql-activation-and-recovery, browser-api-desktop-parity, signed-channels-publication-and-planning, repository-safety-and-version-governance]
+    needs: [release-set-and-receipt-regression, server-web-and-source-candidate, windows-packaged-startup-chain, mysql-activation-and-recovery, browser-api-desktop-parity, signed-channels-publication-and-planning, fresh-final-candidate-core, fresh-final-windows-attachment, fresh-final-sealing-and-disposable-publication, repository-safety-and-version-governance]
     runs-on: ubuntu-latest
     steps:
       - run: echo 'Final integration gates completed using disposable CI infrastructure only.'
