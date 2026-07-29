@@ -12,13 +12,19 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from collections.abc import Iterable, Mapping
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
+
+if __package__ in {None, ""}:
+    # Keep the governed CLI usable as ``python tools/migration/...py`` as
+    # well as ``python -m``; production runbooks use an explicit script path.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from openpyxl import load_workbook
 from sqlalchemy import select
@@ -32,6 +38,10 @@ from server.eoat_api.release_provenance import ensure_application_release
 _MACHINE_HEADERS = {"machine no.", "machine no", "machine #", "machine number", "press", "press #", "press/machine #"}
 _TONNAGE_HEADERS = {"press tonnage", "tonnage", "capacity", "u.s. tons", "us tons"}
 _MACHINE_TOKEN = re.compile(r"^(?:machine|press)?\s*#?\s*(\d+)$", re.IGNORECASE)
+_PRESS_SECTION = re.compile(
+    r"^\s*press\s*#?\s*(\d+)\s*(?:[-–—]\s*(\d+(?:\.\d+)?)\s*(?:t|ton|tons)\b)?",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -42,6 +52,7 @@ class CapacitySourceRow:
     tonnage: Decimal | None
     raw_values: dict[str, Any]
     issue: str | None = None
+    capacity_source: str = "press_capacity_workbook"
 
 
 @dataclass(frozen=True)
@@ -60,6 +71,7 @@ class PressCapacityReport:
     source_rows: int
     source_machine_count: int
     matched_machines: int
+    supplementary_sources: dict[str, str] = field(default_factory=dict)
     unmatched_machines: list[str] = field(default_factory=list)
     conflicting_source_values: dict[str, list[str]] = field(default_factory=dict)
     conflicting_existing_values: dict[str, dict[str, str]] = field(default_factory=dict)
@@ -133,7 +145,52 @@ def _header_indexes(headers: Iterable[Any]) -> tuple[int, int] | None:
     return (machine, tonnage) if machine is not None and tonnage is not None else None
 
 
-def read_press_capacity_workbook(source_workbook: str | Path) -> list[CapacitySourceRow]:
+def _section_machine_and_tonnage(value: Any) -> tuple[tuple[str, ...], Decimal | None] | None:
+    """Parse grouped P4 headers such as ``Press 27 - 165T - 45mm Screw``."""
+    match = _PRESS_SECTION.match(str(value or ""))
+    if match is None:
+        return None
+    return (str(int(match.group(1))),), _tonnage(match.group(2))
+
+
+def _read_master_press_capacities(source_workbook: str | Path) -> dict[str, Decimal]:
+    """Read the approved master press list used only to fill blank P4 group labels."""
+    source = Path(source_workbook).resolve()
+    workbook = load_workbook(source, read_only=True, data_only=True)
+    try:
+        for worksheet in workbook.worksheets:
+            iterator = worksheet.iter_rows(values_only=True)
+            headers = next(iterator, None)
+            if not headers:
+                continue
+            normalized = [_normalise_header(header) for header in headers]
+            machine_index = next((index for index, header in enumerate(normalized) if header in _MACHINE_HEADERS), None)
+            tonnage_index = next((index for index, header in enumerate(normalized) if header in _TONNAGE_HEADERS), None)
+            if machine_index is None or tonnage_index is None:
+                continue
+            result: dict[str, Decimal] = {}
+            for values in iterator:
+                numbers = _machine_numbers(values[machine_index] if machine_index < len(values) else None)
+                tons = _tonnage(values[tonnage_index] if tonnage_index < len(values) else None)
+                if numbers is None or tons is None:
+                    continue
+                for number in numbers:
+                    existing = result.get(number)
+                    if existing is not None and existing != tons:
+                        raise ValueError(f"Conflicting master press capacities for machine {number}.")
+                    result[number] = tons
+            if result:
+                return result
+    finally:
+        workbook.close()
+    raise ValueError("No worksheet has recognized machine and tonnage headers in the master press list.")
+
+
+def read_press_capacity_workbook(
+    source_workbook: str | Path,
+    *,
+    master_press_list: str | Path | None = None,
+) -> list[CapacitySourceRow]:
     """Read every worksheet with recognized capacity headers, without writing it."""
     source = Path(source_workbook).resolve()
     workbook = load_workbook(source, read_only=True, data_only=True)
@@ -145,10 +202,32 @@ def read_press_capacity_workbook(source_workbook: str | Path) -> list[CapacitySo
             if not headers:
                 continue
             indexes = _header_indexes(headers)
+            labels = [str(header or "").strip() for header in headers]
             if indexes is None:
+                machine_index = next(
+                    (index for index, header in enumerate(_normalise_header(item) for item in headers) if header in _MACHINE_HEADERS),
+                    None,
+                )
+                if machine_index is None:
+                    continue
+                for row_number, values in enumerate(iterator, start=2):
+                    section = _section_machine_and_tonnage(values[machine_index] if machine_index < len(values) else None)
+                    if section is None:
+                        continue
+                    machine_numbers, tons = section
+                    raw = {labels[index]: value for index, value in enumerate(values) if labels[index]}
+                    rows.append(
+                        CapacitySourceRow(
+                            sheet=worksheet.title,
+                            row_number=row_number,
+                            machine_numbers=machine_numbers,
+                            tonnage=tons,
+                            raw_values=raw,
+                            issue=None if tons is not None else "INVALID_PRESS_TONNAGE",
+                        )
+                    )
                 continue
             machine_index, tonnage_index = indexes
-            labels = [str(header or "").strip() for header in headers]
             for row_number, values in enumerate(iterator, start=2):
                 raw = {labels[index]: value for index, value in enumerate(values) if labels[index]}
                 if not any(value is not None and str(value).strip() for value in values):
@@ -170,8 +249,23 @@ def read_press_capacity_workbook(source_workbook: str | Path) -> list[CapacitySo
                         issue=issue,
                     )
                 )
+        if master_press_list:
+            master_capacities = _read_master_press_capacities(master_press_list)
+            rows = [
+                replace(
+                    row,
+                    tonnage=master_capacities[row.machine_numbers[0]],
+                    issue=None,
+                    capacity_source="master_press_list",
+                )
+                if row.issue == "INVALID_PRESS_TONNAGE"
+                and len(row.machine_numbers) == 1
+                and row.machine_numbers[0] in master_capacities
+                else row
+                for row in rows
+            ]
         if not rows:
-            raise ValueError("No worksheet has both a recognized machine and press-tonnage header.")
+            raise ValueError("No worksheet has a supported press-capacity layout.")
         return rows
     finally:
         workbook.close()
@@ -180,10 +274,12 @@ def read_press_capacity_workbook(source_workbook: str | Path) -> list[CapacitySo
 def plan_press_capacity_import(
     source_workbook: str | Path,
     existing_capacities: Mapping[str, Decimal | None],
+    *,
+    master_press_list: str | Path | None = None,
 ) -> PressCapacityReport:
     """Build a deterministic, non-mutating plan against one plant's machines."""
     source = Path(source_workbook).resolve()
-    rows = read_press_capacity_workbook(source)
+    rows = read_press_capacity_workbook(source, master_press_list=master_press_list)
     grouped: dict[str, list[CapacitySourceRow]] = {}
     invalid_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -223,6 +319,7 @@ def plan_press_capacity_import(
     return PressCapacityReport(
         source_file_name=source.name,
         source_sha256=_digest(source),
+        supplementary_sources={Path(master_press_list).name: _digest(Path(master_press_list))} if master_press_list else {},
         source_rows=len(rows),
         source_machine_count=len(grouped),
         matched_machines=matched,
@@ -248,12 +345,17 @@ def run_press_capacity_import(
     *,
     plant_code: str,
     execute: bool = False,
+    master_press_list: str | Path | None = None,
 ) -> PressCapacityReport:
     """Run the plan; writes require an explicit flag and an entirely clean plan."""
     factory = create_session_factory(migration=True)
     with factory() as session:
         database_rows = _plant_capacities(session, plant_code)
-        report = plan_press_capacity_import(source_workbook, {key: value[1] for key, value in database_rows.items()})
+        report = plan_press_capacity_import(
+            source_workbook,
+            {key: value[1] for key, value in database_rows.items()},
+            master_press_list=master_press_list,
+        )
         if not execute:
             return report
         if not report.safe_to_execute:
@@ -290,7 +392,7 @@ def run_press_capacity_import(
             )
             session.add(batch)
             session.flush()
-            source_rows = read_press_capacity_workbook(source_workbook)
+            source_rows = read_press_capacity_workbook(source_workbook, master_press_list=master_press_list)
             changed = 0
             for update in report.updates:
                 machine_id, existing = database_rows[update.machine_number]
@@ -358,9 +460,15 @@ def main() -> int:
     parser.add_argument("source_workbook")
     parser.add_argument("--plant-code", required=True)
     parser.add_argument("--execute", action="store_true", help="Apply only a conflict-free plan.")
+    parser.add_argument("--master-press-list", help="Approved master press list used only for missing P4 group tonnage.")
     parser.add_argument("--receipt-directory", required=True)
     args = parser.parse_args()
-    report = run_press_capacity_import(args.source_workbook, plant_code=args.plant_code, execute=args.execute)
+    report = run_press_capacity_import(
+        args.source_workbook,
+        plant_code=args.plant_code,
+        execute=args.execute,
+        master_press_list=args.master_press_list,
+    )
     receipt = write_immutable_receipt(report, args.receipt_directory)
     print(json.dumps({**report.to_dict(), "receipt": str(receipt)}, indent=2, default=str))
     return 0 if report.status in {"DRY_RUN_COMPLETE", "COMPLETED", "SAFE_STOP_ALREADY_IMPORTED"} and report.safe_to_execute else 2

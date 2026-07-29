@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from decimal import Decimal
 from pathlib import Path
 
@@ -58,6 +59,53 @@ def test_invalid_capacity_is_a_fail_closed_review_item(tmp_path: Path) -> None:
 
     assert not report.safe_to_execute
     assert report.invalid_rows == [{"sheet": "P4 Capacity", "row_number": 2, "issue": "INVALID_PRESS_TONNAGE"}]
+
+
+def test_plan_reads_grouped_p4_press_headers_and_flags_missing_tonnage(tmp_path: Path) -> None:
+    source = tmp_path / "grouped-capacity.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "P4 Capacity"
+    sheet.append(["Machine No.", "NGW Part Number"])
+    sheet.append(["Press 27 - 165T - 45mm Screw", None])
+    sheet.append([27, "5116380010"])
+    sheet.append(["Press 37", None])
+    sheet.append([37, "5116400010"])
+    workbook.save(source)
+    workbook.close()
+
+    report = plan_press_capacity_import(source, {"27": None, "37": None})
+
+    assert report.source_machine_count == 1
+    assert report.updates[0].machine_number == "27"
+    assert report.updates[0].source_tonnage == Decimal("165")
+    assert report.invalid_rows == [{"sheet": "P4 Capacity", "row_number": 4, "issue": "INVALID_PRESS_TONNAGE"}]
+    assert not report.safe_to_execute
+
+
+def test_plan_uses_checksums_master_press_list_only_for_missing_group_tonnage(tmp_path: Path) -> None:
+    source = tmp_path / "grouped-capacity.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "P4 Capacity"
+    sheet.append(["Machine No."])
+    sheet.append(["Press 37"])
+    workbook.save(source)
+    workbook.close()
+    master = tmp_path / "master-press-list.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Machine Specifications"
+    sheet.append(["Machine Number", "U.S. Tons"])
+    sheet.append([37, 500])
+    workbook.save(master)
+    workbook.close()
+
+    report = plan_press_capacity_import(source, {"37": None}, master_press_list=master)
+
+    assert report.safe_to_execute
+    assert report.updates[0].source_tonnage == Decimal("500")
+    assert report.supplementary_sources == {master.name: hashlib.sha256(master.read_bytes()).hexdigest()}
 
 
 def test_receipt_is_redacted_and_immutable(tmp_path: Path) -> None:
