@@ -1287,6 +1287,27 @@ class ReleaseDeploymentService:
         trusted, revoked, _policy = load_production_trust_policy()
         if status.key_id in revoked or trusted.get(status.key_id) != provider.public_key_bytes():
             raise DeploymentError("production provider does not match active governed public trust")
+        # A production retry must never replace the immutable manifest or
+        # detached signature.  It still requires the live protected provider
+        # and policy to agree with the sealed key, then verifies the retained
+        # bytes through the public verification path.
+        if receipt.get("state") == "RELEASE_SET_VALIDATED":
+            signature_record = dict(receipt.get("release_set_signature") or {})
+            if str(signature_record.get("key_id") or "") != status.key_id:
+                raise DeploymentError("existing production seal key does not match the active protected provider")
+            verification = self.verify_sealed_release_set(candidate_id)
+            return OperationResult(
+                Status.PASS,
+                "Existing protected production release-set seal was reverified without replacement.",
+                verification.next_safe_action,
+                data={
+                    "candidate_id": candidate_id,
+                    "canonical_digest": receipt.get("release_set_digest"),
+                    "key_id": status.key_id,
+                    "idempotent": True,
+                    "publication_eligible": True,
+                },
+            )
         updated, sealing_receipt = seal_candidate(
             candidate_root, receipt, self.root, key_id=status.key_id, signer=provider.sign,
             trusted_public_keys=trusted, revoked_key_ids=revoked,
