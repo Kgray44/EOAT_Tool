@@ -4,10 +4,10 @@ EOAT Atlas production operational data is promoted with `scripts/database/build_
 
 ## Required invariants
 
-- The source must be the authoritative development MySQL database and must be at Alembic revision `20260721_0008`.
+- The source must be the authoritative development MySQL database and must be at Alembic revision `20260729_0009`.
 - The production-equivalent baseline must be a newly migrated disposable MySQL database at the same revision.
 - A production database, a name ending in `_prod`, or a test database outside explicit validation mode is rejected as an export source.
-- All 53 base tables must have a policy in `TABLE_POLICIES`; an unknown or missing table stops the build.
+- All 57 current tables must have a policy in `TABLE_POLICIES`; an unknown or missing table stops the build.
 - Alembic-seeded rows are reconciled by stable code. Meaning conflicts stop the build. Source-only operational codes are assigned deterministic non-colliding target IDs, and dependent foreign keys are remapped by meaning.
 - Development users, roles assignments, sessions, authentication audit events, application instances/releases, cutover sessions, idempotency state, external group mappings, and environment settings are excluded.
 - Completed sanctioned `import_batches`, `import_rows`, and `import_issues` are retained because operational rows reference them as provenance.
@@ -19,7 +19,7 @@ EOAT Atlas production operational data is promoted with `scripts/database/build_
 Create and migrate a disposable baseline first. Load connection values from an untracked environment file; never place passwords on the command line.
 
 ```powershell
-py -3.14 -m alembic -c server/alembic.ini upgrade 20260721_0008
+py -3.14 -m alembic -c server/alembic.ini upgrade 20260729_0009
 py -3.14 scripts/database/build_production_data_migration.py build `
   --source-environment development `
   --baseline-environment C:\secure\baseline.env `
@@ -50,7 +50,7 @@ Run `verify-empty-baseline` against production immediately before the backup and
 
 Run `tools/verify_master_tracker_mysql_parity.py` against the imported disposable database. The verifier is state-aware: compatibility rows never imply current installation; explicit cabinet/not-installed audit notes override a generic machine/context field; and conflicting simultaneous machine observations must be represented by `CONFLICTING` observations. It writes `eoat_location_state.csv` and `state_aware_location_parity.json` in addition to the general parity evidence.
 
-Packages built for `20260715_0006` or `20260717_0007` are obsolete and must be rejected. Use only a new migration identity whose manifest requires `20260721_0008`; never amend or reuse an older package.
+Packages built for `20260715_0006`, `20260717_0007`, or `20260721_0008` are obsolete and must be rejected. Use only a new migration identity whose manifest requires `20260729_0009`; never amend or reuse an older package.
 
 An observed current installation is not installation history. Revision `20260717_0007` represents this evidence in `eoat_location_observations` and retains row-level support in `eoat_location_assertions`. Date-only audits use `observed_on` with no fabricated `observed_at`. Real lifecycle tables still require genuine event times, and storage assignments still require a real storage location. “EOAT in cabinet” may prove stored state without identifying a cabinet; keep the observation target null rather than inventing a cabinet code.
 
