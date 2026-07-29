@@ -158,7 +158,12 @@ def generate_release_metadata(
         "git_commit": commit,
     }
     _assert_no_secret_fields(metadata, label="release metadata")
-    validate_release_metadata(metadata, require_artifact=True)
+    validate_release_metadata(
+        metadata,
+        require_artifact=True,
+        expected_schema_revision=str(defaults.get("database_schema_revision") or ""),
+        expected_api_version=str(defaults.get("api_contract_version") or ""),
+    )
     return metadata
 
 

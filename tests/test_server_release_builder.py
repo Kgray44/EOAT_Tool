@@ -76,6 +76,26 @@ def test_metadata_generation_captures_exact_source_and_stable_identities(tmp_pat
     assert metadata["build_timestamp"] == "2026-07-16T20:00:00Z"
 
 
+def test_metadata_generation_uses_the_packaged_commit_compatibility_contract(tmp_path: Path) -> None:
+    root, _ = release_repository(tmp_path / "repo")
+    defaults = json.loads((root / "release_defaults.json").read_text(encoding="utf-8"))
+    defaults.update({"database_schema_revision": "20260701_0008", "api_contract_version": "1.3.0"})
+    _write(root / "release_defaults.json", json.dumps(defaults))
+    subprocess.run(["git", "add", "release_defaults.json"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-m", "historical compatibility"], cwd=root, check=True, capture_output=True)
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+
+    metadata = builder.generate_release_metadata(
+        root,
+        commit,
+        branch_name="test/historical-release",
+        build_timestamp=datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc),
+    )
+
+    assert metadata["database_schema_revision"] == "20260701_0008"
+    assert metadata["api_contract_version"] == "1.3.0"
+
+
 def test_invalid_commit_and_invalid_repository_are_rejected(tmp_path: Path) -> None:
     root, _ = release_repository(tmp_path / "repo")
     with pytest.raises(builder.ReleaseBuildError):
