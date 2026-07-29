@@ -224,9 +224,6 @@ export function LibraryPage() {
     <section className="library-page">
       <h2>Library</h2>
       <span className="library-title-accent" aria-hidden="true" />
-      <p className="lede">
-        Browse and manage all EOATs, Tools, and Machines in one place.
-      </p>
       <form
         className="library-controls"
         onSubmit={(event) => {
