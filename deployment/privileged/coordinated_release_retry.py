@@ -910,7 +910,8 @@ def _validate_legacy_reconciliation(
     if path.is_symlink() or not path.is_file():
         fail("legacy reconciliation receipt is unsafe")
     info = path.lstat()
-    if info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o600:
+    web.require_root_owned(path)
+    if stat.S_IMODE(info.st_mode) != 0o600:
         fail("legacy reconciliation receipt ownership or mode is invalid")
     try:
         prior = json.loads(path.read_text(encoding="utf-8"))
