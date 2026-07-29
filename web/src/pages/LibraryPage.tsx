@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { apiClient, type SearchResult } from "@/api/client";
+import {
+  apiClient,
+  type CatalogActivity,
+  type CatalogFilters,
+  type SearchResult,
+} from "@/api/client";
 import { entityPath, type EntityCategory } from "@/api/routes";
 import {
   isRoutableAuthoritativeIdentifier,
@@ -24,8 +29,12 @@ import {
 } from "@/app/libraryContext";
 
 type Filter = "all" | EntityCategory;
+type LibraryResult = (SearchResult | RecentItem) & {
+  photo_document_uuid?: string | null;
+  photo_available_through_web?: boolean;
+};
 
-function ResultCard({ result }: { result: SearchResult | RecentItem }) {
+function ResultCard({ result }: { result: LibraryResult }) {
   const location = useLocation();
   const category = result.category as EntityCategory;
   const title = "title" in result ? result.title : result.label;
@@ -48,6 +57,18 @@ function ResultCard({ result }: { result: SearchResult | RecentItem }) {
     >
       <span className="result-card__media" aria-hidden="true">
         {category === "eoat" ? "◇" : category === "machine" ? "▣" : "▤"}
+        {category === "eoat" &&
+        result.photo_document_uuid &&
+        result.photo_available_through_web ? (
+          <img
+            src={apiClient.photoThumbnailUrl(result.photo_document_uuid)}
+            alt=""
+            loading="lazy"
+            onError={(event) => {
+              event.currentTarget.remove();
+            }}
+          />
+        ) : null}
       </span>
       <span className="result-card__body">
         <small className="result-card__status">In Service</small>
@@ -67,13 +88,21 @@ export function LibraryPage() {
   const [params, setParams] = useSearchParams();
   const query = params.get("q") || "";
   const filter = (params.get("type") || "all") as Filter;
+  const activity = (params.get("status") || "active") as CatalogActivity;
   const page = Math.max(1, Number(params.get("page") || "1"));
   const [draft, setDraft] = useState(query);
+  const [locationDraft, setLocationDraft] = useState(params.get("machine") || "");
+  const [advancedOpen, setAdvancedOpen] = useState(() =>
+    ["eoatType", "plant", "area", "cleanroom", "tool", "mold", "robot", "eoat"].some((key) =>
+      Boolean(params.get(key)),
+    ),
+  );
   const [recent, setRecent] = useState<RecentItem[]>([]);
   useEffect(() => {
     setDraft(query);
+    setLocationDraft(params.get("machine") || "");
     setRecent(readRecentItems());
-  }, [query]);
+  }, [params, query]);
   useEffect(() => {
     const context = readLibraryContext(location.state);
     if (!context) return;
@@ -82,25 +111,42 @@ export function LibraryPage() {
     );
     return () => window.cancelAnimationFrame(frame);
   }, [location.state]);
+  const catalogFilters = useMemo<CatalogFilters>(
+    () => ({
+      eoatType: params.get("eoatType") || undefined,
+      plant: params.get("plant") || undefined,
+      area: params.get("area") || undefined,
+      cleanroom: params.get("cleanroom") || undefined,
+      machine: params.get("machine") || undefined,
+      tool: params.get("tool") || undefined,
+      mold: params.get("mold") || undefined,
+      robot: params.get("robot") || undefined,
+      eoat: params.get("eoat") || undefined,
+      sort: params.get("sort") || undefined,
+    }),
+    [params],
+  );
+  const hasCatalogFilters = Object.values(catalogFilters).some(Boolean);
+  const searchUsesGlobalIndex = Boolean(query) && !hasCatalogFilters;
   const search = useQuery({
     queryKey: ["library", "search", query],
     queryFn: () => apiClient.search(query),
-    enabled: !!query,
+    enabled: searchUsesGlobalIndex,
   });
   const browseEoats = useQuery({
-    queryKey: ["library", "eoats", page],
-    queryFn: () => apiClient.getEoats("", page),
-    enabled: !query && filter === "eoat",
+    queryKey: ["library", "eoats", query, page, activity, catalogFilters],
+    queryFn: () => apiClient.getEoats(query, page, activity, catalogFilters),
+    enabled: !searchUsesGlobalIndex && (filter === "eoat" || filter === "all"),
   });
   const browseMachines = useQuery({
-    queryKey: ["library", "machines", page],
-    queryFn: () => apiClient.getMachines("", page),
-    enabled: !query && filter === "machine",
+    queryKey: ["library", "machines", query, page, activity, catalogFilters],
+    queryFn: () => apiClient.getMachines(query, page, activity, catalogFilters),
+    enabled: !searchUsesGlobalIndex && (filter === "machine" || filter === "all"),
   });
   const browseTools = useQuery({
-    queryKey: ["library", "tools", page],
-    queryFn: () => apiClient.getTools("", page),
-    enabled: !query && filter === "tool",
+    queryKey: ["library", "tools", query, page, activity, catalogFilters],
+    queryFn: () => apiClient.getTools(query, page, activity, catalogFilters),
+    enabled: !searchUsesGlobalIndex && (filter === "tool" || filter === "all"),
   });
   const results = useMemo(
     () =>
@@ -111,49 +157,61 @@ export function LibraryPage() {
       ),
     [filter, search.data],
   );
-  const browse =
+  const eoatResults: LibraryResult[] = browseEoats.data
+    ? browseEoats.data.items.map((item) => ({
+        category: "eoat",
+        identifier: item.business_identifier,
+        title: item.display_name || item.business_identifier,
+        subtitle: item.current_location,
+        matched_field: "catalog",
+        photo_document_uuid: item.photo_document_uuid,
+        photo_available_through_web: item.photo_available_through_web,
+      }))
+    : [];
+  const machineResults: SearchResult[] = browseMachines.data
+    ? browseMachines.data.items.map((item) => ({
+        category: "machine",
+        identifier: item.machine_number,
+        title: item.machine_name || item.machine_number,
+        subtitle: item.area || "Machine",
+        matched_field: "catalog",
+      }))
+    : [];
+  const toolResults: SearchResult[] = browseTools.data
+    ? browseTools.data.items.map((item) => ({
+        category: "tool",
+        identifier: item.business_identifier,
+        title: item.display_name || item.business_identifier,
+        subtitle: item.mold_number || item.tool_number || "Tool",
+        matched_field: "catalog",
+      }))
+    : [];
+  const browseResults =
     filter === "eoat"
-      ? browseEoats.data
+      ? eoatResults
       : filter === "machine"
-        ? browseMachines.data
-        : browseTools.data;
-  const browseResults: SearchResult[] =
-    filter === "eoat" && browseEoats.data
-      ? browseEoats.data.items.map((item) => ({
-          category: "eoat",
-          identifier: item.business_identifier,
-          title: item.display_name || item.business_identifier,
-          subtitle: item.current_location,
-          matched_field: "catalog",
-        }))
-      : filter === "machine" && browseMachines.data
-        ? browseMachines.data.items.map((item) => ({
-            category: "machine",
-            identifier: item.machine_number,
-            title: item.machine_name || item.machine_number,
-            subtitle: item.area || "Machine",
-            matched_field: "catalog",
-          }))
-        : filter === "tool" && browseTools.data
-          ? browseTools.data.items.map((item) => ({
-              category: "tool",
-              identifier: item.business_identifier,
-              title: item.display_name || item.business_identifier,
-              subtitle: item.mold_number || item.tool_number || "Tool",
-              matched_field: "catalog",
-            }))
-          : [];
-  const activeQuery = query
-    ? search
-    : filter === "eoat"
-      ? browseEoats
-      : filter === "machine"
-        ? browseMachines
+        ? machineResults
         : filter === "tool"
-          ? browseTools
-          : undefined;
-  const pending = activeQuery?.isPending ?? false;
-  const error = activeQuery?.error;
+          ? toolResults
+          : [...eoatResults, ...machineResults, ...toolResults];
+  const enabledBrowseQueries =
+    filter === "eoat"
+      ? [browseEoats]
+      : filter === "machine"
+        ? [browseMachines]
+        : filter === "tool"
+          ? [browseTools]
+          : [browseEoats, browseMachines, browseTools];
+  const pending = searchUsesGlobalIndex
+    ? search.isPending
+    : enabledBrowseQueries.some((value) => value.isPending);
+  const error = searchUsesGlobalIndex
+    ? search.error
+    : enabledBrowseQueries.find((value) => value.error)?.error;
+  const browsePagination = enabledBrowseQueries
+    .map((value) => value.data?.pagination)
+    .filter((value): value is NonNullable<typeof value> => Boolean(value))
+    .sort((left, right) => right.pages - left.pages)[0];
   const update = (next: Record<string, string>) => {
     const values = new URLSearchParams(params);
     Object.entries(next).forEach(([key, value]) =>
@@ -166,14 +224,15 @@ export function LibraryPage() {
     <section className="library-page">
       <h2>Library</h2>
       <span className="library-title-accent" aria-hidden="true" />
-      <p className="lede">
-        Browse and manage all EOATs, Tools, and Machines in one place.
-      </p>
       <form
         className="library-controls"
         onSubmit={(event) => {
           event.preventDefault();
-          update({ q: draft.trim(), page: "1" });
+          update({
+            q: draft.trim(),
+            machine: locationDraft.trim(),
+            page: "1",
+          });
         }}
       >
         <label>
@@ -201,31 +260,118 @@ export function LibraryPage() {
         <label>
           Status{" "}
           <select
-            disabled
-            aria-label="Status filtering is unavailable in the browser"
+            value={activity}
+            onChange={(event) =>
+              update({ status: event.target.value, page: "1" })
+            }
           >
-            <option>All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All records</option>
           </select>
         </label>
         <label>
           Location / Machine{" "}
-          <select
-            disabled
-            aria-label="Location filtering is unavailable in the browser"
-          >
-            <option>All</option>
-          </select>
+          <input
+            value={locationDraft}
+            onChange={(event) => setLocationDraft(event.target.value)}
+            placeholder="Machine number"
+          />
         </label>
         <button
           type="button"
           className="library-secondary-control"
-          disabled
-          title="Advanced desktop Library filters are unavailable in the read-only browser."
+          aria-expanded={advancedOpen}
+          onClick={() => setAdvancedOpen((current) => !current)}
         >
-          Advanced filters
+          Advanced Filters
         </button>
         <button type="submit">Search</button>
       </form>
+      {advancedOpen && (
+        <section className="library-advanced-filters" aria-label="Advanced Filters">
+          <label>
+            EOAT type
+            <input
+              value={catalogFilters.eoatType || ""}
+              onChange={(event) => update({ eoatType: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Plant
+            <input
+              value={catalogFilters.plant || ""}
+              onChange={(event) => update({ plant: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Area
+            <input
+              value={catalogFilters.area || ""}
+              onChange={(event) => update({ area: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Cleanroom
+            <input
+              value={catalogFilters.cleanroom || ""}
+              onChange={(event) => update({ cleanroom: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Tool / Mold
+            <input
+              value={catalogFilters.tool || ""}
+              onChange={(event) => update({ tool: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Mold number
+            <input
+              value={catalogFilters.mold || ""}
+              onChange={(event) => update({ mold: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Robot
+            <input
+              value={catalogFilters.robot || ""}
+              onChange={(event) => update({ robot: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Related EOAT
+            <input
+              value={catalogFilters.eoat || ""}
+              onChange={(event) => update({ eoat: event.target.value, page: "1" })}
+            />
+          </label>
+          <label>
+            Sort
+            <select
+              value={catalogFilters.sort || ""}
+              onChange={(event) => update({ sort: event.target.value, page: "1" })}
+            >
+              <option value="">Default</option>
+              <option value="updated_desc">Last updated</option>
+              <option value="status">Status</option>
+              <option value="business_identifier_desc">Identifier descending</option>
+              <option value="machine_number_desc">Machine descending</option>
+              <option value="mold">Mold</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() =>
+              update({
+                eoatType: "", plant: "", area: "", cleanroom: "", machine: "", tool: "", mold: "", robot: "", eoat: "", sort: "", page: "1",
+              })
+            }
+          >
+            Reset filters
+          </button>
+        </section>
+      )}
       <div className="library-category-rail" aria-label="Library category">
         {(
           [
@@ -248,7 +394,7 @@ export function LibraryPage() {
           </button>
         ))}
       </div>
-      {!query && filter === "all" && recent.length > 0 && (
+      {!query && !hasCatalogFilters && filter === "all" && recent.length > 0 && (
         <section className="recent-items" aria-labelledby="recent-title">
           <h3 id="recent-title">Recently viewed on this browser</h3>
           <div className="result-deck">
@@ -272,22 +418,16 @@ export function LibraryPage() {
           </div>
         </section>
       )}
-      {!query && filter === "all" && (
-        <EmptyState title="Choose a type or search">
-          Select an entity type to browse a paginated catalog, or search across
-          EOATs, machines, and tools.
-        </EmptyState>
-      )}
       {pending && <LoadingState label="Searching EOAT Atlas…" />}
       {error && <ErrorState error={error} />}
-      {!pending && !error && query && results.length === 0 && (
+      {!pending && !error && searchUsesGlobalIndex && results.length === 0 && (
         <EmptyState title="No matching records">
           No EOAT Atlas records matched this search.
         </EmptyState>
       )}
-      {!pending && !error && (query ? results : browseResults).length > 0 && (
+      {!pending && !error && (searchUsesGlobalIndex ? results : browseResults).length > 0 && (
         <div className="result-deck">
-          {(query ? results : browseResults).map((result) => (
+          {(searchUsesGlobalIndex ? results : browseResults).map((result) => (
             <ResultCard
               key={`${result.category}-${result.identifier}`}
               result={result}
@@ -295,7 +435,7 @@ export function LibraryPage() {
           ))}
         </div>
       )}
-      {!query && browse && browse.pagination.pages > 1 && (
+      {!searchUsesGlobalIndex && browsePagination && browsePagination.pages > 1 && (
         <nav className="pagination" aria-label="Catalog pagination">
           <button
             type="button"
@@ -305,11 +445,11 @@ export function LibraryPage() {
             Previous
           </button>
           <span>
-            Page {browse.pagination.page} of {browse.pagination.pages}
+            Page {browsePagination.page} of {browsePagination.pages}
           </span>
           <button
             type="button"
-            disabled={page >= browse.pagination.pages}
+            disabled={page >= browsePagination.pages}
             onClick={() => update({ page: String(page + 1) })}
           >
             Next

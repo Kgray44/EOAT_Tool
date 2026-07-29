@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,6 +17,7 @@ from core.data_gateway.models import ConnectivityMode
 from server.eoat_api.app import app, database_error
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
+from server.eoat_api.repositories import AtlasRepository
 from tests.fixtures.mysql_sanctioned import reset_and_load_sanctioned_fixture
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -196,6 +198,89 @@ def test_search_fit_check_and_setup_packet(api):
     )
     assert packet.status_code == 200
     assert packet.json()["source"] == "mysql_api"
+
+
+def test_physical_identity_aliases_preserve_splits_and_fail_closed(api):
+    """Exercise governed repeated/split identities against the sanctioned MySQL schema."""
+    repeated = "P4-EOAT-0018"
+    cleanroom_units = ("CL-EOAT-0050", "CL-EOAT-0057", "CL-EOAT-0058")
+    p4_units = ("P4-EOAT-0057", "P4-EOAT-0059", "P4-EOAT-0060", "P4-EOAT-0061")
+    separate_units = ("P4-EOAT-0029", "P4-EOAT-0030")
+    all_identifiers = (repeated, *cleanroom_units, *p4_units, *separate_units)
+
+    with create_session_factory()() as session:
+        records = {
+            identifier: db.EOAT(
+                business_identifier=identifier,
+                physical_uuid=str(uuid4()),
+                design_family_identifier="identity-integration-test",
+                is_active=True,
+            )
+            for identifier in all_identifiers
+        }
+        session.add_all(records.values())
+        session.flush()
+        aliases = [
+            db.EOATIdentityAlias(
+                eoat_id=records[repeated].id,
+                alias_identifier=repeated,
+                alias_type="AUDIT_SOURCE",
+                source_row_number=row,
+            )
+            for row in (44, 70)
+        ]
+        aliases.extend(
+            db.EOATIdentityAlias(
+                eoat_id=records[identifier].id,
+                alias_identifier="CL-EOAT-0050-SOURCE",
+                alias_type="AUDIT_SOURCE",
+                source_row_number=81 + offset,
+            )
+            for offset, identifier in enumerate(cleanroom_units)
+        )
+        aliases.extend(
+            db.EOATIdentityAlias(
+                eoat_id=records[identifier].id,
+                alias_identifier="P4-EOAT-0057-SOURCE",
+                alias_type="AUDIT_SOURCE",
+                source_row_number=94 + offset,
+            )
+            for offset, identifier in enumerate(p4_units)
+        )
+        session.add_all(aliases)
+        session.commit()
+
+        repository = AtlasRepository(session)
+        assert repository.resolve_eoat_identity(repeated).id == records[repeated].id
+        assert repository.resolve_eoat_identity("CL-EOAT-0050-SOURCE") is None
+        assert repository.resolve_eoat_identity("P4-EOAT-0057-SOURCE") is None
+        assert [repository.resolve_eoat_identity(identifier).id for identifier in cleanroom_units] == [
+            records[identifier].id for identifier in cleanroom_units
+        ]
+        assert [repository.resolve_eoat_identity(identifier).id for identifier in p4_units] == [
+            records[identifier].id for identifier in p4_units
+        ]
+        assert len({records[identifier].physical_uuid for identifier in cleanroom_units}) == 3
+        assert len({records[identifier].physical_uuid for identifier in p4_units}) == 4
+        assert records[separate_units[0]].id != records[separate_units[1]].id
+        assert records[separate_units[0]].physical_uuid != records[separate_units[1]].physical_uuid
+
+    try:
+        profile = api.get(f"/api/v1/eoats/{repeated}")
+        assert profile.status_code == 200
+        assert profile.json()["business_identifier"] == repeated
+        assert api.get(f"/api/v1/eoats/{repeated}/documents").status_code == 200
+        assert api.get(f"/api/v1/eoats/{repeated}/photos").status_code == 200
+        assert api.get("/api/v1/eoats/CL-EOAT-0050-SOURCE").status_code == 404
+        assert api.get("/api/v1/eoats/P4-EOAT-0057-SOURCE").status_code == 404
+    finally:
+        with create_session_factory()() as session:
+            created = session.scalars(
+                select(db.EOAT).where(db.EOAT.business_identifier.in_(all_identifiers))
+            ).all()
+            for record in created:
+                session.delete(record)
+            session.commit()
 
 
 def test_snapshot_cache_refresh_and_offline_read_only(api, tmp_path):

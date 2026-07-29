@@ -90,12 +90,7 @@ class AtlasService:
         if len(tool_candidates) > 1:
             return invalid_input("Tool identifier is ambiguous; use its unique business identifier.", "tool")
         tool = tool_candidates[0] if tool_candidates else None
-        eoat = self.session.scalar(
-            select(db.EOAT).where(
-                (db.EOAT.business_identifier == request.eoat_identifier)
-                | (db.EOAT.legacy_identifier == request.eoat_identifier)
-            )
-        )
+        eoat = self.repository.resolve_eoat_identity(request.eoat_identifier)
         unavailable = []
         if machine_candidates and machine is None:
             unavailable.append("machine")
@@ -242,14 +237,7 @@ class AtlasService:
                 or_(db.Tool.business_identifier == request.tool_number, db.Tool.tool_number == request.tool_number)
             )
         )
-        eoat = self.session.scalar(
-            select(db.EOAT).where(
-                or_(
-                    db.EOAT.business_identifier == request.eoat_identifier,
-                    db.EOAT.legacy_identifier == request.eoat_identifier,
-                )
-            )
-        )
+        eoat = self.repository.resolve_eoat_identity(request.eoat_identifier)
         codes = {
             "COMPATIBLE": "compatible",
             "INCOMPATIBLE": "incompatible",

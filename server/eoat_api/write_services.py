@@ -23,6 +23,7 @@ from .data_state import mark_data_changed
 from .database import models as db
 from .errors import APIError, conflict, not_found
 from .release_provenance import ensure_application_release, release_id_for_instance
+from .repositories import resolve_eoat_identity
 from .security import ActorContext
 from .services import AtlasService
 
@@ -283,8 +284,12 @@ def audit_change(
 
 
 def _entity_by_identifier(session: Session, entity_type: str, identifier: str, *, lock: bool = False):
+    if entity_type == "eoat":
+        value = resolve_eoat_identity(session, identifier, lock=lock)
+        if value is None:
+            raise not_found(entity_type, identifier)
+        return value
     mapping = {
-        "eoat": (db.EOAT, db.EOAT.business_identifier),
         "machine": (db.Machine, db.Machine.machine_number),
         "tool": (db.Tool, db.Tool.business_identifier),
         "robot": (db.Robot, db.Robot.robot_number),

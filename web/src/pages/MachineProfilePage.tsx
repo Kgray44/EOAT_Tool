@@ -17,6 +17,7 @@ import {
   HistoryList,
   PhotoGallery,
   ProfileSection,
+  ProfileTabPanel,
   ProfileTabs,
   RelationshipFlow,
   RelationshipList,
@@ -161,20 +162,26 @@ function MachineContent({
       />
       <ProfileTabs />
       <div className="profile-sections">
-        <RelationshipFlow
-          identifier={profile.machine_number}
-          category="Machine"
-          leftLabel="EOATs"
-          leftNodes={relatedEoats}
-          leftAuthoritativeValue={currentEoat}
-          hasLeftAuthoritativeValue={!!setup.data || currentEoat !== undefined}
-          leftAuthoritativeLabel="EOAT"
-          rightLabel="Tools"
-          rightNodes={relatedTools}
-          rightAuthoritativeValue={currentTool}
-          hasRightAuthoritativeValue={!!setup.data || currentTool !== undefined}
-          rightAuthoritativeLabel="tool / mold"
-        />
+        <ProfileTabPanel tab="relationships">
+          <RelationshipFlow
+            identifier={profile.machine_number}
+            category="Machine"
+            leftLabel="EOATs"
+            leftNodes={relatedEoats}
+            leftAuthoritativeValue={currentEoat}
+            hasLeftAuthoritativeValue={
+              !!setup.data || currentEoat !== undefined
+            }
+            leftAuthoritativeLabel="EOAT"
+            rightLabel="Tools"
+            rightNodes={relatedTools}
+            rightAuthoritativeValue={currentTool}
+            hasRightAuthoritativeValue={
+              !!setup.data || currentTool !== undefined
+            }
+            rightAuthoritativeLabel="tool / mold"
+          />
+        </ProfileTabPanel>
         <ProfileSection title="Overview">
           <dl className="attribute-grid">
             {overview

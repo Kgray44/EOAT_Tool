@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -24,6 +26,7 @@ def _utc(value: datetime) -> datetime:
 
 
 class AuthenticationService:
+    _CUSTOM_DEFAULTS_METADATA_KEY = "eoat_atlas.browser_settings_custom_defaults"
     def __init__(self, session: Session, configuration: AuthenticationConfiguration | None = None):
         self.session = session
         self.configuration = configuration or AuthenticationConfiguration.from_environment()
@@ -277,8 +280,53 @@ class AuthenticationService:
         ).all()
         return [self._setting_payload(row) for row in rows]
 
+    @staticmethod
+    def _browser_setting_definitions() -> dict[str, Any]:
+        """Return only desktop Settings controls safe for browser administration."""
+        from app.atlas.minimalist.settings_page import SETTINGS_REGISTRY
+
+        return {
+            item.key: item
+            for item in SETTINGS_REGISTRY
+            if item.visible
+            and item.implemented
+            and not item.locked
+            and item.control not in {"path", "locked", "locked_text", "status", "action"}
+        }
+
+    @classmethod
+    def _browser_defaults(cls) -> dict[str, Any]:
+        return {key: item.default for key, item in cls._browser_setting_definitions().items()}
+
+    def _custom_defaults(self) -> dict[str, Any]:
+        row = self.session.scalar(
+            select(db.SystemMetadata).where(db.SystemMetadata.metadata_key == self._CUSTOM_DEFAULTS_METADATA_KEY)
+        )
+        if row is None:
+            return {}
+        try:
+            value = json.loads(row.metadata_value)
+        except (TypeError, ValueError):
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def _default_values(self) -> dict[str, Any]:
+        return {**self._browser_defaults(), **self._custom_defaults()}
+
+    def _validate_browser_setting(self, setting_key: str, value: Any) -> None:
+        definition = self._browser_setting_definitions().get(setting_key)
+        if definition is None:
+            raise APIError(404, "BROWSER_SETTING_NOT_FOUND", "This setting is not available for browser administration.")
+        if definition.control == "checkbox" and not isinstance(value, bool):
+            raise APIError(422, "INVALID_SETTING_VALUE", "This setting requires a true or false value.")
+        if definition.control == "text" and not isinstance(value, str):
+            raise APIError(422, "INVALID_SETTING_VALUE", "This setting requires text.")
+        if definition.options and value not in {option.value for option in definition.options}:
+            raise APIError(422, "INVALID_SETTING_VALUE", "This setting value is not one of the approved desktop options.")
+
     def write_public_setting(self, token: str, setting_key: str, value, description: str | None = None) -> dict:
         authorization = self.require_permission(token, "settings.edit")
+        self._validate_browser_setting(setting_key, value)
         row = self.session.scalar(select(db.SystemSetting).where(db.SystemSetting.setting_key == setting_key))
         if row is not None and row.is_sensitive:
             raise APIError(403, "SENSITIVE_SETTING_BLOCKED", "Sensitive settings cannot be changed through this endpoint.")
@@ -305,6 +353,67 @@ class AuthenticationService:
         self.session.flush()
         self.audit_settings_action(token, "SETTINGS_UPDATED", f"settings.write:{setting_key}")
         return self._setting_payload(row)
+
+    def apply_browser_settings_action(self, token: str, action: str, *, section: str | None = None) -> dict:
+        definitions = self._browser_setting_definitions()
+        if action == "set-defaults":
+            authorization = self.require_permission(token, "settings.set_default")
+            values = self._default_values()
+            for row in self.public_settings():
+                if row["key"] in definitions:
+                    values[row["key"]] = row["value"]
+            metadata = self.session.scalar(
+                select(db.SystemMetadata).where(db.SystemMetadata.metadata_key == self._CUSTOM_DEFAULTS_METADATA_KEY)
+            )
+            encoded = json.dumps(values, sort_keys=True, separators=(",", ":"))
+            if metadata is None:
+                metadata = db.SystemMetadata(
+                    metadata_key=self._CUSTOM_DEFAULTS_METADATA_KEY,
+                    metadata_value=encoded,
+                )
+                self.session.add(metadata)
+            else:
+                metadata.metadata_value = encoded
+            self.session.flush()
+            self.audit_settings_action(token, "SETTINGS_DEFAULT_CHANGED", "settings.set_default")
+            return {"action": action, "updated": len(values), "identity": authorization["identity"]}
+
+        self.require_permission(token, "settings.restore")
+        if action == "factory-reset":
+            metadata = self.session.scalar(
+                select(db.SystemMetadata).where(db.SystemMetadata.metadata_key == self._CUSTOM_DEFAULTS_METADATA_KEY)
+            )
+            if metadata is not None:
+                self.session.delete(metadata)
+            target_keys = set(definitions)
+            for row in self.session.scalars(
+                select(db.SystemSetting).where(db.SystemSetting.setting_key.in_(target_keys))
+            ).all():
+                self.session.delete(row)
+        elif action in {"reset-all", "reset-section"}:
+            if action == "reset-section":
+                if not section:
+                    raise APIError(422, "SETTINGS_SECTION_REQUIRED", "A Settings section is required for this reset.")
+                target_keys = {key for key, item in definitions.items() if item.section == section}
+                if not target_keys:
+                    raise APIError(422, "SETTINGS_SECTION_NOT_RESETTABLE", "This Settings section has no browser-resettable controls.")
+            else:
+                target_keys = set(definitions)
+            defaults = self._default_values()
+            rows = self.session.scalars(select(db.SystemSetting).where(db.SystemSetting.setting_key.in_(target_keys))).all()
+            by_key = {row.setting_key: row for row in rows}
+            for key in target_keys:
+                row = by_key.get(key)
+                if row is None:
+                    continue
+                row.setting_value_json = defaults[key]
+                row.value_type = self._value_type(defaults[key])
+                row.row_version += 1
+        else:
+            raise APIError(404, "SETTINGS_ACTION_NOT_FOUND", "This Settings action is not available.")
+        self.session.flush()
+        self.audit_settings_action(token, "SETTINGS_DEFAULT_CHANGED", f"settings.{action}")
+        return {"action": action, "updated": len(target_keys)}
 
     @staticmethod
     def _value_type(value) -> str:

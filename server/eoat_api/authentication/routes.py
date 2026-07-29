@@ -34,6 +34,38 @@ class SettingsWriteRequest(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
 
 
+class SettingsActionRequest(BaseModel):
+    confirmation: str = Field(min_length=1, max_length=64)
+    section: str | None = Field(default=None, max_length=64)
+
+
+class SettingsCatalogOption(BaseModel):
+    value: Any
+    label: str
+
+
+class SettingsCatalogItem(BaseModel):
+    section: str
+    key: str
+    label: str
+    control: str
+    default: Any
+    description: str = ""
+    options: list[SettingsCatalogOption] = Field(default_factory=list)
+    locked: bool = False
+
+
+class SettingsCatalogSection(BaseModel):
+    key: str
+    title: str
+    glyph: str
+
+
+class SettingsCatalogResponse(BaseModel):
+    sections: list[SettingsCatalogSection]
+    items: list[SettingsCatalogItem]
+
+
 def _service(session: Session) -> AuthenticationService:
     try:
         return AuthenticationService(session)
@@ -103,6 +135,35 @@ def read_settings(session: Session = Depends(get_write_session)):
     return {"items": _service(session).public_settings(), "authentication_required": False}
 
 
+@router.get("/settings/catalog", response_model=SettingsCatalogResponse)
+def read_settings_catalog() -> SettingsCatalogResponse:
+    """Expose the desktop Settings registry so browser controls cannot drift.
+
+    This is descriptive only: sensitive values, paths, and authentication
+    material are not returned. Values still come from the ordinary shared
+    Settings endpoint and writes remain permission-gated.
+    """
+    from app.atlas.minimalist.settings_page import SECTIONS, SETTINGS_REGISTRY
+
+    return SettingsCatalogResponse(
+        sections=[SettingsCatalogSection(key=item.key, title=item.title, glyph=item.glyph) for item in SECTIONS],
+        items=[
+            SettingsCatalogItem(
+                section=item.section,
+                key=item.key,
+                label=item.label,
+                control=item.control,
+                default=item.default,
+                description=item.description,
+                options=[SettingsCatalogOption(value=option.value, label=option.label) for option in item.options],
+                locked=item.locked,
+            )
+            for item in SETTINGS_REGISTRY
+            if item.visible and item.implemented
+        ],
+    )
+
+
 @router.put("/settings/{setting_key}")
 def write_setting(
     setting_key: str,
@@ -120,6 +181,29 @@ def write_setting(
         )
     return _service(session).write_public_setting(
         _bearer(request), normalized_key, payload.value, payload.description
+    )
+
+
+@router.post("/settings/actions/{action}")
+def settings_action(
+    action: str,
+    payload: SettingsActionRequest,
+    request: Request,
+    session: Session = Depends(get_write_session),
+):
+    confirmations = {
+        "reset-section": "RESET SECTION",
+        "reset-all": "RESET ALL SETTINGS",
+        "set-defaults": "SET DEFAULTS",
+        "factory-reset": "FACTORY RESET",
+    }
+    required = confirmations.get(action)
+    if required is None:
+        raise APIError(404, "SETTINGS_ACTION_NOT_FOUND", "This Settings action is not available.")
+    if payload.confirmation.strip() != required:
+        raise APIError(422, "SETTINGS_CONFIRMATION_REQUIRED", f'Type "{required}" to continue.')
+    return _service(session).apply_browser_settings_action(
+        _bearer(request), action, section=payload.section
     )
 
 

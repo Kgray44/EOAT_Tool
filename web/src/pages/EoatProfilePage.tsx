@@ -1,11 +1,12 @@
 import { useEffect, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   apiClient,
   type EoatLocation,
   type EoatProfile,
   type EoatRelationship,
+  type WebPhoto,
 } from "@/api/client";
 import { ApiError } from "@/api/errors";
 import { rememberItem } from "@/api/recent";
@@ -19,8 +20,11 @@ import {
 import {
   DocumentList,
   PhotoGallery,
+  ProfileTabPanel,
   ProfileTabs,
   RelationshipFlow,
+  normalizeProfileTab,
+  profileTabForSection,
 } from "@/components/profile/ProfileBlocks";
 import { QrLabel } from "@/components/qr/QrLabel";
 import {
@@ -95,6 +99,12 @@ function ProfileSection({
   title: string;
   children: ReactNode;
 }) {
+  const [searchParams] = useSearchParams();
+  if (
+    profileTabForSection(title) !== normalizeProfileTab(searchParams.get("tab"))
+  ) {
+    return null;
+  }
   return (
     <section className="profile-section" aria-labelledby={`section-${title}`}>
       <h2 id={`section-${title.toLowerCase().replaceAll(" ", "-")}`}>
@@ -126,9 +136,11 @@ function Attribute({
 function ProfileHeader({
   profile,
   location,
+  heroPhoto,
 }: {
   profile: EoatProfile;
   location?: EoatLocation;
+  heroPhoto?: WebPhoto;
 }) {
   const locationText =
     location?.state === "INSTALLED" && location.machine_number
@@ -138,9 +150,24 @@ function ProfileHeader({
         : presentationText(profile.current_location);
   return (
     <header className="profile-header">
-      <div className="profile-medallion" aria-hidden="true">
-        ◇
-      </div>
+      {heroPhoto?.content_delivery_state === "AVAILABLE" ? (
+        <a
+          className="profile-hero-photo"
+          href={apiClient.photoContentUrl(heroPhoto.document_uuid)}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open full-resolution photo for ${profile.business_identifier}`}
+        >
+          <img
+            src={apiClient.photoThumbnailUrl(heroPhoto.document_uuid)}
+            alt={heroPhoto.caption || heroPhoto.title || heroPhoto.file_name}
+          />
+        </a>
+      ) : (
+        <div className="profile-medallion" aria-hidden="true">
+          ◇
+        </div>
+      )}
       <div className="profile-identity">
         <p className="eyebrow">Read-only EOAT profile</p>
         <h1>{presentationText(profile.business_identifier)}</h1>
@@ -179,6 +206,7 @@ function ProfileContent({
   identifier: string;
   profile: EoatProfile;
 }) {
+  const [searchParams] = useSearchParams();
   useEffect(() => {
     rememberItem({
       category: "eoat",
@@ -249,19 +277,27 @@ function ProfileContent({
 
   return (
     <>
-      <ProfileHeader profile={profile} location={currentLocation} />
+      <ProfileHeader
+        profile={profile}
+        location={currentLocation}
+        heroPhoto={
+          photos.data?.find((photo) => photo.is_profile_photo) ?? photos.data?.[0]
+        }
+      />
       <ProfileTabs />
       <div className="profile-sections">
-        <RelationshipFlow
-          identifier={profile.business_identifier}
-          category="EOAT"
-          leftLabel="Machines"
-          leftNodes={relatedMachines}
-          leftAuthoritativeValue={currentLocation?.machine_number}
-          hasLeftAuthoritativeValue={!!currentLocation}
-          rightLabel="Tools"
-          rightNodes={relatedTools}
-        />
+        <ProfileTabPanel tab="relationships">
+          <RelationshipFlow
+            identifier={profile.business_identifier}
+            category="EOAT"
+            leftLabel="Machines"
+            leftNodes={relatedMachines}
+            leftAuthoritativeValue={currentLocation?.machine_number}
+            hasLeftAuthoritativeValue={!!currentLocation}
+            rightLabel="Tools"
+            rightNodes={relatedTools}
+          />
+        </ProfileTabPanel>
         <ProfileSection title="Overview">
           <dl className="attribute-grid">
             <Attribute label="Description" value={profile.description} />
@@ -370,6 +406,10 @@ function ProfileContent({
             <ul className="relationship-list">
               {resolvedRelationships.map((relationship) => {
                 const to = relationshipTo(relationship);
+                const destination =
+                  to && searchParams.get("tab")
+                    ? `${to}?tab=${encodeURIComponent(searchParams.get("tab")!)}`
+                    : to;
                 const text =
                   relationship.display_name &&
                   isRoutableAuthoritativeIdentifier(relationship.display_name)
@@ -380,7 +420,11 @@ function ProfileContent({
                     key={`${relationship.relationship_type}-${relationship.identifier}`}
                   >
                     <span>{relationship.relationship_type}: </span>
-                    {to ? <Link to={to}>{text}</Link> : <span>{text}</span>}
+                    {destination ? (
+                      <Link to={destination}>{text}</Link>
+                    ) : (
+                      <span>{text}</span>
+                    )}
                     <small>
                       {presentationText(relationship.status)}
                       {relationship.reason ? ` · ${relationship.reason}` : ""}

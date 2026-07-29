@@ -45,9 +45,78 @@ def _optional_text(value: Any) -> str | None:
     return text_value or None
 
 
+def resolve_eoat_identity(session: Session, identifier: str, *, lock: bool = False) -> db.EOAT | None:
+    """Resolve a browser/API EOAT reference without merging physical units.
+
+    Canonical business identifiers always win.  A legacy or governed source
+    alias is accepted only when it names exactly one physical EOAT; a shared
+    source identifier from a deliberate physical-unit split remains
+    unresolved rather than selecting an arbitrary unit.
+    """
+
+    normalized = _optional_text(identifier)
+    if not normalized:
+        return None
+    direct = select(db.EOAT).where(func.lower(db.EOAT.business_identifier) == normalized.casefold())
+    if lock:
+        direct = direct.with_for_update()
+    entity = session.scalar(direct)
+    if entity is not None:
+        return entity
+    aliases = (
+        select(db.EOAT)
+        .outerjoin(db.EOATIdentityAlias, db.EOATIdentityAlias.eoat_id == db.EOAT.id)
+        .where(
+            or_(
+                func.lower(db.EOAT.legacy_identifier) == normalized.casefold(),
+                func.lower(db.EOATIdentityAlias.alias_identifier) == normalized.casefold(),
+            )
+        )
+        .distinct()
+        .order_by(db.EOAT.id)
+    )
+    if lock:
+        aliases = aliases.with_for_update()
+    candidates = list(session.scalars(aliases).all())
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _photo_previews(session: Session, entity_type: str, entity_ids: list[int]) -> dict[int, tuple[str, bool]]:
+    """Select one deterministic photo per entity without exposing storage paths."""
+    if not entity_ids:
+        return {}
+    rows = session.execute(
+        select(
+            db.DocumentLink.entity_id,
+            db.Document.document_uuid,
+            db.Document.storage_path,
+        )
+        .join(db.Document, db.Document.id == db.DocumentLink.document_id)
+        .join(db.Photo, db.Photo.document_id == db.Document.id)
+        .where(db.DocumentLink.entity_type == entity_type, db.DocumentLink.entity_id.in_(entity_ids))
+        .order_by(
+            db.DocumentLink.entity_id,
+            db.DocumentLink.is_primary.desc(),
+            db.Photo.is_profile_photo.desc(),
+            db.Photo.sort_order,
+            db.Document.id,
+        )
+    ).all()
+    from .web_content import content_is_available
+
+    previews: dict[int, tuple[str, bool]] = {}
+    for entity_id, document_uuid, storage_path in rows:
+        if entity_id not in previews:
+            previews[entity_id] = (document_uuid, content_is_available(storage_path))
+    return previews
+
+
 class AtlasRepository:
     def __init__(self, session: Session):
         self.session = session
+
+    def resolve_eoat_identity(self, identifier: str, *, lock: bool = False) -> db.EOAT | None:
+        return resolve_eoat_identity(self.session, identifier, lock=lock)
 
     def lookups(self, lookup_type: str | None = None) -> dict[str, list[LookupValue]]:
         models = {lookup_type: LOOKUP_MODELS[lookup_type]} if lookup_type else LOOKUP_MODELS
@@ -73,7 +142,10 @@ class AtlasRepository:
         eoat_type: str | None = None,
         area: str | None = None,
         cleanroom: str | None = None,
+        machine_number: str | None = None,
+        tool_number: str | None = None,
         sort: str = "business_identifier",
+        include_photo_previews: bool = True,
     ) -> tuple[list[EOATSummary], PaginationMetadata]:
         type_l = aliased(db.EOATType)
         conn_l = aliased(db.ConnectionType)
@@ -101,18 +173,40 @@ class AtlasRepository:
             stmt = stmt.where(type_l.code == eoat_type)
         if cleanroom:
             stmt = stmt.where(clean_l.code == cleanroom)
-        if area:
+        if area or machine_number:
+            eoat_machine_l = aliased(db.EOATMachineCompatibility)
+            machine_l = aliased(db.Machine)
             stmt = (
-                stmt.join(db.EOATMachineCompatibility, db.EOATMachineCompatibility.eoat_id == db.EOAT.id)
-                .join(db.Machine, db.Machine.id == db.EOATMachineCompatibility.machine_id)
-                .join(db.Area, db.Area.id == db.Machine.area_id)
-                .where(or_(db.Area.area_code == area, db.Area.area_name == area))
+                stmt.join(eoat_machine_l, eoat_machine_l.eoat_id == db.EOAT.id)
+                .join(machine_l, machine_l.id == eoat_machine_l.machine_id)
+                .outerjoin(db.Area, db.Area.id == machine_l.area_id)
+                .where(eoat_machine_l.is_active.is_(True))
+                .distinct()
+            )
+            if area:
+                stmt = stmt.where(or_(db.Area.area_code == area, db.Area.area_name == area))
+            if machine_number:
+                stmt = stmt.where(machine_l.machine_number == machine_number)
+        if tool_number:
+            stmt = (
+                stmt.join(db.EOATToolCompatibility, db.EOATToolCompatibility.eoat_id == db.EOAT.id)
+                .join(db.Tool, db.Tool.id == db.EOATToolCompatibility.tool_id)
+                .where(
+                    or_(db.Tool.business_identifier == tool_number, db.Tool.tool_number == tool_number),
+                    db.EOATToolCompatibility.is_active.is_(True),
+                )
                 .distinct()
             )
         total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
-        order = db.EOAT.updated_at.desc() if sort == "updated_desc" else db.EOAT.business_identifier
+        order = {
+            "updated_desc": db.EOAT.updated_at.desc(),
+            "business_identifier_desc": db.EOAT.business_identifier.desc(),
+            "status": status_l.display_name,
+            "type": type_l.display_name,
+        }.get(sort, db.EOAT.business_identifier)
         rows = self.session.execute(stmt.order_by(order).offset((page - 1) * page_size).limit(page_size)).all()
         locations = resolve_eoat_locations(self.session, [row[0].id for row in rows])
+        previews = _photo_previews(self.session, "eoat", [row[0].id for row in rows]) if include_photo_previews else {}
         items = [
             EOATSummary(
                 business_identifier=e.business_identifier,
@@ -129,6 +223,8 @@ class AtlasRepository:
                 row_version=e.row_version,
                 current_location=locations[e.id].display,
                 current_location_detail=locations[e.id],
+                photo_document_uuid=previews.get(e.id, (None, False))[0],
+                photo_available_through_web=previews.get(e.id, (None, False))[1],
             )
             for e, t, c, cl, s in rows
         ]
@@ -137,19 +233,13 @@ class AtlasRepository:
         )
 
     def eoat(self, identifier: str) -> EOATProfile | None:
-        items, _ = self.list_eoats(search=identifier, active=None, page_size=100)
-        summary = next(
-            (
-                item
-                for item in items
-                if item.business_identifier.casefold() == identifier.casefold()
-                or (item.legacy_identifier or "").casefold() == identifier.casefold()
-            ),
-            None,
-        )
+        entity = self.resolve_eoat_identity(identifier)
+        if entity is None:
+            return None
+        items, _ = self.list_eoats(search=entity.business_identifier, active=None, page_size=100)
+        summary = next((item for item in items if item.business_identifier == entity.business_identifier), None)
         if summary is None:
             return None
-        entity = self.session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == summary.business_identifier))
         return EOATProfile(
             **summary.model_dump(),
             description=entity.description,
@@ -175,7 +265,7 @@ class AtlasRepository:
         )
 
     def eoat_relationships(self, identifier: str) -> list[RelationshipSummary]:
-        eoat = self.session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier))
+        eoat = self.resolve_eoat_identity(identifier)
         results: list[RelationshipSummary] = []
         if eoat is None:
             return results
@@ -212,7 +302,19 @@ class AtlasRepository:
         return results
 
     def list_machines(
-        self, *, search: str = "", page: int = 1, page_size: int = 50, active: bool | None = True
+        self,
+        *,
+        search: str = "",
+        page: int = 1,
+        page_size: int = 50,
+        active: bool | None = True,
+        plant: str | None = None,
+        area: str | None = None,
+        cleanroom: str | None = None,
+        eoat_identifier: str | None = None,
+        tool_number: str | None = None,
+        robot_number: str | None = None,
+        sort: str = "machine_number",
     ) -> tuple[list[MachineSummary], PaginationMetadata]:
         area_l = aliased(db.Area)
         clean_l = aliased(db.CleanroomClassification)
@@ -234,9 +336,50 @@ class AtlasRepository:
                     db.Machine.model.contains(search),
                 )
             )
+        if plant:
+            stmt = stmt.where(db.Plant.plant_code == plant)
+        if area:
+            stmt = stmt.where(or_(area_l.area_code == area, area_l.area_name == area))
+        if cleanroom:
+            stmt = stmt.where(clean_l.code == cleanroom)
+        if eoat_identifier:
+            eoat = self.resolve_eoat_identity(eoat_identifier)
+            if eoat is None:
+                return [], PaginationMetadata(page=page, page_size=page_size, total=0, pages=0)
+            stmt = (
+                stmt.join(db.EOATMachineCompatibility, db.EOATMachineCompatibility.machine_id == db.Machine.id)
+                .where(
+                    db.EOATMachineCompatibility.eoat_id == eoat.id,
+                    db.EOATMachineCompatibility.is_active.is_(True),
+                )
+                .distinct()
+            )
+        if tool_number:
+            stmt = (
+                stmt.join(db.ToolMachineCompatibility, db.ToolMachineCompatibility.machine_id == db.Machine.id)
+                .join(db.Tool, db.Tool.id == db.ToolMachineCompatibility.tool_id)
+                .where(
+                    or_(db.Tool.business_identifier == tool_number, db.Tool.tool_number == tool_number),
+                    db.ToolMachineCompatibility.is_active.is_(True),
+                )
+                .distinct()
+            )
+        if robot_number:
+            stmt = (
+                stmt.join(db.MachineRobotAssignment, db.MachineRobotAssignment.machine_id == db.Machine.id)
+                .join(db.Robot, db.Robot.id == db.MachineRobotAssignment.robot_id)
+                .where(db.Robot.robot_number == robot_number, db.MachineRobotAssignment.removed_at.is_(None))
+                .distinct()
+            )
         total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+        order = {
+            "machine_number_desc": cast(db.Machine.machine_number, String).desc(),
+            "status": status_l.display_name,
+            "plant": db.Plant.plant_code,
+            "updated_desc": db.Machine.updated_at.desc(),
+        }.get(sort, cast(db.Machine.machine_number, String))
         rows = self.session.execute(
-            stmt.order_by(cast(db.Machine.machine_number, String)).offset((page - 1) * page_size).limit(page_size)
+            stmt.order_by(order).offset((page - 1) * page_size).limit(page_size)
         ).all()
         all_eoat_ids = list(self.session.scalars(select(db.EOAT.id).where(db.EOAT.is_active.is_(True))))
         installed_by_machine: dict[str, list[str]] = defaultdict(list)
@@ -346,7 +489,16 @@ class AtlasRepository:
         )
 
     def list_tools(
-        self, *, search: str = "", page: int = 1, page_size: int = 50, active: bool | None = True
+        self,
+        *,
+        search: str = "",
+        page: int = 1,
+        page_size: int = 50,
+        active: bool | None = True,
+        mold: str | None = None,
+        machine_number: str | None = None,
+        eoat_identifier: str | None = None,
+        sort: str = "business_identifier",
     ) -> tuple[list[ToolSummary], PaginationMetadata]:
         status_l = aliased(db.AssetStatus)
         stmt = select(db.Tool, status_l.display_name).outerjoin(status_l, db.Tool.status_id == status_l.id)
@@ -361,9 +513,36 @@ class AtlasRepository:
                     db.Tool.display_name.contains(search),
                 )
             )
+        if mold:
+            stmt = stmt.where(or_(db.Tool.mold_number.contains(mold), db.Tool.tool_number.contains(mold)))
+        if machine_number:
+            stmt = (
+                stmt.join(db.ToolMachineCompatibility, db.ToolMachineCompatibility.tool_id == db.Tool.id)
+                .join(db.Machine, db.Machine.id == db.ToolMachineCompatibility.machine_id)
+                .where(db.Machine.machine_number == machine_number, db.ToolMachineCompatibility.is_active.is_(True))
+                .distinct()
+            )
+        if eoat_identifier:
+            eoat = self.resolve_eoat_identity(eoat_identifier)
+            if eoat is None:
+                return [], PaginationMetadata(page=page, page_size=page_size, total=0, pages=0)
+            stmt = (
+                stmt.join(db.EOATToolCompatibility, db.EOATToolCompatibility.tool_id == db.Tool.id)
+                .where(
+                    db.EOATToolCompatibility.eoat_id == eoat.id,
+                    db.EOATToolCompatibility.is_active.is_(True),
+                )
+                .distinct()
+            )
         total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
+        order = {
+            "business_identifier_desc": db.Tool.business_identifier.desc(),
+            "status": status_l.display_name,
+            "updated_desc": db.Tool.updated_at.desc(),
+            "mold": db.Tool.mold_number,
+        }.get(sort, db.Tool.business_identifier)
         rows = self.session.execute(
-            stmt.order_by(db.Tool.business_identifier).offset((page - 1) * page_size).limit(page_size)
+            stmt.order_by(order).offset((page - 1) * page_size).limit(page_size)
         ).all()
         return [
             ToolSummary(
@@ -681,7 +860,9 @@ class AtlasRepository:
 
     def snapshot_profiles(self) -> tuple[list[EOATProfile], list[MachineProfile], list[ToolProfile]]:
         """Build all profile payloads with a bounded query count."""
-        eoat_summaries, _ = self.list_eoats(active=None, page_size=10_000)
+        # A full snapshot carries authoritative document metadata separately;
+        # avoid a redundant preview query while building its EOAT profiles.
+        eoat_summaries, _ = self.list_eoats(active=None, page_size=10_000, include_photo_previews=False)
         machine_summaries, _ = self.list_machines(active=None, page_size=10_000)
         tool_summaries, _ = self.list_tools(active=None, page_size=10_000)
         eoats = {row.id: row for row in self.session.scalars(select(db.EOAT))}

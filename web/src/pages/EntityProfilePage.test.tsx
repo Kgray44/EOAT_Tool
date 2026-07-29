@@ -86,6 +86,9 @@ describe("machine and tool profile routes", () => {
     expect(
       await screen.findByRole("heading", { name: "M-1" }),
     ).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("link", { name: "Docs & Photos" }));
     expect(await screen.findByText("Photos unavailable")).toBeInTheDocument();
     await userEvent
       .setup()
@@ -107,6 +110,9 @@ describe("machine and tool profile routes", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText(/Not recorded:/)).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("link", { name: "Docs & Photos" }));
     expect(await screen.findByText("No photos recorded")).toBeInTheDocument();
     expect(
       await screen.findByText("No documents recorded"),

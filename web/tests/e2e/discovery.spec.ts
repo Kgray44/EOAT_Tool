@@ -263,11 +263,12 @@ test("machine and tool deep links refresh, relate, and render media", async ({
 }) => {
   const seen: import("@playwright/test").Request[] = [];
   await routeApi(page, seen);
-  await page.goto("/machines/M-1");
+  await page.goto("/machines/M-1?tab=media");
   await expect(page.getByRole("heading", { name: "M-1" })).toBeVisible();
   await expect(page.getByRole("img", { name: /Fixture image/ })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "M-1" })).toBeVisible();
+  await page.goto("/machines/M-1?tab=relationships");
   await page.getByRole("link", { name: /TOOL-1/ }).click();
   await expect(page.getByRole("heading", { name: "TOOL-1" })).toBeVisible();
   await page.reload();
@@ -321,7 +322,7 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
   );
   await page.goto("/machines/M-1");
   await expect(
-    page.getByText(/http:\/\/127\.0\.0\.1:4173\/machines\/M-1/),
+    page.locator("code").filter({ hasText: "/machines/M-1" }),
   ).toBeVisible();
   for (const [width, height] of [
     [1760, 1080],
@@ -377,15 +378,21 @@ test("Mirrorline shell traps overlays, restores Library context, and fades top c
     page.getByRole("dialog", { name: "Search EOAT Atlas" }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
+  await page.goto("/");
+  const search = page.getByRole("textbox", {
+    name: "Search the EOAT Atlas Library",
+  });
+  await search.focus();
   await page.keyboard.press("m");
-  const search = page.getByRole("textbox", { name: "Search EOAT Atlas" });
   await expect(search).toHaveValue("m");
   await page.waitForTimeout(150);
   await expect(
     page
-      .getByRole("dialog", { name: "Search EOAT Atlas" })
       .getByRole("button", { name: /Press 1/ }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Search EOAT Atlas" }),
+  ).toHaveCount(0);
   await page.keyboard.press("Escape");
 
   await page.evaluate(() => {

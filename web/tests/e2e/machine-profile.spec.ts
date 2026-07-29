@@ -103,8 +103,10 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
     page.getByLabel("Overview").getByText("Active", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText(/Not recorded:/)).toBeVisible();
+  await page.getByRole("link", { name: "Docs & Photos" }).click();
   await expect(page.getByText("No photos recorded")).toBeVisible();
   await expect(page.getByText("No documents recorded")).toBeVisible();
+  await page.getByRole("link", { name: "Relationships" }).click();
   const relationshipItems = page.locator(".relationship-list li");
   await expect(relationshipItems).toHaveCount(2);
   await expect(
@@ -172,7 +174,7 @@ test("Machine Photos preserves a real API failure while Documents keeps its succ
   page,
 }) => {
   await routeMachineApi(page, { photosStatus: 503 });
-  await page.goto("/machines/27");
+  await page.goto("/machines/27?tab=media");
 
   await expect(page.getByText("Photos unavailable")).toBeVisible();
   await expect(page.getByText("No photos recorded")).toHaveCount(0);
@@ -201,7 +203,7 @@ test("production-shaped Machine 14 presents an unverified Tool assignment withou
       return route.fulfill({ json: [] });
     return route.fulfill({ json: machine14 });
   });
-  await page.goto("/machines/14");
+  await page.goto("/machines/14?tab=relationships");
   await expect(
     page.getByText("Current tool / mold not verified"),
   ).toBeVisible();
@@ -215,6 +217,7 @@ test("production-shaped Machine 14 presents an unverified Tool assignment withou
     page.locator('a[href="/tools/UNKNOWN_NOT_VERIFIED"]'),
   ).toHaveCount(0);
   await expect(page.locator("code")).not.toContainText("UNKNOWN_NOT_VERIFIED");
+  await page.getByRole("link", { name: "Overview" }).click();
   await expect(page.locator('a[href*="fit-check"]')).toHaveCount(1);
   const recentState = await page.evaluate(() => JSON.stringify(localStorage));
   expect(recentState).not.toContain("UNKNOWN_NOT_VERIFIED");
@@ -261,12 +264,12 @@ test.describe("Machine relationship-flow assignment semantics", () => {
           return route.fulfill({ json: [] });
         return route.fulfill({ json: fixture });
       });
-      await page.goto("/machines/14");
+      await page.goto("/machines/14?tab=relationships");
       await expect(
         page.getByLabel("Relationship overview").getByText(expected),
       ).toBeVisible();
       if (currentTool === "TOOL-ABC-17") {
-        await expect(page.locator('a[href="/tools/TOOL-ABC-17"]')).toHaveCount(
+        await expect(page.locator('a[href^="/tools/TOOL-ABC-17"]')).toHaveCount(
           1,
         );
       } else {

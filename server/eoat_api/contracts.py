@@ -84,6 +84,8 @@ class EOATSummary(BaseModel):
     row_version: int
     current_location: str = "UNKNOWN_NOT_VERIFIED"
     current_location_detail: CurrentEOATLocation | None = None
+    photo_document_uuid: str | None = None
+    photo_available_through_web: bool = False
 
 
 class EOATProfile(EOATSummary):
@@ -225,6 +227,24 @@ class WebFitCheckRequest(BaseModel):
     machine_number: str
     tool_number: str
     eoat_identifier: str
+
+
+class FitCheckOption(BaseModel):
+    """A browser-safe selectable asset for the read-only Fit Check."""
+
+    identifier: str
+    label: str
+    plant_code: str | None = None
+
+
+class WebFitCheckOptions(BaseModel):
+    """Candidates backed by explicit, currently-effective compatible records only."""
+
+    machines: list[FitCheckOption] = Field(default_factory=list)
+    tools: list[FitCheckOption] = Field(default_factory=list)
+    eoats: list[FitCheckOption] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    unresolved_inputs: list[Literal["machine", "tool", "eoat"]] = Field(default_factory=list)
 
 
 class SearchResult(BaseModel):

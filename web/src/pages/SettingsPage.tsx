@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient, type SettingsAction } from "@/api/client";
+import { ErrorState, LoadingState } from "@/components/feedback/StateViews";
 import {
   defaultBrowserSettings,
   readBrowserSettings,
@@ -23,109 +26,138 @@ type SettingsSectionKey =
 type SettingsSection = {
   key: SettingsSectionKey;
   label: string;
-  description: string;
-  browserSummary: string;
 };
 
 const sections: SettingsSection[] = [
   {
     key: "data_sources",
     label: "Data Services and Engineering Files",
-    description: "API, network documents, and controlled imports",
-    browserSummary:
-      "The browser reads only the published API and browser-safe document metadata. Source paths and local engineering files are not exposed.",
   },
   {
     key: "refresh_cache",
     label: "Server, Synchronization, and Cache",
-    description: "Server refresh and disposable cache behavior",
-    browserSummary:
-      "Freshness is reported from the API. Browser cache and refresh policy stay under the service and browser security boundaries.",
   },
   {
     key: "read_only_safety",
     label: "Server Write Safety",
-    description: "Transactions, authorization, conflicts, and offline behavior",
-    browserSummary:
-      "This browser remains read-only. It cannot enable writes, update operational records, or change server authorization.",
   },
   {
     key: "search_navigation",
     label: "Search & Navigation",
-    description: "Search behavior and navigation",
-    browserSummary:
-      "Global search uses the authoritative read-only API with the desktop debounce, keyboard navigation, and browser-local recents.",
   },
   {
     key: "fit_check",
     label: "Fit Check",
-    description: "Compatibility and flow behavior",
-    browserSummary:
-      "The browser evaluates the server-authoritative compatibility result without storing a Fit Check, assignment, audit, or history event.",
   },
   {
     key: "library",
     label: "Library",
-    description: "Library display and defaults",
-    browserSummary:
-      "Library context, filters, sorting, and scroll restoration stay in the URL and browser session without changing catalog data.",
   },
   {
     key: "display_accessibility",
     label: "Display & Accessibility",
-    description: "Theme, appearance, and readability",
-    browserSummary:
-      "These browser-local preferences are safe to change immediately and never alter desktop settings or shared data.",
   },
   {
     key: "setup_packet_pdf",
     label: "Setup Packet / PDF",
-    description: "PDF defaults and output settings",
-    browserSummary:
-      "Packet generation is a desktop-local file workflow. The browser offers a read-only Fit Check instead of a simulated export.",
   },
   {
     key: "validation_health",
     label: "Validation & Data Health",
-    description: "Data checks and validation rules",
-    browserSummary:
-      "The browser preserves API freshness and visible validation warnings but cannot run privileged local validation controls.",
   },
   {
     key: "reference_documents",
     label: "Reference Documents",
-    description: "Guidelines and reference files",
-    browserSummary:
-      "Only documents explicitly delivered through browser-safe API routes can open here; local and network paths stay private.",
   },
   {
     key: "diagnostics_support",
     label: "Diagnostics & Support",
-    description: "Logs, tools, and troubleshooting",
-    browserSummary:
-      "Browser diagnostics preserve safe status information. Administrator sessions, local logs, and diagnostic bundles remain desktop-only.",
   },
   {
     key: "about",
     label: "About",
-    description: "App information and version",
-    browserSummary:
-      "EOAT Atlas browser information is read-only. Release activation and application administration are intentionally unavailable.",
   },
 ];
 
-const dataRows = [
-  ["EOAT Atlas API", "Read-only browser endpoint"],
-  ["Source workbooks", "Not exposed to browser"],
-  ["Engineering documents and photos", "Browser-safe profile media only"],
-  ["Legacy Excel source", "Desktop-local controlled import"],
-] as const;
+function canonicalValue(value: unknown): string {
+  if (value === true) return "Enabled";
+  if (value === false) return "Disabled";
+  return value === "" || value === null || value === undefined
+    ? "Not recorded"
+    : String(value);
+}
+
+function CanonicalSettingsControl({
+  item,
+  value,
+  editable,
+  onChange,
+}: {
+  item: { key: string; label: string; control: string; default: unknown; description?: string; options?: { value?: unknown; label?: string }[]; locked?: boolean };
+  value: unknown;
+  editable: boolean;
+  onChange: (value: unknown) => void;
+}) {
+  const statusOnly = item.locked || ["locked", "locked_text", "status", "path"].includes(item.control);
+  return (
+    <div className="settings-control-row">
+      <div>
+        <strong>{item.label}</strong>
+        {item.description ? <p>{item.description}</p> : null}
+      </div>
+      {statusOnly ? (
+        <output>
+          {item.control === "path" ? "Server-managed" : canonicalValue(value)}
+        </output>
+      ) : item.control === "checkbox" ? (
+        <label className="settings-locked-control">
+          <input aria-label={item.label} type="checkbox" checked={Boolean(value)} disabled={!editable} onChange={(event) => onChange(event.target.checked)} />
+          <span>{Boolean(value) ? "Enabled" : "Disabled"}</span>
+        </label>
+      ) : item.control === "text" ? (
+        <input value={value == null ? "" : String(value)} readOnly={!editable} aria-label={item.label} onChange={(event) => onChange(event.target.value)} />
+      ) : (
+        <select value={String(value ?? item.default)} disabled={!editable} aria-label={item.label} onChange={(event) => onChange((item.options ?? []).find((option) => String(option.value) === event.target.value)?.value ?? event.target.value)}>
+          {(item.options ?? []).map((option) => (
+            <option key={String(option.value)} value={String(option.value)}>
+              {option.label ?? String(option.value)}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}
 
 export function SettingsPage() {
   const [section, setSection] = useState<SettingsSectionKey>("data_sources");
   const [settings, setSettings] = useState<BrowserSettings>(() =>
     readBrowserSettings(),
   );
+  const [sessionToken, setSessionToken] = useState(() => sessionStorage.getItem("eoat-atlas-settings-session") || "");
+  const [session, setSession] = useState<Awaited<ReturnType<typeof apiClient.getSettingsSession>> | null>(null);
+  const [loginIdentity, setLoginIdentity] = useState("dev.admin");
+  const [authError, setAuthError] = useState<unknown>(null);
+  const [draftShared, setDraftShared] = useState<Record<string, unknown>>({});
+  const [pendingAction, setPendingAction] = useState<SettingsAction | null>(null);
+  const [confirmation, setConfirmation] = useState("");
+  const catalog = useQuery({
+    queryKey: ["settings", "catalog"],
+    queryFn: () => apiClient.getSettingsCatalog(),
+  });
+  const shared = useQuery({ queryKey: ["settings", "shared"], queryFn: () => apiClient.getSharedSettings() });
+  const authConfiguration = useQuery({ queryKey: ["settings", "auth-config"], queryFn: () => apiClient.getAuthConfiguration() });
+  useEffect(() => {
+    if (!sessionToken) {
+      setSession(null);
+      return;
+    }
+    void apiClient.getSettingsSession(sessionToken).then(setSession).catch(() => {
+      sessionStorage.removeItem("eoat-atlas-settings-session");
+      setSessionToken("");
+      setSession(null);
+    });
+  }, [sessionToken]);
   const activeSection = sections.find((item) => item.key === section)!;
   const update = <K extends keyof BrowserSettings>(
     key: K,
@@ -136,14 +168,91 @@ export function SettingsPage() {
     saveBrowserSettings(next);
     window.dispatchEvent(new Event("atlas-settings-changed"));
   };
+  const restoreBrowserDefaults = () => {
+    setSettings(defaultBrowserSettings);
+    saveBrowserSettings(defaultBrowserSettings);
+    window.dispatchEvent(new Event("atlas-settings-changed"));
+  };
+  const exportBrowserSettings = () => {
+    const blob = new Blob([JSON.stringify(settings, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "eoat-atlas-browser-settings.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const editableSharedSettings = Boolean(session?.permissions?.includes("settings.edit"));
+  const canResetSettings = Boolean(session?.permissions?.includes("settings.restore"));
+  const canSetDefaults = Boolean(session?.permissions?.includes("settings.set_default"));
+  const valueFor = (item: { key: string; default: unknown }) =>
+    draftShared[item.key] ?? shared.data?.find((setting) => setting.key === item.key)?.value ?? item.default;
+  const queueShared = (item: { key: string }, value: unknown) => {
+    if (!editableSharedSettings) return;
+    setDraftShared((current) => ({ ...current, [item.key]: value }));
+  };
+  const saveShared = () => {
+    if (!sessionToken || !editableSharedSettings || !Object.keys(draftShared).length) return;
+    setAuthError(null);
+    void Promise.all(
+      Object.entries(draftShared).map(([key, value]) =>
+        apiClient.updateSharedSetting(
+          key,
+          value,
+          sessionToken,
+          catalog.data?.items.find((item) => item.key === key)?.description,
+        ),
+      ),
+    ).then(() => {
+      setDraftShared({});
+      return shared.refetch();
+    }).catch(setAuthError);
+  };
+  const discardShared = () => {
+    setDraftShared({});
+    void shared.refetch();
+  };
+  const actionConfirmation: Record<SettingsAction, string> = {
+    "reset-section": "RESET SECTION",
+    "reset-all": "RESET ALL SETTINGS",
+    "set-defaults": "SET DEFAULTS",
+    "factory-reset": "FACTORY RESET",
+  };
+  const executeSettingsAction = () => {
+    if (!pendingAction || confirmation !== actionConfirmation[pendingAction] || !sessionToken) return;
+    setAuthError(null);
+    void apiClient.applySettingsAction(
+      pendingAction,
+      sessionToken,
+      confirmation,
+      pendingAction === "reset-section" ? section : undefined,
+    ).then(() => {
+      setPendingAction(null);
+      setConfirmation("");
+      setDraftShared({});
+      return shared.refetch();
+    }).catch(setAuthError);
+  };
+  const signIn = () => {
+    setAuthError(null);
+    void apiClient.loginDevelopment(loginIdentity).then((next) => {
+      sessionStorage.setItem("eoat-atlas-settings-session", next.access_token);
+      setSessionToken(next.access_token);
+      setSession(next);
+    }).catch(setAuthError);
+  };
+  const signOut = () => {
+    if (sessionToken) void apiClient.logoutSettings(sessionToken).catch(() => undefined);
+    sessionStorage.removeItem("eoat-atlas-settings-session");
+    setSessionToken("");
+    setSession(null);
+  };
   return (
     <section className="settings-page" aria-labelledby="settings-title">
       <header className="settings-heading">
         <h1 id="settings-title">Settings</h1>
-        <p>
-          Configure browser preferences. Operational controls stay in EOAT Atlas
-          Desktop.
-        </p>
       </header>
       <div className="settings-workspace">
         <aside className="settings-nav" aria-label="Settings sections">
@@ -157,7 +266,6 @@ export function SettingsPage() {
               onClick={() => setSection(item.key)}
             >
               <strong>{item.label}</strong>
-              <span>{item.description}</span>
             </button>
           ))}
         </aside>
@@ -165,9 +273,8 @@ export function SettingsPage() {
           <header className="settings-panel-heading">
             <div>
               <h2>{activeSection.label}</h2>
-              <p>{activeSection.description}</p>
             </div>
-            <span>Administrator access required to edit</span>
+            <span>{section === "display_accessibility" ? "Browser preferences" : editableSharedSettings ? "Administrator session" : "Administrator lock"}</span>
           </header>
           {section === "display_accessibility" ? (
             <>
@@ -255,43 +362,78 @@ export function SettingsPage() {
               <section className="profile-section settings-preferences">
                 <h2>Browser preferences</h2>
                 <p className="notes">
-                  These controls apply only to this browser. Desktop operational
-                  controls remain unavailable here.
+                  These controls apply only to this browser. Shared settings
+                  retain their server-side authorization requirements.
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSettings(defaultBrowserSettings);
-                    saveBrowserSettings(defaultBrowserSettings);
-                    window.dispatchEvent(new Event("atlas-settings-changed"));
-                  }}
+                  onClick={restoreBrowserDefaults}
                 >
                   Restore browser defaults
                 </button>
               </section>
             </>
           ) : (
-            <section className="settings-desktop-boundary">
-              <h2>Browser-safe status</h2>
-              <p>{activeSection.browserSummary}</p>
-              {section === "data_sources" && (
-                <dl className="settings-status-list">
-                  {dataRows.map(([label, value]) => (
-                    <div key={label}>
-                      <dt>{label}</dt>
-                      <dd>{value}</dd>
-                    </div>
-                  ))}
-                </dl>
+            <section className="settings-canonical-controls">
+              {catalog.isPending && <LoadingState label="Loading Settings controls…" />}
+              {catalog.isError && <ErrorState error={catalog.error} />}
+              {catalog.data?.items
+                .filter((item) => item.section === section)
+                .map((item) => (
+                  <CanonicalSettingsControl key={item.key} item={item} value={valueFor(item)} editable={editableSharedSettings} onChange={(value) => queueShared(item, value)} />
+                ))}
+              {catalog.data && (
+                <p className="notes">
+                  Shared controls remain locked until a configured Settings administrator session authorizes a real server-side change. Filesystem paths are deliberately server-managed and never exposed to the browser.
+                </p>
               )}
-              <p className="notes">
-                This browser never changes data sources, operational records,
-                local files, server settings, or administrator access.
-              </p>
             </section>
           )}
+          {section === "diagnostics_support" ? (
+            <section className="settings-danger-zone" aria-labelledby="settings-danger-zone-title">
+              <h2 id="settings-danger-zone-title">Danger Zone</h2>
+              <p>Destructive actions require typed confirmation and never modify operational EOAT records.</p>
+              <div>
+                <button type="button" disabled={!canSetDefaults} onClick={() => setPendingAction("set-defaults")}>Set Current Configuration as Defaults</button>
+                <button type="button" disabled={!canResetSettings} onClick={() => setPendingAction("reset-all")}>Reset All Settings</button>
+                <button type="button" disabled={!canResetSettings} onClick={() => setPendingAction("factory-reset")}>Factory Reset</button>
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
+      <footer className="settings-action-bar">
+        <span>{session ? `Administrator: ${session.identity?.display_name || "authenticated"}` : "Shared settings require administrator authentication."}</span>
+        {session ? (
+          <button type="button" onClick={signOut}>Admin Logout</button>
+        ) : authConfiguration.data?.provider === "development" ? (
+          <>
+            <select aria-label="Development administrator identity" value={loginIdentity} onChange={(event) => setLoginIdentity(event.target.value)}>
+              {(authConfiguration.data.development_identities || []).map((identity) => <option key={identity} value={identity}>{identity}</option>)}
+            </select>
+            <button type="button" onClick={signIn}>Admin Login</button>
+          </>
+        ) : (
+          <output>{authConfiguration.data?.message || "Administrator authentication is not configured."}</output>
+        )}
+        <button type="button" onClick={exportBrowserSettings}>
+          Export browser settings
+        </button>
+        <span aria-live="polite">{Object.keys(draftShared).length ? "Unsaved changes" : ""}</span>
+        <button type="button" disabled={!Object.keys(draftShared).length} onClick={discardShared}>Reload Settings</button>
+        <button type="button" disabled={!canResetSettings || section === "data_sources" || section === "about"} onClick={() => setPendingAction("reset-section")}>Reset Section</button>
+        <button type="button" disabled={!editableSharedSettings || !Object.keys(draftShared).length} onClick={saveShared}>Save Settings</button>
+      </footer>
+      {pendingAction ? (
+        <section className="settings-confirmation" role="dialog" aria-modal="true" aria-labelledby="settings-confirmation-title">
+          <h2 id="settings-confirmation-title">{pendingAction === "reset-section" ? "Reset Section" : pendingAction === "reset-all" ? "Reset All Settings" : pendingAction === "set-defaults" ? "Set Current Configuration as Defaults" : "Factory Reset"}</h2>
+          <p>Type <strong>{actionConfirmation[pendingAction]}</strong> to confirm. This changes Settings only; operational EOAT data is never modified.</p>
+          <input aria-label="Confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
+          <button type="button" onClick={() => { setPendingAction(null); setConfirmation(""); }}>Cancel</button>
+          <button type="button" disabled={confirmation !== actionConfirmation[pendingAction]} onClick={executeSettingsAction}>Confirm</button>
+        </section>
+      ) : null}
+      {authError ? <ErrorState error={authError} /> : null}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router-dom";
 import { AppProviders } from "@/app/providers";
@@ -20,6 +20,16 @@ function mockFetch() {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     void init;
     const path = String(input);
+    if (path.includes("/api/v1/web-fit-checks/options"))
+      return Promise.resolve(
+        json({
+          machines: [{ identifier: "M-1", label: "Press 1", plant_code: "P1" }],
+          tools: [{ identifier: "T-1", label: "Tool 1" }],
+          eoats: [{ identifier: "E-1", label: "EOAT 1" }],
+          warnings: [],
+          unresolved_inputs: [],
+        }),
+      );
     if (path.includes("web-fit-checks"))
       return Promise.resolve(
         json({
@@ -77,7 +87,22 @@ function mockFetch() {
       );
     if (path.includes("/tools?"))
       return Promise.resolve(json({ items: [], pagination }));
-    return Promise.resolve(json({ items: [], pagination }));
+    return Promise.resolve(
+      json({
+        items: [
+          {
+            business_identifier: "E-1",
+            display_name: "EOAT 1",
+            current_location: "STORED",
+            is_active: true,
+            row_version: 1,
+            photo_document_uuid: "hero-photo",
+            photo_available_through_web: true,
+          },
+        ],
+        pagination,
+      }),
+    );
   });
 }
 
@@ -86,7 +111,7 @@ describe("Library and Fit Check", () => {
     vi.unstubAllGlobals();
     localStorage.clear();
   });
-  it("shows local-only recent items before a search", async () => {
+  it("shows recents alongside the default server-paginated catalog", async () => {
     rememberItem({ category: "eoat", identifier: "E-1", label: "Recent EOAT" });
     const fetcher = mockFetch();
     vi.stubGlobal("fetch", fetcher);
@@ -98,7 +123,19 @@ describe("Library and Fit Check", () => {
       "href",
       "/eoats/E-1",
     );
-    expect(fetcher).not.toHaveBeenCalled();
+    expect(await screen.findByAltText("")).toHaveAttribute(
+      "src",
+      "/api/v1/web-photos/hero-photo/thumbnail",
+    );
+    await waitFor(() =>
+      expect(fetcher.mock.calls.map(([path]) => path)).toEqual(
+        expect.arrayContaining([
+          "/api/v1/eoats?search=&page=1&page_size=24",
+          "/api/v1/machines?search=&page=1&page_size=24",
+          "/api/v1/tools?search=&page=1&page_size=24",
+        ]),
+      ),
+    );
   });
   it("explains insufficient Fit Check data and uses the browser-safe POST", async () => {
     const fetcher = mockFetch();
@@ -120,5 +157,22 @@ describe("Library and Fit Check", () => {
           path === "/api/v1/web-fit-checks/evaluate" && init?.method === "POST",
       ),
     ).toBe(true);
+  });
+
+  it("uses server-side advanced Library filters rather than client-side filtering", async () => {
+    const fetcher = mockFetch();
+    vi.stubGlobal("fetch", fetcher);
+    renderAt("/library?type=machine");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Advanced Filters" }));
+    await user.type(screen.getByLabelText("Plant"), "P4");
+
+    await waitFor(() =>
+      expect(fetcher.mock.calls.map(([path]) => path)).toEqual(
+        expect.arrayContaining([
+          "/api/v1/machines?search=&page=1&page_size=24&plant=P4",
+        ]),
+      ),
+    );
   });
 });

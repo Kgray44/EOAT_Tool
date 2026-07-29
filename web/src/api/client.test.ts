@@ -128,4 +128,23 @@ describe("apiClient", () => {
       }),
     );
   });
+
+  it("gets compatibility-filtered Fit Check options with encoded selection parameters", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ machines: [], tools: [], eoats: [], warnings: [], unresolved_inputs: [] }),
+        { status: 200 },
+      ),
+    );
+
+    await apiClient.getWebFitCheckOptions(
+      { plant_code: "Plant 4", machine_number: "M/1", tool_number: "T1" },
+      fetcher,
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/web-fit-checks/options?plant_code=Plant+4&machine_number=M%2F1&tool_number=T1",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });
