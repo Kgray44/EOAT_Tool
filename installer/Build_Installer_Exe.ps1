@@ -141,7 +141,20 @@ if (!(Test-Path -LiteralPath (Join-Path $launcherSource "EOAT Atlas Launcher.exe
 Copy-Item -LiteralPath $appSource -Destination $distDir -Recurse -Force
 Copy-Item -LiteralPath $launcherSource -Destination $distDir -Recurse -Force
 
-$hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exePath).Hash
+$stream = [System.IO.File]::OpenRead($exePath)
+try {
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $algorithm.ComputeHash($stream)
+    }
+    finally {
+        $algorithm.Dispose()
+    }
+}
+finally {
+    $stream.Dispose()
+}
+$hash = ([System.BitConverter]::ToString($digest)).Replace("-", "")
 Write-Host "Built installer exe: $exePath"
 Write-Host "SHA-256: $hash"
 Write-Host "This exe does not request elevation. If endpoint security blocks it, use Install_EOAT_Atlas.cmd and provide this hash to IT."
