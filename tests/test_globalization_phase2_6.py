@@ -52,7 +52,7 @@ def test_metadata_and_resources_load_from_simulated_packaged_root(tmp_path, monk
                 "metadata_schema_version": 2,
                 "environment": "test",
                 "release_channel": "test",
-                    "database_schema_revision": "20260721_0008",
+                    "database_schema_revision": "20260729_0009",
                 "api_contract_version": "1.4.0",
                 "launcher_version": "0.1.0",
                 "installer_version": "0.1.0",
