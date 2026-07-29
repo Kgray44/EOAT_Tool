@@ -59,7 +59,7 @@ def verify() -> dict:
     errors = []
     if expected_tables - actual_tables:
         errors.append(f"missing tables: {sorted(expected_tables - actual_tables)}")
-    if revision != "20260721_0008":
+    if revision != "20260729_0009":
         errors.append(f"unexpected Alembic revision: {revision}")
     if invalid_foreign_keys:
         errors.append(f"invalid foreign-key metadata rows: {invalid_foreign_keys}")

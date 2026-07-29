@@ -303,6 +303,8 @@ class EOAT(VersionMixin, Base):
     )
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     business_identifier: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    physical_uuid: Mapped[str | None] = mapped_column(String(36), unique=True)
+    design_family_identifier: Mapped[str | None] = mapped_column(String(96), index=True)
     legacy_identifier: Mapped[str | None] = mapped_column(String(96))
     display_name: Mapped[str | None] = mapped_column(String(160))
     description: Mapped[str | None] = mapped_column(Text)
@@ -330,6 +332,22 @@ class EOAT(VersionMixin, Base):
     date_built: Mapped[datetime | None] = mapped_column(Date)
     date_commissioned: Mapped[datetime | None] = mapped_column(Date)
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class EOATIdentityAlias(Base):
+    __tablename__ = "eoat_identity_aliases"
+    __table_args__ = (
+        UniqueConstraint("eoat_id", "alias_identifier", "alias_type", "source_row_number", name="uq_eoat_identity_alias"),
+        Index("ix_eoat_identity_aliases_identifier", "alias_identifier"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    eoat_id: Mapped[int] = mapped_column(PK, ForeignKey("eoats.id", ondelete="CASCADE"), nullable=False)
+    alias_identifier: Mapped[str] = mapped_column(String(96), nullable=False)
+    alias_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_row_number: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    owner_decision_reference: Mapped[str | None] = mapped_column(String(255))
+    source_import_batch_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_batches.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
 
 
 class Machine(VersionMixin, Base):

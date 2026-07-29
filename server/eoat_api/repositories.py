@@ -116,6 +116,8 @@ class AtlasRepository:
         items = [
             EOATSummary(
                 business_identifier=e.business_identifier,
+                physical_uuid=e.physical_uuid,
+                design_family_identifier=e.design_family_identifier,
                 legacy_identifier=e.legacy_identifier,
                 display_name=e.display_name,
                 eoat_type=t,

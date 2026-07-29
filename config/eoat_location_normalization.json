@@ -1,5 +1,5 @@
 {
-  "policy_version": "2026-07-20",
+  "policy_version": "2026-07-29",
   "approved_by": {
     "name": "Kato Gray",
     "role": "EOAT Atlas project/data owner"
@@ -12,7 +12,9 @@
     "N/A means stored in cabinet with no cabinet identifier invented.",
     "26 - Xqual in 25 means Machine 26 while the original workbook wording is retained as evidence.",
     "Proven identical cleanroom EOATs receive separate deterministic EOAT IDs.",
-    "Plant 4 multi-machine audit sequences that do not prove duplicates are treated as movement.",
+    "P4-EOAT-0018 is one physical unit with two audit records; its tool change is evidence, not a new identity or fabricated installation event.",
+    "CL-EOAT-0050, CL-EOAT-0052, CL-EOAT-0054, and P4-EOAT-0057 are independently audited simultaneous physical units and must be split by their governed workbook rows.",
+    "P4-EOAT-0029 and P4-EOAT-0030 are separate physical units that share compatibility evidence, never identity.",
     "Uncertain present locations become STORED with cabinet unspecified.",
     "No unsupported lifecycle history, user, cabinet identifier, or timestamp may be fabricated."
   ],
@@ -37,23 +39,43 @@
     },
     {
       "source_identifier": "CL-EOAT-0054",
-      "reason": "The two physically verified Cleanroom observations on 2026-06-29 prove two simultaneous identical units; the earlier row remains with the preserved original unit.",
+      "reason": "Three physically verified Cleanroom observations prove three simultaneous identical units; each preserves its row-specific location and tool evidence.",
       "units": [
-        {"eoat_identifier": "CL-EOAT-0054", "source_rows": [88, 92]},
-        {"eoat_identifier": "CL-EOAT-0061", "source_rows": [93]}
+        {"eoat_identifier": "CL-EOAT-0054", "source_rows": [88]},
+        {"eoat_identifier": "CL-EOAT-0061", "source_rows": [92]},
+        {"eoat_identifier": "CL-EOAT-0062", "source_rows": [93]}
+      ]
+    },
+    {
+      "source_identifier": "P4-EOAT-0057",
+      "reason": "Four same-day Plant 4 observations prove four simultaneous physical units; a machine observation never implies movement or shared identity.",
+      "units": [
+        {"eoat_identifier": "P4-EOAT-0057", "source_rows": [94]},
+        {"eoat_identifier": "P4-EOAT-0059", "source_rows": [95]},
+        {"eoat_identifier": "P4-EOAT-0060", "source_rows": [96]},
+        {"eoat_identifier": "P4-EOAT-0061", "source_rows": [97]}
       ]
     }
   ],
-  "plant4_movement_resolutions": [
+  "repeated_audit_units": [
     {
-      "eoat_identifier": "P4-EOAT-0057",
-      "source_rows": [94, 95, 96, 97],
-      "reason": "The four same-day Plant 4 observations do not contain duplicate-pair proof, so they are a movement sequence and current storage is cabinet unspecified."
+      "source_identifier": "P4-EOAT-0018",
+      "eoat_identifier": "P4-EOAT-0018",
+      "source_rows": [44, 70],
+      "reason": "Two audits at Machine 56 are evidence of one physical EOAT. The differing tools remain compatibility and audit evidence only."
     }
   ],
+  "identity_correction": {
+    "correction_id": "eoat-physical-identity-66-20260729",
+    "owner_decision_reference": "GitHub Issue #7; data-owner ruling dated 2026-07-29",
+    "expected_audited_rows": 67,
+    "expected_physical_units": 66,
+    "expected_duplicate_physical_identifier": "P4-EOAT-0018",
+    "expected_duplicate_audit_rows": 2
+  },
   "expected_location_state_counts": {
-    "INSTALLED": 45,
-    "STORED": 17,
+    "INSTALLED": 50,
+    "STORED": 16,
     "UNKNOWN": 0,
     "INACTIVE": 0,
     "CONFLICTING": 0

@@ -71,6 +71,8 @@ class CurrentEOATLocation(BaseModel):
 
 class EOATSummary(BaseModel):
     business_identifier: str
+    physical_uuid: str | None = None
+    design_family_identifier: str | None = None
     legacy_identifier: str | None = None
     display_name: str | None = None
     eoat_type: str | None = None

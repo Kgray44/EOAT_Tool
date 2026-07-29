@@ -18,9 +18,10 @@ from sqlalchemy.orm import Session
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
 from server.eoat_api.release_provenance import ensure_application_release
+from tools.eoat_location_normalization import load_policy, normalized_source_rows
 from tools.migration.excel_to_mysql import MISSING_TOKENS, _checksum, _rows, _text
 
-SCHEMA_REVISION = "20260715_0006"
+SCHEMA_REVISION = "20260729_0009"
 MACHINE_PATTERN = re.compile(r"^\d+$")
 RESOLUTION_STATUSES = {"UNRESOLVED", "DEFERRED", "RESOLVED", "NOT_APPLICABLE", "REJECTED_WITH_REASON"}
 
@@ -509,9 +510,22 @@ def execute_import(
                         session.add(area)
                         session.flush()
                         area_map[label] = area
+                # Resolve audited evidence to governed physical identities before
+                # grouping.  Compatibility-only rows remain provenance and can
+                # never cause a physical EOAT to be created.
+                raw_inventory_rows = list(rows["EOAT Inventory"])
+                normalized_inventory = normalized_source_rows(dict(raw_inventory_rows))
+                rows["EOAT Inventory"] = [
+                    (number, normalized_inventory[number]) for number, _ in raw_inventory_rows
+                ]
+                split_source_identifiers = {
+                    str(split["source_identifier"])
+                    for split in load_policy()["physical_unit_splits"]
+                }
                 inventory_groups: dict[str, list[tuple[int, dict[str, Any]]]] = defaultdict(list)
                 for number, row in rows["EOAT Inventory"]:
-                    inventory_groups[_text(row.get("EOAT Assembly ID"))].append((number, row))
+                    if _text(row.get("Entry Type")).casefold() == "audited":
+                        inventory_groups[_text(row.get("EOAT Assembly ID"))].append((number, row))
                 eoat_map: dict[str, db.EOAT] = {}
                 for identifier, grouped in sorted(inventory_groups.items()):
                     if not identifier:
@@ -597,27 +611,34 @@ def execute_import(
                     eoat_id = _text(row.get("EOAT Assembly ID"))
                     machine_number = _text(row.get("Press/Machine #"))
                     tool_number = _text(row.get("Tool #"))
-                    eoat = eoat_map.get(eoat_id)
+                    # A compatibility-only source row for a repeated legacy ID
+                    # is not evidence for one arbitrary physical unit.  Preserve
+                    # it as provenance until a design/family relationship can be
+                    # made explicitly, rather than collapsing identities again.
+                    compatibility_only = _text(row.get("Entry Type")).casefold() != "audited"
+                    eoat = None if compatibility_only and eoat_id in split_source_identifiers else eoat_map.get(eoat_id)
                     machine = machine_map.get(machine_number)
                     tool = tool_map.get(tool_number)
                     audit_id = _text(row.get("Audit ID"))
-                    audit = db.AuditRecord(
-                        audit_identifier=audit_id,
-                        eoat_id=eoat.id if eoat else None,
-                        machine_id=machine.id if machine else None,
-                        tool_id=tool.id if tool else None,
-                        audit_date=_datetime(row.get("Audit Date")),
-                        status_id=_lookup(session, db.AssetStatus, row.get("Status")),
-                        source_sheet="EOAT Inventory",
-                        source_row_number=number,
-                        details_json=_json_safe(row),
-                        notes=_text(row.get("Notes")) or None,
-                        source_system="legacy_excel",
-                        source_import_batch_id=batch.id,
-                    )
-                    session.add(audit)
-                    session.flush()
-                    if eoat is not None:
+                    audit = None
+                    if not compatibility_only:
+                        audit = db.AuditRecord(
+                            audit_identifier=audit_id,
+                            eoat_id=eoat.id if eoat else None,
+                            machine_id=machine.id if machine else None,
+                            tool_id=tool.id if tool else None,
+                            audit_date=_datetime(row.get("Audit Date")),
+                            status_id=_lookup(session, db.AssetStatus, row.get("Status")),
+                            source_sheet="EOAT Inventory",
+                            source_row_number=number,
+                            details_json=_json_safe(row),
+                            notes=_text(row.get("Notes")) or None,
+                            source_system="legacy_excel",
+                            source_import_batch_id=batch.id,
+                        )
+                        session.add(audit)
+                        session.flush()
+                    if eoat is not None and audit is not None:
                         session.add(
                             db.EntityHistoryEvent(
                                 event_uuid=str(
@@ -648,9 +669,9 @@ def execute_import(
                         source_sheet="EOAT Inventory",
                         source_row_number=number,
                         source_identifier=audit_id,
-                        target_entity_type="audit_record",
-                        target_entity_id=audit.id,
-                        status="IMPORTED",
+                        target_entity_type="audit_record" if audit is not None else "compatibility_evidence",
+                        target_entity_id=audit.id if audit is not None else None,
+                        status="IMPORTED" if audit is not None else "EVIDENCE_ONLY",
                         raw_values_json=_json_safe(row),
                         normalized_values_json={
                             "eoat": eoat_id,
@@ -816,7 +837,10 @@ def execute_import(
                     "eoat_machine_compatibility": len(em_pairs),
                     "eoat_tool_compatibility": len(et_pairs),
                     "tool_machine_compatibility": len(tm_pairs),
-                    "audit_records": len(rows["EOAT Inventory"]),
+                    "audit_records": sum(
+                        _text(row.get("Entry Type")).casefold() == "audited"
+                        for _, row in rows["EOAT Inventory"]
+                    ),
                     "entity_history_events": history_event_count,
                     "documents": valid_photo_count,
                     "photos": valid_photo_count,

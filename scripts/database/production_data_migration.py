@@ -21,7 +21,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-REQUIRED_REVISION = "20260721_0008"
+REQUIRED_REVISION = "20260729_0009"
 TOOL_VERSION = "1.1.0"
 SEED_TABLE_KEYS = {
     "asset_statuses": "code",
@@ -87,6 +87,8 @@ TABLE_POLICIES: dict[str, TablePolicy] = {
     "areas": _p("B", copy=True, reset=True, reason="Operational plant-area master data."),
     "storage_locations": _p("B", copy=True, reset=True, reason="Operational EOAT storage master data."),
     "eoats": _p("B", copy=True, reset=True, reason="Primary operational EOAT master records."),
+    "eoat_identity_aliases": _p("C", copy=True, reset=True,
+        reason="Physical-unit source/legacy identifiers and owner-resolution provenance."),
     "machines": _p("B", copy=True, reset=True, reason="Primary operational machine master records."),
     "robots": _p("B", copy=True, reset=True, reason="Primary operational robot master records."),
     "tools": _p("B", copy=True, reset=True, reason="Primary operational tool/mold master records."),
