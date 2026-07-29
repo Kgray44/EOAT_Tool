@@ -76,3 +76,11 @@ def test_candidate_package_timestamp_is_explicit_and_strict(monkeypatch: pytest.
     monkeypatch.setenv("EOAT_RELEASE_BUILD_TIMESTAMP", "not-a-timestamp")
     with pytest.raises(RuntimeError, match="EOAT_RELEASE_BUILD_TIMESTAMP"):
         build_package._candidate_build_timestamp()
+
+
+def test_detached_candidate_package_uses_explicit_non_branch_provenance(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_REF_NAME", raising=False)
+    monkeypatch.setenv("EOAT_RELEASE_SOURCE_COMMIT", "a" * 40)
+    monkeypatch.setattr(build_package, "_git", lambda *_args: "")
+
+    assert build_package._provenance_branch_name() == "detached-release-source"

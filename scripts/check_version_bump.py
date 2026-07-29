@@ -133,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             "installer/Build_Installer_Exe.ps1",
             "release_trust/",
             "scripts/check_version_bump.py",
+            "scripts/build_package.py",
             "scripts/export_windows_attachment.py",
             "github/workflows/unified-release-train-final-integration.yml",
         )

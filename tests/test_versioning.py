@@ -237,6 +237,12 @@ def test_governed_component_exception_is_explicit_and_never_applies_to_app_code(
     _git(root, "commit", "-m", "baseline")
     governed.write_text("VALUE = 2\n", encoding="utf-8")
     assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 0
+    _git(root, "checkout", "--", "deployment/convergence/services.py")
+    package_builder = root / "scripts" / "build_package.py"
+    package_builder.parent.mkdir(parents=True, exist_ok=True)
+    package_builder.write_text("VALUE = 2\n", encoding="utf-8")
+    assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 0
+    package_builder.unlink()
     (root / "app" / "main.py").write_text("VALUE = 2\n", encoding="utf-8")
     assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
     (root / "app" / "main.py").unlink()

@@ -51,6 +51,19 @@ def _candidate_build_timestamp() -> datetime:
         raise RuntimeError("EOAT_RELEASE_BUILD_TIMESTAMP must use YYYY-MM-DDTHH:MM:SSZ") from exc
 
 
+def _provenance_branch_name() -> str:
+    """Use a safe, deterministic label when packaging a detached candidate."""
+    branch = os.getenv("GITHUB_REF_NAME", "").strip() or _git("branch", "--show-current")
+    if branch:
+        return branch
+    if os.getenv("EOAT_RELEASE_SOURCE_COMMIT", "").strip():
+        # A sealed candidate binds the immutable commit/tree separately. This
+        # label records that the package was deliberately built detached; it
+        # must not fabricate a mutable branch name for production provenance.
+        return "detached-release-source"
+    raise RuntimeError("package provenance requires a branch or exact candidate source commit")
+
+
 def _generated_build_metadata() -> Path:
     dirty = _git("status", "--porcelain")
     if dirty and os.getenv("EOAT_ATLAS_ALLOW_DIRTY_BUILD") != "1":
@@ -60,7 +73,7 @@ def _generated_build_metadata() -> Path:
     if expected_commit and actual_commit.lower() != expected_commit.lower():
         raise RuntimeError("packaging checkout does not match EOAT_RELEASE_SOURCE_COMMIT")
     commit = expected_commit or os.getenv("GITHUB_SHA") or actual_commit
-    branch = os.getenv("GITHUB_REF_NAME") or _git("branch", "--show-current")
+    branch = _provenance_branch_name()
     timestamp = _candidate_build_timestamp()
     run_id = os.getenv("GITHUB_RUN_ID") or f"local-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
     payload = generate_release_metadata(ROOT, commit, branch_name=branch, build_timestamp=timestamp)
