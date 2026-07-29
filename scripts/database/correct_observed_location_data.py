@@ -37,6 +37,7 @@ from tools.eoat_location_normalization import (
     normalize_machine_reference,
     normalized_source_rows,
     owner_approval_evidence,
+    physical_eoat_uuid,
 )  # noqa: E402
 
 NORMALIZATION_SOURCE = "OWNER_APPROVED_LOCATION_NORMALIZATION"
@@ -83,7 +84,7 @@ def _issue_resolution(issue_code: str, related_rows: list[int]) -> tuple[str, st
         if related_rows == [94, 95, 96, 97]:
             return (
                 "RESOLVED",
-                "Plant 4 sequence is owner-approved movement evidence, not duplicate proof; current state is STORED with cabinet unspecified.",
+                "Owner ruling supersedes the movement interpretation: the four Plant 4 rows are independent physical EOATs with row-specific observed locations.",
             )
         return (
             "RESOLVED",
@@ -178,6 +179,8 @@ def _clone_eoat(connection, source_identifier: str, target_identifier: str, sour
     copied = {column: source[column] for column in _columns(connection, "eoats") if column != "id"}
     copied.update({
         "business_identifier": target_identifier,
+        "physical_uuid": physical_eoat_uuid(target_identifier),
+        "design_family_identifier": source_identifier,
         "legacy_identifier": source_identifier,
         "display_name": target_identifier,
         "notes": (
@@ -191,32 +194,50 @@ def _clone_eoat(connection, source_identifier: str, target_identifier: str, sour
     return _insert(connection, "eoats", copied)
 
 
-def _copy_shared_compatibility(connection, source_eoat_id: int, target_eoat_id: int) -> dict[str, int]:
-    copied_counts: dict[str, int] = {}
+def _rebuild_row_specific_compatibility(connection, source_eoat_id: int, units: list[dict[str, Any]]) -> dict[str, int]:
+    """Rebuild split-unit compatibility only from the rows that support it."""
+    templates: dict[str, list[dict[str, Any]]] = {}
     for table in ("eoat_machine_compatibility", "eoat_tool_compatibility"):
         with connection.cursor() as cursor:
             cursor.execute(f"SELECT * FROM `{table}` WHERE eoat_id=%s ORDER BY id", (source_eoat_id,))
-            rows = cursor.fetchall()
-            cursor.execute(f"SELECT COUNT(*) AS count FROM `{table}` WHERE eoat_id=%s", (target_eoat_id,))
-            existing_count = int(cursor.fetchone()["count"])
-        if existing_count not in {0, len(rows)}:
-            raise RuntimeError(f"{table} has a partial prior copy for EOAT id {target_eoat_id}")
-        if existing_count == len(rows):
-            copied_counts[table] = 0
-            continue
-        for row in rows:
-            copied = {column: row[column] for column in _columns(connection, table) if column != "id"}
-            copied["eoat_id"] = target_eoat_id
-            copied["source_system"] = NORMALIZATION_SOURCE
-            copied["row_version"] = 1
-            _insert(connection, table, copied)
-        copied_counts[table] = len(rows)
-    return copied_counts
+            templates[table] = cursor.fetchall()
+    target_ids = [_eoat_id(connection, str(unit["eoat_identifier"])) for unit in units]
+    with connection.cursor() as cursor:
+        for table in templates:
+            cursor.execute(f"DELETE FROM `{table}` WHERE eoat_id IN ({','.join(['%s'] * len(target_ids))})", target_ids)
+    copied_counts: Counter[str] = Counter()
+    for unit, target_eoat_id in zip(units, target_ids, strict=True):
+        for source_row in unit["source_rows"]:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT machine_id,tool_id FROM audit_records WHERE source_sheet=%s AND source_row_number=%s", (WORKSHEET, int(source_row)))
+                audit = cursor.fetchone()
+            if not audit:
+                raise RuntimeError(f"Missing audit evidence for compatibility source row {source_row}")
+            for table, foreign_key in (("eoat_machine_compatibility", "machine_id"), ("eoat_tool_compatibility", "tool_id")):
+                value = audit[foreign_key]
+                if value is None:
+                    continue
+                for template in (row for row in templates[table] if row[foreign_key] == value):
+                    copied = {column: template[column] for column in _columns(connection, table) if column != "id"}
+                    copied["eoat_id"] = target_eoat_id
+                    copied["source_system"] = NORMALIZATION_SOURCE
+                    copied["row_version"] = 1
+                    _insert(connection, table, copied)
+                    copied_counts[table] += 1
+    return dict(sorted(copied_counts.items()))
 
 
-def _reassign_audit_rows(connection, source_identifier: str, target_identifier: str, source_rows: list[int]) -> None:
+def _reassign_audit_rows(
+    connection, source_identifier: str, target_identifier: str, source_rows: list[int], *, allowed_eoat_ids: set[int] | None = None
+) -> None:
     source_eoat_id = _eoat_id(connection, source_identifier)
     target_eoat_id = _eoat_id(connection, target_identifier)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM eoats WHERE business_identifier=%s OR legacy_identifier=%s",
+            (source_identifier, source_identifier),
+        )
+        previously_resolved_ids = {int(row["id"]) for row in cursor.fetchall()}
     for source_row in source_rows:
         with connection.cursor() as cursor:
             cursor.execute(
@@ -226,11 +247,20 @@ def _reassign_audit_rows(connection, source_identifier: str, target_identifier: 
             audit = cursor.fetchone()
         if not audit:
             raise RuntimeError(f"Missing audit record for EOAT Inventory row {source_row}")
-        if int(audit["eoat_id"]) not in {source_eoat_id, target_eoat_id}:
+        allowed = allowed_eoat_ids or (previously_resolved_ids | {source_eoat_id, target_eoat_id})
+        if int(audit["eoat_id"]) not in allowed:
             raise RuntimeError(f"Audit row {source_row} is linked to an unexpected EOAT")
         if int(audit["eoat_id"]) != target_eoat_id:
             with connection.cursor() as cursor:
                 cursor.execute("UPDATE audit_records SET eoat_id=%s,row_version=row_version+1 WHERE id=%s", (target_eoat_id, audit["id"]))
+                cursor.execute(
+                    "UPDATE entity_history_events SET entity_id=%s WHERE entity_type='eoat' AND source_table='audit_records' AND source_record_id=%s",
+                    (target_eoat_id, audit["id"]),
+                )
+                cursor.execute(
+                    "UPDATE import_rows SET normalized_values_json=JSON_SET(COALESCE(normalized_values_json,JSON_OBJECT()), '$.eoat', %s) WHERE source_sheet=%s AND source_row_number=%s",
+                    (target_identifier, WORKSHEET, source_row),
+                )
 
 
 def _apply_physical_unit_splits(connection, policy: dict[str, Any]) -> list[dict[str, Any]]:
@@ -250,18 +280,26 @@ def _apply_physical_unit_splits(connection, policy: dict[str, Any]) -> list[dict
                     "UPDATE eoats SET notes=%s,source_system=%s,row_version=row_version+1 WHERE id=%s",
                     (_append_provenance(existing_notes, provenance), NORMALIZATION_SOURCE, source_eoat_id),
                 )
-        copied: Counter[str] = Counter()
         for unit in split["units"]:
             target_identifier = str(unit["eoat_identifier"])
             target_eoat_id = _clone_eoat(connection, source_identifier, target_identifier, list(unit["source_rows"]))
-            if target_identifier != source_identifier:
-                copied.update(_copy_shared_compatibility(connection, source_eoat_id, target_eoat_id))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE eoats SET physical_uuid=%s,design_family_identifier=%s,legacy_identifier=COALESCE(legacy_identifier,%s) WHERE id=%s",
+                    (physical_eoat_uuid(target_identifier), source_identifier, source_identifier if target_identifier != source_identifier else None, target_eoat_id),
+                )
+                cursor.execute(
+                    "INSERT IGNORE INTO eoat_identity_aliases (eoat_id,alias_identifier,alias_type,source_row_number,owner_decision_reference,source_import_batch_id) "
+                    "SELECT %s,%s,'SOURCE_IDENTIFIER',%s,%s,source_import_batch_id FROM audit_records WHERE source_sheet=%s AND source_row_number=%s",
+                    (target_eoat_id, source_identifier, int(unit["source_rows"][0]), policy["identity_correction"]["owner_decision_reference"], WORKSHEET, int(unit["source_rows"][0])),
+                )
             _reassign_audit_rows(connection, source_identifier, target_identifier, list(unit["source_rows"]))
+        copied = _rebuild_row_specific_compatibility(connection, source_eoat_id, split["units"])
         report.append({
             "source_identifier": source_identifier,
             "normalized_unit_identifiers": unit_identifiers,
             "reason": split["reason"],
-            "copied_shared_relationships": dict(sorted(copied.items())),
+            "row_specific_compatibility_relationships": copied,
         })
     return report
 
@@ -271,6 +309,25 @@ def _notes(connection, eoat_id: int) -> str:
         cursor.execute("SELECT notes FROM eoats WHERE id=%s", (eoat_id,))
         row = cursor.fetchone()
     return "" if not row or row["notes"] is None else str(row["notes"])
+
+
+def _ensure_stable_physical_uuids(connection) -> int:
+    """Backfill UUIDs without deriving them from a machine, tool, or audit date."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT id,business_identifier,physical_uuid,design_family_identifier FROM eoats ORDER BY id")
+        eoats = cursor.fetchall()
+    changed = 0
+    for eoat in eoats:
+        if eoat["physical_uuid"]:
+            continue
+        identifier = str(eoat["business_identifier"])
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE eoats SET physical_uuid=%s,design_family_identifier=COALESCE(design_family_identifier,%s),row_version=row_version+1 WHERE id=%s",
+                (physical_eoat_uuid(identifier), identifier, int(eoat["id"])),
+            )
+        changed += 1
+    return changed
 
 
 def _apply_machine_aliases(connection, rows: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -367,6 +424,7 @@ def correct(connection, *, apply: bool) -> dict[str, Any]:
             },
         }
     try:
+        uuid_backfills = _ensure_stable_physical_uuids(connection)
         aliases = _apply_machine_aliases(connection, rows)
         split_report = _apply_physical_unit_splits(connection, policy)
         plan = _replace_location_evidence(connection, rows, digest, workbook_name, policy)
@@ -381,6 +439,7 @@ def correct(connection, *, apply: bool) -> dict[str, Any]:
         "source_workbook": workbook_name,
         "source_workbook_sha256": digest,
         "approval": owner_approval_evidence(),
+        "physical_uuid_backfills": uuid_backfills,
         "machine_aliases_applied": aliases,
         "physical_unit_splits": split_report,
         "location_observation_count": len(plan["observations"]),

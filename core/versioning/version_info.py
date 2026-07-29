@@ -86,7 +86,20 @@ def _required_text(payload: dict[str, Any], field: str) -> str:
     return value
 
 
-def validate_release_metadata(payload: dict[str, Any], *, require_artifact: bool = True) -> ReleaseInfo:
+def validate_release_metadata(
+    payload: dict[str, Any],
+    *,
+    require_artifact: bool = True,
+    expected_schema_revision: str | None = None,
+    expected_api_version: str | None = None,
+) -> ReleaseInfo:
+    """Validate release metadata against the compatibility contract it declares.
+
+    Callers validating the active checkout use the module defaults. Exact-source
+    builders may instead supply the compatibility values read from the commit
+    being packaged, so a retained historical artifact is not evaluated against
+    a later checkout's schema or API contract.
+    """
     for key in payload:
         if _SECRET_KEY.search(str(key)):
             raise RuntimeError(f"Generated release metadata contains forbidden secret field {key!r}")
@@ -118,11 +131,13 @@ def validate_release_metadata(payload: dict[str, Any], *, require_artifact: bool
     if build_date != parsed_timestamp.date().isoformat():
         raise RuntimeError("Generated release metadata build_date does not match build_timestamp")
     schema_revision = _required_text(payload, "database_schema_revision")
-    if schema_revision != EXPECTED_SCHEMA_REVISION:
-        raise RuntimeError(f"Generated release metadata schema revision must be {EXPECTED_SCHEMA_REVISION}")
+    required_schema_revision = expected_schema_revision or EXPECTED_SCHEMA_REVISION
+    if schema_revision != required_schema_revision:
+        raise RuntimeError(f"Generated release metadata schema revision must be {required_schema_revision}")
     api_version = _required_text(payload, "api_contract_version")
-    if api_version != EXPECTED_API_VERSION:
-        raise RuntimeError(f"Generated release metadata API contract must be {EXPECTED_API_VERSION}")
+    required_api_version = expected_api_version or EXPECTED_API_VERSION
+    if api_version != required_api_version:
+        raise RuntimeError(f"Generated release metadata API contract must be {required_api_version}")
     role = _required_text(payload, "metadata_role")
     if require_artifact and role != "release_artifact":
         raise RuntimeError("Deployed release metadata must have metadata_role=release_artifact")

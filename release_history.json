@@ -330,6 +330,13 @@
       "state": "finalized",
       "task_id": "codex-machine-assignment-and-rollback-compatibility-hotfix-20260728",
       "finalized_at_utc": "2026-07-28T17:57:40Z"
+    },
+    {
+      "application_version": "0.25.0",
+      "release_id": "eoat-atlas-0.25.0",
+      "state": "finalized",
+      "task_id": "eoat-physical-identity-66-20260729",
+      "finalized_at_utc": "2026-07-29T21:10:43Z"
     }
   ]
 }

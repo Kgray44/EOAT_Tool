@@ -367,6 +367,11 @@ def _asset_values(session: Session, entity_type: str, payload: dict[str, Any], *
     values.pop("reason", None)
     if entity_type == "robot" and "robot_identifier" in values:
         values["robot_number"] = values.pop("robot_identifier")
+    if entity_type == "eoat" and creating:
+        # Identity is created once and is intentionally independent of the
+        # selected machine, tool, or any later audit observation.
+        values["physical_uuid"] = str(uuid4())
+        values.setdefault("design_family_identifier", values.get("business_identifier"))
     for input_name, (column_name, lookup_model) in config["lookups"].items():
         if input_name in values:
             values[column_name] = lookup_id(session, lookup_model, values.pop(input_name), input_name)

@@ -23,7 +23,7 @@ def release_repository(root: Path) -> tuple[Path, str]:
     defaults = {
         "app_name": "EOAT Atlas",
         "api_contract_version": "1.4.0",
-        "database_schema_revision": "20260721_0008",
+        "database_schema_revision": "20260729_0009",
         "environment": "production",
         "release_channel": "server",
         "launcher_version": "0.1.0",
@@ -37,7 +37,7 @@ def release_repository(root: Path) -> tuple[Path, str]:
     _write(root / "deployment/migration_identity.py", "")
     _write(root / "deployment/migration_identity_attestations.json", json.dumps({"schema": 1, "attestations": []}))
     _write(root / "server/eoat_api/__init__.py", "")
-    _write(root / "server/migrations/versions/20260721_0008_test.py", 'revision = "20260721_0008"\ndown_revision = None\n')
+    _write(root / "server/migrations/versions/20260729_0009_test.py", 'revision = "20260729_0009"\ndown_revision = None\n')
     _write(root / "core/__init__.py", "")
     _write(root / "release_tools/__init__.py", "")
     _write(root / "requirements.lock", "")
@@ -71,9 +71,29 @@ def test_metadata_generation_captures_exact_source_and_stable_identities(tmp_pat
     assert metadata["release_id"] == "eoat-atlas-1.2.3"
     assert metadata["build_id"] == f"eoat-atlas-1.2.3-{commit[:7]}-20260716T200000Z"
     assert metadata["source_git_commit"] == metadata["git_commit"] == commit
-    assert metadata["database_schema_revision"] == "20260721_0008"
+    assert metadata["database_schema_revision"] == "20260729_0009"
     assert metadata["api_contract_version"] == "1.4.0"
     assert metadata["build_timestamp"] == "2026-07-16T20:00:00Z"
+
+
+def test_metadata_generation_uses_the_packaged_commit_compatibility_contract(tmp_path: Path) -> None:
+    root, _ = release_repository(tmp_path / "repo")
+    defaults = json.loads((root / "release_defaults.json").read_text(encoding="utf-8"))
+    defaults.update({"database_schema_revision": "20260701_0008", "api_contract_version": "1.3.0"})
+    _write(root / "release_defaults.json", json.dumps(defaults))
+    subprocess.run(["git", "add", "release_defaults.json"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-m", "historical compatibility"], cwd=root, check=True, capture_output=True)
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+
+    metadata = builder.generate_release_metadata(
+        root,
+        commit,
+        branch_name="test/historical-release",
+        build_timestamp=datetime(2026, 7, 16, 20, 0, tzinfo=timezone.utc),
+    )
+
+    assert metadata["database_schema_revision"] == "20260701_0008"
+    assert metadata["api_contract_version"] == "1.3.0"
 
 
 def test_invalid_commit_and_invalid_repository_are_rejected(tmp_path: Path) -> None:
@@ -119,7 +139,7 @@ def test_archive_checksum_manifest_and_linux_layout_are_consistent(tmp_path: Pat
         assert all("\\" not in name and not name.startswith("/") for name in package.namelist())
         metadata = json.loads(package.read("release_metadata.json"))
     assert metadata["source_git_commit"] == commit
-    assert metadata["database_schema_revision"] == "20260721_0008"
+    assert metadata["database_schema_revision"] == "20260729_0009"
     assert metadata["api_contract_version"] == "1.4.0"
     assert not any(builder.SECRET_KEY.search(key) for key in metadata)
     assert not any(builder.SECRET_KEY.search(key) for key in manifest)
@@ -129,7 +149,7 @@ def test_archive_checksum_manifest_and_linux_layout_are_consistent(tmp_path: Pat
 
 def test_archive_migrations_are_git_bytes_even_when_worktree_is_crlf(tmp_path: Path) -> None:
     root, commit = release_repository(tmp_path / "repo")
-    migration = root / "server/migrations/versions/20260721_0008_test.py"
+    migration = root / "server/migrations/versions/20260729_0009_test.py"
     migration.write_bytes(migration.read_bytes().replace(b"\n", b"\r\n"))
     subprocess.run(["git", "update-index", "--assume-unchanged", migration.relative_to(root).as_posix()], cwd=root, check=True)
     archive, _, _, manifest = builder.build_server_release(_args(root, tmp_path / "dist", commit))

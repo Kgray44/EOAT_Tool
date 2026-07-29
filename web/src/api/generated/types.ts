@@ -2341,6 +2341,8 @@ export interface components {
             current_location_detail?: components["schemas"]["CurrentEOATLocation"] | null;
             /** Description */
             description?: string | null;
+            /** Design Family Identifier */
+            design_family_identifier?: string | null;
             /** Display Name */
             display_name?: string | null;
             /** Eoat Type */
@@ -2364,6 +2366,8 @@ export interface components {
              * @default NOT_YET_VERIFIED
              */
             part_status: string;
+            /** Physical Uuid */
+            physical_uuid?: string | null;
             /** Quick Disconnect Present */
             quick_disconnect_present?: boolean | null;
             /** Relationships */
@@ -2395,6 +2399,8 @@ export interface components {
              */
             current_location: string;
             current_location_detail?: components["schemas"]["CurrentEOATLocation"] | null;
+            /** Design Family Identifier */
+            design_family_identifier?: string | null;
             /** Display Name */
             display_name?: string | null;
             /** Eoat Type */
@@ -2405,6 +2411,8 @@ export interface components {
             legacy_identifier?: string | null;
             /** Number Of Parts Picked */
             number_of_parts_picked?: number | null;
+            /** Physical Uuid */
+            physical_uuid?: string | null;
             /** Row Version */
             row_version: number;
             /** Status */

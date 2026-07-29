@@ -1717,6 +1717,17 @@
             ],
             "title": "Description"
           },
+          "design_family_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design Family Identifier"
+          },
           "display_name": {
             "anyOf": [
               {
@@ -1813,6 +1824,17 @@
             "default": "NOT_YET_VERIFIED",
             "title": "Part Status",
             "type": "string"
+          },
+          "physical_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Uuid"
           },
           "quick_disconnect_present": {
             "anyOf": [
@@ -1943,6 +1965,17 @@
               }
             ]
           },
+          "design_family_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design Family Identifier"
+          },
           "display_name": {
             "anyOf": [
               {
@@ -1990,6 +2023,17 @@
               }
             ],
             "title": "Number Of Parts Picked"
+          },
+          "physical_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Physical Uuid"
           },
           "row_version": {
             "title": "Row Version",
