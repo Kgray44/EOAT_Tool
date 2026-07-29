@@ -124,11 +124,11 @@ function CanonicalSettingsControl({
           <input
             aria-label={item.label}
             type="checkbox"
-            checked={Boolean(value)}
+            checked={value === true}
             disabled={!editable}
             onChange={(event) => onChange(event.target.checked)}
           />
-          <span>{Boolean(value) ? "Enabled" : "Disabled"}</span>
+          <span>{value === true ? "Enabled" : "Disabled"}</span>
         </label>
       ) : item.control === "text" ? (
         <input
