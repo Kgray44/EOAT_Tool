@@ -120,7 +120,7 @@ def test_stale_schema_fails_closed_with_authorized_migrator_guidance() -> None:
         manager.verify(stale)
 
     rendered = captured.value.render()
-    assert "Expected schema: 20260721_0008" in rendered
+    assert "Expected schema: 20260729_0009" in rendered
     assert "Detected schema: 20260714_0005" in rendered
     assert "authorized migrator" in rendered
     assert "runtime credentials never migrate schemas" in rendered
