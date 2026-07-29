@@ -1,0 +1,37 @@
+name: Legacy transaction reconciliation helper
+
+on:
+  push:
+    branches: [integration/legacy-transaction-reconciliation-0241, main]
+    paths:
+      - deployment/privileged/coordinated_release_retry.py
+      - deployment/privileged/eoat-atlas-coordinated.sudoers
+      - deployment/privileged/install_coordinated_release_retry.sh
+      - deployment/privileged/COORDINATED_RELEASE_RETRY.md
+      - scripts/check_version_bump.py
+      - tests/test_coordinated_release_retry.py
+      - tests/test_versioning.py
+      - .github/workflows/legacy-transaction-reconciliation.yml
+  workflow_dispatch:
+
+permissions: {contents: read}
+
+jobs:
+  linux-helper-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q tests/test_coordinated_release_retry.py tests/test_phase3_privileged_helper.py tests/test_sudo_policy.py tests/test_versioning.py
+      - run: python -m ruff check deployment/privileged/coordinated_release_retry.py tests/test_coordinated_release_retry.py scripts/check_version_bump.py tests/test_versioning.py
+      - run: python -m compileall -q deployment/privileged/coordinated_release_retry.py scripts/check_version_bump.py
+      - run: bash -n deployment/privileged/install_coordinated_release_retry.sh
+      - run: python scripts/repo_safety_audit.py
+      - run: |
+          git fetch --no-tags origin main
+          python scripts/check_version_bump.py --base origin/main --allow-governed-component-change
+      - run: python scripts/validate_documented_commands.py

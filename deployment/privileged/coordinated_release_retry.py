@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.3.2"
+HELPER_VERSION = "1.3.3"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -41,6 +41,11 @@ CONTROL_ROOT = Path("/var/lib/eoat-atlas-http-web-host")
 SERVICE = "eoat-atlas.service"
 SEALING_RECEIPT_SCHEMA_VERSION = 2
 TRANSACTION_RECEIPT_SCHEMA_VERSION = 3
+LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION = 2
+LEGACY_HELPER_VERSION = "1.3.1"
+SUPPORTED_TRANSACTION_HELPER_VERSIONS = {"1.3.2", HELPER_VERSION}
+LEGACY_APPLICATION_VERSION = "0.22.12"
+LEGACY_SCHEMA = "20260721_0008"
 TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
 UPLOAD_ROOT = Path("/opt/eoat-atlas/incoming")
 SEALED_ROOT = CONTROL_ROOT / "sealed-artifacts"
@@ -459,11 +464,189 @@ def _api_release_parent_chain(service_gid: int) -> None:
         if current.is_symlink() or not current.is_dir():
             fail("API release root chain is unsafe")
         info = current.lstat()
-        if info.st_uid != 0 or info.st_gid not in {0, service_gid}:
+        if not _api_release_parent_is_safe(info, service_gid):
             fail(f"API release root ownership is invalid: {current}")
-        if info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-            fail(f"API release root is group/world writable: {current}")
         current = current.parent
+
+
+def _api_release_parent_is_safe(info: os.stat_result, service_gid: int) -> bool:
+    return (
+        info.st_uid == 0
+        and info.st_gid in {0, service_gid}
+        and not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    )
+
+
+def _legacy_transaction_path(transaction_id: str) -> tuple[Path, Path]:
+    """Return only a direct, root-governed transaction receipt path."""
+    if not TRANSACTION_ID.fullmatch(transaction_id):
+        fail("transaction identifier is invalid")
+    transactions = CONTROL_ROOT / "transactions"
+    transaction = transactions / transaction_id
+    receipt_path = transaction / "receipt.json"
+    if (
+        transaction.is_symlink()
+        or receipt_path.is_symlink()
+        or not transaction.is_dir()
+        or not receipt_path.is_file()
+        or not _within(transaction, transactions)
+    ):
+        fail("transaction receipt is not a direct governed receipt")
+    web.require_root_chain(transactions)
+    web.require_root_chain(transaction)
+    web.require_root_owned(receipt_path)
+    return transaction, receipt_path
+
+
+def _load_legacy_schema2_transaction(transaction_id: str) -> tuple[Path, dict[str, object]]:
+    """Load the one historical receipt shape eligible for no-op reconciliation."""
+    transaction, receipt_path = _legacy_transaction_path(transaction_id)
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"transaction receipt is malformed: {error}")
+    if not isinstance(receipt, dict):
+        fail("transaction receipt is malformed")
+    required = {
+        "receipt_schema_version",
+        "helper_version",
+        "state",
+        "activation_complete",
+        "old_api",
+        "old_web",
+        "new_api",
+        "new_web",
+        "schema",
+        "service",
+        "writes_enabled",
+    }
+    if not required.issubset(receipt):
+        fail("legacy transaction receipt is incomplete")
+    if receipt["receipt_schema_version"] != LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION:
+        fail("legacy reconciliation supports only transaction receipt schema 2")
+    if receipt["helper_version"] != LEGACY_HELPER_VERSION:
+        fail("legacy transaction helper identity is invalid")
+    if receipt["state"] != "active" or receipt["activation_complete"] is not True:
+        fail("legacy transaction did not complete activation")
+    if receipt["service"] != SERVICE or receipt["writes_enabled"] is not False:
+        fail("legacy transaction violates governed rollback policy")
+    if receipt["schema"] != LEGACY_SCHEMA:
+        fail("legacy transaction schema is not the governed compatibility schema")
+    old_api = _direct_release(receipt["old_api"], API_RELEASES, "old_api")
+    old_web = _direct_release(receipt["old_web"], WEB_RELEASES, "old_web")
+    new_api = _direct_release(receipt["new_api"], API_RELEASES, "new_api")
+    new_web = _direct_release(receipt["new_web"], WEB_RELEASES, "new_web")
+    if old_api == new_api or old_web == new_web:
+        fail("legacy transaction old and new release targets must differ")
+    service_uid, service_gid = _service_identity()
+    _api_release_parent_chain(service_gid)
+    _safe_mode(new_api, new_api.lstat(), owner_uid=service_uid, owner_gid=service_gid)
+    web.require_root_chain(new_web)
+    web.require_root_tree(new_web)
+    return transaction, receipt
+
+
+def _require_legacy_current_targets(receipt: dict[str, object]) -> tuple[Path, Path]:
+    old_api = _direct_release(receipt["old_api"], API_RELEASES, "old_api")
+    old_web = _direct_release(receipt["old_web"], WEB_RELEASES, "old_web")
+    if (
+        not API_CURRENT.is_symlink()
+        or not WEB_CURRENT.is_symlink()
+        or API_CURRENT.resolve() != old_api
+        or WEB_CURRENT.resolve() != old_web
+    ):
+        fail("legacy transaction is not already physically rolled back to both old targets")
+    return old_api, old_web
+
+
+def _require_no_newer_unfinished_transaction(transaction: Path) -> None:
+    """Refuse to reconcile historical evidence across a later unknown state."""
+    transactions = CONTROL_ROOT / "transactions"
+    for candidate in sorted(transactions.iterdir()):
+        if candidate == transaction or candidate.name <= transaction.name:
+            continue
+        if not TRANSACTION_ID.fullmatch(candidate.name) or candidate.is_symlink() or not candidate.is_dir():
+            fail("newer transaction inventory is unsafe")
+        receipt_path = candidate / "receipt.json"
+        if receipt_path.is_symlink() or not receipt_path.is_file():
+            fail("newer transaction receipt is unsafe")
+        web.require_root_chain(candidate)
+        web.require_root_owned(receipt_path)
+        try:
+            newer = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            fail(f"newer transaction receipt is malformed: {error}")
+        if not isinstance(newer, dict) or newer.get("state") != "rolled_back":
+            fail("newer deployment or recovery transaction remains unresolved")
+
+
+def _data_state_singleton() -> dict[str, object]:
+    """Read the one production data-state table without configuration access."""
+    discovery = subprocess.run(
+        [
+            "/usr/bin/mysql",
+            "-N",
+            "-e",
+            "SELECT table_schema FROM information_schema.tables "
+            "WHERE table_name='data_state' ORDER BY table_schema",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    schemas = [line.strip() for line in discovery.stdout.splitlines() if line.strip()]
+    if discovery.returncode or len(schemas) != 1 or not re.fullmatch(r"[A-Za-z0-9_]+", schemas[0]):
+        fail("unable to prove a unique governed data_state table")
+    schema = schemas[0]
+    count_result = subprocess.run(
+        ["/usr/bin/mysql", "-N", "-e", f"SELECT COUNT(*) FROM `{schema}`.data_state"],
+        text=True,
+        capture_output=True,
+    )
+    if count_result.returncode or count_result.stdout.strip() != "1":
+        fail("data_state singleton integrity check failed")
+    return {"schema": schema, "count": 1}
+
+
+def _legacy_runtime_evidence(transaction: Path, receipt: dict[str, object]) -> dict[str, object]:
+    """Produce fresh evidence for a schema-2 receipt without modifying it."""
+    old_api, old_web = _require_legacy_current_targets(receipt)
+    _require_no_newer_unfinished_transaction(transaction)
+    if Path("/var/lock/eoat-atlas-deploy.lock").exists():
+        fail("deployment lock is present")
+    _, api_attestation = _api_release_attestation(old_api, "old_api")
+    _, web_attestation = _web_release_attestation(old_web, "old_web")
+    health = web.api_health({"schema": LEGACY_SCHEMA})
+    if (
+        health.get("application_version") != LEGACY_APPLICATION_VERSION
+        or health.get("release_id") != f"eoat-atlas-{LEGACY_APPLICATION_VERSION}"
+    ):
+        fail("active API product identity is not the governed legacy release")
+    nginx = subprocess.run(["/usr/sbin/nginx", "-t"], text=True, capture_output=True)
+    if nginx.returncode:
+        fail("nginx validation failed for legacy reconciliation")
+    services: dict[str, str] = {}
+    for unit in (SERVICE, "nginx.service"):
+        result = subprocess.run(["/bin/systemctl", "is-active", unit], text=True, capture_output=True)
+        if result.returncode or result.stdout.strip() != "active":
+            fail(f"required service is not active: {unit}")
+        services[unit] = "active"
+    return {
+        "rollback_api": str(old_api),
+        "rollback_web": str(old_web),
+        "active_pointer_identities": {
+            "api": {"path": str(API_CURRENT), "target": str(old_api)},
+            "web": {"path": str(WEB_CURRENT), "target": str(old_web)},
+        },
+        "api_attestation": api_attestation,
+        "web_attestation": web_attestation,
+        "application_version": LEGACY_APPLICATION_VERSION,
+        "schema": LEGACY_SCHEMA,
+        "writes_enabled": False,
+        "api_health": health,
+        "nginx_validation": "passed",
+        "service_states": services,
+        "data_state": _data_state_singleton(),
+    }
 
 
 def _metadata_identity(path: Path, release: Path) -> dict[str, object]:
@@ -630,7 +813,7 @@ def _transaction_receipt(transaction_id: str) -> tuple[Path, dict[str, object]]:
     if (
         not required.issubset(receipt)
         or schema_version != TRANSACTION_RECEIPT_SCHEMA_VERSION
-        or receipt["helper_version"] != HELPER_VERSION
+        or receipt["helper_version"] not in SUPPORTED_TRANSACTION_HELPER_VERSIONS
     ):
         fail("transaction receipt schema is invalid")
     if receipt["state"] != "active" or receipt["activation_complete"] is not True:
@@ -714,6 +897,111 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
         return post_activation_rollback(transaction_id)
     with os.fdopen(descriptor, "w", encoding="utf-8") as output:
         output.write(json.dumps(evidence, sort_keys=True, indent=2) + "\n")
+    return {"transaction": transaction_id, "state": "rolled_back", "idempotent": False}
+
+
+def _legacy_reconciliation_receipt(transaction: Path) -> Path:
+    return transaction / "post-activation-rollback.json"
+
+
+def _validate_legacy_reconciliation(
+    path: Path, transaction_id: str, evidence: dict[str, object]
+) -> None:
+    if path.is_symlink() or not path.is_file():
+        fail("legacy reconciliation receipt is unsafe")
+    info = path.lstat()
+    if info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o600:
+        fail("legacy reconciliation receipt ownership or mode is invalid")
+    try:
+        prior = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"legacy reconciliation receipt is malformed: {error}")
+    expected = {
+        "receipt_schema_version": TRANSACTION_RECEIPT_SCHEMA_VERSION,
+        "transaction": transaction_id,
+        "original_transaction_schema": LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION,
+        "state": "rolled_back",
+        "reconciliation_mode": "legacy_already_rolled_back",
+        "pointer_mutation_performed": False,
+        "service_restart_performed": False,
+        "nginx_reload_performed": False,
+        "helper_version": HELPER_VERSION,
+        "reason": "LEGACY_SCHEMA2_TRANSACTION_ALREADY_PHYSICALLY_ROLLED_BACK",
+    }
+    if not isinstance(prior, dict) or any(prior.get(key) != value for key, value in expected.items()):
+        fail("legacy reconciliation receipt conflicts with governed evidence")
+    for key in (
+        "rollback_api",
+        "rollback_web",
+        "active_pointer_identities",
+        "api_attestation",
+        "web_attestation",
+        "application_version",
+        "schema",
+        "writes_enabled",
+        "api_health",
+        "nginx_validation",
+        "service_states",
+        "data_state",
+    ):
+        if prior.get(key) != evidence.get(key):
+            fail("legacy reconciliation receipt no longer matches current governed evidence")
+
+
+def reconcile_legacy_rollback(transaction_id: str) -> dict[str, object]:
+    """Record only a proven schema-2 rollback that is already physically active.
+
+    This compatibility action deliberately cannot alter pointers, services,
+    NGINX, database state, or the original receipt.  It is limited to the
+    historical 1.3.1/schema-2 transaction form and emits fresh attestations in
+    a separate, exclusively created recovery record.
+    """
+    transaction, receipt = _load_legacy_schema2_transaction(transaction_id)
+    evidence = _legacy_runtime_evidence(transaction, receipt)
+    path = _legacy_reconciliation_receipt(transaction)
+    if path.exists() or path.is_symlink():
+        _validate_legacy_reconciliation(path, transaction_id, evidence)
+        return {"transaction": transaction_id, "state": "rolled_back", "idempotent": True}
+    payload = {
+        "receipt_schema_version": TRANSACTION_RECEIPT_SCHEMA_VERSION,
+        "transaction": transaction_id,
+        "original_transaction_schema": LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION,
+        "state": "rolled_back",
+        "reconciliation_mode": "legacy_already_rolled_back",
+        "pointer_mutation_performed": False,
+        "service_restart_performed": False,
+        "nginx_reload_performed": False,
+        **evidence,
+        "helper_version": HELPER_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "diagnostics": [
+            "schema-2 receipt retained unchanged",
+            "live API and web pointers already matched recorded old targets",
+        ],
+        "reason": "LEGACY_SCHEMA2_TRANSACTION_ALREADY_PHYSICALLY_ROLLED_BACK",
+    }
+    encoded = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return reconcile_legacy_rollback(transaction_id)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(encoded)
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(path, 0o600)
+        if os.name != "nt" and hasattr(os, "O_DIRECTORY"):
+            parent_descriptor = os.open(transaction, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(parent_descriptor)
+            finally:
+                os.close(parent_descriptor)
+    except Exception:
+        # Do not remove a partially created recovery record: it is evidence of
+        # an interrupted operation and must fail closed on the next attempt.
+        raise
+    _validate_legacy_reconciliation(path, transaction_id, evidence)
     return {"transaction": transaction_id, "state": "rolled_back", "idempotent": False}
 
 
@@ -857,7 +1145,10 @@ def activate(value: dict[str, object]) -> Path:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("preflight", "activate", "post-activation-rollback"))
+    parser.add_argument(
+        "action",
+        choices=("preflight", "activate", "post-activation-rollback", "reconcile-legacy-rollback"),
+    )
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--transaction")
     args = parser.parse_args()
@@ -867,6 +1158,11 @@ def main() -> int:
         if args.policy is not None or not args.transaction:
             fail("post-activation rollback requires only a governed transaction identifier")
         print(json.dumps(post_activation_rollback(args.transaction), sort_keys=True))
+        return 0
+    if args.action == "reconcile-legacy-rollback":
+        if args.policy is not None or not args.transaction:
+            fail("legacy reconciliation requires only a governed transaction identifier")
+        print(json.dumps(reconcile_legacy_rollback(args.transaction), sort_keys=True))
         return 0
     if args.policy is None or args.transaction is not None:
         fail("preflight and activate require only a governed policy")

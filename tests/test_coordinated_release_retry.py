@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import stat
 import sys
 import zipfile
 from pathlib import Path
@@ -183,7 +184,7 @@ def test_preflight_seals_then_uses_only_final_paths_without_changing_active_poin
     )
     before = (api_current.resolve(), web_current.resolve())
     result = coordinator.preflight(value)
-    assert result["helper_version"] == "1.3.2"
+    assert result["helper_version"] == "1.3.3"
     assert (api_current.resolve(), web_current.resolve()) == before
     sealed = coordinator.sealed_policy(value)
     assert Path(sealed["server_archive_path"]).is_relative_to(coordinator.SEALED_ROOT)
@@ -386,11 +387,137 @@ def test_post_activation_rollback_rejects_traversal(identifier: str) -> None:
         coordinator.post_activation_rollback(identifier)
 
 
+def legacy_reconciliation_fixture(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path, Path, Path, bytes]:
+    """Create an already-restored schema-2 transaction without host mutation."""
+    control = tmp_path / "control"
+    api_releases = tmp_path / "api" / "releases"
+    web_releases = tmp_path / "web" / "releases"
+    old_api, new_api = api_releases / "old-api", api_releases / "new-api"
+    old_web, new_web = web_releases / "old-web", web_releases / "new-web"
+    for path in (old_api, new_api, old_web, new_web):
+        path.mkdir(parents=True)
+    api_current, web_current = tmp_path / "api-current", tmp_path / "web-current"
+    try:
+        api_current.symlink_to(old_api, target_is_directory=True)
+        web_current.symlink_to(old_web, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks require Linux/root or Windows developer mode")
+    transaction = control / "transactions" / "coordinated-20260728T160353Z-ff94e232"
+    transaction.mkdir(parents=True)
+    source = {
+        "receipt_schema_version": 2,
+        "helper_version": "1.3.1",
+        "state": "active",
+        "activation_complete": True,
+        "old_api": str(old_api),
+        "old_web": str(old_web),
+        "new_api": str(new_api),
+        "new_web": str(new_web),
+        "schema": "20260721_0008",
+        "service": "eoat-atlas.service",
+        "writes_enabled": False,
+    }
+    receipt = transaction / "receipt.json"
+    receipt.write_text(json.dumps(source, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(coordinator, "CONTROL_ROOT", control)
+    monkeypatch.setattr(coordinator, "API_RELEASES", api_releases)
+    monkeypatch.setattr(coordinator, "WEB_RELEASES", web_releases)
+    monkeypatch.setattr(coordinator, "API_CURRENT", api_current)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web_current)
+    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_: None)
+    monkeypatch.setattr(coordinator.web, "require_root_owned", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "require_root_tree", lambda *_: None)
+    monkeypatch.setattr(coordinator, "_service_identity", lambda: (0, 0))
+    monkeypatch.setattr(coordinator, "_api_release_parent_chain", lambda *_: None)
+    monkeypatch.setattr(coordinator, "_safe_mode", lambda *_args, **_kwargs: None)
+    def runtime_evidence(_transaction: Path, value: dict[str, object]) -> dict[str, object]:
+        active_api, active_web = coordinator._require_legacy_current_targets(value)
+        return {
+            "rollback_api": str(active_api),
+            "rollback_web": str(active_web),
+            "active_pointer_identities": {
+                "api": {"path": str(api_current), "target": str(active_api)},
+                "web": {"path": str(web_current), "target": str(active_web)},
+            },
+            "api_attestation": {"path": str(active_api), "tree_sha256": "a" * 64},
+            "web_attestation": {"path": str(active_web), "tree_sha256": "b" * 64},
+            "application_version": "0.22.12",
+            "schema": "20260721_0008",
+            "writes_enabled": False,
+            "api_health": {"application_version": "0.22.12", "release_id": "eoat-atlas-0.22.12", "writes_enabled": False},
+            "nginx_validation": "passed",
+            "service_states": {"eoat-atlas.service": "active", "nginx.service": "active"},
+            "data_state": {"schema": "eoat_atlas_prod", "count": 1},
+        }
+
+    monkeypatch.setattr(coordinator, "_legacy_runtime_evidence", runtime_evidence)
+    return transaction, api_current, web_current, receipt.read_bytes()
+
+
+def test_reconcile_legacy_rollback_records_only_already_active_targets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    transaction, api_current, web_current, original = legacy_reconciliation_fixture(monkeypatch, tmp_path)
+    calls: list[object] = []
+    monkeypatch.setattr(coordinator.subprocess, "run", lambda *args, **kwargs: calls.append(args) or None)
+    result = coordinator.reconcile_legacy_rollback(transaction.name)
+    assert result == {"transaction": transaction.name, "state": "rolled_back", "idempotent": False}
+    assert transaction.joinpath("receipt.json").read_bytes() == original
+    assert api_current.resolve() == Path(json.loads(original)["old_api"])
+    assert web_current.resolve() == Path(json.loads(original)["old_web"])
+    assert not calls
+    evidence = json.loads(transaction.joinpath("post-activation-rollback.json").read_text(encoding="utf-8"))
+    assert evidence["reconciliation_mode"] == "legacy_already_rolled_back"
+    assert evidence["pointer_mutation_performed"] is False
+    assert evidence["service_restart_performed"] is False
+    assert evidence["nginx_reload_performed"] is False
+    assert evidence["api_attestation"]["tree_sha256"] == "a" * 64
+    assert coordinator.reconcile_legacy_rollback(transaction.name)["idempotent"] is True
+
+
+def test_reconcile_legacy_rollback_rejects_pointer_mismatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    transaction, api_current, _web_current, _ = legacy_reconciliation_fixture(monkeypatch, tmp_path)
+    mismatch = Path(json.loads(transaction.joinpath("receipt.json").read_text(encoding="utf-8"))["new_api"])
+    api_current.unlink()
+    api_current.symlink_to(mismatch, target_is_directory=True)
+    with pytest.raises(coordinator.web.InstallError, match="not already physically rolled back"):
+        coordinator.reconcile_legacy_rollback(transaction.name)
+    assert not transaction.joinpath("post-activation-rollback.json").exists()
+
+
+def test_reconcile_legacy_rollback_rejects_schema_and_conflicting_receipt(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    transaction, _api_current, _web_current, _ = legacy_reconciliation_fixture(monkeypatch, tmp_path)
+    source = json.loads(transaction.joinpath("receipt.json").read_text(encoding="utf-8"))
+    source["receipt_schema_version"] = 3
+    transaction.joinpath("receipt.json").write_text(json.dumps(source), encoding="utf-8")
+    with pytest.raises(coordinator.web.InstallError, match="only transaction receipt schema 2"):
+        coordinator.reconcile_legacy_rollback(transaction.name)
+    source["receipt_schema_version"] = 2
+    transaction.joinpath("receipt.json").write_text(json.dumps(source), encoding="utf-8")
+    transaction.joinpath("post-activation-rollback.json").write_text('{"state":"bad"}', encoding="utf-8")
+    with pytest.raises(coordinator.web.InstallError, match="ownership or mode|conflicts"):
+        coordinator.reconcile_legacy_rollback(transaction.name)
+
+
+def test_api_release_parent_policy_accepts_root_service_group_but_not_writable() -> None:
+    root_service_group = os.stat_result((stat.S_IFDIR | 0o750, 0, 0, 0, 0, 42, 0, 0, 0, 0))
+    writable = os.stat_result((stat.S_IFDIR | 0o770, 0, 0, 0, 0, 42, 0, 0, 0, 0))
+    wrong_owner = os.stat_result((stat.S_IFDIR | 0o750, 0, 0, 0, 1, 42, 0, 0, 0, 0))
+    assert coordinator._api_release_parent_is_safe(root_service_group, 42)
+    assert not coordinator._api_release_parent_is_safe(writable, 42)
+    assert not coordinator._api_release_parent_is_safe(wrong_owner, 42)
+
+
 def test_coordinated_sudoers_exposes_only_fixed_governed_operations() -> None:
     source = (PRIVILEGED / "eoat-atlas-coordinated.sudoers").read_text(encoding="utf-8")
     assert "preflight --policy /etc/eoat-atlas/coordinated-release-policy.json" in source
     assert "activate --policy /etc/eoat-atlas/coordinated-release-policy.json" in source
     assert "post-activation-rollback --transaction *" in source
+    assert "reconcile-legacy-rollback --transaction *" in source
     rules = "\n".join(line for line in source.splitlines() if not line.startswith("#"))
     assert "systemctl" not in rules and "nginx" not in rules and "/bin/sh" not in rules
     assert "ALL=(ALL)" not in rules

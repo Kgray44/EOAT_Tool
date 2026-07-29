@@ -243,6 +243,15 @@ def test_governed_component_exception_is_explicit_and_never_applies_to_app_code(
     package_builder.write_text("VALUE = 2\n", encoding="utf-8")
     assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 0
     package_builder.unlink()
+    coordinator = root / "deployment" / "privileged" / "coordinated_release_retry.py"
+    coordinator.parent.mkdir(parents=True, exist_ok=True)
+    coordinator.write_text("VALUE = 2\n", encoding="utf-8")
+    assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 0
+    coordinator.unlink()
+    unrelated_privileged = root / "deployment" / "privileged" / "unreviewed.py"
+    unrelated_privileged.write_text("VALUE = 2\n", encoding="utf-8")
+    assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
+    unrelated_privileged.unlink()
     (root / "app" / "main.py").write_text("VALUE = 2\n", encoding="utf-8")
     assert check_version_main(["--root", str(root), "--base", "HEAD", "--allow-governed-component-change"]) == 1
     (root / "app" / "main.py").unlink()
