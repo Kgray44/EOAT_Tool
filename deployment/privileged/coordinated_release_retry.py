@@ -1144,15 +1144,24 @@ def activate(value: dict[str, object]) -> Path:
         raise
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "action",
+        nargs="?",
         choices=("preflight", "activate", "post-activation-rollback", "reconcile-legacy-rollback"),
     )
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--transaction")
-    args = parser.parse_args()
+    parser.add_argument("--version", action="store_true")
+    args = parser.parse_args(argv)
+    if args.version:
+        if args.action is not None or args.policy is not None or args.transaction is not None:
+            parser.error("--version does not accept an action, policy, or transaction")
+        print(json.dumps({"helper_version": HELPER_VERSION}, sort_keys=True))
+        return 0
+    if args.action is None:
+        parser.error("an action is required")
     if os.geteuid() != 0:
         fail("root execution is required")
     if args.action == "post-activation-rollback":

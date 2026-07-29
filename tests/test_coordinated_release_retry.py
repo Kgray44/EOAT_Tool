@@ -512,6 +512,11 @@ def test_api_release_parent_policy_accepts_root_service_group_but_not_writable()
     assert not coordinator._api_release_parent_is_safe(wrong_owner, 42)
 
 
+def test_helper_version_is_safe_without_root_execution(capsys: pytest.CaptureFixture[str]) -> None:
+    assert coordinator.main(["--version"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"helper_version": "1.3.3"}
+
+
 def test_coordinated_sudoers_exposes_only_fixed_governed_operations() -> None:
     source = (PRIVILEGED / "eoat-atlas-coordinated.sudoers").read_text(encoding="utf-8")
     assert "preflight --policy /etc/eoat-atlas/coordinated-release-policy.json" in source
