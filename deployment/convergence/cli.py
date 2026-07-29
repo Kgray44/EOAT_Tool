@@ -86,13 +86,18 @@ def _publish_commands(commands: argparse._SubParsersAction[Any]) -> None:
     actions = publish.add_subparsers(dest="publish_command", required=True)
     start = actions.add_parser("start", help="Publish a validated candidate")
     start.add_argument("candidate_id")
-    start.add_argument("--confirm-version", required=True)
+    start.add_argument("--confirm", required=True, help="Exact confirmation derived from the sealed release identity")
+    begin = actions.add_parser("begin-production", help="Start the governed schema-2 production publication transaction")
+    begin.add_argument("candidate_id")
+    begin.add_argument("--confirm", required=True, help="Exact confirmation derived from the sealed release identity")
     resume = actions.add_parser("resume", help="Reconcile and resume a publication")
     resume.add_argument("publication_id")
     status = actions.add_parser("status", help="Show publication receipt")
     status.add_argument("publication_id")
     readiness = actions.add_parser("readiness", help="Independently verify a sealed candidate for publication")
     readiness.add_argument("candidate_id")
+    verify_input = actions.add_parser("verify-input", help="Verify the sealed schema-2 publication input")
+    verify_input.add_argument("candidate_id")
     disposable = actions.add_parser(
         "start-disposable", help="Publish only to an explicit disposable Git/filesystem backend"
     )
@@ -105,6 +110,8 @@ def _publish_commands(commands: argparse._SubParsersAction[Any]) -> None:
     resume_disposable.add_argument("--confirm", required=True, help="Exact confirmation: PUBLISH <candidate-id>")
     assets = actions.add_parser("assets", help="List a durable complete asset inventory")
     assets.add_argument("publication_id")
+    inspect_assets = actions.add_parser("inspect-assets", help="Download and verify every published asset against the sealed inventory")
+    inspect_assets.add_argument("publication_id")
 
 
 def _target_plan_deploy_commands(commands: argparse._SubParsersAction[Any]) -> None:
@@ -347,12 +354,14 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 result = service.discard_candidate(args.candidate_id)
         elif args.command == "publish":
-            if args.publish_command == "start":
-                result = service.publish_start(args.candidate_id, args.confirm_version)
+            if args.publish_command in {"start", "begin-production"}:
+                result = service.publish_start(args.candidate_id, args.confirm)
             elif args.publish_command == "resume":
                 result = service.publish_resume(args.publication_id)
-            elif args.publish_command == "readiness":
+            elif args.publish_command in {"readiness", "verify-input"}:
                 result = service.publication_readiness(args.candidate_id)
+            elif args.publish_command == "inspect-assets":
+                result = service.verify_publication_inventory(args.publication_id)
             elif args.publish_command == "start-disposable":
                 result = service.publish_disposable(
                     args.candidate_id, args.confirm, remote=args.remote, registry=args.registry

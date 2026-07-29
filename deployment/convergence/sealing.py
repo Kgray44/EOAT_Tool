@@ -143,6 +143,21 @@ def revalidate_candidate(candidate_root: Path, receipt: Mapping[str, Any], repos
         if artifact.suffix.casefold() == ".zip":
             _validate_zip(artifact)
         evidence[kind] = str(component["sha256"])
+        metadata = dict(component.get("metadata") or {})
+        # Every retained supporting byte is candidate-relative and, where an
+        # attachment supplied a digest, independently rechecked before it can
+        # become part of the canonical release-set payload.
+        for key, locator in metadata.items():
+            if not key.endswith("_locator") or not isinstance(locator, str) or not locator:
+                continue
+            support = _safe_locator(candidate_root, locator)
+            if not support.is_file():
+                raise DeploymentError(f"component {kind} supporting evidence is missing: {key}")
+            digest = sha256_file(support)
+            expected = metadata.get(f"{key.removesuffix('_locator')}_sha256")
+            if expected and str(expected) != digest:
+                raise DeploymentError(f"component {kind} supporting evidence digest differs: {key}")
+            evidence[f"{kind}_{key.removesuffix('_locator')}"] = digest
 
     server = _safe_locator(candidate_root, str(components[ComponentKind.SERVER.value]["artifact_locator"]))
     server_dir = server.parent
@@ -167,6 +182,12 @@ def revalidate_candidate(candidate_root: Path, receipt: Mapping[str, Any], repos
             raise DeploymentError(f"{kind} has no retained smoke receipt")
         _validate_smoke(_safe_locator(candidate_root, smoke_locator), components[kind], identity)
         evidence[f"{kind}_smoke"] = sha256_file(_safe_locator(candidate_root, smoke_locator))
+
+    if receipt.get("release_set_profile") == "FINAL_CURRENT_COMPONENTS":
+        bootstrap_metadata = dict(components[ComponentKind.BOOTSTRAP.value].get("metadata") or {})
+        required_support = {"installer_config_locator", "installer_package_locator", "installer_package_manifest_locator", "trust_policy_locator"}
+        if not required_support <= bootstrap_metadata.keys():
+            raise DeploymentError("final integrated candidate lacks governed installer and production trust-policy evidence")
 
     typed: list[ReleaseSetComponent] = []
     for kind in sorted(components):

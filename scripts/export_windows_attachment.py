@@ -153,11 +153,54 @@ def main(argv: list[str] | None = None) -> int:
         (output / "bootstrap" / "package_manifest.json").write_text(json.dumps(bootstrap_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         _copy(ROOT / "installer" / "installer_config.json", output / "bootstrap" / "installer_config.json")
         _copy(ROOT / "release_trust" / "production_manifest_keys.json", output / "bootstrap" / "production_manifest_keys.json")
+        _run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "installer" / "Build_Installer_Exe.ps1"), "-PythonExe", sys.executable, "-Clean"],
+            env=env, timeout=1200, label="installer-build", diagnostics=diagnostics_root / "installer-build.json",
+        )
+        installer_dist = ROOT / "installer" / "dist"
+        installer_exe = installer_dist / "Install EOAT Atlas.exe"
+        if not installer_exe.is_file():
+            raise RuntimeError("installer build did not produce the governed installer executable")
+        installer_zip = output / "bootstrap" / "EOAT-Atlas-installer.zip"
+        _zip_tree(installer_dist, installer_zip)
+        installer_manifest = {
+            "manifest_schema_version": 1,
+            "files": [
+                {"path": path.relative_to(installer_dist).as_posix(), "size": path.stat().st_size, "sha256": _sha256(path)}
+                for path in sorted(installer_dist.rglob("*")) if path.is_file()
+            ],
+        }
+        (output / "bootstrap" / "installer_package_manifest.json").write_text(
+            json.dumps(installer_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         bootstrap_update = {"schema_version": 1, **identity, "component_kind": "bootstrap_update_manifest", "package_locator": "bootstrap/EOAT-Atlas-bootstrap.zip", "size_bytes": bootstrap_zip.stat().st_size, "sha256": _sha256(bootstrap_zip), "release_channel": "candidate", "installer_config_sha256": _sha256(output / "bootstrap" / "installer_config.json")}
         (output / "bootstrap" / "update-manifest.json").write_text(json.dumps(bootstrap_update, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    def component(kind: str, artifact: Path, *, metadata: str = "", package_manifest: str = "", smoke: str = "") -> dict[str, Any]:
-        return {"kind": kind, "artifact": artifact.relative_to(output).as_posix(), "sha256": _sha256(artifact), "size_bytes": artifact.stat().st_size, "metadata": metadata, "package_manifest": package_manifest, "smoke_receipt": smoke, "target_locator": f"platform/windows/{kind}/{artifact.name}"}
+    def component(
+        kind: str,
+        artifact: Path,
+        *,
+        metadata: str = "",
+        package_manifest: str = "",
+        smoke: str = "",
+        supporting_assets: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        supporting_assets = supporting_assets or {}
+        declared_support: dict[str, dict[str, Any]] = {}
+        for label, locator in supporting_assets.items():
+            source = output / locator
+            if not label.replace("_", "").isalnum() or not source.is_file():
+                raise RuntimeError("bootstrap supporting asset declaration is unsafe or missing")
+            declared_support[label] = {
+                "locator": locator, "size_bytes": source.stat().st_size, "sha256": _sha256(source),
+                "media_type": "application/zip" if source.suffix.casefold() == ".zip" else "application/json",
+            }
+        return {
+            "kind": kind, "artifact": artifact.relative_to(output).as_posix(), "sha256": _sha256(artifact),
+            "size_bytes": artifact.stat().st_size, "metadata": metadata, "package_manifest": package_manifest,
+            "smoke_receipt": smoke, "supporting_assets": declared_support,
+            "target_locator": f"platform/windows/{kind}/{artifact.name}",
+        }
 
     manifest = {
         "schema_version": 1, **identity, "platform": "windows", "workflow": {"run_id": os.getenv("GITHUB_RUN_ID", ""), "run_attempt": os.getenv("GITHUB_RUN_ATTEMPT", ""), "sha": os.getenv("GITHUB_SHA", "")},
@@ -167,7 +210,16 @@ def main(argv: list[str] | None = None) -> int:
             component("launcher", launcher_zip, metadata="launcher/release_metadata.json", package_manifest="launcher/package_manifest.json", smoke="launcher/smoke.json"),
             component("launcher_update_manifest", output / "launcher" / "update-manifest.json"),
         ] + ([
-            component("bootstrap", bootstrap_zip, metadata="bootstrap/release_metadata.json", package_manifest="bootstrap/package_manifest.json", smoke="bootstrap/smoke.json"),
+            component(
+                "bootstrap", bootstrap_zip, metadata="bootstrap/release_metadata.json",
+                package_manifest="bootstrap/package_manifest.json", smoke="bootstrap/smoke.json",
+                supporting_assets={
+                    "installer_config": "bootstrap/installer_config.json",
+                    "trust_policy": "bootstrap/production_manifest_keys.json",
+                    "installer_package": "bootstrap/EOAT-Atlas-installer.zip",
+                    "installer_package_manifest": "bootstrap/installer_package_manifest.json",
+                },
+            ),
             component("bootstrap_update_manifest", output / "bootstrap" / "update-manifest.json"),
         ] if include_bootstrap else []),
     }

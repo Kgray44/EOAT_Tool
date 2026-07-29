@@ -47,6 +47,7 @@ class AttachmentComponent:
     metadata: str = ""
     package_manifest: str = ""
     smoke_receipt: str = ""
+    supporting_assets: tuple[tuple[str, str, int, str, str], ...] = ()
     target_locator: str = ""
 
 
@@ -153,11 +154,27 @@ def inspect_attachment(path: Path, candidate: dict[str, Any] | None = None) -> d
         for raw in raw_components:
             if not isinstance(raw, dict):
                 raise DeploymentError("attachment contains a malformed component record")
+            raw_supporting = raw.get("supporting_assets") or {}
+            if not isinstance(raw_supporting, dict):
+                raise DeploymentError("attachment has malformed supporting asset declarations")
+            supporting: list[tuple[str, str, int, str, str]] = []
+            for label, declared_support in raw_supporting.items():
+                if not isinstance(label, str) or not label.replace("_", "").isalnum() or not isinstance(declared_support, dict):
+                    raise DeploymentError("attachment has malformed supporting asset declarations")
+                locator = str(declared_support.get("locator") or "")
+                digest = str(declared_support.get("sha256") or "")
+                size = int(declared_support.get("size_bytes") or 0)
+                media_type = str(declared_support.get("media_type") or "")
+                if not locator or len(digest) != 64 or size <= 0 or not media_type:
+                    raise DeploymentError("attachment has incomplete supporting asset identity")
+                supporting.append((label, locator, size, digest, media_type))
             component = AttachmentComponent(
                 kind=str(raw.get("kind") or ""), artifact=str(raw.get("artifact") or ""),
                 sha256=str(raw.get("sha256") or ""), size_bytes=int(raw.get("size_bytes") or 0),
                 metadata=str(raw.get("metadata") or ""), package_manifest=str(raw.get("package_manifest") or ""),
-                smoke_receipt=str(raw.get("smoke_receipt") or ""), target_locator=str(raw.get("target_locator") or ""),
+                smoke_receipt=str(raw.get("smoke_receipt") or ""),
+                supporting_assets=tuple(sorted(supporting)),
+                target_locator=str(raw.get("target_locator") or ""),
             )
             if component.kind not in allowed_kinds or component.kind in seen or len(component.sha256) != 64 or component.size_bytes <= 0:
                 raise DeploymentError("attachment has invalid or duplicate component identity")
@@ -194,6 +211,14 @@ def inspect_attachment(path: Path, candidate: dict[str, Any] | None = None) -> d
                             actual = metadata.get("source_git_commit")
                         if str(actual or "") != str(expected or ""):
                             raise DeploymentError("attachment embedded metadata identity mismatch")
+            for label, locator, size, digest, _media_type in component.supporting_assets:
+                if component.kind != ComponentKind.BOOTSTRAP.value or label not in {
+                    "installer_config", "trust_policy", "installer_package", "installer_package_manifest",
+                }:
+                    raise DeploymentError("attachment declares an unsupported supporting asset")
+                support = root / _safe_relative(locator)
+                if not support.is_file() or support.stat().st_size != size or sha256_file(support) != digest:
+                    raise DeploymentError("attachment supporting asset identity is invalid")
             if component.kind in {ComponentKind.DESKTOP.value, ComponentKind.LAUNCHER.value, ComponentKind.BOOTSTRAP.value}:
                 if not component.smoke_receipt:
                     raise DeploymentError("desktop, launcher, and bootstrap attachments require smoke receipts")
@@ -271,7 +296,11 @@ def attach_platform_artifacts(candidate_root: Path, candidate: dict[str, Any], a
                 # than depending on a transient CI download during Phase 1B-3
                 # revalidation.  These paths never become absolute release
                 # identity and are revalidated after promotion.
-                for label, locator in (("metadata", component.metadata), ("package_manifest", component.package_manifest), ("smoke_receipt", component.smoke_receipt)):
+                for label, locator in (
+                    ("metadata", component.metadata), ("package_manifest", component.package_manifest),
+                    ("smoke_receipt", component.smoke_receipt),
+                    *((name, locator) for name, locator, _size, _digest, _media_type in component.supporting_assets),
+                ):
                     if not locator:
                         continue
                     source_support = root / _safe_relative(locator)
@@ -295,7 +324,10 @@ def attach_platform_artifacts(candidate_root: Path, candidate: dict[str, Any], a
                 if not target.exists():
                     os_replace(staged, target)
                 retained_metadata: dict[str, str] = {"attachment_manifest_sha256": sha256_file(root / "attachment-manifest.json"), "attachment_artifact": component.artifact}
-                for label in ("metadata", "package_manifest", "smoke_receipt"):
+                for label in (
+                    "metadata", "package_manifest", "smoke_receipt",
+                    *(name for name, _locator, _size, _digest, _media_type in component.supporting_assets),
+                ):
                     retained = support_targets.get((component.kind, label))
                     if retained is None:
                         continue

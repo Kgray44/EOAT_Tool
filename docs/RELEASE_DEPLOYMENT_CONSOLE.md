@@ -30,7 +30,7 @@ python tools/eoat_release.py candidate verify-for-sealing candidate-0.24.0-<comm
 python tools/eoat_release.py candidate seal-release-set candidate-0.24.0-<commit> --confirm "SEAL candidate-0.24.0-<commit>"
 python tools/eoat_release.py candidate verify-sealed-release-set candidate-0.24.0-<commit>
 python tools/eoat_release.py candidate discard candidate-0.23.0-<commit>
-python tools/eoat_release.py publish start candidate-0.23.0-<commit> --confirm-version 0.23.0
+python tools/eoat_release.py publish start candidate-0.24.1-<commit> --confirm "PUBLISH EOAT ATLAS 0.24.1 TO Kgray44/EOAT_Tool"
 python tools/eoat_release.py publish resume publication-candidate-0.23.0-<commit>
 python tools/eoat_release.py publish status publication-candidate-0.23.0-<commit>
 python tools/eoat_release.py releases list

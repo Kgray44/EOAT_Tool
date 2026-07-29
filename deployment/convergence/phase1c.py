@@ -183,6 +183,15 @@ def verify_sealed_candidate(root: Path, receipt: Mapping[str, Any], *, repositor
                 try:
                     artifact = _require_bytes(root, component)
                     metadata = dict(component.get("metadata") or {})
+                    for key, locator in metadata.items():
+                        if not key.endswith("_locator") or not isinstance(locator, str) or not locator:
+                            continue
+                        support = _relative(root, locator)
+                        if not support.is_file():
+                            raise DeploymentError(f"component {kind} supporting evidence is missing: {key}")
+                        expected = metadata.get(f"{key.removesuffix('_locator')}_sha256")
+                        if expected and sha256_file(support) != str(expected):
+                            raise DeploymentError(f"component {kind} supporting evidence digest differs: {key}")
                     if kind == ComponentKind.SERVER.value and metadata.get("external_manifest_locator") and metadata.get("checksum_locator"):
                         manifest_path = _relative(root, str(metadata["external_manifest_locator"]))
                         checksum_path = _relative(root, str(metadata["checksum_locator"]))
@@ -200,6 +209,13 @@ def verify_sealed_candidate(root: Path, receipt: Mapping[str, Any], *, repositor
                         ComponentKind.BOOTSTRAP.value,
                     } and metadata.get("smoke_receipt_locator"):
                         _validate_smoke(_relative(root, str(metadata["smoke_receipt_locator"])), component, release_set.identity)
+                    if final_current_components and kind == ComponentKind.BOOTSTRAP.value:
+                        required_support = {
+                            "installer_config_locator", "installer_package_locator",
+                            "installer_package_manifest_locator", "trust_policy_locator",
+                        }
+                        if not required_support <= metadata.keys():
+                            raise DeploymentError("final integrated candidate lacks governed installer and trust-policy assets")
                 except DeploymentError as exc:
                     reasons.append(str(exc))
     if receipt.get("recovery_required") or receipt.get("publication_recovery_required"):
@@ -228,6 +244,24 @@ def publication_assets(root: Path, receipt: Mapping[str, Any]) -> list[Publicati
         raise DeploymentError("sealed candidate has no component inventory")
     output: list[PublicationAsset] = []
     names: set[str] = set()
+
+    def add_asset(component_kind: str, locator: str, media_type: str, *, label: str = "") -> None:
+        """Add one sealed candidate-relative byte stream with a stable public name."""
+
+        support = _relative(root, locator)
+        if not support.is_file():
+            raise DeploymentError(f"supporting publication asset {label or component_kind} is missing")
+        stem = support.name
+        # Release assets have a single flat namespace.  Prefixing is governed
+        # by the signed component kind/support label, never a local path.
+        if stem.casefold() in names:
+            prefix = component_kind if not label else f"{component_kind}-{label}"
+            stem = f"{prefix}-{stem}"
+        if stem.casefold() in names:
+            raise DeploymentError("duplicate normalized publication asset name")
+        names.add(stem.casefold())
+        output.append(PublicationAsset(component_kind, stem, locator, support.stat().st_size, sha256_file(support), media_type))
+
     for component in components:
         if not isinstance(component, Mapping) or component.get("disposition") != "BUILT":
             continue
@@ -235,24 +269,23 @@ def publication_assets(root: Path, receipt: Mapping[str, Any]) -> list[Publicati
         if not locator:
             continue
         path = _require_bytes(root, component)
-        asset = PublicationAsset(str(component["kind"]), path.name, locator, path.stat().st_size, sha256_file(path), str(component.get("media_type") or "application/octet-stream"))
-        if asset.filename.casefold() in names:
-            asset = PublicationAsset(asset.component_kind, f"{asset.component_kind}-{asset.filename}", asset.locator, asset.size_bytes, asset.sha256, asset.media_type)
-        if asset.filename.casefold() in names:
-            raise DeploymentError("duplicate normalized publication asset name")
-        names.add(asset.filename.casefold())
-        output.append(asset)
+        component_kind = str(component["kind"])
+        add_asset(component_kind, locator, str(component.get("media_type") or "application/octet-stream"))
         metadata = dict(component.get("metadata") or {})
-        for key in ("external_manifest_locator", "checksum_locator", "file_manifest_locator", "metadata_locator", "package_manifest_locator", "smoke_receipt_locator"):
+        # Metadata is part of the signed component record.  These explicit
+        # locators cover validation evidence, source recovery, and governed
+        # installer/trust-policy inputs without accepting an unchecked map.
+        for key in (
+            "external_manifest_locator", "checksum_locator", "file_manifest_locator",
+            "metadata_locator", "package_manifest_locator", "smoke_receipt_locator",
+            "verification_receipt_locator", "installer_config_locator",
+            "trust_policy_locator", "installer_package_locator",
+            "installer_package_manifest_locator",
+        ):
             locator = str(metadata.get(key) or "")
             if not locator:
                 continue
-            support = _relative(root, locator)
-            if not support.is_file():
-                raise DeploymentError(f"supporting publication asset {key} is missing")
-            filename = support.name if support.name.casefold() not in names else f"{asset.component_kind}-{support.name}"
-            names.add(filename.casefold())
-            output.append(PublicationAsset(asset.component_kind, filename, locator, support.stat().st_size, sha256_file(support), "application/json"))
+            add_asset(component_kind, locator, "application/json", label=key.removesuffix("_locator"))
     if {item.component_kind for item in output} < _required_built(
         final_current_components=receipt.get("release_set_profile") == "FINAL_CURRENT_COMPONENTS"
     ):

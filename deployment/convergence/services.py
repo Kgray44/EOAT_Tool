@@ -69,7 +69,6 @@ from .models import (
     DeploymentTransaction,
     Diagnostic,
     OperationResult,
-    PublicationRecord,
     PublicationState,
     Status,
     next_action_for,
@@ -80,6 +79,7 @@ from .phase1c import (
     DisposablePublicationBackend,
     Phase1CPublicationState,
     inventory_disposable,
+    publication_assets,
     run_disposable_publication,
     verify_sealed_candidate,
 )
@@ -207,6 +207,8 @@ class SubprocessPublisher:
         repository = _remote_repository(self.root)
         if not repository:
             raise DeploymentError("origin is not a GitHub repository")
+        if repository != "Kgray44/EOAT_Tool":
+            raise DeploymentError("production publication is governed only for Kgray44/EOAT_Tool")
         return repository
 
     def promote(self, candidate: dict[str, Any]) -> None:
@@ -236,14 +238,36 @@ class SubprocessPublisher:
             return
         self._must(
             "create immutable annotated tag",
-            ["git", "tag", "-a", tag, commit, "-m", f"EOAT Atlas {candidate['version']}"],
+            [
+                "git", "tag", "-a", tag, commit, "-m",
+                "\n".join(
+                    (
+                        f"EOAT Atlas {candidate['version']}",
+                        f"candidate_id={candidate.get('candidate_id', '')}",
+                        f"release_set_digest={candidate.get('release_set_digest', '')}",
+                        f"source_tree={candidate.get('candidate_tree', '')}",
+                        f"signing_key_id={candidate.get('signing_key_id', '')}",
+                    )
+                ),
+            ],
             mutation=True,
         )
 
     def push_branch(self, candidate: dict[str, Any]) -> None:
         branch = inspect_git_state(self.root).branch
         if branch in {"", "(detached)"}:
-            raise DeploymentError("cannot push a detached branch")
+            # Production publication begins only after exact-main acceptance.
+            # A fresh candidate is intentionally built in a detached worktree,
+            # so verify the governed main ref instead of inventing a branch.
+            remote_main = self.runner.run(
+                "verify accepted main source",
+                ["git", "ls-remote", "origin", "refs/heads/main"],
+                cwd=self.root,
+                timeout_class="git",
+            )
+            if remote_main.exit_code or str(candidate["candidate_commit"]) not in remote_main.stdout:
+                raise DeploymentError("detached production candidate is not the accepted remote main commit")
+            return
         self._must("push candidate branch", ["git", "push", "origin", branch], mutation=True)
 
     def push_tag(self, candidate: dict[str, Any]) -> None:
@@ -253,7 +277,7 @@ class SubprocessPublisher:
         repository, tag = self._repository(), str(candidate["tag"])
         view = self.runner.run(
             "inspect GitHub release",
-            ["gh", "release", "view", tag, "--repo", repository, "--json", "tagName"],
+            ["gh", "release", "view", tag, "--repo", repository, "--json", "tagName,isDraft,isPrerelease,targetCommitish"],
             cwd=self.root,
             timeout_class="github",
         )
@@ -262,8 +286,10 @@ class SubprocessPublisher:
                 payload = json.loads(view.stdout)
             except json.JSONDecodeError as exc:
                 raise DeploymentError("existing GitHub release response is malformed") from exc
-            if payload.get("tagName") != tag:
+            if payload.get("tagName") != tag or payload.get("isPrerelease") is True:
                 raise DeploymentError("existing GitHub release identity conflicts with candidate")
+            if payload.get("targetCommitish") and payload.get("targetCommitish") != str(candidate["candidate_commit"]):
+                raise DeploymentError("existing GitHub release targets a conflicting source commit")
             return
         self._must(
             "create GitHub release",
@@ -278,27 +304,76 @@ class SubprocessPublisher:
                 f"EOAT Atlas {candidate['version']}",
                 "--notes",
                 "Validated EOAT Atlas release candidate.",
+                "--draft",
             ],
             mutation=True,
         )
 
     def upload_assets(self, candidate: dict[str, Any]) -> None:
         repository, tag = self._repository(), str(candidate["tag"])
-        directory = Path(str(candidate["artifact_path"])).parent
-        artifact = Path(str(candidate["artifact_path"]))
-        assets = (artifact, directory / "release_manifest.json", directory / f"{artifact.name}.sha256")
-        if not all(path.is_file() for path in assets):
-            raise DeploymentError("candidate assets are incomplete")
-        self._must(
-            "upload immutable release assets",
-            ["gh", "release", "upload", tag, *map(str, assets), "--repo", repository],
-            mutation=True,
+        root = Path(str(candidate.get("candidate_root") or ""))
+        if not root.is_dir():
+            raise DeploymentError("sealed candidate root is unavailable for complete publication")
+        assets = publication_assets(root, candidate)
+        remote = self._remote_assets(tag)
+        paths = []
+        for asset in assets:
+            path = root.joinpath(*asset.locator.split("/"))
+            if not path.is_file() or path.stat().st_size != asset.size_bytes or sha256_file(path) != asset.sha256:
+                raise DeploymentError(f"publication asset {asset.filename} no longer matches the sealed release set")
+            existing = remote.get(asset.filename)
+            if existing is not None:
+                if int(existing.get("size") or -1) != asset.size_bytes or self._download_hash(tag, asset.filename) != asset.sha256:
+                    raise DeploymentError(f"remote release asset conflicts with sealed candidate: {asset.filename}")
+                continue
+            paths.append(f"{path}#{asset.filename}")
+        if paths:
+            self._must(
+                "upload immutable release assets",
+                ["gh", "release", "upload", tag, *paths, "--repo", repository],
+                mutation=True,
+            )
+
+    def _remote_assets(self, tag: str) -> dict[str, dict[str, Any]]:
+        result = self.runner.run(
+            "inspect GitHub release asset inventory",
+            ["gh", "release", "view", tag, "--repo", self._repository(), "--json", "assets"],
+            cwd=self.root, timeout_class="github",
         )
+        if result.exit_code:
+            raise DeploymentError(f"GitHub release asset inspection failed ({result.category})")
+        try:
+            assets = json.loads(result.stdout).get("assets", [])
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise DeploymentError("GitHub release asset response is malformed") from exc
+        output: dict[str, dict[str, Any]] = {}
+        for asset in assets:
+            if not isinstance(asset, dict) or not isinstance(asset.get("name"), str) or asset["name"].casefold() in {item.casefold() for item in output}:
+                raise DeploymentError("GitHub release has duplicate or malformed asset names")
+            output[str(asset["name"])] = asset
+        return output
+
+    def _download_hash(self, tag: str, filename: str) -> str:
+        with tempfile.TemporaryDirectory(prefix="eoat-github-release-verify-") as temporary:
+            directory = Path(temporary)
+            self._must(
+                "download immutable GitHub release asset for verification",
+                ["gh", "release", "download", tag, "--repo", self._repository(), "--pattern", filename, "--dir", str(directory)],
+            )
+            files = [path for path in directory.iterdir() if path.is_file()]
+            if len(files) != 1 or files[0].name != filename:
+                raise DeploymentError("GitHub release download did not yield exactly the requested asset")
+            return sha256_file(files[0])
 
     def attach_receipt(self, candidate: dict[str, Any], receipt: Path) -> None:
         self._must(
             "attach publication receipt",
             ["gh", "release", "upload", str(candidate["tag"]), str(receipt), "--repo", self._repository()],
+            mutation=True,
+        )
+        self._must(
+            "publish complete verified GitHub release",
+            ["gh", "release", "edit", str(candidate["tag"]), "--repo", self._repository(), "--draft=false"],
             mutation=True,
         )
 
@@ -314,6 +389,9 @@ class SubprocessPublisher:
             return result.returncode == 0 and Git(self.root).output("rev-list", "-n", "1", tag) == commit
         if step is PublicationState.BRANCH_PUSHED:
             branch = inspect_git_state(self.root).branch
+            if branch in {"", "(detached)"}:
+                result = self.runner.run("verify remote main source", ["git", "ls-remote", "origin", "refs/heads/main"], cwd=self.root, timeout_class="git")
+                return result.exit_code == 0 and commit in result.stdout
             result = Git(self.root).run("merge-base", "--is-ancestor", commit, f"origin/{branch}", check=False)
             return result.returncode == 0
         if step is PublicationState.TAG_PUSHED:
@@ -326,33 +404,46 @@ class SubprocessPublisher:
             return result.exit_code == 0 and commit in result.stdout
         repository = self._repository()
         if step is PublicationState.GITHUB_RELEASE_CREATED:
-            return (
-                self.runner.run(
-                    "verify GitHub release",
-                    ["gh", "release", "view", tag, "--repo", repository],
-                    cwd=self.root,
-                    timeout_class="github",
-                ).exit_code
-                == 0
-            )
-        if step in {PublicationState.PRIMARY_ASSETS_UPLOADED, PublicationState.RECEIPT_ATTACHED}:
-            result = self.runner.run(
-                "verify GitHub assets",
-                ["gh", "release", "view", tag, "--repo", repository, "--json", "assets"],
-                cwd=self.root,
-                timeout_class="github",
-            )
-            if result.exit_code:
-                return False
+            result = self.runner.run("verify draft GitHub release", ["gh", "release", "view", tag, "--repo", repository, "--json", "tagName,isDraft,isPrerelease"], cwd=self.root, timeout_class="github")
             try:
-                names = {item["name"] for item in json.loads(result.stdout).get("assets", [])}
+                payload = json.loads(result.stdout)
             except (TypeError, ValueError, json.JSONDecodeError):
                 return False
-            artifact = Path(str(candidate["artifact_path"])).name
-            required = {artifact, f"{artifact}.sha256", "release_manifest.json"}
-            if step is PublicationState.RECEIPT_ATTACHED:
-                required.add(Path(str(receipt.get("receipt_path", ""))).name)
-            return required <= names
+            return result.exit_code == 0 and payload.get("tagName") == tag and payload.get("isDraft") is True and payload.get("isPrerelease") is False
+        if step in {PublicationState.PRIMARY_ASSETS_UPLOADED, PublicationState.COMPONENT_ASSETS_VERIFIED, PublicationState.RECEIPT_ATTACHED}:
+            try:
+                expected = {asset.filename: asset for asset in publication_assets(Path(str(candidate["candidate_root"])), candidate)}
+                remote = self._remote_assets(tag)
+                if step is PublicationState.RECEIPT_ATTACHED:
+                    receipt_name = str(receipt.get("public_receipt_filename") or "")
+                    if not receipt_name or receipt_name not in remote:
+                        return False
+                    expected_names = set(expected) | {receipt_name}
+                else:
+                    expected_names = set(expected)
+                if set(remote) != expected_names:
+                    return False
+                for name, asset in expected.items():
+                    if int(remote[name].get("size") or -1) != asset.size_bytes or self._download_hash(tag, name) != asset.sha256:
+                        return False
+                if step is PublicationState.RECEIPT_ATTACHED:
+                    release = self.runner.run(
+                        "verify published GitHub release state",
+                        ["gh", "release", "view", tag, "--repo", repository, "--json", "isDraft,isPrerelease"],
+                        cwd=self.root, timeout_class="github",
+                    )
+                    try:
+                        release_data = json.loads(release.stdout)
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        return False
+                    return (
+                        release.exit_code == 0 and release_data.get("isDraft") is False
+                        and release_data.get("isPrerelease") is False
+                        and self._download_hash(tag, receipt_name) == str(receipt.get("public_receipt_sha256") or "")
+                    )
+                return True
+            except DeploymentError:
+                return False
         return False
 
 
@@ -1245,6 +1336,42 @@ class ReleaseDeploymentService:
         candidate = self.store.candidate_representation(candidate_id)
         if candidate.get("receipt_compatibility") != "SCHEMA_2":
             raise DeploymentError("legacy schema-1 candidates cannot enter unified release-set publication")
+        if candidate.get("state") == "RELEASE_SET_VALIDATED" and candidate.get("publication_eligible") is True:
+            root = self.store.root / "candidates" / candidate_id
+            eligibility = verify_sealed_candidate(root, candidate, repository=self.root)
+            if not eligibility.eligible:
+                raise DeploymentError("sealed candidate is not publication eligible: " + "; ".join(eligibility.blocking_reasons))
+            components = {
+                str(item.get("kind") or ""): item
+                for item in (candidate.get("working_release_set") or {}).get("components", [])
+                if isinstance(item, dict)
+            }
+            server = components.get(ComponentKind.SERVER.value)
+            if not isinstance(server, dict):
+                raise DeploymentError("sealed candidate has no server component")
+            locator = str(server.get("artifact_locator") or "")
+            artifact = root.joinpath(*locator.split("/"))
+            metadata = dict(server.get("metadata") or {})
+            manifest_locator = str(metadata.get("external_manifest_locator") or "")
+            if not artifact.is_file() or not manifest_locator:
+                raise DeploymentError("sealed candidate server publication assets are incomplete")
+            normalized = dict(candidate)
+            normalized.update(
+                {
+                    "candidate_root": str(root),
+                    "candidate_commit": eligibility.source_commit,
+                    "candidate_tree": eligibility.source_tree,
+                    "artifact_path": str(artifact),
+                    "artifact_sha256": str(server.get("sha256") or ""),
+                    "manifest_sha256": sha256_file(root.joinpath(*manifest_locator.split("/"))),
+                    "bundle_path": str(root / "source" / "candidate.bundle"),
+                    "version": eligibility.product_version,
+                    "tag": f"v{eligibility.product_version}",
+                    "release_set_digest": eligibility.release_set_digest,
+                    "signing_key_id": eligibility.signing_key_id,
+                }
+            )
+            return normalized
         required = (
             "candidate_commit",
             "candidate_tree",
@@ -1271,29 +1398,35 @@ class ReleaseDeploymentService:
     def publish_start(
         self, candidate_id: str, confirmation: str, *, publisher: Publisher | None = None
     ) -> OperationResult:
-        if publisher is None:
-            raise DeploymentError("production-backed publication is disabled during Phase 1C; use the explicit disposable backend")
         candidate = self._candidate_identity(candidate_id)
-        if confirmation != candidate["version"]:
-            raise DeploymentError("publication confirmation must exactly match the candidate version")
+        expected_confirmation = (
+            f"PUBLISH EOAT ATLAS {candidate['version']} TO {SubprocessPublisher(self.root, self.runner)._repository()}"
+            if publisher is None
+            else str(candidate["version"])
+        )
+        if confirmation != expected_confirmation:
+            raise DeploymentError("publication confirmation does not exactly match the sealed candidate and repository")
         publication_id = f"publication-{candidate_id}"
         if (self.store.root / "publication" / f"{publication_id}.json").is_file():
             return self.publish_resume(publication_id, publisher=publisher)
-        record = PublicationRecord(
-            1,
-            publication_id,
-            candidate_id,
-            PublicationState.CANDIDATE_VALIDATED,
-            str(candidate["version"]),
-            str(candidate["tag"]),
-            str(candidate["candidate_commit"]),
-            str(candidate["candidate_tree"]),
-            str(candidate["artifact_sha256"]),
-            str(candidate["manifest_sha256"]),
-            (),
-            next_action_for(PublicationState.CANDIDATE_VALIDATED),
-        )
-        self.store.write("publication", publication_id, self._serialize(record))
+        inventory = [asdict(asset) for asset in publication_assets(Path(str(candidate["candidate_root"])), candidate)]
+        record = {
+            "schema_version": 2,
+            "publication_id": publication_id,
+            "candidate_id": candidate_id,
+            "state": PublicationState.CANDIDATE_VALIDATED.value,
+            "version": str(candidate["version"]), "tag": str(candidate["tag"]),
+            "candidate_commit": str(candidate["candidate_commit"]), "candidate_tree": str(candidate["candidate_tree"]),
+            "release_id": str((candidate.get("release_set") or {}).get("identity", {}).get("release_id") or ""),
+            "build_id": str((candidate.get("release_set") or {}).get("identity", {}).get("build_id") or ""),
+            "release_set_digest": str(candidate.get("release_set_digest") or ""),
+            "signing_key_id": str(candidate.get("signing_key_id") or ""),
+            "repository": SubprocessPublisher(self.root, self.runner)._repository() if publisher is None else "DISPOSABLE_TEST_PUBLISHER",
+            "artifact_sha256": str(candidate["artifact_sha256"]), "manifest_sha256": str(candidate["manifest_sha256"]),
+            "asset_inventory": inventory, "completed_steps": [], "state_history": [{"state": PublicationState.CANDIDATE_VALIDATED.value, "at_utc": utc_text()}],
+            "next_safe_action": next_action_for(PublicationState.CANDIDATE_VALIDATED), "retryable": True, "failure": None,
+        }
+        self.store.write("publication", publication_id, record)
         return self.publish_resume(publication_id, publisher=publisher)
 
     def publish(self, candidate_id: str, confirmation: str, *, publisher: Publisher | None = None) -> OperationResult:
@@ -1305,7 +1438,7 @@ class ReleaseDeploymentService:
         candidate = self._candidate_identity(str(record.get("candidate_id")))
         if any(
             record.get(field) != candidate.get(field)
-            for field in ("candidate_commit", "candidate_tree", "artifact_sha256", "manifest_sha256")
+            for field in ("candidate_commit", "candidate_tree", "artifact_sha256", "manifest_sha256", "release_set_digest", "signing_key_id")
         ):
             raise DeploymentError("publication and candidate identities disagree")
         execution = publisher or SubprocessPublisher(self.root, self.runner)
@@ -1317,6 +1450,7 @@ class ReleaseDeploymentService:
             (PublicationState.TAG_PUSHED, "push_tag"),
             (PublicationState.GITHUB_RELEASE_CREATED, "ensure_release"),
             (PublicationState.PRIMARY_ASSETS_UPLOADED, "upload_assets"),
+            (PublicationState.COMPONENT_ASSETS_VERIFIED, "verify_assets"),
             (PublicationState.RECEIPT_ATTACHED, "attach_receipt"),
         )
         current = PublicationState(record.get("state", PublicationState.CANDIDATE_VALIDATED.value))
@@ -1332,8 +1466,13 @@ class ReleaseDeploymentService:
                 if current is not PublicationState.CANDIDATE_VALIDATED:
                     require_transition(current, state)
                 if state is PublicationState.RECEIPT_ATTACHED:
-                    receipt_path = self.store.write("publication", publication_id, record)
+                    receipt_path = self._write_publication_receipt(candidate, record)
                     execution.attach_receipt(candidate, receipt_path)
+                elif state is PublicationState.COMPONENT_ASSETS_VERIFIED:
+                    # verify_step downloads every remote byte and checks its
+                    # name, size, and SHA-256 against the sealed inventory.
+                    if not execution.verify_step(candidate, state, record):
+                        raise DeploymentError("remote component assets do not exactly match the sealed release-set inventory")
                 else:
                     getattr(execution, method)(candidate)
                 if not execution.verify_step(candidate, state, record):
@@ -1350,6 +1489,7 @@ class ReleaseDeploymentService:
                         "failure": None,
                     }
                 )
+                record.setdefault("state_history", []).append({"state": current.value, "at_utc": utc_text()})
                 self.store.write("publication", publication_id, record)
             record.update(
                 {
@@ -1358,6 +1498,7 @@ class ReleaseDeploymentService:
                     "next_safe_action": next_action_for(PublicationState.PUBLICATION_COMPLETE),
                 }
             )
+            record.setdefault("state_history", []).append({"state": PublicationState.PUBLICATION_COMPLETE.value, "at_utc": utc_text()})
             path = self.store.write("publication", publication_id, record)
             return OperationResult(
                 Status.PASS,
@@ -1383,6 +1524,34 @@ class ReleaseDeploymentService:
                 {"publication": record, "receipt_path": str(path)},
             )
 
+    def _write_publication_receipt(self, candidate: dict[str, Any], record: dict[str, Any]) -> Path:
+        """Write the public, redacted receipt uploaded last to GitHub.
+
+        The operator receipt contains a local receipt path added by
+        :class:`ReceiptStore`; that workstation-only datum must never become a
+        published release asset.
+        """
+
+        root = Path(str(candidate["candidate_root"]))
+        filename = f"publication-receipt-{record['candidate_id']}.json"
+        destination = root / "publication" / filename
+        payload = {
+            "schema_version": 2, "receipt_kind": "production_publication", "publication_id": record["publication_id"],
+            "candidate_id": record["candidate_id"], "product_version": record["version"], "release_id": record.get("release_id"),
+            "build_id": record.get("build_id"), "source_commit": record["candidate_commit"], "source_tree": record["candidate_tree"],
+            "release_set_digest": record.get("release_set_digest"), "signing_key_id": record.get("signing_key_id"),
+            "tag": record["tag"], "repository": record["repository"], "asset_inventory": record.get("asset_inventory", []),
+            "completed_steps": record.get("completed_steps", []), "recorded_at_utc": utc_text(),
+            "next_safe_action": "Verify the complete immutable remote release inventory.",
+        }
+        if destination.exists() and read_json_object(destination) != payload:
+            raise DeploymentError("existing immutable public publication receipt conflicts with this transaction")
+        if not destination.exists():
+            write_json_atomic(destination, payload)
+        record["public_receipt_filename"] = filename
+        record["public_receipt_sha256"] = sha256_file(destination)
+        return destination
+
     def publication(self, publication_id: str) -> OperationResult:
         record = self.store.read("publication", publication_id)
         return OperationResult(
@@ -1390,6 +1559,42 @@ class ReleaseDeploymentService:
             "Publication receipt loaded.",
             str(record.get("next_safe_action", "Review publication receipt.")),
             data={"publication": record},
+        )
+
+    def verify_publication_inventory(self, publication_id: str) -> OperationResult:
+        """Independently classify one real GitHub release from sealed bytes.
+
+        This intentionally downloads each remote asset through
+        :class:`SubprocessPublisher`; GitHub metadata alone is supporting
+        provenance, never the release trust decision.
+        """
+
+        record = self.store.read("publication", publication_id)
+        if record.get("schema_version") != 2 or record.get("repository") != "Kgray44/EOAT_Tool":
+            raise DeploymentError("production inventory verification requires a schema-2 production publication receipt")
+        candidate = self._candidate_identity(str(record.get("candidate_id") or ""))
+        verifier = SubprocessPublisher(self.root, self.runner)
+        if not verifier.verify_step(candidate, PublicationState.RECEIPT_ATTACHED, record):
+            return OperationResult(
+                Status.BLOCKED,
+                "Published release inventory is incomplete, conflicting, or untrusted.",
+                "Reconcile the immutable remote release without overwriting any asset.",
+                (Diagnostic("remote release inventory", Status.BLOCKED, "Remote asset bytes do not exactly match the sealed schema-2 inventory."),),
+                {"classification": "INCOMPLETE_OR_CONFLICTING", "publication_id": publication_id},
+            )
+        inventory = {
+            "classification": "COMPLETE_TRUSTED", "publication_id": publication_id,
+            "candidate_id": record["candidate_id"], "tag": record["tag"],
+            "release_set_digest": record["release_set_digest"], "signing_key_id": record["signing_key_id"],
+            "assets": record.get("asset_inventory", []), "publication_receipt": {
+                "filename": record.get("public_receipt_filename"), "sha256": record.get("public_receipt_sha256"),
+            },
+        }
+        return OperationResult(
+            Status.PASS,
+            "Real GitHub release inventory is COMPLETE_TRUSTED.",
+            "Perform only the authorized read-only production baseline preflight before Phase 4C planning.",
+            data=inventory,
         )
 
     def publication_readiness(self, candidate_id: str) -> OperationResult:

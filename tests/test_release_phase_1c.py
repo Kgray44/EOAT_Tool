@@ -12,8 +12,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from deployment.common import DeploymentError, sha256_file, write_json_atomic
 from deployment.convergence.cli import parse_args
-from deployment.convergence.models import DeploymentMode
-from deployment.convergence.phase1c import Phase1CPublicationState, _required_built
+from deployment.convergence.models import DeploymentMode, PublicationState
+from deployment.convergence.phase1c import Phase1CPublicationState, _required_built, publication_assets
 from deployment.convergence.release_set import ComponentKind, ComponentValidation, ReleaseSetComponent, SignedReleaseSet
 from deployment.convergence.services import ReleaseDeploymentService
 from release_tools.release_identity import ArtifactDisposition, ProductReleaseIdentity
@@ -153,19 +153,64 @@ def test_publication_readiness_rejects_unsealed_mutated_and_revoked_evidence(tmp
     assert service.publication_readiness(candidate_id).status.value == "BLOCKED"
 
 
-def test_completed_publication_receipt_is_immutable_and_production_path_is_disabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_completed_publication_receipt_is_immutable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     service, candidate_id, remote, registry = _sealed_candidate(tmp_path, monkeypatch)
     publication = service.publish_disposable(candidate_id, f"PUBLISH {candidate_id}", remote=remote, registry=registry).data["publication"]
     with pytest.raises(DeploymentError, match="immutable"):
         service.store.write("publication", publication["publication_id"], {**publication, "failure": "changed"})
-    with pytest.raises(DeploymentError, match="production-backed publication is disabled"):
-        service.publish_start(candidate_id, "0.24.0")
+
+
+class _SchemaTwoPublisher:
+    """No-network publisher seam that still requires every durable checkpoint."""
+
+    def __init__(self) -> None:
+        self.steps: list[str] = []
+
+    def promote(self, _candidate: dict[str, object]) -> None: self.steps.append("promote")
+    def ensure_tag(self, _candidate: dict[str, object]) -> None: self.steps.append("tag")
+    def push_branch(self, _candidate: dict[str, object]) -> None: self.steps.append("branch")
+    def push_tag(self, _candidate: dict[str, object]) -> None: self.steps.append("push-tag")
+    def ensure_release(self, _candidate: dict[str, object]) -> None: self.steps.append("release")
+    def upload_assets(self, _candidate: dict[str, object]) -> None: self.steps.append("assets")
+    def attach_receipt(self, _candidate: dict[str, object], receipt: Path) -> None:
+        assert receipt.is_file()
+        self.steps.append("receipt")
+    def verify_step(self, _candidate: dict[str, object], _step: PublicationState, _receipt: dict[str, object]) -> bool: return True
+
+
+def test_schema2_publisher_records_complete_asset_inventory_and_public_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    service, candidate_id, _remote, _registry = _sealed_candidate(tmp_path, monkeypatch)
+    candidate = service.store.read("candidate", candidate_id)
+    bundle = service.store.root / "candidates" / candidate_id / "source" / "candidate.bundle"
+    candidate["bundle_path"] = str(bundle)
+    candidate["bundle_sha256"] = sha256_file(bundle)
+    server_manifest = service.store.root / "candidates" / candidate_id / "core" / "server" / "external-manifest.json"
+    write_json_atomic(server_manifest, {"schema_version": 1, "candidate_id": candidate_id})
+    for component in candidate["working_release_set"]["components"]:
+        if component["kind"] == "server":
+            component["metadata"] = {"external_manifest_locator": server_manifest.relative_to(service.store.root / "candidates" / candidate_id).as_posix()}
+    service.store.write("candidate", candidate_id, candidate)
+    publisher = _SchemaTwoPublisher()
+    result = service.publish_start(candidate_id, "0.24.0", publisher=publisher)
+    publication = result.data["publication"]
+    assert result.status.value == "PASS"
+    assert publication["schema_version"] == 2
+    assert publication["state"] == PublicationState.PUBLICATION_COMPLETE.value
+    assert PublicationState.COMPONENT_ASSETS_VERIFIED.value in publication["completed_steps"]
+    assert publication["asset_inventory"]
+    receipt = service.store.root / "candidates" / candidate_id / "publication" / publication["public_receipt_filename"]
+    assert receipt.is_file()
+    assert "receipt_path" not in receipt.read_text(encoding="utf-8")
+    assert publisher.steps == ["promote", "tag", "branch", "push-tag", "release", "assets", "receipt"]
 
 
 def test_phase1c_cli_requires_disposable_parameters_and_typed_confirmation() -> None:
     args = parse_args(["publish", "start-disposable", "candidate-unit", "--remote", "remote.git", "--registry", "registry", "--confirm", "PUBLISH candidate-unit"])
     assert args.publish_command == "start-disposable"
     assert args.confirm == "PUBLISH candidate-unit"
+    args = parse_args(["publish", "begin-production", "candidate-unit", "--confirm", "PUBLISH EOAT ATLAS 0.24.1 TO Kgray44/EOAT_Tool"])
+    assert args.publish_command == "begin-production"
+    assert args.confirm.endswith("Kgray44/EOAT_Tool")
     args = parse_args(["plan", "create-disposable", "--publication", "publication-unit", "--inspection", "inspection-unit"])
     assert args.plan_command == "create-disposable"
 
@@ -177,3 +222,21 @@ def test_final_current_component_profile_requires_bootstrap_publication_assets()
     assert ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value not in legacy
     assert ComponentKind.BOOTSTRAP.value in final
     assert ComponentKind.BOOTSTRAP_UPDATE_MANIFEST.value in final
+
+
+def test_publication_inventory_rejects_missing_governed_supporting_bytes(tmp_path: Path) -> None:
+    package = tmp_path / "platform" / "windows" / "bootstrap" / "bootstrap.zip"
+    package.parent.mkdir(parents=True)
+    _zip(package, "EOAT Atlas Bootstrap.exe")
+    receipt = {
+        "release_set_profile": "FINAL_CURRENT_COMPONENTS",
+        "working_release_set": {"components": [
+            {
+                "kind": "bootstrap", "disposition": "BUILT", "artifact_locator": "platform/windows/bootstrap/bootstrap.zip",
+                "size_bytes": package.stat().st_size, "sha256": sha256_file(package), "media_type": "application/zip",
+                "metadata": {"installer_package_locator": "platform/windows/bootstrap/missing-installer.zip"},
+            },
+        ]},
+    }
+    with pytest.raises(DeploymentError, match="supporting publication asset"):
+        publication_assets(tmp_path, receipt)

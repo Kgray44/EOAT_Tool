@@ -124,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
             "deployment/convergence/sealing.py",
             "deployment/convergence/services.py",
             "deployment/convergence/phase1c.py",
+            "deployment/convergence/models.py",
+            "deployment/convergence/platform_artifacts.py",
             "deployment/web_release.py",
             "EOAT_Atlas_Bootstrap.spec",
             "EOAT_Atlas_Launcher.spec",
@@ -136,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
             "scripts/build_package.py",
             "scripts/export_windows_attachment.py",
             "github/workflows/unified-release-train-final-integration.yml",
+            "docs/RELEASE_DEPLOYMENT_CONSOLE.md",
+            "Development_Docs/EOAT_Unified_Release_Train_Phase_4B_Schema2_Publisher.md",
         )
         governed_component_change = args.allow_governed_component_change and current == baseline and application_paths and all(path.startswith(governed_component_paths) for path in application_paths)
         if application_paths and current == baseline and not governed_component_change:
