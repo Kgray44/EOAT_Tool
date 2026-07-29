@@ -184,7 +184,7 @@ def test_preflight_seals_then_uses_only_final_paths_without_changing_active_poin
     )
     before = (api_current.resolve(), web_current.resolve())
     result = coordinator.preflight(value)
-    assert result["helper_version"] == "1.3.3"
+    assert result["helper_version"] == "1.3.4"
     assert (api_current.resolve(), web_current.resolve()) == before
     sealed = coordinator.sealed_policy(value)
     assert Path(sealed["server_archive_path"]).is_relative_to(coordinator.SEALED_ROOT)
@@ -458,6 +458,9 @@ def test_reconcile_legacy_rollback_records_only_already_active_targets(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     transaction, api_current, web_current, original = legacy_reconciliation_fixture(monkeypatch, tmp_path)
+    # Historical non-coordinator deployment evidence is not in this helper's
+    # state machine and must not be interpreted as a newer transaction.
+    transaction.parent.joinpath("deploy-0.22.5-20260725T141312Z").mkdir()
     calls: list[object] = []
     monkeypatch.setattr(coordinator.subprocess, "run", lambda *args, **kwargs: calls.append(args) or None)
     result = coordinator.reconcile_legacy_rollback(transaction.name)
@@ -514,7 +517,7 @@ def test_api_release_parent_policy_accepts_root_service_group_but_not_writable()
 
 def test_helper_version_is_safe_without_root_execution(capsys: pytest.CaptureFixture[str]) -> None:
     assert coordinator.main(["--version"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"helper_version": "1.3.3"}
+    assert json.loads(capsys.readouterr().out) == {"helper_version": "1.3.4"}
 
 
 def test_coordinated_sudoers_exposes_only_fixed_governed_operations() -> None:

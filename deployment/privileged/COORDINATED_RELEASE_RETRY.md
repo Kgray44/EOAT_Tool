@@ -1,7 +1,7 @@
 # Coordinated release retry compatibility action
 
 `reconcile-legacy-rollback --transaction <governed-id>` is a one-purpose,
-root-only recovery action for historical coordinator 1.3.1 transaction
+root-only recovery action in coordinator 1.3.4 for historical coordinator 1.3.1 transaction
 receipts with schema version 2. It accepts no policy, path, target, or force
 argument.
 
@@ -13,6 +13,8 @@ transaction or deployment lock exists. It never rewrites pointers, reloads
 NGINX, restarts services, changes MySQL, or edits the original receipt.
 
 The action exclusively creates `post-activation-rollback.json` with fresh
-attestations and `legacy_already_rolled_back` evidence. Existing evidence must
-match exactly for an idempotent retry; conflicts fail closed. Normal
+attestations and `legacy_already_rolled_back` evidence. It scans only direct
+`coordinated-*` records for newer unresolved coordinator state; retained
+non-coordinator historical evidence is not interpreted as a transaction.
+Existing evidence must match exactly for an idempotent retry; conflicts fail closed. Normal
 schema-version-3 `post-activation-rollback` behavior remains separate.

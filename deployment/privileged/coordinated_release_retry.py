@@ -32,7 +32,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.3.3"
+HELPER_VERSION = "1.3.4"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -43,7 +43,7 @@ SEALING_RECEIPT_SCHEMA_VERSION = 2
 TRANSACTION_RECEIPT_SCHEMA_VERSION = 3
 LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION = 2
 LEGACY_HELPER_VERSION = "1.3.1"
-SUPPORTED_TRANSACTION_HELPER_VERSIONS = {"1.3.2", HELPER_VERSION}
+SUPPORTED_TRANSACTION_HELPER_VERSIONS = {"1.3.2", "1.3.3", HELPER_VERSION}
 LEGACY_APPLICATION_VERSION = "0.22.12"
 LEGACY_SCHEMA = "20260721_0008"
 TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
@@ -563,9 +563,14 @@ def _require_no_newer_unfinished_transaction(transaction: Path) -> None:
     """Refuse to reconcile historical evidence across a later unknown state."""
     transactions = CONTROL_ROOT / "transactions"
     for candidate in sorted(transactions.iterdir()):
+        # This root deliberately retains older non-coordinator deployment
+        # evidence. Only direct governed coordinator IDs are part of this
+        # helper's recovery state machine.
+        if not TRANSACTION_ID.fullmatch(candidate.name):
+            continue
         if candidate == transaction or candidate.name <= transaction.name:
             continue
-        if not TRANSACTION_ID.fullmatch(candidate.name) or candidate.is_symlink() or not candidate.is_dir():
+        if candidate.is_symlink() or not candidate.is_dir():
             fail("newer transaction inventory is unsafe")
         receipt_path = candidate / "receipt.json"
         if receipt_path.is_symlink() or not receipt_path.is_file():
