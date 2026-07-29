@@ -42,11 +42,22 @@ jobs:
         with:
           fetch-depth: 0
           # Validate the pushed review head, not GitHub's synthetic PR merge
-          # commit, so the one-bump invariant is evaluated against its parent.
+          # commit. The comparison baseline is resolved below so a follow-up
+          # commit in the same reviewed change set is covered by its original
+          # governed version bump.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - run: python scripts/check_version_bump.py --base HEAD~1 | Tee-Object -FilePath version-validation.txt
+      - shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $base = 'origin/${{ github.event.pull_request.base.ref }}'
+          } elseif ('${{ github.ref_name }}' -eq 'main') {
+            $base = 'HEAD~1'
+          } else {
+            $base = git merge-base HEAD origin/main
+          }
+          python scripts/check_version_bump.py --base $base | Tee-Object -FilePath version-validation.txt
       - if: always()
         uses: actions/upload-artifact@v4
         with: {name: version-validation, path: version-validation.txt, if-no-files-found: warn}
