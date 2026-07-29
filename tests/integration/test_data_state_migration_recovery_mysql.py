@@ -100,9 +100,9 @@ def test_0007_upgrade_round_trip_preserves_existing_rows_and_singleton_invariant
         _reset()
 
 
-def test_already_current_0008_api_startup_does_not_migrate() -> None:
+def test_already_current_0009_api_startup_does_not_migrate() -> None:
     _reset()
     before = _revision()
     with TestClient(app) as client:
         assert client.get("/api/v1/health").status_code == 200
-    assert before == _revision() == "20260721_0008"
+    assert before == _revision() == "20260729_0009"
