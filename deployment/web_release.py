@@ -179,7 +179,13 @@ def _normalize_web_source_line_endings(directory: Path) -> None:
                 path.write_bytes(normalized)
 
 
-def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, object]:
+def build_web_static(
+    root: Path,
+    commit: str,
+    destination: Path,
+    *,
+    staging_parent: Path | None = None,
+) -> dict[str, object]:
     """Build an exact committed web tree; Node is never included in the result."""
     pnpm = shutil.which("pnpm")
     if not pnpm and os.environ.get("PNPM_HOME"):
@@ -201,7 +207,11 @@ def build_web_static(root: Path, commit: str, destination: Path) -> dict[str, ob
     # storage.  Keep this disposable archive root short on Windows so deeply
     # nested, committed static fixtures cannot exceed the Win32 path limit.
     # It remains adjacent to (and isolated from) the candidate checkout.
-    temporary_parent = root.parent / "w"
+    # Candidate construction owns a short-lived Git clone.  Its pnpm staging
+    # must live beside the durable receipt store instead: a retained Windows
+    # lock must never prevent cleanup of the disposable clone or cause a
+    # subsequent candidate to inherit its source tree.
+    temporary_parent = staging_parent if staging_parent is not None else root.parent / "w"
     temporary_parent.mkdir(parents=True, exist_ok=True)
     _reconcile_stale_web_staging(temporary_parent)
     temporary = Path(tempfile.mkdtemp(prefix=_WEB_STAGING_PREFIX, dir=temporary_parent))

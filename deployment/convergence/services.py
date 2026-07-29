@@ -769,8 +769,13 @@ class ReleaseDeploymentService:
                     detail,
                 )
             timestamp = utc_now()
-            first = self._build_candidate(clone, commit, state.branch, Path(temporary.name) / "first", timestamp)
-            second = self._build_candidate(clone, commit, state.branch, Path(temporary.name) / "second", timestamp)
+            web_staging_parent = self.store.root / "web-staging"
+            first = self._build_candidate(
+                clone, commit, state.branch, Path(temporary.name) / "first", timestamp, web_staging_parent
+            )
+            second = self._build_candidate(
+                clone, commit, state.branch, Path(temporary.name) / "second", timestamp, web_staging_parent
+            )
             deterministic = Status.PASS if sha256_file(first.archive) == sha256_file(second.archive) else Status.BLOCKED
             if deterministic is Status.BLOCKED:
                 return CandidateRecord(
@@ -873,12 +878,20 @@ class ReleaseDeploymentService:
         finally:
             temporary.cleanup()
 
-    def _build_candidate(self, clone: Path, commit: str, branch: str, output: Path, timestamp: datetime) -> Any:
+    def _build_candidate(
+        self,
+        clone: Path,
+        commit: str,
+        branch: str,
+        output: Path,
+        timestamp: datetime,
+        web_staging_parent: Path,
+    ) -> Any:
         web_static = output / "web-static" if (clone / "web" / "package.json").is_file() else None
         if web_static is not None:
             from deployment.web_release import build_web_static
 
-            build_web_static(clone, commit, web_static)
+            build_web_static(clone, commit, web_static, staging_parent=web_staging_parent)
         return build_deployment_archive(
             clone, commit, output, branch=branch, timestamp=timestamp, web_static=web_static
         )

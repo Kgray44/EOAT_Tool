@@ -28,7 +28,10 @@ package from an explicit, separately authorized server activation.
 ## Disposable web-build staging cleanup
 
 The hermetic web builder uses a uniquely named `eoat-web-release-*` directory
-only beneath its candidate-local short staging parent. After the validated
+only beneath its governed short staging parent. Candidate construction places
+that parent under durable receipt storage, outside its short-lived isolated
+source clone, so a retained package-manager lock cannot make the clone cleanup
+fail. After the validated
 static destination and file manifest have been written, it retries deletion of
 that one directory a bounded number of times for transient Windows package
 manager locks. A persistent lock retains only that governed directory and
