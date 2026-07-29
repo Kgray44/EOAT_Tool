@@ -17,6 +17,7 @@ import {
   HistoryList,
   PhotoGallery,
   ProfileSection,
+  ProfileTabPanel,
   ProfileTabs,
   RelationshipFlow,
   RelationshipList,
@@ -99,14 +100,16 @@ function ToolContent({
       />
       <ProfileTabs />
       <div className="profile-sections">
-        <RelationshipFlow
-          identifier={profile.business_identifier}
-          category="Tool / mold"
-          leftLabel="EOATs"
-          leftNodes={relatedEoats}
-          rightLabel="Machines"
-          rightNodes={relatedMachines}
-        />
+        <ProfileTabPanel tab="relationships">
+          <RelationshipFlow
+            identifier={profile.business_identifier}
+            category="Tool / mold"
+            leftLabel="EOATs"
+            leftNodes={relatedEoats}
+            rightLabel="Machines"
+            rightNodes={relatedMachines}
+          />
+        </ProfileTabPanel>
         <ProfileSection title="Overview">
           <dl className="attribute-grid">
             <Attribute label="Description" value={profile.description} />

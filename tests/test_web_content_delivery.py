@@ -8,6 +8,7 @@ import pytest
 
 from server.eoat_api import web_content
 from server.eoat_api.app import app, evaluate_web_fit_check
+from server.eoat_api.authentication.routes import read_settings_catalog
 from server.eoat_api.contracts import WebFitCheckRequest
 from server.eoat_api.errors import APIError
 
@@ -83,6 +84,7 @@ def test_content_response_uses_safe_filename_and_forces_active_content_download(
 
     assert response.media_type == "application/octet-stream"
     assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "private, max-age=300"
     assert response.headers["content-disposition"].startswith("attachment;")
     assert "%22" not in response.headers["content-disposition"]
     assert "label" in response.headers["content-disposition"]
@@ -123,6 +125,7 @@ def test_thumbnail_delivery_is_nosniff_and_browser_safe(tmp_path: Path, monkeypa
 
     assert response.media_type == "image/jpeg"
     assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "private, max-age=300"
 
 
 def test_web_fit_check_forces_non_persisting_request(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -151,4 +154,31 @@ def test_web_content_and_fit_check_routes_are_in_openapi() -> None:
     assert "/api/v1/web-documents/{document_uuid}/content" in paths
     assert "/api/v1/web-photos/{document_uuid}/thumbnail" in paths
     assert "/api/v1/web-fit-checks/evaluate" in paths
+    assert "/api/v1/web-fit-checks/options" in paths
+    assert (
+        paths["/api/v1/web-fit-checks/options"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/WebFitCheckOptions"
+    )
     assert "storage_path" not in app.openapi()["components"]["schemas"]["WebDocumentMetadata"]["properties"]
+
+
+def test_browser_settings_catalog_uses_the_desktop_registry() -> None:
+    catalog = read_settings_catalog()
+
+    assert [section.key for section in catalog.sections] == [
+        "data_sources",
+        "refresh_cache",
+        "read_only_safety",
+        "search_navigation",
+        "fit_check",
+        "library",
+        "display_accessibility",
+        "setup_packet_pdf",
+        "validation_health",
+        "reference_documents",
+        "diagnostics_support",
+        "about",
+    ]
+    assert any(item.key == "fit_check.compatibility_strictness" for item in catalog.items)
+    assert any(item.key == "library.cards_per_page" for item in catalog.items)
+    assert all(item.key != "admin.password_hash" for item in catalog.items)

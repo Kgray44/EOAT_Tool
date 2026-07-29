@@ -1492,6 +1492,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/actions/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Settings Action */
+        post: operations["settings_action_api_v1_settings_actions__action__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/audit": {
         parameters: {
             query?: never;
@@ -1520,6 +1537,30 @@ export interface paths {
         put?: never;
         /** Authorize Settings */
         post: operations["authorize_settings_api_v1_settings_authorization_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Settings Catalog
+         * @description Expose the desktop Settings registry so browser controls cannot drift.
+         *
+         *     This is descriptive only: sensitive values, paths, and authentication
+         *     material are not returned. Values still come from the ordinary shared
+         *     Settings endpoint and writes remain permission-gated.
+         */
+        get: operations["read_settings_catalog_api_v1_settings_catalog_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1886,6 +1927,30 @@ export interface paths {
          * @description Browser-only compatibility evaluation; this route has no persistence path.
          */
         post: operations["evaluate_web_fit_check_api_v1_web_fit_checks_evaluate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web-fit-checks/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Fit Check Options
+         * @description Return candidates compatible with a partial browser Fit Check selection.
+         *
+         *     The endpoint deliberately excludes inactive and archived assets and only
+         *     suggests relationships whose status is explicitly compatible and effective
+         *     now. It does not turn an absent relationship into a compatibility claim.
+         */
+        get: operations["web_fit_check_options_api_v1_web_fit_checks_options_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2364,6 +2429,13 @@ export interface components {
              * @default NOT_YET_VERIFIED
              */
             part_status: string;
+            /**
+             * Photo Available Through Web
+             * @default false
+             */
+            photo_available_through_web: boolean;
+            /** Photo Document Uuid */
+            photo_document_uuid?: string | null;
             /** Quick Disconnect Present */
             quick_disconnect_present?: boolean | null;
             /** Relationships */
@@ -2405,6 +2477,13 @@ export interface components {
             legacy_identifier?: string | null;
             /** Number Of Parts Picked */
             number_of_parts_picked?: number | null;
+            /**
+             * Photo Available Through Web
+             * @default false
+             */
+            photo_available_through_web: boolean;
+            /** Photo Document Uuid */
+            photo_document_uuid?: string | null;
             /** Row Version */
             row_version: number;
             /** Status */
@@ -2416,6 +2495,18 @@ export interface components {
             expected_row_version: number;
             /** Reason */
             reason?: string | null;
+        };
+        /**
+         * FitCheckOption
+         * @description A browser-safe selectable asset for the read-only Fit Check.
+         */
+        FitCheckOption: {
+            /** Identifier */
+            identifier: string;
+            /** Label */
+            label: string;
+            /** Plant Code */
+            plant_code?: string | null;
         };
         /** FitCheckRequest */
         FitCheckRequest: {
@@ -3018,6 +3109,13 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** SettingsActionRequest */
+        SettingsActionRequest: {
+            /** Confirmation */
+            confirmation: string;
+            /** Section */
+            section?: string | null;
+        };
         /** SettingsAuditRequest */
         SettingsAuditRequest: {
             /** Event Type */
@@ -3037,6 +3135,54 @@ export interface components {
              * @default settings.edit
              */
             permission: string;
+        };
+        /** SettingsCatalogItem */
+        SettingsCatalogItem: {
+            /** Control */
+            control: string;
+            /** Default */
+            default: unknown;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Locked
+             * @default false
+             */
+            locked: boolean;
+            /** Options */
+            options?: components["schemas"]["SettingsCatalogOption"][];
+            /** Section */
+            section: string;
+        };
+        /** SettingsCatalogOption */
+        SettingsCatalogOption: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: unknown;
+        };
+        /** SettingsCatalogResponse */
+        SettingsCatalogResponse: {
+            /** Items */
+            items: components["schemas"]["SettingsCatalogItem"][];
+            /** Sections */
+            sections: components["schemas"]["SettingsCatalogSection"][];
+        };
+        /** SettingsCatalogSection */
+        SettingsCatalogSection: {
+            /** Glyph */
+            glyph: string;
+            /** Key */
+            key: string;
+            /** Title */
+            title: string;
         };
         /** SettingsWriteRequest */
         SettingsWriteRequest: {
@@ -3231,6 +3377,22 @@ export interface components {
             related_entities?: components["schemas"]["RelationshipSummary"][];
             /** Title */
             title: string;
+        };
+        /**
+         * WebFitCheckOptions
+         * @description Candidates backed by explicit, currently-effective compatible records only.
+         */
+        WebFitCheckOptions: {
+            /** Eoats */
+            eoats?: components["schemas"]["FitCheckOption"][];
+            /** Machines */
+            machines?: components["schemas"]["FitCheckOption"][];
+            /** Tools */
+            tools?: components["schemas"]["FitCheckOption"][];
+            /** Unresolved Inputs */
+            unresolved_inputs?: ("machine" | "tool" | "eoat")[];
+            /** Warnings */
+            warnings?: string[];
         };
         /**
          * WebFitCheckRequest
@@ -4689,6 +4851,9 @@ export interface operations {
                 eoat_type?: string | null;
                 area?: string | null;
                 cleanroom?: string | null;
+                machine_number?: string | null;
+                tool_number?: string | null;
+                include_inactive?: boolean;
             };
             header?: never;
             path?: never;
@@ -5491,6 +5656,14 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 active?: boolean | null;
+                plant?: string | null;
+                area?: string | null;
+                cleanroom?: string | null;
+                eoat_identifier?: string | null;
+                tool_number?: string | null;
+                robot_number?: string | null;
+                sort?: string;
+                include_inactive?: boolean;
             };
             header?: never;
             path?: never;
@@ -6417,6 +6590,41 @@ export interface operations {
             };
         };
     };
+    settings_action_api_v1_settings_actions__action__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                action: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     audit_settings_action_api_v1_settings_audit_post: {
         parameters: {
             query?: never;
@@ -6481,6 +6689,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_settings_catalog_api_v1_settings_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsCatalogResponse"];
                 };
             };
         };
@@ -6831,6 +7059,11 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 active?: boolean | null;
+                mold?: string | null;
+                machine_number?: string | null;
+                eoat_identifier?: string | null;
+                sort?: string;
+                include_inactive?: boolean;
             };
             header?: never;
             path?: never;
@@ -7224,6 +7457,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FitCheckResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    web_fit_check_options_api_v1_web_fit_checks_options_get: {
+        parameters: {
+            query?: {
+                machine_number?: string | null;
+                plant_code?: string | null;
+                tool_number?: string | null;
+                eoat_identifier?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebFitCheckOptions"];
                 };
             };
             /** @description Validation Error */

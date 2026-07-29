@@ -166,12 +166,24 @@ export function AppShell({ children }: PropsWithChildren) {
         event.key.length === 1 &&
         event.key.trim()
       ) {
-        openSearch(event.key);
+        if (location.pathname === "/") {
+          event.preventDefault();
+          window.dispatchEvent(
+            new CustomEvent("atlas-focus-home-search", { detail: event.key }),
+          );
+        }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [closeMenu, closeSearch, menuOpen, openSearch, searchOpen]);
+  }, [
+    closeMenu,
+    closeSearch,
+    location.pathname,
+    menuOpen,
+    openSearch,
+    searchOpen,
+  ]);
 
   const returnToLibrary = () => {
     const context = readLibraryContext(location.state);

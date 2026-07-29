@@ -69,13 +69,14 @@ def test_normal_application_write_does_not_require_user_authentication(api) -> N
 
 
 def test_settings_write_authorization_distinguishes_401_and_403(api) -> None:
-    missing = api.put("/api/v1/settings/test.authorization", json={"value": "missing"})
+    setting_key = "data_loading.refresh_on_launch"
+    missing = api.put(f"/api/v1/settings/{setting_key}", json={"value": False})
     viewer_login = api.post("/api/v1/auth/development/login", json={"identity": "dev.viewer"})
     viewer_token = viewer_login.json()["access_token"]
     denied = api.put(
-        "/api/v1/settings/test.authorization",
+        f"/api/v1/settings/{setting_key}",
         headers={"Authorization": f"Bearer {viewer_token}"},
-        json={"value": "denied"},
+        json={"value": False},
     )
 
     assert missing.status_code == 401
@@ -86,22 +87,58 @@ def test_settings_write_authorization_distinguishes_401_and_403(api) -> None:
 
 
 def test_settings_reads_are_anonymous_and_authorized_writes_succeed(api) -> None:
-    setting_key = f"phase10.validation.{uuid4().hex}"
+    setting_key = "data_loading.manual_refresh_only"
     initial = api.get("/api/v1/settings")
     login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
     token = login.json()["access_token"]
     written = api.put(
         f"/api/v1/settings/{setting_key}",
         headers={"Authorization": f"Bearer {token}"},
-        json={"value": {"enabled": True}, "description": "Phase 10 authorization validation"},
+        json={"value": True, "description": "Settings authorization validation"},
     )
     anonymous_read = api.get("/api/v1/settings")
 
     assert initial.status_code == 200
     assert initial.json()["authentication_required"] is False
     assert written.status_code == 200
-    assert written.json()["value"] == {"enabled": True}
+    assert written.json()["value"] is True
     assert any(item["key"] == setting_key for item in anonymous_read.json()["items"])
+
+
+def test_settings_danger_actions_require_typed_confirmation_and_preserve_operational_data(api) -> None:
+    login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    key = "data_loading.manual_refresh_only"
+    assert api.put(f"/api/v1/settings/{key}", headers=headers, json={"value": True}).status_code == 200
+
+    rejected = api.post(
+        "/api/v1/settings/actions/reset-section",
+        headers=headers,
+        json={"section": "refresh_cache", "confirmation": "reset"},
+    )
+    reset = api.post(
+        "/api/v1/settings/actions/reset-section",
+        headers=headers,
+        json={"section": "refresh_cache", "confirmation": "RESET SECTION"},
+    )
+    set_defaults = api.post(
+        "/api/v1/settings/actions/set-defaults",
+        headers=headers,
+        json={"confirmation": "SET DEFAULTS"},
+    )
+    factory = api.post(
+        "/api/v1/settings/actions/factory-reset",
+        headers=headers,
+        json={"confirmation": "FACTORY RESET"},
+    )
+
+    assert rejected.status_code == 422
+    assert reset.status_code == 200
+    assert reset.json()["action"] == "reset-section"
+    assert set_defaults.status_code == 200
+    assert factory.status_code == 200
+    values = {item["key"]: item["value"] for item in api.get("/api/v1/settings").json()["items"]}
+    assert key not in values
 
 
 def test_administrator_session_is_memory_token_ready_and_revocable(api) -> None:

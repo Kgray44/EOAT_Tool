@@ -1814,6 +1814,22 @@
             "title": "Part Status",
             "type": "string"
           },
+          "photo_available_through_web": {
+            "default": false,
+            "title": "Photo Available Through Web",
+            "type": "boolean"
+          },
+          "photo_document_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Document Uuid"
+          },
           "quick_disconnect_present": {
             "anyOf": [
               {
@@ -1991,6 +2007,22 @@
             ],
             "title": "Number Of Parts Picked"
           },
+          "photo_available_through_web": {
+            "default": false,
+            "title": "Photo Available Through Web",
+            "type": "boolean"
+          },
+          "photo_document_uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Document Uuid"
+          },
           "row_version": {
             "title": "Row Version",
             "type": "integer"
@@ -2040,6 +2072,36 @@
           "expected_row_version"
         ],
         "title": "ExpectedVersion",
+        "type": "object"
+      },
+      "FitCheckOption": {
+        "description": "A browser-safe selectable asset for the read-only Fit Check.",
+        "properties": {
+          "identifier": {
+            "title": "Identifier",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "plant_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Code"
+          }
+        },
+        "required": [
+          "identifier",
+          "label"
+        ],
+        "title": "FitCheckOption",
         "type": "object"
       },
       "FitCheckRequest": {
@@ -4285,6 +4347,33 @@
         "title": "SearchResult",
         "type": "object"
       },
+      "SettingsActionRequest": {
+        "properties": {
+          "confirmation": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Confirmation",
+            "type": "string"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          }
+        },
+        "required": [
+          "confirmation"
+        ],
+        "title": "SettingsActionRequest",
+        "type": "object"
+      },
       "SettingsAuditRequest": {
         "properties": {
           "event_type": {
@@ -4317,6 +4406,119 @@
           }
         },
         "title": "SettingsAuthorizationRequest",
+        "type": "object"
+      },
+      "SettingsCatalogItem": {
+        "properties": {
+          "control": {
+            "title": "Control",
+            "type": "string"
+          },
+          "default": {
+            "title": "Default"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "locked": {
+            "default": false,
+            "title": "Locked",
+            "type": "boolean"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsCatalogOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          }
+        },
+        "required": [
+          "section",
+          "key",
+          "label",
+          "control",
+          "default"
+        ],
+        "title": "SettingsCatalogItem",
+        "type": "object"
+      },
+      "SettingsCatalogOption": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "SettingsCatalogOption",
+        "type": "object"
+      },
+      "SettingsCatalogResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsCatalogItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsCatalogSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sections",
+          "items"
+        ],
+        "title": "SettingsCatalogResponse",
+        "type": "object"
+      },
+      "SettingsCatalogSection": {
+        "properties": {
+          "glyph": {
+            "title": "Glyph",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "glyph"
+        ],
+        "title": "SettingsCatalogSection",
         "type": "object"
       },
       "SettingsWriteRequest": {
@@ -5077,6 +5279,53 @@
           "file_name"
         ],
         "title": "WebDocumentMetadata",
+        "type": "object"
+      },
+      "WebFitCheckOptions": {
+        "description": "Candidates backed by explicit, currently-effective compatible records only.",
+        "properties": {
+          "eoats": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckOption"
+            },
+            "title": "Eoats",
+            "type": "array"
+          },
+          "machines": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckOption"
+            },
+            "title": "Machines",
+            "type": "array"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckOption"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "unresolved_inputs": {
+            "items": {
+              "enum": [
+                "machine",
+                "tool",
+                "eoat"
+              ],
+              "type": "string"
+            },
+            "title": "Unresolved Inputs",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "WebFitCheckOptions",
         "type": "object"
       },
       "WebFitCheckRequest": {
@@ -7232,6 +7481,48 @@
               ],
               "title": "Cleanroom"
             }
+          },
+          {
+            "in": "query",
+            "name": "machine_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tool_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tool Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -8443,6 +8734,122 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant"
+            }
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Area"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cleanroom",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cleanroom"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eoat_identifier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Eoat Identifier"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tool_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tool Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "robot_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Robot Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "machine_number",
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
             }
           }
         ],
@@ -9764,6 +10171,53 @@
         "summary": "Read Settings"
       }
     },
+    "/api/v1/settings/actions/{action}": {
+      "post": {
+        "operationId": "settings_action_api_v1_settings_actions__action__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "title": "Action",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Settings Action"
+      }
+    },
     "/api/v1/settings/audit": {
       "post": {
         "operationId": "audit_settings_action_api_v1_settings_audit_post",
@@ -9838,6 +10292,25 @@
           }
         },
         "summary": "Authorize Settings"
+      }
+    },
+    "/api/v1/settings/catalog": {
+      "get": {
+        "description": "Expose the desktop Settings registry so browser controls cannot drift.\n\nThis is descriptive only: sensitive values, paths, and authentication\nmaterial are not returned. Values still come from the ordinary shared\nSettings endpoint and writes remain permission-gated.",
+        "operationId": "read_settings_catalog_api_v1_settings_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsCatalogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Settings Catalog"
       }
     },
     "/api/v1/settings/{setting_key}": {
@@ -10333,6 +10806,74 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mold",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mold"
+            }
+          },
+          {
+            "in": "query",
+            "name": "machine_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eoat_identifier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Eoat Identifier"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "business_identifier",
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
             }
           }
         ],
@@ -10854,6 +11395,101 @@
           }
         },
         "summary": "Evaluate Web Fit Check"
+      }
+    },
+    "/api/v1/web-fit-checks/options": {
+      "get": {
+        "description": "Return candidates compatible with a partial browser Fit Check selection.\n\nThe endpoint deliberately excludes inactive and archived assets and only\nsuggests relationships whose status is explicitly compatible and effective\nnow. It does not turn an absent relationship into a compatibility claim.",
+        "operationId": "web_fit_check_options_api_v1_web_fit_checks_options_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tool_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tool Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eoat_identifier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Eoat Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebFitCheckOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Fit Check Options"
       }
     },
     "/api/v1/web-photos/{document_uuid}/content": {

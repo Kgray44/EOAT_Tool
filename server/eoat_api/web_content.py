@@ -24,6 +24,7 @@ _INLINE_TYPES = {"application/pdf", "image/jpeg", "image/png", "image/gif", "ima
 _THUMBNAIL_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._ -]+")
 _WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
+_BROWSER_MEDIA_CACHE_CONTROL = "private, max-age=300"
 
 
 def approved_content_roots() -> tuple[Path, ...]:
@@ -143,6 +144,7 @@ def content_response(session: Session, document_uuid: str, *, photo_only: bool |
     disposition = "inline" if media_type in _INLINE_TYPES else "attachment"
     response = FileResponse(path, media_type=media_type, filename=safe_download_name(document.file_name), content_disposition_type=disposition)
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = _BROWSER_MEDIA_CACHE_CONTROL
     return response
 
 
@@ -165,5 +167,6 @@ def thumbnail_response(session: Session, document_uuid: str):
         raise APIError(409, "THUMBNAIL_UNAVAILABLE", "A thumbnail is not available for this photo.") from None
     response = StreamingResponse(iter([buffer.getvalue()]), media_type="image/jpeg")
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = _BROWSER_MEDIA_CACHE_CONTROL
     response.headers["Content-Disposition"] = f'inline; filename="{safe_download_name(Path(document.file_name).stem)}.jpg"'
     return response

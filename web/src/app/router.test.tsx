@@ -74,18 +74,48 @@ describe("router", () => {
     await user.tab();
     expect(input).toHaveFocus();
   });
-  it("opens global search for Ctrl+K and ordinary type-ahead", async () => {
+  it("keeps Home search local while Ctrl+K alone opens the global search", async () => {
     const user = userEvent.setup();
     renderAt("/");
+    const homeSearch = screen.getByRole("textbox", {
+      name: "Search the EOAT Atlas Library",
+    });
+    await user.click(homeSearch);
+    await user.keyboard("m");
+    expect(homeSearch).toHaveValue("m");
+    expect(
+      screen.queryByRole("dialog", { name: "Search EOAT Atlas" }),
+    ).not.toBeInTheDocument();
     await user.keyboard("{Control>}k{/Control}");
     expect(
       screen.getByRole("dialog", { name: "Search EOAT Atlas" }),
     ).toBeInTheDocument();
     await user.keyboard("{Escape}");
-    await user.keyboard("m");
     expect(
-      screen.getByRole("textbox", { name: "Search EOAT Atlas" }),
-    ).toHaveValue("m");
+      screen.queryByRole("dialog", { name: "Search EOAT Atlas" }),
+    ).not.toBeInTheDocument();
+    expect(homeSearch).toHaveFocus();
+    await user.keyboard("m");
+    expect(homeSearch).toHaveValue("mm");
+  });
+  it("routes ordinary Home typing to the center search without reopening global search", async () => {
+    const user = userEvent.setup();
+    renderAt("/");
+    const homeSearch = screen.getByRole("textbox", {
+      name: "Search the EOAT Atlas Library",
+    });
+    await user.click(screen.getByRole("heading", { name: "Home" }));
+    await user.keyboard("m");
+    expect(homeSearch).toHaveFocus();
+    expect(homeSearch).toHaveValue("m");
+    expect(
+      screen.queryByRole("dialog", { name: "Search EOAT Atlas" }),
+    ).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("heading", { name: "Home" }));
+    expect(
+      screen.queryByRole("dialog", { name: "Search EOAT Atlas" }),
+    ).not.toBeInTheDocument();
   });
   it("does not open type-ahead search from an editable field", async () => {
     const user = userEvent.setup();

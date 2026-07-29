@@ -65,6 +65,17 @@ const history = {
   items: [],
   pagination: { page: 1, page_size: 12, total: 0, pages: 0 },
 };
+const photos = [
+  {
+    document_uuid: "photo-hero",
+    title: "EOAT overview",
+    caption: null,
+    file_name: "overview.jpg",
+    mime_type: "image/jpeg",
+    content_delivery_state: "AVAILABLE",
+    is_profile_photo: true,
+  },
+];
 
 function renderProfile(path = "/eoats/EOAT%20A%2B1") {
   return render(
@@ -85,8 +96,10 @@ function mockApi(overrides: Record<string, Response> = {}) {
         ? json(location)
         : path.endsWith("/relationships")
           ? json(relationships)
-          : path.endsWith("/web-documents") || path.endsWith("/web-photos")
+          : path.endsWith("/web-documents")
             ? json([])
+            : path.endsWith("/web-photos")
+              ? json(photos)
             : path.includes("/history?")
               ? json(history)
               : json(profile));
@@ -107,11 +120,19 @@ describe("EOAT profile route", () => {
     expect((await screen.findAllByText(/Conflicting/)).length).toBeGreaterThan(
       0,
     );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "Relationships" }));
     expect(await screen.findByRole("link", { name: /M-42/ })).toHaveAttribute(
       "href",
-      "/machines/M-42",
+      "/machines/M-42?tab=relationships",
     );
-    expect(await screen.findByText("No photos linked")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", {
+        name: "Open full-resolution photo for EOAT A+1",
+      }),
+    ).toHaveAttribute("href", "/api/v1/web-photos/photo-hero/content");
+    await user.click(screen.getByRole("link", { name: "Docs & Photos" }));
+    expect((await screen.findAllByAltText("EOAT overview")).length).toBe(2);
     await waitFor(() =>
       expect(fetcher.mock.calls.map(([path]) => path)).toEqual(
         expect.arrayContaining([
@@ -140,6 +161,9 @@ describe("EOAT profile route", () => {
     expect(
       await screen.findByRole("heading", { name: "EOAT A+1" }),
     ).toBeInTheDocument();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("link", { name: "Relationships" }));
     expect(await screen.findByText("API unavailable")).toBeInTheDocument();
   });
 

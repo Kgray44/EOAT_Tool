@@ -17,8 +17,45 @@ export type EoatList = components["schemas"]["PaginatedEOATs"];
 export type SearchResult = components["schemas"]["SearchResult"];
 export type FitCheckRequest = components["schemas"]["WebFitCheckRequest"];
 export type FitCheckResult = components["schemas"]["FitCheckResult"];
+export type WebFitCheckOptions = components["schemas"]["WebFitCheckOptions"];
 export type WebDocument = components["schemas"]["WebDocumentMetadata"];
 export type WebPhoto = components["schemas"]["WebPhotoMetadata"];
+export type SettingsCatalog = components["schemas"]["SettingsCatalogResponse"];
+export type SharedSetting = {
+  key: string;
+  value: unknown;
+  value_type: string;
+  description: string | null;
+  row_version: number;
+};
+export type SettingsSession = {
+  authenticated: boolean;
+  provider?: string;
+  identity?: { display_name?: string };
+  permissions?: string[];
+  expires_at?: string;
+};
+export type AuthConfiguration = {
+  provider: string;
+  settings_authentication_available: boolean;
+  provider_configured: boolean;
+  development_identities?: string[];
+  message: string;
+};
+export type SettingsAction = "reset-section" | "reset-all" | "set-defaults" | "factory-reset";
+export type CatalogActivity = "active" | "inactive" | "all";
+export type CatalogFilters = {
+  sort?: string;
+  eoatType?: string;
+  plant?: string;
+  area?: string;
+  cleanroom?: string;
+  machine?: string;
+  tool?: string;
+  mold?: string;
+  robot?: string;
+  eoat?: string;
+};
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -94,6 +131,23 @@ function assertArray<T>(payload: unknown, label: string): T[] {
   return payload as T[];
 }
 
+function catalogQuery(
+  search: string,
+  page: number,
+  activity: CatalogActivity,
+  filters: CatalogFilters,
+  parameters: Record<string, string | undefined>,
+): string {
+  const query = new URLSearchParams({ search, page: String(page), page_size: "24" });
+  if (activity === "all") query.set("include_inactive", "true");
+  if (activity === "inactive") query.set("active", "false");
+  Object.entries(parameters).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+  if (filters.sort) query.set("sort", filters.sort);
+  return query.toString();
+}
+
 async function requestJson(
   path: string,
   fetcher: typeof fetch = fetch,
@@ -155,6 +209,94 @@ export const apiClient = {
         "EOAT Atlas returned an incomplete data-status response.",
       );
     return payload;
+  },
+  async getSettingsCatalog(fetcher?: typeof fetch): Promise<SettingsCatalog> {
+    return assertObject<SettingsCatalog>(
+      await requestJson("/api/v1/settings/catalog", fetcher),
+      ["sections", "items"],
+      "Settings catalog",
+    );
+  },
+  async getSharedSettings(fetcher?: typeof fetch): Promise<SharedSetting[]> {
+    const payload = assertObject<{ items: SharedSetting[] }>(
+      await requestJson("/api/v1/settings", fetcher),
+      ["items"],
+      "shared Settings",
+    );
+    return assertArray<SharedSetting>(payload.items, "shared Settings");
+  },
+  async getAuthConfiguration(fetcher?: typeof fetch): Promise<AuthConfiguration> {
+    return assertObject<AuthConfiguration>(
+      await requestJson("/api/v1/auth/config", fetcher),
+      ["provider", "settings_authentication_available", "provider_configured", "message"],
+      "Settings authentication configuration",
+    );
+  },
+  async loginDevelopment(identity: string, fetcher?: typeof fetch): Promise<SettingsSession & { access_token: string }> {
+    return assertObject<SettingsSession & { access_token: string }>(
+      await requestJson("/api/v1/auth/development/login", fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identity }),
+      }),
+      ["access_token", "authenticated", "permissions"],
+      "Settings administrator session",
+    );
+  },
+  async getSettingsSession(token: string, fetcher?: typeof fetch): Promise<SettingsSession> {
+    return assertObject<SettingsSession>(
+      await requestJson("/api/v1/auth/session", fetcher, {
+        headers: { Authorization: `Bearer ${token}` },
+      }),
+      ["authenticated", "permissions"],
+      "Settings administrator session",
+    );
+  },
+  async updateSharedSetting(
+    key: string,
+    value: unknown,
+    token: string,
+    description?: string,
+    fetcher?: typeof fetch,
+  ): Promise<SharedSetting> {
+    return assertObject<SharedSetting>(
+      await requestJson(`/api/v1/settings/${encodeURIComponent(key)}`, fetcher, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ value, description }),
+      }),
+      ["key", "value", "row_version"],
+      "updated shared Setting",
+    );
+  },
+  async applySettingsAction(
+    action: SettingsAction,
+    token: string,
+    confirmation: string,
+    section?: string,
+    fetcher?: typeof fetch,
+  ): Promise<{ action: SettingsAction; updated: number }> {
+    return assertObject<{ action: SettingsAction; updated: number }>(
+      await requestJson(`/api/v1/settings/actions/${action}`, fetcher, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ confirmation, section }),
+      }),
+      ["action", "updated"],
+      "Settings action",
+    );
+  },
+  async logoutSettings(token: string, fetcher?: typeof fetch): Promise<void> {
+    await requestJson("/api/v1/auth/logout", fetcher, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
   },
   async getEoatProfile(
     identifier: string,
@@ -369,11 +511,20 @@ export const apiClient = {
   async getMachines(
     search = "",
     page = 1,
+    activity: CatalogActivity = "active",
+    filters: CatalogFilters = {},
     fetcher?: typeof fetch,
   ): Promise<MachineList> {
     return assertObject<MachineList>(
       await requestJson(
-        `/api/v1/machines?search=${encodeURIComponent(search)}&page=${page}&page_size=24`,
+        `/api/v1/machines?${catalogQuery(search, page, activity, filters, {
+          plant: filters.plant,
+          area: filters.area,
+          cleanroom: filters.cleanroom,
+          eoat_identifier: filters.eoat,
+          tool_number: filters.tool,
+          robot_number: filters.robot,
+        })}`,
         fetcher,
       ),
       ["items", "pagination"],
@@ -383,11 +534,17 @@ export const apiClient = {
   async getTools(
     search = "",
     page = 1,
+    activity: CatalogActivity = "active",
+    filters: CatalogFilters = {},
     fetcher?: typeof fetch,
   ): Promise<ToolList> {
     return assertObject<ToolList>(
       await requestJson(
-        `/api/v1/tools?search=${encodeURIComponent(search)}&page=${page}&page_size=24`,
+        `/api/v1/tools?${catalogQuery(search, page, activity, filters, {
+          mold: filters.mold || filters.tool,
+          machine_number: filters.machine,
+          eoat_identifier: filters.eoat,
+        })}`,
         fetcher,
       ),
       ["items", "pagination"],
@@ -397,11 +554,19 @@ export const apiClient = {
   async getEoats(
     search = "",
     page = 1,
+    activity: CatalogActivity = "active",
+    filters: CatalogFilters = {},
     fetcher?: typeof fetch,
   ): Promise<EoatList> {
     return assertObject<EoatList>(
       await requestJson(
-        `/api/v1/eoats?search=${encodeURIComponent(search)}&page=${page}&page_size=24`,
+        `/api/v1/eoats?${catalogQuery(search, page, activity, filters, {
+          eoat_type: filters.eoatType,
+          area: filters.area,
+          cleanroom: filters.cleanroom,
+          machine_number: filters.machine,
+          tool_number: filters.tool,
+        })}`,
         fetcher,
       ),
       ["items", "pagination"],
@@ -415,6 +580,26 @@ export const apiClient = {
         fetcher,
       ),
       "search results",
+    );
+  },
+  async getWebFitCheckOptions(
+    selection: Partial<FitCheckRequest>,
+    fetcher?: typeof fetch,
+  ): Promise<WebFitCheckOptions> {
+    const query = new URLSearchParams();
+    if (selection.plant_code) query.set("plant_code", selection.plant_code);
+    if (selection.machine_number)
+      query.set("machine_number", selection.machine_number);
+    if (selection.tool_number) query.set("tool_number", selection.tool_number);
+    if (selection.eoat_identifier)
+      query.set("eoat_identifier", selection.eoat_identifier);
+    return assertObject<WebFitCheckOptions>(
+      await requestJson(
+        `/api/v1/web-fit-checks/options${query.size ? `?${query}` : ""}`,
+        fetcher,
+      ),
+      ["machines", "tools", "eoats", "warnings", "unresolved_inputs"],
+      "Fit Check options",
     );
   },
   async evaluateWebFitCheck(

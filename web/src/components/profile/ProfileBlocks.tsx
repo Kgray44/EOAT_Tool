@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   apiClient,
   type EoatRelationship,
@@ -27,6 +27,9 @@ export function ProfileSection({
   title: string;
   children: ReactNode;
 }) {
+  const [searchParams] = useSearchParams();
+  const activeTab = normalizeProfileTab(searchParams.get("tab"));
+  if (profileTabForSection(title) !== activeTab) return null;
   return (
     <section
       className="profile-section"
@@ -38,6 +41,44 @@ export function ProfileSection({
       {children}
     </section>
   );
+}
+
+export type ProfileTab = "overview" | "relationships" | "media" | "history";
+
+export function normalizeProfileTab(value: string | null): ProfileTab {
+  return value === "relationships" || value === "media" || value === "history"
+    ? value
+    : "overview";
+}
+
+export function profileTabForSection(title: string): ProfileTab {
+  const normalized = title.trim().toLocaleLowerCase();
+  if (normalized === "relationships") return "relationships";
+  if (normalized === "photos" || normalized === "documents") return "media";
+  if (normalized === "recent history" || normalized === "history")
+    return "history";
+  return "overview";
+}
+
+export function ProfileTabPanel({
+  tab,
+  children,
+}: {
+  tab: ProfileTab;
+  children: ReactNode;
+}) {
+  const [searchParams] = useSearchParams();
+  return normalizeProfileTab(searchParams.get("tab")) === tab ? (
+    <>{children}</>
+  ) : null;
+}
+
+function profilePathWithCurrentTab(
+  path: string,
+  searchParams: URLSearchParams,
+) {
+  const tab = searchParams.get("tab");
+  return tab ? `${path}?tab=${encodeURIComponent(tab)}` : path;
 }
 
 export function Attribute({
@@ -174,6 +215,7 @@ function RelationshipNodeList({
   hasAuthoritativeValue?: boolean;
   authoritativeLabel?: string;
 }) {
+  const [searchParams] = useSearchParams();
   const state = relationshipColumnState(
     label,
     nodes,
@@ -193,11 +235,13 @@ function RelationshipNodeList({
               node.relationshipType,
               node.identifier,
             );
+            const destination =
+              path && profilePathWithCurrentTab(path, searchParams);
             const text = presentationText(node.label || node.identifier);
-            return path ? (
+            return destination ? (
               <Link
                 key={`${node.relationshipType}-${node.identifier}`}
-                to={path}
+                to={destination}
               >
                 <strong>{text}</strong>
                 <small>
@@ -278,12 +322,33 @@ export function RelationshipFlow({
 }
 
 export function ProfileTabs() {
+  const [searchParams] = useSearchParams();
+  const activeTab = normalizeProfileTab(searchParams.get("tab"));
+  const destination = (tab: ProfileTab) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === "overview") next.delete("tab");
+    else next.set("tab", tab);
+    const value = next.toString();
+    return value ? `?${value}` : "";
+  };
   return (
     <nav className="profile-tabs" aria-label="Profile sections">
-      <a href="#section-overview">Overview</a>
-      <a href="#section-relationships">Relationships</a>
-      <a href="#section-photos">Docs &amp; photos</a>
-      <a href="#section-recent-history">History</a>
+      {(
+        [
+          ["overview", "Overview"],
+          ["relationships", "Relationships"],
+          ["media", "Docs & Photos"],
+          ["history", "History"],
+        ] as const
+      ).map(([tab, label]) => (
+        <Link
+          key={tab}
+          to={{ search: destination(tab) }}
+          aria-current={activeTab === tab ? "page" : undefined}
+        >
+          {label}
+        </Link>
+      ))}
     </nav>
   );
 }
@@ -293,6 +358,7 @@ export function RelationshipList({
 }: {
   relationships: EoatRelationship[];
 }) {
+  const [searchParams] = useSearchParams();
   const uniqueRelationships = deduplicateRelationships(relationships);
   if (uniqueRelationships.length === 0)
     return (
@@ -307,6 +373,8 @@ export function RelationshipList({
           relationship.relationship_type,
           relationship.identifier,
         );
+        const destination =
+          path && profilePathWithCurrentTab(path, searchParams);
         const label = relationshipDisplayLabel(relationship);
         return (
           <li
@@ -315,7 +383,11 @@ export function RelationshipList({
             <small>
               {relationshipTypeLabel(relationship.relationship_type)}
             </small>
-            {path ? <Link to={path}>{label}</Link> : <span>{label}</span>}
+            {destination ? (
+              <Link to={destination}>{label}</Link>
+            ) : (
+              <span>{label}</span>
+            )}
             <small>
               {[relationship.status, relationship.reason]
                 .filter(Boolean)
