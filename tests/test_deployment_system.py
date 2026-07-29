@@ -35,7 +35,7 @@ def _repository(root: Path, *, destructive_migration: bool = False) -> tuple[Pat
     defaults = {
         "app_name": "EOAT Atlas",
         "api_contract_version": "1.4.0",
-        "database_schema_revision": "20260721_0008",
+        "database_schema_revision": "20260729_0009",
         "environment": "production",
         "release_channel": "server",
         "launcher_version": "0.1.0",
@@ -80,6 +80,10 @@ def _repository(root: Path, *, destructive_migration: bool = False) -> tuple[Pat
     _write(
         root / "server/migrations/versions/20260721_0008_fixture.py",
         f"revision = '20260721_0008'\ndown_revision = '20260717_0007'\n{dangerous}",
+    )
+    _write(
+        root / "server/migrations/versions/20260729_0009_fixture.py",
+        "revision = '20260729_0009'\ndown_revision = '20260721_0008'\n",
     )
     _write(root / "core/__init__.py", "")
     _write(root / "release_tools/__init__.py", "")
@@ -577,7 +581,7 @@ def test_migration_preflight_flags_destructive_operations(tmp_path: Path) -> Non
     root, commit = _repository(tmp_path / "repo", destructive_migration=True)
     build = build_deployment_archive(root, commit, tmp_path / "output", branch="test/release")
     summary = migration_summary(build.archive)
-    assert summary["heads"] == ["20260721_0008"]
+    assert summary["heads"] == ["20260729_0009"]
     assert summary["destructive_warnings"]
     assert server_updater.migration_execution_warnings(summary, {"status": "NOT_REQUIRED"}) == []
     assert server_updater.migration_execution_warnings(summary, {"status": "REQUIRED"}) == summary["destructive_warnings"]

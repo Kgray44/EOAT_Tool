@@ -35,7 +35,7 @@ class OnlineClient:
     def health(self):
         return {
             "api_version": "1.4.0",
-            "current_schema_revision": "20260721_0008",
+            "current_schema_revision": "20260729_0009",
             "compatible": True,
         }
 
@@ -75,7 +75,7 @@ def test_cache_rebuild_restores_history_from_snapshot(tmp_path) -> None:
     cache = CacheRepository(path)
     snapshot = {
         "api_version": "1.4.0",
-        "schema_revision": "20260721_0008",
+        "schema_revision": "20260729_0009",
         "server_revision": "test",
         "cursor": 4,
         "eoats": [{"business_identifier": "EOAT-1"}],
