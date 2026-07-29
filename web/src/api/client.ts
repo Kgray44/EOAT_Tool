@@ -42,7 +42,8 @@ export type AuthConfiguration = {
   development_identities?: string[];
   message: string;
 };
-export type SettingsAction = "reset-section" | "reset-all" | "set-defaults" | "factory-reset";
+export type SettingsAction =
+  "reset-section" | "reset-all" | "set-defaults" | "factory-reset";
 export type CatalogActivity = "active" | "inactive" | "all";
 export type CatalogFilters = {
   sort?: string;
@@ -138,7 +139,11 @@ function catalogQuery(
   filters: CatalogFilters,
   parameters: Record<string, string | undefined>,
 ): string {
-  const query = new URLSearchParams({ search, page: String(page), page_size: "24" });
+  const query = new URLSearchParams({
+    search,
+    page: String(page),
+    page_size: "24",
+  });
   if (activity === "all") query.set("include_inactive", "true");
   if (activity === "inactive") query.set("active", "false");
   Object.entries(parameters).forEach(([key, value]) => {
@@ -225,14 +230,24 @@ export const apiClient = {
     );
     return assertArray<SharedSetting>(payload.items, "shared Settings");
   },
-  async getAuthConfiguration(fetcher?: typeof fetch): Promise<AuthConfiguration> {
+  async getAuthConfiguration(
+    fetcher?: typeof fetch,
+  ): Promise<AuthConfiguration> {
     return assertObject<AuthConfiguration>(
       await requestJson("/api/v1/auth/config", fetcher),
-      ["provider", "settings_authentication_available", "provider_configured", "message"],
+      [
+        "provider",
+        "settings_authentication_available",
+        "provider_configured",
+        "message",
+      ],
       "Settings authentication configuration",
     );
   },
-  async loginDevelopment(identity: string, fetcher?: typeof fetch): Promise<SettingsSession & { access_token: string }> {
+  async loginDevelopment(
+    identity: string,
+    fetcher?: typeof fetch,
+  ): Promise<SettingsSession & { access_token: string }> {
     return assertObject<SettingsSession & { access_token: string }>(
       await requestJson("/api/v1/auth/development/login", fetcher, {
         method: "POST",
@@ -243,7 +258,10 @@ export const apiClient = {
       "Settings administrator session",
     );
   },
-  async getSettingsSession(token: string, fetcher?: typeof fetch): Promise<SettingsSession> {
+  async getSettingsSession(
+    token: string,
+    fetcher?: typeof fetch,
+  ): Promise<SettingsSession> {
     return assertObject<SettingsSession>(
       await requestJson("/api/v1/auth/session", fetcher, {
         headers: { Authorization: `Bearer ${token}` },
@@ -260,14 +278,18 @@ export const apiClient = {
     fetcher?: typeof fetch,
   ): Promise<SharedSetting> {
     return assertObject<SharedSetting>(
-      await requestJson(`/api/v1/settings/${encodeURIComponent(key)}`, fetcher, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      await requestJson(
+        `/api/v1/settings/${encodeURIComponent(key)}`,
+        fetcher,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ value, description }),
         },
-        body: JSON.stringify({ value, description }),
-      }),
+      ),
       ["key", "value", "row_version"],
       "updated shared Setting",
     );

@@ -281,7 +281,8 @@ function ProfileContent({
         profile={profile}
         location={currentLocation}
         heroPhoto={
-          photos.data?.find((photo) => photo.is_profile_photo) ?? photos.data?.[0]
+          photos.data?.find((photo) => photo.is_profile_photo) ??
+          photos.data?.[0]
         }
       />
       <ProfileTabs />

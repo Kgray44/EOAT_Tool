@@ -100,9 +100,9 @@ function mockApi(overrides: Record<string, Response> = {}) {
             ? json([])
             : path.endsWith("/web-photos")
               ? json(photos)
-            : path.includes("/history?")
-              ? json(history)
-              : json(profile));
+              : path.includes("/history?")
+                ? json(history)
+                : json(profile));
     return Promise.resolve(response);
   });
 }

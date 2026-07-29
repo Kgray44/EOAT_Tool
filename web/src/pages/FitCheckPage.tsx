@@ -21,7 +21,9 @@ export function FitCheckPage() {
   const [plantCode, setPlantCode] = useState(params.get("plant") || "");
   const [tool, setTool] = useState(params.get("tool") || "");
   const [eoat, setEoat] = useState(params.get("eoat") || "");
-  const [lastChanged, setLastChanged] = useState<"machine" | "tool" | "eoat" | null>(null);
+  const [lastChanged, setLastChanged] = useState<
+    "machine" | "tool" | "eoat" | null
+  >(null);
   const [selectionOrder, setSelectionOrder] = useState<string[]>(() =>
     [
       params.get("machine") && "Machine",
@@ -46,9 +48,20 @@ export function FitCheckPage() {
     if (!options.data) return;
     const unresolved = new Set(options.data.unresolved_inputs ?? []);
     const invalid = {
-      machine: Boolean(machine) && !unresolved.has("machine") && !(options.data.machines ?? []).some((item) => item.identifier === machine),
-      tool: Boolean(tool) && !unresolved.has("tool") && !(options.data.tools ?? []).some((item) => item.identifier === tool),
-      eoat: Boolean(eoat) && !unresolved.has("eoat") && !(options.data.eoats ?? []).some((item) => item.identifier === eoat),
+      machine:
+        Boolean(machine) &&
+        !unresolved.has("machine") &&
+        !(options.data.machines ?? []).some(
+          (item) => item.identifier === machine,
+        ),
+      tool:
+        Boolean(tool) &&
+        !unresolved.has("tool") &&
+        !(options.data.tools ?? []).some((item) => item.identifier === tool),
+      eoat:
+        Boolean(eoat) &&
+        !unresolved.has("eoat") &&
+        !(options.data.eoats ?? []).some((item) => item.identifier === eoat),
     };
     // Keep the latest typed value visible so an incompatible choice can be explained;
     // discard only earlier selections made invalid by a subsequent valid selection.
@@ -118,14 +131,22 @@ export function FitCheckPage() {
           />
           <datalist id="fit-machines">
             {(options.data?.machines ?? []).map((item) => (
-              <option key={`${item.plant_code}-${item.identifier}`} value={item.identifier}>
-                {item.plant_code ? `${item.label} (${item.plant_code})` : item.label}
+              <option
+                key={`${item.plant_code}-${item.identifier}`}
+                value={item.identifier}
+              >
+                {item.plant_code
+                  ? `${item.label} (${item.plant_code})`
+                  : item.label}
               </option>
             ))}
           </datalist>
         </label>
         <label>
-          Plant code <span className="optional">(only when the machine number is shared)</span>
+          Plant code{" "}
+          <span className="optional">
+            (only when the machine number is shared)
+          </span>
           <input
             aria-label="Plant code"
             value={plantCode}
@@ -194,7 +215,9 @@ export function FitCheckPage() {
           Clear
         </button>
       </form>
-      {options.isPending && <p className="notes">Loading compatible options…</p>}
+      {options.isPending && (
+        <p className="notes">Loading compatible options…</p>
+      )}
       {options.isError && <ErrorState error={options.error} />}
       {(options.data?.warnings ?? []).length ? (
         <section className="fit-option-warnings" aria-live="polite">

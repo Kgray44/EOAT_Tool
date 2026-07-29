@@ -132,7 +132,13 @@ describe("apiClient", () => {
   it("gets compatibility-filtered Fit Check options with encoded selection parameters", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify({ machines: [], tools: [], eoats: [], warnings: [], unresolved_inputs: [] }),
+        JSON.stringify({
+          machines: [],
+          tools: [],
+          eoats: [],
+          warnings: [],
+          unresolved_inputs: [],
+        }),
         { status: 200 },
       ),
     );

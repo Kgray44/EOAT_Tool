@@ -91,11 +91,20 @@ export function LibraryPage() {
   const activity = (params.get("status") || "active") as CatalogActivity;
   const page = Math.max(1, Number(params.get("page") || "1"));
   const [draft, setDraft] = useState(query);
-  const [locationDraft, setLocationDraft] = useState(params.get("machine") || "");
+  const [locationDraft, setLocationDraft] = useState(
+    params.get("machine") || "",
+  );
   const [advancedOpen, setAdvancedOpen] = useState(() =>
-    ["eoatType", "plant", "area", "cleanroom", "tool", "mold", "robot", "eoat"].some((key) =>
-      Boolean(params.get(key)),
-    ),
+    [
+      "eoatType",
+      "plant",
+      "area",
+      "cleanroom",
+      "tool",
+      "mold",
+      "robot",
+      "eoat",
+    ].some((key) => Boolean(params.get(key))),
   );
   const [recent, setRecent] = useState<RecentItem[]>([]);
   useEffect(() => {
@@ -141,7 +150,8 @@ export function LibraryPage() {
   const browseMachines = useQuery({
     queryKey: ["library", "machines", query, page, activity, catalogFilters],
     queryFn: () => apiClient.getMachines(query, page, activity, catalogFilters),
-    enabled: !searchUsesGlobalIndex && (filter === "machine" || filter === "all"),
+    enabled:
+      !searchUsesGlobalIndex && (filter === "machine" || filter === "all"),
   });
   const browseTools = useQuery({
     queryKey: ["library", "tools", query, page, activity, catalogFilters],
@@ -289,73 +299,96 @@ export function LibraryPage() {
         <button type="submit">Search</button>
       </form>
       {advancedOpen && (
-        <section className="library-advanced-filters" aria-label="Advanced Filters">
+        <section
+          className="library-advanced-filters"
+          aria-label="Advanced Filters"
+        >
           <label>
             EOAT type
             <input
               value={catalogFilters.eoatType || ""}
-              onChange={(event) => update({ eoatType: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ eoatType: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Plant
             <input
               value={catalogFilters.plant || ""}
-              onChange={(event) => update({ plant: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ plant: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Area
             <input
               value={catalogFilters.area || ""}
-              onChange={(event) => update({ area: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ area: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Cleanroom
             <input
               value={catalogFilters.cleanroom || ""}
-              onChange={(event) => update({ cleanroom: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ cleanroom: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Tool / Mold
             <input
               value={catalogFilters.tool || ""}
-              onChange={(event) => update({ tool: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ tool: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Mold number
             <input
               value={catalogFilters.mold || ""}
-              onChange={(event) => update({ mold: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ mold: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Robot
             <input
               value={catalogFilters.robot || ""}
-              onChange={(event) => update({ robot: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ robot: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Related EOAT
             <input
               value={catalogFilters.eoat || ""}
-              onChange={(event) => update({ eoat: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ eoat: event.target.value, page: "1" })
+              }
             />
           </label>
           <label>
             Sort
             <select
               value={catalogFilters.sort || ""}
-              onChange={(event) => update({ sort: event.target.value, page: "1" })}
+              onChange={(event) =>
+                update({ sort: event.target.value, page: "1" })
+              }
             >
               <option value="">Default</option>
               <option value="updated_desc">Last updated</option>
               <option value="status">Status</option>
-              <option value="business_identifier_desc">Identifier descending</option>
+              <option value="business_identifier_desc">
+                Identifier descending
+              </option>
               <option value="machine_number_desc">Machine descending</option>
               <option value="mold">Mold</option>
             </select>
@@ -364,7 +397,17 @@ export function LibraryPage() {
             type="button"
             onClick={() =>
               update({
-                eoatType: "", plant: "", area: "", cleanroom: "", machine: "", tool: "", mold: "", robot: "", eoat: "", sort: "", page: "1",
+                eoatType: "",
+                plant: "",
+                area: "",
+                cleanroom: "",
+                machine: "",
+                tool: "",
+                mold: "",
+                robot: "",
+                eoat: "",
+                sort: "",
+                page: "1",
               })
             }
           >
@@ -394,30 +437,35 @@ export function LibraryPage() {
           </button>
         ))}
       </div>
-      {!query && !hasCatalogFilters && filter === "all" && recent.length > 0 && (
-        <section className="recent-items" aria-labelledby="recent-title">
-          <h3 id="recent-title">Recently viewed on this browser</h3>
-          <div className="result-deck">
-            {recent.map((item) => (
-              <div
-                key={`${item.category}-${item.identifier}`}
-                className="recent-card"
-              >
-                <ResultCard result={item} />
-                <button
-                  type="button"
-                  aria-label={`Remove ${item.label} from recent items`}
-                  onClick={() =>
-                    setRecent(removeRecentItem(item.category, item.identifier))
-                  }
+      {!query &&
+        !hasCatalogFilters &&
+        filter === "all" &&
+        recent.length > 0 && (
+          <section className="recent-items" aria-labelledby="recent-title">
+            <h3 id="recent-title">Recently viewed on this browser</h3>
+            <div className="result-deck">
+              {recent.map((item) => (
+                <div
+                  key={`${item.category}-${item.identifier}`}
+                  className="recent-card"
                 >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                  <ResultCard result={item} />
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.label} from recent items`}
+                    onClick={() =>
+                      setRecent(
+                        removeRecentItem(item.category, item.identifier),
+                      )
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       {pending && <LoadingState label="Searching EOAT Atlas…" />}
       {error && <ErrorState error={error} />}
       {!pending && !error && searchUsesGlobalIndex && results.length === 0 && (
@@ -425,37 +473,41 @@ export function LibraryPage() {
           No EOAT Atlas records matched this search.
         </EmptyState>
       )}
-      {!pending && !error && (searchUsesGlobalIndex ? results : browseResults).length > 0 && (
-        <div className="result-deck">
-          {(searchUsesGlobalIndex ? results : browseResults).map((result) => (
-            <ResultCard
-              key={`${result.category}-${result.identifier}`}
-              result={result}
-            />
-          ))}
-        </div>
-      )}
-      {!searchUsesGlobalIndex && browsePagination && browsePagination.pages > 1 && (
-        <nav className="pagination" aria-label="Catalog pagination">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => update({ page: String(page - 1) })}
-          >
-            Previous
-          </button>
-          <span>
-            Page {browsePagination.page} of {browsePagination.pages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= browsePagination.pages}
-            onClick={() => update({ page: String(page + 1) })}
-          >
-            Next
-          </button>
-        </nav>
-      )}
+      {!pending &&
+        !error &&
+        (searchUsesGlobalIndex ? results : browseResults).length > 0 && (
+          <div className="result-deck">
+            {(searchUsesGlobalIndex ? results : browseResults).map((result) => (
+              <ResultCard
+                key={`${result.category}-${result.identifier}`}
+                result={result}
+              />
+            ))}
+          </div>
+        )}
+      {!searchUsesGlobalIndex &&
+        browsePagination &&
+        browsePagination.pages > 1 && (
+          <nav className="pagination" aria-label="Catalog pagination">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => update({ page: String(page - 1) })}
+            >
+              Previous
+            </button>
+            <span>
+              Page {browsePagination.page} of {browsePagination.pages}
+            </span>
+            <button
+              type="button"
+              disabled={page >= browsePagination.pages}
+              onClick={() => update({ page: String(page + 1) })}
+            >
+              Next
+            </button>
+          </nav>
+        )}
     </section>
   );
 }

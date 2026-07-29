@@ -386,10 +386,7 @@ test("Mirrorline shell traps overlays, restores Library context, and fades top c
   await page.keyboard.press("m");
   await expect(search).toHaveValue("m");
   await page.waitForTimeout(150);
-  await expect(
-    page
-      .getByRole("button", { name: /Press 1/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /Press 1/ })).toBeVisible();
   await expect(
     page.getByRole("dialog", { name: "Search EOAT Atlas" }),
   ).toHaveCount(0);

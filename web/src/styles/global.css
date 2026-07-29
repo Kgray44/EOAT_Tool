@@ -775,7 +775,11 @@ a {
   gap: 10px;
   margin-top: 14px;
   padding: 12px 14px;
-  background: color-mix(in srgb, var(--atlas-panel-background) 82%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--atlas-panel-background) 82%,
+    transparent
+  );
   border: 1px solid var(--atlas-border-strong);
   border-radius: 10px;
 }
@@ -892,7 +896,8 @@ a {
   gap: 18px;
   min-height: 54px;
   padding: 10px 2px;
-  border-bottom: 1px solid color-mix(in srgb, var(--atlas-border) 34%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--atlas-border) 34%, transparent);
 }
 .settings-control-row strong {
   font-size: 0.8rem;
@@ -1627,7 +1632,8 @@ a {
 .settings-danger-zone {
   margin-top: 22px;
   padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--atlas-danger, #d46a6a) 58%, var(--atlas-border));
+  border: 1px solid
+    color-mix(in srgb, var(--atlas-danger, #d46a6a) 58%, var(--atlas-border));
   border-radius: 10px;
   background: color-mix(in srgb, var(--atlas-danger, #d46a6a) 7%, transparent);
 }
@@ -1657,10 +1663,22 @@ a {
   background: var(--atlas-panel);
   box-shadow: 0 24px 72px rgb(0 0 0 / 45%);
 }
-.settings-confirmation h2 { margin: 0; font-size: 1rem; }
-.settings-confirmation p { color: var(--atlas-text-secondary); font-size: 0.8rem; line-height: 1.45; }
-.settings-confirmation input { width: 100%; margin: 6px 0 14px; }
-.settings-confirmation button + button { margin-left: 8px; }
+.settings-confirmation h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.settings-confirmation p {
+  color: var(--atlas-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.settings-confirmation input {
+  width: 100%;
+  margin: 6px 0 14px;
+}
+.settings-confirmation button + button {
+  margin-left: 8px;
+}
 .relationship-flow__column > span {
   color: var(--atlas-accent-hover);
   font-size: 0.7rem;
