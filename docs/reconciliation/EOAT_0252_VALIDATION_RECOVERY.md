@@ -65,17 +65,22 @@ all six selection orders.
 
 ## Capacity and media readiness
 
-The claimed `Plant 4 Press Capacity 20251201.xlsx` was not present in the
-provided attachment directory or the bounded local input locations. The
-configured sanitized default capacity path does not exist locally. Therefore
-no hash, structural inspection, or dry run was fabricated and no workbook was
-modified. Attach the exact workbook to complete its governed dry-run receipt.
+The attached `press_capacity.xlsx` has now been inspected read-only and used
+for a governed non-mutating Plant 4 dry run. Its SHA-256 is
+`2254269d4eabfd3478a6404005e4efdc850e3223e3ed6882b4bdbd0d71a785e3`.
+With the explicit supplemental `master_press_list.xlsx` input, all 54 grouped
+press headings parse, including the six headings that omit tonnage. No current
+Plant 4 Atlas machine catalog was supplied, so all 54 normalized candidates,
+including Machine 27 at `P4 Capacity` row 99, are fail-closed
+`REVIEW_REQUIRED`/`NO_CANONICAL_MACHINE_MATCH` decisions. The plan proposes
+zero writes and is not safe to execute. The full human review and a pointer to
+the immutable machine-readable receipt are in
+[the capacity dry-run review](EOAT_0252_PRESS_CAPACITY_DRY_RUN.md).
 
-The dry-run importer is prepared to emit the required receipt once the input
-is attached: it records SHA-256, per-sheet headers and layout, formula/hidden
-cell/merged-range metadata, and every exact, unmapped, or conflicted
-source-to-machine decision with source sheet and row locations. It never uses
-fuzzy mapping and remains dry-run by default.
+The importer records SHA-256, per-sheet headers and layout,
+formula/hidden-cell/merged-range metadata, and every exact, unmapped, or
+conflicted source-to-machine decision with source sheet and row locations. It
+never uses fuzzy mapping and remains dry-run by default.
 
 The default sanitized media root also does not exist locally. Browser media
 delivery remains safely unavailable until an approved server-side source root
@@ -90,8 +95,9 @@ read-only-mount evidence.
 
 ## Remaining predeployment dependencies
 
-- Attach the real capacity workbook for a hash-identified, read-only dry run
-  and Machine 27 mapping check.
+- Supply or approve a current non-production Plant 4 Atlas machine catalog for
+  an exact-match rerun; the attached workbook dry run and Machine 27 source
+  proof are complete, but no catalog match was inferred.
 - Supply and approve the production media root/mapping before governed media
   can be activated.
 - Complete the separately deferred LDAP preflight before browser writes or
