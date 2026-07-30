@@ -82,6 +82,19 @@ formula/hidden-cell/merged-range metadata, and every exact, unmapped, or
 conflicted source-to-machine decision with source sheet and row locations. It
 never uses fuzzy mapping and remains dry-run by default.
 
+The remaining canonical-catalog dependency has now been completed through the
+existing production API's read-only machine contracts. Production was observed
+at `0.24.1`, schema `20260721_0008`, with writes disabled. The sanitized
+catalog contains 56 active `P4` records and no existing capacities. The
+catalog-aware dry run maps 52 of 54 source sections by exact canonical machine
+number to future capacity-only updates; source machines 24 and 64 remain
+unmapped and review-required. It proposes no inserts, relationship changes, or
+executed writes. The catalog receipt, full review, Machine 27 proof, and
+exception report are maintained in
+[the canonical catalog receipt](EOAT_0252_CANONICAL_CATALOG_RECEIPT.md),
+[the canonical mapping review](EOAT_0252_CANONICAL_CAPACITY_MAPPING.md), and
+[the exception report](EOAT_0252_CAPACITY_MAPPING_EXCEPTIONS.md).
+
 The default sanitized media root also does not exist locally. Browser media
 delivery remains safely unavailable until an approved server-side source root
 and mapping are supplied. This is a readiness dependency, not a reason to
@@ -95,9 +108,9 @@ read-only-mount evidence.
 
 ## Remaining predeployment dependencies
 
-- Supply or approve a current non-production Plant 4 Atlas machine catalog for
-  an exact-match rerun; the attached workbook dry run and Machine 27 source
-  proof are complete, but no catalog match was inferred.
+- Resolve workbook source machines 24 and 64 against the controlled Plant 4
+  machine catalog before any future capacity execution; no alias or machine
+  creation may be used to bypass this review.
 - Supply and approve the production media root/mapping before governed media
   can be activated.
 - Complete the separately deferred LDAP preflight before browser writes or
