@@ -5,9 +5,13 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
-from tools.migration.press_capacity_import import plan_press_capacity_import, write_immutable_receipt
+from tools.migration.press_capacity_import import (
+    inspect_press_capacity_workbook,
+    plan_press_capacity_import,
+    write_immutable_receipt,
+)
 
 
 def _workbook(path: Path, rows: list[tuple[object, object]]) -> Path:
@@ -39,6 +43,12 @@ def test_plan_sets_empty_capacity_and_preserves_existing_identical_value(tmp_pat
         ("29", "UNCHANGED"),
     ]
     assert report.updates[1].source_rows == report.updates[2].source_rows == (3,)
+    assert [(item.source_machine_number, item.verification_class, item.action) for item in report.mappings] == [
+        ("27", "EXACT_CANONICAL_MATCH", "SET_PRESS_CAPACITY"),
+        ("28", "EXACT_CANONICAL_MATCH", "UNCHANGED"),
+        ("29", "EXACT_CANONICAL_MATCH", "UNCHANGED"),
+    ]
+    assert report.mappings[0].source_locations == (("P4 Capacity", 2),)
 
 
 def test_plan_refuses_ambiguous_source_existing_conflict_and_unmatched_machine(tmp_path: Path) -> None:
@@ -118,3 +128,26 @@ def test_receipt_is_redacted_and_immutable(tmp_path: Path) -> None:
     assert str(source.parent) not in receipt.read_text(encoding="utf-8")
     with pytest.raises(FileExistsError):
         write_immutable_receipt(report, tmp_path / "receipts")
+
+
+def test_inspection_and_plan_capture_workbook_structure_and_fail_closed_mappings(tmp_path: Path) -> None:
+    source = _workbook(tmp_path / "capacity.xlsx", [("27", 110), ("99", 75)])
+    workbook = load_workbook(source)
+    sheet = workbook.active
+    sheet.row_dimensions[3].hidden = True
+    sheet["C2"] = "=1+1"
+    workbook.save(source)
+    workbook.close()
+
+    structure = inspect_press_capacity_workbook(source)
+    report = plan_press_capacity_import(source, {"27": None})
+
+    assert structure[0].name == "P4 Capacity"
+    assert structure[0].recognized_layout
+    assert structure[0].formula_cell_count == 1
+    assert structure[0].hidden_row_count == 1
+    assert report.workbook_sheets == structure
+    assert report.mappings[-1].verification_class == "UNMAPPED"
+    assert report.mappings[-1].conflict_reason == "NO_CANONICAL_MACHINE_MATCH"
+    payload = report.to_dict()
+    assert payload["mappings"][0]["source_tonnage"] == "110"

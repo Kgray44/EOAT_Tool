@@ -71,6 +71,12 @@ configured sanitized default capacity path does not exist locally. Therefore
 no hash, structural inspection, or dry run was fabricated and no workbook was
 modified. Attach the exact workbook to complete its governed dry-run receipt.
 
+The dry-run importer is prepared to emit the required receipt once the input
+is attached: it records SHA-256, per-sheet headers and layout, formula/hidden
+cell/merged-range metadata, and every exact, unmapped, or conflicted
+source-to-machine decision with source sheet and row locations. It never uses
+fuzzy mapping and remains dry-run by default.
+
 The default sanitized media root also does not exist locally. Browser media
 delivery remains safely unavailable until an approved server-side source root
 and mapping are supplied. This is a readiness dependency, not a reason to

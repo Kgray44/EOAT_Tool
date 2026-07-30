@@ -59,9 +59,39 @@ class CapacitySourceRow:
 class CapacityUpdate:
     machine_number: str
     source_rows: tuple[int, ...]
+    source_locations: tuple[tuple[str, int], ...]
     source_tonnage: Decimal
     existing_tonnage: Decimal | None
     action: str
+
+
+@dataclass(frozen=True)
+class CapacityMapping:
+    """One source-to-machine decision, including fail-closed decisions."""
+
+    source_machine_number: str
+    source_locations: tuple[tuple[str, int], ...]
+    source_tonnage: Decimal | None
+    proposed_machine_number: str | None
+    mapping_method: str
+    verification_class: str
+    existing_tonnage: Decimal | None
+    action: str
+    conflict_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class CapacityWorkbookSheet:
+    name: str
+    state: str
+    max_row: int
+    max_column: int
+    header_values: tuple[str, ...]
+    formula_cell_count: int
+    hidden_row_count: int
+    hidden_column_count: int
+    merged_range_count: int
+    recognized_layout: bool
 
 
 @dataclass
@@ -71,11 +101,13 @@ class PressCapacityReport:
     source_rows: int
     source_machine_count: int
     matched_machines: int
+    workbook_sheets: list[CapacityWorkbookSheet] = field(default_factory=list)
     supplementary_sources: dict[str, str] = field(default_factory=dict)
     unmatched_machines: list[str] = field(default_factory=list)
     conflicting_source_values: dict[str, list[str]] = field(default_factory=dict)
     conflicting_existing_values: dict[str, dict[str, str]] = field(default_factory=dict)
     invalid_rows: list[dict[str, Any]] = field(default_factory=list)
+    mappings: list[CapacityMapping] = field(default_factory=list)
     updates: list[CapacityUpdate] = field(default_factory=list)
     status: str = "DRY_RUN_COMPLETE"
     batch_uuid: str | None = None
@@ -95,6 +127,9 @@ class PressCapacityReport:
         for update in payload["updates"]:
             update["source_tonnage"] = str(update["source_tonnage"])
             update["existing_tonnage"] = str(update["existing_tonnage"]) if update["existing_tonnage"] is not None else None
+        for mapping in payload["mappings"]:
+            mapping["source_tonnage"] = str(mapping["source_tonnage"]) if mapping["source_tonnage"] is not None else None
+            mapping["existing_tonnage"] = str(mapping["existing_tonnage"]) if mapping["existing_tonnage"] is not None else None
         return payload
 
 
@@ -143,6 +178,42 @@ def _header_indexes(headers: Iterable[Any]) -> tuple[int, int] | None:
     machine = next((index for index, header in enumerate(normalized) if header in _MACHINE_HEADERS), None)
     tonnage = next((index for index, header in enumerate(normalized) if header in _TONNAGE_HEADERS), None)
     return (machine, tonnage) if machine is not None and tonnage is not None else None
+
+
+def inspect_press_capacity_workbook(source_workbook: str | Path) -> list[CapacityWorkbookSheet]:
+    """Capture workbook structure for a dry-run receipt without modifying it."""
+    source = Path(source_workbook).resolve()
+    workbook = load_workbook(source, read_only=False, data_only=False)
+    try:
+        summaries: list[CapacityWorkbookSheet] = []
+        for worksheet in workbook.worksheets:
+            headers = tuple(
+                str(worksheet.cell(row=1, column=column).value or "").strip()
+                for column in range(1, worksheet.max_column + 1)
+            )
+            formula_count = sum(
+                1
+                for row in worksheet.iter_rows()
+                for cell in row
+                if isinstance(cell.value, str) and cell.value.startswith("=")
+            )
+            summaries.append(
+                CapacityWorkbookSheet(
+                    name=worksheet.title,
+                    state=worksheet.sheet_state,
+                    max_row=worksheet.max_row,
+                    max_column=worksheet.max_column,
+                    header_values=headers,
+                    formula_cell_count=formula_count,
+                    hidden_row_count=sum(1 for dimension in worksheet.row_dimensions.values() if dimension.hidden),
+                    hidden_column_count=sum(1 for dimension in worksheet.column_dimensions.values() if dimension.hidden),
+                    merged_range_count=len(worksheet.merged_cells.ranges),
+                    recognized_layout=_header_indexes(headers) is not None,
+                )
+            )
+        return summaries
+    finally:
+        workbook.close()
 
 
 def _section_machine_and_tonnage(value: Any) -> tuple[tuple[str, ...], Decimal | None] | None:
@@ -280,6 +351,7 @@ def plan_press_capacity_import(
     """Build a deterministic, non-mutating plan against one plant's machines."""
     source = Path(source_workbook).resolve()
     rows = read_press_capacity_workbook(source, master_press_list=master_press_list)
+    workbook_sheets = inspect_press_capacity_workbook(source)
     grouped: dict[str, list[CapacitySourceRow]] = {}
     invalid_rows: list[dict[str, Any]] = []
     for row in rows:
@@ -292,28 +364,83 @@ def plan_press_capacity_import(
     source_conflicts: dict[str, list[str]] = {}
     existing_conflicts: dict[str, dict[str, str]] = {}
     unmatched: list[str] = []
+    mappings: list[CapacityMapping] = []
     matched = 0
     for number, rows_for_machine in sorted(grouped.items(), key=lambda item: int(item[0])):
+        source_locations = tuple(sorted((row.sheet, row.row_number) for row in rows_for_machine))
         values = {row.tonnage for row in rows_for_machine if row.tonnage is not None}
         if len(values) != 1:
             source_conflicts[number] = sorted(str(value) for value in values)
+            mappings.append(
+                CapacityMapping(
+                    source_machine_number=number,
+                    source_locations=source_locations,
+                    source_tonnage=None,
+                    proposed_machine_number=number,
+                    mapping_method="EXACT_NORMALIZED_MACHINE_NUMBER",
+                    verification_class="CONFLICT",
+                    existing_tonnage=existing_capacities.get(number),
+                    action="REVIEW_REQUIRED",
+                    conflict_reason="CONFLICTING_SOURCE_CAPACITY_VALUES",
+                )
+            )
             continue
         source_tonnage = next(iter(values))
         existing = existing_capacities.get(number)
         if number not in existing_capacities:
             unmatched.append(number)
+            mappings.append(
+                CapacityMapping(
+                    source_machine_number=number,
+                    source_locations=source_locations,
+                    source_tonnage=source_tonnage,
+                    proposed_machine_number=None,
+                    mapping_method="EXACT_NORMALIZED_MACHINE_NUMBER",
+                    verification_class="UNMAPPED",
+                    existing_tonnage=None,
+                    action="REVIEW_REQUIRED",
+                    conflict_reason="NO_CANONICAL_MACHINE_MATCH",
+                )
+            )
             continue
         matched += 1
         if existing is not None and Decimal(existing) != source_tonnage:
             existing_conflicts[number] = {"existing": str(existing), "source": str(source_tonnage)}
+            mappings.append(
+                CapacityMapping(
+                    source_machine_number=number,
+                    source_locations=source_locations,
+                    source_tonnage=source_tonnage,
+                    proposed_machine_number=number,
+                    mapping_method="EXACT_NORMALIZED_MACHINE_NUMBER",
+                    verification_class="CONFLICT",
+                    existing_tonnage=existing,
+                    action="REVIEW_REQUIRED",
+                    conflict_reason="CONFLICTING_EXISTING_CAPACITY",
+                )
+            )
             continue
+        action = "UNCHANGED" if existing is not None else "SET_PRESS_CAPACITY"
+        mappings.append(
+            CapacityMapping(
+                source_machine_number=number,
+                source_locations=source_locations,
+                source_tonnage=source_tonnage,
+                proposed_machine_number=number,
+                mapping_method="EXACT_NORMALIZED_MACHINE_NUMBER",
+                verification_class="EXACT_CANONICAL_MATCH",
+                existing_tonnage=existing,
+                action=action,
+            )
+        )
         updates.append(
             CapacityUpdate(
                 machine_number=number,
                 source_rows=tuple(sorted(row.row_number for row in rows_for_machine)),
+                source_locations=source_locations,
                 source_tonnage=source_tonnage,
                 existing_tonnage=existing,
-                action="UNCHANGED" if existing is not None else "SET_PRESS_CAPACITY",
+                action=action,
             )
         )
     return PressCapacityReport(
@@ -323,10 +450,12 @@ def plan_press_capacity_import(
         source_rows=len(rows),
         source_machine_count=len(grouped),
         matched_machines=matched,
+        workbook_sheets=workbook_sheets,
         unmatched_machines=unmatched,
         conflicting_source_values=source_conflicts,
         conflicting_existing_values=existing_conflicts,
         invalid_rows=invalid_rows,
+        mappings=mappings,
         updates=updates,
     )
 
