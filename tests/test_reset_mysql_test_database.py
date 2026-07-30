@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from scripts.database import reset_mysql_test_database
 
 
@@ -62,3 +64,37 @@ def test_reset_reuses_root_and_grants_network_reachable_test_app_user(monkeypatc
     assert "EXECUTE" not in sql
     assert "GRANT ALL PRIVILEGES" not in sql
     assert all(params != ("root",) for _statement, params in statements)
+
+
+@pytest.mark.parametrize(
+    ("database", "host"),
+    [
+        ("eoat_atlas_dev", "127.0.0.1"),
+        ("eoat_atlas_prod", "127.0.0.1"),
+        ("", "127.0.0.1"),
+        ("eoat_atlas_test*", "127.0.0.1"),
+        ("eoat_atlas_test", "eoat-atlas"),
+        ("eoat_atlas_test", "eoat-atlas.gwplastics.com"),
+    ],
+)
+def test_reset_rejects_non_disposable_database_or_host(monkeypatch, database: str, host: str) -> None:
+    monkeypatch.setenv("EOAT_DB_NAME", database)
+    monkeypatch.setenv("EOAT_DB_HOST", host)
+    monkeypatch.setattr("sys.argv", ["reset_mysql_test_database.py"])
+
+    with pytest.raises(SystemExit, match="2"):
+        reset_mysql_test_database.main()
+
+
+def test_reset_rejects_overlong_test_account_before_connecting(monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_DB_NAME", "eoat_atlas_test")
+    monkeypatch.setenv("EOAT_DB_HOST", "127.0.0.1")
+    monkeypatch.setenv("EOAT_DB_ROOT_PASSWORD", "synthetic-root-password")
+    monkeypatch.setenv("EOAT_DB_USER", "x" * 33)
+    monkeypatch.setenv("EOAT_DB_PASSWORD", "synthetic-app-password")
+    monkeypatch.setenv("EOAT_DB_MIGRATION_USER", "migration")
+    monkeypatch.setenv("EOAT_DB_MIGRATION_PASSWORD", "synthetic-migration-password")
+    monkeypatch.setattr("sys.argv", ["reset_mysql_test_database.py"])
+
+    with pytest.raises(SystemExit, match="2"):
+        reset_mysql_test_database.main()

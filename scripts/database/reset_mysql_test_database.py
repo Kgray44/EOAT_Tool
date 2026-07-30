@@ -8,6 +8,20 @@ import sys
 import pymysql
 
 APPROVED_DATABASES = {"eoat_atlas_test"}
+APPROVED_TEST_HOSTS = {"127.0.0.1", "::1", "localhost"}
+MAX_MYSQL_USERNAME_LENGTH = 32
+
+
+def _approved_test_host(value: str | None) -> str | None:
+    host = str(value or "127.0.0.1").strip().casefold().strip("[]").rstrip(".")
+    return host if host in APPROVED_TEST_HOSTS else None
+
+
+def _validate_test_identity(user_name: str, *, field: str, parser: argparse.ArgumentParser) -> None:
+    if not user_name.strip():
+        parser.error(f"{field} is required.")
+    if len(user_name) > MAX_MYSQL_USERNAME_LENGTH:
+        parser.error(f"{field} exceeds the MySQL {MAX_MYSQL_USERNAME_LENGTH}-character limit.")
 
 
 def main() -> int:
@@ -18,6 +32,10 @@ def main() -> int:
         parser.error(f"Refusing destructive reset for unapproved database '{args.database}'.")
     environment = os.environ.copy()
     environment["EOAT_DB_NAME"] = args.database
+    host = _approved_test_host(environment.get("EOAT_DB_HOST"))
+    if host is None:
+        parser.error("Refusing destructive reset for a non-loopback database host.")
+    environment["EOAT_DB_HOST"] = host
     required = (
         "EOAT_DB_ROOT_PASSWORD",
         "EOAT_DB_USER",
@@ -28,8 +46,12 @@ def main() -> int:
     missing = [name for name in required if not environment.get(name)]
     if missing:
         parser.error(f"Missing required reset environment: {', '.join(missing)}")
+    _validate_test_identity(environment["EOAT_DB_USER"], field="EOAT_DB_USER", parser=parser)
+    _validate_test_identity(
+        environment["EOAT_DB_MIGRATION_USER"], field="EOAT_DB_MIGRATION_USER", parser=parser
+    )
     connection = pymysql.connect(
-        host=environment.get("EOAT_DB_HOST", "127.0.0.1"),
+        host=host,
         port=int(environment.get("EOAT_DB_PORT", "3306")),
         user="root",
         password=environment["EOAT_DB_ROOT_PASSWORD"],
