@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router-dom";
 import { AppProviders } from "@/app/providers";
@@ -157,6 +157,69 @@ describe("Library and Fit Check", () => {
           path === "/api/v1/web-fit-checks/evaluate" && init?.method === "POST",
       ),
     ).toBe(true);
+  });
+
+  it("accepts every machine, tool, and EOAT selection order", async () => {
+    const permutations = [
+      ["Machine", "Tool", "EOAT"],
+      ["Machine", "EOAT", "Tool"],
+      ["Tool", "Machine", "EOAT"],
+      ["Tool", "EOAT", "Machine"],
+      ["EOAT", "Machine", "Tool"],
+      ["EOAT", "Tool", "Machine"],
+    ] as const;
+    const valueFor = { Machine: "M-1", Tool: "T-1", EOAT: "E-1" } as const;
+
+    for (const order of permutations) {
+      const fetcher = mockFetch();
+      vi.stubGlobal("fetch", fetcher);
+      const view = renderAt("/fit-check");
+      const user = userEvent.setup();
+      for (const label of order) {
+        await user.type(screen.getByLabelText(label), valueFor[label]);
+      }
+      const evaluate = screen.getByRole("button", {
+        name: /Evaluate without saving/,
+      });
+      expect(evaluate).toBeEnabled();
+      await user.click(evaluate);
+      expect(
+        await screen.findByRole("heading", { name: /Insufficient data/ }),
+      ).toBeInTheDocument();
+      expect(
+        fetcher.mock.calls.some(
+          ([path, init]) =>
+            path === "/api/v1/web-fit-checks/evaluate" &&
+            init?.method === "POST",
+        ),
+      ).toBe(true);
+      view.unmount();
+    }
+  });
+
+  it("allows each universal entity slot to take a different role", async () => {
+    vi.stubGlobal("fetch", mockFetch());
+    renderAt("/fit-check");
+    const user = userEvent.setup();
+    const first = screen.getByRole("group", { name: "Entity slot 1" });
+    const second = screen.getByRole("group", { name: "Entity slot 2" });
+    const third = screen.getByRole("group", { name: "Entity slot 3" });
+
+    await user.selectOptions(
+      within(first).getByRole("combobox", { name: "Entity slot 1 type" }),
+      "eoat",
+    );
+    await user.selectOptions(
+      within(third).getByRole("combobox", { name: "Entity slot 3 type" }),
+      "machine",
+    );
+    await user.type(within(first).getByRole("combobox", { name: "EOAT" }), "E-1");
+    await user.type(within(second).getByRole("combobox", { name: "Tool" }), "T-1");
+    await user.type(within(third).getByRole("combobox", { name: "Machine" }), "M-1");
+
+    expect(
+      screen.getByRole("button", { name: /Evaluate without saving/ }),
+    ).toBeEnabled();
   });
 
   it("uses server-side advanced Library filters rather than client-side filtering", async () => {

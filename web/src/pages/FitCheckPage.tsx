@@ -9,6 +9,34 @@ import {
   type BrowserFitCheckRecent,
 } from "@/app/fitCheckRecents";
 
+type EntityKind = "machine" | "tool" | "eoat";
+type EntitySlot = { kind: EntityKind; value: string };
+
+const ENTITY_KINDS: Array<{ kind: EntityKind; label: string }> = [
+  { kind: "machine", label: "Machine" },
+  { kind: "tool", label: "Tool" },
+  { kind: "eoat", label: "EOAT" },
+];
+
+function slotsFromValues(machine: string, tool: string, eoat: string): EntitySlot[] {
+  return [
+    { kind: "machine", value: machine },
+    { kind: "tool", value: tool },
+    { kind: "eoat", value: eoat },
+  ];
+}
+
+function slotValues(slots: EntitySlot[]) {
+  return ENTITY_KINDS.reduce(
+    (values, { kind }) => {
+      const matching = slots.filter((slot) => slot.kind === kind);
+      values[kind] = matching.length === 1 ? matching[0].value : "";
+      return values;
+    },
+    { machine: "", tool: "", eoat: "" } as Record<EntityKind, string>,
+  );
+}
+
 function resultLabel(value: string) {
   return value === "INVALID_INPUT"
     ? "Insufficient data / unresolved input"
@@ -17,13 +45,16 @@ function resultLabel(value: string) {
 
 export function FitCheckPage() {
   const [params] = useSearchParams();
-  const [machine, setMachine] = useState(params.get("machine") || "");
+  const [slots, setSlots] = useState<EntitySlot[]>(() =>
+    slotsFromValues(
+      params.get("machine") || "",
+      params.get("tool") || "",
+      params.get("eoat") || "",
+    ),
+  );
   const [plantCode, setPlantCode] = useState(params.get("plant") || "");
-  const [tool, setTool] = useState(params.get("tool") || "");
-  const [eoat, setEoat] = useState(params.get("eoat") || "");
-  const [lastChanged, setLastChanged] = useState<
-    "machine" | "tool" | "eoat" | null
-  >(null);
+  const [lastChanged, setLastChanged] = useState<EntityKind | null>(null);
+  const { machine, tool, eoat } = slotValues(slots);
   const [selectionOrder, setSelectionOrder] = useState<string[]>(() =>
     [
       params.get("machine") && "Machine",
@@ -65,9 +96,9 @@ export function FitCheckPage() {
     };
     // Keep the latest typed value visible so an incompatible choice can be explained;
     // discard only earlier selections made invalid by a subsequent valid selection.
-    if (invalid.machine && lastChanged !== "machine") setMachine("");
-    if (invalid.tool && lastChanged !== "tool") setTool("");
-    if (invalid.eoat && lastChanged !== "eoat") setEoat("");
+    if (invalid.machine && lastChanged !== "machine") clearKind("machine");
+    if (invalid.tool && lastChanged !== "tool") clearKind("tool");
+    if (invalid.eoat && lastChanged !== "eoat") clearKind("eoat");
   }, [eoat, lastChanged, machine, options.data, tool]);
   const evaluation = useMutation({
     mutationFn: () =>
@@ -89,8 +120,21 @@ export function FitCheckPage() {
     },
   });
   const result = evaluation.data;
-  const recordSelection = (label: string, value: string) => {
+  const updateSlot = (index: number, update: Partial<EntitySlot>) => {
+    setSlots((current) =>
+      current.map((slot, currentIndex) =>
+        currentIndex === index ? { ...slot, ...update } : slot,
+      ),
+    );
+  };
+  const clearKind = (kind: EntityKind) => {
+    setSlots((current) =>
+      current.map((slot) => (slot.kind === kind ? { ...slot, value: "" } : slot)),
+    );
+  };
+  const recordSelection = (kind: EntityKind, value: string) => {
     if (!value.trim()) return;
+    const label = ENTITY_KINDS.find((item) => item.kind === kind)?.label || kind;
     setSelectionOrder((current) =>
       current.includes(label) ? current : [...current, label],
     );
@@ -117,81 +161,84 @@ export function FitCheckPage() {
           evaluation.mutate();
         }}
       >
-        <label>
-          Machine
-          <input
-            aria-label="Machine"
-            list="fit-machines"
-            value={machine}
-            onChange={(event) => {
-              setMachine(event.target.value);
-              setLastChanged("machine");
-              recordSelection("Machine", event.target.value);
-            }}
-          />
-          <datalist id="fit-machines">
-            {(options.data?.machines ?? []).map((item) => (
-              <option
-                key={`${item.plant_code}-${item.identifier}`}
-                value={item.identifier}
-              >
-                {item.plant_code
-                  ? `${item.label} (${item.plant_code})`
-                  : item.label}
-              </option>
-            ))}
-          </datalist>
-        </label>
+        {slots.map((slot, index) => {
+          const label =
+            ENTITY_KINDS.find((item) => item.kind === slot.kind)?.label ||
+            "Entity";
+          const listId = `fit-${slot.kind}-slot-${index + 1}`;
+          const choices =
+            slot.kind === "machine"
+              ? options.data?.machines ?? []
+              : slot.kind === "tool"
+                ? options.data?.tools ?? []
+                : options.data?.eoats ?? [];
+          return (
+            <fieldset className="fit-check-slot" key={`slot-${index + 1}`}>
+              <legend>Entity slot {index + 1}</legend>
+              <label>
+                Type
+                <select
+                  aria-label={`Entity slot ${index + 1} type`}
+                  value={slot.kind}
+                  onChange={(event) => {
+                    const kind = event.target.value as EntityKind;
+                    updateSlot(index, { kind, value: "" });
+                    setLastChanged(kind);
+                    setSelectionOrder((current) =>
+                      current.filter(
+                        (selected) =>
+                          selected !==
+                          (ENTITY_KINDS.find((item) => item.kind === slot.kind)
+                            ?.label || slot.kind),
+                      ),
+                    );
+                  }}
+                >
+                  {ENTITY_KINDS.map((item) => (
+                    <option key={item.kind} value={item.kind}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {label}
+                <input
+                  aria-label={label}
+                  list={listId}
+                  value={slot.value}
+                  onChange={(event) => {
+                    updateSlot(index, { value: event.target.value });
+                    setLastChanged(slot.kind);
+                    recordSelection(slot.kind, event.target.value);
+                  }}
+                />
+                <datalist id={listId}>
+                  {choices.map((item) => (
+                    <option
+                      key={`${slot.kind}-${item.plant_code || ""}-${item.identifier}`}
+                      value={item.identifier}
+                    >
+                      {item.plant_code
+                        ? `${item.label} (${item.plant_code})`
+                        : item.label}
+                    </option>
+                  ))}
+                </datalist>
+              </label>
+            </fieldset>
+          );
+        })}
         <label>
           Plant code{" "}
           <span className="optional">
-            (only when the machine number is shared)
+            (only when the selected machine number is shared)
           </span>
           <input
             aria-label="Plant code"
             value={plantCode}
             onChange={(event) => setPlantCode(event.target.value)}
           />
-        </label>
-        <label>
-          Tool
-          <input
-            aria-label="Tool"
-            list="fit-tools"
-            value={tool}
-            onChange={(event) => {
-              setTool(event.target.value);
-              setLastChanged("tool");
-              recordSelection("Tool", event.target.value);
-            }}
-          />
-          <datalist id="fit-tools">
-            {(options.data?.tools ?? []).map((item) => (
-              <option key={item.identifier} value={item.identifier}>
-                {item.label}
-              </option>
-            ))}
-          </datalist>
-        </label>
-        <label>
-          EOAT
-          <input
-            aria-label="EOAT"
-            list="fit-eoats"
-            value={eoat}
-            onChange={(event) => {
-              setEoat(event.target.value);
-              setLastChanged("eoat");
-              recordSelection("EOAT", event.target.value);
-            }}
-          />
-          <datalist id="fit-eoats">
-            {(options.data?.eoats ?? []).map((item) => (
-              <option key={item.identifier} value={item.identifier}>
-                {item.label}
-              </option>
-            ))}
-          </datalist>
         </label>
         <button
           type="submit"
@@ -203,10 +250,8 @@ export function FitCheckPage() {
           type="button"
           className="fit-check-secondary"
           onClick={() => {
-            setMachine("");
             setPlantCode("");
-            setTool("");
-            setEoat("");
+            setSlots(slotsFromValues("", "", ""));
             setLastChanged(null);
             setSelectionOrder([]);
             evaluation.reset();
@@ -315,10 +360,14 @@ export function FitCheckPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setMachine(recent.machine);
                     setPlantCode("");
-                    setTool(recent.tool);
-                    setEoat(recent.eoat);
+                    setSlots(
+                      slotsFromValues(
+                        recent.machine,
+                        recent.tool,
+                        recent.eoat,
+                      ),
+                    );
                     setLastChanged("eoat");
                     setSelectionOrder(["Machine", "Tool", "EOAT"]);
                     evaluation.reset();

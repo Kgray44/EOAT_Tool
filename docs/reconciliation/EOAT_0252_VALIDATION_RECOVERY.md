@@ -27,6 +27,23 @@ candidate or deployment transaction.
 The test warning in the Python suites is the existing FastAPI/Starlette
 TestClient deprecation notice. It is not a test failure.
 
+## Full-suite investigation
+
+The original serial invocation stopped near photo-service tests with exit code
+`124`. Controlled subset runs of `test_photo_indexing.py` and
+`test_photo_service.py` completed (`30 passed`), so neither module was a
+minimal reproducer. The observed `124` was caused by the local command/task
+execution envelope: short tool windows and a temporary Windows scheduled task
+configured with `StopOnIdleEnd=true` terminated the process before the serial
+collection could finish. It was not a pytest assertion, Python exception, Qt
+crash, or PhotoService lifecycle defect.
+
+The acceptance run used one exact non-integration collection with eight
+isolated pytest workers and generated JUnit output. It completed normally in
+`147.72s` with exit code zero. No speculative PhotoService production patch was
+introduced. Temporary runner logs and JUnit receipts remain outside the
+repository; temporary scheduled tasks were removed after validation.
+
 ## Source parity verification
 
 | Area | Verification evidence | Status |
@@ -40,6 +57,12 @@ TestClient deprecation notice. It is not a test failure.
 | Physical EOAT identity | MySQL integration exercises physical UUIDs and alias fail-closed semantics at schema `20260729_0009`. | Verified |
 | Subtitle and density presentation | Fixture browser tests cover profile/Library presentation across desktop, tablet, and phone sizes. | Verified |
 
+The complete requirement-level evidence is maintained in the
+[feature-verification matrix](EOAT_0252_FEATURE_VERIFICATION_MATRIX.md). During
+this recovery, Fit Check was strengthened from three role-fixed controls to
+three typed universal entity slots; automated tests cover role swapping and
+all six selection orders.
+
 ## Capacity and media readiness
 
 The claimed `Plant 4 Press Capacity 20251201.xlsx` was not present in the
@@ -52,6 +75,12 @@ The default sanitized media root also does not exist locally. Browser media
 delivery remains safely unavailable until an approved server-side source root
 and mapping are supplied. This is a readiness dependency, not a reason to
 weaken the fail-closed content policy or to mutate production.
+
+The required next human action is to complete the controlled
+[media-source manifest template](EOAT_MEDIA_SOURCE_MANIFEST_TEMPLATE.md) with
+the approved source owner and server-side root. The template keeps the root
+out of browser-visible configuration and captures identity, approval, and
+read-only-mount evidence.
 
 ## Remaining predeployment dependencies
 
