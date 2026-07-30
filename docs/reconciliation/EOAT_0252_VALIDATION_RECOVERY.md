@@ -95,6 +95,17 @@ exception report are maintained in
 [the canonical mapping review](EOAT_0252_CANONICAL_CAPACITY_MAPPING.md), and
 [the exception report](EOAT_0252_CAPACITY_MAPPING_EXCEPTIONS.md).
 
+The six remaining discrepancies were reconciled without production mutation.
+Presses 24 and 64 remain excluded pending identity governance; Machines 6, 70,
+and 72 remain null without an approved source; Machine 8 has a 50-ton master
+list reference but remains excluded until its independent-source scope is
+approved. The 52 exact mappings are packaged as a non-executable,
+drift-protected candidate. See
+[the reconciliation](EOAT_0252_CAPACITY_EXCEPTION_RECONCILIATION.md),
+[the decision packet](EOAT_0252_CAPACITY_HUMAN_DECISION_PACKET.md),
+[the final candidate](EOAT_0252_FINAL_CAPACITY_IMPORT_CANDIDATE.md), and
+[the policy template](EOAT_0252_CAPACITY_IMPORT_POLICY.md).
+
 The default sanitized media root also does not exist locally. Browser media
 delivery remains safely unavailable until an approved server-side source root
 and mapping are supplied. This is a readiness dependency, not a reason to
