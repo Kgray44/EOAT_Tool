@@ -344,6 +344,13 @@
       "state": "finalized",
       "task_id": "mirrorline-functional-parity-0.25.1-20260729",
       "finalized_at_utc": "2026-07-29T22:31:10Z"
+    },
+    {
+      "application_version": "0.25.2",
+      "release_id": "eoat-atlas-0.25.2",
+      "state": "finalized",
+      "task_id": "eoat-mirrorline-parity-completion-0252-20260730",
+      "finalized_at_utc": "2026-07-30T14:54:27Z"
     }
   ]
 }
