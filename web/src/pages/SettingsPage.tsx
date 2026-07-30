@@ -166,13 +166,11 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<BrowserSettings>(() =>
     readBrowserSettings(),
   );
-  const [sessionToken, setSessionToken] = useState(
-    () => sessionStorage.getItem("eoat-atlas-settings-session") || "",
-  );
   const [session, setSession] = useState<Awaited<
     ReturnType<typeof apiClient.getSettingsSession>
   > | null>(null);
   const [loginIdentity, setLoginIdentity] = useState("dev.admin");
+  const [loginPassword, setLoginPassword] = useState("");
   const [authError, setAuthError] = useState<unknown>(null);
   const [draftShared, setDraftShared] = useState<Record<string, unknown>>({});
   const [pendingAction, setPendingAction] = useState<SettingsAction | null>(
@@ -192,19 +190,13 @@ export function SettingsPage() {
     queryFn: () => apiClient.getAuthConfiguration(),
   });
   useEffect(() => {
-    if (!sessionToken) {
-      setSession(null);
-      return;
-    }
     void apiClient
-      .getSettingsSession(sessionToken)
+      .getSettingsSession()
       .then(setSession)
       .catch(() => {
-        sessionStorage.removeItem("eoat-atlas-settings-session");
-        setSessionToken("");
         setSession(null);
       });
-  }, [sessionToken]);
+  }, []);
   const activeSection = sections.find((item) => item.key === section)!;
   const update = <K extends keyof BrowserSettings>(
     key: K,
@@ -250,7 +242,6 @@ export function SettingsPage() {
   };
   const saveShared = () => {
     if (
-      !sessionToken ||
       !editableSharedSettings ||
       !Object.keys(draftShared).length
     )
@@ -261,7 +252,6 @@ export function SettingsPage() {
         apiClient.updateSharedSetting(
           key,
           value,
-          sessionToken,
           catalog.data?.items.find((item) => item.key === key)?.description,
         ),
       ),
@@ -284,16 +274,13 @@ export function SettingsPage() {
   };
   const executeSettingsAction = () => {
     if (
-      !pendingAction ||
-      confirmation !== actionConfirmation[pendingAction] ||
-      !sessionToken
+      !pendingAction || confirmation !== actionConfirmation[pendingAction]
     )
       return;
     setAuthError(null);
     void apiClient
       .applySettingsAction(
         pendingAction,
-        sessionToken,
         confirmation,
         pendingAction === "reset-section" ? section : undefined,
       )
@@ -307,23 +294,18 @@ export function SettingsPage() {
   };
   const signIn = () => {
     setAuthError(null);
-    void apiClient
-      .loginDevelopment(loginIdentity)
+    const login = authConfiguration.data?.provider === "ldap"
+      ? apiClient.loginLDAP(loginIdentity, loginPassword)
+      : apiClient.loginDevelopment(loginIdentity);
+    void login
       .then((next) => {
-        sessionStorage.setItem(
-          "eoat-atlas-settings-session",
-          next.access_token,
-        );
-        setSessionToken(next.access_token);
+        setLoginPassword("");
         setSession(next);
       })
       .catch(setAuthError);
   };
   const signOut = () => {
-    if (sessionToken)
-      void apiClient.logoutSettings(sessionToken).catch(() => undefined);
-    sessionStorage.removeItem("eoat-atlas-settings-session");
-    setSessionToken("");
+    void apiClient.logoutSettings().catch(() => undefined);
     setSession(null);
   };
   return (
@@ -527,9 +509,9 @@ export function SettingsPage() {
           <button type="button" onClick={signOut}>
             Admin Logout
           </button>
-        ) : authConfiguration.data?.provider === "development" ? (
+        ) : ["development", "ldap"].includes(authConfiguration.data?.provider || "") ? (
           <>
-            <select
+            {authConfiguration.data?.provider === "development" ? <select
               aria-label="Development administrator identity"
               value={loginIdentity}
               onChange={(event) => setLoginIdentity(event.target.value)}
@@ -541,7 +523,8 @@ export function SettingsPage() {
                   </option>
                 ),
               )}
-            </select>
+            </select> : <input aria-label="Directory username" value={loginIdentity} onChange={(event) => setLoginIdentity(event.target.value)} autoComplete="username" />}
+            {authConfiguration.data?.provider === "ldap" ? <input aria-label="Directory password" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} autoComplete="current-password" /> : null}
             <button type="button" onClick={signIn}>
               Admin Login
             </button>

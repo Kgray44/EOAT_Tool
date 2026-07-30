@@ -2633,6 +2633,28 @@
         "title": "InstallationClose",
         "type": "object"
       },
+      "LDAPLoginRequest": {
+        "properties": {
+          "identity": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Identity",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "identity",
+          "password"
+        ],
+        "title": "LDAPLoginRequest",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "identity": {
@@ -6382,6 +6404,42 @@
           }
         },
         "summary": "Authentication Health"
+      }
+    },
+    "/api/v1/auth/ldap/login": {
+      "post": {
+        "operationId": "ldap_login_api_v1_auth_ldap_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LDAPLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ldap Login"
       }
     },
     "/api/v1/auth/login": {

@@ -166,6 +166,7 @@ async function requestJson(
       headers: { Accept: "application/json", ...init?.headers },
       signal: controller.signal,
       body: init?.body,
+      credentials: "same-origin",
     });
     const text = await response.text();
     let body: unknown;
@@ -194,6 +195,14 @@ async function requestJson(
   } finally {
     window.clearTimeout(timer);
   }
+}
+
+function csrfHeader(): Record<string, string> {
+  const value = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith("eoat_atlas_settings_csrf="))
+    ?.split("=", 2)[1];
+  return value ? { "X-EOAT-CSRF": decodeURIComponent(value) } : {};
 }
 
 export const apiClient = {
@@ -247,24 +256,33 @@ export const apiClient = {
   async loginDevelopment(
     identity: string,
     fetcher?: typeof fetch,
-  ): Promise<SettingsSession & { access_token: string }> {
-    return assertObject<SettingsSession & { access_token: string }>(
+  ): Promise<SettingsSession> {
+    return assertObject<SettingsSession>(
       await requestJson("/api/v1/auth/development/login", fetcher, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identity }),
       }),
-      ["access_token", "authenticated", "permissions"],
+      ["authenticated", "permissions"],
+      "Settings administrator session",
+    );
+  },
+  async loginLDAP(identity: string, password: string, fetcher?: typeof fetch): Promise<SettingsSession> {
+    return assertObject<SettingsSession>(
+      await requestJson("/api/v1/auth/ldap/login", fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identity, password }),
+      }),
+      ["authenticated", "permissions"],
       "Settings administrator session",
     );
   },
   async getSettingsSession(
-    token: string,
     fetcher?: typeof fetch,
   ): Promise<SettingsSession> {
     return assertObject<SettingsSession>(
       await requestJson("/api/v1/auth/session", fetcher, {
-        headers: { Authorization: `Bearer ${token}` },
       }),
       ["authenticated", "permissions"],
       "Settings administrator session",
@@ -273,7 +291,6 @@ export const apiClient = {
   async updateSharedSetting(
     key: string,
     value: unknown,
-    token: string,
     description?: string,
     fetcher?: typeof fetch,
   ): Promise<SharedSetting> {
@@ -285,7 +302,7 @@ export const apiClient = {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...csrfHeader(),
           },
           body: JSON.stringify({ value, description }),
         },
@@ -296,7 +313,6 @@ export const apiClient = {
   },
   async applySettingsAction(
     action: SettingsAction,
-    token: string,
     confirmation: string,
     section?: string,
     fetcher?: typeof fetch,
@@ -306,7 +322,7 @@ export const apiClient = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...csrfHeader(),
         },
         body: JSON.stringify({ confirmation, section }),
       }),
@@ -314,10 +330,10 @@ export const apiClient = {
       "Settings action",
     );
   },
-  async logoutSettings(token: string, fetcher?: typeof fetch): Promise<void> {
+  async logoutSettings(fetcher?: typeof fetch): Promise<void> {
     await requestJson("/api/v1/auth/logout", fetcher, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: csrfHeader(),
     });
   },
   async getEoatProfile(

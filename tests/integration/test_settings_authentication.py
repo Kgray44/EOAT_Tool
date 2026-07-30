@@ -46,6 +46,10 @@ def api():
         yield client
 
 
+def csrf_headers(api: TestClient) -> dict[str, str]:
+    return {"X-EOAT-CSRF": api.cookies.get("eoat_atlas_settings_csrf", "")}
+
+
 def test_normal_application_endpoints_do_not_require_user_authentication(api) -> None:
     config = api.get("/api/v1/auth/config")
     home = api.get("/api/v1/home-summary")
@@ -72,10 +76,9 @@ def test_settings_write_authorization_distinguishes_401_and_403(api) -> None:
     setting_key = "data_loading.refresh_on_launch"
     missing = api.put(f"/api/v1/settings/{setting_key}", json={"value": False})
     viewer_login = api.post("/api/v1/auth/development/login", json={"identity": "dev.viewer"})
-    viewer_token = viewer_login.json()["access_token"]
     denied = api.put(
         f"/api/v1/settings/{setting_key}",
-        headers={"Authorization": f"Bearer {viewer_token}"},
+        headers=csrf_headers(api),
         json={"value": False},
     )
 
@@ -90,10 +93,9 @@ def test_settings_reads_are_anonymous_and_authorized_writes_succeed(api) -> None
     setting_key = "data_loading.manual_refresh_only"
     initial = api.get("/api/v1/settings")
     login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
-    token = login.json()["access_token"]
     written = api.put(
         f"/api/v1/settings/{setting_key}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers=csrf_headers(api),
         json={"value": True, "description": "Settings authorization validation"},
     )
     anonymous_read = api.get("/api/v1/settings")
@@ -107,7 +109,7 @@ def test_settings_reads_are_anonymous_and_authorized_writes_succeed(api) -> None
 
 def test_settings_danger_actions_require_typed_confirmation_and_preserve_operational_data(api) -> None:
     login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
-    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    headers = csrf_headers(api)
     key = "data_loading.manual_refresh_only"
     assert api.put(f"/api/v1/settings/{key}", headers=headers, json={"value": True}).status_code == 200
 
@@ -141,11 +143,10 @@ def test_settings_danger_actions_require_typed_confirmation_and_preserve_operati
     assert key not in values
 
 
-def test_administrator_session_is_memory_token_ready_and_revocable(api) -> None:
+def test_administrator_session_is_cookie_backed_and_revocable(api) -> None:
     login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
     assert login.status_code == 200
-    token = login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = csrf_headers(api)
 
     allowed = api.post(
         "/api/v1/settings/authorization/check",
@@ -168,7 +169,6 @@ def test_administrator_session_is_memory_token_ready_and_revocable(api) -> None:
 
 def test_permission_loss_relocks_settings_server_side(api) -> None:
     login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
-    token = login.json()["access_token"]
     factory = create_session_factory(migration=False)
     with factory() as session, session.begin():
         administrator_role = session.scalar(select(db.Role).where(db.Role.role_code == "ADMINISTRATOR"))
@@ -176,7 +176,7 @@ def test_permission_loss_relocks_settings_server_side(api) -> None:
     try:
         denied = api.post(
             "/api/v1/settings/authorization/check",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=csrf_headers(api),
             json={"permission": "settings.edit", "operation": "permission-loss-test"},
         )
     finally:
@@ -190,7 +190,6 @@ def test_permission_loss_relocks_settings_server_side(api) -> None:
 
 def test_provider_outage_relocks_settings_without_blocking_normal_use(api, monkeypatch) -> None:
     login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
-    token = login.json()["access_token"]
     monkeypatch.setattr(
         DevelopmentAuthenticationProvider,
         "health_check",
@@ -199,7 +198,7 @@ def test_provider_outage_relocks_settings_without_blocking_normal_use(api, monke
 
     denied = api.post(
         "/api/v1/settings/authorization/check",
-        headers={"Authorization": f"Bearer {token}"},
+        headers=csrf_headers(api),
         json={"permission": "settings.edit", "operation": "provider-outage-test"},
     )
     ordinary = api.get("/api/v1/home-summary")

@@ -56,6 +56,7 @@ class SAMLProviderConfiguration:
 
 @dataclass(frozen=True)
 class LDAPProviderConfiguration:
+    enabled: bool
     hosts: tuple[str, ...]
     port: int
     use_ldaps: bool
@@ -66,6 +67,13 @@ class LDAPProviderConfiguration:
     group_attribute: str
     trust_store_path: str
     service_account_secret_reference: str
+    connection_timeout_seconds: int
+    operation_timeout_seconds: int
+    discover_naming_context: bool
+    upn_suffix: str
+    authentication_mode: str
+    settings_admin_group: str
+    nested_group_resolution: bool
 
     @classmethod
     def from_environment(cls) -> LDAPProviderConfiguration:
@@ -73,11 +81,17 @@ class LDAPProviderConfiguration:
             port = int(_value("EOAT_LDAP_PORT") or "636")
         except ValueError:
             port = -1
+        try:
+            connection_timeout_seconds = int(_value("EOAT_LDAP_CONNECTION_TIMEOUT_SECONDS") or "5")
+            operation_timeout_seconds = int(_value("EOAT_LDAP_OPERATION_TIMEOUT_SECONDS") or "5")
+        except ValueError:
+            connection_timeout_seconds = operation_timeout_seconds = -1
         hosts = tuple(item.strip() for item in _value("EOAT_LDAP_HOSTS").split(",") if item.strip())
         legacy_host = _value("EOAT_LDAP_HOST")
         if not hosts and legacy_host:
             hosts = (legacy_host,)
         return cls(
+            enabled=_value("EOAT_LDAP_ENABLED").casefold() in {"1", "true", "yes", "on"},
             hosts=hosts,
             port=port,
             use_ldaps=_value("EOAT_LDAP_USE_LDAPS").casefold() not in {"0", "false", "no", "off"},
@@ -88,20 +102,38 @@ class LDAPProviderConfiguration:
             group_attribute=_value("EOAT_LDAP_GROUP_ATTRIBUTE"),
             trust_store_path=_value("EOAT_LDAP_TRUST_STORE_PATH"),
             service_account_secret_reference=_value("EOAT_LDAP_SERVICE_ACCOUNT_SECRET_REFERENCE"),
+            connection_timeout_seconds=connection_timeout_seconds,
+            operation_timeout_seconds=operation_timeout_seconds,
+            discover_naming_context=_value("EOAT_LDAP_DISCOVER_NAMING_CONTEXT").casefold() not in {"0", "false", "no", "off"},
+            upn_suffix=_value("EOAT_LDAP_UPN_SUFFIX") or "gwplastics.com",
+            authentication_mode=(_value("EOAT_LDAP_AUTHENTICATION_MODE") or "upn").casefold(),
+            settings_admin_group=_value("EOAT_LDAP_SETTINGS_ADMIN_GROUP"),
+            nested_group_resolution=_value("EOAT_LDAP_NESTED_GROUP_RESOLUTION").casefold() in {"1", "true", "yes", "on"},
         )
 
     def missing_fields(self) -> tuple[str, ...]:
         required = {
             "hosts": self.hosts,
-            "base_dn": self.base_dn,
-            "user_search_base": self.user_search_base,
-            "user_search_filter": self.user_search_filter,
             "group_attribute": self.group_attribute,
-            "trust_store_path": self.trust_store_path,
         }
         missing = [name for name, value in required.items() if not value]
         if not 1 <= self.port <= 65535:
             missing.append("port (1-65535)")
         if not self.use_ldaps:
             missing.append("use_ldaps must be true")
+        if not self.enabled:
+            missing.append("enabled")
+        if not 1 <= self.connection_timeout_seconds <= 30:
+            missing.append("connection_timeout_seconds (1-30)")
+        if not 1 <= self.operation_timeout_seconds <= 30:
+            missing.append("operation_timeout_seconds (1-30)")
+        if self.authentication_mode not in {"upn", "user_dn"}:
+            missing.append("authentication_mode (upn or user_dn)")
+        if self.authentication_mode == "user_dn" and not (self.user_search_base or self.base_dn):
+            missing.append("user_search_base or base_dn")
+        if not self.upn_suffix or any(char.isspace() for char in self.upn_suffix):
+            missing.append("upn_suffix")
         return tuple(missing)
+
+    def authorization_missing_fields(self) -> tuple[str, ...]:
+        return ("settings_admin_group",) if not self.settings_admin_group else ()

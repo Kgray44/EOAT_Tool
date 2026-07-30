@@ -1,8 +1,8 @@
-# EOAT Atlas 0.25.2 validation recovery receipt
+# EOAT Atlas 0.25.3 validation recovery receipt
 
 Date: 2026-07-30  
 Branch: `integration/mirrorline-parity-completion-0.25.2`  
-Target application version: `0.25.2`  
+Target application version: `0.25.3`
 Target schema: `20260729_0009`
 
 ## Scope and production boundary
@@ -124,5 +124,8 @@ read-only-mount evidence.
   creation may be used to bypass this review.
 - Supply and approve the production media root/mapping before governed media
   can be activated.
-- Complete the separately deferred LDAP preflight before browser writes or
-  administrative activation is considered.
+- The LDAP source implementation and anonymous preflight are now recorded in
+  `EOAT_0252_LDAPS_*.md`. The endpoint resets each tested connection during
+  TLS negotiation; activation remains fail-closed pending the precise IT
+  network/policy action and administrator-group mapping in
+  `EOAT_0252_LDAPS_REMAINING_IT_INPUTS.md`.

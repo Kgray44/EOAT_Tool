@@ -14,7 +14,7 @@ from ..database import models as db
 from ..errors import APIError
 from .audit import record_auth_event
 from .configuration import AuthenticationConfiguration
-from .exceptions import AuthenticationUnavailableError
+from .exceptions import AuthenticationUnavailableError, InvalidCredentialsError
 from .identity_models import AuthenticatedIdentity
 from .permissions import effective_permissions
 from .providers import DevelopmentAuthenticationProvider, LDAPAuthenticationProvider, SAMLAuthenticationProvider
@@ -99,8 +99,64 @@ class AuthenticationService:
                 source_ip=source_ip,
             )
             raise APIError(401, "AUTHENTICATION_FAILED", "Administrator authentication failed.") from exc
+        return self.complete_identity_login(
+            identity,
+            application_instance_id=application_instance_id,
+            request_id=request_id,
+            client_version=client_version,
+            source_ip=source_ip,
+        )
+
+    def complete_ldap_login(
+        self,
+        identity_key: str,
+        password: str,
+        *,
+        application_instance_id: int | None = None,
+        request_id: str | None = None,
+        client_version: str | None = None,
+        source_ip: str | None = None,
+    ) -> dict:
+        if self.configuration.provider != "ldap" or self.provider is None:
+            raise APIError(404, "LDAP_AUTH_DISABLED", "LDAPS administrator authentication is not active.")
+        try:
+            challenge = self.provider.begin_login({"identity": identity_key, "password": password})
+            identity = self.provider.complete_login(challenge)
+        except InvalidCredentialsError as exc:
+            record_auth_event(
+                self.session, "SETTINGS_ADMIN_LOGIN_FAILED", result="DENIED", provider="ldap",
+                request_id=request_id, reason_code="INVALID_CREDENTIALS", source_ip=source_ip,
+            )
+            raise APIError(401, "AUTHENTICATION_FAILED", "Administrator authentication failed.") from exc
+        except AuthenticationUnavailableError as exc:
+            record_auth_event(
+                self.session, "SETTINGS_ADMIN_LOGIN_FAILED", result="UNAVAILABLE", provider="ldap",
+                request_id=request_id, reason_code="DIRECTORY_UNAVAILABLE", source_ip=source_ip,
+            )
+            raise APIError(503, "AUTH_PROVIDER_UNAVAILABLE", "Administrator authentication is currently unavailable.", retryable=True) from exc
+        return self.complete_identity_login(
+            identity,
+            application_instance_id=application_instance_id,
+            request_id=request_id,
+            client_version=client_version,
+            source_ip=source_ip,
+        )
+
+    def complete_identity_login(
+        self,
+        identity: AuthenticatedIdentity,
+        *,
+        application_instance_id: int | None = None,
+        request_id: str | None = None,
+        client_version: str | None = None,
+        source_ip: str | None = None,
+    ) -> dict:
         user = self._provision_user(identity)
         roles = resolve_roles(self.session, identity.provider, identity.group_identifiers)
+        if identity.provider == "ldap":
+            configured_group = getattr(self.provider.configuration, "settings_admin_group", "")
+            if configured_group and configured_group.casefold() in {group.casefold() for group in identity.group_identifiers}:
+                roles = tuple(sorted(set(roles) | {"ADMINISTRATOR"}))
         self._sync_user_roles(user, roles)
         permissions = effective_permissions(roles)
         token, auth_session = self._issue_session(

@@ -1,9 +1,11 @@
 # ruff: noqa: B008
 from __future__ import annotations
 
+import os
+import secrets
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,10 @@ router = APIRouter(prefix="/api/v1")
 
 class LoginRequest(BaseModel):
     identity: str = Field(min_length=1, max_length=128)
+
+
+class LDAPLoginRequest(LoginRequest):
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class SettingsAuthorizationRequest(BaseModel):
@@ -73,10 +79,40 @@ def _service(session: Session) -> AuthenticationService:
         raise APIError(503, "AUTH_CONFIGURATION_INVALID", str(exc)) from exc
 
 
+_SESSION_COOKIE = "eoat_atlas_settings_session"
+_CSRF_COOKIE = "eoat_atlas_settings_csrf"
+
+
 def _bearer(request: Request) -> str:
+    cookie_token = request.cookies.get(_SESSION_COOKIE, "")
+    if cookie_token:
+        return cookie_token
     value = request.headers.get("Authorization", "")
     scheme, _, token = value.partition(" ")
     return token.strip() if scheme.casefold() == "bearer" else ""
+
+
+def _browser_cookie_options() -> dict:
+    production = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold() == "production"
+    return {"httponly": True, "secure": production, "samesite": "strict", "path": "/api/v1", "max_age": 3600}
+
+
+def _issue_browser_session(response: Response, payload: dict) -> dict:
+    token = payload.pop("access_token")
+    csrf_token = secrets.token_urlsafe(24)
+    response.set_cookie(_SESSION_COOKIE, token, **_browser_cookie_options())
+    response.set_cookie(_CSRF_COOKIE, csrf_token, httponly=False, secure=_browser_cookie_options()["secure"], samesite="strict", path="/api/v1", max_age=3600)
+    return payload
+
+
+def _require_csrf(request: Request) -> None:
+    # Bearer clients are not browser-cookie clients. Cookie-authenticated writes
+    # require same-site double-submit confirmation.
+    if request.cookies.get(_SESSION_COOKIE):
+        expected = request.cookies.get(_CSRF_COOKIE, "")
+        supplied = request.headers.get("X-EOAT-CSRF", "")
+        if not expected or not supplied or not secrets.compare_digest(expected, supplied):
+            raise APIError(403, "CSRF_VALIDATION_FAILED", "The Settings request could not be verified.")
 
 
 @router.get("/auth/config")
@@ -96,13 +132,25 @@ def begin_enterprise_login(request: Request, session: Session = Depends(get_writ
 
 
 @router.post("/auth/development/login")
-def development_login(payload: LoginRequest, request: Request, session: Session = Depends(get_write_session)):
-    return _service(session).complete_development_login(
+def development_login(payload: LoginRequest, request: Request, response: Response, session: Session = Depends(get_write_session)):
+    result = _service(session).complete_development_login(
         payload.identity,
         request_id=getattr(request.state, "request_id", None),
         client_version=request.headers.get("X-EOAT-Client-Version"),
         source_ip=request.client.host if request.client else None,
     )
+    return _issue_browser_session(response, result)
+
+
+@router.post("/auth/ldap/login")
+def ldap_login(payload: LDAPLoginRequest, request: Request, response: Response, session: Session = Depends(get_write_session)):
+    result = _service(session).complete_ldap_login(
+        payload.identity, payload.password,
+        request_id=getattr(request.state, "request_id", None),
+        client_version=request.headers.get("X-EOAT-Client-Version"),
+        source_ip=request.client.host if request.client else None,
+    )
+    return _issue_browser_session(response, result)
 
 
 @router.get("/auth/session")
@@ -113,8 +161,12 @@ def authentication_session(request: Request, session: Session = Depends(get_writ
 
 @router.post("/auth/logout")
 def authentication_logout(request: Request, session: Session = Depends(get_write_session)):
+    _require_csrf(request)
     _service(session).logout(_bearer(request))
-    return {"authenticated": False, "settings_locked": True}
+    response = Response(content='{"authenticated":false,"settings_locked":true}', media_type="application/json")
+    response.delete_cookie(_SESSION_COOKIE, path="/api/v1")
+    response.delete_cookie(_CSRF_COOKIE, path="/api/v1")
+    return response
 
 
 @router.post("/settings/authorization/check")
@@ -123,6 +175,7 @@ def authorize_settings(
     request: Request,
     session: Session = Depends(get_write_session),
 ) -> dict[str, Any]:
+    _require_csrf(request)
     if not payload.permission.startswith("settings."):
         raise APIError(422, "INVALID_SETTINGS_PERMISSION", "Only Settings permissions may be checked here.")
     result = _service(session).require_permission(_bearer(request), payload.permission)
@@ -171,6 +224,7 @@ def write_setting(
     request: Request,
     session: Session = Depends(get_write_session),
 ):
+    _require_csrf(request)
     normalized_key = setting_key.strip()
     allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
     if not normalized_key or len(normalized_key) > 128 or any(char not in allowed_characters for char in normalized_key):
@@ -191,6 +245,7 @@ def settings_action(
     request: Request,
     session: Session = Depends(get_write_session),
 ):
+    _require_csrf(request)
     confirmations = {
         "reset-section": "RESET SECTION",
         "reset-all": "RESET ALL SETTINGS",
@@ -213,4 +268,5 @@ def audit_settings_action(
     request: Request,
     session: Session = Depends(get_write_session),
 ):
+    _require_csrf(request)
     return _service(session).audit_settings_action(_bearer(request), payload.event_type, payload.operation)

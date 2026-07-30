@@ -13,6 +13,7 @@ describe("SettingsPage", () => {
 
   it("keeps server controls locked until a real administrator session saves them", async () => {
     const user = userEvent.setup();
+    let authenticated = false;
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = input.toString();
@@ -61,9 +62,9 @@ describe("SettingsPage", () => {
         }
         if (path === "/api/v1/auth/development/login") {
           expect(init?.method).toBe("POST");
+          authenticated = true;
           return new Response(
             JSON.stringify({
-              access_token: "test-settings-token",
               authenticated: true,
               identity: { display_name: "Development Administrator" },
               permissions: [
@@ -76,6 +77,11 @@ describe("SettingsPage", () => {
           );
         }
         if (path === "/api/v1/auth/session") {
+          if (!authenticated) {
+            return new Response(JSON.stringify({ message: "Not signed in" }), {
+              status: 401,
+            });
+          }
           return new Response(
             JSON.stringify({
               authenticated: true,
@@ -90,8 +96,8 @@ describe("SettingsPage", () => {
           );
         }
         if (path === "/api/v1/settings/data_loading.refresh_on_launch") {
-          expect(init?.headers).toMatchObject({
-            Authorization: "Bearer test-settings-token",
+          expect(init?.headers).not.toMatchObject({
+            Authorization: expect.any(String),
           });
           expect(init?.body).toBe(
             JSON.stringify({ value: false, description: undefined }),

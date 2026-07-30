@@ -4,11 +4,13 @@ import os
 from datetime import timezone
 
 import pytest
+from fastapi import Response
 
 from server.eoat_api.authentication.configuration import (
     AuthenticationConfiguration,
     AuthenticationConfigurationError,
 )
+from server.eoat_api.authentication.exceptions import InvalidCredentialsError
 from server.eoat_api.authentication.permissions import effective_permissions
 from server.eoat_api.authentication.provider_configuration import (
     LDAPProviderConfiguration,
@@ -17,6 +19,7 @@ from server.eoat_api.authentication.provider_configuration import (
 from server.eoat_api.authentication.providers.development import DevelopmentAuthenticationProvider
 from server.eoat_api.authentication.providers.ldap import LDAPAuthenticationProvider
 from server.eoat_api.authentication.providers.saml import SAMLAuthenticationProvider
+from server.eoat_api.authentication.routes import _issue_browser_session
 from server.eoat_api.security import ActorContext
 
 
@@ -71,7 +74,7 @@ def test_saml_and_ldap_adapters_fail_closed_without_it_configuration(monkeypatch
     assert not saml.configured and not saml.available and not saml.production_approved
     assert not ldap.configured and not ldap.available and not ldap.production_approved
     assert "assertion_consumer_service_url" in saml.missing_configuration
-    assert "trust_store_path" in ldap.missing_configuration
+    assert "enabled" in ldap.missing_configuration
 
 
 def test_provider_configuration_schemas_do_not_contain_password_values(monkeypatch) -> None:
@@ -107,3 +110,38 @@ def test_invalid_authentication_scope_is_rejected(monkeypatch) -> None:
 
     with pytest.raises(AuthenticationConfigurationError, match="settings_only"):
         AuthenticationConfiguration.from_environment()
+
+
+def test_ldap_identifier_normalization_and_filter_escaping_are_safe() -> None:
+    provider = LDAPAuthenticationProvider(
+        LDAPProviderConfiguration(
+            enabled=True, hosts=("gwplastics.com",), port=636, use_ldaps=True,
+            base_dn="", user_search_base="", user_search_filter="", group_search_base="",
+            group_attribute="memberOf", trust_store_path="", service_account_secret_reference="",
+            connection_timeout_seconds=5, operation_timeout_seconds=5, discover_naming_context=True,
+            upn_suffix="gwplastics.com", authentication_mode="upn", settings_admin_group="", nested_group_resolution=False,
+        )
+    )
+    assert provider.normalize_identifier(" GWPLASTICS\\Alice ", "gwplastics.com") == "alice@gwplastics.com"
+    assert provider.escape_filter_value("*(a)\\\x00 O'Brien@GWPLASTICS") == "\\2a\\28a\\29\\5c\\00 O'Brien@GWPLASTICS"
+    with pytest.raises(InvalidCredentialsError):
+        provider.normalize_identifier("bad\x00identity", "gwplastics.com")
+
+
+def test_ldap_missing_administrator_group_keeps_authorization_fail_closed(monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_LDAP_ENABLED", "true")
+    monkeypatch.setenv("EOAT_LDAP_HOSTS", "gwplastics.com")
+    monkeypatch.setenv("EOAT_LDAP_GROUP_ATTRIBUTE", "memberOf")
+    health = LDAPAuthenticationProvider().health_check()
+    assert health.configured and health.available
+    assert "settings_admin_group" in health.missing_configuration
+
+
+def test_production_browser_session_cookie_is_httponly_secure_and_strict(monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_API_ENVIRONMENT", "production")
+    response = Response()
+    payload = _issue_browser_session(response, {"access_token": "test-only-token", "authenticated": True})
+    cookie_headers = response.headers.getlist("set-cookie")
+    assert payload == {"authenticated": True}
+    assert any("eoat_atlas_settings_session=" in value and "HttpOnly" in value and "Secure" in value and "SameSite=strict" in value for value in cookie_headers)
+    assert all("test-only-token" not in value or "HttpOnly" in value for value in cookie_headers)
