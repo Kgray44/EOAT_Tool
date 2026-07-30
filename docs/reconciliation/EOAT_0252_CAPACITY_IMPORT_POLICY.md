@@ -6,7 +6,7 @@ This template is not installed or activated on production.
 operation: import-press-capacity
 approved_workbook_sha256: 2254269d4eabfd3478a6404005e4efdc850e3223e3ed6882b4bdbd0d71a785e3
 approved_catalog_manifest_sha256: ab45a39519b1a302d67c84d17f1cdba9c03da516e872dca657d163db19872550
-approved_candidate_manifest_sha256: TO_BE_FILLED_FROM_IMMUTABLE_CANDIDATE
+approved_candidate_manifest_sha256: 997a21b5672b27d61310d8c38554ead973522c6c3b6c8b0b15a64c9e2de7d5fc
 approved_release: "0.25.2"
 source_schema_target: "20260729_0009"
 expected_production_schema: "20260721_0008"
