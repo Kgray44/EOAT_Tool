@@ -10,6 +10,7 @@ from sqlalchemy import select
 from server.eoat_api.app import app
 from server.eoat_api.authentication.identity_models import ProviderHealth
 from server.eoat_api.authentication.providers.development import DevelopmentAuthenticationProvider
+from server.eoat_api.authentication.routes import _CSRF_COOKIE, _SESSION_COOKIE
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
 from tests.fixtures.mysql_sanctioned import reset_and_load_sanctioned_fixture
@@ -147,6 +148,9 @@ def test_administrator_session_is_cookie_backed_and_revocable(api) -> None:
     login = api.post("/api/v1/auth/development/login", json={"identity": "dev.admin"})
     assert login.status_code == 200
     headers = csrf_headers(api)
+    session_token = api.cookies.get(_SESSION_COOKIE)
+    csrf_token = api.cookies.get(_CSRF_COOKIE)
+    assert session_token and csrf_token
 
     allowed = api.post(
         "/api/v1/settings/authorization/check",
@@ -154,17 +158,27 @@ def test_administrator_session_is_cookie_backed_and_revocable(api) -> None:
         json={"permission": "settings.edit", "operation": "test"},
     )
     logout = api.post("/api/v1/auth/logout", headers=headers)
-    revoked = api.post(
+    no_cookie = api.post(
         "/api/v1/settings/authorization/check",
         headers=headers,
+        json={"permission": "settings.edit", "operation": "test"},
+    )
+    stale_cookie = api.post(
+        "/api/v1/settings/authorization/check",
+        headers={
+            "X-EOAT-CSRF": csrf_token,
+            "Cookie": f"{_SESSION_COOKIE}={session_token}; {_CSRF_COOKIE}={csrf_token}",
+        },
         json={"permission": "settings.edit", "operation": "test"},
     )
 
     assert allowed.status_code == 200
     assert allowed.json()["authorized"] is True
     assert logout.status_code == 200
-    assert revoked.status_code == 401
-    assert revoked.json()["error_code"] == "SESSION_INVALID"
+    assert no_cookie.status_code == 401
+    assert no_cookie.json()["error_code"] == "AUTHENTICATION_REQUIRED"
+    assert stale_cookie.status_code == 401
+    assert stale_cookie.json()["error_code"] == "SESSION_INVALID"
 
 
 def test_permission_loss_relocks_settings_server_side(api) -> None:
