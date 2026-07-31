@@ -39,11 +39,23 @@ was performed for this release.
 - Production safety: safe; browser media remains fail-closed with truthful
   unavailable states.
 
+### Controlled desktop/browser parity session
+
+- Exact blocker: no controlled desktop session or captured side-by-side
+  evidence is available in this worktree.
+- Evidence: `EOAT_0254_DESKTOP_WEB_PARITY_RECEIPT.md` records the completed
+  source comparison and explicitly does not substitute it for visual proof.
+- Precise next action: run the installed desktop app and hash-matched browser
+  candidate against the same non-production records, capture the agreed
+  viewport/font-scale cases, and attach a difference register.
+
 ### Controlled production deployment
 
-- Exact blocker: release candidate, complete exact-head/MySQL validation,
-  installed data-operation policy, production maintenance/backup access, and
-  approved host evidence are not yet jointly available.
+- Exact blocker: the candidate and validation evidence now exist, but an
+  installed data-operation policy, fresh production catalog and backup/dry-run
+  receipts, approved media source, controlled desktop/browser parity evidence,
+  production maintenance access, and approved host evidence are not jointly
+  available.
 - Evidence: final ledger and requirement matrix.
 - Precise next action: resolve the preceding exact gates, verify production
   baseline, and use only the governed activation/data-operation interfaces.
