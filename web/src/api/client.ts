@@ -280,7 +280,11 @@ export const apiClient = {
       "Settings administrator session",
     );
   },
-  async loginLDAP(identity: string, password: string, fetcher?: typeof fetch): Promise<SettingsSession> {
+  async loginLDAP(
+    identity: string,
+    password: string,
+    fetcher?: typeof fetch,
+  ): Promise<SettingsSession> {
     return assertObject<SettingsSession>(
       await requestJson("/api/v1/auth/ldap/login", fetcher, {
         method: "POST",
@@ -291,12 +295,9 @@ export const apiClient = {
       "Settings administrator session",
     );
   },
-  async getSettingsSession(
-    fetcher?: typeof fetch,
-  ): Promise<SettingsSession> {
+  async getSettingsSession(fetcher?: typeof fetch): Promise<SettingsSession> {
     return assertObject<SettingsSession>(
-      await requestJson("/api/v1/auth/session", fetcher, {
-      }),
+      await requestJson("/api/v1/auth/session", fetcher, {}),
       ["authenticated", "permissions"],
       "Settings administrator session",
     );

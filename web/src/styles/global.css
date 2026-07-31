@@ -1716,20 +1716,12 @@ a {
   border-top: 1px solid var(--atlas-accent-hover);
   content: "";
 }
-.relationship-flow__column:first-child
-  .relationship-flow__nodes
-  > a::after,
-.relationship-flow__column:first-child
-  .relationship-flow__nodes
-  > div::after {
+.relationship-flow__column:first-child .relationship-flow__nodes > a::after,
+.relationship-flow__column:first-child .relationship-flow__nodes > div::after {
   left: 100%;
 }
-.relationship-flow__column:last-child
-  .relationship-flow__nodes
-  > a::after,
-.relationship-flow__column:last-child
-  .relationship-flow__nodes
-  > div::after {
+.relationship-flow__column:last-child .relationship-flow__nodes > a::after,
+.relationship-flow__column:last-child .relationship-flow__nodes > div::after {
   right: 100%;
 }
 .relationship-flow__nodes strong {

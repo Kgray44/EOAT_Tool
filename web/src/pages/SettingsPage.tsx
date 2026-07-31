@@ -241,11 +241,7 @@ export function SettingsPage() {
     setDraftShared((current) => ({ ...current, [item.key]: value }));
   };
   const saveShared = () => {
-    if (
-      !editableSharedSettings ||
-      !Object.keys(draftShared).length
-    )
-      return;
+    if (!editableSharedSettings || !Object.keys(draftShared).length) return;
     setAuthError(null);
     void Promise.all(
       Object.entries(draftShared).map(([key, value]) =>
@@ -273,9 +269,7 @@ export function SettingsPage() {
     "factory-reset": "FACTORY RESET",
   };
   const executeSettingsAction = () => {
-    if (
-      !pendingAction || confirmation !== actionConfirmation[pendingAction]
-    )
+    if (!pendingAction || confirmation !== actionConfirmation[pendingAction])
       return;
     setAuthError(null);
     void apiClient
@@ -294,9 +288,10 @@ export function SettingsPage() {
   };
   const signIn = () => {
     setAuthError(null);
-    const login = authConfiguration.data?.provider === "ldap"
-      ? apiClient.loginLDAP(loginIdentity, loginPassword)
-      : apiClient.loginDevelopment(loginIdentity);
+    const login =
+      authConfiguration.data?.provider === "ldap"
+        ? apiClient.loginLDAP(loginIdentity, loginPassword)
+        : apiClient.loginDevelopment(loginIdentity);
     void login
       .then((next) => {
         setLoginPassword("");
@@ -509,22 +504,41 @@ export function SettingsPage() {
           <button type="button" onClick={signOut}>
             Admin Logout
           </button>
-        ) : ["development", "ldap"].includes(authConfiguration.data?.provider || "") ? (
+        ) : ["development", "ldap"].includes(
+            authConfiguration.data?.provider || "",
+          ) ? (
           <>
-            {authConfiguration.data?.provider === "development" ? <select
-              aria-label="Development administrator identity"
-              value={loginIdentity}
-              onChange={(event) => setLoginIdentity(event.target.value)}
-            >
-              {(authConfiguration.data.development_identities || []).map(
-                (identity) => (
-                  <option key={identity} value={identity}>
-                    {identity}
-                  </option>
-                ),
-              )}
-            </select> : <input aria-label="Directory username" value={loginIdentity} onChange={(event) => setLoginIdentity(event.target.value)} autoComplete="username" />}
-            {authConfiguration.data?.provider === "ldap" ? <input aria-label="Directory password" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} autoComplete="current-password" /> : null}
+            {authConfiguration.data?.provider === "development" ? (
+              <select
+                aria-label="Development administrator identity"
+                value={loginIdentity}
+                onChange={(event) => setLoginIdentity(event.target.value)}
+              >
+                {(authConfiguration.data.development_identities || []).map(
+                  (identity) => (
+                    <option key={identity} value={identity}>
+                      {identity}
+                    </option>
+                  ),
+                )}
+              </select>
+            ) : (
+              <input
+                aria-label="Directory username"
+                value={loginIdentity}
+                onChange={(event) => setLoginIdentity(event.target.value)}
+                autoComplete="username"
+              />
+            )}
+            {authConfiguration.data?.provider === "ldap" ? (
+              <input
+                aria-label="Directory password"
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                autoComplete="current-password"
+              />
+            ) : null}
             <button type="button" onClick={signIn}>
               Admin Login
             </button>

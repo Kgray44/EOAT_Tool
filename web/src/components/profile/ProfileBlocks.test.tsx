@@ -78,14 +78,32 @@ describe("RelationshipList", () => {
     ["ASSIGNED", null, "current-assignment", "Current assignment"],
     ["COMPATIBLE", null, "verified-compatibility", "Verified compatibility"],
     ["INCOMPATIBLE", null, "incompatible", "Incompatible"],
-    ["INFERRED_COMPATIBLE", null, "inferred-compatibility", "Inferred compatibility"],
-    ["Observed in legacy source", null, "historical-observation", "Historical observation"],
+    [
+      "INFERRED_COMPATIBLE",
+      null,
+      "inferred-compatibility",
+      "Inferred compatibility",
+    ],
+    [
+      "Observed in legacy source",
+      null,
+      "historical-observation",
+      "Historical observation",
+    ],
     ["NEEDS_REVIEW", null, "unverified-assignment", "Unverified assignment"],
-    ["UNRECOGNIZED_LEGACY_VALUE", null, "unknown-relationship", "Unknown relationship"],
-  ])("maps %s to a truthful business meaning", (status, reason, state, label) => {
-    expect(presentRelationship({ status, reason }).state).toBe(state);
-    expect(presentRelationship({ status, reason }).primaryLabel).toBe(label);
-  });
+    [
+      "UNRECOGNIZED_LEGACY_VALUE",
+      null,
+      "unknown-relationship",
+      "Unknown relationship",
+    ],
+  ])(
+    "maps %s to a truthful business meaning",
+    (status, reason, state, label) => {
+      expect(presentRelationship({ status, reason }).state).toBe(state);
+      expect(presentRelationship({ status, reason }).primaryLabel).toBe(label);
+    },
+  );
 
   it("does not expose raw legacy semantics and keeps evidence expandable", () => {
     render(
@@ -102,7 +120,9 @@ describe("RelationshipList", () => {
     );
 
     expect(screen.getByText("Historical observation")).toBeInTheDocument();
-    expect(screen.queryByText("Observed in legacy source")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Observed in legacy source"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Evidence details")).toBeInTheDocument();
   });
 });

@@ -223,9 +223,18 @@ describe("Library and Fit Check", () => {
       within(third).getByRole("combobox", { name: "Entity slot 3 type" }),
       "machine",
     );
-    await user.type(within(first).getByRole("combobox", { name: "EOAT" }), "E-1");
-    await user.type(within(second).getByRole("combobox", { name: "Tool" }), "T-1");
-    await user.type(within(third).getByRole("combobox", { name: "Machine" }), "M-1");
+    await user.type(
+      within(first).getByRole("combobox", { name: "EOAT" }),
+      "E-1",
+    );
+    await user.type(
+      within(second).getByRole("combobox", { name: "Tool" }),
+      "T-1",
+    );
+    await user.type(
+      within(third).getByRole("combobox", { name: "Machine" }),
+      "M-1",
+    );
 
     expect(
       screen.getByRole("button", { name: /Evaluate without saving/ }),
@@ -256,7 +265,9 @@ describe("Library and Fit Check", () => {
     const user = userEvent.setup();
 
     expect(await screen.findByDisplayValue("P4")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear Plant" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Clear Plant" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear Plant" }));
 
     await waitFor(() =>

@@ -27,7 +27,10 @@ export type RelationshipPresentation = {
 
 function normalizedRelationshipText(value: unknown): string {
   return typeof value === "string"
-    ? value.trim().toLocaleUpperCase().replace(/[^A-Z0-9]+/g, "_")
+    ? value
+        .trim()
+        .toLocaleUpperCase()
+        .replace(/[^A-Z0-9]+/g, "_")
     : "";
 }
 

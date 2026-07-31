@@ -109,7 +109,9 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
   const seen = await routeMachineApi(page);
   await page.goto("/machines/27");
 
-  await expect(page.getByRole("heading", { name: "27", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "27", exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Not verified").first()).toBeVisible();
   await expect(page.getByText("Unknown / not verified")).toHaveCount(0);
   await expect(
@@ -156,7 +158,9 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
   ).toHaveCount(0);
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "27", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "27", exact: true }),
+  ).toBeVisible();
   const expectedPaths = [
     "/api/v1/machines/27",
     "/api/v1/machines/27/current-setup",

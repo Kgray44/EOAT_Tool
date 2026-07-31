@@ -205,7 +205,9 @@ function MachineContent({
                 key={label}
                 label={label}
                 value={value}
-                booleanLabels={label === "Active record" ? ["Active", "Inactive"] : undefined}
+                booleanLabels={
+                  label === "Active record" ? ["Active", "Inactive"] : undefined
+                }
               />
             ))}
           </dl>
@@ -218,7 +220,8 @@ function MachineContent({
           </dl>
           {profile.notes && (
             <p className="notes">
-              <strong>Operating notes:</strong> {presentationText(profile.notes)}
+              <strong>Operating notes:</strong>{" "}
+              {presentationText(profile.notes)}
             </p>
           )}
         </ProfileSection>
@@ -228,7 +231,10 @@ function MachineContent({
               <Attribute key={label} label={label} value={value} />
             ))}
           </dl>
-          <p className="notes">Only approved capacity values are shown; a missing value is not estimated.</p>
+          <p className="notes">
+            Only approved capacity values are shown; a missing value is not
+            estimated.
+          </p>
         </ProfileSection>
         <ProfileSection title="Robot system">
           {robotSystems.length === 0 ? (
@@ -243,11 +249,20 @@ function MachineContent({
                   <Attribute label="Robot number" value={robot.robot_number} />
                   <Attribute label="Manufacturer" value={robot.manufacturer} />
                   <Attribute label="Model" value={robot.model} />
-                  <Attribute label="Controller" value={robot.controller_model} />
-                  <Attribute label="Payload (kg)" value={robot.payload_capacity_kg} />
+                  <Attribute
+                    label="Controller"
+                    value={robot.controller_model}
+                  />
+                  <Attribute
+                    label="Payload (kg)"
+                    value={robot.payload_capacity_kg}
+                  />
                   <Attribute label="Reach (mm)" value={robot.reach_mm} />
                   <Attribute label="Mounting" value={robot.mounting_type} />
-                  <Attribute label="Communication" value={robot.communication_interface} />
+                  <Attribute
+                    label="Communication"
+                    value={robot.communication_interface}
+                  />
                   <Attribute label="Robot status" value={robot.status} />
                 </dl>
               </section>

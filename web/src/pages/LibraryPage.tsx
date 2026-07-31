@@ -132,7 +132,9 @@ function CatalogSelector({
         ))}
       </datalist>
       {options.isError && (
-        <small id={`${listId}-error`}>Options are temporarily unavailable.</small>
+        <small id={`${listId}-error`}>
+          Options are temporarily unavailable.
+        </small>
       )}
     </label>
   );
@@ -237,7 +239,9 @@ export function LibraryPage() {
         // machine number cannot resolve to another plant after navigation.
         identifier: `${item.plant_code}::${item.machine_number}`,
         title: item.machine_name || item.machine_number,
-        subtitle: [item.plant_code, item.area].filter(Boolean).join(" Â· ") || "Machine",
+        subtitle:
+          [item.plant_code, item.area].filter(Boolean).join(" Â· ") ||
+          "Machine",
         matched_field: "catalog",
       }))
     : [];
@@ -354,15 +358,60 @@ export function LibraryPage() {
           className="library-advanced-filters"
           aria-label="Advanced Filters"
         >
-          <CatalogSelector label="Record status" kind="status" value={catalogFilters.assetStatus || ""} onChange={(assetStatus) => update({ assetStatus, page: "1" })} />
-          <CatalogSelector label="EOAT type" kind="eoat_type" value={catalogFilters.eoatType || ""} onChange={(eoatType) => update({ eoatType, page: "1" })} />
-          <CatalogSelector label="Plant" kind="plant" value={catalogFilters.plant || ""} onChange={(plant) => update({ plant, page: "1" })} />
-          <CatalogSelector label="Area" kind="area" value={catalogFilters.area || ""} onChange={(area) => update({ area, page: "1" })} />
-          <CatalogSelector label="Cleanroom classification" kind="cleanroom" value={catalogFilters.cleanroom || ""} onChange={(cleanroom) => update({ cleanroom, page: "1" })} />
-          <CatalogSelector label="Tool" kind="tool" value={catalogFilters.tool || ""} onChange={(tool) => update({ tool, page: "1" })} />
-          <CatalogSelector label="Mold" kind="mold" value={catalogFilters.mold || ""} onChange={(mold) => update({ mold, page: "1" })} />
-          <CatalogSelector label="Robot" kind="robot" value={catalogFilters.robot || ""} onChange={(robot) => update({ robot, page: "1" })} />
-          <CatalogSelector label="Related EOAT" kind="eoat" value={catalogFilters.eoat || ""} onChange={(eoat) => update({ eoat, page: "1" })} />
+          <CatalogSelector
+            label="Record status"
+            kind="status"
+            value={catalogFilters.assetStatus || ""}
+            onChange={(assetStatus) => update({ assetStatus, page: "1" })}
+          />
+          <CatalogSelector
+            label="EOAT type"
+            kind="eoat_type"
+            value={catalogFilters.eoatType || ""}
+            onChange={(eoatType) => update({ eoatType, page: "1" })}
+          />
+          <CatalogSelector
+            label="Plant"
+            kind="plant"
+            value={catalogFilters.plant || ""}
+            onChange={(plant) => update({ plant, page: "1" })}
+          />
+          <CatalogSelector
+            label="Area"
+            kind="area"
+            value={catalogFilters.area || ""}
+            onChange={(area) => update({ area, page: "1" })}
+          />
+          <CatalogSelector
+            label="Cleanroom classification"
+            kind="cleanroom"
+            value={catalogFilters.cleanroom || ""}
+            onChange={(cleanroom) => update({ cleanroom, page: "1" })}
+          />
+          <CatalogSelector
+            label="Tool"
+            kind="tool"
+            value={catalogFilters.tool || ""}
+            onChange={(tool) => update({ tool, page: "1" })}
+          />
+          <CatalogSelector
+            label="Mold"
+            kind="mold"
+            value={catalogFilters.mold || ""}
+            onChange={(mold) => update({ mold, page: "1" })}
+          />
+          <CatalogSelector
+            label="Robot"
+            kind="robot"
+            value={catalogFilters.robot || ""}
+            onChange={(robot) => update({ robot, page: "1" })}
+          />
+          <CatalogSelector
+            label="Related EOAT"
+            kind="eoat"
+            value={catalogFilters.eoat || ""}
+            onChange={(eoat) => update({ eoat, page: "1" })}
+          />
           <label>
             Sort
             <select

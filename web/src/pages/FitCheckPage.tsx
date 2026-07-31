@@ -18,7 +18,11 @@ const ENTITY_KINDS: Array<{ kind: EntityKind; label: string }> = [
   { kind: "eoat", label: "EOAT" },
 ];
 
-function slotsFromValues(machine: string, tool: string, eoat: string): EntitySlot[] {
+function slotsFromValues(
+  machine: string,
+  tool: string,
+  eoat: string,
+): EntitySlot[] {
   return [
     { kind: "machine", value: machine },
     { kind: "tool", value: tool },
@@ -129,12 +133,15 @@ export function FitCheckPage() {
   };
   const clearKind = (kind: EntityKind) => {
     setSlots((current) =>
-      current.map((slot) => (slot.kind === kind ? { ...slot, value: "" } : slot)),
+      current.map((slot) =>
+        slot.kind === kind ? { ...slot, value: "" } : slot,
+      ),
     );
   };
   const recordSelection = (kind: EntityKind, value: string) => {
     if (!value.trim()) return;
-    const label = ENTITY_KINDS.find((item) => item.kind === kind)?.label || kind;
+    const label =
+      ENTITY_KINDS.find((item) => item.kind === kind)?.label || kind;
     setSelectionOrder((current) =>
       current.includes(label) ? current : [...current, label],
     );
@@ -168,10 +175,10 @@ export function FitCheckPage() {
           const listId = `fit-${slot.kind}-slot-${index + 1}`;
           const choices =
             slot.kind === "machine"
-              ? options.data?.machines ?? []
+              ? (options.data?.machines ?? [])
               : slot.kind === "tool"
-                ? options.data?.tools ?? []
-                : options.data?.eoats ?? [];
+                ? (options.data?.tools ?? [])
+                : (options.data?.eoats ?? []);
           return (
             <fieldset className="fit-check-slot" key={`slot-${index + 1}`}>
               <legend>Entity slot {index + 1}</legend>
@@ -362,11 +369,7 @@ export function FitCheckPage() {
                   onClick={() => {
                     setPlantCode("");
                     setSlots(
-                      slotsFromValues(
-                        recent.machine,
-                        recent.tool,
-                        recent.eoat,
-                      ),
+                      slotsFromValues(recent.machine, recent.tool, recent.eoat),
                     );
                     setLastChanged("eoat");
                     setSelectionOrder(["Machine", "Tool", "EOAT"]);
