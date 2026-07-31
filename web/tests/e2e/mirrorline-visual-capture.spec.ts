@@ -16,6 +16,7 @@ const libraryEoats = [
 ];
 const libraryMachines = [
   {
+    plant_code: "P4",
     machine_number: "52",
     machine_name: "Machine 52",
     area: "Plant 4 / Production",
@@ -301,6 +302,7 @@ test("captures governed Mirrorline browser shell references", async ({
   await capture(page, "library-query");
   await page.goto("/library?type=machine");
   await expect(page.getByText("Machine 52").first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("undefined:");
   await capture(page, "library-filters");
   scenario.slowSearch = true;
   await page.goto("/library?q=loading", { waitUntil: "domcontentloaded" });
