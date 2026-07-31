@@ -32,8 +32,14 @@ class LDAPAuthenticationProvider(AuthenticationProvider):
     @staticmethod
     def escape_filter_value(value: str) -> str:
         # ldap3's implementation handles RFC 4515 escaping, including NUL.
-        from ldap3.utils.conv import escape_filter_chars
-
+        try:
+            from ldap3.utils.conv import escape_filter_chars
+        except ModuleNotFoundError:
+            # Keep identifier validation deterministic when the optional LDAP
+            # transport dependency is absent. This fallback never opens a
+            # connection and escapes the RFC 4515 metacharacters exactly.
+            escaped = {"*": "\\2a", "(": "\\28", ")": "\\29", "\\": "\\5c", "\x00": "\\00"}
+            return "".join(escaped.get(character, character) for character in value)
         return escape_filter_chars(value)
 
     def begin_login(self, context: dict) -> dict:
