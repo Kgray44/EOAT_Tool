@@ -17,10 +17,10 @@ production mutation by itself.
 | R09 | Media readiness | PASS as `NOT_LOCATED` | `web_content.py`, media template | Fail-closed; no approved accessible root | `445fcbd` | Owner-approved source before migration | No media copied |
 | R10 | Capacity candidate readiness | BLOCKED_EXTERNAL | migration tools, readiness receipt | 39 focused tests; historical candidate is older-source-bound | `445fcbd` | Fresh GET-only catalog and exact-source candidate/policy | No capacity imported |
 | R11 | Restricted production helpers | PASS for source/harness | governed helper, policy templates | 37 tests reject caller-controlled operations and stale/missing dry run | `445fcbd` | Validate installed Linux policy/receipt flow | Not installed or run in production |
-| R12 | Exact-head validation | PASS | validation scripts | 1,311/10 non-MySQL; 52 web; 8 focused Chromium; 137/7/1 MySQL; post-test change web-format only | `445fcbd` | No complete browser matrix by owner exception | PASS |
-| R13 | Coordinated release candidate | PASS | release tooling | Self-validated deployment tar and server zip, exact `445fcbd`, schema `20260729_0009` | `445fcbd` | Do not tag/publish/deploy without authority | PASS |
-| R14 | Controlled production deployment | BLOCKED_EXTERNAL | governed deployment tooling | Candidate ready; external safety gates absent | - | Installed policy, fresh catalog/backup/dry run, media authority, visual parity, host access | Not executed |
-| R15 | Final docs, commit, push, parity | PASS for branch evidence | reconciliation docs | Receipts pushed; branch parity is `0 0` | Integration branch | Production gates and mainline convergence remain external/unauthorized | Branch evidence complete |
+| R12 | Exact-head validation | PASS | validation scripts | 1,311/10 non-MySQL; 52 web; 8 focused Chromium; 138/7/1 MySQL; 0008→0009→0008→0009: 4 passed | `9312533` | No complete browser matrix by owner exception | PASS |
+| R13 | Coordinated release candidate | PASS | release tooling | Self-validated deployment tar and server zip, exact `9312533`, schema `20260729_0009` | `9312533` | Do not tag/publish/deploy without authority | PASS |
+| R14 | Controlled production deployment | BLOCKED_EXTERNAL | governed deployment tooling | Actual 0.24.1/0008/writes-disabled baseline verified read-only; candidate ready; safety gates absent | - | Installed policy, fresh catalog/backup/dry run, media authority, visual parity, host access | Not executed |
+| R15 | Final docs, commit, push, parity | IN_PROGRESS | reconciliation docs | New exact-head validation and candidate receipts prepared | Documentation commit pending | Commit/push/verify clean parity | Pending |
 
 ## Frozen boundary
 

@@ -6,13 +6,13 @@
 - Authentication test/evidence update: `d4924810e496b3c9a152e88989366a3da63e9818`
 - LDAP fail-closed fallback: `5db124fc05eddf97b037298d3e5465056a7a1d2d`
 - Release-format-only head: `445fcbd62aa9f830f8da0fb74e111939ff6cabfa`
+- Final validation source: `9312533239c9230f32aaefc852a8d5e0650f52b9`
 
-The last commit changes only the eleven web files named by the release
-formatter. `git diff --name-only 5db124fc..445fcbd -- server core tests` is
-empty, so successful backend evidence remains bound to identical backend and
-test bytes. The governed web-release builder then reran locked install,
-generated-contract check, format check, lint, typecheck, Vitest, theme check,
-and the production build from `445fcbd`.
+The release-format commit changes only browser formatting, and the final
+validation commit adds the MySQL-only 0009 round-trip test. The governed
+web-release builder reran locked install, generated-contract check, format
+check, lint, typecheck, Vitest, theme check, and the production build from
+`9312533`. The complete integration collection also ran at that exact commit.
 
 ## Terminal validation evidence
 
@@ -28,7 +28,8 @@ and the production build from `445fcbd`.
 | Top-level backend group 3 | 303 passed, 1 skipped, 1 warning | Four terminal subshards: 40, 87, 81/1 skipped, 95/1 warning. |
 | Top-level backend group 4 | 216 passed, 1 skipped | Four terminal subshards: 33, 65, 67, 51/1 skipped. |
 | Complete non-MySQL aggregate | 1,311 passed, 10 skipped | Core plus all 153 top-level test files. |
-| Loopback MySQL integration | 137 passed, 7 skipped, 1 warning | Full `tests/integration` run against `eoat_atlas_test` at `5db124fc`; the later commit does not alter backend or test bytes; database dropped afterward. |
+| 0008 → 0009 → 0008 → 0009 migration recovery | 4 passed, 1 warning | New physical-identity round-trip verifies baseline EOAT preservation and complete 0009 schema restoration. |
+| Loopback MySQL integration | 138 passed, 7 skipped, 1 warning | Full `tests/integration` run against `eoat_atlas_test` at `9312533`; database dropped afterward. |
 | Final LDAP fallback unit module | 11 passed | No LDAP network operation; confirms deterministic RFC 4515 escaping at final source content. |
 
 The earlier monolithic full backend attempt was externally terminated at 68%

@@ -5,9 +5,19 @@
 `NOT_EXECUTED — EXTERNAL SAFETY GATES UNSATISFIED`
 
 The hash-verified 0.25.4 candidate exists, but production deployment and all
-production data mutation remain prohibited. No production endpoint, host,
-database, LDAP service, media source, policy file, or credential was probed
-or changed while preparing this receipt.
+production data mutation remain prohibited. Apart from the documented
+unauthenticated read-only health, version, and schema requests below, no
+production host, database, LDAP service, media source, policy file, or
+credential was probed or changed while preparing this receipt.
+
+## Read-only baseline verification
+
+At `2026-07-31T01:25:25Z`, unauthenticated GET requests to the documented
+production health, version, and schema endpoints returned HTTP 200. They
+confirmed application `0.24.1`, release `eoat-atlas-0.24.1-cfc8917`, API
+contract `1.4.0`, schema `20260721_0008`, database reachability, compatibility,
+and `writes_enabled: false`. This read-only check did not acquire a lock or
+authorize deployment.
 
 ## Required gates before activation
 

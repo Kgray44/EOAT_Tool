@@ -9,13 +9,15 @@ hash-verified packaging, and documentation are complete on the integration
 branch. This is not a claim that 0.25.4 is deployed or that production data
 was corrected.
 
-- Source candidate: `445fcbd62aa9f830f8da0fb74e111939ff6cabfa`
+- Source candidate: `9312533239c9230f32aaefc852a8d5e0650f52b9`
 - Version/schema: `0.25.4` / `20260729_0009`
-- Backend evidence: 1,311 passed / 10 skipped non-MySQL; 137 passed / 7
+- Backend evidence: 1,311 passed / 10 skipped non-MySQL; 138 passed / 7
   skipped / 1 warning loopback-MySQL integration.
 - Browser evidence: 52 web tests and 8 focused isolated Chromium tests.
 - Candidate: self-validated deployment tar and independently validated server
   zip, recorded in `EOAT_0254_RELEASE_CANDIDATE_RECEIPT.md`.
+- Production baseline read-only check: 0.24.1 / `20260721_0008`, healthy,
+  compatible, and writes disabled at 2026-07-31T01:25:25Z.
 
 The full browser matrix was not relaunched under the owner’s standing
 exception. The desktop/browser live visual comparison, production capacity

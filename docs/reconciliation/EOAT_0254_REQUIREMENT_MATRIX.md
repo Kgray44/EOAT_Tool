@@ -13,9 +13,9 @@
 | Media readiness | PASS as `NOT_LOCATED` classification | `EOAT_0254_MEDIA_READINESS.md` | Owner-approved source required before migration |
 | Capacity readiness | IN_PROGRESS | Immutable historical evidence and policy boundary | Fresh catalog and 0.25.4-bound candidate required |
 | Restricted helper | PASS for source/harness boundary | 37 helper tests | Installed Linux policy validation required before production use |
-| Exact-head validation | PASS | Non-MySQL: 1,311 passed/10 skipped; web: 52 passed; focused browser: 8 passed; loopback MySQL: 137 passed/7 skipped/1 warning; post-test change is web formatting only | No browser-matrix relaunch under owner exception |
-| Release candidate | PASS | Hash-validated deployment tar and server zip from `445fcbd`; schema `20260729_0009` | Do not tag, publish, or deploy without separate authority |
-| Production deployment | BLOCKED_EXTERNAL | Candidate is ready; installed root policy, fresh production catalog/backup/dry-run, approved media source, controlled desktop/browser session, and host access are absent | Use only governed activation/data-operation interfaces after all gates |
+| Exact-head validation | PASS | Non-MySQL: 1,311 passed/10 skipped; web: 52 passed; focused browser: 8 passed; exact-head MySQL: 138 passed/7 skipped/1 warning; 0008→0009→0008→0009 recovery passes | No browser-matrix relaunch under owner exception |
+| Release candidate | PASS | Hash-validated deployment tar and server zip from `9312533`; schema `20260729_0009` | Do not tag, publish, or deploy without separate authority |
+| Production deployment | BLOCKED_EXTERNAL | Baseline verified 0.24.1/0008/writes-disabled; candidate ready; installed root policy, fresh production catalog/backup/dry-run, approved media source, controlled desktop/browser session, and host access are absent | Use only governed activation/data-operation interfaces after all gates |
 | Final closure | BLOCKED_EXTERNAL | `EOAT_0254_FINAL_COMPLETION_RECEIPT.md` records source/package closure and production non-execution | Push documentation and retain branch parity; no mainline convergence authorization |
 
 LDAPS remains intentionally deferred and is not a non-LDAPS release gate.
