@@ -13,7 +13,7 @@
 | Media readiness | PASS as `NOT_LOCATED` classification | `EOAT_0254_MEDIA_READINESS.md` | Owner-approved source required before migration |
 | Capacity readiness | IN_PROGRESS | Immutable historical evidence and policy boundary | Fresh catalog and 0.25.4-bound candidate required |
 | Restricted helper | PASS for source/harness boundary | 37 helper tests | Installed Linux policy validation required before production use |
-| Exact-head validation | IN_PROGRESS | Web: 52 passed; initial loopback MySQL 136 passed/7 skipped/1 stale auth expectation; focused correction 8 passed | Run bounded backend shards and repeat full loopback MySQL suite after the evidence commit |
+| Exact-head validation | PASS | Non-MySQL: 1,311 passed/10 skipped; web: 52 passed; focused browser: 8 passed; final-head loopback MySQL: 137 passed/7 skipped/1 warning | Build and verify package artifacts |
 | Release candidate | NOT_STARTED | - | Requires exact validation outcome and artifact build |
 | Production deployment | NOT_STARTED | - | Requires candidate, installed helper/policy, operational access, and all gates |
 | Final closure | NOT_STARTED | - | Final evidence, push, clean parity, and authorized governed convergence |
