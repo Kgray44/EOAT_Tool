@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pymysql
 import pytest
@@ -106,3 +107,71 @@ def test_already_current_0009_api_startup_does_not_migrate() -> None:
     with TestClient(app) as client:
         assert client.get("/api/v1/health").status_code == 200
     assert before == _revision() == "20260729_0009"
+
+
+def test_0009_physical_identity_round_trip_preserves_baseline_eoat_row() -> None:
+    """Exercise the release migration through both supported schema directions.
+
+    Physical identity columns and aliases intentionally do not exist at 0008;
+    their values therefore cannot survive a downgrade.  The pre-0009 EOAT row
+    must survive, and a second upgrade must restore the complete 0009 schema
+    with no orphaned alias records.
+    """
+    token = uuid4().hex
+    business_identifier = f"ROUND-TRIP-{token[:20]}"
+    physical_uuid = str(uuid4())
+    _reset()
+    try:
+        _run("-m", "alembic", "-c", "server/alembic.ini", "downgrade", "20260721_0008")
+        assert _revision() == "20260721_0008"
+        with _migration_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("INSERT INTO eoats (business_identifier) VALUES (%s)", (business_identifier,))
+            eoat_id = cursor.lastrowid
+            connection.commit()
+
+        _run("-m", "alembic", "-c", "server/alembic.ini", "upgrade", "20260729_0009")
+        assert _revision() == "20260729_0009"
+        with _migration_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("SHOW COLUMNS FROM eoats LIKE 'physical_uuid'")
+            assert cursor.fetchone() is not None
+            cursor.execute("SHOW COLUMNS FROM eoats LIKE 'design_family_identifier'")
+            assert cursor.fetchone() is not None
+            cursor.execute("SHOW TABLES LIKE 'eoat_identity_aliases'")
+            assert cursor.fetchone() is not None
+            cursor.execute(
+                "UPDATE eoats SET physical_uuid = %s, design_family_identifier = %s WHERE id = %s",
+                (physical_uuid, "ROUND-TRIP-FAMILY", eoat_id),
+            )
+            cursor.execute(
+                "INSERT INTO eoat_identity_aliases "
+                "(eoat_id, alias_identifier, alias_type, source_row_number) VALUES (%s, %s, %s, %s)",
+                (eoat_id, business_identifier, "TEST", 1),
+            )
+            connection.commit()
+
+        _run("-m", "alembic", "-c", "server/alembic.ini", "downgrade", "20260721_0008")
+        assert _revision() == "20260721_0008"
+        with _migration_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("SHOW COLUMNS FROM eoats LIKE 'physical_uuid'")
+            assert cursor.fetchone() is None
+            cursor.execute("SHOW TABLES LIKE 'eoat_identity_aliases'")
+            assert cursor.fetchone() is None
+            cursor.execute("SELECT business_identifier FROM eoats WHERE id = %s", (eoat_id,))
+            assert cursor.fetchone() == (business_identifier,)
+
+        _run("-m", "alembic", "-c", "server/alembic.ini", "upgrade", "20260729_0009")
+        assert _revision() == "20260729_0009"
+        with _migration_connection() as connection, connection.cursor() as cursor:
+            cursor.execute("SHOW COLUMNS FROM eoats LIKE 'physical_uuid'")
+            assert cursor.fetchone() is not None
+            cursor.execute("SHOW TABLES LIKE 'eoat_identity_aliases'")
+            assert cursor.fetchone() is not None
+            cursor.execute(
+                "SELECT business_identifier, physical_uuid, design_family_identifier FROM eoats WHERE id = %s",
+                (eoat_id,),
+            )
+            assert cursor.fetchone() == (business_identifier, None, None)
+            cursor.execute("SELECT COUNT(*) FROM eoat_identity_aliases WHERE eoat_id = %s", (eoat_id,))
+            assert cursor.fetchone() == (0,)
+    finally:
+        _reset()
