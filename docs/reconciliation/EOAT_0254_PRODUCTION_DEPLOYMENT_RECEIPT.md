@@ -24,7 +24,7 @@ authorize deployment.
 1. Verify the current production baseline and take a governed, restorable
    backup; do not infer it from historical receipts.
 2. Obtain a fresh GET-only production catalog and rebuild the 52-mapping
-   press-capacity candidate for exact commit `445fcbd`.
+   press-capacity candidate for exact commit `b67d9d`.
 3. Install and validate root-owned populated policies for the governed data
    operations; perform the matching fresh dry run under the shared lock.
 4. Obtain the media owner’s approved read-only source/mount and complete the
