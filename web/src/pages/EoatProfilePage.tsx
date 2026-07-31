@@ -256,6 +256,7 @@ function ProfileContent({
       label: item.display_name,
       relationshipType: item.relationship_type,
       status: item.status,
+      reason: item.reason,
     }));
   const relatedTools = resolvedRelationships
     .filter((item) => item.relationship_type === "tool")
@@ -264,6 +265,7 @@ function ProfileContent({
       label: item.display_name,
       relationshipType: item.relationship_type,
       status: item.status,
+      reason: item.reason,
     }));
   if (
     isRoutableAuthoritativeIdentifier(currentLocation?.machine_number) &&
@@ -274,6 +276,7 @@ function ProfileContent({
       label: undefined,
       relationshipType: "machine",
       status: "Current assignment",
+      reason: null,
     });
   }
 

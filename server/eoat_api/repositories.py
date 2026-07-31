@@ -10,11 +10,13 @@ from sqlalchemy.orm import Session, aliased
 
 from .contracts import (
     DocumentMetadata,
+    CatalogOption,
     EOATProfile,
     EOATSummary,
     HistoryEvent,
     LookupValue,
     MachineProfile,
+    MachineRobotSummary,
     MachineSummary,
     PaginatedHistory,
     PaginationMetadata,
@@ -43,6 +45,26 @@ LOOKUP_MODELS = {
 def _optional_text(value: Any) -> str | None:
     text_value = str(value).strip() if value is not None else ""
     return text_value or None
+
+
+def parse_machine_catalog_value(value: str) -> tuple[str | None, str]:
+    """Decode a Library machine option without making legacy URLs unsafe.
+
+    New selector values carry both plant and machine number (`P4::27`) so a
+    duplicated number cannot silently select a different physical press.
+    Historic plain-number URLs remain readable; the existing ambiguity check
+    then returns a conflict instead of choosing a plant arbitrarily.
+    """
+    if "::" not in value:
+        return None, value
+    parts = value.split("::")
+    if (
+        len(parts) != 2
+        or not all(parts)
+        or any("/" in part or "\\" in part for part in parts)
+    ):
+        return None, ""
+    return parts[0], parts[1]
 
 
 def resolve_eoat_identity(session: Session, identifier: str, *, lock: bool = False) -> db.EOAT | None:
@@ -132,6 +154,81 @@ class AtlasRepository:
             for name, model in models.items()
         }
 
+    def catalog_options(self, kind: str, query: str = "", limit: int = 50) -> list[CatalogOption]:
+        """Return a bounded authoritative facet, not a client-side catalog scrape."""
+        needle = query.strip()
+
+        def rows(statement, value_index: int = 0, label_index: int = 1) -> list[CatalogOption]:
+              values = self.session.execute(statement.limit(limit)).all()
+              seen: set[str] = set()
+              result: list[CatalogOption] = []
+              for value in values:
+                  option_value = str(value[value_index]).strip() if value[value_index] is not None else ""
+                  if not option_value or option_value in seen:
+                      continue
+                  seen.add(option_value)
+                  label = str(value[label_index]).strip() if value[label_index] is not None else option_value
+                  result.append(CatalogOption(value=option_value, label=label or option_value))
+              return result
+
+        if kind == "plant":
+            stmt = select(db.Plant.plant_code, db.Plant.plant_name).order_by(db.Plant.plant_code)
+            if needle:
+                stmt = stmt.where(or_(db.Plant.plant_code.contains(needle), db.Plant.plant_name.contains(needle)))
+            return rows(stmt)
+        if kind == "area":
+            stmt = (
+                select(db.Area.area_code, db.Plant.plant_code + " · " + db.Area.area_name)
+                .join(db.Plant, db.Area.plant_id == db.Plant.id)
+                .order_by(db.Plant.plant_code, db.Area.area_name)
+            )
+            if needle:
+                stmt = stmt.where(or_(db.Area.area_code.contains(needle), db.Area.area_name.contains(needle)))
+            return rows(stmt)
+        if kind == "machine":
+            stmt = (
+                select(
+                    db.Plant.plant_code + "::" + db.Machine.machine_number,
+                    db.Plant.plant_code + " · Machine " + db.Machine.machine_number,
+                )
+                .join(db.Plant, db.Machine.plant_id == db.Plant.id)
+                .order_by(db.Plant.plant_code, cast(db.Machine.machine_number, String))
+            )
+            if needle:
+                stmt = stmt.where(or_(db.Machine.machine_number.contains(needle), db.Machine.machine_name.contains(needle)))
+            return rows(stmt)
+        if kind == "tool":
+            stmt = select(db.Tool.business_identifier, db.Tool.business_identifier).order_by(db.Tool.business_identifier)
+            if needle:
+                stmt = stmt.where(or_(db.Tool.business_identifier.contains(needle), db.Tool.tool_number.contains(needle)))
+            return rows(stmt)
+        if kind == "mold":
+            stmt = select(db.Tool.mold_number, db.Tool.mold_number).where(db.Tool.mold_number.is_not(None)).distinct().order_by(db.Tool.mold_number)
+            if needle:
+                stmt = stmt.where(db.Tool.mold_number.contains(needle))
+            return rows(stmt)
+        if kind == "robot":
+            stmt = select(db.Robot.robot_number, db.Robot.robot_number).order_by(db.Robot.robot_number)
+            if needle:
+                stmt = stmt.where(or_(db.Robot.robot_number.contains(needle), db.Robot.robot_name.contains(needle)))
+            return rows(stmt)
+        if kind == "eoat":
+            stmt = select(db.EOAT.business_identifier, db.EOAT.business_identifier).order_by(db.EOAT.business_identifier)
+            if needle:
+                stmt = stmt.where(or_(db.EOAT.business_identifier.contains(needle), db.EOAT.display_name.contains(needle)))
+            return rows(stmt)
+        if kind in {"eoat_type", "cleanroom", "status"}:
+            model = {
+                "eoat_type": db.EOATType,
+                "cleanroom": db.CleanroomClassification,
+                "status": db.AssetStatus,
+            }[kind]
+            stmt = select(model.code, model.display_name).where(model.is_active.is_(True)).order_by(model.sort_order, model.display_name)
+            if needle:
+                stmt = stmt.where(or_(model.code.contains(needle), model.display_name.contains(needle)))
+            return rows(stmt)
+        raise ValueError(kind)
+
     def list_eoats(
         self,
         *,
@@ -139,6 +236,7 @@ class AtlasRepository:
         page: int = 1,
         page_size: int = 50,
         active: bool | None = True,
+        asset_status: str | None = None,
         eoat_type: str | None = None,
         area: str | None = None,
         cleanroom: str | None = None,
@@ -160,6 +258,8 @@ class AtlasRepository:
         )
         if active is not None:
             stmt = stmt.where(db.EOAT.is_active.is_(active))
+        if asset_status:
+            stmt = stmt.where(status_l.code == asset_status)
         if search:
             stmt = stmt.where(
                 or_(
@@ -173,7 +273,8 @@ class AtlasRepository:
             stmt = stmt.where(type_l.code == eoat_type)
         if cleanroom:
             stmt = stmt.where(clean_l.code == cleanroom)
-        if area or machine_number:
+        machine_scope = parse_machine_catalog_value(machine_number) if machine_number else None
+        if area or machine_scope:
             eoat_machine_l = aliased(db.EOATMachineCompatibility)
             machine_l = aliased(db.Machine)
             stmt = (
@@ -185,8 +286,12 @@ class AtlasRepository:
             )
             if area:
                 stmt = stmt.where(or_(db.Area.area_code == area, db.Area.area_name == area))
-            if machine_number:
-                stmt = stmt.where(machine_l.machine_number == machine_number)
+            if machine_scope:
+                stmt = stmt.where(machine_l.machine_number == machine_scope[1])
+                if machine_scope[0]:
+                    stmt = stmt.join(db.Plant, db.Plant.id == machine_l.plant_id).where(
+                        db.Plant.plant_code == machine_scope[0]
+                    )
         if tool_number:
             stmt = (
                 stmt.join(db.EOATToolCompatibility, db.EOATToolCompatibility.eoat_id == db.EOAT.id)
@@ -308,6 +413,7 @@ class AtlasRepository:
         page: int = 1,
         page_size: int = 50,
         active: bool | None = True,
+        asset_status: str | None = None,
         plant: str | None = None,
         area: str | None = None,
         cleanroom: str | None = None,
@@ -328,6 +434,8 @@ class AtlasRepository:
         )
         if active is not None:
             stmt = stmt.where(db.Machine.is_active.is_(active))
+        if asset_status:
+            stmt = stmt.where(status_l.code == asset_status)
         if search:
             stmt = stmt.where(
                 or_(
@@ -412,7 +520,11 @@ class AtlasRepository:
         )
 
     def machine(self, number: str, *, plant_code: str | None = None) -> MachineProfile | None:
-        statement = select(db.Machine).where(db.Machine.machine_number == number)
+        embedded_plant, machine_number = parse_machine_catalog_value(number)
+        if plant_code and embedded_plant and plant_code != embedded_plant:
+            return None
+        plant_code = plant_code or embedded_plant
+        statement = select(db.Machine).where(db.Machine.machine_number == machine_number)
         if plant_code:
             statement = statement.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
                 db.Plant.plant_code == plant_code
@@ -426,8 +538,8 @@ class AtlasRepository:
         summary = next(
             (
                 item
-                for item in self.list_machines(search=number, active=None, page_size=100)[0]
-                if item.machine_number == number and item.plant_code == self.session.scalar(
+                for item in self.list_machines(search=machine_number, active=None, page_size=100)[0]
+                if item.machine_number == machine_number and item.plant_code == self.session.scalar(
                     select(db.Plant.plant_code).where(db.Plant.id == entity.plant_id)
                 )
             ),
@@ -479,13 +591,45 @@ class AtlasRepository:
                 )
             )
         ]
+        plant = self.session.get(db.Plant, entity.plant_id)
+        area = self.session.get(db.Area, entity.area_id) if entity.area_id else None
+        robot_systems = [
+            MachineRobotSummary(
+                robot_number=robot.robot_number,
+                robot_name=robot.robot_name,
+                manufacturer=robot.manufacturer,
+                model=robot.model,
+                controller_model=robot.controller_model,
+                payload_capacity_kg=float(robot.payload_capacity_kg) if robot.payload_capacity_kg is not None else None,
+                reach_mm=float(robot.reach_mm) if robot.reach_mm is not None else None,
+                mounting_type=robot.mounting_type,
+                communication_interface=robot.communication_interface,
+                status=status,
+            )
+            for robot, status in self.session.execute(
+                select(db.Robot, db.AssetStatus.display_name)
+                .join(db.MachineRobotAssignment, db.MachineRobotAssignment.robot_id == db.Robot.id)
+                .outerjoin(db.AssetStatus, db.AssetStatus.id == db.Robot.status_id)
+                .where(
+                    db.MachineRobotAssignment.machine_id == entity.id,
+                    db.MachineRobotAssignment.removed_at.is_(None),
+                )
+                .order_by(db.Robot.robot_number)
+            )
+        ]
         return MachineProfile(
             **summary.model_dump(),
+            plant_name=plant.plant_name if plant else None,
+            area_code=area.area_code if area else None,
+            serial_number=entity.serial_number,
+            machine_type=entity.machine_type,
+            installation_date=entity.installation_date,
             controller_type=entity.controller_type,
             press_capacity_tons=float(entity.press_capacity_tons) if entity.press_capacity_tons else None,
             notes=entity.notes,
             relationships=relationships,
             robots=robots,
+            robot_systems=robot_systems,
         )
 
     def list_tools(
@@ -495,6 +639,7 @@ class AtlasRepository:
         page: int = 1,
         page_size: int = 50,
         active: bool | None = True,
+        asset_status: str | None = None,
         mold: str | None = None,
         machine_number: str | None = None,
         eoat_identifier: str | None = None,
@@ -504,6 +649,8 @@ class AtlasRepository:
         stmt = select(db.Tool, status_l.display_name).outerjoin(status_l, db.Tool.status_id == status_l.id)
         if active is not None:
             stmt = stmt.where(db.Tool.is_active.is_(active))
+        if asset_status:
+            stmt = stmt.where(status_l.code == asset_status)
         if search:
             stmt = stmt.where(
                 or_(
@@ -515,13 +662,16 @@ class AtlasRepository:
             )
         if mold:
             stmt = stmt.where(or_(db.Tool.mold_number.contains(mold), db.Tool.tool_number.contains(mold)))
-        if machine_number:
+        machine_scope = parse_machine_catalog_value(machine_number) if machine_number else None
+        if machine_scope:
             stmt = (
                 stmt.join(db.ToolMachineCompatibility, db.ToolMachineCompatibility.tool_id == db.Tool.id)
                 .join(db.Machine, db.Machine.id == db.ToolMachineCompatibility.machine_id)
-                .where(db.Machine.machine_number == machine_number, db.ToolMachineCompatibility.is_active.is_(True))
+                .where(db.Machine.machine_number == machine_scope[1], db.ToolMachineCompatibility.is_active.is_(True))
                 .distinct()
             )
+            if machine_scope[0]:
+                stmt = stmt.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(db.Plant.plant_code == machine_scope[0])
         if eoat_identifier:
             eoat = self.resolve_eoat_identity(eoat_identifier)
             if eoat is None:

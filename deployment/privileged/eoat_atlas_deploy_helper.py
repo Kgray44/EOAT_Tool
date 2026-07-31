@@ -40,6 +40,7 @@ HOST_OPERATIONS = {
     "rollback-web-host-config",
     "rotate-web-upstream-token",
 }
+DATA_OPERATIONS = {"import-press-capacity", "migrate-profile-media"}
 HOST_STATES = {
     "CREATED",
     "LOCK_ACQUIRED",
@@ -868,6 +869,8 @@ class Helper:
                 "validate-web-host-config",
                 "rollback-web-host-config",
                 "rotate-web-upstream-token",
+                "import-press-capacity",
+                "migrate-profile-media",
             ],
         }
 
@@ -943,6 +946,21 @@ class Helper:
         # two recovery stories auditable without broadening the sudo surface.
         if isinstance(request, dict) and request.get("operation") in HOST_OPERATIONS:
             return HostConfiguration(self.paths, self.runner).dispatch(request)
+        if isinstance(request, dict) and request.get("operation") in DATA_OPERATIONS:
+            from deployment.privileged.governed_data_operations import (
+                DataOperationPaths,
+                GovernedDataOperations,
+                Rejected as DataOperationRejected,
+            )
+
+            try:
+                return GovernedDataOperations(
+                    DataOperationPaths.from_deployment_paths(self.paths),
+                    self.runner,
+                    implementation=Path(__file__),
+                ).dispatch(request)
+            except DataOperationRejected as exc:
+                raise Rejected(str(exc)) from exc
         if not isinstance(request, dict) or set(request) - {
             "operation",
             "deployment_id",

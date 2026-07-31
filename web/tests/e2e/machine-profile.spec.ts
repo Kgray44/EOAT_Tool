@@ -3,6 +3,7 @@ import { expectNoInternalSentinels } from "./sentinelAssertions";
 
 const machine = {
   plant_code: "P4",
+  plant_name: "Plant 4",
   machine_number: "27",
   machine_name: "Machine 27",
   area: "Plant 4",
@@ -14,6 +15,8 @@ const machine = {
   is_active: true,
   row_version: 1,
   controller_type: null,
+  machine_type: "Injection molding press",
+  installation_date: null,
   press_capacity_tons: null,
   notes: null,
   relationships: [
@@ -40,6 +43,20 @@ const machine = {
     },
   ],
   robots: [],
+  robot_systems: [
+    {
+      robot_number: "R-27",
+      robot_name: "Machine 27 robot",
+      manufacturer: "Atlas Robotics",
+      model: "AR-27",
+      controller_model: "ARC-2",
+      payload_capacity_kg: 12,
+      reach_mm: 1450,
+      mounting_type: "Top entry",
+      communication_interface: "Ethernet/IP",
+      status: "Active",
+    },
+  ],
   audit_evidence: [],
 };
 
@@ -92,21 +109,24 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
   const seen = await routeMachineApi(page);
   await page.goto("/machines/27");
 
-  await expect(page.getByRole("heading", { name: "27" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "27", exact: true })).toBeVisible();
   await expect(page.getByText("Not verified").first()).toBeVisible();
   await expect(page.getByText("Unknown / not verified")).toHaveCount(0);
   await expect(
     page.getByText("Observed assignment or later lifecycle event"),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(page.getByText("Active record")).toBeVisible();
-  await expect(
-    page.getByLabel("Overview").getByText("Active", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText(/Not recorded:/)).toBeVisible();
+  await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Injection molding press")).toBeVisible();
+  await expect(page.getByText("Machine 27 robot")).toBeVisible();
+  await expect(page.getByText("12")).toBeVisible();
+  await expect(page.getByText("165")).toHaveCount(0);
+  await expect(page.getByText("Not recorded").first()).toBeVisible();
   await page.getByRole("link", { name: "Docs & Photos" }).click();
   await expect(page.getByText("No photos recorded")).toBeVisible();
   await expect(page.getByText("No documents recorded")).toBeVisible();
   await page.getByRole("link", { name: "Relationships" }).click();
+  await expect(page.getByText("Historical observation").first()).toBeVisible();
   const relationshipItems = page.locator(".relationship-list li");
   await expect(relationshipItems).toHaveCount(2);
   await expect(
@@ -136,7 +156,7 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
   ).toHaveCount(0);
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "27" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "27", exact: true })).toBeVisible();
   const expectedPaths = [
     "/api/v1/machines/27",
     "/api/v1/machines/27/current-setup",

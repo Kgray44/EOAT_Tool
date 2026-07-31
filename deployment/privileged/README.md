@@ -7,6 +7,19 @@ fixed operations: `begin`, `stage`, `activate`, `status`, `abort`, `rollback`,
 `validate-web-host-config`, `rollback-web-host-config`, and explicit
 `rotate-web-upstream-token`.
 
+It also exposes two policy-pinned operational-data actions:
+`import-press-capacity` and `migrate-profile-media`.  The caller supplies only
+the operation, an opaque request ID, and `dry-run` or `execute`; it cannot
+supply SQL, a database name, command, source root, destination root, policy
+path, candidate, or backup.  Each action is defined by a root-owned
+non-group/world-writable JSON policy in `/etc/eoat-atlas/data-operations/`.
+The policy pins the main helper digest, canonical policy payload digest,
+production database identity, candidate/backup receipt hashes, release/schema
+identity, and fixed operation inputs.  Execution requires a fresh matching
+dry-run receipt, shares the deployment lock, and writes a non-overwriting
+receipt with rollback instructions.  A policy is an installed operational
+artifact, never a caller-provided authority.
+
 It never accepts a shell command, executable, service name, filesystem root,
 environment-file content, or database credentials from its caller.  Its only
 service action is `/bin/systemctl restart eoat-atlas.service`; its only health

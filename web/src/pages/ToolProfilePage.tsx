@@ -76,6 +76,7 @@ function ToolContent({
       label: item.display_name,
       relationshipType: item.relationship_type,
       status: item.status,
+      reason: item.reason,
     }));
   const relatedMachines = resolvedRelationships
     .filter((item) => item.relationship_type === "machine")
@@ -84,6 +85,7 @@ function ToolContent({
       label: item.display_name,
       relationshipType: item.relationship_type,
       status: item.status,
+      reason: item.reason,
     }));
   return (
     <>

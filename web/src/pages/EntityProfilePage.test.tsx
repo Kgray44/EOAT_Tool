@@ -16,11 +16,30 @@ const machine = {
   current_eoat: "UNKNOWN_NOT_VERIFIED",
   is_active: true,
   row_version: 1,
+  plant_name: "Plant 1",
+  area_code: "ASSEMBLY",
+  serial_number: "PRESS-1-SN",
+  machine_type: "Injection press",
+  installation_date: "2024-01-01",
   controller_type: null,
   press_capacity_tons: null,
   notes: null,
   relationships: [],
   robots: [],
+  robot_systems: [
+    {
+      robot_number: "R-1",
+      robot_name: "Robot 1",
+      manufacturer: "Wittmann",
+      model: "WX-1",
+      controller_model: "Control 1",
+      payload_capacity_kg: 20,
+      reach_mm: 1500,
+      mounting_type: "Top entry",
+      communication_interface: "Ethernet",
+      status: "ACTIVE",
+    },
+  ],
   audit_evidence: [],
 };
 const tool = {
@@ -109,7 +128,10 @@ describe("machine and tool profile routes", () => {
       screen.queryByText("Unknown / not verified"),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.getByText(/Not recorded:/)).toBeInTheDocument();
+    expect(screen.getByText("Injection press")).toBeInTheDocument();
+    expect(screen.getByText("Robot 1")).toBeInTheDocument();
+    expect(screen.getByText("Wittmann")).toBeInTheDocument();
+    expect(screen.getAllByText("Not recorded").length).toBeGreaterThan(0);
     await userEvent
       .setup()
       .click(screen.getByRole("link", { name: "Docs & Photos" }));

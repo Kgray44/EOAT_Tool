@@ -358,6 +358,13 @@
       "state": "finalized",
       "task_id": "ldaps-production-readiness-20260730",
       "finalized_at_utc": "2026-07-30T21:22:53Z"
+    },
+    {
+      "application_version": "0.25.4",
+      "release_id": "eoat-atlas-0.25.4",
+      "state": "finalized",
+      "task_id": "eoat-non-ldaps-completion-0254-20260730",
+      "finalized_at_utc": "2026-07-30T23:12:10Z"
     }
   ]
 }

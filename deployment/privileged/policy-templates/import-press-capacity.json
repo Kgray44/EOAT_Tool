@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "operation": "import-press-capacity",
+  "helper_sha256": "REPLACE_WITH_EOAT_ATLAS_DEPLOY_HELPER_SHA256",
+  "payload": {
+    "release_id": "eoat-atlas-0.25.4",
+    "application_version": "0.25.4",
+    "schema_revision": "20260729_0009",
+    "database_identity": "eoat_atlas_prod",
+    "backup_receipt": "shared/backups/REPLACE.json",
+    "backup_receipt_sha256": "REPLACE_WITH_64_HEX",
+    "candidate": "shared/candidates/REPLACE.json",
+    "candidate_sha256": "REPLACE_WITH_64_HEX",
+    "rollback": "restore the verified database backup and preserve the immutable operation receipt",
+    "dry_run_max_age_seconds": 3600,
+    "workbook": "shared/reference/press_capacity.xlsx",
+    "master_press_list": "shared/reference/master_press_list.xlsx",
+    "plant_code": "P4",
+    "excluded_machine_numbers": ["6", "8", "24", "64", "70", "72"]
+  },
+  "payload_sha256": "REPLACE_WITH_CANONICAL_PAYLOAD_SHA256"
+}

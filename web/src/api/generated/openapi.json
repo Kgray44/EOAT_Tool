@@ -473,6 +473,25 @@
         "title": "AuditPatch",
         "type": "object"
       },
+      "CatalogOption": {
+        "description": "A small authoritative selector value; never a catalog record dump.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "CatalogOption",
+        "type": "object"
+      },
       "CompatibilityWrite": {
         "additionalProperties": false,
         "properties": {
@@ -3034,6 +3053,17 @@
             ],
             "title": "Area"
           },
+          "area_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Code"
+          },
           "cleanroom_classification": {
             "anyOf": [
               {
@@ -3061,6 +3091,18 @@
             "title": "Current Eoat",
             "type": "string"
           },
+          "installation_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installation Date"
+          },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
@@ -3079,6 +3121,17 @@
           "machine_number": {
             "title": "Machine Number",
             "type": "string"
+          },
+          "machine_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Type"
           },
           "manufacturer": {
             "anyOf": [
@@ -3117,6 +3170,17 @@
             "title": "Plant Code",
             "type": "string"
           },
+          "plant_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Name"
+          },
           "press_capacity_tons": {
             "anyOf": [
               {
@@ -3135,6 +3199,13 @@
             "title": "Relationships",
             "type": "array"
           },
+          "robot_systems": {
+            "items": {
+              "$ref": "#/components/schemas/MachineRobotSummary"
+            },
+            "title": "Robot Systems",
+            "type": "array"
+          },
           "robots": {
             "items": {
               "$ref": "#/components/schemas/RelationshipSummary"
@@ -3145,6 +3216,17 @@
           "row_version": {
             "title": "Row Version",
             "type": "integer"
+          },
+          "serial_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial Number"
           },
           "status": {
             "anyOf": [
@@ -3165,6 +3247,118 @@
           "row_version"
         ],
         "title": "MachineProfile",
+        "type": "object"
+      },
+      "MachineRobotSummary": {
+        "properties": {
+          "communication_interface": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Communication Interface"
+          },
+          "controller_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controller Model"
+          },
+          "manufacturer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manufacturer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "mounting_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounting Type"
+          },
+          "payload_capacity_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload Capacity Kg"
+          },
+          "reach_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reach Mm"
+          },
+          "robot_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Robot Name"
+          },
+          "robot_number": {
+            "title": "Robot Number",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "robot_number"
+        ],
+        "title": "MachineRobotSummary",
         "type": "object"
       },
       "MachineSummary": {
@@ -6490,6 +6684,73 @@
         "summary": "Authentication Session"
       }
     },
+    "/api/v1/catalog-options/{kind}": {
+      "get": {
+        "description": "Serve bounded server-authoritative choices for browser Library selectors.",
+        "operationId": "catalog_options_api_v1_catalog_options__kind__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 120,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogOption"
+                  },
+                  "title": "Response Catalog Options Api V1 Catalog Options  Kind  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Catalog Options"
+      }
+    },
     "/api/v1/compatibility/alternatives": {
       "get": {
         "operationId": "alternatives_api_v1_compatibility_alternatives_get",
@@ -7534,6 +7795,22 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asset_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asset Status"
             }
           },
           {
@@ -8836,6 +9113,22 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asset_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asset Status"
             }
           },
           {
@@ -10908,6 +11201,22 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asset_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asset Status"
             }
           },
           {

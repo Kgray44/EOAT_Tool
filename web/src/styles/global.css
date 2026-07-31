@@ -1689,6 +1689,8 @@ a {
 }
 .relationship-flow__nodes {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 240px));
+  justify-content: center;
   gap: 7px;
 }
 .relationship-flow__nodes > a,
@@ -1703,10 +1705,11 @@ a {
   background: color-mix(in srgb, var(--atlas-card-background) 64%, transparent);
   border: 1px solid color-mix(in srgb, var(--atlas-border) 44%, transparent);
   border-radius: 7px;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
-.relationship-flow__nodes > a:first-child::after,
-.relationship-flow__nodes > div:first-child::after {
+.relationship-flow__nodes > a::after,
+.relationship-flow__nodes > div::after {
   position: absolute;
   top: 50%;
   width: 34px;
@@ -1715,18 +1718,18 @@ a {
 }
 .relationship-flow__column:first-child
   .relationship-flow__nodes
-  > a:first-child::after,
+  > a::after,
 .relationship-flow__column:first-child
   .relationship-flow__nodes
-  > div:first-child::after {
+  > div::after {
   left: 100%;
 }
 .relationship-flow__column:last-child
   .relationship-flow__nodes
-  > a:first-child::after,
+  > a::after,
 .relationship-flow__column:last-child
   .relationship-flow__nodes
-  > div:first-child::after {
+  > div::after {
   right: 100%;
 }
 .relationship-flow__nodes strong {
@@ -1735,6 +1738,18 @@ a {
 .relationship-flow__nodes small {
   color: var(--atlas-text-muted);
   font-size: 0.68rem;
+}
+.relationship-evidence {
+  color: var(--atlas-text-muted);
+  font-size: 0.72rem;
+}
+.relationship-evidence summary {
+  width: fit-content;
+  cursor: pointer;
+}
+.relationship-evidence p {
+  margin: 5px 0 0;
+  line-height: 1.4;
 }
 .relationship-flow__primary {
   display: grid;
@@ -2139,8 +2154,8 @@ a {
   .relationship-flow__primary {
     grid-row: 1;
   }
-  .relationship-flow__nodes > a:first-child::after,
-  .relationship-flow__nodes > div:first-child::after,
+  .relationship-flow__nodes > a::after,
+  .relationship-flow__nodes > div::after,
   .fit-selection-flow div:not(:last-child)::after {
     content: none;
   }

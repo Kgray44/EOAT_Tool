@@ -4,6 +4,7 @@ import type { EoatRelationship } from "@/api/client";
 import { RelationshipList } from "./ProfileBlocks";
 import {
   deduplicateRelationships,
+  presentRelationship,
   relationshipDisplayLabel,
 } from "./relationshipPresentation";
 
@@ -71,5 +72,37 @@ describe("RelationshipList", () => {
     expect(
       unique.map((item) => `${item.relationship_type}:${item.identifier}`),
     ).toEqual(["tool:6920150021", "tool:6920150022", "eoat:6920150021"]);
+  });
+
+  it.each([
+    ["ASSIGNED", null, "current-assignment", "Current assignment"],
+    ["COMPATIBLE", null, "verified-compatibility", "Verified compatibility"],
+    ["INCOMPATIBLE", null, "incompatible", "Incompatible"],
+    ["INFERRED_COMPATIBLE", null, "inferred-compatibility", "Inferred compatibility"],
+    ["Observed in legacy source", null, "historical-observation", "Historical observation"],
+    ["NEEDS_REVIEW", null, "unverified-assignment", "Unverified assignment"],
+    ["UNRECOGNIZED_LEGACY_VALUE", null, "unknown-relationship", "Unknown relationship"],
+  ])("maps %s to a truthful business meaning", (status, reason, state, label) => {
+    expect(presentRelationship({ status, reason }).state).toBe(state);
+    expect(presentRelationship({ status, reason }).primaryLabel).toBe(label);
+  });
+
+  it("does not expose raw legacy semantics and keeps evidence expandable", () => {
+    render(
+      <MemoryRouter>
+        <RelationshipList
+          relationships={[
+            {
+              ...relationship("machine", "27", "Press 27"),
+              reason: "OBSERVATION_OR_LATER_LIFECYCLE_EVENT",
+            },
+          ]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Historical observation")).toBeInTheDocument();
+    expect(screen.queryByText("Observed in legacy source")).not.toBeInTheDocument();
+    expect(screen.getByText("Evidence details")).toBeInTheDocument();
   });
 });

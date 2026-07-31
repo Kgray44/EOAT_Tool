@@ -18,6 +18,7 @@ import {
   deduplicateRelationships,
   relationshipDisplayLabel,
   relationshipTypeLabel,
+  presentRelationship,
 } from "./relationshipPresentation";
 import {
   normalizeProfileTab,
@@ -137,6 +138,7 @@ type RelationshipNode = {
   label?: string | null;
   relationshipType: string;
   status?: string | null;
+  reason?: string | null;
 };
 
 /**
@@ -226,22 +228,22 @@ function RelationshipNodeList({
             const destination =
               path && profilePathWithCurrentTab(path, searchParams);
             const text = presentationText(node.label || node.identifier);
+            const semantic = presentRelationship({
+              status: node.status ?? "UNKNOWN",
+              reason: node.reason ?? null,
+            });
             return destination ? (
               <Link
                 key={`${node.relationshipType}-${node.identifier}`}
                 to={destination}
               >
                 <strong>{text}</strong>
-                <small>
-                  {presentationText(node.status, "Current relationship")}
-                </small>
+                <small>{semantic.primaryLabel}</small>
               </Link>
             ) : (
               <div key={`${node.relationshipType}-${node.identifier}`}>
                 <strong>{text}</strong>
-                <small>
-                  {presentationText(node.status, "Current relationship")}
-                </small>
+                <small>{semantic.primaryLabel}</small>
               </div>
             );
           })
@@ -364,6 +366,7 @@ export function RelationshipList({
         const destination =
           path && profilePathWithCurrentTab(path, searchParams);
         const label = relationshipDisplayLabel(relationship);
+        const semantic = presentRelationship(relationship);
         return (
           <li
             key={`${relationship.relationship_type}-${relationship.identifier}`}
@@ -376,11 +379,14 @@ export function RelationshipList({
             ) : (
               <span>{label}</span>
             )}
-            <small>
-              {[relationship.status, relationship.reason]
-                .filter(Boolean)
-                .join(" · ")}
+            <small data-relationship-state={semantic.state}>
+              {semantic.primaryLabel}
             </small>
+            <details className="relationship-evidence">
+              <summary>Evidence details</summary>
+              <p>{semantic.evidenceLabel}</p>
+              {semantic.evidenceNote && <p>{semantic.evidenceNote}</p>}
+            </details>
           </li>
         );
       })}

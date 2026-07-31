@@ -47,6 +47,7 @@ export type SettingsAction =
 export type CatalogActivity = "active" | "inactive" | "all";
 export type CatalogFilters = {
   sort?: string;
+  assetStatus?: string;
   eoatType?: string;
   plant?: string;
   area?: string;
@@ -57,6 +58,18 @@ export type CatalogFilters = {
   robot?: string;
   eoat?: string;
 };
+export type CatalogOption = { value: string; label: string };
+export type CatalogOptionKind =
+  | "status"
+  | "eoat_type"
+  | "plant"
+  | "area"
+  | "cleanroom"
+  | "machine"
+  | "tool"
+  | "mold"
+  | "robot"
+  | "eoat";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -557,6 +570,7 @@ export const apiClient = {
       await requestJson(
         `/api/v1/machines?${catalogQuery(search, page, activity, filters, {
           plant: filters.plant,
+          asset_status: filters.assetStatus,
           area: filters.area,
           cleanroom: filters.cleanroom,
           eoat_identifier: filters.eoat,
@@ -567,6 +581,21 @@ export const apiClient = {
       ),
       ["items", "pagination"],
       "machine list",
+    );
+  },
+  async getCatalogOptions(
+    kind: CatalogOptionKind,
+    query = "",
+    fetcher?: typeof fetch,
+  ): Promise<CatalogOption[]> {
+    const parameters = new URLSearchParams({ limit: "50" });
+    if (query.trim()) parameters.set("query", query.trim());
+    return assertArray<CatalogOption>(
+      await requestJson(
+        `/api/v1/catalog-options/${encodeURIComponent(kind)}?${parameters}`,
+        fetcher,
+      ),
+      "catalog options",
     );
   },
   async getTools(
@@ -580,6 +609,7 @@ export const apiClient = {
       await requestJson(
         `/api/v1/tools?${catalogQuery(search, page, activity, filters, {
           mold: filters.mold || filters.tool,
+          asset_status: filters.assetStatus,
           machine_number: filters.machine,
           eoat_identifier: filters.eoat,
         })}`,
@@ -600,6 +630,7 @@ export const apiClient = {
       await requestJson(
         `/api/v1/eoats?${catalogQuery(search, page, activity, filters, {
           eoat_type: filters.eoatType,
+          asset_status: filters.assetStatus,
           area: filters.area,
           cleanroom: filters.cleanroom,
           machine_number: filters.machine,

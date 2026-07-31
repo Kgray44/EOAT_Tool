@@ -22,6 +22,7 @@ from .authentication.configuration import AuthenticationConfiguration
 from .authentication.routes import router as authentication_router
 from .compatibility import COMPATIBLE_STATUS_CODES
 from .contracts import (
+    CatalogOption,
     CurrentEOATLocation,
     DataStatusResponse,
     DocumentMetadata,
@@ -457,6 +458,20 @@ def lookup(lookup_type: str, repo: AtlasRepository = Depends(repository)):
     return repo.lookups(lookup_type)[lookup_type]
 
 
+@app.get("/api/v1/catalog-options/{kind}", response_model=list[CatalogOption])
+def catalog_options(
+    kind: str,
+    query: str = Query("", max_length=120),
+    limit: int = Query(50, ge=1, le=100),
+    repo: AtlasRepository = Depends(repository),
+):
+    """Serve bounded server-authoritative choices for browser Library selectors."""
+    try:
+        return repo.catalog_options(kind, query=query, limit=limit)
+    except ValueError:
+        raise not_found("Catalog option type", kind)
+
+
 @app.get("/api/v1/eoats", response_model=PaginatedEOATs)
 def eoats(
     search: str = "",
@@ -464,6 +479,7 @@ def eoats(
     page_size: int = Query(50, ge=1, le=250),
     sort: str = "business_identifier",
     active: bool | None = True,
+    asset_status: str | None = None,
     eoat_type: str | None = None,
     area: str | None = None,
     cleanroom: str | None = None,
@@ -478,6 +494,7 @@ def eoats(
         page_size=page_size,
         sort=sort,
         active=None if include_inactive else active,
+        asset_status=asset_status,
         eoat_type=eoat_type,
         area=area,
         cleanroom=cleanroom,
@@ -654,7 +671,9 @@ def _machine_entity(repo: AtlasRepository, number: str, plant_code: str | None =
     profile = repo.machine(number, plant_code=plant_code)
     if profile is None:
         raise not_found("Machine", number)
-    statement = __import__("sqlalchemy").select(db.Machine).where(db.Machine.machine_number == number)
+    statement = __import__("sqlalchemy").select(db.Machine).where(
+        db.Machine.machine_number == profile.machine_number
+    )
     statement = statement.join(db.Plant).where(db.Plant.plant_code == profile.plant_code)
     return repo.session.scalar(statement)
 
@@ -682,6 +701,7 @@ def machines(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=250),
     active: bool | None = True,
+    asset_status: str | None = None,
     plant: str | None = None,
     area: str | None = None,
     cleanroom: str | None = None,
@@ -697,6 +717,7 @@ def machines(
         page=page,
         page_size=page_size,
         active=None if include_inactive else active,
+        asset_status=asset_status,
         plant=plant,
         area=area,
         cleanroom=cleanroom,
@@ -730,7 +751,7 @@ def machine_current_setup(number: str, plant_code: str | None = None, repo: Atla
     if value is None:
         raise not_found("Machine", number)
     return {
-        "machine_number": number,
+        "machine_number": value.machine_number,
         "current_eoat": value.current_eoat,
         "current_tool": "UNKNOWN_NOT_VERIFIED",
         "verified": value.current_eoat not in {"NONE_OBSERVED", "UNKNOWN_NOT_VERIFIED"},
@@ -743,7 +764,9 @@ def machine_history(number: str, plant_code: str | None = None, repo: AtlasRepos
     profile = repo.machine(number, plant_code=plant_code)
     if profile is None:
         raise not_found("Machine", number)
-    statement = __import__("sqlalchemy").select(db.Machine).where(db.Machine.machine_number == number)
+    statement = __import__("sqlalchemy").select(db.Machine).where(
+        db.Machine.machine_number == profile.machine_number
+    )
     statement = statement.join(db.Plant).where(db.Plant.plant_code == profile.plant_code)
     entity = repo.session.scalar(statement)
     return repo.history("machine", entity.id)
@@ -767,6 +790,7 @@ def tools(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=250),
     active: bool | None = True,
+    asset_status: str | None = None,
     mold: str | None = None,
     machine_number: str | None = None,
     eoat_identifier: str | None = None,
@@ -779,6 +803,7 @@ def tools(
         page=page,
         page_size=page_size,
         active=None if include_inactive else active,
+        asset_status=asset_status,
         mold=mold,
         machine_number=machine_number,
         eoat_identifier=eoat_identifier,

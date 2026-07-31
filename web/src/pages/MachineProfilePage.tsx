@@ -6,6 +6,7 @@ import { decodeRouteIdentifier } from "@/api/routes";
 import { rememberItem } from "@/api/recent";
 import { ApiError } from "@/api/errors";
 import {
+  EmptyState,
   ErrorState,
   LoadingState,
   NotFoundState,
@@ -22,7 +23,10 @@ import {
   RelationshipFlow,
   RelationshipList,
 } from "@/components/profile/ProfileBlocks";
-import { deduplicateRelationships } from "@/components/profile/relationshipPresentation";
+import {
+  deduplicateRelationships,
+  presentRelationship,
+} from "@/components/profile/relationshipPresentation";
 import { QrLabel } from "@/components/qr/QrLabel";
 import {
   isRoutableAuthoritativeIdentifier,
@@ -82,18 +86,26 @@ function MachineContent({
   const resolvedRelationships = deduplicateRelationships(
     relationships.data ?? profile.relationships ?? [],
   );
-  const overview = [
+  const identity = [
+    ["Machine number", profile.machine_number],
+    ["Machine name", profile.machine_name],
     ["Manufacturer", profile.manufacturer],
     ["Model", profile.model],
+    ["Machine type", profile.machine_type],
     ["Controller", profile.controller_type],
-    ["Press capacity (tons)", profile.press_capacity_tons],
-    ["Cleanroom classification", profile.cleanroom_classification],
+    ["Active record", profile.is_active],
   ] as const;
-  const missingOverview = overview
-    .filter(
-      ([, value]) => value === null || value === undefined || value === "",
-    )
-    .map(([label]) => label);
+  const operation = [
+    ["Plant", profile.plant_name || profile.plant_code],
+    ["Section / area", profile.area || profile.area_code],
+    ["Cleanroom classification", profile.cleanroom_classification],
+    ["Operational status", profile.status],
+    ["Installation date", profile.installation_date],
+  ] as const;
+  const capacity = [
+    ["Press capacity (tons)", profile.press_capacity_tons],
+  ] as const;
+  const robotSystems = profile.robot_systems ?? [];
   const currentEoat = setup.data?.current_eoat || profile.current_eoat;
   const currentTool = setup.data?.current_tool;
   const relatedEoats = resolvedRelationships
@@ -103,6 +115,7 @@ function MachineContent({
       label: item.display_name,
       relationshipType: item.relationship_type,
       status: item.status,
+      reason: item.reason,
     }));
   const relatedTools = resolvedRelationships
     .filter((item) => item.relationship_type === "tool")
@@ -111,6 +124,7 @@ function MachineContent({
       label: item.display_name,
       relationshipType: item.relationship_type,
       status: item.status,
+      reason: item.reason,
     }));
   if (
     isRoutableAuthoritativeIdentifier(currentEoat) &&
@@ -123,6 +137,7 @@ function MachineContent({
       status: setup.data?.verified
         ? "Current / verified"
         : "Current assignment",
+      reason: null,
     });
   }
   if (
@@ -134,6 +149,7 @@ function MachineContent({
       label: undefined,
       relationshipType: "tool",
       status: "Current tool / mold",
+      reason: null,
     });
   }
 
@@ -182,31 +198,60 @@ function MachineContent({
             rightAuthoritativeLabel="tool / mold"
           />
         </ProfileTabPanel>
-        <ProfileSection title="Overview">
+        <ProfileSection title="Identity and status">
           <dl className="attribute-grid">
-            {overview
-              .filter(
-                ([, value]) =>
-                  value !== null && value !== undefined && value !== "",
-              )
-              .map(([label, value]) => (
-                <Attribute key={label} label={label} value={value} />
-              ))}
-            <Attribute
-              label="Active record"
-              value={profile.is_active}
-              booleanLabels={["Active", "Inactive"]}
-            />
+            {identity.map(([label, value]) => (
+              <Attribute
+                key={label}
+                label={label}
+                value={value}
+                booleanLabels={label === "Active record" ? ["Active", "Inactive"] : undefined}
+              />
+            ))}
           </dl>
-          {missingOverview.length > 0 && (
-            <p className="notes">
-              <strong>Not recorded:</strong> {missingOverview.join(", ")}.
-            </p>
-          )}
+        </ProfileSection>
+        <ProfileSection title="Location and operation">
+          <dl className="attribute-grid">
+            {operation.map(([label, value]) => (
+              <Attribute key={label} label={label} value={value} />
+            ))}
+          </dl>
           {profile.notes && (
             <p className="notes">
-              <strong>Notes:</strong> {presentationText(profile.notes)}
+              <strong>Operating notes:</strong> {presentationText(profile.notes)}
             </p>
+          )}
+        </ProfileSection>
+        <ProfileSection title="Press capacity">
+          <dl className="attribute-grid">
+            {capacity.map(([label, value]) => (
+              <Attribute key={label} label={label} value={value} />
+            ))}
+          </dl>
+          <p className="notes">Only approved capacity values are shown; a missing value is not estimated.</p>
+        </ProfileSection>
+        <ProfileSection title="Robot system">
+          {robotSystems.length === 0 ? (
+            <EmptyState title="No robot system recorded">
+              No active robot assignment is recorded for this machine.
+            </EmptyState>
+          ) : (
+            robotSystems.map((robot) => (
+              <section key={robot.robot_number} className="profile-subsection">
+                <h3>{robot.robot_name || `Robot ${robot.robot_number}`}</h3>
+                <dl className="attribute-grid">
+                  <Attribute label="Robot number" value={robot.robot_number} />
+                  <Attribute label="Manufacturer" value={robot.manufacturer} />
+                  <Attribute label="Model" value={robot.model} />
+                  <Attribute label="Controller" value={robot.controller_model} />
+                  <Attribute label="Payload (kg)" value={robot.payload_capacity_kg} />
+                  <Attribute label="Reach (mm)" value={robot.reach_mm} />
+                  <Attribute label="Mounting" value={robot.mounting_type} />
+                  <Attribute label="Communication" value={robot.communication_interface} />
+                  <Attribute label="Robot status" value={robot.status} />
+                </dl>
+              </section>
+            ))
           )}
         </ProfileSection>
         <ProfileSection title="Current assignment and compatibility">
@@ -231,12 +276,12 @@ function MachineContent({
                 value={assignmentLabel(setup.data.current_tool)}
               />
               <Attribute
-                label="Evidence semantics"
+                label="Assignment evidence"
                 value={
-                  setup.data.location_semantics ===
-                  "OBSERVATION_OR_LATER_LIFECYCLE_EVENT"
-                    ? "Observed assignment or later lifecycle event"
-                    : setup.data.location_semantics
+                  presentRelationship({
+                    status: "UNKNOWN",
+                    reason: setup.data.location_semantics,
+                  }).evidenceLabel
                 }
               />
             </dl>

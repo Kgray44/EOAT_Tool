@@ -68,6 +68,16 @@ function mockFetch() {
           },
         ]),
       );
+    if (path.includes("/api/v1/catalog-options/")) {
+      const kind = path.split("/catalog-options/")[1]?.split("?")[0];
+      return Promise.resolve(
+        json(
+          kind === "plant"
+            ? [{ value: "P4", label: "Plant 4" }]
+            : [{ value: "fixture", label: "Fixture option" }],
+        ),
+      );
+    }
     if (path.includes("/machines?"))
       return Promise.resolve(
         json({
@@ -234,6 +244,26 @@ describe("Library and Fit Check", () => {
       expect(fetcher.mock.calls.map(([path]) => path)).toEqual(
         expect.arrayContaining([
           "/api/v1/machines?search=&page=1&page_size=24&plant=P4",
+        ]),
+      ),
+    );
+  });
+
+  it("loads authoritative selector suggestions and can clear an individual filter", async () => {
+    const fetcher = mockFetch();
+    vi.stubGlobal("fetch", fetcher);
+    renderAt("/library?plant=P4");
+    const user = userEvent.setup();
+
+    expect(await screen.findByDisplayValue("P4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clear Plant" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear Plant" }));
+
+    await waitFor(() =>
+      expect(fetcher.mock.calls.map(([path]) => path)).toEqual(
+        expect.arrayContaining([
+          "/api/v1/catalog-options/plant?limit=50&query=P4",
+          "/api/v1/machines?search=&page=1&page_size=24",
         ]),
       ),
     );

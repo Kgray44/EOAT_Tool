@@ -348,6 +348,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog-options/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Catalog Options
+         * @description Serve bounded server-authoritative choices for browser Library selectors.
+         */
+        get: operations["catalog_options_api_v1_catalog_options__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/compatibility/alternatives": {
         parameters: {
             query?: never;
@@ -2136,6 +2156,16 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /**
+         * CatalogOption
+         * @description A small authoritative selector value; never a catalog record dump.
+         */
+        CatalogOption: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
         /** CompatibilityWrite */
         CompatibilityWrite: {
             /** Attributes */
@@ -2787,6 +2817,8 @@ export interface components {
         MachineProfile: {
             /** Area */
             area?: string | null;
+            /** Area Code */
+            area_code?: string | null;
             /** Cleanroom Classification */
             cleanroom_classification?: string | null;
             /** Controller Type */
@@ -2796,12 +2828,16 @@ export interface components {
              * @default UNKNOWN_NOT_VERIFIED
              */
             current_eoat: string;
+            /** Installation Date */
+            installation_date?: string | null;
             /** Is Active */
             is_active: boolean;
             /** Machine Name */
             machine_name?: string | null;
             /** Machine Number */
             machine_number: string;
+            /** Machine Type */
+            machine_type?: string | null;
             /** Manufacturer */
             manufacturer?: string | null;
             /** Model */
@@ -2810,14 +2846,43 @@ export interface components {
             notes?: string | null;
             /** Plant Code */
             plant_code: string;
+            /** Plant Name */
+            plant_name?: string | null;
             /** Press Capacity Tons */
             press_capacity_tons?: number | null;
             /** Relationships */
             relationships?: components["schemas"]["RelationshipSummary"][];
+            /** Robot Systems */
+            robot_systems?: components["schemas"]["MachineRobotSummary"][];
             /** Robots */
             robots?: components["schemas"]["RelationshipSummary"][];
             /** Row Version */
             row_version: number;
+            /** Serial Number */
+            serial_number?: string | null;
+            /** Status */
+            status?: string | null;
+        };
+        /** MachineRobotSummary */
+        MachineRobotSummary: {
+            /** Communication Interface */
+            communication_interface?: string | null;
+            /** Controller Model */
+            controller_model?: string | null;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Mounting Type */
+            mounting_type?: string | null;
+            /** Payload Capacity Kg */
+            payload_capacity_kg?: number | null;
+            /** Reach Mm */
+            reach_mm?: number | null;
+            /** Robot Name */
+            robot_name?: string | null;
+            /** Robot Number */
+            robot_number: string;
             /** Status */
             status?: string | null;
         };
@@ -4225,6 +4290,40 @@ export interface operations {
             };
         };
     };
+    catalog_options_api_v1_catalog_options__kind__get: {
+        parameters: {
+            query?: {
+                query?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogOption"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     alternatives_api_v1_compatibility_alternatives_get: {
         parameters: {
             query: {
@@ -4913,6 +5012,7 @@ export interface operations {
                 page_size?: number;
                 sort?: string;
                 active?: boolean | null;
+                asset_status?: string | null;
                 eoat_type?: string | null;
                 area?: string | null;
                 cleanroom?: string | null;
@@ -5721,6 +5821,7 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 active?: boolean | null;
+                asset_status?: string | null;
                 plant?: string | null;
                 area?: string | null;
                 cleanroom?: string | null;
@@ -7124,6 +7225,7 @@ export interface operations {
                 page?: number;
                 page_size?: number;
                 active?: boolean | null;
+                asset_status?: string | null;
                 mold?: string | null;
                 machine_number?: string | null;
                 eoat_identifier?: string | null;

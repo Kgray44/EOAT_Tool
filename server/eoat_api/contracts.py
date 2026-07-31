@@ -38,6 +38,13 @@ class LookupValue(BaseModel):
     sort_order: int = 0
 
 
+class CatalogOption(BaseModel):
+    """A small authoritative selector value; never a catalog record dump."""
+
+    value: str
+    label: str
+
+
 class RelationshipSummary(BaseModel):
     relationship_type: str
     identifier: str
@@ -119,12 +126,31 @@ class MachineSummary(BaseModel):
     row_version: int
 
 
+class MachineRobotSummary(BaseModel):
+    robot_number: str
+    robot_name: str | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+    controller_model: str | None = None
+    payload_capacity_kg: float | None = None
+    reach_mm: float | None = None
+    mounting_type: str | None = None
+    communication_interface: str | None = None
+    status: str | None = None
+
+
 class MachineProfile(MachineSummary):
+    plant_name: str | None = None
+    area_code: str | None = None
+    serial_number: str | None = None
+    machine_type: str | None = None
+    installation_date: date | None = None
     controller_type: str | None = None
     press_capacity_tons: float | None = None
     notes: str | None = None
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     robots: list[RelationshipSummary] = Field(default_factory=list)
+    robot_systems: list[MachineRobotSummary] = Field(default_factory=list)
 
 
 class ToolSummary(BaseModel):
