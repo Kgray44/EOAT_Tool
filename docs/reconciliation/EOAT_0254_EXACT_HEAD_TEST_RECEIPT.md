@@ -7,12 +7,16 @@
 - LDAP fail-closed fallback: `5db124fc05eddf97b037298d3e5465056a7a1d2d`
 - Release-format-only head: `445fcbd62aa9f830f8da0fb74e111939ff6cabfa`
 - Final validation source: `9312533239c9230f32aaefc852a8d5e0650f52b9`
+- Final candidate source: `b67d9d053d3fb5223d06bc4acad75f9617a85b6e`
 
 The release-format commit changes only browser formatting, and the final
 validation commit adds the MySQL-only 0009 round-trip test. The governed
 web-release builder reran locked install, generated-contract check, format
 check, lint, typecheck, Vitest, theme check, and the production build from
 `9312533`. The complete integration collection also ran at that exact commit.
+The final candidate adds only the governed browser visual-fixture identity and
+its `undefined:` regression assertion; the static release builder and the
+isolated Chromium visual capture ran from `b67d9d`.
 
 ## Terminal validation evidence
 
@@ -22,6 +26,7 @@ check, lint, typecheck, Vitest, theme check, and the production build from
 | Web Vitest | 52 passed | Candidate source: 12 files, 52 tests. |
 | Focused Chromium Machine profile | 7 passed | Isolated candidate server; Machine 27, semantics, reload, and read-only requests. |
 | Focused Chromium relationship layout | 1 passed | Zero/one/two/three/many, long text, mobile, font scale, and overflow contract. |
+| Governed Qt/browser visual capture | 1 passed | All 27 matching deterministic fixture states captured from `b67d9d`; comparator reports 27 compared and 0 incomplete. |
 | Core backend | 131 passed | Bounded exact-source shard. |
 | Top-level backend group 1 | 310 passed, 4 skipped, 1 warning | Re-run after the final LDAP fallback. |
 | Top-level backend group 2 | 351 passed, 4 skipped | Bounded exact-source shard. |

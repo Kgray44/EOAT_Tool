@@ -9,11 +9,13 @@ hash-verified packaging, and documentation are complete on the integration
 branch. This is not a claim that 0.25.4 is deployed or that production data
 was corrected.
 
-- Source candidate: `9312533239c9230f32aaefc852a8d5e0650f52b9`
+- Source candidate: `b67d9d053d3fb5223d06bc4acad75f9617a85b6e`
 - Version/schema: `0.25.4` / `20260729_0009`
 - Backend evidence: 1,311 passed / 10 skipped non-MySQL; 138 passed / 7
   skipped / 1 warning loopback-MySQL integration.
 - Browser evidence: 52 web tests and 8 focused isolated Chromium tests.
+- Visual evidence: 27 deterministic Qt/browser state pairs captured and
+  compared; reviewer dispositions remain pending.
 - Candidate: self-validated deployment tar and independently validated server
   zip, recorded in `EOAT_0254_RELEASE_CANDIDATE_RECEIPT.md`.
 - Production baseline read-only check: 0.24.1 / `20260721_0008`, healthy,

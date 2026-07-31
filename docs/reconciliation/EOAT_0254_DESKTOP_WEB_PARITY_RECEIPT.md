@@ -2,7 +2,7 @@
 
 ## Result
 
-`SOURCE_COMPARISON_COMPLETE`; `LIVE_VISUAL_PARITY_NOT_EXECUTED`.
+`DETERMINISTIC_VISUAL_COMPARISON_COMPLETE`; `REVIEW_DISPOSITIONS_PENDING`.
 
 The canonical desktop implementation is under `app/atlas/minimalist/`. The
 browser implementation was compared to that source and to focused
@@ -18,12 +18,22 @@ with a live, same-record visual comparison.
 | Fit Check | `fit_check.py` | Safety/staleness information retained | Discovery contract covers six orders | Source aligned |
 | Settings | `settings_page.py` | Authentication-disabled controls stay locked | Content-density audit | Source aligned |
 
-## Remaining visual gate
+## Deterministic capture evidence
 
-No installed desktop application session and no hash-matched browser candidate
-session are available here for a same-record screenshot/interaction
-comparison. Required follow-up is a controlled desktop/browser session at the
-agreed desktop and mobile viewports, including long relationship evidence and
-increased font scale, followed by a difference register. The owner’s bounded
-browser-matrix exception remains in force; this record does not claim a new
-complete browser matrix.
+At candidate `b67d9d`, the real offscreen PySide desktop shell and a
+candidate-local Chromium browser fixture each captured all 27 governed states
+at 1760×1080. The comparator generated side-by-side, overlay, difference, and
+per-state metric artifacts for all 27 pairs with `incomplete: 0`. The Machine
+fixture now carries required plant code `P4`, and the browser capture asserts
+that no `undefined:` identifier is rendered. Evidence is retained at
+`.local/visual-evidence-b67d9d053d/` and is not committed.
+
+## Remaining review gate
+
+The generated evidence has no reviewer-owned `reviewed-dispositions.json`;
+the comparator therefore reports 27 unreviewed states. It must not be treated
+as parity approval. Required follow-up is a direct human review of every
+side-by-side state, recording the intentional browser safety/responsive
+differences or actionable defects in that manifest. The owner’s bounded
+browser-matrix exception remains in force; this is a visual-review gate, not
+a new complete browser matrix.
