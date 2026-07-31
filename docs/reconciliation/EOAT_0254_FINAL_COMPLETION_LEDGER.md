@@ -20,7 +20,7 @@ production mutation by itself.
 | R12 | Exact-head validation | PASS | validation scripts | 1,311/10 non-MySQL; 52 web; 8 focused Chromium; 138/7/1 MySQL; 0008→0009→0008→0009: 4 passed; 27-state visual capture: 1 passed | `b67d9d` | No complete browser matrix by owner exception | PASS |
 | R13 | Coordinated release candidate | PASS | release tooling | Self-validated deployment tar and server zip, exact `b67d9d`, schema `20260729_0009` | `b67d9d` | Do not tag/publish/deploy without authority | PASS |
 | R14 | Controlled production deployment | EXTERNALLY_BLOCKED | governed deployment tooling | Actual 0.24.1/0008/writes-disabled baseline verified read-only; candidate ready; safety gates absent | - | Installed policy, fresh catalog/backup/dry run, media authority, visual parity, host access | Not executed |
-| R15 | Final docs, commit, push, parity | IN_PROGRESS | reconciliation docs | New exact-head validation and candidate receipts prepared | Documentation commit pending | Commit/push/verify clean parity | Pending |
+| R15 | Final docs, commit, push, parity | PASS | reconciliation docs | Evidence-only commits pushed; branch parity is `0 0`; candidate source remains explicit `b67d9d` | Integration branch | Production gates and mainline convergence remain external/unauthorized | Branch evidence complete |
 
 ## Frozen boundary
 
