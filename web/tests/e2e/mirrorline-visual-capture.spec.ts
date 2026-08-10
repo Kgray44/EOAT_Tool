@@ -199,6 +199,42 @@ async function fixtureApi(page: import("@playwright/test").Page) {
             },
             {
               section: "data_sources",
+              key: "data.api_endpoint",
+              label: "EOAT Atlas API",
+              control: "status",
+              default: "http://127.0.0.1:8765",
+              options: [],
+              locked: true,
+            },
+            {
+              section: "data_sources",
+              key: "data.mysql_database",
+              label: "MySQL database",
+              control: "status",
+              default: "Available through the local API",
+              options: [],
+              locked: true,
+            },
+            {
+              section: "data_sources",
+              key: "paths.engineering_documents",
+              label: "Engineering documents and photos",
+              control: "path",
+              default: "",
+              options: [],
+              locked: false,
+            },
+            {
+              section: "data_sources",
+              key: "data.legacy_excel",
+              label: "Legacy Excel source",
+              control: "status",
+              default: "Controlled migration and archival reference only",
+              options: [],
+              locked: true,
+            },
+            {
+              section: "data_sources",
               key: "data.source_status",
               label: "Authoritative source status",
               control: "status",
@@ -456,6 +492,7 @@ test("captures governed Mirrorline browser shell references", async ({
     page.getByRole("heading", { name: "Settings", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("EOAT Master Tracker")).toBeVisible();
+  await expect(page.getByText("MySQL database")).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
