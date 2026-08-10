@@ -236,9 +236,9 @@ describe("Library and Fit Check", () => {
     vi.stubGlobal("fetch", mockFetch());
     renderAt("/fit-check");
     const user = userEvent.setup();
-    const first = screen.getByRole("group", { name: "Entity slot 1" });
-    const second = screen.getByRole("group", { name: "Entity slot 2" });
-    const third = screen.getByRole("group", { name: "Entity slot 3" });
+    const first = screen.getByRole("group", { name: "Setup item 1" });
+    const second = screen.getByRole("group", { name: "Setup item 2" });
+    const third = screen.getByRole("group", { name: "Setup item 3" });
 
     await user.selectOptions(
       within(first).getByRole("combobox", { name: "Entity slot 1 type" }),
@@ -276,6 +276,8 @@ describe("Library and Fit Check", () => {
     expect(
       await screen.findByText("All relationships are verified."),
     ).toBeInTheDocument();
+    expect(screen.getByText("Machine number")).toBeInTheDocument();
+    expect(screen.queryByText(/\"machine_number\"/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Print or save as PDF" }),
     ).toBeInTheDocument();

@@ -47,6 +47,13 @@ function resultLabel(value: string) {
     : value.replaceAll("_", " ");
 }
 
+function resultTone(value: string) {
+  if (value === "COMPATIBLE") return "success";
+  if (value === "WARNING") return "warning";
+  if (value === "INVALID_INPUT" || value === "NOT_EVALUATED") return "neutral";
+  return "danger";
+}
+
 export function FitCheckPage() {
   const [params] = useSearchParams();
   const [slots, setSlots] = useState<EntitySlot[]>(() =>
@@ -168,6 +175,25 @@ export function FitCheckPage() {
           evaluation.mutate();
         }}
       >
+        <div className="fit-check-input-hint">
+          <span>
+            Start with any Tool, Machine, or EOAT. Compatible choices appear as
+            you complete the remaining setup items.
+          </span>
+          <button
+            type="button"
+            className="fit-check-secondary"
+            onClick={() => {
+              setPlantCode("");
+              setSlots(slotsFromValues("", "", ""));
+              setLastChanged(null);
+              setSelectionOrder([]);
+              evaluation.reset();
+            }}
+          >
+            Clear
+          </button>
+        </div>
         {slots.map((slot, index) => {
           const label =
             ENTITY_KINDS.find((item) => item.kind === slot.kind)?.label ||
@@ -181,7 +207,7 @@ export function FitCheckPage() {
                 : (options.data?.eoats ?? []);
           return (
             <fieldset className="fit-check-slot" key={`slot-${index + 1}`}>
-              <legend>Entity slot {index + 1}</legend>
+              <legend>Setup item {index + 1}</legend>
               <label>
                 Type
                 <select
@@ -253,19 +279,6 @@ export function FitCheckPage() {
         >
           Evaluate without saving
         </button>
-        <button
-          type="button"
-          className="fit-check-secondary"
-          onClick={() => {
-            setPlantCode("");
-            setSlots(slotsFromValues("", "", ""));
-            setLastChanged(null);
-            setSelectionOrder([]);
-            evaluation.reset();
-          }}
-        >
-          Clear
-        </button>
       </form>
       {options.isPending && (
         <p className="notes">Loading compatible options…</p>
@@ -277,55 +290,103 @@ export function FitCheckPage() {
           <p>{options.data?.warnings?.join(" ")}</p>
         </section>
       ) : null}
-      <section
-        className="fit-selection-flow"
-        aria-label="Selected fit check setup"
-      >
-        {orderedSelections.map((label) => {
-          const value =
-            label === "Machine"
-              ? machine || "Choose a machine"
-              : label === "Tool"
-                ? tool || "Choose a tool"
-                : eoat || "Choose an EOAT";
-          return (
-            <div key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-            </div>
-          );
-        })}
-      </section>
+      {!result ? (
+        <section
+          className="fit-selection-flow"
+          aria-label="Selected fit check setup"
+        >
+          {orderedSelections.map((label) => {
+            const value =
+              label === "Machine"
+                ? machine || "Choose a machine"
+                : label === "Tool"
+                  ? tool || "Choose a tool"
+                  : eoat || "Choose an EOAT";
+            return (
+              <div key={label}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+              </div>
+            );
+          })}
+        </section>
+      ) : null}
       {evaluation.isPending && (
         <LoadingState label="Evaluating authoritative compatibility…" />
       )}
       {evaluation.isError && <ErrorState error={evaluation.error} />}
       {result && (
         <section className="fit-result" aria-live="polite">
-          <header className="fit-result__headline">
-            <span>Match result</span>
-            <h3>{resultLabel(result.overall_result)}</h3>
-            <p>
-              {result.reasons.join(" ") ||
-                "EOAT Atlas did not provide a conclusive recommendation."}
-            </p>
+          <header className="fit-result__summary">
+            <span
+              className={`fit-result__status fit-result__status--${resultTone(result.overall_result)}`}
+              aria-hidden="true"
+            >
+              {result.overall_result === "COMPATIBLE" ? "✓" : "!"}
+            </span>
+            <div>
+              <p className="fit-result__label">Fit Check result</p>
+              <h3>{resultLabel(result.overall_result)}</h3>
+              <p>
+                {result.reasons.join(" ") ||
+                  "EOAT Atlas did not provide a conclusive recommendation."}
+              </p>
+            </div>
+            <div className="fit-result__selection">
+              <span>Selected EOAT</span>
+              <strong>{eoat || "Not selected"}</strong>
+              <small>Match: {resultLabel(result.overall_result)}</small>
+            </div>
+            {result.overall_result === "COMPATIBLE" ? (
+              <Link
+                className="simple-page-action fit-result__packet-action"
+                to={`/setup-packet?${new URLSearchParams({
+                  machine,
+                  tool,
+                  eoat,
+                  ...(plantCode ? { plant: plantCode } : {}),
+                })}`}
+              >
+                Create packet
+              </Link>
+            ) : null}
           </header>
-          <dl className="attribute-grid">
-            {[
-              result.machine_tool_result,
-              result.machine_eoat_result,
-              result.tool_eoat_result,
-            ].map((pair) => (
-              <div key={pair.pair}>
-                <dt>{pair.pair}</dt>
-                <dd>
-                  {resultLabel(pair.result)}
-                  <br />
-                  <small>{pair.reason}</small>
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <section
+            className="fit-result__path"
+            aria-label="Evaluated setup path"
+          >
+            {orderedSelections.map((label) => {
+              const value =
+                label === "Machine" ? machine : label === "Tool" ? tool : eoat;
+              return (
+                <div key={label}>
+                  <span>{label}</span>
+                  <strong>{value || "Not selected"}</strong>
+                </div>
+              );
+            })}
+          </section>
+          <section className="fit-result__requirements">
+            <h4>Requirements check</h4>
+            <ul>
+              {[
+                result.machine_tool_result,
+                result.machine_eoat_result,
+                result.tool_eoat_result,
+              ].map((pair) => (
+                <li key={pair.pair}>
+                  <span
+                    className={`fit-result__dot fit-result__dot--${resultTone(pair.result)}`}
+                  />
+                  <div>
+                    <strong>{pair.pair.replaceAll("_", " to ")}</strong>
+                    <small>{pair.reason}</small>
+                  </div>
+                  <em>{resultLabel(pair.result)}</em>
+                </li>
+              ))}
+            </ul>
+          </section>
           <section className="fit-result__warnings">
             <h4>Warnings and requirements</h4>
             {result.warnings.length > 0 ? (
@@ -348,19 +409,6 @@ export function FitCheckPage() {
                 : "No alternative EOAT is required for this result."}
             </p>
           </section>
-          {result.overall_result === "COMPATIBLE" ? (
-            <Link
-              className="simple-page-action"
-              to={`/setup-packet?${new URLSearchParams({
-                machine,
-                tool,
-                eoat,
-                ...(plantCode ? { plant: plantCode } : {}),
-              })}`}
-            >
-              Open setup packet
-            </Link>
-          ) : null}
         </section>
       )}
       <section

@@ -14,6 +14,9 @@ actions.
 - `BLOCKED-AUTH` — a browser write remains unavailable only because the active
   Kerberos/LDAP authentication contract is being developed in a separate
   worktree. It must stay fail-closed until that work is reconciled.
+- `BLOCKED-EXTERNAL` — a required acceptance activity depends on a controlled
+  environment or reviewer disposition that this branch cannot truthfully
+  synthesize.
 - `INTENTIONAL-DIFFERENCE` — the platform behavior differs without changing
   the product result or security boundary.
 - `NOT-APPLICABLE` — the desktop surface itself is marked unavailable or has
@@ -45,10 +48,10 @@ actions.
 | Settings read | `settings_page.py` | `SettingsPage.tsx` | Full catalog and read-only state display | PASS | Settings component test |
 | Settings administration | `settings_page.py` | `SettingsPage.tsx` | Development settings session, permissions, dirty drafts, confirmations | PASS | Existing authenticated-settings test; real LDAP remains blocked |
 | Settings danger-zone actions | `settings_page.py` | `SettingsPage.tsx` | Typed confirmation and permission checks | PASS | Fail-closed when session absent |
-| Fit Check selection | `fit_check.py` universal selectors | `FitCheckPage.tsx` | Fixed Machine/Tool/EOAT fields | FIXED | Unit and Chromium coverage for all 6 orders; duplicate types disable evaluation rather than coercing values |
+| Fit Check selection | `fit_check.py` universal selectors | `FitCheckPage.tsx` | Fixed Machine/Tool/EOAT fields | FIXED | Compact desktop-aligned setup-item surface; Unit and Chromium coverage for all 6 orders; duplicate types disable evaluation rather than coercing values |
 | Fit Check evaluation and truth states | `fit_check.py`, API rules | `FitCheckPage.tsx` | Authoritative API evaluation, warnings, unknowns, alternatives | PASS | Browser-safe POST; does not create history |
 | Recent Fit Checks | desktop local recents | `fitCheckRecents.ts` | Browser-local recent list | INTENTIONAL-DIFFERENCE | Explicitly does not simulate server history |
-| Setup packet / PDF | `fit_check.py`, `packet_builder.py` | `SetupPacketPage.tsx` | Desktop-only boundary page | FIXED | API-backed packet; browser print/save-PDF produces no write |
+| Setup packet / PDF | `fit_check.py`, `packet_builder.py` | `SetupPacketPage.tsx` | Desktop-only boundary page | FIXED | API-backed labelled compatibility and profile fields; browser print/save-PDF produces no write |
 | Standards/work instructions | desktop coming-later surface | `DesktopBoundaryPage.tsx` | No browser-safe document source | NOT-APPLICABLE | Do not invent unverified document links |
 | Data-health tools | desktop diagnostics | `DesktopBoundaryPage.tsx`, health/freshness UI | No authenticated read-only report contract | NOT-APPLICABLE | Browser shows available API freshness only |
 | Freshness, loading, error, unknown | desktop data status | `StateViews.tsx`, `FoundationPage.tsx` | Explicit loading/error/unavailable and fetched timestamp | PASS | No "just now" claim without source timestamp |
@@ -57,8 +60,8 @@ actions.
 | QR/deep links | desktop navigation | React routes, QR labels | Canonical EOAT/Machine/Tool routes | PASS | Router and EOAT profile tests |
 | Refresh/direct route/back-forward | desktop controller navigation | React Router | Browser history/direct routing | PASS | Route tests; host rewrite remains deployment-owned |
 | Keyboard and accessibility | Qt accessible controls | semantic controls, skip link, dialog focus | Core keyboard paths implemented | PASS | Router keyboard tests |
-| Browser visual regression capture | minimalist theme | deterministic Playwright capture | Desktop-only capture had no tablet/phone coverage | FIXED | 30 fixture screenshots across desktop, tablet, and phone; mobile header clearance is asserted |
-| Direct desktop-to-browser visual review | offscreen PySide/installed desktop | Playwright capture artifacts | No current same-record side-by-side reviewer disposition | BLOCKED-EXTERNAL | Requires controlled desktop session and reviewed difference register; browser screenshots do not substitute for that review |
+| Browser visual regression capture | minimalist theme | deterministic Playwright capture | Desktop-only capture had no tablet/phone coverage | FIXED | 30 fixture screenshots across desktop, tablet, and phone; mobile header clearance is asserted; refreshed Qt/browser comparison has all 27 governed pairs present |
+| Direct desktop-to-browser visual review | offscreen PySide/installed desktop | Playwright capture artifacts | No current same-record side-by-side reviewer disposition | BLOCKED-EXTERNAL | The refreshed 27-pair comparison remains deliberately unreviewed; requires controlled desktop session and reviewed difference register; browser screenshots do not substitute for that review |
 | Tablet/mobile behavior | desktop not applicable | responsive CSS | Reflow rather than desktop-window emulation | INTENTIONAL-DIFFERENCE | Must preserve capability inventory; phone header overlap regression-tested |
 | API contract usage | desktop gateway/API | `api/client.ts` | Read paths use authoritative API | PASS | Generated OpenAPI types and client tests |
 | Production safety | desktop/API runtime | browser client | Writes remain disabled without permitted identity | PASS | No production change or credential exposure |

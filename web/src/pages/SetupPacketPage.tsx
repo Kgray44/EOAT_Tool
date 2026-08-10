@@ -7,8 +7,53 @@ import {
   LoadingState,
 } from "@/components/feedback/StateViews";
 
-function packetValue(value: unknown) {
-  return JSON.stringify(value, null, 2);
+type PacketRecord = Record<string, unknown>;
+
+const PACKET_FIELDS: Record<string, Array<[string, string]>> = {
+  Machine: [
+    ["Machine number", "machine_number"],
+    ["Name", "machine_name"],
+    ["Plant", "plant_code"],
+    ["Area", "area"],
+    ["Manufacturer", "manufacturer"],
+    ["Model", "model"],
+    ["Controller", "controller_type"],
+    ["Press capacity", "press_capacity_tons"],
+    ["Current EOAT", "current_eoat"],
+  ],
+  Tool: [
+    ["Tool number", "tool_number"],
+    ["Identifier", "business_identifier"],
+    ["Name", "display_name"],
+    ["Mold number", "mold_number"],
+    ["Type", "tool_type"],
+    ["Status", "status"],
+    ["Description", "description"],
+  ],
+  EOAT: [
+    ["EOAT identifier", "business_identifier"],
+    ["Name", "display_name"],
+    ["Type", "eoat_type"],
+    ["Connection", "connection_type"],
+    ["Status", "status"],
+    ["Location", "current_location"],
+    ["Description", "description"],
+  ],
+};
+
+function recordFor(value: unknown): PacketRecord {
+  return typeof value === "object" && value !== null
+    ? (value as PacketRecord)
+    : {};
+}
+
+function displayedFields(label: string, value: unknown) {
+  const record = recordFor(value);
+  return (PACKET_FIELDS[label] ?? [])
+    .map(([fieldLabel, key]) => [fieldLabel, record[key]] as const)
+    .filter(([, fieldValue]) =>
+      ["string", "number", "boolean"].includes(typeof fieldValue),
+    );
 }
 
 export function SetupPacketPage() {
@@ -80,10 +125,25 @@ export function SetupPacketPage() {
           </div>
           <section className="profile-section">
             <h2>Compatibility result</h2>
-            <p>
-              <strong>{packet.data.fit_check.overall_result}</strong>
-            </p>
-            <p>{packet.data.fit_check.reasons.join(" ")}</p>
+            <div className="setup-packet-compatibility">
+              <strong>
+                {packet.data.fit_check.overall_result.replaceAll("_", " ")}
+              </strong>
+              <p>{packet.data.fit_check.reasons.join(" ")}</p>
+            </div>
+            <dl className="setup-packet-pairs">
+              {[
+                packet.data.fit_check.machine_tool_result,
+                packet.data.fit_check.machine_eoat_result,
+                packet.data.fit_check.tool_eoat_result,
+              ].map((pair) => (
+                <div key={pair.pair}>
+                  <dt>{pair.pair.replaceAll("_", " to ")}</dt>
+                  <dd>{pair.result.replaceAll("_", " ")}</dd>
+                  <small>{pair.reason}</small>
+                </div>
+              ))}
+            </dl>
           </section>
           {(
             [
@@ -97,7 +157,14 @@ export function SetupPacketPage() {
               key={label}
             >
               <h2>{label}</h2>
-              <pre>{packetValue(record)}</pre>
+              <dl className="setup-packet-fields">
+                {displayedFields(label, record).map(([fieldLabel, value]) => (
+                  <div key={fieldLabel}>
+                    <dt>{fieldLabel}</dt>
+                    <dd>{String(value)}</dd>
+                  </div>
+                ))}
+              </dl>
             </section>
           ))}
           <p className="notes">
