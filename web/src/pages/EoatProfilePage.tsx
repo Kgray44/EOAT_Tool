@@ -23,9 +23,11 @@ import {
   ProfileTabPanel,
   ProfileTabs,
   RelationshipFlow,
+} from "@/components/profile/ProfileBlocks";
+import {
   normalizeProfileTab,
   profileTabForSection,
-} from "@/components/profile/ProfileBlocks";
+} from "@/components/profile/profileTabs";
 import { QrLabel } from "@/components/qr/QrLabel";
 import { EntityEditor } from "@/components/profile/EntityEditor";
 import { CompatibilityEditor } from "@/components/profile/CompatibilityEditor";

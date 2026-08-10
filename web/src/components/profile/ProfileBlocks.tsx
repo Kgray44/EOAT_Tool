@@ -19,6 +19,11 @@ import {
   relationshipDisplayLabel,
   relationshipTypeLabel,
 } from "./relationshipPresentation";
+import {
+  normalizeProfileTab,
+  profileTabForSection,
+  type ProfileTab,
+} from "./profileTabs";
 
 export function ProfileSection({
   title,
@@ -41,23 +46,6 @@ export function ProfileSection({
       {children}
     </section>
   );
-}
-
-export type ProfileTab = "overview" | "relationships" | "media" | "history";
-
-export function normalizeProfileTab(value: string | null): ProfileTab {
-  return value === "relationships" || value === "media" || value === "history"
-    ? value
-    : "overview";
-}
-
-export function profileTabForSection(title: string): ProfileTab {
-  const normalized = title.trim().toLocaleLowerCase();
-  if (normalized === "relationships") return "relationships";
-  if (normalized === "photos" || normalized === "documents") return "media";
-  if (normalized === "recent history" || normalized === "history")
-    return "history";
-  return "overview";
 }
 
 export function ProfileTabPanel({
