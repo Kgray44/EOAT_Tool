@@ -473,6 +473,118 @@
         "title": "AuditPatch",
         "type": "object"
       },
+      "BrowserMediaUpload": {
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "content_base64": {
+            "minLength": 1,
+            "title": "Content Base64",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "document_type": {
+            "default": "document",
+            "title": "Document Type",
+            "type": "string"
+          },
+          "entity_identifier": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Entity Identifier",
+            "type": "string"
+          },
+          "entity_type": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "file_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "File Name",
+            "type": "string"
+          },
+          "media_kind": {
+            "default": "document",
+            "title": "Media Kind",
+            "type": "string"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "photo_view_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo View Type"
+          },
+          "relationship_type": {
+            "default": "attachment",
+            "title": "Relationship Type",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_identifier",
+          "title",
+          "file_name",
+          "content_base64"
+        ],
+        "title": "BrowserMediaUpload",
+        "type": "object"
+      },
       "CatalogOption": {
         "description": "A bounded authoritative selector value, not a catalog record dump.",
         "properties": {
@@ -1725,6 +1837,30 @@
               }
             ]
           },
+          "date_built": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Built"
+          },
+          "date_commissioned": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Commissioned"
+          },
           "description": {
             "anyOf": [
               {
@@ -1758,6 +1894,17 @@
             ],
             "title": "Display Name"
           },
+          "drawing_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drawing Number"
+          },
           "eoat_type": {
             "anyOf": [
               {
@@ -1768,6 +1915,17 @@
               }
             ],
             "title": "Eoat Type"
+          },
+          "frame_material": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frame Material"
           },
           "is_active": {
             "title": "Is Active",
@@ -1783,6 +1941,28 @@
               }
             ],
             "title": "Legacy Identifier"
+          },
+          "manufacturer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manufacturer"
+          },
+          "maximum_payload_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Payload Kg"
           },
           "notes": {
             "anyOf": [
@@ -1947,6 +2127,17 @@
               }
             ],
             "title": "Vacuum Present"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
           }
         },
         "required": [
@@ -2652,6 +2843,30 @@
         "title": "InstallationClose",
         "type": "object"
       },
+      "KerberosFormLoginRequest": {
+        "properties": {
+          "password": {
+            "format": "password",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string",
+            "writeOnly": true
+          },
+          "username": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "KerberosFormLoginRequest",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "identity": {
@@ -3058,6 +3273,18 @@
             "title": "Current Eoat",
             "type": "string"
           },
+          "installation_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installation Date"
+          },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
@@ -3076,6 +3303,17 @@
           "machine_number": {
             "title": "Machine Number",
             "type": "string"
+          },
+          "machine_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Type"
           },
           "manufacturer": {
             "anyOf": [
@@ -3142,6 +3380,17 @@
           "row_version": {
             "title": "Row Version",
             "type": "integer"
+          },
+          "serial_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial Number"
           },
           "status": {
             "anyOf": [
@@ -5031,6 +5280,17 @@
             "title": "Business Identifier",
             "type": "string"
           },
+          "cavity_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cavity Count"
+          },
           "customer": {
             "anyOf": [
               {
@@ -6401,6 +6661,58 @@
           }
         },
         "summary": "Authentication Health"
+      }
+    },
+    "/api/v1/auth/kerberos-form/login": {
+      "post": {
+        "operationId": "kerberos_form_login_api_v1_auth_kerberos_form_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KerberosFormLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Kerberos Form Login"
+      }
+    },
+    "/api/v1/auth/kerberos/login": {
+      "post": {
+        "operationId": "kerberos_login_api_v1_auth_kerberos_login_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Kerberos Login"
       }
     },
     "/api/v1/auth/login": {
@@ -11620,6 +11932,43 @@
           }
         },
         "summary": "Web Fit Check Options"
+      }
+    },
+    "/api/v1/web-media/upload": {
+      "post": {
+        "description": "Store a browser-selected file in a controlled server root without exposing its path.",
+        "operationId": "upload_browser_media_route_api_v1_web_media_upload_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserMediaUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Browser Media Route"
       }
     },
     "/api/v1/web-photos/{document_uuid}/content": {

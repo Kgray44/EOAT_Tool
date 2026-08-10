@@ -28,6 +28,22 @@ export type SetupPacketData = {
   generated_at: string;
   source: string;
 };
+export type AuthenticatedSession = {
+  authenticated: boolean;
+  expires_at?: string;
+  identity?: {
+    display_name?: string;
+    external_subject?: string;
+    username?: string;
+  };
+  roles?: string[];
+  /** Server-derived grants inform UI only; every API mutation enforces again. */
+  permissions?: string[];
+  scope?: "application" | "settings_only";
+};
+export type EoatPatch = components["schemas"]["EOATPatch"];
+export type MachinePatch = components["schemas"]["MachinePatch"];
+export type ToolPatch = components["schemas"]["ToolPatch"];
 export type SettingsCatalog = components["schemas"]["SettingsCatalogResponse"];
 export type SharedSetting = {
   key: string;
@@ -56,6 +72,9 @@ export type CatalogActivity = "active" | "inactive" | "all";
 export type CatalogOptionKind =
   | "area"
   | "cleanroom"
+  | "compatibility_source"
+  | "compatibility_status"
+  | "connection_type"
   | "eoat"
   | "eoat_type"
   | "machine"
@@ -77,6 +96,14 @@ export type CatalogFilters = {
   robot?: string;
   eoat?: string;
 };
+
+export function sessionHasPermission(
+  session: AuthenticatedSession | null | undefined,
+  permission: string,
+): boolean {
+  const grants = session?.permissions ?? [];
+  return grants.includes("*") || grants.includes(permission);
+}
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -184,6 +211,7 @@ async function requestJson(
     const response = await fetcher(path, {
       method: init?.method ?? "GET",
       headers: { Accept: "application/json", ...init?.headers },
+      credentials: init?.credentials ?? "same-origin",
       signal: controller.signal,
       body: init?.body,
     });
@@ -216,7 +244,172 @@ async function requestJson(
   }
 }
 
+function csrfHeader(): HeadersInit {
+  const value = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith("eoat_atlas_csrf="))
+    ?.split("=", 2)[1];
+  return value ? { "X-EOAT-CSRF-Token": decodeURIComponent(value) } : {};
+}
+
 export const apiClient = {
+  async getAuthenticatedSession(
+    fetcher?: typeof fetch,
+  ): Promise<AuthenticatedSession> {
+    return assertObject<AuthenticatedSession>(
+      await requestJson("/api/v1/auth/session", fetcher),
+      ["authenticated", "roles", "permissions", "scope"],
+      "authentication session",
+    );
+  },
+  async kerberosFormLogin(
+    username: string,
+    password: string,
+    fetcher?: typeof fetch,
+  ): Promise<AuthenticatedSession> {
+    return assertObject<AuthenticatedSession>(
+      await requestJson("/api/v1/auth/kerberos-form/login", fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      }),
+      ["authenticated", "identity", "roles", "permissions", "scope"],
+      "authentication session",
+    );
+  },
+  async logout(fetcher?: typeof fetch): Promise<void> {
+    await requestJson("/api/v1/auth/logout", fetcher, {
+      method: "POST",
+      headers: csrfHeader(),
+    });
+  },
+  async patchEoat(
+    identifier: string,
+    payload: EoatPatch,
+    fetcher?: typeof fetch,
+  ): Promise<{ row_version: number }> {
+    return assertObject<{ row_version: number }>(
+      await requestJson(
+        `/api/v1/eoats/${encodeURIComponent(identifier)}`,
+        fetcher,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["row_version"],
+      "updated EOAT",
+    );
+  },
+  async patchMachine(
+    number: string,
+    payload: MachinePatch,
+    fetcher?: typeof fetch,
+  ): Promise<{ row_version: number }> {
+    return assertObject<{ row_version: number }>(
+      await requestJson(
+        `/api/v1/machines/${encodeURIComponent(number)}`,
+        fetcher,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["row_version"],
+      "updated Machine",
+    );
+  },
+  async patchTool(
+    identifier: string,
+    payload: ToolPatch,
+    fetcher?: typeof fetch,
+  ): Promise<{ row_version: number }> {
+    return assertObject<{ row_version: number }>(
+      await requestJson(
+        `/api/v1/tools/${encodeURIComponent(identifier)}`,
+        fetcher,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["row_version"],
+      "updated Tool",
+    );
+  },
+  async createCompatibility(
+    relationshipType: "eoat-machine" | "eoat-tool" | "tool-machine",
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<{ id: number; row_version: number }> {
+    return assertObject<{ id: number; row_version: number }>(
+      await requestJson(`/api/v1/compatibility/${relationshipType}`, fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify(payload),
+      }),
+      ["id", "row_version"],
+      "created compatibility relationship",
+    );
+  },
+  async moveEoatToMachine(
+    identifier: string,
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<{ id: number; row_version: number }> {
+    return assertObject<{ id: number; row_version: number }>(
+      await requestJson(
+        `/api/v1/eoats/${encodeURIComponent(identifier)}/move-to-machine`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["id", "row_version"],
+      "created installation",
+    );
+  },
+  async uploadWebMedia(
+    payload: {
+      entityType: "eoat" | "machine" | "tool";
+      entityIdentifier: string;
+      file: File;
+      title: string;
+      mediaKind: "document" | "photo";
+      description?: string;
+    },
+    fetcher?: typeof fetch,
+  ): Promise<{ document_uuid: string; row_version: number }> {
+    const bytes = new Uint8Array(await payload.file.arrayBuffer());
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    }
+    return assertObject<{ document_uuid: string; row_version: number }>(
+      await requestJson("/api/v1/web-media/upload", fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify({
+          entity_type: payload.entityType,
+          entity_identifier: payload.entityIdentifier,
+          file_name: payload.file.name,
+          content_base64: btoa(binary),
+          title: payload.title,
+          media_kind: payload.mediaKind,
+          document_type: payload.mediaKind === "photo" ? "photo" : "document",
+          description: payload.description,
+          mime_type: payload.file.type || null,
+        }),
+      }),
+      ["document_uuid", "row_version"],
+      "uploaded media",
+    );
+  },
   async getHealth(fetcher?: typeof fetch): Promise<HealthStatus> {
     const payload = await requestJson("/api/v1/health", fetcher);
     if (!isHealthStatus(payload))

@@ -468,8 +468,8 @@ def catalog_options(
     """Serve bounded server-authoritative choices for browser Library selectors."""
     try:
         return repo.catalog_options(kind, query=query, limit=limit)
-    except ValueError:
-        raise not_found("Catalog option type", kind)
+    except ValueError as exc:
+        raise not_found("Catalog option type", kind) from exc
 
 
 @app.get("/api/v1/eoats", response_model=PaginatedEOATs)

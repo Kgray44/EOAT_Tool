@@ -380,7 +380,7 @@ test("Fit Check accepts all universal-slot permutations without coercion", async
     await page.goto("/fit-check");
     for (const [index, kind] of order.entries()) {
       const slot = page.getByRole("group", {
-        name: `Entity slot ${index + 1}`,
+        name: `Setup item ${index + 1}`,
       });
       await slot
         .getByRole("combobox", { name: `Entity slot ${index + 1} type` })
@@ -400,7 +400,7 @@ test("Fit Check accepts all universal-slot permutations without coercion", async
 
   await page.goto("/fit-check");
   await page
-    .getByRole("group", { name: "Entity slot 2" })
+    .getByRole("group", { name: "Setup item 2" })
     .getByRole("combobox", { name: "Entity slot 2 type" })
     .selectOption("machine");
   await expect(

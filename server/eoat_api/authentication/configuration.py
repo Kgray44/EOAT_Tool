@@ -36,9 +36,11 @@ class AuthenticationConfiguration:
         return config
 
     def validate(self) -> None:
-        if self.provider not in {"development", "saml", "ldap", "unselected"}:
+        if self.provider not in {"development", "saml", "ldap", "kerberos", "kerberos_form", "unselected"}:
             raise AuthenticationConfigurationError(f"Unsupported authentication provider: {self.provider}")
-        if self.scope != "settings_only":
-            raise AuthenticationConfigurationError("Phase 10 authentication scope must be settings_only")
+        if self.scope not in {"settings_only", "application"}:
+            raise AuthenticationConfigurationError("EOAT_AUTH_SCOPE must be settings_only or application")
         if self.environment == "production" and self.provider == "development":
             raise AuthenticationConfigurationError("Development authentication is forbidden in production")
+        if self.provider == "kerberos_form" and self.scope != "application":
+            raise AuthenticationConfigurationError("Kerberos form authentication must protect application writes")

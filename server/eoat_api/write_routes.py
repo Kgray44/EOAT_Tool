@@ -1,9 +1,16 @@
 # ruff: noqa: B008
 from __future__ import annotations
 
+import os
+import re
+from base64 import b64decode
+from binascii import Error as Base64Error
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -82,9 +89,64 @@ from .write_services import (
 
 router = APIRouter(prefix="/api/v1")
 
+_UPLOAD_NAME = re.compile(r"[^A-Za-z0-9._ -]+")
+_MAX_BROWSER_UPLOAD_BYTES = 20 * 1024 * 1024
+
+
+class BrowserMediaUpload(BaseModel):
+    entity_type: str = Field(min_length=1, max_length=32)
+    entity_identifier: str = Field(min_length=1, max_length=128)
+    title: str = Field(min_length=1, max_length=255)
+    file_name: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1, max_length=28 * 1024 * 1024)
+    media_kind: str = "document"
+    document_type: str = "document"
+    description: str | None = None
+    revision: str | None = None
+    relationship_type: str = "attachment"
+    caption: str | None = None
+    photo_view_type: str | None = None
+    mime_type: str | None = None
+
 
 def body(model, *, exclude_unset: bool = False) -> dict[str, Any]:
     return model.model_dump(exclude_unset=exclude_unset)
+
+
+def _browser_upload_root() -> Path:
+    """Return a server-owned writable media root, or fail closed."""
+    configured = os.getenv("EOAT_WEB_UPLOAD_ROOT", "").strip()
+    if not configured:
+        raise APIError(503, "WEB_UPLOAD_UNAVAILABLE", "Browser uploads are not configured for this environment.")
+    try:
+        root = Path(configured).expanduser().resolve(strict=True)
+    except OSError:
+        raise APIError(503, "WEB_UPLOAD_UNAVAILABLE", "Browser uploads are not configured for this environment.") from None
+    if not root.is_dir():
+        raise APIError(503, "WEB_UPLOAD_UNAVAILABLE", "Browser uploads are not configured for this environment.")
+    document_roots = [Path(item).expanduser().resolve() for item in os.getenv("EOAT_DOCUMENT_ROOTS", "").split(os.pathsep) if item.strip()]
+    content_roots = [Path(item).expanduser().resolve() for item in os.getenv("EOAT_WEB_CONTENT_ROOTS", "").split(os.pathsep) if item.strip()]
+    if not document_roots or not content_roots or not any(root.is_relative_to(item) for item in document_roots) or not any(root.is_relative_to(item) for item in content_roots):
+        raise APIError(503, "WEB_UPLOAD_UNAVAILABLE", "Browser uploads are not configured for this environment.")
+    return root
+
+
+def _persist_browser_upload(file_name: str, content_base64: str, root: Path) -> Path:
+    supplied = Path(file_name).name
+    safe_name = _UPLOAD_NAME.sub("-", supplied).strip(" .-") or "upload.bin"
+    target = root / f"{uuid4().hex}-{safe_name}"
+    try:
+        content = b64decode(content_base64, validate=True)
+    except (Base64Error, ValueError):
+        raise APIError(422, "INVALID_MEDIA_CONTENT", "The selected file could not be decoded.") from None
+    if len(content) > _MAX_BROWSER_UPLOAD_BYTES:
+        raise APIError(413, "WEB_UPLOAD_TOO_LARGE", "The selected file exceeds the 20 MB browser upload limit.")
+    try:
+        target.write_bytes(content)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+    return target
 
 
 @router.post("/eoats")
@@ -631,6 +693,48 @@ def set_profile_photo_route(
         payload.expected_row_version,
         payload.reason,
     )
+
+
+@router.post("/web-media/upload")
+def upload_browser_media_route(
+    payload: BrowserMediaUpload,
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require("document.write")),
+):
+    """Store a browser-selected file in a controlled server root without exposing its path."""
+    if payload.media_kind not in {"document", "photo"}:
+        raise APIError(422, "INVALID_MEDIA_KIND", "Media kind must be document or photo.")
+    target_entity = resolve_target(session, payload.entity_type, payload.entity_identifier)
+    root = _browser_upload_root()
+    stored = _persist_browser_upload(payload.file_name, payload.content_base64, root)
+    values = {
+        "document_type": "photo" if payload.media_kind == "photo" else payload.document_type,
+        "title": payload.title,
+        "description": payload.description,
+        "revision": payload.revision,
+        "storage_path": str(stored),
+        "mime_type": payload.mime_type,
+        "entity_type": payload.entity_type,
+        "entity_id": target_entity.id,
+        "relationship_type": payload.relationship_type,
+    }
+    try:
+        result = (
+            create_photo(session, actor, {**values, "caption": payload.caption, "photo_view_type": payload.photo_view_type})
+            if payload.media_kind == "photo"
+            else create_document(session, actor, values)
+        )
+    except Exception:
+        stored.unlink(missing_ok=True)
+        raise
+    document = result["document"] if payload.media_kind == "photo" else result
+    return {
+        "document_uuid": document["document_uuid"],
+        "title": document["title"],
+        "file_name": document["file_name"],
+        "row_version": document["row_version"],
+        "media_kind": payload.media_kind,
+    }
 
 
 @router.get("/tags")

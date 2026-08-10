@@ -91,7 +91,15 @@ function mockApi(overrides: Record<string, Response> = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const path = String(input);
     const response =
-      overrides[path] ??
+      (path === "/api/v1/auth/session"
+        ? json({
+            authenticated: false,
+            identity: {},
+            roles: [],
+            permissions: [],
+            scope: "application",
+          })
+        : overrides[path]) ??
       (path.endsWith("/current-location")
         ? json(location)
         : path.endsWith("/relationships")
@@ -178,10 +186,19 @@ describe("EOAT profile route", () => {
     expect(
       await screen.findByRole("heading", { name: "EOAT not found" }),
     ).toBeInTheDocument();
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(json({ message: "offline" }, 503))
-      .mockImplementation(mockApi());
+    let firstProfileRequest = true;
+    const succeeding = mockApi();
+    const fetcher = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+      void _init;
+      if (
+        String(input) === "/api/v1/eoats/EOAT%20A%2B1" &&
+        firstProfileRequest
+      ) {
+        firstProfileRequest = false;
+        return Promise.resolve(json({ message: "offline" }, 503));
+      }
+      return succeeding(input);
+    });
     vi.stubGlobal("fetch", fetcher);
     const user = userEvent.setup();
     renderProfile();

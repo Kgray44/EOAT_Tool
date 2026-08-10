@@ -35,6 +35,7 @@ const profileEoat = {
   relationships: [],
   audit_evidence: [],
   revision: "A",
+  row_version: 1,
 };
 const profileMachine = {
   machine_number: "52",
@@ -50,6 +51,7 @@ const profileMachine = {
   controller_type: "RC",
   press_capacity_tons: 100,
   notes: null,
+  row_version: 1,
   relationships: [],
   robots: [],
   audit_evidence: [],
@@ -67,6 +69,7 @@ const profileTool = {
   customer: null,
   program_name: null,
   notes: null,
+  row_version: 1,
   relationships: [],
   audit_evidence: [],
 };
@@ -79,9 +82,40 @@ async function fixtureApi(page: import("@playwright/test").Page) {
     emptySearch: false,
     slowSearch: false,
     staleData: false,
+    role: "VIEWER",
   };
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/auth/session") {
+      const permissions =
+        scenario.role === "ADMINISTRATOR"
+          ? [
+              "*",
+              "asset.write",
+              "compatibility.write",
+              "document.write",
+              "installation.write",
+              "settings.edit",
+            ]
+          : scenario.role === "ENGINEER"
+            ? [
+                "asset.write",
+                "compatibility.write",
+                "document.write",
+                "installation.write",
+                "installation.override_compatibility",
+              ]
+            : [];
+      return route.fulfill({
+        json: {
+          authenticated: true,
+          identity: { display_name: `Fixture ${scenario.role}` },
+          roles: [scenario.role],
+          permissions,
+          scope: "application",
+        },
+      });
+    }
     if (path === "/api/v1/data-status") {
       if (scenario.apiUnavailable)
         return route.fulfill({
@@ -461,6 +495,24 @@ test("captures governed Mirrorline browser shell references", async ({
     page.getByRole("heading", { name: "P4-EOAT-0052" }),
   ).toBeVisible();
   await capture(page, "eoat-profile");
+  await expect(
+    page.getByRole("button", { name: "Edit eoat" }),
+  ).not.toBeVisible();
+  await capture(page, "profile-viewer");
+  scenario.role = "ENGINEER";
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Edit eoat" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add compatibility" }),
+  ).toBeVisible();
+  await capture(page, "profile-engineer");
+  scenario.role = "ADMINISTRATOR";
+  await page.goto("/settings");
+  await expect(
+    page.getByRole("heading", { name: "Settings", exact: true }),
+  ).toBeVisible();
+  await capture(page, "settings-administrator");
+  scenario.role = "VIEWER";
   await page.goto("/machines/52");
   await expect(page.getByRole("heading", { name: "52" })).toBeVisible();
   await capture(page, "machine-profile");

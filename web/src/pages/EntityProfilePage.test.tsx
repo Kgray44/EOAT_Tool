@@ -61,6 +61,16 @@ function json(value: unknown, status = 200) {
 function fetchFor(overrides: Record<string, Response> = {}) {
   return vi.fn((input: RequestInfo | URL) => {
     const path = String(input);
+    if (path === "/api/v1/auth/session")
+      return Promise.resolve(
+        json({
+          authenticated: false,
+          identity: {},
+          roles: [],
+          permissions: [],
+          scope: "application",
+        }),
+      );
     if (overrides[path]) return Promise.resolve(overrides[path]);
     if (path.endsWith("/current-setup")) return Promise.resolve(json(setup));
     if (
@@ -121,7 +131,9 @@ describe("machine and tool profile routes", () => {
   it("shows a truthful tool not-found state", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(json({ detail: { message: "missing" } }, 404)),
+      vi.fn(() =>
+        Promise.resolve(json({ detail: { message: "missing" } }, 404)),
+      ),
     );
     renderAt("/tools/MISSING");
     expect(

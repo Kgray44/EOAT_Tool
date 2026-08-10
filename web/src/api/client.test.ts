@@ -1,4 +1,4 @@
-import { apiClient } from "@/api/client";
+import { apiClient, sessionHasPermission } from "@/api/client";
 
 const health = {
   api_version: "1.4.0",
@@ -11,6 +11,22 @@ const health = {
 };
 
 describe("apiClient", () => {
+  it("uses server-issued effective permissions only for UI affordances", () => {
+    expect(
+      sessionHasPermission(
+        { authenticated: true, permissions: ["asset.write"] },
+        "asset.write",
+      ),
+    ).toBe(true);
+    expect(
+      sessionHasPermission(
+        { authenticated: true, permissions: ["asset.write"] },
+        "settings.edit",
+      ),
+    ).toBe(false);
+    expect(sessionHasPermission(null, "asset.write")).toBe(false);
+  });
+
   it("uses a relative URL and never sends a device-token header", async () => {
     const fetcher = vi
       .fn()

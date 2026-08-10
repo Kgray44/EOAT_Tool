@@ -9,11 +9,35 @@ SETTINGS_PERMISSIONS = frozenset(
     }
 )
 
+TECHNICIAN_PERMISSIONS = frozenset(
+    {
+        "installation.write",
+        "audit.write",
+        "maintenance.write",
+        "annotation.write",
+        "tag.assign",
+        "fit_check.write",
+        "instance.register",
+    }
+)
+
+ENGINEER_PERMISSIONS = TECHNICIAN_PERMISSIONS | frozenset(
+    {
+        "asset.write",
+        "compatibility.write",
+        "document.write",
+        "tag.manage",
+        "installation.override_compatibility",
+    }
+)
+
+ADMINISTRATOR_PERMISSIONS = ENGINEER_PERMISSIONS | SETTINGS_PERMISSIONS | frozenset({"*"})
+
 ROLE_PERMISSIONS = {
     "VIEWER": frozenset(),
-    "TECHNICIAN": frozenset(),
-    "ENGINEER": frozenset(),
-    "ADMINISTRATOR": SETTINGS_PERMISSIONS,
+    "TECHNICIAN": TECHNICIAN_PERMISSIONS,
+    "ENGINEER": ENGINEER_PERMISSIONS,
+    "ADMINISTRATOR": ADMINISTRATOR_PERMISSIONS,
 }
 
 

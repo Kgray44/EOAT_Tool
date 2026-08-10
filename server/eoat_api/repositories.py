@@ -212,11 +212,14 @@ class AtlasRepository:
             if needle:
                 stmt = stmt.where(or_(db.EOAT.business_identifier.contains(needle), db.EOAT.display_name.contains(needle)))
             return rows(stmt)
-        if kind in {"eoat_type", "cleanroom", "status"}:
+        if kind in {"eoat_type", "connection_type", "cleanroom", "status", "compatibility_status", "compatibility_source"}:
             model = {
                 "eoat_type": db.EOATType,
+                "connection_type": db.ConnectionType,
                 "cleanroom": db.CleanroomClassification,
                 "status": db.AssetStatus,
+                "compatibility_status": db.CompatibilityStatus,
+                "compatibility_source": db.CompatibilitySource,
             }[kind]
             stmt = select(model.code, model.display_name).where(model.is_active.is_(True)).order_by(model.sort_order, model.display_name)
             if needle:
@@ -349,6 +352,15 @@ class AtlasRepository:
             vacuum_confirmation_sensor_present=entity.vacuum_confirmation_sensor_present,
             quick_disconnect_present=entity.quick_disconnect_present,
             cup_material=entity.cup_material,
+            frame_material=entity.frame_material,
+            weight_kg=float(entity.weight_kg) if entity.weight_kg is not None else None,
+            maximum_payload_kg=(
+                float(entity.maximum_payload_kg) if entity.maximum_payload_kg is not None else None
+            ),
+            drawing_number=entity.drawing_number,
+            manufacturer=entity.manufacturer,
+            date_built=entity.date_built,
+            date_commissioned=entity.date_commissioned,
             notes=entity.notes,
             relationships=self.eoat_relationships(summary.business_identifier),
             audit_evidence=[
@@ -580,6 +592,9 @@ class AtlasRepository:
             **summary.model_dump(),
             controller_type=entity.controller_type,
             press_capacity_tons=float(entity.press_capacity_tons) if entity.press_capacity_tons else None,
+            serial_number=entity.serial_number,
+            machine_type=entity.machine_type,
+            installation_date=entity.installation_date,
             notes=entity.notes,
             relationships=relationships,
             robots=robots,
@@ -708,6 +723,7 @@ class AtlasRepository:
         return ToolProfile(
             **summary.model_dump(),
             description=entity.description,
+            cavity_count=entity.cavity_count,
             tool_type=entity.tool_type,
             customer=entity.customer,
             program_name=entity.program_name,

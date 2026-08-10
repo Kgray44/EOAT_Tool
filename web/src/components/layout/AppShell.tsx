@@ -14,6 +14,7 @@ import {
 } from "@/app/browserSettings";
 import { readLibraryContext } from "@/app/libraryContext";
 import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
+import { AuthenticationPanel } from "@/components/auth/AuthenticationPanel";
 
 const navigation = [
   ["/", "Home", "⌂"],
@@ -257,6 +258,7 @@ export function AppShell({ children }: PropsWithChildren) {
         >
           <span aria-hidden="true">⌕</span>
         </button>
+        <AuthenticationPanel />
       </header>
       {menuOpen && (
         <div

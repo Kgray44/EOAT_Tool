@@ -1,6 +1,7 @@
 # ruff: noqa: B008
 from __future__ import annotations
 
+import hmac
 import json
 import os
 from dataclasses import dataclass
@@ -11,45 +12,12 @@ from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .authentication.configuration import AuthenticationConfiguration
+from .authentication.permissions import ROLE_PERMISSIONS
+from .authentication.service import AuthenticationService
 from .database import models as db
 from .database.session import get_write_session
 from .errors import APIError
-
-ROLE_PERMISSIONS = {
-    # The application principal preserves the product's normal no-login
-    # experience.  It can perform ordinary EOAT Atlas work, but never a
-    # Settings administration operation.
-    "APPLICATION_USER": frozenset({"*"}),
-    "VIEWER": frozenset(),
-    "TECHNICIAN": frozenset(
-        {
-            "installation.write",
-            "audit.write",
-            "maintenance.write",
-            "annotation.write",
-            "tag.assign",
-            "fit_check.write",
-            "instance.register",
-        }
-    ),
-    "ENGINEER": frozenset(
-        {
-            "asset.write",
-            "compatibility.write",
-            "document.write",
-            "annotation.write",
-            "tag.manage",
-            "tag.assign",
-            "installation.write",
-            "installation.override_compatibility",
-            "audit.write",
-            "maintenance.write",
-            "fit_check.write",
-            "instance.register",
-        }
-    ),
-    "ADMINISTRATOR": frozenset({"*"}),
-}
 
 DEFAULT_DEVELOPMENT_IDENTITIES = {
     "dev.viewer": "VIEWER",
@@ -137,6 +105,9 @@ def actor_context(
 ) -> ActorContext:
     if os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() not in {"1", "true", "yes", "on"}:
         raise APIError(403, "WRITES_DISABLED", "Permanent writes are disabled for this API environment.")
+    configuration = AuthenticationConfiguration.from_environment()
+    if configuration.scope == "application":
+        return _authenticated_actor_context(request, session, configuration)
     identity = request.headers.get("X-EOAT-Identity", "").strip()
     if not identity:
         user = _ensure_application_user(session)
@@ -169,6 +140,55 @@ def actor_context(
         application_instance_id=instance_id,
         client_version=request.headers.get("X-EOAT-Client-Version"),
     )
+
+
+def _authenticated_actor_context(
+    request: Request, session: Session, configuration: AuthenticationConfiguration
+) -> ActorContext:
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, bearer_token = authorization.partition(" ")
+    using_bearer = scheme.casefold() == "bearer" and bool(bearer_token.strip())
+    token = bearer_token.strip() if using_bearer else request.cookies.get("eoat_atlas_session", "")
+    if not using_bearer:
+        csrf_cookie = request.cookies.get("eoat_atlas_csrf", "")
+        csrf_header = request.headers.get("X-EOAT-CSRF-Token", "")
+        if not token or not csrf_cookie or not hmac.compare_digest(csrf_cookie, csrf_header):
+            raise APIError(403, "CSRF_VALIDATION_FAILED", "The request could not be validated.")
+    auth_session, user = AuthenticationService(session, configuration).resolve_session(token)
+    if auth_session.provider != configuration.provider:
+        auth_session.revoked_at = datetime.now(timezone.utc)
+        auth_session.revocation_reason = "provider_changed"
+        raise APIError(401, "SESSION_PROVIDER_CHANGED", "The authentication provider changed; sign in again.")
+    roles = tuple(
+        session.scalars(
+            select(db.Role.role_code)
+            .join(db.UserRole, db.UserRole.role_id == db.Role.id)
+            .where(
+                db.UserRole.user_id == user.id,
+                db.UserRole.removed_at.is_(None),
+                db.Role.is_active.is_(True),
+            )
+        ).all()
+    )
+    role = _most_permissive_role(roles)
+    if role is None:
+        raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have write permission.")
+    return ActorContext(
+        user_id=user.id,
+        identity=user.external_subject,
+        display_name=user.display_name,
+        role=role,
+        request_id=getattr(request.state, "request_id", None) or str(uuid4()),
+        application_instance_id=_application_instance_id(request, session),
+        client_version=request.headers.get("X-EOAT-Client-Version"),
+    )
+
+
+def _most_permissive_role(roles: tuple[str, ...]) -> str | None:
+    valid = [role.upper() for role in roles if role.upper() in ROLE_PERMISSIONS]
+    if not valid:
+        return None
+    return max(valid, key=lambda role: ("*" in ROLE_PERMISSIONS[role], len(ROLE_PERMISSIONS[role]), role))
 
 
 def _ensure_application_user(session: Session) -> db.User:

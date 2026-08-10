@@ -106,6 +106,13 @@ class EOATProfile(EOATSummary):
     vacuum_confirmation_sensor_present: bool | None = None
     quick_disconnect_present: bool | None = None
     cup_material: str | None = None
+    frame_material: str | None = None
+    weight_kg: float | None = None
+    maximum_payload_kg: float | None = None
+    drawing_number: str | None = None
+    manufacturer: str | None = None
+    date_built: date | None = None
+    date_commissioned: date | None = None
     notes: str | None = None
     part_status: str = "NOT_YET_VERIFIED"
     relationships: list[RelationshipSummary] = Field(default_factory=list)
@@ -129,6 +136,9 @@ class MachineSummary(BaseModel):
 class MachineProfile(MachineSummary):
     controller_type: str | None = None
     press_capacity_tons: float | None = None
+    serial_number: str | None = None
+    machine_type: str | None = None
+    installation_date: date | None = None
     notes: str | None = None
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     robots: list[RelationshipSummary] = Field(default_factory=list)
@@ -147,6 +157,7 @@ class ToolSummary(BaseModel):
 
 class ToolProfile(ToolSummary):
     description: str | None = None
+    cavity_count: int | None = None
     tool_type: str | None = None
     customer: str | None = None
     program_name: str | None = None

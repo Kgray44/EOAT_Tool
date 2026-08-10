@@ -105,3 +105,97 @@ class LDAPProviderConfiguration:
         if not self.use_ldaps:
             missing.append("use_ldaps must be true")
         return tuple(missing)
+
+
+@dataclass(frozen=True)
+class KerberosProviderConfiguration:
+    realm: str
+    trusted_proxy_addresses: tuple[str, ...]
+    assertion: str
+
+    @classmethod
+    def from_environment(cls) -> KerberosProviderConfiguration:
+        addresses = tuple(
+            item.strip()
+            for item in _value("EOAT_KERBEROS_TRUSTED_PROXY_ADDRESSES").split(",")
+            if item.strip()
+        )
+        return cls(
+            realm=_value("EOAT_KERBEROS_REALM").upper(),
+            trusted_proxy_addresses=addresses,
+            assertion=_value("EOAT_KERBEROS_PROXY_ASSERTION"),
+        )
+
+    def missing_fields(self) -> tuple[str, ...]:
+        return tuple(
+            name
+            for name, value in {
+                "realm": self.realm,
+                "trusted_proxy_addresses": self.trusted_proxy_addresses,
+                "proxy_assertion": self.assertion,
+            }.items()
+            if not value
+        )
+
+
+@dataclass(frozen=True)
+class KerberosFormProviderConfiguration:
+    realm: str
+    base_dn: str
+    cache_directory: str
+    login_timeout_seconds: int
+    min_sasl_ssf: int
+    login_rate_limit_attempts: int = 5
+    login_rate_limit_window_seconds: int = 60
+    test_mode: bool = False
+    test_admin_upns: tuple[str, ...] = ()
+
+    @classmethod
+    def from_environment(cls) -> KerberosFormProviderConfiguration:
+        try:
+            timeout = int(_value("EOAT_KERBEROS_LOGIN_TIMEOUT_SECONDS") or "15")
+            min_ssf = int(_value("EOAT_KERBEROS_MIN_SASL_SSF") or "256")
+        except ValueError:
+            timeout, min_ssf = -1, -1
+        try:
+            attempts = int(_value("EOAT_KERBEROS_LOGIN_RATE_LIMIT_ATTEMPTS") or "5")
+            window = int(_value("EOAT_KERBEROS_LOGIN_RATE_LIMIT_WINDOW_SECONDS") or "60")
+        except ValueError:
+            attempts, window = -1, -1
+        return cls(
+            realm=_value("EOAT_KERBEROS_REALM").upper(),
+            base_dn=_value("EOAT_KERBEROS_BASE_DN"),
+            cache_directory=_value("EOAT_KERBEROS_CACHE_DIRECTORY"),
+            login_timeout_seconds=timeout,
+            min_sasl_ssf=min_ssf,
+            login_rate_limit_attempts=attempts,
+            login_rate_limit_window_seconds=window,
+            test_mode=_value("EOAT_KERBEROS_FORM_TEST_MODE").casefold() in {"1", "true", "yes", "on"},
+            test_admin_upns=tuple(
+                value.strip().casefold()
+                for value in _value("EOAT_KERBEROS_FORM_TEST_ADMIN_UPNS").split(",")
+                if value.strip()
+            ),
+        )
+
+    def missing_fields(self) -> tuple[str, ...]:
+        missing = tuple(
+            name
+            for name, value in {
+                "realm": self.realm,
+                "base_dn": self.base_dn,
+                "cache_directory": self.cache_directory,
+            }.items()
+            if not value
+        )
+        if not 1 <= self.login_timeout_seconds <= 60:
+            missing += ("login_timeout_seconds (1-60)",)
+        if self.min_sasl_ssf < 56:
+            missing += ("min_sasl_ssf (at least 56)",)
+        if not 1 <= self.login_rate_limit_attempts <= 20:
+            missing += ("login_rate_limit_attempts (1-20)",)
+        if not 1 <= self.login_rate_limit_window_seconds <= 3600:
+            missing += ("login_rate_limit_window_seconds (1-3600)",)
+        if self.test_admin_upns and not self.test_mode:
+            missing += ("test_mode required for test_admin_upns",)
+        return missing

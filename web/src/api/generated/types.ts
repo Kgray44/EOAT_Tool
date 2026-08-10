@@ -280,6 +280,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/kerberos-form/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Kerberos Form Login */
+        post: operations["kerberos_form_login_api_v1_auth_kerberos_form_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/kerberos/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Kerberos Login */
+        post: operations["kerberos_login_api_v1_auth_kerberos_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -1977,6 +2011,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/web-media/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Browser Media Route
+         * @description Store a browser-selected file in a controlled server root without exposing its path.
+         */
+        post: operations["upload_browser_media_route_api_v1_web_media_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/web-photos/{document_uuid}/content": {
         parameters: {
             query?: never;
@@ -2138,6 +2192,44 @@ export interface components {
             reason?: string | null;
             /** Status */
             status?: string | null;
+        };
+        /** BrowserMediaUpload */
+        BrowserMediaUpload: {
+            /** Caption */
+            caption?: string | null;
+            /** Content Base64 */
+            content_base64: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Document Type
+             * @default document
+             */
+            document_type: string;
+            /** Entity Identifier */
+            entity_identifier: string;
+            /** Entity Type */
+            entity_type: string;
+            /** File Name */
+            file_name: string;
+            /**
+             * Media Kind
+             * @default document
+             */
+            media_kind: string;
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Photo View Type */
+            photo_view_type?: string | null;
+            /**
+             * Relationship Type
+             * @default attachment
+             */
+            relationship_type: string;
+            /** Revision */
+            revision?: string | null;
+            /** Title */
+            title: string;
         };
         /**
          * CatalogOption
@@ -2434,18 +2526,30 @@ export interface components {
              */
             current_location: string;
             current_location_detail?: components["schemas"]["CurrentEOATLocation"] | null;
+            /** Date Built */
+            date_built?: string | null;
+            /** Date Commissioned */
+            date_commissioned?: string | null;
             /** Description */
             description?: string | null;
             /** Design Family Identifier */
             design_family_identifier?: string | null;
             /** Display Name */
             display_name?: string | null;
+            /** Drawing Number */
+            drawing_number?: string | null;
             /** Eoat Type */
             eoat_type?: string | null;
+            /** Frame Material */
+            frame_material?: string | null;
             /** Is Active */
             is_active: boolean;
             /** Legacy Identifier */
             legacy_identifier?: string | null;
+            /** Manufacturer */
+            manufacturer?: string | null;
+            /** Maximum Payload Kg */
+            maximum_payload_kg?: number | null;
             /** Notes */
             notes?: string | null;
             /** Number Of Grippers */
@@ -2486,6 +2590,8 @@ export interface components {
             vacuum_confirmation_sensor_present?: boolean | null;
             /** Vacuum Present */
             vacuum_present?: boolean | null;
+            /** Weight Kg */
+            weight_kg?: number | null;
         };
         /** EOATSummary */
         EOATSummary: {
@@ -2700,6 +2806,16 @@ export interface components {
             /** Removed At */
             removed_at?: string | null;
         };
+        /** KerberosFormLoginRequest */
+        KerberosFormLoginRequest: {
+            /**
+             * Password
+             * Format: password
+             */
+            password: string;
+            /** Username */
+            username: string;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Identity */
@@ -2802,12 +2918,16 @@ export interface components {
              * @default UNKNOWN_NOT_VERIFIED
              */
             current_eoat: string;
+            /** Installation Date */
+            installation_date?: string | null;
             /** Is Active */
             is_active: boolean;
             /** Machine Name */
             machine_name?: string | null;
             /** Machine Number */
             machine_number: string;
+            /** Machine Type */
+            machine_type?: string | null;
             /** Manufacturer */
             manufacturer?: string | null;
             /** Model */
@@ -2824,6 +2944,8 @@ export interface components {
             robots?: components["schemas"]["RelationshipSummary"][];
             /** Row Version */
             row_version: number;
+            /** Serial Number */
+            serial_number?: string | null;
             /** Status */
             status?: string | null;
         };
@@ -3325,6 +3447,8 @@ export interface components {
             }[];
             /** Business Identifier */
             business_identifier: string;
+            /** Cavity Count */
+            cavity_count?: number | null;
             /** Customer */
             customer?: string | null;
             /** Description */
@@ -4119,6 +4243,59 @@ export interface operations {
         };
     };
     authentication_health_api_v1_auth_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    kerberos_form_login_api_v1_auth_kerberos_form_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KerberosFormLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    kerberos_login_api_v1_auth_kerberos_login_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -7563,6 +7740,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WebFitCheckOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_browser_media_route_api_v1_web_media_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrowserMediaUpload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

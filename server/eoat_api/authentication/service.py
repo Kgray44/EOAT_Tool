@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -17,8 +18,16 @@ from .configuration import AuthenticationConfiguration
 from .exceptions import AuthenticationUnavailableError
 from .identity_models import AuthenticatedIdentity
 from .permissions import effective_permissions
-from .providers import DevelopmentAuthenticationProvider, LDAPAuthenticationProvider, SAMLAuthenticationProvider
+from .providers import (
+    DevelopmentAuthenticationProvider,
+    KerberosAuthenticationProvider,
+    KerberosFormAuthenticationProvider,
+    LDAPAuthenticationProvider,
+    SAMLAuthenticationProvider,
+)
 from .role_mapping import resolve_roles
+
+LOGGER = logging.getLogger("eoat_api.authentication")
 
 
 def _utc(value: datetime) -> datetime:
@@ -40,6 +49,10 @@ class AuthenticationService:
             return SAMLAuthenticationProvider()
         if provider == "ldap":
             return LDAPAuthenticationProvider()
+        if provider == "kerberos":
+            return KerberosAuthenticationProvider()
+        if provider == "kerberos_form":
+            return KerberosFormAuthenticationProvider()
         return None
 
     def public_configuration(self) -> dict:
@@ -47,9 +60,10 @@ class AuthenticationService:
         return {
             "provider": self.configuration.provider,
             "environment": self.configuration.environment,
-            "scope": "settings_only",
+            "scope": self.configuration.scope,
             "startup_authentication_required": False,
             "ordinary_application_access_requires_login": False,
+            "application_writes_require_login": self.configuration.scope == "application",
             "settings_authentication_available": bool(health and health.available),
             "production_approved": bool(health and health.production_approved),
             "provider_configured": bool(health and health.configured),
@@ -99,6 +113,65 @@ class AuthenticationService:
                 source_ip=source_ip,
             )
             raise APIError(401, "AUTHENTICATION_FAILED", "Administrator authentication failed.") from exc
+        return self._complete_identity_login(
+            identity,
+            application_instance_id=application_instance_id,
+            request_id=request_id,
+            client_version=client_version,
+            source_ip=source_ip,
+        )
+
+    def complete_kerberos_login(
+        self,
+        context: dict,
+        *,
+        application_instance_id: int | None = None,
+        request_id: str | None = None,
+        client_version: str | None = None,
+        source_ip: str | None = None,
+    ) -> dict:
+        if self.configuration.provider != "kerberos" or not isinstance(self.provider, KerberosAuthenticationProvider):
+            raise APIError(404, "KERBEROS_AUTH_DISABLED", "Kerberos authentication is not active.")
+        try:
+            identity = self.provider.complete_login(self.provider.begin_login(context))
+        except AuthenticationUnavailableError as exc:
+            record_auth_event(self.session, "SETTINGS_ADMIN_LOGIN_FAILED", result="DENIED", provider="kerberos", request_id=request_id, reason_code="TRUSTED_PROXY_IDENTITY_UNAVAILABLE", source_ip=source_ip)
+            raise APIError(401, "AUTHENTICATION_FAILED", "Kerberos authentication failed.") from exc
+        return self._complete_identity_login(identity, application_instance_id=application_instance_id, request_id=request_id, client_version=client_version, source_ip=source_ip)
+
+    def complete_kerberos_form_login(
+        self,
+        context: dict,
+        *,
+        application_instance_id: int | None = None,
+        request_id: str | None = None,
+        client_version: str | None = None,
+        source_ip: str | None = None,
+    ) -> dict:
+        if self.configuration.provider != "kerberos_form" or not isinstance(self.provider, KerberosFormAuthenticationProvider):
+            raise APIError(404, "KERBEROS_FORM_AUTH_DISABLED", "Kerberos form authentication is not active.")
+        throttle_key = source_ip or "unknown"
+        if not self.provider.attempt_limiter.allow(throttle_key):
+            raise APIError(429, "AUTHENTICATION_THROTTLED", "Sign-in is temporarily unavailable. Please try again shortly.")
+        try:
+            identity = self.provider.complete_login(self.provider.begin_login(context))
+        except (AuthenticationUnavailableError, KeyError) as exc:
+            self.provider.attempt_limiter.record_failure(throttle_key)
+            LOGGER.warning("kerberos_form_login_denied reason_code=%s", getattr(exc, "reason_code", "INVALID_CREDENTIALS_OR_DIRECTORY_UNAVAILABLE"))
+            record_auth_event(self.session, "SETTINGS_ADMIN_LOGIN_FAILED", result="DENIED", provider="kerberos_form", request_id=request_id, reason_code=getattr(exc, "reason_code", "INVALID_CREDENTIALS_OR_DIRECTORY_UNAVAILABLE"), source_ip=source_ip)
+            raise APIError(401, "AUTHENTICATION_FAILED", "Sign-in failed.") from None
+        self.provider.attempt_limiter.reset(throttle_key)
+        return self._complete_identity_login(identity, application_instance_id=application_instance_id, request_id=request_id, client_version=client_version, source_ip=source_ip)
+
+    def _complete_identity_login(
+        self,
+        identity: AuthenticatedIdentity,
+        *,
+        application_instance_id: int | None,
+        request_id: str | None,
+        client_version: str | None,
+        source_ip: str | None,
+    ) -> dict:
         user = self._provision_user(identity)
         roles = resolve_roles(self.session, identity.provider, identity.group_identifiers)
         self._sync_user_roles(user, roles)
@@ -123,7 +196,7 @@ class AuthenticationService:
             client_version=client_version,
             source_ip=source_ip,
         )
-        if "settings.edit" in permissions:
+        if "settings.edit" in permissions or "*" in permissions:
             record_auth_event(
                 self.session,
                 "SETTINGS_ADMIN_MODE_ENTERED",
@@ -255,7 +328,7 @@ class AuthenticationService:
         live_permissions = effective_permissions(role_codes)
         row.roles_json = list(role_codes)
         row.permissions_json = sorted(live_permissions)
-        if permission not in live_permissions:
+        if permission not in live_permissions and "*" not in live_permissions:
             row.revoked_at = datetime.now(timezone.utc)
             row.revocation_reason = "permission_lost"
             record_auth_event(
@@ -488,5 +561,5 @@ class AuthenticationService:
             "permissions": list(row.permissions_json or []),
             "authenticated_at": row.authenticated_at,
             "expires_at": row.expires_at,
-            "scope": "settings_only",
+            "scope": AuthenticationConfiguration.from_environment().scope,
         }

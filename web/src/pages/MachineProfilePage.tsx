@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { apiClient, type MachineProfile } from "@/api/client";
 import { decodeRouteIdentifier } from "@/api/routes";
@@ -23,6 +23,9 @@ import {
   RelationshipList,
 } from "@/components/profile/ProfileBlocks";
 import { deduplicateRelationships } from "@/components/profile/relationshipPresentation";
+import { EntityEditor } from "@/components/profile/EntityEditor";
+import { CompatibilityEditor } from "@/components/profile/CompatibilityEditor";
+import { MediaUpload } from "@/components/profile/MediaUpload";
 import { QrLabel } from "@/components/qr/QrLabel";
 import {
   isRoutableAuthoritativeIdentifier,
@@ -44,9 +47,11 @@ function assignmentLabel(value: string | null | undefined) {
 function MachineContent({
   number,
   profile,
+  onSaved,
 }: {
   number: string;
   profile: MachineProfile;
+  onSaved: () => void;
 }) {
   const [setup, relationships, documents, photos, history] = useQueries({
     queries: [
@@ -159,6 +164,86 @@ function MachineContent({
             setup.data?.verified ? "Verified" : "Not verified",
           ],
         ]}
+      />
+      <EntityEditor
+        kind="machine"
+        identifier={profile.machine_number}
+        rowVersion={profile.row_version}
+        onSaved={onSaved}
+        fields={[
+          {
+            key: "area_code",
+            label: "Area",
+            value: profile.area,
+            catalog: "area",
+          },
+          {
+            key: "machine_name",
+            label: "Machine name",
+            value: profile.machine_name,
+          },
+          {
+            key: "manufacturer",
+            label: "Manufacturer",
+            value: profile.manufacturer,
+          },
+          { key: "model", label: "Model", value: profile.model },
+          {
+            key: "serial_number",
+            label: "Serial number",
+            value: profile.serial_number,
+          },
+          {
+            key: "machine_type",
+            label: "Machine type",
+            value: profile.machine_type,
+          },
+          {
+            key: "press_capacity_tons",
+            label: "Press capacity (tons)",
+            kind: "number",
+            value: profile.press_capacity_tons,
+          },
+          {
+            key: "controller_type",
+            label: "Controller",
+            value: profile.controller_type,
+          },
+          {
+            key: "cleanroom_classification",
+            label: "Cleanroom classification",
+            value: profile.cleanroom_classification,
+            catalog: "cleanroom",
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: profile.status,
+            catalog: "status",
+          },
+          {
+            key: "installation_date",
+            label: "Installation date",
+            kind: "date",
+            value: profile.installation_date,
+          },
+          {
+            key: "notes",
+            label: "Notes",
+            kind: "textarea",
+            value: profile.notes,
+          },
+        ]}
+      />
+      <CompatibilityEditor
+        kind="machine"
+        identifier={profile.machine_number}
+        onSaved={onSaved}
+      />
+      <MediaUpload
+        entityType="machine"
+        identifier={profile.machine_number}
+        onSaved={onSaved}
       />
       <ProfileTabs />
       <div className="profile-sections">
@@ -308,6 +393,7 @@ function MachineContent({
 
 export function MachineProfilePage() {
   const location = useLocation();
+  const queryClient = useQueryClient();
   const number = decodeRouteIdentifier(location.pathname, "machine");
   const profile = useQuery({
     queryKey: ["machine", number, "profile"],
@@ -341,7 +427,13 @@ export function MachineProfilePage() {
     );
   return (
     <section className="profile-page">
-      <MachineContent number={number} profile={profile.data} />
+      <MachineContent
+        number={number}
+        profile={profile.data}
+        onSaved={() =>
+          void queryClient.invalidateQueries({ queryKey: ["machine", number] })
+        }
+      />
     </section>
   );
 }

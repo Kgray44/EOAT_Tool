@@ -1,10 +1,12 @@
 # ruff: noqa: B008
 from __future__ import annotations
 
+import hmac
+import secrets
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Request, Response
+from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy.orm import Session
 
 from ..database.session import get_write_session
@@ -17,6 +19,11 @@ router = APIRouter(prefix="/api/v1")
 
 class LoginRequest(BaseModel):
     identity: str = Field(min_length=1, max_length=128)
+
+
+class KerberosFormLoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=128)
+    password: SecretStr = Field(min_length=1, max_length=1024)
 
 
 class SettingsAuthorizationRequest(BaseModel):
@@ -76,7 +83,23 @@ def _service(session: Session) -> AuthenticationService:
 def _bearer(request: Request) -> str:
     value = request.headers.get("Authorization", "")
     scheme, _, token = value.partition(" ")
-    return token.strip() if scheme.casefold() == "bearer" else ""
+    return token.strip() if scheme.casefold() == "bearer" else request.cookies.get("eoat_atlas_session", "")
+
+
+def _require_csrf(request: Request) -> None:
+    if request.headers.get("Authorization", "").partition(" ")[0].casefold() == "bearer":
+        return
+    session_token = request.cookies.get("eoat_atlas_session", "")
+    # Preserve the authentication boundary: an anonymous request is rejected
+    # as unauthenticated by the service, while an authenticated cookie request
+    # without its paired CSRF token is rejected as CSRF-invalid.
+    if not session_token:
+        return
+    csrf_cookie = request.cookies.get("eoat_atlas_csrf", "")
+    csrf_header = request.headers.get("X-EOAT-CSRF-Token", "")
+    if session_token and csrf_cookie and hmac.compare_digest(csrf_cookie, csrf_header):
+        return
+    raise APIError(403, "CSRF_VALIDATION_FAILED", "The request could not be validated.")
 
 
 @router.get("/auth/config")
@@ -105,6 +128,38 @@ def development_login(payload: LoginRequest, request: Request, session: Session 
     )
 
 
+@router.post("/auth/kerberos/login")
+def kerberos_login(request: Request, session: Session = Depends(get_write_session)):
+    return _service(session).complete_kerberos_login(
+        {
+            "source_ip": request.client.host if request.client else "",
+            "authenticated_user": request.headers.get("X-EOAT-Authenticated-User", ""),
+            "proxy_assertion": request.headers.get("X-EOAT-Proxy-Assertion", ""),
+        },
+        request_id=getattr(request.state, "request_id", None),
+        client_version=request.headers.get("X-EOAT-Client-Version"),
+        source_ip=request.client.host if request.client else None,
+    )
+
+
+@router.post("/auth/kerberos-form/login")
+def kerberos_form_login(
+    payload: KerberosFormLoginRequest,
+    request: Request,
+    response: Response,
+    session: Session = Depends(get_write_session),
+):
+    result = _service(session).complete_kerberos_form_login(
+        {"username": payload.username, "password": payload.password.get_secret_value()},
+        request_id=getattr(request.state, "request_id", None),
+        client_version=request.headers.get("X-EOAT-Client-Version"),
+        source_ip=request.client.host if request.client else None,
+    )
+    response.set_cookie("eoat_atlas_session", result.pop("access_token"), httponly=True, secure=True, samesite="lax", max_age=300, path="/")
+    response.set_cookie("eoat_atlas_csrf", secrets.token_urlsafe(32), httponly=False, secure=True, samesite="lax", max_age=300, path="/")
+    return result
+
+
 @router.get("/auth/session")
 def authentication_session(request: Request, session: Session = Depends(get_write_session)):
     row, user = _service(session).resolve_session(_bearer(request))
@@ -112,8 +167,11 @@ def authentication_session(request: Request, session: Session = Depends(get_writ
 
 
 @router.post("/auth/logout")
-def authentication_logout(request: Request, session: Session = Depends(get_write_session)):
+def authentication_logout(request: Request, response: Response, session: Session = Depends(get_write_session)):
+    _require_csrf(request)
     _service(session).logout(_bearer(request))
+    response.delete_cookie("eoat_atlas_session", path="/")
+    response.delete_cookie("eoat_atlas_csrf", path="/")
     return {"authenticated": False, "settings_locked": True}
 
 
@@ -123,6 +181,7 @@ def authorize_settings(
     request: Request,
     session: Session = Depends(get_write_session),
 ) -> dict[str, Any]:
+    _require_csrf(request)
     if not payload.permission.startswith("settings."):
         raise APIError(422, "INVALID_SETTINGS_PERMISSION", "Only Settings permissions may be checked here.")
     result = _service(session).require_permission(_bearer(request), payload.permission)
@@ -171,6 +230,7 @@ def write_setting(
     request: Request,
     session: Session = Depends(get_write_session),
 ):
+    _require_csrf(request)
     normalized_key = setting_key.strip()
     allowed_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
     if not normalized_key or len(normalized_key) > 128 or any(char not in allowed_characters for char in normalized_key):
@@ -191,6 +251,7 @@ def settings_action(
     request: Request,
     session: Session = Depends(get_write_session),
 ):
+    _require_csrf(request)
     confirmations = {
         "reset-section": "RESET SECTION",
         "reset-all": "RESET ALL SETTINGS",
@@ -213,4 +274,5 @@ def audit_settings_action(
     request: Request,
     session: Session = Depends(get_write_session),
 ):
+    _require_csrf(request)
     return _service(session).audit_settings_action(_bearer(request), payload.event_type, payload.operation)
