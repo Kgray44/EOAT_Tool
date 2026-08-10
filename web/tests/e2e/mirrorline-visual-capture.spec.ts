@@ -183,6 +183,45 @@ async function fixtureApi(page: import("@playwright/test").Page) {
         },
       });
     }
+    if (path === "/api/v1/settings/catalog") {
+      return route.fulfill({
+        json: {
+          sections: [],
+          items: [
+            {
+              section: "data_sources",
+              key: "paths.eoat_master_tracker",
+              label: "EOAT Master Tracker",
+              control: "path",
+              default: "",
+              options: [],
+              locked: false,
+            },
+            {
+              section: "data_sources",
+              key: "data.source_status",
+              label: "Authoritative source status",
+              control: "status",
+              default: "Available",
+              options: [],
+              locked: true,
+            },
+          ],
+        },
+      });
+    }
+    if (path === "/api/v1/settings")
+      return route.fulfill({ json: { items: [] } });
+    if (path === "/api/v1/auth/config") {
+      return route.fulfill({
+        json: {
+          provider: "kerberos_form",
+          settings_authentication_available: true,
+          provider_configured: true,
+          message: "Kerberos sign-in is required for shared changes.",
+        },
+      });
+    }
     if (path.includes("MISSING"))
       return route.fulfill({
         status: 404,
@@ -416,6 +455,19 @@ test("captures governed Mirrorline browser shell references", async ({
   await expect(
     page.getByRole("heading", { name: "Settings", exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("EOAT Master Tracker")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  expect(
+    await page
+      .locator(".settings-page")
+      .evaluate(
+        (element) => element.getBoundingClientRect().right <= window.innerWidth,
+      ),
+  ).toBeTruthy();
   await capture(page, "settings-dark");
   await page.evaluate(() => {
     const stored = JSON.parse(
@@ -427,6 +479,7 @@ test("captures governed Mirrorline browser shell references", async ({
     );
   });
   await page.reload();
+  await expect(page.getByText("EOAT Master Tracker")).toBeVisible();
   await capture(page, "settings-light");
   await page.evaluate(() => {
     const stored = JSON.parse(

@@ -277,7 +277,7 @@ describe("Library and Fit Check", () => {
       await screen.findByText("All relationships are verified."),
     ).toBeInTheDocument();
     expect(screen.getByText("Machine number")).toBeInTheDocument();
-    expect(screen.queryByText(/\"machine_number\"/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/"machine_number"/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Print or save as PDF" }),
     ).toBeInTheDocument();

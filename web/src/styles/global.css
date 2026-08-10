@@ -2193,7 +2193,7 @@ a {
   padding: 14px 18px;
 }
 .settings-page {
-  width: min(calc(100vw - 48px), 1680px);
+  width: 100%;
   margin: 0 auto;
   transform: none;
 }
@@ -2203,6 +2203,14 @@ a {
 .settings-workspace {
   grid-template-columns: 280px minmax(0, 1fr);
   min-height: 760px;
+}
+.settings-action-bar {
+  flex-wrap: wrap;
+}
+.settings-panel-heading > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .settings-nav,
 .settings-content {
