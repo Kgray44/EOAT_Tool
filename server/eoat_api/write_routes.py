@@ -90,7 +90,11 @@ from .write_services import (
 router = APIRouter(prefix="/api/v1")
 
 _UPLOAD_NAME = re.compile(r"[^A-Za-z0-9._ -]+")
-_MAX_BROWSER_UPLOAD_BYTES = 20 * 1024 * 1024
+# Browser uploads are limited to 20 MiB after Base64 decoding.  The request
+# contract uses the exact padded Base64 ceiling for that payload size, while
+# the decoded-size check below remains the authoritative defense in depth.
+MAX_BROWSER_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_BROWSER_UPLOAD_BASE64_CHARACTERS = 4 * ((MAX_BROWSER_UPLOAD_BYTES + 2) // 3)
 
 
 class BrowserMediaUpload(BaseModel):
@@ -98,7 +102,7 @@ class BrowserMediaUpload(BaseModel):
     entity_identifier: str = Field(min_length=1, max_length=128)
     title: str = Field(min_length=1, max_length=255)
     file_name: str = Field(min_length=1, max_length=255)
-    content_base64: str = Field(min_length=1, max_length=28 * 1024 * 1024)
+    content_base64: str = Field(min_length=1, max_length=MAX_BROWSER_UPLOAD_BASE64_CHARACTERS)
     media_kind: str = "document"
     document_type: str = "document"
     description: str | None = None
@@ -139,7 +143,7 @@ def _persist_browser_upload(file_name: str, content_base64: str, root: Path) -> 
         content = b64decode(content_base64, validate=True)
     except (Base64Error, ValueError):
         raise APIError(422, "INVALID_MEDIA_CONTENT", "The selected file could not be decoded.") from None
-    if len(content) > _MAX_BROWSER_UPLOAD_BYTES:
+    if len(content) > MAX_BROWSER_UPLOAD_BYTES:
         raise APIError(413, "WEB_UPLOAD_TOO_LARGE", "The selected file exceeds the 20 MB browser upload limit.")
     try:
         target.write_bytes(content)

@@ -18,6 +18,10 @@ def main() -> int:
         parser.error(f"Refusing destructive reset for unapproved database '{args.database}'.")
     environment = os.environ.copy()
     environment["EOAT_DB_NAME"] = args.database
+    # Alembic accepts EOAT_DATABASE_URL as an explicit override.  A reset is
+    # authorized only for the allowlisted name above, so it must never inherit
+    # a URL that can point migration work at another database.
+    environment.pop("EOAT_DATABASE_URL", None)
     required = (
         "EOAT_DB_ROOT_PASSWORD",
         "EOAT_DB_USER",

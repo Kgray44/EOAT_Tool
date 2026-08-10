@@ -487,6 +487,7 @@
             "title": "Caption"
           },
           "content_base64": {
+            "maxLength": 27962028,
             "minLength": 1,
             "title": "Content Base64",
             "type": "string"
