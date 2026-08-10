@@ -22,6 +22,7 @@ from .authentication.configuration import AuthenticationConfiguration
 from .authentication.routes import router as authentication_router
 from .compatibility import COMPATIBLE_STATUS_CODES
 from .contracts import (
+    CatalogOption,
     CurrentEOATLocation,
     DataStatusResponse,
     DocumentMetadata,
@@ -455,6 +456,20 @@ def lookup(lookup_type: str, repo: AtlasRepository = Depends(repository)):
     if lookup_type not in LOOKUP_MODELS:
         raise not_found("Lookup type", lookup_type)
     return repo.lookups(lookup_type)[lookup_type]
+
+
+@app.get("/api/v1/catalog-options/{kind}", response_model=list[CatalogOption])
+def catalog_options(
+    kind: str,
+    query: str = Query("", max_length=120),
+    limit: int = Query(50, ge=1, le=100),
+    repo: AtlasRepository = Depends(repository),
+):
+    """Serve bounded server-authoritative choices for browser Library selectors."""
+    try:
+        return repo.catalog_options(kind, query=query, limit=limit)
+    except ValueError:
+        raise not_found("Catalog option type", kind)
 
 
 @app.get("/api/v1/eoats", response_model=PaginatedEOATs)

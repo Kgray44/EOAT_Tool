@@ -473,6 +473,25 @@
         "title": "AuditPatch",
         "type": "object"
       },
+      "CatalogOption": {
+        "description": "A bounded authoritative selector value, not a catalog record dump.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "CatalogOption",
+        "type": "object"
+      },
       "CompatibilityWrite": {
         "additionalProperties": false,
         "properties": {
@@ -6430,6 +6449,73 @@
           }
         },
         "summary": "Authentication Session"
+      }
+    },
+    "/api/v1/catalog-options/{kind}": {
+      "get": {
+        "description": "Serve bounded server-authoritative choices for browser Library selectors.",
+        "operationId": "catalog_options_api_v1_catalog_options__kind__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 120,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogOption"
+                  },
+                  "title": "Response Catalog Options Api V1 Catalog Options  Kind  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Catalog Options"
       }
     },
     "/api/v1/compatibility/alternatives": {

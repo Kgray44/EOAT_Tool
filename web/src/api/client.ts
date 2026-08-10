@@ -20,6 +20,14 @@ export type FitCheckResult = components["schemas"]["FitCheckResult"];
 export type WebFitCheckOptions = components["schemas"]["WebFitCheckOptions"];
 export type WebDocument = components["schemas"]["WebDocumentMetadata"];
 export type WebPhoto = components["schemas"]["WebPhotoMetadata"];
+export type SetupPacketData = {
+  machine: unknown;
+  tool: unknown;
+  eoat: unknown;
+  fit_check: FitCheckResult;
+  generated_at: string;
+  source: string;
+};
 export type SettingsCatalog = components["schemas"]["SettingsCatalogResponse"];
 export type SharedSetting = {
   key: string;
@@ -45,6 +53,18 @@ export type AuthConfiguration = {
 export type SettingsAction =
   "reset-section" | "reset-all" | "set-defaults" | "factory-reset";
 export type CatalogActivity = "active" | "inactive" | "all";
+export type CatalogOptionKind =
+  | "area"
+  | "cleanroom"
+  | "eoat"
+  | "eoat_type"
+  | "machine"
+  | "mold"
+  | "plant"
+  | "robot"
+  | "status"
+  | "tool";
+export type CatalogOption = { value: string; label: string };
 export type CatalogFilters = {
   sort?: string;
   eoatType?: string;
@@ -573,6 +593,21 @@ export const apiClient = {
       "tool list",
     );
   },
+  async getCatalogOptions(
+    kind: CatalogOptionKind,
+    query = "",
+    fetcher?: typeof fetch,
+  ): Promise<CatalogOption[]> {
+    const parameters = new URLSearchParams({ limit: "50" });
+    if (query.trim()) parameters.set("query", query.trim());
+    return assertArray<CatalogOption>(
+      await requestJson(
+        `/api/v1/catalog-options/${encodeURIComponent(kind)}?${parameters}`,
+        fetcher,
+      ),
+      "catalog options",
+    );
+  },
   async getEoats(
     search = "",
     page = 1,
@@ -641,6 +676,22 @@ export const apiClient = {
         "tool_eoat_result",
       ],
       "read-only Fit Check",
+    );
+  },
+  async getSetupPacketData(
+    request: FitCheckRequest,
+    fetcher?: typeof fetch,
+  ): Promise<SetupPacketData> {
+    const query = new URLSearchParams({
+      machine_number: request.machine_number,
+      tool_number: request.tool_number,
+      eoat_identifier: request.eoat_identifier,
+    });
+    if (request.plant_code) query.set("plant_code", request.plant_code);
+    return assertObject<SetupPacketData>(
+      await requestJson(`/api/v1/setup-packets/data?${query}`, fetcher),
+      ["machine", "tool", "eoat", "fit_check", "generated_at", "source"],
+      "setup packet data",
     );
   },
   documentContentUrl(documentUuid: string): string {

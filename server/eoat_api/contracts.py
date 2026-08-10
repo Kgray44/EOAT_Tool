@@ -38,6 +38,13 @@ class LookupValue(BaseModel):
     sort_order: int = 0
 
 
+class CatalogOption(BaseModel):
+    """A bounded authoritative selector value, not a catalog record dump."""
+
+    value: str
+    label: str
+
+
 class RelationshipSummary(BaseModel):
     relationship_type: str
     identifier: str

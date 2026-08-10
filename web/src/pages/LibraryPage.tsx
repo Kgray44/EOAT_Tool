@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   apiClient,
   type CatalogActivity,
   type CatalogFilters,
+  type CatalogOptionKind,
   type SearchResult,
 } from "@/api/client";
 import { entityPath, type EntityCategory } from "@/api/routes";
@@ -80,6 +81,62 @@ function ResultCard({ result }: { result: LibraryResult }) {
         {subtitle ? ` · ${subtitle}` : ""}
       </small>
     </Link>
+  );
+}
+
+function CatalogSelector({
+  label,
+  kind,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  kind: CatalogOptionKind;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  const listId = `catalog-option-${kind}-${useId().replaceAll(":", "")}`;
+  const options = useQuery({
+    queryKey: ["catalog-options", kind, value],
+    queryFn: () => apiClient.getCatalogOptions(kind, value),
+  });
+  return (
+    <label>
+      {label}
+      <span className="library-selector-control">
+        <input
+          list={listId}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label={label}
+          placeholder={placeholder || `Select or search ${label.toLowerCase()}`}
+          aria-describedby={options.isError ? `${listId}-error` : undefined}
+        />
+        {value ? (
+          <button
+            type="button"
+            aria-label={`Clear ${label}`}
+            onClick={() => onChange("")}
+          >
+            Clear
+          </button>
+        ) : null}
+      </span>
+      <datalist id={listId}>
+        {(options.data || []).map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </datalist>
+      {options.isError ? (
+        <small id={`${listId}-error`}>
+          Options are temporarily unavailable.
+        </small>
+      ) : null}
+    </label>
   );
 }
 
@@ -280,14 +337,12 @@ export function LibraryPage() {
             <option value="all">All records</option>
           </select>
         </label>
-        <label>
-          Location / Machine{" "}
-          <input
-            value={locationDraft}
-            onChange={(event) => setLocationDraft(event.target.value)}
-            placeholder="Machine number"
-          />
-        </label>
+        <CatalogSelector
+          label="Location / Machine"
+          kind="machine"
+          value={locationDraft}
+          onChange={setLocationDraft}
+        />
         <button
           type="button"
           className="library-secondary-control"
@@ -303,78 +358,54 @@ export function LibraryPage() {
           className="library-advanced-filters"
           aria-label="Advanced Filters"
         >
-          <label>
-            EOAT type
-            <input
-              value={catalogFilters.eoatType || ""}
-              onChange={(event) =>
-                update({ eoatType: event.target.value, page: "1" })
-              }
-            />
-          </label>
-          <label>
-            Plant
-            <input
-              value={catalogFilters.plant || ""}
-              onChange={(event) =>
-                update({ plant: event.target.value, page: "1" })
-              }
-            />
-          </label>
-          <label>
-            Area
-            <input
-              value={catalogFilters.area || ""}
-              onChange={(event) =>
-                update({ area: event.target.value, page: "1" })
-              }
-            />
-          </label>
-          <label>
-            Cleanroom
-            <input
-              value={catalogFilters.cleanroom || ""}
-              onChange={(event) =>
-                update({ cleanroom: event.target.value, page: "1" })
-              }
-            />
-          </label>
-          <label>
-            Tool / Mold
-            <input
-              value={catalogFilters.tool || ""}
-              onChange={(event) =>
-                update({ tool: event.target.value, page: "1" })
-              }
-            />
-          </label>
-          <label>
-            Mold number
-            <input
-              value={catalogFilters.mold || ""}
-              onChange={(event) =>
-                update({ mold: event.target.value, page: "1" })
-              }
-            />
-          </label>
-          <label>
-            Robot
-            <input
-              value={catalogFilters.robot || ""}
-              onChange={(event) =>
-                update({ robot: event.target.value, page: "1" })
-              }
-            />
-          </label>
-          <label>
-            Related EOAT
-            <input
-              value={catalogFilters.eoat || ""}
-              onChange={(event) =>
-                update({ eoat: event.target.value, page: "1" })
-              }
-            />
-          </label>
+          <CatalogSelector
+            label="EOAT type"
+            kind="eoat_type"
+            value={catalogFilters.eoatType || ""}
+            onChange={(eoatType) => update({ eoatType, page: "1" })}
+          />
+          <CatalogSelector
+            label="Plant"
+            kind="plant"
+            value={catalogFilters.plant || ""}
+            onChange={(plant) => update({ plant, page: "1" })}
+          />
+          <CatalogSelector
+            label="Area"
+            kind="area"
+            value={catalogFilters.area || ""}
+            onChange={(area) => update({ area, page: "1" })}
+          />
+          <CatalogSelector
+            label="Cleanroom"
+            kind="cleanroom"
+            value={catalogFilters.cleanroom || ""}
+            onChange={(cleanroom) => update({ cleanroom, page: "1" })}
+          />
+          <CatalogSelector
+            label="Tool"
+            kind="tool"
+            value={catalogFilters.tool || ""}
+            onChange={(tool) => update({ tool, page: "1" })}
+          />
+          <CatalogSelector
+            label="Mold number"
+            kind="mold"
+            value={catalogFilters.mold || ""}
+            onChange={(mold) => update({ mold, page: "1" })}
+          />
+          <CatalogSelector
+            label="Robot"
+            kind="robot"
+            value={catalogFilters.robot || ""}
+            onChange={(robot) => update({ robot, page: "1" })}
+          />
+          <CatalogSelector
+            label="Related EOAT"
+            kind="eoat"
+            value={catalogFilters.eoat || ""}
+            onChange={(eoat) => update({ eoat, page: "1" })}
+          />
           <label>
             Sort
             <select

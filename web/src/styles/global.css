@@ -1435,6 +1435,49 @@ a {
   border: 1px solid color-mix(in srgb, var(--atlas-border) 44%, transparent);
   border-radius: 10px;
 }
+
+.setup-packet-page {
+  max-width: 72rem;
+}
+
+.setup-packet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--atlas-space-3, 0.75rem);
+  margin: var(--atlas-space-5, 1.5rem) 0;
+}
+
+.setup-packet-record pre {
+  max-height: 32rem;
+  overflow: auto;
+  padding: var(--atlas-space-4, 1rem);
+  border: 1px solid var(--atlas-border);
+  border-radius: var(--atlas-radius-md, 0.75rem);
+  background: var(--atlas-surface-raised);
+  color: var(--atlas-text);
+  font:
+    0.8125rem/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  .app-sidebar,
+  .app-topbar,
+  .setup-packet-actions,
+  .global-search-overlay {
+    display: none !important;
+  }
+
+  .setup-packet-record pre {
+    max-height: none;
+    border: 0;
+    padding: 0;
+  }
+}
 .fit-check-recents h3,
 .fit-check-recents p {
   margin-top: 0;

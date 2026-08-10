@@ -8,6 +8,7 @@ import { MachineProfilePage } from "@/pages/MachineProfilePage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SearchPage } from "@/pages/SearchPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { SetupPacketPage } from "@/pages/SetupPacketPage";
 import { ToolProfilePage } from "@/pages/ToolProfilePage";
 import { DesktopBoundaryPage } from "@/pages/DesktopBoundaryPage";
 
@@ -23,10 +24,7 @@ export const routeDefinitions = [
       { path: "machines/:number", element: <MachineProfilePage /> },
       { path: "tools/:identifier", element: <ToolProfilePage /> },
       { path: "fit-check", element: <FitCheckPage /> },
-      {
-        path: "setup-packet",
-        element: <DesktopBoundaryPage kind="setup-packet" />,
-      },
+      { path: "setup-packet", element: <SetupPacketPage /> },
       { path: "standards", element: <DesktopBoundaryPage kind="standards" /> },
       {
         path: "data-health",

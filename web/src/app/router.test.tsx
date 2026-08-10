@@ -25,14 +25,15 @@ describe("router", () => {
       screen.getByRole("heading", { name: "Page not found" }),
     ).toBeInTheDocument();
   });
-  it("accounts for desktop-only auxiliary pages with explicit browser-safe routes", () => {
+  it("routes auxiliary pages to explicit browser-safe screens", () => {
     const setupPacket = renderAt("/setup-packet");
     expect(
       screen.getByRole("heading", { name: "Setup Packet" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Run a read-only Fit Check" }),
-    ).toHaveAttribute("href", "/fit-check");
+    expect(screen.getByRole("link", { name: "Run Fit Check" })).toHaveAttribute(
+      "href",
+      "/fit-check",
+    );
     setupPacket.unmount();
     const standards = renderAt("/standards");
     expect(
