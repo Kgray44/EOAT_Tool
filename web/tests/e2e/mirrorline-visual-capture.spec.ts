@@ -101,6 +101,21 @@ async function fixtureApi(page: import("@playwright/test").Page) {
         },
       });
     }
+    if (path.endsWith("/web-fit-checks/options")) {
+      return route.fulfill({
+        json: {
+          machines: [
+            { identifier: "52", label: "Machine 52", plant_code: "P4" },
+            { identifier: "99", label: "Machine 99", plant_code: "P4" },
+          ],
+          tools: [{ identifier: "6201510010", label: "Tool 6201510010" }],
+          eoats: [{ identifier: "P4-EOAT-0052", label: "P4-EOAT-0052" }],
+          warnings: [],
+          unresolved_inputs: [],
+        },
+      });
+    }
+    if (path.includes("/catalog-options/")) return route.fulfill({ json: [] });
     if (path.endsWith("/web-fit-checks/evaluate")) {
       const request = route.request();
       const body = request.postDataJSON() as { machine_number?: string } | null;
@@ -131,6 +146,40 @@ async function fixtureApi(page: import("@playwright/test").Page) {
           alternative_compatible_eoats: warning ? ["P4-EOAT-0099"] : [],
           evaluation_engine_version: "fixture",
           stored: false,
+        },
+      });
+    }
+    if (path === "/api/v1/setup-packets/data") {
+      return route.fulfill({
+        json: {
+          machine: profileMachine,
+          tool: profileTool,
+          eoat: profileEoat,
+          fit_check: {
+            overall_result: "COMPATIBLE",
+            machine_tool_result: {
+              pair: "machine_tool",
+              result: "COMPATIBLE",
+              reason: "Fixture compatible",
+            },
+            machine_eoat_result: {
+              pair: "machine_eoat",
+              result: "COMPATIBLE",
+              reason: "Fixture compatible",
+            },
+            tool_eoat_result: {
+              pair: "tool_eoat",
+              result: "COMPATIBLE",
+              reason: "Fixture compatible",
+            },
+            reasons: ["Fixture compatible"],
+            warnings: [],
+            unknown_relationships: [],
+            alternative_compatible_eoats: [],
+            stored: false,
+          },
+          generated_at: "2026-08-10T16:00:00Z",
+          source: "fixture",
         },
       });
     }
@@ -237,6 +286,19 @@ async function capture(page: import("@playwright/test").Page, state: string) {
   });
 }
 
+async function expectHeadingBelowMobileHeader(
+  page: import("@playwright/test").Page,
+  heading: import("@playwright/test").Locator,
+) {
+  const [topbar, title] = await Promise.all([
+    page.locator(".atlas-topbar").boundingBox(),
+    heading.boundingBox(),
+  ]);
+  expect(topbar).not.toBeNull();
+  expect(title).not.toBeNull();
+  expect(title!.y).toBeGreaterThanOrEqual(topbar!.y + topbar!.height);
+}
+
 test("captures governed Mirrorline browser shell references", async ({
   page,
 }) => {
@@ -331,9 +393,12 @@ test("captures governed Mirrorline browser shell references", async ({
   await expect(page.getByRole("heading", { name: "6201510010" })).toBeVisible();
   await capture(page, "tool-profile");
   await page.goto("/fit-check");
-  await expect(
-    page.getByRole("heading", { name: "Fit Check", exact: true }),
-  ).toBeVisible();
+  const fitHeading = page.getByRole("heading", {
+    name: "Fit Check",
+    exact: true,
+  });
+  await expect(fitHeading).toBeVisible();
+  await expectHeadingBelowMobileHeader(page, fitHeading);
   await capture(page, "fit-empty");
   await page.goto("/fit-check?tool=6201510010");
   await capture(page, "fit-populated");
@@ -387,4 +452,33 @@ test("captures governed Mirrorline browser shell references", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Open search" }).click();
   await capture(page, "global-search");
+});
+
+test("captures tablet and phone responsive parity references", async ({
+  page,
+}) => {
+  await fixtureApi(page);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/library?type=machine");
+  await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
+  await capture(page, "library-tablet");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/fit-check?machine=52&tool=6201510010&eoat=P4-EOAT-0052");
+  await expect(
+    page.getByRole("heading", { name: "Fit Check", exact: true }),
+  ).toBeVisible();
+  await capture(page, "fit-mobile");
+
+  await page.goto("/setup-packet?machine=52&tool=6201510010&eoat=P4-EOAT-0052");
+  const packetHeading = page.getByRole("heading", {
+    name: "Setup Packet",
+    exact: true,
+  });
+  await expect(packetHeading).toBeVisible();
+  await expectHeadingBelowMobileHeader(page, packetHeading);
+  await expect(
+    page.getByRole("button", { name: "Print or save as PDF" }),
+  ).toBeVisible();
+  await capture(page, "setup-packet-mobile");
 });

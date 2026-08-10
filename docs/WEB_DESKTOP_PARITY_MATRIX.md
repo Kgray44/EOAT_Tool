@@ -45,7 +45,7 @@ actions.
 | Settings read | `settings_page.py` | `SettingsPage.tsx` | Full catalog and read-only state display | PASS | Settings component test |
 | Settings administration | `settings_page.py` | `SettingsPage.tsx` | Development settings session, permissions, dirty drafts, confirmations | PASS | Existing authenticated-settings test; real LDAP remains blocked |
 | Settings danger-zone actions | `settings_page.py` | `SettingsPage.tsx` | Typed confirmation and permission checks | PASS | Fail-closed when session absent |
-| Fit Check selection | `fit_check.py` universal selectors | `FitCheckPage.tsx` | Fixed Machine/Tool/EOAT fields | FIXED | 6 order permutations plus slot-role test |
+| Fit Check selection | `fit_check.py` universal selectors | `FitCheckPage.tsx` | Fixed Machine/Tool/EOAT fields | FIXED | Unit and Chromium coverage for all 6 orders; duplicate types disable evaluation rather than coercing values |
 | Fit Check evaluation and truth states | `fit_check.py`, API rules | `FitCheckPage.tsx` | Authoritative API evaluation, warnings, unknowns, alternatives | PASS | Browser-safe POST; does not create history |
 | Recent Fit Checks | desktop local recents | `fitCheckRecents.ts` | Browser-local recent list | INTENTIONAL-DIFFERENCE | Explicitly does not simulate server history |
 | Setup packet / PDF | `fit_check.py`, `packet_builder.py` | `SetupPacketPage.tsx` | Desktop-only boundary page | FIXED | API-backed packet; browser print/save-PDF produces no write |
@@ -57,8 +57,9 @@ actions.
 | QR/deep links | desktop navigation | React routes, QR labels | Canonical EOAT/Machine/Tool routes | PASS | Router and EOAT profile tests |
 | Refresh/direct route/back-forward | desktop controller navigation | React Router | Browser history/direct routing | PASS | Route tests; host rewrite remains deployment-owned |
 | Keyboard and accessibility | Qt accessible controls | semantic controls, skip link, dialog focus | Core keyboard paths implemented | PASS | Router keyboard tests |
-| Desktop-width visual language | minimalist theme | generated tokens and global styles | Shared conceptual tokens/hierarchy | PASS | Token generation and focused visual contracts |
-| Tablet/mobile behavior | desktop not applicable | responsive CSS | Reflow rather than desktop-window emulation | INTENTIONAL-DIFFERENCE | Must preserve capability inventory |
+| Browser visual regression capture | minimalist theme | deterministic Playwright capture | Desktop-only capture had no tablet/phone coverage | FIXED | 30 fixture screenshots across desktop, tablet, and phone; mobile header clearance is asserted |
+| Direct desktop-to-browser visual review | offscreen PySide/installed desktop | Playwright capture artifacts | No current same-record side-by-side reviewer disposition | BLOCKED-EXTERNAL | Requires controlled desktop session and reviewed difference register; browser screenshots do not substitute for that review |
+| Tablet/mobile behavior | desktop not applicable | responsive CSS | Reflow rather than desktop-window emulation | INTENTIONAL-DIFFERENCE | Must preserve capability inventory; phone header overlap regression-tested |
 | API contract usage | desktop gateway/API | `api/client.ts` | Read paths use authoritative API | PASS | Generated OpenAPI types and client tests |
 | Production safety | desktop/API runtime | browser client | Writes remain disabled without permitted identity | PASS | No production change or credential exposure |
 

@@ -177,6 +177,17 @@ async function routeApi(
             }
           : [],
       });
+    if (path.endsWith("/web-fit-checks/options"))
+      return route.fulfill({
+        json: {
+          machines: [{ identifier: "M-1", label: "Press 1", plant_code: "P1" }],
+          tools: [{ identifier: "TOOL-1", label: "Mold 1" }],
+          eoats: [{ identifier: "EOAT-1", label: "Picker" }],
+          warnings: [],
+          unresolved_inputs: [],
+        },
+      });
+    if (path.includes("/catalog-options/")) return route.fulfill({ json: [] });
     if (path.endsWith("/web-fit-checks/evaluate"))
       return route.fulfill({
         json: {
@@ -347,6 +358,61 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
         request.url().includes("web-fit-checks") && request.method() === "POST",
     ),
   ).toBeTruthy();
+});
+
+test("Fit Check accepts all universal-slot permutations without coercion", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  const permutations = [
+    ["machine", "tool", "eoat"],
+    ["machine", "eoat", "tool"],
+    ["tool", "machine", "eoat"],
+    ["tool", "eoat", "machine"],
+    ["eoat", "machine", "tool"],
+    ["eoat", "tool", "machine"],
+  ] as const;
+  const labels = { machine: "Machine", tool: "Tool", eoat: "EOAT" } as const;
+  const values = { machine: "M-1", tool: "TOOL-1", eoat: "EOAT-1" } as const;
+
+  for (const order of permutations) {
+    await page.goto("/fit-check");
+    for (const [index, kind] of order.entries()) {
+      const slot = page.getByRole("group", {
+        name: `Entity slot ${index + 1}`,
+      });
+      await slot
+        .getByRole("combobox", { name: `Entity slot ${index + 1} type` })
+        .selectOption(kind);
+      await slot
+        .getByRole("combobox", { name: labels[kind] })
+        .fill(values[kind]);
+    }
+    await expect(
+      page.getByRole("button", { name: "Evaluate without saving" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Evaluate without saving" }).click();
+    await expect(
+      page.getByRole("heading", { name: "COMPATIBLE" }),
+    ).toBeVisible();
+  }
+
+  await page.goto("/fit-check");
+  await page
+    .getByRole("group", { name: "Entity slot 2" })
+    .getByRole("combobox", { name: "Entity slot 2 type" })
+    .selectOption("machine");
+  await expect(
+    page.getByRole("button", { name: "Evaluate without saving" }),
+  ).toBeDisabled();
+  expect(
+    seen.filter(
+      (request) =>
+        request.url().includes("web-fit-checks/evaluate") &&
+        request.method() === "POST",
+    ).length,
+  ).toBe(6);
 });
 
 test("Mirrorline shell traps overlays, restores Library context, and fades top chrome", async ({

@@ -2063,7 +2063,9 @@ a {
     z-index: 1;
   }
   .atlas-main {
-    padding-top: 26px;
+    /* The mobile top bar overlays content; retain a real clearance so page
+       headings never render behind the menu, brand, or search controls. */
+    padding-top: 112px;
   }
   .atlas-home-page {
     min-height: 650px;
