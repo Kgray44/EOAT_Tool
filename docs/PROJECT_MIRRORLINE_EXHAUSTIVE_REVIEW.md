@@ -6,22 +6,24 @@ application remains the visual and interaction authority. Browser facts come
 only from the read-only API; the browser never recreates compatibility or
 location logic.
 
-The final deterministic visual evidence is iteration 21 in the external,
-task-owned evidence directory (intentionally not recorded in source): it
-contains all 27 governed Qt/browser pairs, comparison artifacts, metrics, and
-reviewed dispositions.
+Iteration 21 was a historical deterministic visual review in an external,
+task-owned evidence directory (intentionally not recorded in source). This
+branch changes browser Fit Check and Setup Packet composition, so its current
+capture must be reviewed as a new iteration rather than inheriting that prior
+approval. The refreshed capture contains all 27 governed Qt/browser pairs and
+comparison artifacts, but has no reviewed dispositions yet.
 
 ## Runtime inventory
 
 | Desktop surface | Browser route or equivalent | Result |
 | --- | --- | --- |
-| Shell, title bar, logo, ambient background, menu, search, freshness status | All routes through `AppShell` | Matched with semantic modal/focus handling. |
-| Home, recents, query handoff, stale and unavailable indicators | `/` | Matched; browser recents are local only. |
-| Library, category views, query, retained context and profile entry | `/library` | Matched through read-only paginated API routes. |
-| EOAT, Machine and Tool profiles | `/eoats/:identifier`, `/machines/:number`, `/tools/:identifier` | Matched through browser-safe profile/media metadata routes. |
-| Fit Check, alternatives, result, error and local recents | `/fit-check` | Matched to the non-persisting web evaluation endpoint; browser recents are local only. |
-| Display and accessibility settings | `/settings` | Browser-local theme, accent, motion and contrast settings; privileged desktop settings are inert and explicit. |
-| Setup Packet builder | `/setup-packet` | Closest safe equivalent: links to a read-only Fit Check and explicitly excludes local PDF creation. |
+| Shell, title bar, logo, ambient background, menu, search, freshness status | All routes through `AppShell` | Covered with semantic modal/focus handling; current visual review remains open. |
+| Home, recents, query handoff, stale and unavailable indicators | `/` | Covered; browser recents are local only. |
+| Library, category views, query, retained context and profile entry | `/library` | Covered through read-only paginated API routes. |
+| EOAT, Machine and Tool profiles | `/eoats/:identifier`, `/machines/:number`, `/tools/:identifier` | Covered through browser-safe profile/media metadata routes. |
+| Fit Check, alternatives, result, error and local recents | `/fit-check` | Read-only evaluation and universal setup-item selection are covered; visual review remains open. |
+| Display and accessibility settings | `/settings` | Browser-local theme, accent, motion and contrast settings; privileged controls remain fail-closed. |
+| Setup Packet builder | `/setup-packet` | API-backed read-only packet with labelled data and browser print/save-PDF; it creates no Fit Check, assignment, audit, or history event. |
 | Standards & WI | `/standards` | Desktop is currently a coming-later surface; browser preserves that truthful state. |
 | Data Health | `/data-health` | Desktop is currently a coming-later surface; browser preserves that truthful state and keeps API freshness where used. |
 
@@ -38,8 +40,8 @@ reviewed dispositions.
 
 ## Governed visual-state matrix
 
-The iteration-21 comparison is complete and reviewed for every governed
-state: `home-dark`, `home-light`, `home-recents`, `home-live-search`,
+The current refreshed comparison is complete for every governed state:
+`home-dark`, `home-light`, `home-recents`, `home-live-search`,
 `global-search`, `navigation-home`, `navigation-fit-check`,
 `navigation-library`, `navigation-settings`, `library-default`,
 `library-query`, `library-filters`, `eoat-profile`, `machine-profile`,
@@ -48,10 +50,10 @@ state: `home-dark`, `home-light`, `home-recents`, `home-live-search`,
 `api-unavailable`, `not-found`, `stale-data`, and `reduced-motion`.
 
 Each state has a Qt reference, browser capture, side-by-side, 50 percent
-overlay, difference image, metric record, and reviewed disposition. The
-reviewed differences are limited to browser/Qt rasterization and compositing,
-semantic browser interaction, responsive translation, and the narrow,
-explicit browser-security boundaries described below.
+overlay, difference image, and metric record. A reviewer still needs to
+record the disposition of each state before `--require-reviewed` can pass.
+Historical reviewed differences cannot be reused for the changed browser
+surfaces.
 
 ## Narrow platform differences
 
@@ -67,8 +69,8 @@ explicit browser-security boundaries described below.
 
 Visual capture output is intentionally external to source control. Each
 iteration contains `qt`, `browser`, and `comparison` directories, with
-side-by-side images, overlays, differences, metrics, and reviewed
-dispositions. The capture command remains:
+side-by-side images, overlays, differences, metrics, and—only after a real
+review—dispositions. The capture command remains:
 
 ```powershell
 python scripts\capture_mirrorline_qt.py --output "$evidence\qt"
