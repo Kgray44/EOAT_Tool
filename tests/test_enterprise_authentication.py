@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from datetime import timezone
 
 import pytest
@@ -11,10 +12,12 @@ from server.eoat_api.authentication.configuration import (
 )
 from server.eoat_api.authentication.permissions import effective_permissions
 from server.eoat_api.authentication.provider_configuration import (
+    KerberosFormProviderConfiguration,
     LDAPProviderConfiguration,
     SAMLProviderConfiguration,
 )
 from server.eoat_api.authentication.providers.development import DevelopmentAuthenticationProvider
+from server.eoat_api.authentication.providers.kerberos_form import _SSF, KerberosCommandAuthenticator, _ldap_escape
 from server.eoat_api.authentication.providers.ldap import LDAPAuthenticationProvider
 from server.eoat_api.authentication.providers.saml import SAMLAuthenticationProvider
 from server.eoat_api.security import ActorContext
@@ -107,3 +110,45 @@ def test_invalid_authentication_scope_is_rejected(monkeypatch) -> None:
 
     with pytest.raises(AuthenticationConfigurationError, match="settings_only"):
         AuthenticationConfiguration.from_environment()
+
+
+def test_kerberos_form_uses_newline_password_input_and_safe_ldap_parsing(tmp_path, monkeypatch) -> None:
+    configuration = KerberosFormProviderConfiguration(
+        realm="GWPLASTICS.COM",
+        base_dn="DC=gwplastics,DC=com",
+        cache_directory=str(tmp_path / "kerberos-cache"),
+        login_timeout_seconds=15,
+        min_sasl_ssf=256,
+    )
+    authenticator = KerberosCommandAuthenticator(configuration)
+    kinit_inputs: list[bytes | None] = []
+
+    def fake_run(command, _environment, input_data=None, *, failure_code="KERBEROS_COMMAND_FAILED"):
+        if command[0] == "/usr/bin/kinit":
+            kinit_inputs.append(input_data)
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+        if command[0] == "/usr/bin/kvno":
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+        if command[0] == "/usr/bin/dig":
+            return subprocess.CompletedProcess(command, 0, b"0 100 389 ldap.example.\n", b"")
+        if command[0] == "/usr/bin/ldapsearch":
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                b"sAMAccountName: kgray\nuserPrincipalName: kgray@gwplastics.com\ndn: CN=Kato Gray,DC=gwplastics,DC=com\n",
+                b"SASL SSF: 256\nSASL data security layer installed\n",
+            )
+        raise AssertionError(command)
+
+    monkeypatch.setattr(authenticator, "_run", fake_run)
+    monkeypatch.setattr(
+        "server.eoat_api.authentication.providers.kerberos_form.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, b"", b""),
+    )
+
+    identity = authenticator.authenticate("kgray@GWPLASTICS.COM", "correct-password")
+
+    assert kinit_inputs == [b"correct-password\n"]
+    assert identity.username == "kgray"
+    assert _SSF.search("SASL SSF: 256").group(1) == "256"
+    assert _ldap_escape("a\\b*(c)\x00") == r"a\5cb\2a\28c\29\00"

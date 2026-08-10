@@ -358,6 +358,13 @@
       "state": "finalized",
       "task_id": "codex-release-contract-drift-20260810",
       "finalized_at_utc": "2026-08-10T21:05:45Z"
+    },
+    {
+      "application_version": "0.26.2",
+      "release_id": "eoat-atlas-0.26.2",
+      "state": "finalized",
+      "task_id": "codex-staging-kerberos-form-hotfix-20260810",
+      "finalized_at_utc": "2026-08-10T22:08:30Z"
     }
   ]
 }

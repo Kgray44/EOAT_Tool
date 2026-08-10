@@ -20,7 +20,7 @@ from ..provider_configuration import KerberosFormProviderConfiguration
 from .base import AuthenticationProvider
 
 _USERNAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
-_SSF = re.compile(r"SASL SSF:\\s*(\\d+)")
+_SSF = re.compile(r"SASL SSF:\s*(\d+)")
 _LIMITERS_LOCK = threading.Lock()
 _SHARED_LOGIN_LIMITERS: dict[tuple[str, int, int], LoginAttemptLimiter] = {}
 LOGGER = logging.getLogger("eoat_api.authentication")
@@ -58,7 +58,7 @@ def normalize_principal(username: str, realm: str) -> str:
 
 
 def _ldap_escape(value: str) -> str:
-    return value.replace("\\", r"\\5c").replace("*", r"\\2a").replace("(", r"\\28").replace(")", r"\\29").replace("\x00", r"\\00")
+    return value.replace("\\", r"\5c").replace("*", r"\2a").replace("(", r"\28").replace(")", r"\29").replace("\x00", r"\00")
 
 
 def _parse_ldif(output: str) -> dict[str, list[str]]:
@@ -142,7 +142,7 @@ class KerberosCommandAuthenticator:
         cache = cache_dir / "credential-cache"
         environment = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "KRB5CCNAME": f"FILE:{cache}"}
         try:
-            self._run(["/usr/bin/kinit", "-c", environment["KRB5CCNAME"], principal], environment, password.encode() + b"\\n", failure_code="KINIT_FAILED")
+            self._run(["/usr/bin/kinit", "-c", environment["KRB5CCNAME"], principal], environment, password.encode() + b"\n", failure_code="KINIT_FAILED")
             self._run(["/usr/bin/kvno", "ldap/us-vt-dc01.gwplastics.com"], environment, failure_code="LDAP_SERVICE_TICKET_FAILED")
             return self._lookup(self._discover_ldap_host(environment), principal, environment)
         finally:
