@@ -10,8 +10,10 @@ Iteration 21 was a historical deterministic visual review in an external,
 task-owned evidence directory (intentionally not recorded in source). This
 branch changes browser Fit Check and Setup Packet composition, so its current
 capture must be reviewed as a new iteration rather than inheriting that prior
-approval. The refreshed capture contains all 27 governed Qt/browser pairs and
-comparison artifacts, but has no reviewed dispositions yet.
+approval. The refreshed capture contains all 27 governed Qt/browser pairs,
+comparison artifacts, and a current reviewer disposition for every state.
+Twenty-four dispositions are non-blocking; the three profile states remain
+explicitly blocked on the pending authenticated application-write contract.
 
 ## Runtime inventory
 
@@ -50,10 +52,13 @@ The current refreshed comparison is complete for every governed state:
 `api-unavailable`, `not-found`, `stale-data`, and `reduced-motion`.
 
 Each state has a Qt reference, browser capture, side-by-side, 50 percent
-overlay, difference image, and metric record. A reviewer still needs to
-record the disposition of each state before `--require-reviewed` can pass.
-Historical reviewed differences cannot be reused for the changed browser
-surfaces.
+overlay, difference image, metric record, and reviewed disposition. The
+`eoat-profile`, `machine-profile`, and `tool-profile` dispositions remain
+unresolved blockers: their desktop edit/export workflows require authenticated
+application permissions and browser editors that are not yet available.
+Therefore `--require-reviewed` correctly remains nonzero until those three
+states are resolved. Historical reviewed differences were not reused for the
+changed browser surfaces.
 
 ## Narrow platform differences
 

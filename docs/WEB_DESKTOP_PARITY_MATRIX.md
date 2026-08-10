@@ -61,7 +61,7 @@ actions.
 | Refresh/direct route/back-forward | desktop controller navigation | React Router | Browser history/direct routing | PASS | Route tests; host rewrite remains deployment-owned |
 | Keyboard and accessibility | Qt accessible controls | semantic controls, skip link, dialog focus | Core keyboard paths implemented | PASS | Router keyboard tests |
 | Browser visual regression capture | minimalist theme | deterministic Playwright capture | Desktop-only capture had no tablet/phone coverage | FIXED | 30 fixture screenshots across desktop, tablet, and phone; Settings uses an authoritative-shape locked-state fixture with a desktop-width overflow assertion; mobile header clearance is asserted; refreshed Qt/browser comparison has all 27 governed pairs present |
-| Direct desktop-to-browser visual review | offscreen PySide/installed desktop | Playwright capture artifacts | No current same-record side-by-side reviewer disposition | BLOCKED-EXTERNAL | The refreshed 27-pair comparison remains deliberately unreviewed; requires controlled desktop session and reviewed difference register; browser screenshots do not substitute for that review |
+| Direct desktop-to-browser visual review | offscreen PySide/installed desktop | Playwright capture artifacts | No current same-record side-by-side reviewer disposition | BLOCKED-AUTH | All 27 refreshed pairs have reviewed dispositions; 24 are non-blocking rendering, responsive, or browser-safety differences. EOAT, Machine, and Tool profile states remain unresolved because their desktop edit/export workflows require the pending authenticated application-write contract. |
 | Tablet/mobile behavior | desktop not applicable | responsive CSS | Reflow rather than desktop-window emulation | INTENTIONAL-DIFFERENCE | Must preserve capability inventory; phone header overlap regression-tested |
 | API contract usage | desktop gateway/API | `api/client.ts` | Read paths use authoritative API | PASS | Generated OpenAPI types and client tests |
 | Production safety | desktop/API runtime | browser client | Writes remain disabled without permitted identity | PASS | No production change or credential exposure |
@@ -85,3 +85,9 @@ integration, reconcile only the new setup-packet read method and the Fit Check
 UI/routes against the final authenticated API client; preserve its fail-closed
 write policy and validate browser entity writes only under the approved
 development/test identity.
+
+The currently inspected branch maps only Settings permissions while its write
+routes require application permissions such as `asset.write`. Reconciliation
+must first add the approved application-scope role/permission mapping and
+session payload, including the established cookie CSRF handling; this web
+branch must not infer or bypass that authorization.
