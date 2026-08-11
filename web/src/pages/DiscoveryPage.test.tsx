@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router-dom";
 import { AppProviders } from "@/app/providers";
@@ -21,7 +21,7 @@ function mockFetch() {
     void init;
     const path = String(input);
     if (path.includes("/api/v1/catalog-options/"))
-      return Promise.resolve(json([{ value: "P1", label: "Plant 1" }]));
+      return Promise.resolve(json([{ value: "P4", label: "Plant 4" }]));
     if (path.includes("/api/v1/setup-packets/data"))
       return Promise.resolve(
         json({
@@ -146,18 +146,15 @@ describe("Library and Fit Check", () => {
     vi.unstubAllGlobals();
     localStorage.clear();
   });
-  it("shows recents alongside the default server-paginated catalog", async () => {
+  it("keeps browser recents out of the authoritative Library catalog", async () => {
     rememberItem({ category: "eoat", identifier: "E-1", label: "Recent EOAT" });
     const fetcher = mockFetch();
     vi.stubGlobal("fetch", fetcher);
     renderAt("/library");
+    await screen.findByText("Library");
     expect(
-      await screen.findByText("Recently viewed on this browser"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Recent EOAT/ })).toHaveAttribute(
-      "href",
-      "/eoats/E-1",
-    );
+      screen.queryByText("Recently viewed on this browser"),
+    ).not.toBeInTheDocument();
     expect(await screen.findByAltText("")).toHaveAttribute(
       "src",
       "/api/v1/web-photos/hero-photo/thumbnail",
@@ -177,9 +174,12 @@ describe("Library and Fit Check", () => {
     vi.stubGlobal("fetch", fetcher);
     renderAt("/fit-check");
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText("Machine"), "M-1");
-    await user.type(screen.getByLabelText("Tool"), "T-1");
-    await user.type(screen.getByLabelText("EOAT"), "E-1");
+    await user.click(screen.getByLabelText("Machine"));
+    await user.click(await screen.findByRole("option", { name: /Press 1/ }));
+    await user.click(screen.getByLabelText("Tool"));
+    await user.click(await screen.findByRole("option", { name: /Tool 1/ }));
+    await user.click(screen.getByLabelText("EOAT"));
+    await user.click(await screen.findByRole("option", { name: /EOAT 1/ }));
     await user.click(
       screen.getByRole("button", { name: /Evaluate without saving/ }),
     );
@@ -194,76 +194,23 @@ describe("Library and Fit Check", () => {
     ).toBe(true);
   });
 
-  it("accepts every machine, tool, and EOAT selection order", async () => {
-    const permutations = [
-      ["Machine", "Tool", "EOAT"],
-      ["Machine", "EOAT", "Tool"],
-      ["Tool", "Machine", "EOAT"],
-      ["Tool", "EOAT", "Machine"],
-      ["EOAT", "Machine", "Tool"],
-      ["EOAT", "Tool", "Machine"],
-    ] as const;
-    const valueFor = { Machine: "M-1", Tool: "T-1", EOAT: "E-1" } as const;
-
-    for (const order of permutations) {
-      const fetcher = mockFetch();
-      vi.stubGlobal("fetch", fetcher);
-      const view = renderAt("/fit-check");
-      const user = userEvent.setup();
-      for (const label of order) {
-        await user.type(screen.getByLabelText(label), valueFor[label]);
-      }
-      const evaluate = screen.getByRole("button", {
-        name: /Evaluate without saving/,
-      });
-      expect(evaluate).toBeEnabled();
-      await user.click(evaluate);
-      expect(
-        await screen.findByRole("heading", { name: /Insufficient data/ }),
-      ).toBeInTheDocument();
-      expect(
-        fetcher.mock.calls.some(
-          ([path, init]) =>
-            path === "/api/v1/web-fit-checks/evaluate" &&
-            init?.method === "POST",
-        ),
-      ).toBe(true);
-      view.unmount();
-    }
-  });
-
-  it("allows each universal entity slot to take a different role", async () => {
+  it("uses the three named desktop-equivalent selectors, not universal slots", async () => {
     vi.stubGlobal("fetch", mockFetch());
     renderAt("/fit-check");
     const user = userEvent.setup();
-    const first = screen.getByRole("group", { name: "Setup item 1" });
-    const second = screen.getByRole("group", { name: "Setup item 2" });
-    const third = screen.getByRole("group", { name: "Setup item 3" });
-
-    await user.selectOptions(
-      within(first).getByRole("combobox", { name: "Entity slot 1 type" }),
-      "eoat",
+    expect(screen.getByLabelText("Machine")).toHaveAttribute(
+      "role",
+      "combobox",
     );
-    await user.selectOptions(
-      within(third).getByRole("combobox", { name: "Entity slot 3 type" }),
-      "machine",
-    );
-    await user.type(
-      within(first).getByRole("combobox", { name: "EOAT" }),
-      "E-1",
-    );
-    await user.type(
-      within(second).getByRole("combobox", { name: "Tool" }),
-      "T-1",
-    );
-    await user.type(
-      within(third).getByRole("combobox", { name: "Machine" }),
-      "M-1",
-    );
-
+    expect(screen.getByLabelText("Tool")).toHaveAttribute("role", "combobox");
+    expect(screen.getByLabelText("EOAT")).toHaveAttribute("role", "combobox");
+    expect(screen.queryByText(/Setup item/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Type")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("Machine"));
+    await user.type(screen.getByLabelText("Machine"), "Press");
     expect(
-      screen.getByRole("button", { name: /Evaluate without saving/ }),
-    ).toBeEnabled();
+      await screen.findByRole("option", { name: /Press 1/ }),
+    ).toBeInTheDocument();
   });
 
   it("renders a browser-safe setup packet that can be printed as a PDF", async () => {
@@ -295,7 +242,9 @@ describe("Library and Fit Check", () => {
     renderAt("/library?type=machine");
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Advanced Filters" }));
+    await user.click(screen.getByLabelText("Plant"));
     await user.type(screen.getByLabelText("Plant"), "P4");
+    await user.click(await screen.findByRole("option", { name: "Plant 4" }));
 
     await waitFor(() =>
       expect(fetcher.mock.calls.map(([path]) => path)).toEqual(

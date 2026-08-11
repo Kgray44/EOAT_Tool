@@ -314,7 +314,9 @@ export function ProfileTabs() {
   const activeTab = normalizeProfileTab(searchParams.get("tab"));
   const destination = (tab: ProfileTab) => {
     const next = new URLSearchParams(searchParams);
-    if (tab === "overview") next.delete("tab");
+    // An absent tab is the canonical Relationships route.  Keep an explicit
+    // Overview tab in the URL so refresh/back/forward never lose intent.
+    if (tab === "relationships") next.delete("tab");
     else next.set("tab", tab);
     const value = next.toString();
     return value ? `?${value}` : "";

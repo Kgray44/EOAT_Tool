@@ -258,7 +258,6 @@ export function AppShell({ children }: PropsWithChildren) {
         >
           <span aria-hidden="true">⌕</span>
         </button>
-        <AuthenticationPanel />
       </header>
       {menuOpen && (
         <div
@@ -317,6 +316,9 @@ export function AppShell({ children }: PropsWithChildren) {
       <main id="main-content" className="atlas-main">
         {children}
       </main>
+      <aside className="atlas-auth-dock" aria-label="Account controls">
+        <AuthenticationPanel />
+      </aside>
       <GlobalSearchOverlay
         open={searchOpen}
         initialQuery={initialQuery}

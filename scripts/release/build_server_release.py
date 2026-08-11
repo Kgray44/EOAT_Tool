@@ -30,7 +30,10 @@ SERVER_PATHS = (
     "requirements.txt",
     "requirements.in",
     "pyproject.toml",
-    "app/atlas/version.json",
+    # Authentication Settings endpoints expose the same desktop Settings
+    # registry.  Ship its implementation with the server rather than letting
+    # a source checkout accidentally mask a missing runtime dependency.
+    "app/atlas",
     "release_defaults.json",
     "launcher/launcher_version.json",
     "installer/installer_config.json",
@@ -43,6 +46,7 @@ RELEVANT_PREFIXES = (
     "release_tools/",
     "scripts/release/",
     "requirements",
+    "app/atlas/",
     "pyproject.toml",
     "app/atlas/version.json",
     "release_defaults.json",

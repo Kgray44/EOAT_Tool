@@ -132,7 +132,7 @@ describe("EOAT profile route", () => {
     await user.click(screen.getByRole("link", { name: "Relationships" }));
     expect(await screen.findByRole("link", { name: /M-42/ })).toHaveAttribute(
       "href",
-      "/machines/M-42?tab=relationships",
+      "/machines/M-42",
     );
     expect(
       await screen.findByRole("link", {

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
@@ -13,11 +13,7 @@ import {
   isRoutableAuthoritativeIdentifier,
   presentationText,
 } from "@/api/presentation";
-import {
-  readRecentItems,
-  removeRecentItem,
-  type RecentItem,
-} from "@/api/recent";
+import { AtlasSelector } from "@/components/inputs/AtlasSelector";
 import {
   EmptyState,
   ErrorState,
@@ -30,7 +26,7 @@ import {
 } from "@/app/libraryContext";
 
 type Filter = "all" | EntityCategory;
-type LibraryResult = (SearchResult | RecentItem) & {
+type LibraryResult = SearchResult & {
   photo_document_uuid?: string | null;
   photo_available_through_web?: boolean;
 };
@@ -38,11 +34,8 @@ type LibraryResult = (SearchResult | RecentItem) & {
 function ResultCard({ result }: { result: LibraryResult }) {
   const location = useLocation();
   const category = result.category as EntityCategory;
-  const title = "title" in result ? result.title : result.label;
-  const subtitle =
-    "subtitle" in result
-      ? result.subtitle
-      : new Date(result.viewedAt).toLocaleDateString();
+  const title = result.title;
+  const subtitle = result.subtitle;
   const path = entityPath(category, result.identifier);
   if (!path) return null;
   return (
@@ -97,46 +90,19 @@ function CatalogSelector({
   onChange: (value: string) => void;
   placeholder?: string;
 }) {
-  const listId = `catalog-option-${kind}-${useId().replaceAll(":", "")}`;
   const options = useQuery({
     queryKey: ["catalog-options", kind, value],
     queryFn: () => apiClient.getCatalogOptions(kind, value),
   });
   return (
-    <label>
-      {label}
-      <span className="library-selector-control">
-        <input
-          list={listId}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          aria-label={label}
-          placeholder={placeholder || `Select or search ${label.toLowerCase()}`}
-          aria-describedby={options.isError ? `${listId}-error` : undefined}
-        />
-        {value ? (
-          <button
-            type="button"
-            aria-label={`Clear ${label}`}
-            onClick={() => onChange("")}
-          >
-            Clear
-          </button>
-        ) : null}
-      </span>
-      <datalist id={listId}>
-        {(options.data || []).map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </datalist>
-      {options.isError ? (
-        <small id={`${listId}-error`}>
-          Options are temporarily unavailable.
-        </small>
-      ) : null}
-    </label>
+    <AtlasSelector
+      label={label}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      options={options.data || []}
+      error={options.isError ? "Options could not be loaded." : undefined}
+    />
   );
 }
 
@@ -163,11 +129,9 @@ export function LibraryPage() {
       "eoat",
     ].some((key) => Boolean(params.get(key))),
   );
-  const [recent, setRecent] = useState<RecentItem[]>([]);
   useEffect(() => {
     setDraft(query);
     setLocationDraft(params.get("machine") || "");
-    setRecent(readRecentItems());
   }, [params, query]);
   useEffect(() => {
     const context = readLibraryContext(location.state);
@@ -468,35 +432,6 @@ export function LibraryPage() {
           </button>
         ))}
       </div>
-      {!query &&
-        !hasCatalogFilters &&
-        filter === "all" &&
-        recent.length > 0 && (
-          <section className="recent-items" aria-labelledby="recent-title">
-            <h3 id="recent-title">Recently viewed on this browser</h3>
-            <div className="result-deck">
-              {recent.map((item) => (
-                <div
-                  key={`${item.category}-${item.identifier}`}
-                  className="recent-card"
-                >
-                  <ResultCard result={item} />
-                  <button
-                    type="button"
-                    aria-label={`Remove ${item.label} from recent items`}
-                    onClick={() =>
-                      setRecent(
-                        removeRecentItem(item.category, item.identifier),
-                      )
-                    }
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       {pending && <LoadingState label="Searching EOAT Atlas…" />}
       {error && <ErrorState error={error} />}
       {!pending && !error && searchUsesGlobalIndex && results.length === 0 && (

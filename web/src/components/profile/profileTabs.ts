@@ -1,9 +1,9 @@
 export type ProfileTab = "overview" | "relationships" | "media" | "history";
 
 export function normalizeProfileTab(value: string | null): ProfileTab {
-  return value === "relationships" || value === "media" || value === "history"
+  return value === "overview" || value === "media" || value === "history"
     ? value
-    : "overview";
+    : "relationships";
 }
 
 export function profileTabForSection(title: string): ProfileTab {

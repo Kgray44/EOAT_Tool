@@ -92,7 +92,7 @@ describe("machine and tool profile routes", () => {
       [failingPath]: json({ message: "offline" }, 503),
     });
     vi.stubGlobal("fetch", fetcher);
-    renderAt("/machines/M-1");
+    renderAt("/machines/M-1?tab=overview");
     expect(
       await screen.findByRole("heading", { name: "M-1" }),
     ).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe("machine and tool profile routes", () => {
   });
   it("renders truthful machine values, human-readable setup states, and empty media states", async () => {
     vi.stubGlobal("fetch", fetchFor());
-    renderAt("/machines/M-1");
+    renderAt("/machines/M-1?tab=overview");
     expect((await screen.findAllByText("Not verified")).length).toBeGreaterThan(
       0,
     );
@@ -142,7 +142,7 @@ describe("machine and tool profile routes", () => {
   });
   it("loads a tool profile and keeps the Fit Check shortcut registered", async () => {
     vi.stubGlobal("fetch", fetchFor());
-    renderAt("/tools/T-1");
+    renderAt("/tools/T-1?tab=overview");
     expect(
       await screen.findByRole("heading", { name: "T-1" }),
     ).toBeInTheDocument();

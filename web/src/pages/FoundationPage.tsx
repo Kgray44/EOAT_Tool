@@ -65,11 +65,6 @@ export function FoundationPage() {
     const path = entityPath(category, result.identifier);
     if (path) navigate(path);
   };
-  const openRecent = (category: EntityCategory, identifier: string) => {
-    setOpen(false);
-    const path = entityPath(category, identifier);
-    if (path) navigate(path);
-  };
   const openSelectedOrExact = () => {
     const normalized = query.trim().toLocaleLowerCase();
     const exact = results.find(
@@ -114,7 +109,7 @@ export function FoundationPage() {
                 setQuery(event.target.value);
                 setOpen(true);
               }}
-              onFocus={() => setOpen(true)}
+              onFocus={() => query.trim() && setOpen(true)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.preventDefault();
@@ -135,7 +130,7 @@ export function FoundationPage() {
               →
             </button>
           </form>
-          {open && (
+          {open && query.trim() && (
             <div className="atlas-home-search-dropdown" aria-live="polite">
               {query.trim() ? (
                 <>
@@ -185,36 +180,7 @@ export function FoundationPage() {
                     </button>
                   ))}
                 </>
-              ) : (
-                <>
-                  <p className="atlas-section-label">Recent searches</p>
-                  {recents.length ? (
-                    recents.map((item) => (
-                      <button
-                        className="atlas-search-result"
-                        key={`${item.category}-${item.identifier}`}
-                        type="button"
-                        onClick={() =>
-                          openRecent(item.category, item.identifier)
-                        }
-                      >
-                        <span className="atlas-result-icon" aria-hidden="true">
-                          ↗
-                        </span>
-                        <span>
-                          <strong>{item.label}</strong>
-                          <small>
-                            {item.category} · {item.identifier}
-                          </small>
-                        </span>
-                        <em>Recent</em>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="atlas-empty">No recent searches yet.</p>
-                  )}
-                </>
-              )}
+              ) : null}
             </div>
           )}
         </div>

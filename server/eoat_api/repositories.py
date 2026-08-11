@@ -186,6 +186,11 @@ class AtlasRepository:
                     db.Plant.plant_code + "::" + db.Machine.machine_number,
                     db.Plant.plant_code + " · Machine " + db.Machine.machine_number,
                 )
+                # The selected columns name both entities, so SQLAlchemy cannot
+                # infer which side of the relationship starts this join.  Make
+                # Machine the explicit root: a catalog option must retain its
+                # Plant context when machine numbers are duplicated.
+                .select_from(db.Machine)
                 .join(db.Plant, db.Machine.plant_id == db.Plant.id)
                 .order_by(db.Plant.plant_code, cast(db.Machine.machine_number, String))
             )
