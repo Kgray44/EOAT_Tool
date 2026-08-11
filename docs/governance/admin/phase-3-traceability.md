@@ -18,22 +18,24 @@
 | --- | --- |
 | `python -m compileall -q server/eoat_api ...` | PASS |
 | Focused Phase 1/2 server tests | PASS: 14 tests |
-| New `test_mysql_admin_phase3_governed_editing.py` | Present; 5 tests correctly skipped without `EOAT_DB_NAME=eoat_atlas_test` and a reachable MySQL service. |
+| Real MySQL migration | PASS on Debian MySQL 8.4.10: `20260811_0006 -> 20260811_0007`; recovery/repeat PASS after the MySQL downgrade index-order correction. |
+| New `test_mysql_admin_phase3_governed_editing.py` | PASS: 5/5 against `eoat_atlas_test` through the protected loopback SSH tunnel. |
 | `pnpm --dir web typecheck` | PASS |
 | `pnpm --dir web lint` | PASS |
 | `pnpm --dir web build` | PASS |
-| Browser shell inspection | PASS for rendered navigation and all Phase 3 page entries. Controlled mutation/browser acceptance is pending the isolated MySQL runtime. |
+| Browser-to-real-MySQL EOAT mutation | Partial PASS: rehearsal session, preview, commit and `/admin/audit/events/:eventId` exact diff/actor/correlation were observed. The linked normal-profile route is currently not implemented by the admin shell, so this is not full Phase C browser acceptance. |
 
 ## Production isolation
 
 No production database, filesystem, deployment, service configuration, NGINX
 configuration, LDAP/AD mapping, or production write gate was read or changed.
-The only database target considered for acceptance was the explicitly named
-`eoat_atlas_test`; its configured local MySQL listener was unavailable, so no
-migration or test write was attempted.
+The only database target used for acceptance was the explicitly named
+`eoat_atlas_test`, reached through the established Windows-loopback to
+Debian-loopback SSH tunnel. The local Windows MySQL service was not started or
+used.
 
 ## Acceptance status
 
-**ADMIN PHASE 3: NOT YET ACCEPTED.** The implementation and static/focused
-checks are complete, but a protected acceptance claim requires the isolated
-MySQL migration and controlled browser/security mutation evidence to pass.
+**ADMIN PHASE 3: NOT YET ACCEPTED.** Real-MySQL migration and the original
+five tests now pass, but full mutation/browser/security/performance/regression
+reconciliation is still required.
