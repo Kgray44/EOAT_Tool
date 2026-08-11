@@ -82,7 +82,7 @@ class AuditEventRepository:
             stmt = stmt.where(db.AuditEvent.action_category.in_(ADMINISTRATIVE_AUDIT_CATEGORIES))
         total = self.session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = self.session.scalars(
-            stmt.order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.event_id.desc())
+            stmt.order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.id.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
         ).all()
@@ -102,7 +102,7 @@ class AuditEventRepository:
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         recent = self.session.scalars(
             select(db.AuditEvent)
-            .order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.event_id.desc())
+            .order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.id.desc())
             .limit(recent_limit)
         ).all()
 

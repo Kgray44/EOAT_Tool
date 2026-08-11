@@ -38,7 +38,7 @@ async function mockAdminApi(page: Page) {
         ? { api_version: "1.4.0", schema_revision: "20260811_0006", audit_schema_version: 1, observation_time_utc: event.occurred_at_utc, writes_enabled: false, environment: "development", api_status: "healthy", database_status: "healthy", audit_status: "healthy", metrics: { events_today: 2, events_last_24_hours: 2, successful_events_last_24_hours: 1, failed_events_last_24_hours: 0, denied_events_last_24_hours: 1, security_events_last_24_hours: 1, administrative_events_last_24_hours: 0, unique_actors_last_24_hours: 1 }, recent_events: [event] }
         : url.pathname.endsWith(`/audit/events/${event.event_id}`)
           ? event
-          : { items: [event, relatedEvent], page: 1, page_size: 50, total: 2, sort: "occurred_at_utc:desc,event_id:desc" };
+          : { items: [event, relatedEvent], page: 1, page_size: 50, total: 2, sort: "occurred_at_utc:desc,persisted_sequence:desc" };
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   });
 }
@@ -117,7 +117,7 @@ test("server pagination and intentional empty results remain readable", async ({
     }
     const pageNumber = Number(url.searchParams.get("page") ?? "1");
     const empty = url.searchParams.get("search") === "no-match";
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: empty ? [] : [pageNumber === 1 ? event : relatedEvent], page: pageNumber, page_size: 1, total: empty ? 0 : 2, sort: "occurred_at_utc:desc,event_id:desc" }) });
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: empty ? [] : [pageNumber === 1 ? event : relatedEvent], page: pageNumber, page_size: 1, total: empty ? 0 : 2, sort: "occurred_at_utc:desc,persisted_sequence:desc" }) });
   });
   await page.goto("/admin/audit?page_size=1");
   await expect(page.getByRole("link", { name: /UPDATE.*CL-EOAT-0054/ })).toBeVisible();

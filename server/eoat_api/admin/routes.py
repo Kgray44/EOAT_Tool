@@ -167,7 +167,13 @@ def list_audit_events(
         correlation_id=correlation_id,
         search=search,
     )
-    return AuditListResponse(items=[_event_response(row) for row in rows], page=page, page_size=page_size, total=total, sort="occurred_at_utc:desc,event_id:desc")
+    return AuditListResponse(
+        items=[_event_response(row) for row in rows],
+        page=page,
+        page_size=page_size,
+        total=total,
+        sort="occurred_at_utc:desc,persisted_sequence:desc",
+    )
 
 
 @router.get("/audit/events/{event_id}", response_model=AuditEventResponse)

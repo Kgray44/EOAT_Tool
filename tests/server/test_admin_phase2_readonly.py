@@ -85,13 +85,18 @@ def test_overview_recent_events_use_the_governed_tied_timestamp_order():
     db.AuditEvent.__table__.create(engine)
     try:
         with Session(engine) as session:
-            session.add_all([audit_event("event-a", NOW), audit_event("event-z", NOW)])
+            session.add_all(
+                [
+                    audit_event("event-z", NOW, record_id=10),
+                    audit_event("event-a", NOW, record_id=20),
+                ]
+            )
             session.commit()
             _, recent = AuditEventRepository(session).overview(now=NOW)
     finally:
         engine.dispose()
 
-    assert [event.event_id for event in recent] == ["event-z", "event-a"]
+    assert [event.event_id for event in recent] == ["event-a", "event-z"]
 
 
 def test_catalog_keeps_authorization_server_side_for_anonymous_viewer_and_admin():
