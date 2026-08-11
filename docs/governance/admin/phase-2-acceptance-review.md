@@ -62,10 +62,13 @@ does not cause the UI to receive audit data when the server returns 403.
    environment configuration. No connection was guessed, and no database was
    mutated. Real-MySQL filters, pagination, detail, tied ordering, and role
    acceptance remain unproven.
-2. **Broad regression:** the earlier full `pytest -q` attempt aborted at 6% in
-   the unrelated Qt cleanup path for
-   `tests/integration/test_fake_project_full_workflow.py`; the fatal abort was
-   at `tests/conftest.py:49`. This has not been waived or counted as a pass.
+2. **Broad regression:** current-candidate `pytest -q` again aborted at 6% in
+   the Qt cleanup path for
+   `tests/integration/test_fake_project_full_workflow.py`. Re-running that
+   exact workflow with the repository's explicit `--timeout=300` produced a
+   Windows access violation in `tests/conftest.py:49`; it did not produce a
+   passing test result. This runtime failure has not been waived or counted as
+   a pass.
 3. **Formal accessibility and representative MySQL performance:** focused
    keyboard, labels, semantics, responsive layout, and browser behavior are
    covered, but the complete governed acceptance evidence remains open.

@@ -54,12 +54,13 @@ Phase 2 acceptance decision has been made.
   not-found/outage states, and distinct server-pagination/empty-state evidence).
 * Web typecheck, ESLint, and production Vite build passed.
 * FastAPI OpenAPI generation recognizes `AdminOverviewContract`.
-* Broad `pytest -q` was attempted on this worktree and aborted at 6% in the
-  unrelated desktop integration path
+* Broad `pytest -q` was reattempted on the current candidate and again aborted
+  at 6% in
   `tests/integration/test_fake_project_full_workflow.py::test_fake_user_day2_workflow_end_to_end`.
-  The fatal abort occurred in the shared Qt cleanup fixture at
-  `tests/conftest.py:49`, not in Admin code.  This is an unresolved regression
-  gate; it is not treated as a pass or waived.
+  Re-running that exact workflow with the repository-configured 300-second
+  timeout produced a Windows access violation in the shared Qt cleanup fixture
+  at `tests/conftest.py:49`. This is an unresolved regression gate; it is not
+  treated as a pass or waived.
 
 The mandatory real-MySQL, formal accessibility, representative-volume MySQL,
 full regression, and final acceptance evidence remains open.  No protected
