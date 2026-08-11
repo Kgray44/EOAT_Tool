@@ -27,7 +27,15 @@ function useRemote<T>(load: (signal: AbortSignal) => Promise<T>, key: string): R
 }
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "medium", timeZoneName: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(value));
 }
 
 function copy(value: string) {
