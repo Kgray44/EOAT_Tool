@@ -372,6 +372,13 @@
       "state": "finalized",
       "task_id": "codex-staging-uat-parity-remediation-20260811",
       "finalized_at_utc": "2026-08-11T12:44:54Z"
+    },
+    {
+      "application_version": "0.26.4",
+      "release_id": "eoat-atlas-0.26.4",
+      "state": "finalized",
+      "task_id": "codex-staging-auth-dock-layout-fix-20260811",
+      "finalized_at_utc": "2026-08-11T12:57:19Z"
     }
   ]
 }
