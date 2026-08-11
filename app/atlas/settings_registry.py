@@ -213,4 +213,3 @@ SETTINGS_REGISTRY: tuple[SettingDefinition, ...] = (
     SettingDefinition("diagnostics_support", "admin.authentication_provider", "Settings authentication provider", "status", "unselected", "API authentication configuration", "automatic"),
     SettingDefinition("diagnostics_support", "admin.last_admin_sign_in", "Last admin sign-in", "status", "", "Settings page admin session metadata", "automatic"),
 )
-
