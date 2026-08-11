@@ -407,6 +407,13 @@
       "state": "finalized",
       "task_id": "codex-staging-settings-session-light-library-20260811",
       "finalized_at_utc": "2026-08-11T13:48:44Z"
+    },
+    {
+      "application_version": "0.26.9",
+      "release_id": "eoat-atlas-0.26.9",
+      "state": "finalized",
+      "task_id": "codex-staging-light-home-search-20260811",
+      "finalized_at_utc": "2026-08-11T13:58:14Z"
     }
   ]
 }

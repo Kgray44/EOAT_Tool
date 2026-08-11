@@ -579,6 +579,7 @@ a {
 .atlas-home-card,
 .profile-header,
 .profile-section,
+.relationship-flow,
 .status-card,
 .state,
 .library-controls,
@@ -628,8 +629,11 @@ a {
     0 18px 55px rgb(25 50 84 / 14%);
 }
 :root[data-atlas-theme="light"] .atlas-home-search {
-  background: rgb(8 25 51 / 68%);
-  border-color: rgb(122 169 224 / 54%);
+  background: color-mix(in srgb, white 96%, var(--atlas-page-background));
+  border-color: color-mix(in srgb, var(--atlas-accent) 34%, white);
+  box-shadow:
+    inset 0 1px 1px rgb(255 255 255 / 92%),
+    0 6px 18px rgb(25 50 84 / 10%);
 }
 :root[data-atlas-theme="light"] .settings-nav,
 :root[data-atlas-theme="light"] .settings-content {
@@ -1876,14 +1880,7 @@ a {
 .relationship-flow {
   min-height: 250px;
   padding: 18px 24px;
-  border: 1px solid
-    color-mix(in srgb, var(--atlas-border-strong) 52%, transparent);
   border-radius: 11px;
-  background: color-mix(
-    in srgb,
-    var(--atlas-panel-background) 62%,
-    transparent
-  );
 }
 .relationship-flow > header h2 {
   margin: 0;
