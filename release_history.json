@@ -379,6 +379,13 @@
       "state": "finalized",
       "task_id": "codex-staging-auth-dock-layout-fix-20260811",
       "finalized_at_utc": "2026-08-11T12:57:19Z"
+    },
+    {
+      "application_version": "0.26.5",
+      "release_id": "eoat-atlas-0.26.5",
+      "state": "finalized",
+      "task_id": "codex-staging-profile-action-menu-20260811",
+      "finalized_at_utc": "2026-08-11T13:08:23Z"
     }
   ]
 }

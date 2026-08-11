@@ -27,6 +27,7 @@ import { presentationText } from "@/api/presentation";
 import { EntityEditor } from "@/components/profile/EntityEditor";
 import { CompatibilityEditor } from "@/components/profile/CompatibilityEditor";
 import { MediaUpload } from "@/components/profile/MediaUpload";
+import { ProfileActionMenu } from "@/components/profile/ProfileActionMenu";
 
 function Retry({ retry }: { retry: () => void }) {
   return (
@@ -102,70 +103,78 @@ function ToolContent({
           ["Mold number", profile.mold_number],
           ["Part verification", profile.part_status],
         ]}
-      />
-      <EntityEditor
-        kind="tool"
-        identifier={profile.business_identifier}
-        rowVersion={profile.row_version}
-        onSaved={onSaved}
-        fields={[
-          {
-            key: "tool_number",
-            label: "Tool number",
-            value: profile.tool_number,
-          },
-          {
-            key: "mold_number",
-            label: "Mold number",
-            value: profile.mold_number,
-          },
-          {
-            key: "display_name",
-            label: "Display name",
-            value: profile.display_name,
-          },
-          {
-            key: "description",
-            label: "Description",
-            kind: "textarea",
-            value: profile.description,
-          },
-          {
-            key: "cavity_count",
-            label: "Cavity count",
-            kind: "number",
-            value: profile.cavity_count,
-          },
-          { key: "tool_type", label: "Tool type", value: profile.tool_type },
-          { key: "customer", label: "Customer", value: profile.customer },
-          {
-            key: "program_name",
-            label: "Program / part family",
-            value: profile.program_name,
-          },
-          {
-            key: "status",
-            label: "Status",
-            value: profile.status,
-            catalog: "status",
-          },
-          {
-            key: "notes",
-            label: "Notes",
-            kind: "textarea",
-            value: profile.notes,
-          },
-        ]}
-      />
-      <CompatibilityEditor
-        kind="tool"
-        identifier={profile.business_identifier}
-        onSaved={onSaved}
-      />
-      <MediaUpload
-        entityType="tool"
-        identifier={profile.business_identifier}
-        onSaved={onSaved}
+        actions={
+          <ProfileActionMenu identifier={profile.business_identifier}>
+            <EntityEditor
+              kind="tool"
+              identifier={profile.business_identifier}
+              rowVersion={profile.row_version}
+              onSaved={onSaved}
+              fields={[
+                {
+                  key: "tool_number",
+                  label: "Tool number",
+                  value: profile.tool_number,
+                },
+                {
+                  key: "mold_number",
+                  label: "Mold number",
+                  value: profile.mold_number,
+                },
+                {
+                  key: "display_name",
+                  label: "Display name",
+                  value: profile.display_name,
+                },
+                {
+                  key: "description",
+                  label: "Description",
+                  kind: "textarea",
+                  value: profile.description,
+                },
+                {
+                  key: "cavity_count",
+                  label: "Cavity count",
+                  kind: "number",
+                  value: profile.cavity_count,
+                },
+                {
+                  key: "tool_type",
+                  label: "Tool type",
+                  value: profile.tool_type,
+                },
+                { key: "customer", label: "Customer", value: profile.customer },
+                {
+                  key: "program_name",
+                  label: "Program / part family",
+                  value: profile.program_name,
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  value: profile.status,
+                  catalog: "status",
+                },
+                {
+                  key: "notes",
+                  label: "Notes",
+                  kind: "textarea",
+                  value: profile.notes,
+                },
+              ]}
+            />
+            <CompatibilityEditor
+              kind="tool"
+              identifier={profile.business_identifier}
+              onSaved={onSaved}
+            />
+            <MediaUpload
+              entityType="tool"
+              identifier={profile.business_identifier}
+              onSaved={onSaved}
+            />
+          </ProfileActionMenu>
+        }
       />
       <ProfileTabs />
       <div className="profile-sections">

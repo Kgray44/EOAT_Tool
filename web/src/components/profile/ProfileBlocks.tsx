@@ -101,11 +101,13 @@ export function EntityHeader({
   identifier,
   title,
   summary,
+  actions,
 }: {
   category: string;
   identifier: string;
   title?: string | null;
   summary: Array<[string, string | null | undefined]>;
+  actions?: ReactNode;
 }) {
   return (
     <header className="profile-header">
@@ -128,6 +130,7 @@ export function EntityHeader({
           </div>
         ))}
       </div>
+      {actions}
     </header>
   );
 }

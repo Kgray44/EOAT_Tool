@@ -26,6 +26,7 @@ import { deduplicateRelationships } from "@/components/profile/relationshipPrese
 import { EntityEditor } from "@/components/profile/EntityEditor";
 import { CompatibilityEditor } from "@/components/profile/CompatibilityEditor";
 import { MediaUpload } from "@/components/profile/MediaUpload";
+import { ProfileActionMenu } from "@/components/profile/ProfileActionMenu";
 import { QrLabel } from "@/components/qr/QrLabel";
 import {
   isRoutableAuthoritativeIdentifier,
@@ -164,86 +165,90 @@ function MachineContent({
             setup.data?.verified ? "Verified" : "Not verified",
           ],
         ]}
-      />
-      <EntityEditor
-        kind="machine"
-        identifier={profile.machine_number}
-        rowVersion={profile.row_version}
-        onSaved={onSaved}
-        fields={[
-          {
-            key: "area_code",
-            label: "Area",
-            value: profile.area,
-            catalog: "area",
-          },
-          {
-            key: "machine_name",
-            label: "Machine name",
-            value: profile.machine_name,
-          },
-          {
-            key: "manufacturer",
-            label: "Manufacturer",
-            value: profile.manufacturer,
-          },
-          { key: "model", label: "Model", value: profile.model },
-          {
-            key: "serial_number",
-            label: "Serial number",
-            value: profile.serial_number,
-          },
-          {
-            key: "machine_type",
-            label: "Machine type",
-            value: profile.machine_type,
-          },
-          {
-            key: "press_capacity_tons",
-            label: "Press capacity (tons)",
-            kind: "number",
-            value: profile.press_capacity_tons,
-          },
-          {
-            key: "controller_type",
-            label: "Controller",
-            value: profile.controller_type,
-          },
-          {
-            key: "cleanroom_classification",
-            label: "Cleanroom classification",
-            value: profile.cleanroom_classification,
-            catalog: "cleanroom",
-          },
-          {
-            key: "status",
-            label: "Status",
-            value: profile.status,
-            catalog: "status",
-          },
-          {
-            key: "installation_date",
-            label: "Installation date",
-            kind: "date",
-            value: profile.installation_date,
-          },
-          {
-            key: "notes",
-            label: "Notes",
-            kind: "textarea",
-            value: profile.notes,
-          },
-        ]}
-      />
-      <CompatibilityEditor
-        kind="machine"
-        identifier={profile.machine_number}
-        onSaved={onSaved}
-      />
-      <MediaUpload
-        entityType="machine"
-        identifier={profile.machine_number}
-        onSaved={onSaved}
+        actions={
+          <ProfileActionMenu identifier={profile.machine_number}>
+            <EntityEditor
+              kind="machine"
+              identifier={profile.machine_number}
+              rowVersion={profile.row_version}
+              onSaved={onSaved}
+              fields={[
+                {
+                  key: "area_code",
+                  label: "Area",
+                  value: profile.area,
+                  catalog: "area",
+                },
+                {
+                  key: "machine_name",
+                  label: "Machine name",
+                  value: profile.machine_name,
+                },
+                {
+                  key: "manufacturer",
+                  label: "Manufacturer",
+                  value: profile.manufacturer,
+                },
+                { key: "model", label: "Model", value: profile.model },
+                {
+                  key: "serial_number",
+                  label: "Serial number",
+                  value: profile.serial_number,
+                },
+                {
+                  key: "machine_type",
+                  label: "Machine type",
+                  value: profile.machine_type,
+                },
+                {
+                  key: "press_capacity_tons",
+                  label: "Press capacity (tons)",
+                  kind: "number",
+                  value: profile.press_capacity_tons,
+                },
+                {
+                  key: "controller_type",
+                  label: "Controller",
+                  value: profile.controller_type,
+                },
+                {
+                  key: "cleanroom_classification",
+                  label: "Cleanroom classification",
+                  value: profile.cleanroom_classification,
+                  catalog: "cleanroom",
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  value: profile.status,
+                  catalog: "status",
+                },
+                {
+                  key: "installation_date",
+                  label: "Installation date",
+                  kind: "date",
+                  value: profile.installation_date,
+                },
+                {
+                  key: "notes",
+                  label: "Notes",
+                  kind: "textarea",
+                  value: profile.notes,
+                },
+              ]}
+            />
+            <CompatibilityEditor
+              kind="machine"
+              identifier={profile.machine_number}
+              onSaved={onSaved}
+            />
+            <MediaUpload
+              entityType="machine"
+              identifier={profile.machine_number}
+              onSaved={onSaved}
+            />
+          </ProfileActionMenu>
+        }
       />
       <ProfileTabs />
       <div className="profile-sections">
