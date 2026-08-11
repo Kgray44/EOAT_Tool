@@ -617,11 +617,15 @@ a {
   border-radius: 20px;
 }
 :root[data-atlas-theme="light"] .atlas-home-card {
-  background: linear-gradient(135deg, rgb(16 39 73 / 72%), rgb(36 59 96 / 66%));
-  border-color: rgb(97 146 203 / 48%);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, white 88%, var(--atlas-card-background)),
+    color-mix(in srgb, white 72%, var(--atlas-page-background))
+  );
+  border-color: color-mix(in srgb, var(--atlas-accent) 28%, white);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 16%),
-    0 18px 55px rgb(25 50 84 / 22%);
+    inset 0 1px 0 rgb(255 255 255 / 88%),
+    0 18px 55px rgb(25 50 84 / 14%);
 }
 :root[data-atlas-theme="light"] .atlas-home-search {
   background: rgb(8 25 51 / 68%);
@@ -1300,7 +1304,7 @@ a {
   text-align: center;
 }
 .library-page {
-  max-width: none;
+  max-width: 1250px;
 }
 .library-title-accent {
   display: block;
@@ -2033,7 +2037,7 @@ a {
   font-size: 0.95rem;
 }
 .library-page {
-  width: min(calc(100vw - 64px), 1680px);
+  width: 100%;
   margin: 0 auto;
   text-align: center;
 }

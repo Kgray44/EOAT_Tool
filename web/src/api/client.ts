@@ -486,7 +486,6 @@ export const apiClient = {
   async updateSharedSetting(
     key: string,
     value: unknown,
-    token: string,
     description?: string,
     fetcher?: typeof fetch,
   ): Promise<SharedSetting> {
@@ -498,7 +497,7 @@ export const apiClient = {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...csrfHeader(),
           },
           body: JSON.stringify({ value, description }),
         },
@@ -509,7 +508,6 @@ export const apiClient = {
   },
   async applySettingsAction(
     action: SettingsAction,
-    token: string,
     confirmation: string,
     section?: string,
     fetcher?: typeof fetch,
@@ -519,7 +517,7 @@ export const apiClient = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...csrfHeader(),
         },
         body: JSON.stringify({ confirmation, section }),
       }),

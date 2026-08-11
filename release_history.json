@@ -400,6 +400,13 @@
       "state": "finalized",
       "task_id": "codex-staging-profile-action-portal-20260811",
       "finalized_at_utc": "2026-08-11T13:35:49Z"
+    },
+    {
+      "application_version": "0.26.8",
+      "release_id": "eoat-atlas-0.26.8",
+      "state": "finalized",
+      "task_id": "codex-staging-settings-session-light-library-20260811",
+      "finalized_at_utc": "2026-08-11T13:48:44Z"
     }
   ]
 }

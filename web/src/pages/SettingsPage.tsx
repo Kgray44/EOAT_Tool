@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient, type SettingsAction } from "@/api/client";
+import {
+  apiClient,
+  type AuthenticatedSession,
+  type SettingsAction,
+} from "@/api/client";
 import { ErrorState, LoadingState } from "@/components/feedback/StateViews";
 import {
   defaultBrowserSettings,
@@ -166,13 +170,7 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<BrowserSettings>(() =>
     readBrowserSettings(),
   );
-  const [sessionToken, setSessionToken] = useState(
-    () => sessionStorage.getItem("eoat-atlas-settings-session") || "",
-  );
-  const [session, setSession] = useState<Awaited<
-    ReturnType<typeof apiClient.getSettingsSession>
-  > | null>(null);
-  const [loginIdentity, setLoginIdentity] = useState("dev.admin");
+  const [session, setSession] = useState<AuthenticatedSession | null>(null);
   const [authError, setAuthError] = useState<unknown>(null);
   const [draftShared, setDraftShared] = useState<Record<string, unknown>>({});
   const [pendingAction, setPendingAction] = useState<SettingsAction | null>(
@@ -187,24 +185,17 @@ export function SettingsPage() {
     queryKey: ["settings", "shared"],
     queryFn: () => apiClient.getSharedSettings(),
   });
-  const authConfiguration = useQuery({
-    queryKey: ["settings", "auth-config"],
-    queryFn: () => apiClient.getAuthConfiguration(),
-  });
   useEffect(() => {
-    if (!sessionToken) {
-      setSession(null);
-      return;
-    }
-    void apiClient
-      .getSettingsSession(sessionToken)
-      .then(setSession)
-      .catch(() => {
-        sessionStorage.removeItem("eoat-atlas-settings-session");
-        setSessionToken("");
-        setSession(null);
-      });
-  }, [sessionToken]);
+    const refresh = () =>
+      void apiClient
+        .getAuthenticatedSession()
+        .then(setSession)
+        .catch(() => setSession(null));
+    refresh();
+    window.addEventListener("atlas-authentication-changed", refresh);
+    return () =>
+      window.removeEventListener("atlas-authentication-changed", refresh);
+  }, []);
   const activeSection = sections.find((item) => item.key === section)!;
   const update = <K extends keyof BrowserSettings>(
     key: K,
@@ -249,19 +240,13 @@ export function SettingsPage() {
     setDraftShared((current) => ({ ...current, [item.key]: value }));
   };
   const saveShared = () => {
-    if (
-      !sessionToken ||
-      !editableSharedSettings ||
-      !Object.keys(draftShared).length
-    )
-      return;
+    if (!editableSharedSettings || !Object.keys(draftShared).length) return;
     setAuthError(null);
     void Promise.all(
       Object.entries(draftShared).map(([key, value]) =>
         apiClient.updateSharedSetting(
           key,
           value,
-          sessionToken,
           catalog.data?.items.find((item) => item.key === key)?.description,
         ),
       ),
@@ -286,14 +271,13 @@ export function SettingsPage() {
     if (
       !pendingAction ||
       confirmation !== actionConfirmation[pendingAction] ||
-      !sessionToken
+      !session
     )
       return;
     setAuthError(null);
     void apiClient
       .applySettingsAction(
         pendingAction,
-        sessionToken,
         confirmation,
         pendingAction === "reset-section" ? section : undefined,
       )
@@ -305,26 +289,15 @@ export function SettingsPage() {
       })
       .catch(setAuthError);
   };
-  const signIn = () => {
+  const signOut = () => {
     setAuthError(null);
     void apiClient
-      .loginDevelopment(loginIdentity)
-      .then((next) => {
-        sessionStorage.setItem(
-          "eoat-atlas-settings-session",
-          next.access_token,
-        );
-        setSessionToken(next.access_token);
-        setSession(next);
+      .logout()
+      .then(() => {
+        setSession(null);
+        window.dispatchEvent(new Event("atlas-authentication-changed"));
       })
       .catch(setAuthError);
-  };
-  const signOut = () => {
-    if (sessionToken)
-      void apiClient.logoutSettings(sessionToken).catch(() => undefined);
-    sessionStorage.removeItem("eoat-atlas-settings-session");
-    setSessionToken("");
-    setSession(null);
   };
   return (
     <section className="settings-page" aria-labelledby="settings-title">
@@ -525,31 +498,12 @@ export function SettingsPage() {
         </span>
         {session ? (
           <button type="button" onClick={signOut}>
-            Admin Logout
+            Sign out
           </button>
-        ) : authConfiguration.data?.provider === "development" ? (
-          <>
-            <select
-              aria-label="Development administrator identity"
-              value={loginIdentity}
-              onChange={(event) => setLoginIdentity(event.target.value)}
-            >
-              {(authConfiguration.data.development_identities || []).map(
-                (identity) => (
-                  <option key={identity} value={identity}>
-                    {identity}
-                  </option>
-                ),
-              )}
-            </select>
-            <button type="button" onClick={signIn}>
-              Admin Login
-            </button>
-          </>
         ) : (
           <output>
-            {authConfiguration.data?.message ||
-              "Administrator authentication is not configured."}
+            Sign in with an EOAT Atlas administrator account to edit shared
+            Settings.
           </output>
         )}
         <button type="button" onClick={exportBrowserSettings}>

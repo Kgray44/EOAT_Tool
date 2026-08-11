@@ -47,51 +47,25 @@ describe("SettingsPage", () => {
         if (path === "/api/v1/settings") {
           return new Response(JSON.stringify({ items: [] }), { status: 200 });
         }
-        if (path === "/api/v1/auth/config") {
-          return new Response(
-            JSON.stringify({
-              provider: "development",
-              settings_authentication_available: true,
-              provider_configured: true,
-              development_identities: ["dev.admin"],
-              message: "Development Settings authentication is available.",
-            }),
-            { status: 200 },
-          );
-        }
-        if (path === "/api/v1/auth/development/login") {
-          expect(init?.method).toBe("POST");
-          return new Response(
-            JSON.stringify({
-              access_token: "test-settings-token",
-              authenticated: true,
-              identity: { display_name: "Development Administrator" },
-              permissions: [
-                "settings.edit",
-                "settings.restore",
-                "settings.set_default",
-              ],
-            }),
-            { status: 200 },
-          );
-        }
         if (path === "/api/v1/auth/session") {
           return new Response(
             JSON.stringify({
               authenticated: true,
               identity: { display_name: "Development Administrator" },
+              roles: ["ADMINISTRATOR"],
               permissions: [
                 "settings.edit",
                 "settings.restore",
                 "settings.set_default",
               ],
+              scope: "application",
             }),
             { status: 200 },
           );
         }
         if (path === "/api/v1/settings/data_loading.refresh_on_launch") {
-          expect(init?.headers).toMatchObject({
-            Authorization: "Bearer test-settings-token",
+          expect(init?.headers).not.toMatchObject({
+            Authorization: expect.any(String),
           });
           expect(init?.body).toBe(
             JSON.stringify({ value: false, description: undefined }),
@@ -142,10 +116,6 @@ describe("SettingsPage", () => {
     await user.click(
       screen.getByRole("button", { name: /^Server, Synchronization/ }),
     );
-    expect(
-      await screen.findByLabelText("Refresh on app launch"),
-    ).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Admin Login" }));
     await screen.findByText("Administrator: Development Administrator");
     await vi.waitFor(() => {
       expect(screen.getByLabelText("Refresh on app launch")).toBeEnabled();
