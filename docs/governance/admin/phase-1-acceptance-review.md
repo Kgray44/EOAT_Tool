@@ -1,6 +1,6 @@
 # EOAT Atlas Admin Phase 1 Acceptance Review
 
-Status: Incomplete pending the existing write-conversion regression candidate.
+Status: Pending final UI-history runner dependency; database/API acceptance is complete.
 
 ## Verified Phase 1 criteria
 
@@ -23,16 +23,19 @@ Status: Incomplete pending the existing write-conversion regression candidate.
   and 200 for Administrator through the runtime identity.
 - Focused server tests passed 8/8; real MySQL foundation tests passed 6/6.
 
-## Outstanding criterion
+## EOAT History regression correction
 
-`tests/integration/test_mysql_write_conversion.py` completed with 16 passing
-tests and one failure in pre-existing EOAT history ordering. The unchanged
-assertion expects the most recent history item to be `EOAT_UPDATED`; the
-observed current-history item was `EOAT_LOCATION_MARKED_UNKNOWN`. Phase 1 did
-not modify the history ordering code or that assertion. Until the baseline
-owner classifies or repairs this regression, the complete relevant regression
-suite cannot be reported as passing, so the Phase 1 exit criterion is not yet
-met.
+The original 16/17 result exposed a pre-existing query defect: tied normal
+History timestamps were broken by random UUID order. The corrected contract is
+authoritative event timestamp followed by immutable persisted event sequence.
+The targeted MySQL regression deliberately reversed UUID order for tied events,
+and the complete write-conversion suite then passed **18/18** in 4.50 seconds.
+Normal History remains separate from the global Admin audit ledger.
+
+The non-UI EOAT History unit coverage passed before the UI check required a
+desktop-capable runner. The Debian runner can import the UI module but lacks
+the system `libGL.so.1` dependency required to create the Qt test application;
+that final UI-only validation remains outstanding.
 
 ## Safety review
 

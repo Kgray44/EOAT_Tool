@@ -60,3 +60,16 @@ code or that assertion (only schema revision expectations and a new Admin audit
 authorization test were added), so this is recorded as a pre-existing
 regression candidate pending baseline-owner classification, not as Admin Phase
 1 evidence.
+
+## EOAT History ordering correction
+
+The regression investigation found that normal EOAT History used
+`occurred_at DESC, event_uuid DESC`. UUID is identity rather than chronology,
+so tied MySQL timestamps could order an earlier
+`EOAT_LOCATION_MARKED_UNKNOWN` ahead of a later `EOAT_UPDATED`. The repository
+and snapshot aggregation now use the immutable persisted event ID as the
+secondary sequence (`occurred_at DESC, id DESC`; ascending is the inverse).
+`tests/integration/test_mysql_write_conversion.py` now constructs tied
+timestamps with deliberately reversed UUID order and proves that the later
+persisted event is returned first. The full real-MySQL write-conversion suite
+passed **18/18** in 4.50 seconds after the correction.
