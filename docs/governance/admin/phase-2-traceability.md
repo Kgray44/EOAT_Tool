@@ -48,7 +48,8 @@ Phase 2 acceptance decision has been made.
   overview/order/authorization tests, and 1 deterministic fixture-coverage test).
 * `web/src/api/admin.test.ts`: 1 passed.
 * `web/tests/e2e/admin.spec.ts`: 3 passed (overview direct link and URL state,
-  Event Detail redaction/correlation/no-mutation controls, narrow layout).
+  Event Detail redaction/correlation/no-mutation controls, and narrow-layout
+  keyboard skip-link/navigation evidence).
 * Web typecheck, ESLint, and production Vite build passed.
 * FastAPI OpenAPI generation recognizes `AdminOverviewContract`.
 * Broad `pytest -q` was attempted on this worktree and aborted at 6% in the

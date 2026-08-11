@@ -52,7 +52,7 @@ function ErrorState({ error }: { error: AdminApiError }) {
 function LoadingState() { return <section className="state-panel" aria-live="polite"><h1>Loading Administrator data</h1><p>The current server response is being retrieved.</p></section>; }
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <div className="admin-layout"><a className="skip-link" href="#admin-content">Skip to main content</a><aside className="admin-sidebar"><div className="admin-brand"><span>EOAT Atlas</span><strong>Administration</strong></div><nav aria-label="Administration"><NavLink end to="/admin">Overview</NavLink><NavLink to="/admin/audit">Audit ledger</NavLink><NavLink to="/admin/system">System</NavLink><NavLink to="/admin/diagnostics">Diagnostics</NavLink></nav><a className="return-link" href="/">← Return to EOAT Atlas</a></aside><main id="admin-content" className="admin-main">{children}</main></div>;
+  return <div className="admin-layout"><a className="skip-link" href="#admin-content">Skip to main content</a><aside className="admin-sidebar"><div className="admin-brand"><span>EOAT Atlas</span><strong>Administration</strong></div><nav aria-label="Administration"><NavLink end to="/admin">Overview</NavLink><NavLink to="/admin/audit">Audit ledger</NavLink><NavLink to="/admin/system">System</NavLink><NavLink to="/admin/diagnostics">Diagnostics</NavLink></nav><a className="return-link" href="/">← Return to EOAT Atlas</a></aside><main id="admin-content" className="admin-main" tabIndex={-1}>{children}</main></div>;
 }
 
 function PageTitle({ title, children }: { title: string; children?: React.ReactNode }) {

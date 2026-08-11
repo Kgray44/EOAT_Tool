@@ -74,6 +74,10 @@ test("narrow audit view retains accessible navigation and evidence", async ({ pa
   await mockAdminApi(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/audit");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Skip to main content" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#admin-content")).toBeFocused();
   await expect(page.getByRole("navigation", { name: "Administration" })).toBeVisible();
   await expect(page.getByRole("link", { name: /UPDATE.*CL-EOAT-0054/ })).toBeVisible();
 });
