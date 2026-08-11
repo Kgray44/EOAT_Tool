@@ -27,8 +27,12 @@ def test_migration_created_complete_mysql_schema(engine):
     tables = set(inspector.get_table_names())
     assert set(Base.metadata.tables) <= tables
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260714_0004"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260811_0005"
         assert connection.execute(text("SELECT VERSION()" )).scalar_one().startswith("8.4.")
+    assert {"audit_events", "audit_changes"} <= tables
+    assert {"ix_audit_events_entity_time", "ix_audit_events_actor_time"} <= {
+        item["name"] for item in inspector.get_indexes("audit_events")
+    }
 
 
 def test_foreign_key_and_unique_constraints(engine):
@@ -43,6 +47,23 @@ def test_foreign_key_and_unique_constraints(engine):
         connection.execute(models.Plant.__table__.insert().values(plant_code=f"P{token}", plant_name="Duplicate"))
     with pytest.raises(IntegrityError), engine.begin() as connection:
         connection.execute(models.Area.__table__.insert().values(plant_id=999999999, area_code=token, area_name="Bad FK"))
+
+
+def test_global_audit_event_identity_is_unique(engine):
+    event_id = str(uuid4())
+    values = {
+        "event_id": event_id,
+        "actor_type": "system",
+        "action": "SCHEMA_MIGRATED",
+        "entity_type": "schema",
+        "entity_id": "20260811_0005",
+        "source_client": "migration",
+        "result": "SUCCESS",
+    }
+    with engine.begin() as connection:
+        connection.execute(models.AuditEvent.__table__.insert().values(**values))
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(models.AuditEvent.__table__.insert().values(**values))
 
 
 def test_active_installation_generated_unique_constraints(engine):

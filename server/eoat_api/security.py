@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .database import models as db
-from .database.session import get_write_session
+from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
 
 ROLE_PERMISSIONS = {
@@ -43,7 +43,19 @@ ROLE_PERMISSIONS = {
             "instance.register",
         }
     ),
-    "ADMINISTRATOR": frozenset({"*"}),
+    "ADMINISTRATOR": frozenset(
+        {
+            "*",
+            "admin.area.view",
+            "admin.audit.view",
+            "admin.audit.export",
+            "admin.data.manage",
+            "admin.access.manage",
+            "admin.system.diagnostics",
+            "admin.settings.manage",
+            "admin.danger.execute",
+        }
+    ),
 }
 
 DEFAULT_DEVELOPMENT_IDENTITIES = {
@@ -156,8 +168,49 @@ def actor_context(
     )
 
 
+def read_actor_context(
+    request: Request,
+    session: Session = Depends(get_runtime_session),
+) -> ActorContext:
+    """Resolve a server-trusted local identity for read-only protected APIs.
+
+    This deliberately has no write-gate check: administrator read contracts must
+    remain independently authorized even while all mutations are disabled.
+    Production identity-provider integration remains a separate Phase 5 seam.
+    """
+    environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
+    if environment not in {"development", "staging_local"}:
+        raise APIError(403, "LOCAL_AUTH_FORBIDDEN", "Local rehearsal authentication is unavailable here.")
+    identity = request.headers.get("X-EOAT-Identity", "").strip()
+    role_code = _configured_identities(environment).get(identity)
+    if not identity or role_code not in ROLE_PERMISSIONS:
+        raise APIError(401, "UNKNOWN_IDENTITY", "A configured local identity is required.")
+    role = session.scalar(select(db.Role).where(db.Role.role_code == role_code, db.Role.is_active.is_(True)))
+    if role is None:
+        raise APIError(503, "AUTHORIZATION_NOT_CONFIGURED", "The configured development role is unavailable.")
+    user = session.scalar(select(db.User).where(db.User.external_identity == identity))
+    return ActorContext(
+        user_id=user.id if user is not None else 0,
+        identity=identity,
+        display_name=user.display_name if user is not None else identity.replace(".", " ").title(),
+        role=role_code,
+        request_id=getattr(request.state, "request_id", None) or str(uuid4()),
+        application_instance_id=None,
+        client_version=request.headers.get("X-EOAT-Client-Version"),
+    )
+
+
 def require(permission: str):
     def dependency(actor: ActorContext = Depends(actor_context)) -> ActorContext:
+        if not actor.permits(permission):
+            raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this permission.")
+        return actor
+
+    return dependency
+
+
+def require_admin(permission: str):
+    def dependency(actor: ActorContext = Depends(read_actor_context)) -> ActorContext:
         if not actor.permits(permission):
             raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this permission.")
         return actor

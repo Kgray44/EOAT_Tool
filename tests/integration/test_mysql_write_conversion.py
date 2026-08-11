@@ -73,6 +73,26 @@ def test_authorization_boundary_and_unknown_identity(api):
     assert technician.status_code == 403
 
 
+def test_admin_audit_query_is_server_authorized_and_returns_persisted_event(api):
+    identifier = f"ADMIN-AUDIT-{uuid4().hex[:10]}"
+    created = post(api, "/api/v1/eoats", {"business_identifier": identifier}, ADMIN, f"admin-audit-{identifier}")
+    assert created.status_code == 200
+    denied = api.get("/api/v1/admin/audit/events", headers=VIEWER)
+    assert denied.status_code == 403
+    page = api.get(
+        "/api/v1/admin/audit/events",
+        params={"entity_type": "eoat", "entity_id": str(created.json()["id"]), "page_size": 10},
+        headers=ADMIN,
+    )
+    assert page.status_code == 200
+    event = next(item for item in page.json()["items"] if item["entity"]["display_id"] == identifier)
+    assert event["action"] == "CREATE"
+    assert event["actor"]["directory_name"] == "dev.admin"
+    detail = api.get(f"/api/v1/admin/audit/events/{event['event_id']}", headers=ADMIN)
+    assert detail.status_code == 200
+    assert detail.json()["event_id"] == event["event_id"]
+
+
 def test_history_endpoint_honestly_returns_empty_for_eoat_without_events(api):
     with create_session_factory(migration=True)() as session, session.begin():
         record = db.EOAT(
@@ -584,14 +604,14 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     config_a = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-a.db",
-        expected_schema_revision="20260714_0004",
+        expected_schema_revision="20260811_0005",
         writes_enabled=True,
         environment="development",
     )
     config_b = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-b.db",
-        expected_schema_revision="20260714_0004",
+        expected_schema_revision="20260811_0005",
         writes_enabled=True,
         environment="development",
     )
@@ -627,7 +647,7 @@ def test_gateway_blocks_offline_writes_without_queueing(tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "offline.db",
-        expected_schema_revision="20260714_0004",
+        expected_schema_revision="20260811_0005",
         writes_enabled=True,
         environment="development",
     )
@@ -641,7 +661,7 @@ def test_server_success_survives_local_cache_refresh_failure(api, tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "fail-cache.db",
-        expected_schema_revision="20260714_0004",
+        expected_schema_revision="20260811_0005",
         writes_enabled=True,
         environment="development",
     )

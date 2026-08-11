@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .database import models as db
+from .admin.service import AuditEventWriter
 from .errors import APIError, conflict, not_found
 from .security import ActorContext
 
@@ -217,6 +218,28 @@ def audit_change(
             api_version="1.3.0",
             client_version=actor.client_version,
         )
+    )
+    AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        entity_display_id=str(
+            current.get("business_identifier")
+            or current.get("machine_number")
+            or current.get("tool_number")
+            or current.get("audit_identifier")
+            or entity_id
+        ),
+        operation=action,
+        previous=previous,
+        current=current,
+        reason=reason,
+        metadata={
+            "legacy_change_audit_log": True,
+            "source_table": source_table,
+            "source_record_id": source_record_id,
+        },
     )
     if entity_type in CACHED_ENTITY_TYPES:
         session.add(

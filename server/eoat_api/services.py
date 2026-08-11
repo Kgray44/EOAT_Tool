@@ -18,8 +18,8 @@ from .database import models as db
 from .repositories import AtlasRepository
 from .security import ActorContext
 
-API_VERSION = "1.3.0"
-EXPECTED_SCHEMA_REVISION = "20260714_0004"
+API_VERSION = "1.4.0"
+EXPECTED_SCHEMA_REVISION = "20260811_0005"
 SERVER_REVISION = "mysql-cutover-rehearsal-rc1"
 
 

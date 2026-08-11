@@ -644,6 +644,71 @@ class EntityHistoryEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
 
 
+class AuditEvent(Base):
+    """Append-only global administrator audit evidence; separate from profile history."""
+
+    __tablename__ = "audit_events"
+    __table_args__ = (
+        CheckConstraint(
+            "actor_type IN ('user','service','system','import','migration')", name="ck_audit_events_actor_type"
+        ),
+        CheckConstraint(
+            "result IN ('SUCCESS','FAILURE','DENIED','PARTIAL')", name="ck_audit_events_result"
+        ),
+        CheckConstraint("schema_version > 0", name="ck_audit_events_schema_version"),
+        Index("ix_audit_events_time", "occurred_at_utc"),
+        Index("ix_audit_events_actor_time", "actor_id", "occurred_at_utc"),
+        Index("ix_audit_events_action_time", "action", "occurred_at_utc"),
+        Index("ix_audit_events_entity_time", "entity_type", "entity_id", "occurred_at_utc"),
+        Index("ix_audit_events_result", "result"),
+        Index("ix_audit_events_correlation", "correlation_id"),
+        Index("ix_audit_events_request", "request_id"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    occurred_at_utc: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False
+    )
+    actor_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor_id: Mapped[str | None] = mapped_column(String(255))
+    actor_display_name: Mapped[str | None] = mapped_column(String(255))
+    actor_directory_name: Mapped[str | None] = mapped_column(String(255))
+    actor_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    entity_display_id: Mapped[str | None] = mapped_column(String(255))
+    changed_fields_json: Mapped[list[str] | None] = mapped_column(JSON)
+    before_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    after_state_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    reason_or_note: Mapped[str | None] = mapped_column(Text)
+    source_client: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    correlation_id: Mapped[str | None] = mapped_column(String(64))
+    transaction_id: Mapped[str | None] = mapped_column(String(64))
+    operation: Mapped[str | None] = mapped_column(String(255))
+    result: Mapped[str] = mapped_column(String(16), nullable=False)
+    metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    schema_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+
+
+class AuditChange(Base):
+    __tablename__ = "audit_changes"
+    __table_args__ = (
+        UniqueConstraint("audit_event_id", "field_path", name="uq_audit_changes_event_field"),
+        Index("ix_audit_changes_field", "field_path"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    audit_event_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("audit_events.event_id", ondelete="RESTRICT"), nullable=False
+    )
+    field_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    before_value_json: Mapped[Any | None] = mapped_column(JSON)
+    after_value_json: Mapped[Any | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+
+
 class ChangeAuditLog(Base):
     __tablename__ = "change_audit_log"
     __table_args__ = (

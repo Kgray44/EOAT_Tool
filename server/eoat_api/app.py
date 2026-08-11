@@ -26,6 +26,7 @@ from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
 from .services import API_VERSION, EXPECTED_SCHEMA_REVISION, SERVER_REVISION, AtlasService
+from .admin.routes import router as admin_router
 from .write_routes import router as write_router
 
 logging.basicConfig(
@@ -494,3 +495,4 @@ def home_summary(repo: AtlasRepository = Depends(repository)):
 
 
 app.include_router(write_router)
+app.include_router(admin_router)
