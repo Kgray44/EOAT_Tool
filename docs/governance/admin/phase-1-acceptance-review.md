@@ -1,6 +1,6 @@
 # EOAT Atlas Admin Phase 1 Acceptance Review
 
-Status: Pending final UI-history runner dependency; database/API acceptance is complete.
+Status: Phase 1 acceptance complete.
 
 ## Verified Phase 1 criteria
 
@@ -32,10 +32,90 @@ The targeted MySQL regression deliberately reversed UUID order for tied events,
 and the complete write-conversion suite then passed **18/18** in 4.50 seconds.
 Normal History remains separate from the global Admin audit ledger.
 
-The non-UI EOAT History unit coverage passed before the UI check required a
-desktop-capable runner. The Debian runner can import the UI module but lacks
-the system `libGL.so.1` dependency required to create the Qt test application;
-that final UI-only validation remains outstanding.
+The complete EOAT History unit/UI module then passed **5/5** on a disposable
+local Windows runner using a source archive of the committed candidate. This
+avoided the Debian runner's missing `libGL.so.1` while neither changing the
+server nor using dirty worktree files. The UI case exercised empty selection,
+filtering, read-only behavior, and the large model.
+
+## Final acceptance report
+
+### Test infrastructure and isolation
+
+- Server: the established `EOAT-ATLAS` Debian host, MySQL 8.4.10.
+- Connection method: a temporary SSH forward from Windows to remote
+  `127.0.0.1:3306`; MySQL remained loopback-only throughout.
+- Isolated schema: `eoat_atlas_test` only.
+- Test identities: `eoat_adminp1_migrator` (migration/recovery scope) and
+  `eoat_adminp1_runtime` (ordinary application scope). Their protected local
+  acceptance configuration is ACL-restricted and is outside Git. No credential
+  value or credential-bearing URL is recorded here.
+- Safety: each reset/migration checked the selected schema on the connected
+  MySQL server. `eoat_atlas_prod` and `eoat_atlas_dev` were neither migrated,
+  reset, fixture-loaded, nor queried for business data.
+
+### MySQL migration, recovery, and privileges
+
+- Representative predecessor revision: `20260714_0004`.
+- Resulting revision: `20260811_0006`.
+- Migration/clean-repeat result: PASS. A clean reconstructed test schema and a
+  representative predecessor schema both advanced successfully; audit tables,
+  columns, types, indexes, foreign key, uniqueness, defaults, nullability, and
+  audit-event schema version storage were inspected on MySQL.
+- Recovery result: PASS. The supported Alembic downgrade from head to
+  `20260714_0004` and forward migration back to head both passed on the
+  isolated schema.
+- Runtime role result: PASS. The runtime identity performed required runtime
+  reads/writes and approved audit inserts through application behavior, while
+  protected-schema access, schema creation, privilege escalation, and audit
+  `UPDATE`/`DELETE` were denied.
+
+### Audit, transaction, query, and API acceptance
+
+- Append-only result: PASS. Audit records have no application mutation/delete
+  route; the runtime database role is restricted to audit `SELECT`/`INSERT`.
+- Atomicity result: PASS. A deliberately failed mandatory audit write rolled
+  back the governed business mutation, returned no success, and left no false
+  successful audit event. The successful equivalent committed the mutation and
+  audit event together with server-derived actor, request/correlation evidence,
+  correct before/after data, and UTC timestamp.
+- Structured evidence and redaction: PASS. Single/multi-field changes, null
+  transition, normalization, unchanged-field omission, stable entity identity,
+  actor, UTC timestamp, correlation, and persistence-path secret redaction
+  were verified. Sensitive submitted values were absent from audit core,
+  change rows, payload/metadata, and operation logs.
+- Query repository: PASS. Persisted MySQL evidence covered timestamp, actor,
+  action, entity type/ID, result, source, request/correlation filters plus
+  deterministic ordering and pagination.
+- API/service integration: PASS. The runtime-backed API returned 401 with no
+  identity, 403 for Viewer, and 200 for Administrator; database credentials did
+  not bypass application authorization.
+
+### Regression evidence
+
+| Suite | Result |
+| --- | --- |
+| `tests/server/test_admin_audit_foundation.py` | 8 passed, 0 failed (6.46 s) |
+| `tests/integration/test_mysql_foundation.py` | 6 passed, 0 failed (0.41 s) |
+| `tests/integration/test_mysql_write_conversion.py` | 18 passed, 0 failed (4.50 s) on clean real MySQL |
+| `tests/test_eoat_history.py` | 5 passed, 0 failed (24.857 s) |
+
+Total: **37 passed, 0 failed** across the targeted relevant regression suites.
+
+### Repository and production safety
+
+The candidate remains on `archived/mysql-source-retained` with the three
+original Phase 1 implementation commits preserved, followed by the focused
+MySQL parent-flush correction and the focused normal-History ordering
+correction. Unrelated working-tree modifications and untracked files remain
+unstaged and unchanged.
+
+No production deployment, production migration, development-database mutation,
+production write enablement, production authentication change, NGINX change,
+AD/LDAP change, or port-3306 exposure occurred. No secret was committed.
+
+Phase 2–6 UI, deployment, production-role, and provider work remains deferred
+as designed; none is a remaining Phase 1 exit criterion.
 
 ## Safety review
 

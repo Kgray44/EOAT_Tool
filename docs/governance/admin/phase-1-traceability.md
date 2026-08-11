@@ -16,16 +16,16 @@ External Dependency = requires approved operational/IT action.
 | ADM-API-001 to 010 | Implemented / Deferred | Typed `/api/v1/admin` overview/catalog/list/detail contracts, parameterized filtering, role checks; exports/bulk mutations are deferred. |
 | ADM-DB-001 to 005 | Implemented / MySQL Tested | Migrations 0005/0006 advanced real MySQL from `20260714_0004` to `20260811_0006`; schema/constraints/indexes were inspected. Explicit downgrade and forward recovery were also exercised on the isolated test schema. |
 | ADM-TXN-001 to 003 | Implemented / MySQL Tested | Existing write transaction plus `AuditEventWriter` flush and `execute_with_required_audit`; real MySQL forced-audit FK failure rolled back the business mutation. Transaction ID remains nullable until the database layer exposes one. |
-| ADM-TST-001 to 005 | Partially Implemented / MySQL Evidence Added | Focused unit/service coverage and real MySQL migration, privilege, API authorization, redaction, query, and atomicity evidence exist. Full relevant regression execution remains required before final Phase 1 acceptance. |
+| ADM-TST-001 to 005 | Implemented / Tested | Focused unit/service coverage and real MySQL migration, privilege, API authorization, redaction, query, atomicity, clean-repeat, recovery, write-conversion, and normal-History/UI regression evidence are complete. The relevant suites total 37 passed, 0 failed. |
 | ADM-MIG-001 to 005 | Implemented / Deferred deployment evidence | Honest limited-evidence policy documented; no fabricated backfill. Deployment evidence waits for Phase 6. |
 | ADM-CHG-001 to 004 | Implemented | This traceability file, taxonomy/versioning policy, and source/test mapping. |
 
 Focused test coverage: closed taxonomy/category mapping, absent/null/empty/redacted diff behavior,
 recursive secret suppression, structured event/change serialization, honest
 legacy limited-evidence projection, Administrator-versus-Viewer permission
-distinction, and deliberate audit-persistence failure rollback.  Migration/database/API integration tests are
-environment-gated and must run against the approved `eoat_atlas_test` MySQL
-database before any acceptance decision.
+distinction, and deliberate audit-persistence failure rollback. Migration/database/API integration tests are
+environment-gated and ran against the approved `eoat_atlas_test` MySQL database
+before the Phase 1 acceptance decision.
 
 ## Isolated MySQL acceptance evidence
 
@@ -52,14 +52,10 @@ the MySQL parent-event flush-order regression check.
 Real MySQL foundation regression: `tests/integration/test_mysql_foundation.py`
 ran against a clean isolated migration with **6 passed** (0.41 seconds).
 
-The existing write-conversion suite reached the intended development identity
-mode with **16 passed, 1 failed**. The unchanged pre-Phase-1 assertion expected
-the newest EOAT history item to be `EOAT_UPDATED`; the actual newest item was
-`EOAT_LOCATION_MARKED_UNKNOWN`. Phase 1 did not change EOAT history ordering
-code or that assertion (only schema revision expectations and a new Admin audit
-authorization test were added), so this is recorded as a pre-existing
-regression candidate pending baseline-owner classification, not as Admin Phase
-1 evidence.
+The initial write-conversion run reached the intended development identity mode
+with **16 passed, 1 failed**. The then-current ordering candidate has since
+been investigated, corrected, and rerun as described below; it is no longer a
+Phase 1 acceptance blocker.
 
 ## EOAT History ordering correction
 
@@ -73,3 +69,15 @@ secondary sequence (`occurred_at DESC, id DESC`; ascending is the inverse).
 timestamps with deliberately reversed UUID order and proves that the later
 persisted event is returned first. The full real-MySQL write-conversion suite
 passed **18/18** in 4.50 seconds after the correction.
+
+## Final Phase 1 acceptance reconciliation
+
+All formerly blocked real-MySQL work is complete. Migration from representative
+predecessor `20260714_0004` through resulting revision `20260811_0006`, clean
+repeat, downgrade/forward recovery, schema inspection, least-privilege runtime
+role, append-only enforcement, mandatory-audit rollback, redaction,
+correlation/query filtering, and authorization-negative/API integration all
+passed using only `eoat_atlas_test`. The focused Admin suite passed **8/8**,
+MySQL foundation **6/6**, write conversion **18/18**, and normal History/UI
+**5/5**, for **37 passed and 0 failed**. Production and development schemas
+remain excluded; Phase 2–6 items remain deferred by scope rather than blocked.
