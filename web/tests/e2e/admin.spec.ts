@@ -29,15 +29,28 @@ const relatedEvent = {
   result: "SUCCESS",
 };
 
+const machineEvent = {
+  ...event,
+  event_id: "event-machine-0001",
+  entity: { type: "Machine", id: "machine-27", display_id: "MACHINE-27" },
+};
+
+const toolEvent = {
+  ...event,
+  event_id: "event-tool-0001",
+  entity: { type: "Tool", id: "tool-88", display_id: "TOOL-88" },
+};
+
 async function mockAdminApi(page: Page) {
   await page.route("**/api/v1/admin/**", async (route) => {
     const url = new URL(route.request().url());
+    const detail = [event, machineEvent, toolEvent].find((candidate) => url.pathname.endsWith(`/audit/events/${candidate.event_id}`));
     const body = url.pathname.endsWith("/audit/catalog")
       ? { actions: ["UPDATE", "LOCATION_CHANGE"], action_categories: ["BUSINESS_DATA", "SYSTEM_OPERATIONS"], entity_types: ["EOAT", "Machine", "Tool"], results: ["DENIED", "SUCCESS"], sources: ["web"] }
       : url.pathname.endsWith("/overview")
         ? { api_version: "1.4.0", schema_revision: "20260811_0006", audit_schema_version: 1, observation_time_utc: event.occurred_at_utc, writes_enabled: false, environment: "development", api_status: "healthy", database_status: "healthy", audit_status: "healthy", metrics: { events_today: 2, events_last_24_hours: 2, successful_events_last_24_hours: 1, failed_events_last_24_hours: 0, denied_events_last_24_hours: 1, security_events_last_24_hours: 1, administrative_events_last_24_hours: 0, unique_actors_last_24_hours: 1 }, recent_events: [event] }
-        : url.pathname.endsWith(`/audit/events/${event.event_id}`)
-          ? event
+        : detail
+          ? detail
           : { items: [event, relatedEvent], page: 1, page_size: 50, total: 2, sort: "occurred_at_utc:desc,persisted_sequence:desc" };
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   });
@@ -48,6 +61,7 @@ test("administrator can deep-link to the overview and ledger investigation", asy
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Administrative overview" })).toBeVisible();
   await expect(page.getByText("Events today (UTC)")).toBeVisible();
+  await expect(page.getByText("Events today (UTC)").locator("..").getByText("2", { exact: true })).toBeVisible();
   await page.goto("/admin/audit?result=DENIED&correlation_id=correlation-456");
   await expect(page.getByRole("heading", { name: "Global Audit Ledger" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Development Administrator" }).first()).toBeVisible();
@@ -62,16 +76,42 @@ test("administrator can deep-link to the overview and ledger investigation", asy
   await expect(page).toHaveURL(/entity_type=EOAT/);
   await page.getByRole("button", { name: "Administrative operations" }).click();
   await expect(page).toHaveURL(/administrative_events_only=true/);
+  await page.getByLabel("Action").selectOption("UPDATE");
+  await expect(page).toHaveURL(/action=UPDATE/);
+  await page.getByLabel("Source").selectOption("web");
+  await expect(page).toHaveURL(/source=web/);
+  await page.getByLabel("Actor").fill("dev.admin");
+  await expect(page).toHaveURL(/actor=dev.admin/);
+  await page.getByLabel("Entity ID").fill("54");
+  await expect(page).toHaveURL(/entity_id=54/);
+  await page.getByLabel("Request ID").fill("request-123");
+  await expect(page).toHaveURL(/request_id=request-123/);
+  await page.goBack();
+  await expect(page.getByLabel("Request ID")).toHaveValue("");
+  await expect(page.getByLabel("Entity ID")).toHaveValue("54");
 });
 
 test("event detail renders structured redaction and correlation navigation without mutation controls", async ({ page }) => {
   await mockAdminApi(page);
   await page.goto(`/admin/audit/events/${event.event_id}`);
   await expect(page.getByRole("heading", { name: "Audit event detail" })).toBeVisible();
+  await expect(page.getByText("Development Administrator")).toBeVisible();
+  await expect(page.getByText("UTC: 2026-08-11T18:00:00Z")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/eoats/54");
+  await expect(page.getByRole("link", { name: "request-123" })).toHaveAttribute("href", "/admin/audit?request_id=request-123");
   await expect(page.getByText("Redacted").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /LOCATION_CHANGE.*CL-EOAT-0054/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "View all events with this correlation ID" })).toHaveAttribute("href", "/admin/audit?correlation_id=correlation-456");
   await expect(page.getByRole("button", { name: /delete|edit|archive|restore/i })).toHaveCount(0);
+});
+
+test("Machine and Tool evidence links remain normal-profile navigation", async ({ page }) => {
+  await mockAdminApi(page);
+  await page.goto(`/admin/audit/events/${machineEvent.event_id}`);
+  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/machines/machine-27");
+  await page.goto(`/admin/audit/events/${toolEvent.event_id}`);
+  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/tools/tool-88");
+  await expect(page.getByRole("link", { name: /Audit ledger/ })).toHaveCount(1);
 });
 
 test("narrow audit view retains accessible navigation and evidence", async ({ page }) => {
