@@ -71,13 +71,13 @@ def test_writer_emits_a_structured_event_and_normalized_change_rows_without_secr
     class RecordingSession:
         def __init__(self):
             self.added = []
-            self.flushed = False
+            self.flush_snapshots = []
 
         def add(self, value):
             self.added.append(value)
 
         def flush(self):
-            self.flushed = True
+            self.flush_snapshots.append(len(self.added))
 
     session = RecordingSession()
     result = AuditEventWriter().write_change(
@@ -98,7 +98,9 @@ def test_writer_emits_a_structured_event_and_normalized_change_rows_without_secr
     assert "old-token" not in json.dumps(event.before_state_json)
     assert "new-token" not in json.dumps(event.after_state_json)
     assert len(session.added) == 3  # one event plus one normalized row per changed field
-    assert session.flushed is True
+    # The parent must be flushed before child rows: MySQL enforces the
+    # public-event-ID foreign key and cannot infer this dependency itself.
+    assert session.flush_snapshots == [1, 3]
 
 
 def test_administrator_permission_is_distinct_from_authenticated_viewer():
