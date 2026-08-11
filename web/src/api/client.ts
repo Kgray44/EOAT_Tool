@@ -754,6 +754,7 @@ export const apiClient = {
       await requestJson(
         `/api/v1/machines?${catalogQuery(search, page, activity, filters, {
           plant: filters.plant,
+          machine_number: filters.machine,
           area: filters.area,
           cleanroom: filters.cleanroom,
           eoat_identifier: filters.eoat,

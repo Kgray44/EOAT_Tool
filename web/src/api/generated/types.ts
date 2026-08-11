@@ -5906,6 +5906,7 @@ export interface operations {
                 page_size?: number;
                 active?: boolean | null;
                 plant?: string | null;
+                machine_number?: string | null;
                 area?: string | null;
                 cleanroom?: string | null;
                 eoat_identifier?: string | null;

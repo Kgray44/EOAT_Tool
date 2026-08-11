@@ -423,6 +423,7 @@ class AtlasRepository:
         page_size: int = 50,
         active: bool | None = True,
         plant: str | None = None,
+        machine_number: str | None = None,
         area: str | None = None,
         cleanroom: str | None = None,
         eoat_identifier: str | None = None,
@@ -452,6 +453,17 @@ class AtlasRepository:
             )
         if plant:
             stmt = stmt.where(db.Plant.plant_code == plant)
+        if machine_number:
+            selected_plant, selected_machine = parse_machine_catalog_value(
+                machine_number,
+            )
+            if not selected_machine:
+                return [], PaginationMetadata(
+                    page=page, page_size=page_size, total=0, pages=0
+                )
+            stmt = stmt.where(db.Machine.machine_number == selected_machine)
+            if selected_plant:
+                stmt = stmt.where(db.Plant.plant_code == selected_plant)
         if area:
             stmt = stmt.where(or_(area_l.area_code == area, area_l.area_name == area))
         if cleanroom:
