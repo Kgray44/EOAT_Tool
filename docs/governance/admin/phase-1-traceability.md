@@ -51,3 +51,12 @@ the MySQL parent-event flush-order regression check.
 
 Real MySQL foundation regression: `tests/integration/test_mysql_foundation.py`
 ran against a clean isolated migration with **6 passed** (0.41 seconds).
+
+The existing write-conversion suite reached the intended development identity
+mode with **16 passed, 1 failed**. The unchanged pre-Phase-1 assertion expected
+the newest EOAT history item to be `EOAT_UPDATED`; the actual newest item was
+`EOAT_LOCATION_MARKED_UNKNOWN`. Phase 1 did not change EOAT history ordering
+code or that assertion (only schema revision expectations and a new Admin audit
+authorization test were added), so this is recorded as a pre-existing
+regression candidate pending baseline-owner classification, not as Admin Phase
+1 evidence.
