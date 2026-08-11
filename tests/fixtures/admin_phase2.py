@@ -35,9 +35,10 @@ def _event(event_id: str, timestamp: str, action: str, category: str, **override
 
 
 AUDIT_ACCEPTANCE_EVENTS = [
-    _event("fixture-001", "2026-08-11T18:00:00Z", "UPDATE", "BUSINESS_DATA"),
+    _event("fixture-001", "2026-08-11T18:00:00Z", "UPDATE", "BUSINESS_DATA", changed_fields=["location", "status"], after={"location": "Synthetic cell 27", "status": "Installed"}),
     _event("fixture-002", "2026-08-11T17:59:00Z", "LOCATION_CHANGE", "LOCATION_STATE"),
     _event("fixture-003", "2026-08-11T17:58:00Z", "LINK", "RELATIONSHIPS", entity={"type": "Machine", "id": "machine-27", "display_id": "TEST-MACHINE-27"}),
+    _event("fixture-tool", "2026-08-11T17:57:30Z", "UPDATE", "BUSINESS_DATA", entity={"type": "Tool", "id": "tool-88", "display_id": "TEST-TOOL-0088"}),
     _event("fixture-004", "2026-08-11T17:57:00Z", "UPLOAD", "DOCUMENTS_MEDIA", entity={"type": "Document", "id": "document-11", "display_id": "TEST-DOC-11"}),
     _event("fixture-005", "2026-08-11T17:56:00Z", "PM_COMPLETE", "MAINTENANCE_INSPECTION"),
     _event("fixture-006", "2026-08-11T17:55:00Z", "LOGIN_SUCCESS", "AUTHENTICATION", entity={"type": "Identity", "id": "user-17", "display_id": "test.admin"}),

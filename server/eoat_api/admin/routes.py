@@ -22,7 +22,7 @@ from .contracts import (
     AuditListResponse,
 )
 from .repository import AuditEventRepository
-from .taxonomy import AuditAction, AuditActionCategory, AuditResult, AuditSource
+from .taxonomy import AUDIT_ENTITY_TYPES, AuditAction, AuditActionCategory, AuditResult, AuditSource
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -117,7 +117,11 @@ def access_status(_actor: ActorContext = Depends(require_admin("admin.area.view"
 @router.get("/audit/catalog", response_model=AuditCatalogResponse)
 def audit_catalog(_actor: ActorContext = Depends(require_admin("admin.audit.view"))):
     return AuditCatalogResponse(
-        actions=list(AuditAction), action_categories=list(AuditActionCategory), results=list(AuditResult), sources=list(AuditSource)
+        actions=list(AuditAction),
+        action_categories=list(AuditActionCategory),
+        entity_types=list(AUDIT_ENTITY_TYPES),
+        results=list(AuditResult),
+        sources=list(AuditSource),
     )
 
 
@@ -138,6 +142,7 @@ def list_audit_events(
     correlation_id: str | None = Query(None, max_length=64),
     current_user_changes: bool = False,
     security_events_only: bool = False,
+    administrative_events_only: bool = False,
     search: str | None = Query(None, max_length=200),
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin("admin.audit.view")),
@@ -153,6 +158,7 @@ def list_audit_events(
         action=action.value if action else None,
         action_category=action_category.value if action_category else None,
         security_events_only=security_events_only,
+        administrative_events_only=administrative_events_only,
         entity_type=entity_type,
         entity_id=entity_id,
         result=result.value if result else None,

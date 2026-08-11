@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..database import models as db
+from .taxonomy import ADMINISTRATIVE_AUDIT_CATEGORIES
 
 
 class AuditEventRepository:
@@ -26,6 +27,7 @@ class AuditEventRepository:
         action: str | None = None,
         action_category: str | None = None,
         security_events_only: bool = False,
+        administrative_events_only: bool = False,
         entity_type: str | None = None,
         entity_id: str | None = None,
         result: str | None = None,
@@ -39,8 +41,15 @@ class AuditEventRepository:
             stmt = stmt.where(db.AuditEvent.occurred_at_utc >= start)
         if end:
             stmt = stmt.where(db.AuditEvent.occurred_at_utc <= end)
+        if actor:
+            stmt = stmt.where(
+                or_(
+                    db.AuditEvent.actor_directory_name == actor,
+                    db.AuditEvent.actor_id == actor,
+                    db.AuditEvent.actor_display_name == actor,
+                )
+            )
         for column, value in (
-            (db.AuditEvent.actor_directory_name, actor),
             (db.AuditEvent.action, action),
             (db.AuditEvent.action_category, action_category),
             (db.AuditEvent.entity_type, entity_type),
@@ -60,10 +69,17 @@ class AuditEventRepository:
                     db.AuditEvent.entity_display_id.like(needle),
                     db.AuditEvent.actor_display_name.like(needle),
                     db.AuditEvent.actor_directory_name.like(needle),
+                    db.AuditEvent.actor_id.like(needle),
+                    db.AuditEvent.action.like(needle),
+                    db.AuditEvent.request_id.like(needle),
+                    db.AuditEvent.correlation_id.like(needle),
+                    db.AuditEvent.reason_or_note.like(needle),
                 )
             )
         if security_events_only:
             stmt = stmt.where(db.AuditEvent.action_category.in_(("AUTHENTICATION", "AUTHORIZATION")))
+        if administrative_events_only:
+            stmt = stmt.where(db.AuditEvent.action_category.in_(ADMINISTRATIVE_AUDIT_CATEGORIES))
         total = self.session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = self.session.scalars(
             stmt.order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.event_id.desc())
@@ -105,7 +121,7 @@ class AuditEventRepository:
             ),
             "administrative_events_last_24_hours": count(
                 window,
-                db.AuditEvent.action_category.in_(("SETTINGS", "EXPORTS", "SYSTEM_OPERATIONS", "DANGER_ZONE")),
+                db.AuditEvent.action_category.in_(ADMINISTRATIVE_AUDIT_CATEGORIES),
             ),
             "unique_actors_last_24_hours": self.session.scalar(
                 select(func.count(func.distinct(db.AuditEvent.actor_id))).where(

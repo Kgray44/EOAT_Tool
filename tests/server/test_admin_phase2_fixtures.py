@@ -11,5 +11,7 @@ def test_phase_two_audit_fixture_is_safe_deterministic_and_semantically_broad():
     assert {"BUSINESS_DATA", "RELATIONSHIPS", "DOCUMENTS_MEDIA", "AUTHENTICATION", "AUTHORIZATION", "SYSTEM_OPERATIONS"} <= categories
     assert {"SUCCESS", "FAILURE", "DENIED"} <= results
     assert any(event["actor"]["type"] == "system" for event in AUDIT_ACCEPTANCE_EVENTS)
+    assert {"EOAT", "Machine", "Tool"} <= {event["entity"]["type"] for event in AUDIT_ACCEPTANCE_EVENTS}
+    assert any(len(event["changed_fields"]) > 1 for event in AUDIT_ACCEPTANCE_EVENTS)
     assert any(event["after"].get("password") == {"_audit_value": "REDACTED"} for event in AUDIT_ACCEPTANCE_EVENTS)
     assert [event["event_id"] for event in AUDIT_ACCEPTANCE_EVENTS if event["occurred_at_utc"] == "2026-08-11T17:50:00Z"] == ["fixture-tied-a", "fixture-tied-z"]

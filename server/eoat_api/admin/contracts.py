@@ -53,6 +53,7 @@ class AuditListResponse(BaseModel):
 class AuditCatalogResponse(BaseModel):
     actions: list[AuditAction]
     action_categories: list[AuditActionCategory]
+    entity_types: list[str]
     results: list[AuditResult]
     sources: list[AuditSource]
 

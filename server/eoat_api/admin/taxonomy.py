@@ -83,6 +83,28 @@ class AuditActionCategory(StrEnum):
     OTHER = "OTHER"
 
 
+# Entity identifiers are intentionally owned by the server contract.  They are
+# a discovery aid for the Administrator UI, not a database constraint: audit
+# evidence may record a governed entity type introduced by a later migration.
+AUDIT_ENTITY_TYPES = (
+    "EOAT",
+    "Machine",
+    "Tool",
+    "Relationship",
+    "Document",
+    "Maintenance",
+    "Identity",
+    "System",
+)
+
+ADMINISTRATIVE_AUDIT_CATEGORIES = (
+    "SETTINGS",
+    "EXPORTS",
+    "SYSTEM_OPERATIONS",
+    "DANGER_ZONE",
+)
+
+
 _ACTION_CATEGORIES = {
     AuditAction.CREATE: AuditActionCategory.BUSINESS_DATA,
     AuditAction.UPDATE: AuditActionCategory.BUSINESS_DATA,

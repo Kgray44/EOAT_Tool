@@ -13,12 +13,12 @@ Phase 2 acceptance decision has been made.
 | ADM-AUD-001 to 010 / ADM-IMM-001 to 004 | Implemented | Phase 1 immutable event writer and repository remain unchanged; Phase 2 adds only GET contracts and no audit mutation endpoint or control. Existing foundation test plus source review protect this boundary. |
 | ADM-SEC-001 to 004 | Implemented | API contracts return Phase 1-redacted fields; `AuditDiff` shows the redacted marker and never attempts recovery. Export is Deferred to Phase 4. |
 | ADM-OVR-001 to 004 | Implemented | `/api/v1/admin/overview` uses `AuditEventRepository.overview` for bounded server-derived metrics, recent activity, and an observation time; UI route `/admin` distinguishes loading, error, and observed facts. |
-| ADM-UI-001 to 009 | Implemented | `/admin/audit` sends URL-backed time, actor, taxonomy, entity, outcome, source, request/correlation, My activity, security, and page-size filters to the existing server list API; it uses server pagination, catalog selectors, responsive table cards, and `AuditDiff` for field-level evidence. |
+| ADM-UI-001 to 009 | Implemented | `/admin/audit` sends URL-backed time, actor (directory/stable ID/display name), server-controlled taxonomy/entity type, entity, outcome, source, request/correlation, My activity, security, administrative-operation, and page-size filters to the existing server list API; it uses server pagination, catalog selectors, responsive table cards, and `AuditDiff` for field-level evidence. |
 | ADM-COR-001, 003 to 005 | Implemented | Event Detail provides stable entity links, request/correlation filters, a bounded inline correlated-event list, and correlation investigation navigation. Entity-side audit pivots are Deferred to Phase 3 data views. |
 | ADM-SYS-001 to 004 | Implemented | Safe `/api/v1/admin/system` and `/diagnostics` contracts plus `/admin/system` and `/admin/diagnostics`; no shell, SQL, filesystem, or unrestricted log capability exists. |
 | ADM-API-001 to 008 | Implemented | Typed Pydantic contracts and `adminFetch` are the exclusive browser data path; no direct MySQL client is introduced. The query repository retains bounded, parameterized filtering and canonical ordering. |
 | ADM-API-009 / ADM-EXP-001 to 004 | Deferred to Phase 4 | No export or bulk action is introduced in read-only Phase B. |
-| ADM-PERF-001 to 005 | Implemented | Server pagination defaults to 50, has a 250 maximum, and the UI fetches one page at a time. Representative-volume real-MySQL measurement remains pending acceptance infrastructure. |
+| ADM-PERF-001 to 005 | Partially tested | Server pagination defaults to 50, has a 250 maximum, and the UI fetches one page at a time. A 1,000-event synthetic repository precheck proves bounded pages and no page overlap; representative-volume real-MySQL measurement remains pending acceptance infrastructure. |
 | ADM-UX-001 to 004 | Implemented | Semantic headings, labelled filters, table headers, skip link, visible focus, status text, and mobile card treatment are in the Admin shell. Formal browser accessibility acceptance remains pending. |
 | ADM-DATA-001 to 006 / ADM-SET-001 to 004 | Deferred to Phase 3 | No data-management, correction, or setting mutation control exists. |
 | ADM-ACC-001 to 004 / ADM-IDP-001 to 004 | Deferred to Phase 5 | The isolated development/staging rehearsal mapper is retained; corporate provider and group mapping are not guessed. |
@@ -44,12 +44,14 @@ Phase 2 acceptance decision has been made.
 * `tests/fixtures/admin_phase2.py`: deterministic, synthetic records cover the
   governed entity, audit action, outcome, system-actor, redaction, correlation,
   null, and tied-timestamp investigation cases without production data.
-* Focused server tests: 12 passed (8 Phase 1 audit-foundation tests, 3 Phase 2
-  overview/order/authorization tests, and 1 deterministic fixture-coverage test).
+* Focused server tests: 15 passed (8 Phase 1 audit-foundation tests, 3 initial
+  Phase 2 overview/order/authorization tests, 3 contract/repository filter and
+  bounded-volume tests, and 1 deterministic fixture-coverage test).
 * `web/src/api/admin.test.ts`: 1 passed.
-* `web/tests/e2e/admin.spec.ts`: 3 passed (overview direct link and URL state,
-  Event Detail redaction/correlation/no-mutation controls, and narrow-layout
-  keyboard skip-link/navigation evidence).
+* `web/tests/e2e/admin.spec.ts`: 6 passed (overview direct link and URL state,
+  Event Detail redaction/correlation/no-mutation controls, narrow-layout
+  keyboard skip-link/navigation evidence, role-spoof denial, controlled
+  not-found/outage states, and distinct server-pagination/empty-state evidence).
 * Web typecheck, ESLint, and production Vite build passed.
 * FastAPI OpenAPI generation recognizes `AdminOverviewContract`.
 * Broad `pytest -q` was attempted on this worktree and aborted at 6% in the
@@ -59,8 +61,8 @@ Phase 2 acceptance decision has been made.
   `tests/conftest.py:49`, not in Admin code.  This is an unresolved regression
   gate; it is not treated as a pass or waived.
 
-The mandatory real-MySQL, formal accessibility, performance-volume, full
-regression, and final acceptance evidence remains open.  No protected
+The mandatory real-MySQL, formal accessibility, representative-volume MySQL,
+full regression, and final acceptance evidence remains open.  No protected
 `eoat_atlas_test` connection configuration is available in this worktree or
 its process environment, so a connection has not been guessed.  This document
 is intentionally not an acceptance review.

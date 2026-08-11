@@ -33,7 +33,7 @@ async function mockAdminApi(page: Page) {
   await page.route("**/api/v1/admin/**", async (route) => {
     const url = new URL(route.request().url());
     const body = url.pathname.endsWith("/audit/catalog")
-      ? { actions: ["UPDATE"], action_categories: ["BUSINESS_DATA"], results: ["DENIED"], sources: ["web"] }
+      ? { actions: ["UPDATE", "LOCATION_CHANGE"], action_categories: ["BUSINESS_DATA", "SYSTEM_OPERATIONS"], entity_types: ["EOAT", "Machine", "Tool"], results: ["DENIED", "SUCCESS"], sources: ["web"] }
       : url.pathname.endsWith("/overview")
         ? { api_version: "1.4.0", schema_revision: "20260811_0006", audit_schema_version: 1, observation_time_utc: event.occurred_at_utc, writes_enabled: false, environment: "development", api_status: "healthy", database_status: "healthy", audit_status: "healthy", metrics: { events_today: 2, events_last_24_hours: 2, successful_events_last_24_hours: 1, failed_events_last_24_hours: 0, denied_events_last_24_hours: 1, security_events_last_24_hours: 1, administrative_events_last_24_hours: 0, unique_actors_last_24_hours: 1 }, recent_events: [event] }
         : url.pathname.endsWith(`/audit/events/${event.event_id}`)
@@ -58,6 +58,10 @@ test("administrator can deep-link to the overview and ledger investigation", asy
   await expect(page).toHaveURL(/current_user_changes=true/);
   await page.getByLabel("Page size").selectOption("100");
   await expect(page).toHaveURL(/page_size=100/);
+  await page.getByLabel("Entity type").selectOption("EOAT");
+  await expect(page).toHaveURL(/entity_type=EOAT/);
+  await page.getByRole("button", { name: "Administrative operations" }).click();
+  await expect(page).toHaveURL(/administrative_events_only=true/);
 });
 
 test("event detail renders structured redaction and correlation navigation without mutation controls", async ({ page }) => {
@@ -80,4 +84,46 @@ test("narrow audit view retains accessible navigation and evidence", async ({ pa
   await expect(page.locator("#admin-content")).toBeFocused();
   await expect(page.getByRole("navigation", { name: "Administration" })).toBeVisible();
   await expect(page.getByRole("link", { name: /UPDATE.*CL-EOAT-0054/ })).toBeVisible();
+});
+
+test("denied and spoofed browser state cannot reveal Administrator evidence", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("role", "ADMINISTRATOR"));
+  await page.route("**/api/v1/admin/**", async (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ message: "Administrator access required", request_id: "request-denied" }) }));
+  await page.goto("/admin/audit");
+  await expect(page.getByRole("heading", { name: "Administrator access required" })).toBeVisible();
+  await expect(page.getByText("Administrator data was not returned.")).toBeVisible();
+  await expect(page.getByRole("table")).toHaveCount(0);
+});
+
+test("detail not-found and backend-failure states are controlled", async ({ page }) => {
+  await page.route("**/api/v1/admin/audit/events/not-recorded", async (route) => route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ message: "not found", request_id: "request-missing" }) }));
+  await page.goto("/admin/audit/events/not-recorded");
+  await expect(page.getByRole("heading", { name: "Audit event not found" })).toBeVisible();
+  await expect(page.getByText("request-missing")).toBeVisible();
+
+  await page.unrouteAll();
+  await page.route("**/api/v1/admin/**", async (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Database unavailable", request_id: "request-outage" }) }));
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Administrator data could not load" })).toBeVisible();
+  await expect(page.getByText("request-outage")).toBeVisible();
+});
+
+test("server pagination and intentional empty results remain readable", async ({ page }) => {
+  await page.route("**/api/v1/admin/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/audit/catalog")) {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ actions: ["UPDATE"], action_categories: ["BUSINESS_DATA"], entity_types: ["EOAT"], results: ["SUCCESS"], sources: ["web"] }) });
+      return;
+    }
+    const pageNumber = Number(url.searchParams.get("page") ?? "1");
+    const empty = url.searchParams.get("search") === "no-match";
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: empty ? [] : [pageNumber === 1 ? event : relatedEvent], page: pageNumber, page_size: 1, total: empty ? 0 : 2, sort: "occurred_at_utc:desc,event_id:desc" }) });
+  });
+  await page.goto("/admin/audit?page_size=1");
+  await expect(page.getByRole("link", { name: /UPDATE.*CL-EOAT-0054/ })).toBeVisible();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByRole("link", { name: /LOCATION_CHANGE.*CL-EOAT-0054/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /UPDATE.*CL-EOAT-0054/ })).toHaveCount(0);
+  await page.goto("/admin/audit?search=no-match");
+  await expect(page.getByText("No audit events match these filters.")).toBeVisible();
 });

@@ -24,6 +24,7 @@ export interface AuditEvent {
 export interface AuditCatalog {
   actions: string[];
   action_categories: string[];
+  entity_types: string[];
   results: string[];
   sources: string[];
 }
