@@ -90,8 +90,8 @@ def system_status(
         database_status="healthy",
         audit_status="healthy",
         schema_revision=revision,
-        expected_schema_revision="20260811_0006",
-        compatible=revision == "20260811_0006",
+        expected_schema_revision="20260811_0007",
+        compatible=revision == "20260811_0007",
     )
 
 

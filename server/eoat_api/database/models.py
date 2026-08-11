@@ -165,6 +165,43 @@ class UserRole(Base):
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class DevelopmentIdentityMapping(VersionMixin, Base):
+    """Explicit local rehearsal identity-to-role mapping; never a corporate directory map."""
+
+    __tablename__ = "development_identity_mappings"
+    __table_args__ = (
+        UniqueConstraint("environment", "identity", name="uq_dev_identity_mapping_environment_identity"),
+        CheckConstraint("row_version > 0", name="ck_dev_identity_mapping_row_version"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    environment: Mapped[str] = mapped_column(String(32), nullable=False)
+    identity: Mapped[str] = mapped_column(String(255), nullable=False)
+    role_code: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class AdminRehearsalSession(Base):
+    """Opaque server-side session used only by Phase 3 local/test admin mutations."""
+
+    __tablename__ = "admin_rehearsal_sessions"
+    __table_args__ = (
+        UniqueConstraint("session_token_hash", name="uq_admin_rehearsal_session_token_hash"),
+        Index("ix_admin_rehearsal_sessions_user_active", "user_id", "expires_at", "revoked_at"),
+        Index("ix_admin_rehearsal_sessions_environment", "environment", "expires_at"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    session_reference: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    session_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    csrf_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[int] = mapped_column(PK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    environment: Mapped[str] = mapped_column(String(32), nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    revoke_reason: Mapped[str | None] = mapped_column(String(512))
+
+
 class ApplicationInstance(TimestampMixin, Base):
     __tablename__ = "application_instances"
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
