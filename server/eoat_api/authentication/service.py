@@ -356,7 +356,7 @@ class AuthenticationService:
     @staticmethod
     def _browser_setting_definitions() -> dict[str, Any]:
         """Return only desktop Settings controls safe for browser administration."""
-        from app.atlas.minimalist.settings_page import SETTINGS_REGISTRY
+        from app.atlas.settings_registry import SETTINGS_REGISTRY
 
         return {
             item.key: item

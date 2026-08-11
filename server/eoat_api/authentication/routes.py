@@ -202,7 +202,7 @@ def read_settings_catalog() -> SettingsCatalogResponse:
     material are not returned. Values still come from the ordinary shared
     Settings endpoint and writes remain permission-gated.
     """
-    from app.atlas.minimalist.settings_page import SECTIONS, SETTINGS_REGISTRY
+    from app.atlas.settings_registry import SECTIONS, SETTINGS_REGISTRY
 
     return SettingsCatalogResponse(
         sections=[SettingsCatalogSection(key=item.key, title=item.title, glyph=item.glyph) for item in SECTIONS],
