@@ -393,6 +393,13 @@
       "state": "finalized",
       "task_id": "codex-staging-fit-check-profile-overlay-20260811",
       "finalized_at_utc": "2026-08-11T13:27:21Z"
+    },
+    {
+      "application_version": "0.26.7",
+      "release_id": "eoat-atlas-0.26.7",
+      "state": "finalized",
+      "task_id": "codex-staging-profile-action-portal-20260811",
+      "finalized_at_utc": "2026-08-11T13:35:49Z"
     }
   ]
 }
