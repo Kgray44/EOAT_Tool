@@ -109,7 +109,7 @@ def test_health_version_and_schema(api):
     payload = health.json()
     assert payload["database_reachable"] is True
     assert payload["compatible"] is True
-    assert payload["current_schema_revision"] == "20260811_0005"
+    assert payload["current_schema_revision"] == "20260811_0006"
     assert api.get("/api/v1/version").json()["api_version"] == "1.4.0"
     assert api.get("/api/v1/schema-status").json()["compatible"] is True
 

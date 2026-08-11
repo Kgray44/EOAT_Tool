@@ -8,10 +8,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from server.eoat_api.admin.diffing import material_diff
+from server.eoat_api.admin.legacy import legacy_history_evidence
 from server.eoat_api.admin.redaction import REDACTED_VALUE, redact
 from server.eoat_api.admin.repository import AuditEventRepository
 from server.eoat_api.admin.service import AuditEventWriter, execute_with_required_audit
-from server.eoat_api.admin.taxonomy import AuditAction, action_for_legacy_operation
+from server.eoat_api.admin.taxonomy import (
+    AuditAction,
+    AuditActionCategory,
+    action_for_legacy_operation,
+    category_for_action,
+)
 from server.eoat_api.security import ActorContext
 
 
@@ -30,6 +36,7 @@ def actor(role: str = "ADMINISTRATOR") -> ActorContext:
 def test_taxonomy_is_closed_and_legacy_operations_map_to_controlled_actions():
     assert action_for_legacy_operation("archive") is AuditAction.ARCHIVE
     assert action_for_legacy_operation("link_target") is AuditAction.LINK
+    assert category_for_action(AuditAction.LINK) is AuditActionCategory.RELATIONSHIPS
     with pytest.raises(ValueError):
         AuditAction("invented endpoint action")
 
@@ -86,6 +93,7 @@ def test_writer_emits_a_structured_event_and_normalized_change_rows_without_secr
     event = session.added[0]
     assert result.event_id == event.event_id
     assert event.action == "UPDATE"
+    assert event.action_category == "BUSINESS_DATA"
     assert event.changed_fields_json == ["api_token", "display_name"]
     assert "old-token" not in json.dumps(event.before_state_json)
     assert "new-token" not in json.dumps(event.after_state_json)
@@ -101,6 +109,30 @@ def test_administrator_permission_is_distinct_from_authenticated_viewer():
 def test_global_audit_repository_exposes_no_ordinary_update_or_delete_path():
     assert not hasattr(AuditEventRepository, "update")
     assert not hasattr(AuditEventRepository, "delete")
+
+
+def test_legacy_projection_preserves_unknown_evidence_as_unknown():
+    legacy = type(
+        "Legacy",
+        (),
+        {
+            "id": 7,
+            "event_uuid": "legacy-event-7",
+            "occurred_at": None,
+            "entity_type": "eoat",
+            "entity_id": 54,
+            "actor_user_id": None,
+            "event_category": "ENGINEERING_CHANGES",
+            "previous_values_json": None,
+            "new_values_json": {"display_name": "Known resulting value"},
+        },
+    )()
+    projected = legacy_history_evidence(legacy)
+    assert projected.evidence_level == "legacy / limited-evidence"
+    assert projected.occurred_at_utc is None
+    assert projected.actor_id is None
+    assert projected.before is None
+    assert projected.after == {"display_name": "Known resulting value"}
 
 
 class Base(DeclarativeBase):

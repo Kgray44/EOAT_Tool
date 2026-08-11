@@ -11,7 +11,14 @@ from ..database import models as db
 from ..security import ActorContext
 from .diffing import material_diff
 from .redaction import redact
-from .taxonomy import AuditAction, AuditActorType, AuditResult, AuditSource, action_for_legacy_operation
+from .taxonomy import (
+    AuditAction,
+    AuditActorType,
+    AuditResult,
+    AuditSource,
+    action_for_legacy_operation,
+    category_for_action,
+)
 
 
 @dataclass(frozen=True)
@@ -42,6 +49,7 @@ class AuditEventWriter:
         action: AuditAction | None = None,
     ) -> AuditWriteResult:
         diff = material_diff(previous, current)
+        controlled_action = action or action_for_legacy_operation(operation)
         event_id = str(uuid4())
         session.add(
             db.AuditEvent(
@@ -52,7 +60,8 @@ class AuditEventWriter:
                 actor_display_name=actor.display_name,
                 actor_directory_name=actor.identity,
                 actor_user_id=actor.user_id,
-                action=(action or action_for_legacy_operation(operation)).value,
+                action=controlled_action.value,
+                action_category=category_for_action(controlled_action).value,
                 entity_type=entity_type,
                 entity_id=str(entity_id),
                 entity_display_id=entity_display_id,

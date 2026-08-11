@@ -27,10 +27,10 @@ def test_migration_created_complete_mysql_schema(engine):
     tables = set(inspector.get_table_names())
     assert set(Base.metadata.tables) <= tables
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260811_0005"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20260811_0006"
         assert connection.execute(text("SELECT VERSION()" )).scalar_one().startswith("8.4.")
     assert {"audit_events", "audit_changes"} <= tables
-    assert {"ix_audit_events_entity_time", "ix_audit_events_actor_time"} <= {
+    assert {"ix_audit_events_entity_time", "ix_audit_events_actor_time", "ix_audit_events_category_time"} <= {
         item["name"] for item in inspector.get_indexes("audit_events")
     }
 
@@ -56,9 +56,10 @@ def test_global_audit_event_identity_is_unique(engine):
         "actor_type": "system",
         "action": "SCHEMA_MIGRATED",
         "entity_type": "schema",
-        "entity_id": "20260811_0005",
+        "entity_id": "20260811_0006",
         "source_client": "migration",
         "result": "SUCCESS",
+        "action_category": "SYSTEM_OPERATIONS",
     }
     with engine.begin() as connection:
         connection.execute(models.AuditEvent.__table__.insert().values(**values))

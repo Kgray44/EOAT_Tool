@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from .admin.routes import router as admin_router
 from .contracts import (
     FitCheckRequest,
     HealthResult,
@@ -26,7 +27,6 @@ from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
 from .services import API_VERSION, EXPECTED_SCHEMA_REVISION, SERVER_REVISION, AtlasService
-from .admin.routes import router as admin_router
 from .write_routes import router as write_router
 
 logging.basicConfig(

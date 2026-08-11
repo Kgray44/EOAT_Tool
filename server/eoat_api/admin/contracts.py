@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .taxonomy import AuditAction, AuditResult, AuditSource
+from .taxonomy import AuditAction, AuditActionCategory, AuditResult, AuditSource
 
 
 class AuditActor(BaseModel):
@@ -26,6 +26,7 @@ class AuditEventResponse(BaseModel):
     occurred_at_utc: datetime
     actor: AuditActor
     action: AuditAction
+    action_category: AuditActionCategory
     entity: AuditEntity
     changed_fields: list[str] = Field(default_factory=list)
     before: dict[str, Any] | None = None
@@ -51,6 +52,7 @@ class AuditListResponse(BaseModel):
 
 class AuditCatalogResponse(BaseModel):
     actions: list[AuditAction]
+    action_categories: list[AuditActionCategory]
     results: list[AuditResult]
     sources: list[AuditSource]
 
@@ -61,3 +63,43 @@ class AdminOverviewContract(BaseModel):
     audit_schema_version: int = 1
     observation_time_utc: datetime
     writes_enabled: bool
+
+
+class AdminDataIntegrityContract(BaseModel):
+    observation_time_utc: datetime
+    invalid_relationship_count: int | None = None
+    orphan_document_count: int | None = None
+    status: str
+
+
+class AdminAccessStateContract(BaseModel):
+    authentication_provider: str | None = None
+    administrator_group_mapping_configured: bool
+    status: str
+
+
+class AdminDiagnosticsContract(BaseModel):
+    observation_time_utc: datetime
+    api_status: str
+    database_status: str
+    audit_status: str
+
+
+class AdminSettingsContract(BaseModel):
+    key: str
+    value: Any | None = None
+    secret_configured: bool | None = None
+
+
+class AdminOperationContract(BaseModel):
+    operation_id: str
+    operation_type: str
+    status: str
+    correlation_id: str | None = None
+
+
+class AdminErrorContract(BaseModel):
+    error_code: str
+    message: str
+    request_id: str | None = None
+    diagnostic_context: dict[str, Any] | None = None

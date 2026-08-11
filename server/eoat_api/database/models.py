@@ -655,10 +655,12 @@ class AuditEvent(Base):
         CheckConstraint(
             "result IN ('SUCCESS','FAILURE','DENIED','PARTIAL')", name="ck_audit_events_result"
         ),
+        CheckConstraint("action_category <> ''", name="ck_audit_events_action_category"),
         CheckConstraint("schema_version > 0", name="ck_audit_events_schema_version"),
         Index("ix_audit_events_time", "occurred_at_utc"),
         Index("ix_audit_events_actor_time", "actor_id", "occurred_at_utc"),
         Index("ix_audit_events_action_time", "action", "occurred_at_utc"),
+        Index("ix_audit_events_category_time", "action_category", "occurred_at_utc"),
         Index("ix_audit_events_entity_time", "entity_type", "entity_id", "occurred_at_utc"),
         Index("ix_audit_events_result", "result"),
         Index("ix_audit_events_correlation", "correlation_id"),
@@ -675,6 +677,7 @@ class AuditEvent(Base):
     actor_directory_name: Mapped[str | None] = mapped_column(String(255))
     actor_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     action: Mapped[str] = mapped_column(String(64), nullable=False)
+    action_category: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
     entity_id: Mapped[str] = mapped_column(String(255), nullable=False)
     entity_display_id: Mapped[str | None] = mapped_column(String(255))

@@ -16,8 +16,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .database import models as db
 from .admin.service import AuditEventWriter
+from .database import models as db
 from .errors import APIError, conflict, not_found
 from .security import ActorContext
 

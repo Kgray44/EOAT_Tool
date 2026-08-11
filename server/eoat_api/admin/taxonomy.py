@@ -67,6 +67,66 @@ class AuditSource(StrEnum):
     SYSTEM = "system"
 
 
+class AuditActionCategory(StrEnum):
+    BUSINESS_DATA = "BUSINESS_DATA"
+    RELATIONSHIPS = "RELATIONSHIPS"
+    LOCATION_STATE = "LOCATION_STATE"
+    DOCUMENTS_MEDIA = "DOCUMENTS_MEDIA"
+    MAINTENANCE_INSPECTION = "MAINTENANCE_INSPECTION"
+    IMPORTS_BULK = "IMPORTS_BULK"
+    AUTHENTICATION = "AUTHENTICATION"
+    AUTHORIZATION = "AUTHORIZATION"
+    SETTINGS = "SETTINGS"
+    EXPORTS = "EXPORTS"
+    SYSTEM_OPERATIONS = "SYSTEM_OPERATIONS"
+    DANGER_ZONE = "DANGER_ZONE"
+    OTHER = "OTHER"
+
+
+_ACTION_CATEGORIES = {
+    AuditAction.CREATE: AuditActionCategory.BUSINESS_DATA,
+    AuditAction.UPDATE: AuditActionCategory.BUSINESS_DATA,
+    AuditAction.ARCHIVE: AuditActionCategory.BUSINESS_DATA,
+    AuditAction.RESTORE: AuditActionCategory.BUSINESS_DATA,
+    AuditAction.DELETE: AuditActionCategory.BUSINESS_DATA,
+    AuditAction.LINK: AuditActionCategory.RELATIONSHIPS,
+    AuditAction.UNLINK: AuditActionCategory.RELATIONSHIPS,
+    AuditAction.ASSIGN: AuditActionCategory.RELATIONSHIPS,
+    AuditAction.UNASSIGN: AuditActionCategory.RELATIONSHIPS,
+    AuditAction.LOCATION_CHANGE: AuditActionCategory.LOCATION_STATE,
+    AuditAction.STATUS_CHANGE: AuditActionCategory.LOCATION_STATE,
+    AuditAction.UPLOAD: AuditActionCategory.DOCUMENTS_MEDIA,
+    AuditAction.METADATA_CHANGE: AuditActionCategory.DOCUMENTS_MEDIA,
+    AuditAction.SUPERSEDE: AuditActionCategory.DOCUMENTS_MEDIA,
+    AuditAction.PHOTO_ADD: AuditActionCategory.DOCUMENTS_MEDIA,
+    AuditAction.PHOTO_ARCHIVE: AuditActionCategory.DOCUMENTS_MEDIA,
+    AuditAction.PM_COMPLETE: AuditActionCategory.MAINTENANCE_INSPECTION,
+    AuditAction.INSPECTION_COMPLETE: AuditActionCategory.MAINTENANCE_INSPECTION,
+    AuditAction.IMPORT_COMMIT: AuditActionCategory.IMPORTS_BULK,
+    AuditAction.BULK_OPERATION: AuditActionCategory.IMPORTS_BULK,
+    AuditAction.CORRECTION: AuditActionCategory.IMPORTS_BULK,
+    AuditAction.LOGIN_SUCCESS: AuditActionCategory.AUTHENTICATION,
+    AuditAction.LOGIN_FAILURE: AuditActionCategory.AUTHENTICATION,
+    AuditAction.LOGOUT: AuditActionCategory.AUTHENTICATION,
+    AuditAction.ACCESS_DENIED: AuditActionCategory.AUTHORIZATION,
+    AuditAction.ROLE_MAPPING_CHANGE: AuditActionCategory.AUTHORIZATION,
+    AuditAction.GROUP_MAPPING_CHANGE: AuditActionCategory.AUTHORIZATION,
+    AuditAction.SETTINGS_CHANGE: AuditActionCategory.SETTINGS,
+    AuditAction.EXPORT: AuditActionCategory.EXPORTS,
+    AuditAction.SCHEMA_MIGRATED: AuditActionCategory.SYSTEM_OPERATIONS,
+    AuditAction.ADMIN_REPAIR: AuditActionCategory.SYSTEM_OPERATIONS,
+    AuditAction.DANGER_ATTEMPT: AuditActionCategory.DANGER_ZONE,
+    AuditAction.DANGER_CONFIRMED: AuditActionCategory.DANGER_ZONE,
+    AuditAction.DANGER_STARTED: AuditActionCategory.DANGER_ZONE,
+    AuditAction.DANGER_SUCCEEDED: AuditActionCategory.DANGER_ZONE,
+    AuditAction.DANGER_FAILED: AuditActionCategory.DANGER_ZONE,
+}
+
+
+def category_for_action(action: AuditAction) -> AuditActionCategory:
+    return _ACTION_CATEGORIES.get(action, AuditActionCategory.OTHER)
+
+
 def action_for_legacy_operation(operation: str) -> AuditAction:
     """Map existing service operations to the governed, closed taxonomy."""
     value = operation.casefold()

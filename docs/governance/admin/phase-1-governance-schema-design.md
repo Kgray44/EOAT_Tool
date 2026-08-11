@@ -67,11 +67,12 @@ unconfigured.  No group name is encoded in source.
 
 ## Audit model and schema versioning
 
-Migration `20260811_0005` creates `audit_events` and `audit_changes`.
+Migrations `20260811_0005` and `20260811_0006` create `audit_events` and
+`audit_changes`, then add the controlled action-category query dimension.
 `audit_events` is the durable global event record with permanent UUID event ID,
 UTC server timestamp, trusted actor snapshot, controlled action/result/source,
 entity identity/display ID, diff JSON, note, request/correlation/transaction
-metadata, safe metadata, and `schema_version=1`.  `audit_changes` contains one
+metadata, safe metadata, controlled action category, and `schema_version=1`.  `audit_changes` contains one
 normalized material field row per event for indexed/controlled future querying.
 
 The ordinary application exposes no update/delete repository, service, or API
@@ -86,7 +87,7 @@ governance review and a new documented version, without rewriting historical
 event meaning.
 
 Indexes intentionally target administrator query patterns: time; actor + time;
-action + time; entity type/id + time; result; request ID; correlation ID; and
+action/category + time; entity type/id + time; result; request ID; correlation ID; and
 changed field path.  The list repository uses parameterized SQLAlchemy filters,
 bounded pagination, and deterministic `occurred_at_utc DESC, event_id DESC`
 ordering; it does not accept arbitrary SQL.
@@ -125,7 +126,7 @@ Existing `EntityHistoryEvent` and domain records are retained as operational
 history.  They may later be surfaced only as `legacy / limited-evidence` when
 their original actor, timestamp, before/after values, and source can actually be
 proven.  Phase 1 performs no false backfill into `audit_events`; the new audit
-contract becomes authoritative at migration `20260811_0005` when a future
+contract becomes authoritative at migration `20260811_0006` when a future
 controlled deployment applies it.  Prior data is not reclassified as equivalent
 global forensic evidence.
 

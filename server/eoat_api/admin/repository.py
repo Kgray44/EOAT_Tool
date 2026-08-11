@@ -24,6 +24,8 @@ class AuditEventRepository:
         end: datetime | None = None,
         actor: str | None = None,
         action: str | None = None,
+        action_category: str | None = None,
+        security_events_only: bool = False,
         entity_type: str | None = None,
         entity_id: str | None = None,
         result: str | None = None,
@@ -40,6 +42,7 @@ class AuditEventRepository:
         for column, value in (
             (db.AuditEvent.actor_directory_name, actor),
             (db.AuditEvent.action, action),
+            (db.AuditEvent.action_category, action_category),
             (db.AuditEvent.entity_type, entity_type),
             (db.AuditEvent.entity_id, entity_id),
             (db.AuditEvent.result, result),
@@ -59,6 +62,8 @@ class AuditEventRepository:
                     db.AuditEvent.actor_directory_name.like(needle),
                 )
             )
+        if security_events_only:
+            stmt = stmt.where(db.AuditEvent.action_category.in_(("AUTHENTICATION", "AUTHORIZATION")))
         total = self.session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
         rows = self.session.scalars(
             stmt.order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.event_id.desc())

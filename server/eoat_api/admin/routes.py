@@ -10,9 +10,16 @@ from sqlalchemy.orm import Session
 from ..database.session import get_runtime_session
 from ..security import ActorContext, require_admin
 from ..services import API_VERSION, AtlasService
-from .contracts import AdminOverviewContract, AuditActor, AuditCatalogResponse, AuditEntity, AuditEventResponse, AuditListResponse
+from .contracts import (
+    AdminOverviewContract,
+    AuditActor,
+    AuditCatalogResponse,
+    AuditEntity,
+    AuditEventResponse,
+    AuditListResponse,
+)
 from .repository import AuditEventRepository
-from .taxonomy import AuditAction, AuditResult, AuditSource
+from .taxonomy import AuditAction, AuditActionCategory, AuditResult, AuditSource
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
@@ -28,6 +35,7 @@ def _event_response(row) -> AuditEventResponse:
             directory_name=row.actor_directory_name,
         ),
         action=AuditAction(row.action),
+        action_category=AuditActionCategory(row.action_category),
         entity=AuditEntity(type=row.entity_type, id=row.entity_id, display_id=row.entity_display_id),
         changed_fields=row.changed_fields_json or [],
         before=row.before_state_json,
@@ -60,7 +68,9 @@ def overview(
 
 @router.get("/audit/catalog", response_model=AuditCatalogResponse)
 def audit_catalog(_actor: ActorContext = Depends(require_admin("admin.audit.view"))):
-    return AuditCatalogResponse(actions=list(AuditAction), results=list(AuditResult), sources=list(AuditSource))
+    return AuditCatalogResponse(
+        actions=list(AuditAction), action_categories=list(AuditActionCategory), results=list(AuditResult), sources=list(AuditSource)
+    )
 
 
 @router.get("/audit/events", response_model=AuditListResponse)
@@ -71,16 +81,21 @@ def list_audit_events(
     end: datetime | None = None,
     actor: str | None = Query(None, max_length=255),
     action: AuditAction | None = None,
+    action_category: AuditActionCategory | None = None,
     entity_type: str | None = Query(None, max_length=64),
     entity_id: str | None = Query(None, max_length=255),
     result: AuditResult | None = None,
     source: AuditSource | None = None,
     request_id: str | None = Query(None, max_length=64),
     correlation_id: str | None = Query(None, max_length=64),
+    current_user_changes: bool = False,
+    security_events_only: bool = False,
     search: str | None = Query(None, max_length=200),
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin("admin.audit.view")),
 ):
+    if current_user_changes:
+        actor = _actor.identity
     rows, total = AuditEventRepository(session).list(
         page=page,
         page_size=page_size,
@@ -88,6 +103,8 @@ def list_audit_events(
         end=end,
         actor=actor,
         action=action.value if action else None,
+        action_category=action_category.value if action_category else None,
+        security_events_only=security_events_only,
         entity_type=entity_type,
         entity_id=entity_id,
         result=result.value if result else None,

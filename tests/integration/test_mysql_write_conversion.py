@@ -604,14 +604,14 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     config_a = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-a.db",
-        expected_schema_revision="20260811_0005",
+        expected_schema_revision="20260811_0006",
         writes_enabled=True,
         environment="development",
     )
     config_b = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-b.db",
-        expected_schema_revision="20260811_0005",
+        expected_schema_revision="20260811_0006",
         writes_enabled=True,
         environment="development",
     )
@@ -647,7 +647,7 @@ def test_gateway_blocks_offline_writes_without_queueing(tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "offline.db",
-        expected_schema_revision="20260811_0005",
+        expected_schema_revision="20260811_0006",
         writes_enabled=True,
         environment="development",
     )
@@ -661,7 +661,7 @@ def test_server_success_survives_local_cache_refresh_failure(api, tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "fail-cache.db",
-        expected_schema_revision="20260811_0005",
+        expected_schema_revision="20260811_0006",
         writes_enabled=True,
         environment="development",
     )
