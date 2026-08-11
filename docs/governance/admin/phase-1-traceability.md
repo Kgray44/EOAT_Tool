@@ -44,3 +44,7 @@ redaction, server actor, UTC timestamp, correlation query, and rollback on a
 deliberately failed mandatory audit write. Administrator API integration
 returned 401 without identity, 403 for Viewer, and 200 for Administrator. The
 temporary test state was restored afterward.
+
+Focused server regression: `tests/server/test_admin_audit_foundation.py` ran
+on the disposable Debian test runner with **8 passed** (0.61 seconds), including
+the MySQL parent-event flush-order regression check.
