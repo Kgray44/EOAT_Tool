@@ -1,0 +1,467 @@
+from __future__ import annotations
+
+from collections.abc import Iterable
+from datetime import datetime, timezone
+from typing import Any
+
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from ..database import models as db
+from ..errors import APIError, conflict, not_found
+from ..security import ActorContext
+from ..write_services import (
+    ASSET_CONFIG,
+    COMPATIBILITY_CONFIG,
+    _asset_values,
+    _entity_by_identifier,
+    audit_change,
+    check_version,
+    public_record,
+    record_dict,
+    set_asset_archived,
+    update_asset,
+    write_compatibility,
+    archive_compatibility,
+    update_document,
+    update_photo,
+)
+from .diffing import material_diff
+from .redaction import redact
+from .service import AuditEventWriter
+from .taxonomy import AuditAction, AuditSource
+
+
+SAFE_DOCUMENT_FIELDS = {
+    "document_number",
+    "title",
+    "description",
+    "revision",
+    "status_id",
+    "effective_from",
+}
+
+
+def safe_record(record: Any) -> dict[str, Any]:
+    value = public_record(record)
+    # Document paths and checksums are operational internals, not Admin browser data.
+    for key in ("storage_path", "checksum_sha256", "archived_by_user_id", "created_by_user_id", "updated_by_user_id"):
+        value.pop(key, None)
+    return value
+
+
+def safe_view(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return safe_record(value)
+    record = dict(value)
+    for key in ("storage_path", "checksum_sha256", "archived_by_user_id", "created_by_user_id", "updated_by_user_id"):
+        record.pop(key, None)
+    return record
+
+
+def asset_record(session: Session, entity_type: str, identifier: str) -> dict[str, Any]:
+    return safe_record(_entity_by_identifier(session, entity_type, identifier))
+
+
+def list_assets(session: Session, entity_type: str, search: str | None, include_archived: bool) -> list[dict[str, Any]]:
+    config = ASSET_CONFIG[entity_type]
+    model, identifier_column = config["model"], getattr(config["model"], config["identifier"])
+    stmt = select(model)
+    if not include_archived:
+        stmt = stmt.where(model.is_active.is_(True))
+    if search:
+        needle = f"%{search.strip()}%"
+        fields = [identifier_column]
+        for name in ("display_name", "machine_name", "tool_number", "description"):
+            field = getattr(model, name, None)
+            if field is not None:
+                fields.append(field)
+        stmt = stmt.where(or_(*(field.like(needle) for field in fields)))
+    rows = session.scalars(stmt.order_by(identifier_column).limit(100)).all()
+    return [safe_record(row) for row in rows]
+
+
+def list_documents(session: Session, search: str | None, include_archived: bool) -> list[dict[str, Any]]:
+    stmt = select(db.Document)
+    if not include_archived:
+        stmt = stmt.where(db.Document.is_active.is_(True))
+    if search:
+        needle = f"%{search.strip()}%"
+        stmt = stmt.where(or_(db.Document.document_number.like(needle), db.Document.title.like(needle), db.Document.description.like(needle)))
+    return [safe_record(row) for row in session.scalars(stmt.order_by(db.Document.title).limit(100))]
+
+
+def list_relationships(session: Session, relationship_type: str, include_archived: bool) -> list[dict[str, Any]]:
+    model, left, right = COMPATIBILITY_CONFIG[relationship_type]
+    stmt = select(model)
+    if not include_archived:
+        stmt = stmt.where(model.is_active.is_(True))
+    rows = session.scalars(stmt.order_by(model.id.desc()).limit(100)).all()
+    items = []
+    for row in rows:
+        left_record = session.get(ASSET_CONFIG[left[2]]["model"], getattr(row, left[0]))
+        right_record = session.get(ASSET_CONFIG[right[2]]["model"], getattr(row, right[0]))
+        items.append(
+            {
+                "id": row.id,
+                "row_version": row.row_version,
+                "is_active": row.is_active,
+                "left": getattr(left_record, ASSET_CONFIG[left[2]]["identifier"]) if left_record is not None else None,
+                "right": getattr(right_record, ASSET_CONFIG[right[2]]["identifier"]) if right_record is not None else None,
+                "compatibility_status_id": row.compatibility_status_id,
+            }
+        )
+    return items
+
+
+def document_record(session: Session, document_id: int) -> dict[str, Any]:
+    record = session.get(db.Document, document_id)
+    if record is None:
+        raise not_found("document", document_id)
+    return safe_record(record)
+
+
+def update_document_governed(
+    session: Session, actor: ActorContext, document_id: int, payload: dict[str, Any], *, archive: bool = False
+) -> dict[str, Any]:
+    record = update_document(
+        session,
+        actor,
+        document_id,
+        payload,
+        archive=archive,
+        audit_source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        governed_action=AuditAction.ARCHIVE if archive else AuditAction.METADATA_CHANGE,
+    )
+    return mutation_success(safe_record(record), audit_event_for_request(session, actor), actor)
+
+
+def list_photos(session: Session, include_archived: bool) -> list[dict[str, Any]]:
+    stmt = select(db.Photo, db.Document).join(db.Document, db.Document.id == db.Photo.document_id)
+    if not include_archived:
+        stmt = stmt.where(db.Document.is_active.is_(True))
+    rows = session.execute(stmt.order_by(db.Photo.id.desc()).limit(100)).all()
+    return [{"photo": safe_record(photo), "document": safe_record(document), "row_version": document.row_version} for photo, document in rows]
+
+
+def update_photo_governed(
+    session: Session, actor: ActorContext, photo_id: int, payload: dict[str, Any], *, archive: bool = False
+) -> dict[str, Any]:
+    record = update_photo(
+        session,
+        actor,
+        photo_id,
+        payload,
+        archive=archive,
+        audit_source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        governed_action=AuditAction.PHOTO_ARCHIVE if archive else AuditAction.METADATA_CHANGE,
+    )
+    return mutation_success({"document": safe_view(record["document"]), "photo": safe_view(record["photo"])}, audit_event_for_request(session, actor), actor)
+
+
+def preview_asset_update(
+    session: Session, entity_type: str, identifier: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    record = _entity_by_identifier(session, entity_type, identifier)
+    expected = payload.pop("expected_row_version")
+    payload.pop("reason", None)
+    check_version(record, expected)
+    previous = record_dict(record)
+    values = _asset_values(session, entity_type, payload, creating=False)
+    proposed = dict(previous)
+    proposed.update(values)
+    diff = material_diff(previous, proposed)
+    return {
+        "target": {"entity_type": entity_type, "identifier": identifier, "row_version": record.row_version},
+        "changed_fields": diff.changed_fields,
+        "before": redact(diff.before),
+        "after": redact(diff.after),
+        "requires_reason": False,
+    }
+
+
+def audit_event_for_request(session: Session, actor: ActorContext, *, correlation_id: str | None = None) -> db.AuditEvent:
+    event = session.scalar(
+        select(db.AuditEvent)
+        .where(
+            db.AuditEvent.request_id == actor.request_id,
+            db.AuditEvent.actor_user_id == actor.user_id,
+            db.AuditEvent.correlation_id == (correlation_id or actor.request_id),
+        )
+        .order_by(db.AuditEvent.id.desc())
+    )
+    if event is None:
+        raise APIError(500, "AUDIT_EVIDENCE_MISSING", "The governed mutation did not produce required audit evidence.")
+    return event
+
+
+def mutation_success(record: dict[str, Any], event: db.AuditEvent, actor: ActorContext) -> dict[str, Any]:
+    return {
+        "record": record,
+        "audit_event_id": event.event_id,
+        "correlation_id": event.correlation_id,
+        "request_id": actor.request_id,
+    }
+
+
+def update_asset_governed(
+    session: Session,
+    actor: ActorContext,
+    entity_type: str,
+    identifier: str,
+    payload: dict[str, Any],
+    *,
+    correction: bool = False,
+) -> dict[str, Any]:
+    if correction and not payload.get("reason"):
+        raise APIError(422, "CORRECTION_REASON_REQUIRED", "A correction reason is required.", {"field": "reason"})
+    record = update_asset(
+        session,
+        actor,
+        entity_type,
+        identifier,
+        payload,
+        audit_source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        governed_action=AuditAction.CORRECTION if correction else AuditAction.UPDATE,
+    )
+    return mutation_success(record, audit_event_for_request(session, actor), actor)
+
+
+def lifecycle_asset_governed(
+    session: Session,
+    actor: ActorContext,
+    entity_type: str,
+    identifier: str,
+    expected_row_version: int,
+    reason: str,
+    *,
+    archived: bool,
+) -> dict[str, Any]:
+    record = set_asset_archived(
+        session,
+        actor,
+        entity_type,
+        identifier,
+        expected_row_version,
+        reason,
+        archived,
+        audit_source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+    )
+    return mutation_success(record, audit_event_for_request(session, actor), actor)
+
+
+def link_relationship_governed(
+    session: Session, actor: ActorContext, relationship_type: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    payload.pop("confirmation", None)
+    payload.pop("reason", None)
+    record = write_compatibility(
+        session,
+        actor,
+        relationship_type,
+        payload,
+        audit_source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        governed_action=AuditAction.LINK,
+    )
+    return mutation_success(record, audit_event_for_request(session, actor), actor)
+
+
+def unlink_relationship_governed(
+    session: Session,
+    actor: ActorContext,
+    relationship_type: str,
+    relationship_id: int,
+    expected_row_version: int,
+    reason: str,
+) -> dict[str, Any]:
+    record = archive_compatibility(
+        session,
+        actor,
+        relationship_type,
+        relationship_id,
+        expected_row_version,
+        reason,
+        audit_source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+    )
+    return mutation_success(record, audit_event_for_request(session, actor), actor)
+
+
+def _setting_value(value: Any, value_type: str, sensitive: bool) -> Any:
+    if sensitive:
+        if not isinstance(value, str) or not value:
+            raise APIError(422, "INVALID_SECRET_SETTING", "A non-empty replacement secret is required.")
+        return value
+    if value_type == "boolean" and not isinstance(value, bool):
+        raise APIError(422, "INVALID_SETTING_VALUE", "This setting requires a boolean value.")
+    if value_type == "integer" and (not isinstance(value, int) or isinstance(value, bool)):
+        raise APIError(422, "INVALID_SETTING_VALUE", "This setting requires an integer value.")
+    if value_type == "string" and not isinstance(value, str):
+        raise APIError(422, "INVALID_SETTING_VALUE", "This setting requires a string value.")
+    return value
+
+
+def setting_view(record: db.SystemSetting) -> dict[str, Any]:
+    return {
+        "key": record.setting_key,
+        "value": None if record.is_sensitive else record.setting_value_json,
+        "secret_configured": bool(record.setting_value_json) if record.is_sensitive else None,
+        "value_type": record.value_type,
+        "description": record.description,
+        "row_version": record.row_version,
+        "restart_required": False,
+    }
+
+
+def update_setting_governed(
+    session: Session, actor: ActorContext, key: str, value: Any, expected_row_version: int, reason: str | None
+) -> dict[str, Any]:
+    record = session.scalar(select(db.SystemSetting).where(db.SystemSetting.setting_key == key).with_for_update())
+    if record is None:
+        raise not_found("setting", key)
+    check_version(record, expected_row_version)
+    next_value = _setting_value(value, record.value_type, record.is_sensitive)
+    before = {"configured": bool(record.setting_value_json)} if record.is_sensitive else {"value": record.setting_value_json}
+    record.setting_value_json = next_value
+    record.row_version += 1
+    record.updated_by_user_id = actor.user_id
+    session.flush()
+    after = {"configured": bool(record.setting_value_json)} if record.is_sensitive else {"value": record.setting_value_json}
+    result = AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type="Setting",
+        entity_id=record.id,
+        entity_display_id=record.setting_key,
+        operation="admin.setting.update",
+        previous=before,
+        current=after,
+        reason=reason,
+        source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        action=AuditAction.SETTINGS_CHANGE,
+    )
+    return {
+        "setting": setting_view(record),
+        "audit_event_id": result.event_id,
+        "correlation_id": actor.request_id,
+        "request_id": actor.request_id,
+    }
+
+
+def update_mapping_governed(
+    session: Session,
+    actor: ActorContext,
+    identity: str,
+    role_code: str,
+    expected_row_version: int,
+    reason: str,
+    environment: str,
+) -> dict[str, Any]:
+    mapping = session.scalar(
+        select(db.DevelopmentIdentityMapping)
+        .where(
+            db.DevelopmentIdentityMapping.identity == identity,
+            db.DevelopmentIdentityMapping.environment == environment,
+            db.DevelopmentIdentityMapping.is_active.is_(True),
+        )
+        .with_for_update()
+    )
+    if mapping is None:
+        raise not_found("development/test identity mapping", identity)
+    check_version(mapping, expected_row_version)
+    role = session.scalar(select(db.Role).where(db.Role.role_code == role_code, db.Role.is_active.is_(True)))
+    if role is None:
+        raise APIError(422, "INVALID_ROLE", "The requested application role is unavailable.")
+    before = {"role_code": mapping.role_code, "environment": mapping.environment}
+    mapping.role_code = role_code
+    mapping.row_version += 1
+    mapping.updated_by_user_id = actor.user_id
+    user = session.scalar(select(db.User).where(db.User.external_identity == identity).with_for_update())
+    if user is not None:
+        for assignment in session.scalars(
+            select(db.UserRole).where(db.UserRole.user_id == user.id, db.UserRole.removed_at.is_(None)).with_for_update()
+        ):
+            assignment.removed_at = datetime.now(timezone.utc)
+        session.add(db.UserRole(user_id=user.id, role_id=role.id, assigned_by_user_id=actor.user_id))
+    result = AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type="Identity",
+        entity_id=mapping.id,
+        entity_display_id=identity,
+        operation="admin.access.test_mapping.update",
+        previous=before,
+        current={"role_code": role_code, "environment": mapping.environment},
+        reason=reason,
+        source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        action=AuditAction.ROLE_MAPPING_CHANGE,
+    )
+    return {
+        "mapping": {"identity": identity, "environment": mapping.environment, "role_code": role_code, "row_version": mapping.row_version},
+        "audit_event_id": result.event_id,
+        "correlation_id": actor.request_id,
+        "request_id": actor.request_id,
+    }
+
+
+def bulk_status_preview(session: Session, identifiers: Iterable[str], status: str, expected_versions: dict[str, int]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for identifier in identifiers:
+        record = _entity_by_identifier(session, "eoat", identifier)
+        expected = expected_versions[identifier]
+        if record.row_version != expected:
+            raise conflict(record.row_version)
+        previous = record_dict(record)
+        values = _asset_values(session, "eoat", {"status": status}, creating=False)
+        proposed = dict(previous) | values
+        diff = material_diff(previous, proposed)
+        rows.append({"identifier": identifier, "row_version": record.row_version, "changed_fields": diff.changed_fields, "before": diff.before, "after": diff.after})
+    return {"operation": "admin.eoat.bulk-status", "status": status, "count": len(rows), "records": rows, "atomic": True}
+
+
+def bulk_status_commit(
+    session: Session,
+    actor: ActorContext,
+    identifiers: Iterable[str],
+    status: str,
+    expected_versions: dict[str, int],
+    reason: str,
+) -> dict[str, Any]:
+    preview = bulk_status_preview(session, identifiers, status, expected_versions)
+    correlation_id = actor.request_id
+    changed = []
+    for identifier in identifiers:
+        result = update_asset(
+            session,
+            actor,
+            "eoat",
+            identifier,
+            {"status": status, "expected_row_version": expected_versions[identifier], "reason": reason},
+            audit_source=AuditSource.WEB,
+            correlation_id=correlation_id,
+            governed_action=AuditAction.STATUS_CHANGE,
+        )
+        changed.append({"identifier": identifier, "row_version": result["row_version"]})
+    parent = AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type="BulkOperation",
+        entity_id=correlation_id,
+        entity_display_id="EOAT status update",
+        operation="admin.eoat.bulk-status.commit",
+        previous={"count": 0, "identifiers": list(identifiers)},
+        current={"count": len(changed), "status": status},
+        reason=reason,
+        source=AuditSource.WEB,
+        correlation_id=correlation_id,
+        action=AuditAction.BULK_OPERATION,
+        metadata={"atomic": True, "preview_count": preview["count"], "failed_count": 0},
+    )
+    return {"operation": preview["operation"], "status": "SUCCESS", "atomic": True, "affected_count": len(changed), "failed_count": 0, "records": changed, "audit_event_id": parent.event_id, "correlation_id": correlation_id, "request_id": actor.request_id}

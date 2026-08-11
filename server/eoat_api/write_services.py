@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .admin.service import AuditEventWriter
+from .admin.taxonomy import AuditAction, AuditSource
 from .database import models as db
 from .errors import APIError, conflict, not_found
 from .security import ActorContext
@@ -195,7 +196,10 @@ def audit_change(
     related_entity_id: int | None = None,
     source_table: str | None = None,
     source_record_id: int | None = None,
-) -> None:
+    source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
+    governed_action: AuditAction | None = None,
+):
     previous = previous or {}
     current = current or {}
     changed = sorted(key for key in set(previous) | set(current) if previous.get(key) != current.get(key))
@@ -219,7 +223,7 @@ def audit_change(
             client_version=actor.client_version,
         )
     )
-    AuditEventWriter().write_change(
+    audit_result = AuditEventWriter().write_change(
         session,
         actor,
         entity_type=entity_type,
@@ -235,11 +239,14 @@ def audit_change(
         previous=previous,
         current=current,
         reason=reason,
+        source=source,
+        correlation_id=correlation_id,
         metadata={
             "legacy_change_audit_log": True,
             "source_table": source_table,
             "source_record_id": source_record_id,
         },
+        action=governed_action,
     )
     if entity_type in CACHED_ENTITY_TYPES:
         session.add(
@@ -284,6 +291,7 @@ def audit_change(
                     request_id=actor.request_id,
                 )
             )
+    return audit_result
 
 
 def _entity_by_identifier(session: Session, entity_type: str, identifier: str, *, lock: bool = False):
@@ -432,7 +440,17 @@ def create_asset(session: Session, actor: ActorContext, entity_type: str, payloa
     return public_record(record)
 
 
-def update_asset(session: Session, actor: ActorContext, entity_type: str, identifier: str, payload: dict[str, Any]):
+def update_asset(
+    session: Session,
+    actor: ActorContext,
+    entity_type: str,
+    identifier: str,
+    payload: dict[str, Any],
+    *,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
+    governed_action: AuditAction | None = None,
+):
     record = _entity_by_identifier(session, entity_type, identifier, lock=True)
     expected = payload.pop("expected_row_version")
     reason = payload.pop("reason", None)
@@ -459,6 +477,9 @@ def update_asset(session: Session, actor: ActorContext, entity_type: str, identi
         history_summary=f"{entity_type.title()} {identifier} edited",
         source_table=ASSET_CONFIG[entity_type]["model"].__tablename__,
         source_record_id=record.id,
+        source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=governed_action,
     )
     return public_record(record)
 
@@ -471,6 +492,9 @@ def set_asset_archived(
     expected: int,
     reason: str | None,
     archived: bool,
+    *,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
 ):
     record = _entity_by_identifier(session, entity_type, identifier, lock=True)
     check_version(record, expected)
@@ -504,6 +528,8 @@ def set_asset_archived(
         history_summary=f"{entity_type.title()} {identifier} {action}d",
         source_table=ASSET_CONFIG[entity_type]["model"].__tablename__,
         source_record_id=record.id,
+        source=audit_source,
+        correlation_id=correlation_id,
     )
     return public_record(record)
 
@@ -533,6 +559,10 @@ def write_compatibility(
     relationship_type: str,
     payload: dict[str, Any],
     relationship_id: int | None = None,
+    *,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
+    governed_action: AuditAction | None = None,
 ):
     model, left, right = COMPATIBILITY_CONFIG[relationship_type]
     if relationship_id is None:
@@ -600,6 +630,9 @@ def write_compatibility(
         history_metadata={**history_relationship_metadata(session, record), "relationship_type": relationship_type},
         source_table=model.__tablename__,
         source_record_id=record.id,
+        source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=governed_action,
     )
     return public_record(record)
 
@@ -611,6 +644,9 @@ def archive_compatibility(
     relationship_id: int,
     expected: int,
     reason: str | None,
+    *,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
 ):
     model = COMPATIBILITY_CONFIG[relationship_type][0]
     record = session.scalar(select(model).where(model.id == relationship_id).with_for_update())
@@ -640,6 +676,9 @@ def archive_compatibility(
         history_metadata={**history_relationship_metadata(session, record), "relationship_type": relationship_type},
         source_table=model.__tablename__,
         source_record_id=record.id,
+        source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=AuditAction.UNLINK,
     )
     return public_record(record)
 
@@ -1137,6 +1176,9 @@ def create_document(
     payload: dict[str, Any],
     *,
     emit_history: bool = True,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
+    governed_action: AuditAction | None = None,
 ):
     path = _validate_document_path(payload["storage_path"])
     document_type = lookup_id(session, db.DocumentType, payload["document_type"], "document_type", required=True)
@@ -1189,6 +1231,9 @@ def create_document(
         history_metadata={"related_document": record.document_uuid, "file_name": record.file_name},
         source_table="documents",
         source_record_id=record.id,
+        source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=governed_action,
     )
     return public_record(record)
 
@@ -1220,7 +1265,15 @@ def create_photo(session: Session, actor: ActorContext, payload: dict[str, Any])
 
 
 def update_photo(
-    session: Session, actor: ActorContext, photo_id: int, payload: dict[str, Any], *, archive: bool = False
+    session: Session,
+    actor: ActorContext,
+    photo_id: int,
+    payload: dict[str, Any],
+    *,
+    archive: bool = False,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
+    governed_action: AuditAction | None = None,
 ):
     photo = session.scalar(select(db.Photo).where(db.Photo.id == photo_id).with_for_update())
     if photo is None:
@@ -1261,6 +1314,9 @@ def update_photo(
         history_metadata={"related_document": document.document_uuid, "related_photo": photo.id},
         source_table="photos",
         source_record_id=photo.id,
+        source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=governed_action,
     )
     return {"document": public_record(document), "photo": public_record(photo), "row_version": document.row_version}
 
@@ -1324,7 +1380,15 @@ def set_profile_photo(
 
 
 def update_document(
-    session: Session, actor: ActorContext, document_id: int, payload: dict[str, Any], *, archive: bool = False
+    session: Session,
+    actor: ActorContext,
+    document_id: int,
+    payload: dict[str, Any],
+    *,
+    archive: bool = False,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
+    governed_action: AuditAction | None = None,
 ):
     record = session.scalar(select(db.Document).where(db.Document.id == document_id).with_for_update())
     if record is None:
@@ -1365,6 +1429,9 @@ def update_document(
         history_metadata={"related_document": record.document_uuid, "file_name": record.file_name},
         source_table="documents",
         source_record_id=record.id,
+        source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=governed_action,
     )
     return public_record(record)
 
@@ -1376,12 +1443,22 @@ def supersede_document(
     expected: int,
     replacement: dict[str, Any],
     reason: str | None,
+    *,
+    audit_source: AuditSource = AuditSource.API,
+    correlation_id: str | None = None,
 ):
     old = session.scalar(select(db.Document).where(db.Document.id == document_id).with_for_update())
     if old is None:
         raise not_found("document", document_id)
     check_version(old, expected)
-    new = create_document(session, actor, replacement)
+    new = create_document(
+        session,
+        actor,
+        replacement,
+        audit_source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=AuditAction.CREATE,
+    )
     old.superseded_by_document_id = new["id"]
     old.superseded_at = utcnow()
     old.row_version += 1
@@ -1404,6 +1481,9 @@ def supersede_document(
         history_metadata={"related_document": old.document_uuid, "replacement_document_id": new["id"]},
         source_table="documents",
         source_record_id=old.id,
+        source=audit_source,
+        correlation_id=correlation_id,
+        governed_action=AuditAction.SUPERSEDE,
     )
     return {"superseded": public_record(old), "replacement": new}
 
