@@ -95,14 +95,13 @@ test("Machine 27 refreshes with typed empty media and truthful readable values",
   await expect(page.getByRole("heading", { name: "27" })).toBeVisible();
   await expect(page.getByText("Not verified").first()).toBeVisible();
   await expect(page.getByText("Unknown / not verified")).toHaveCount(0);
+  await expect(page.getByLabel("Relationship overview")).toBeVisible();
   await expect(
-    page.getByText("Observed assignment or later lifecycle event"),
+    page.getByRole("heading", { name: "Relationship overview" }),
   ).toBeVisible();
-  await expect(page.getByText("Active record")).toBeVisible();
   await expect(
-    page.getByLabel("Overview").getByText("Active", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText(/Not recorded:/)).toBeVisible();
+    page.getByRole("link", { name: "Relationships" }),
+  ).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Docs & Photos" }).click();
   await expect(page.getByText("No photos recorded")).toBeVisible();
   await expect(page.getByText("No documents recorded")).toBeVisible();

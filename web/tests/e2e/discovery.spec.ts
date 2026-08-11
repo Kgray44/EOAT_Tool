@@ -316,21 +316,21 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
   await expect(
     page.getByRole("heading", { name: /compatible/i }),
   ).toBeVisible();
+  await expect(page.getByText("Fit Check result")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Recent Fit Checks" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Clear" }).click();
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Machine" })).toHaveValue("");
-  await page.getByRole("button", { name: /Machine M-1/ }).click();
-  await expect(page.getByRole("combobox", { name: "Machine" })).toHaveValue(
-    "M-1",
-  );
-  await expect(page.getByRole("combobox", { name: "Tool" })).toHaveValue(
-    "TOOL-1",
-  );
-  await expect(page.getByRole("combobox", { name: "EOAT" })).toHaveValue(
-    "EOAT-1",
-  );
+  await page.getByRole("combobox", { name: "Machine" }).click();
+  await page.getByRole("option", { name: /Press 1/ }).click();
+  await page.getByRole("combobox", { name: "Tool" }).click();
+  await page.getByRole("option", { name: /Mold 1/ }).click();
+  await page.getByRole("combobox", { name: "EOAT" }).click();
+  await page.getByRole("option", { name: /Picker/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Evaluate without saving" }),
+  ).toBeEnabled();
   await page.goto("/machines/M-1");
   await expect(
     page.locator("code").filter({ hasText: "/machines/M-1" }),
@@ -360,59 +360,38 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
   ).toBeTruthy();
 });
 
-test("Fit Check accepts all universal-slot permutations without coercion", async ({
+test("Fit Check keeps dedicated searchable Machine, Tool, and EOAT selectors", async ({
   page,
 }) => {
   const seen: import("@playwright/test").Request[] = [];
   await routeApi(page, seen);
-  const permutations = [
-    ["machine", "tool", "eoat"],
-    ["machine", "eoat", "tool"],
-    ["tool", "machine", "eoat"],
-    ["tool", "eoat", "machine"],
-    ["eoat", "machine", "tool"],
-    ["eoat", "tool", "machine"],
-  ] as const;
-  const labels = { machine: "Machine", tool: "Tool", eoat: "EOAT" } as const;
-  const values = { machine: "M-1", tool: "TOOL-1", eoat: "EOAT-1" } as const;
-
-  for (const order of permutations) {
-    await page.goto("/fit-check");
-    for (const [index, kind] of order.entries()) {
-      const slot = page.getByRole("group", {
-        name: `Setup item ${index + 1}`,
-      });
-      await slot
-        .getByRole("combobox", { name: `Entity slot ${index + 1} type` })
-        .selectOption(kind);
-      await slot
-        .getByRole("combobox", { name: labels[kind] })
-        .fill(values[kind]);
-    }
-    await expect(
-      page.getByRole("button", { name: "Evaluate without saving" }),
-    ).toBeEnabled();
-    await page.getByRole("button", { name: "Evaluate without saving" }).click();
-    await expect(
-      page.getByRole("heading", { name: "COMPATIBLE" }),
-    ).toBeVisible();
-  }
-
   await page.goto("/fit-check");
-  await page
-    .getByRole("group", { name: "Setup item 2" })
-    .getByRole("combobox", { name: "Entity slot 2 type" })
-    .selectOption("machine");
+  await expect(page.getByRole("group", { name: /Setup item/i })).toHaveCount(0);
+  await expect(
+    page.getByRole("combobox", { name: "Entity slot 1 type" }),
+  ).toHaveCount(0);
+  const machineSelector = page.getByRole("combobox", { name: "Machine" });
+  await machineSelector.click();
+  await machineSelector.fill("press");
+  await expect(page.getByRole("option", { name: /Press 1/ })).toBeVisible();
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await page.getByRole("option", { name: /Press 1/ }).click();
+  await page.getByRole("combobox", { name: "Tool" }).click();
+  await page.getByRole("option", { name: /Mold 1/ }).click();
+  await page.getByRole("combobox", { name: "EOAT" }).click();
+  await page.getByRole("option", { name: /Picker/ }).click();
   await expect(
     page.getByRole("button", { name: "Evaluate without saving" }),
-  ).toBeDisabled();
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Evaluate without saving" }).click();
+  await expect(page.getByRole("heading", { name: "COMPATIBLE" })).toBeVisible();
   expect(
     seen.filter(
       (request) =>
         request.url().includes("web-fit-checks/evaluate") &&
         request.method() === "POST",
-    ).length,
-  ).toBe(6);
+    ),
+  ).toHaveLength(1);
 });
 
 test("Mirrorline shell traps overlays, restores Library context, and fades top chrome", async ({

@@ -414,6 +414,13 @@
       "state": "finalized",
       "task_id": "codex-staging-light-home-search-20260811",
       "finalized_at_utc": "2026-08-11T13:58:14Z"
+    },
+    {
+      "application_version": "0.26.10",
+      "release_id": "eoat-atlas-0.26.10",
+      "state": "finalized",
+      "task_id": "codex-staging-uat-parity-e2e-20260811",
+      "finalized_at_utc": "2026-08-11T14:10:27Z"
     }
   ]
 }

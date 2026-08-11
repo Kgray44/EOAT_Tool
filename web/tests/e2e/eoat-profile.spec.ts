@@ -93,7 +93,15 @@ test("QR-style direct EOAT route loads, refreshes, and remains read-only", async
   await routeApi(page, seen);
   await page.goto("/eoats/QR-EOAT-1");
   await expect(page.getByRole("heading", { name: "QR-EOAT-1" })).toBeVisible();
-  await expect(page.getByText("Current location and assignment")).toBeVisible();
+  await expect(page.getByLabel("Relationship overview")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Current compatibility and assignment context for this profile.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Relationships" }),
+  ).toHaveAttribute("aria-current", "page");
   await page.reload();
   await expect(page.getByRole("heading", { name: "QR-EOAT-1" })).toBeVisible();
   expect(seen.every((request) => request.method() === "GET")).toBeTruthy();
