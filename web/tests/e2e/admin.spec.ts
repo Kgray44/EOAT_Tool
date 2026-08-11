@@ -20,6 +20,15 @@ const event = {
   schema_version: 1,
 };
 
+const relatedEvent = {
+  ...event,
+  event_id: "event-0001",
+  occurred_at_utc: "2026-08-11T17:59:00Z",
+  action: "LOCATION_CHANGE",
+  changed_fields: ["location"],
+  result: "SUCCESS",
+};
+
 async function mockAdminApi(page: Page) {
   await page.route("**/api/v1/admin/**", async (route) => {
     const url = new URL(route.request().url());
@@ -29,7 +38,7 @@ async function mockAdminApi(page: Page) {
         ? { api_version: "1.4.0", schema_revision: "20260811_0006", audit_schema_version: 1, observation_time_utc: event.occurred_at_utc, writes_enabled: false, environment: "development", api_status: "healthy", database_status: "healthy", audit_status: "healthy", metrics: { events_today: 2, events_last_24_hours: 2, successful_events_last_24_hours: 1, failed_events_last_24_hours: 0, denied_events_last_24_hours: 1, security_events_last_24_hours: 1, administrative_events_last_24_hours: 0, unique_actors_last_24_hours: 1 }, recent_events: [event] }
         : url.pathname.endsWith(`/audit/events/${event.event_id}`)
           ? event
-          : { items: [event], page: 1, page_size: 50, total: 1, sort: "occurred_at_utc:desc,event_id:desc" };
+          : { items: [event, relatedEvent], page: 1, page_size: 50, total: 2, sort: "occurred_at_utc:desc,event_id:desc" };
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
   });
 }
@@ -41,10 +50,14 @@ test("administrator can deep-link to the overview and ledger investigation", asy
   await expect(page.getByText("Events today (UTC)")).toBeVisible();
   await page.goto("/admin/audit?result=DENIED&correlation_id=correlation-456");
   await expect(page.getByRole("heading", { name: "Global Audit Ledger" })).toBeVisible();
-  await expect(page.getByText("Development Administrator")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Development Administrator" }).first()).toBeVisible();
   await page.reload();
   await expect(page.getByLabel("Result")).toHaveValue("DENIED");
   await expect(page.getByLabel("Correlation ID")).toHaveValue("correlation-456");
+  await page.getByRole("button", { name: "My activity" }).click();
+  await expect(page).toHaveURL(/current_user_changes=true/);
+  await page.getByLabel("Page size").selectOption("100");
+  await expect(page).toHaveURL(/page_size=100/);
 });
 
 test("event detail renders structured redaction and correlation navigation without mutation controls", async ({ page }) => {
@@ -52,6 +65,7 @@ test("event detail renders structured redaction and correlation navigation witho
   await page.goto(`/admin/audit/events/${event.event_id}`);
   await expect(page.getByRole("heading", { name: "Audit event detail" })).toBeVisible();
   await expect(page.getByText("Redacted").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /LOCATION_CHANGE.*CL-EOAT-0054/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "View all events with this correlation ID" })).toHaveAttribute("href", "/admin/audit?correlation_id=correlation-456");
   await expect(page.getByRole("button", { name: /delete|edit|archive|restore/i })).toHaveCount(0);
 });

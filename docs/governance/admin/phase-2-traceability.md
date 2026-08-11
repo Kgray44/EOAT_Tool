@@ -13,8 +13,8 @@ Phase 2 acceptance decision has been made.
 | ADM-AUD-001 to 010 / ADM-IMM-001 to 004 | Implemented | Phase 1 immutable event writer and repository remain unchanged; Phase 2 adds only GET contracts and no audit mutation endpoint or control. Existing foundation test plus source review protect this boundary. |
 | ADM-SEC-001 to 004 | Implemented | API contracts return Phase 1-redacted fields; `AuditDiff` shows the redacted marker and never attempts recovery. Export is Deferred to Phase 4. |
 | ADM-OVR-001 to 004 | Implemented | `/api/v1/admin/overview` uses `AuditEventRepository.overview` for bounded server-derived metrics, recent activity, and an observation time; UI route `/admin` distinguishes loading, error, and observed facts. |
-| ADM-UI-001 to 009 | Implemented | `/admin/audit` sends URL-backed filters to the existing server list API, uses server pagination, catalog selectors, responsive table cards, and `AuditDiff` for field-level evidence. |
-| ADM-COR-001, 003 to 005 | Implemented | Event Detail provides stable entity links, request/correlation filters, and correlation investigation navigation. Entity-side audit pivots are Deferred to Phase 3 data views. |
+| ADM-UI-001 to 009 | Implemented | `/admin/audit` sends URL-backed time, actor, taxonomy, entity, outcome, source, request/correlation, My activity, security, and page-size filters to the existing server list API; it uses server pagination, catalog selectors, responsive table cards, and `AuditDiff` for field-level evidence. |
+| ADM-COR-001, 003 to 005 | Implemented | Event Detail provides stable entity links, request/correlation filters, a bounded inline correlated-event list, and correlation investigation navigation. Entity-side audit pivots are Deferred to Phase 3 data views. |
 | ADM-SYS-001 to 004 | Implemented | Safe `/api/v1/admin/system` and `/diagnostics` contracts plus `/admin/system` and `/admin/diagnostics`; no shell, SQL, filesystem, or unrestricted log capability exists. |
 | ADM-API-001 to 008 | Implemented | Typed Pydantic contracts and `adminFetch` are the exclusive browser data path; no direct MySQL client is introduced. The query repository retains bounded, parameterized filtering and canonical ordering. |
 | ADM-API-009 / ADM-EXP-001 to 004 | Deferred to Phase 4 | No export or bulk action is introduced in read-only Phase B. |
@@ -41,10 +41,11 @@ Phase 2 acceptance decision has been made.
 
 ## Current focused evidence
 
-* `tests/server/test_admin_phase2_readonly.py`: 3 passed (overview UTC metrics,
-  tied timestamp order, anonymous/Viewer/Administrator catalog authorization).
-* `tests/server/test_admin_audit_foundation.py`: 8 passed before the Phase 2
-  extension.
+* `tests/fixtures/admin_phase2.py`: deterministic, synthetic records cover the
+  governed entity, audit action, outcome, system-actor, redaction, correlation,
+  null, and tied-timestamp investigation cases without production data.
+* Focused server tests: 12 passed (8 Phase 1 audit-foundation tests, 3 Phase 2
+  overview/order/authorization tests, and 1 deterministic fixture-coverage test).
 * `web/src/api/admin.test.ts`: 1 passed.
 * `web/tests/e2e/admin.spec.ts`: 3 passed (overview direct link and URL state,
   Event Detail redaction/correlation/no-mutation controls, narrow layout).
