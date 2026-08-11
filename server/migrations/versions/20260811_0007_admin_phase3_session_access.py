@@ -4,10 +4,9 @@ Revision ID: 20260811_0007
 Revises: 20260811_0006
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import mysql
-
 
 revision = "20260811_0007"
 down_revision = "20260811_0006"
@@ -73,8 +72,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_admin_rehearsal_sessions_environment", table_name="admin_rehearsal_sessions")
-    op.drop_index("ix_admin_rehearsal_sessions_user_active", table_name="admin_rehearsal_sessions")
+    # MySQL uses the user-active composite index to support the user_id foreign
+    # key.  Dropping the table removes dependent indexes safely; attempting to
+    # drop either index first fails with error 1553.
     op.drop_table("admin_rehearsal_sessions")
     op.drop_table("development_identity_mappings")
     op.execute("DELETE FROM roles WHERE role_code IN ('ADMIN_AUDITOR','ADMIN_DATA_MANAGER','ADMIN_SETTINGS_MANAGER','ADMIN_ACCESS_MANAGER')")

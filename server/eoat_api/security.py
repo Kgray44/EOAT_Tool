@@ -1,10 +1,10 @@
 # ruff: noqa: B008
 from __future__ import annotations
 
-import json
-import os
 import hashlib
 import hmac
+import json
+import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -133,6 +133,16 @@ def _local_environment() -> str:
 
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Interpret database datetimes without an offset as UTC.
+
+    MySQL's ``DATETIME`` has no timezone metadata, while the application
+    deliberately uses timezone-aware UTC values.  The acceptance database
+    therefore returns a naive value on a subsequent request.
+    """
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
 def _role_for_identity(session: Session, identity: str, environment: str) -> str | None:
@@ -324,7 +334,7 @@ def admin_session_actor(
         select(db.AdminRehearsalSession).where(db.AdminRehearsalSession.session_token_hash == _sha256(token))
     )
     now = datetime.now(timezone.utc)
-    if record is None or record.environment != environment or record.revoked_at is not None or record.expires_at <= now:
+    if record is None or record.environment != environment or record.revoked_at is not None or _as_utc(record.expires_at) <= now:
         raise APIError(401, "ADMIN_SESSION_EXPIRED", "The Administrator session is expired or unavailable.")
     role = session.scalar(
         select(db.Role)

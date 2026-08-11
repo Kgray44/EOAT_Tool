@@ -11,7 +11,6 @@ from server.eoat_api.app import app
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
 
-
 pytestmark = pytest.mark.skipif(
     os.getenv("EOAT_DB_NAME") != "eoat_atlas_test",
     reason="Phase 3 governed-editing integration tests require EOAT_DB_NAME=eoat_atlas_test",
@@ -47,7 +46,17 @@ def seed_records():
     identifiers = [f"P3-{RUN}-A", f"P3-{RUN}-B"]
     setting_key = f"phase3.{RUN}.enabled"
     secret_setting_key = f"phase3.{RUN}.secret"
+    bulk_status = f"phase3-{RUN}-status"
     with factory() as session, session.begin():
+        session.add(
+            db.AssetStatus(
+                code=bulk_status,
+                display_name="Phase 3 acceptance status",
+                description="Disposable real-MySQL bulk-status acceptance lookup",
+                sort_order=999,
+                is_active=True,
+            )
+        )
         for identifier in identifiers:
             session.add(db.EOAT(business_identifier=identifier, display_name="Phase 3 before", source_system="integration_test"))
         session.add(
@@ -70,7 +79,7 @@ def seed_records():
                 source_system="integration_test",
             )
         )
-    return identifiers, setting_key, secret_setting_key
+    return identifiers, setting_key, secret_setting_key, bulk_status
 
 
 @pytest.fixture
@@ -86,7 +95,7 @@ def api():
 
 def test_phase3_session_is_server_owned_and_csrf_protected(api, seed_records):
     client, csrf, _session_reference = api
-    identifier = seed_records[0]
+    identifier = seed_records[0][0]
     record = client.get(f"/api/v1/admin/data/eoats/{identifier}")
     assert record.status_code == 200
     denied = client.patch(
@@ -124,19 +133,19 @@ def test_phase3_session_is_server_owned_and_csrf_protected(api, seed_records):
 
 def test_phase3_bulk_and_settings_are_atomic_and_audited(api, seed_records):
     client, csrf, _session_reference = api
-    identifiers, setting_key, secret_setting_key = seed_records
+    identifiers, setting_key, secret_setting_key, bulk_status = seed_records
     records = [client.get(f"/api/v1/admin/data/eoats/{identifier}").json() for identifier in identifiers]
     versions = {record["business_identifier"]: record["row_version"] for record in records}
     preview = client.post(
         "/api/v1/admin/data/eoats/bulk-status/preview",
-        json={"identifiers": identifiers, "status": "active", "expected_versions": versions},
+        json={"identifiers": identifiers, "status": bulk_status, "expected_versions": versions},
     )
     assert preview.status_code == 200, preview.text
     committed = client.post(
         "/api/v1/admin/data/eoats/bulk-status/commit",
         json={
             "identifiers": identifiers,
-            "status": "active",
+            "status": bulk_status,
             "expected_versions": versions,
             "reason": "Phase 3 isolated bulk acceptance",
             "confirmation": f"BULK STATUS {len(identifiers)}",

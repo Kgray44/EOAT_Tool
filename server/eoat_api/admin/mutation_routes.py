@@ -26,8 +26,8 @@ from .mutation_contracts import (
     AdminBulkStatusCommit,
     AdminBulkStatusPreview,
     AdminDocumentPatch,
-    AdminPhotoPatch,
     AdminLifecycleRequest,
+    AdminPhotoPatch,
     AdminRelationshipWrite,
     AdminRoleMappingUpdate,
     AdminSessionRevoke,
@@ -38,26 +38,24 @@ from .mutation_service import (
     asset_record,
     bulk_status_commit,
     bulk_status_preview,
-    lifecycle_asset_governed,
-    list_relationships,
-    list_documents,
-    list_photos,
     document_record,
+    lifecycle_asset_governed,
     link_relationship_governed,
     list_assets,
+    list_documents,
+    list_photos,
+    list_relationships,
     preview_asset_update,
-    safe_record,
     setting_view,
     unlink_relationship_governed,
     update_asset_governed,
     update_document_governed,
-    update_photo_governed,
     update_mapping_governed,
+    update_photo_governed,
     update_setting_governed,
 )
 from .service import AuditEventWriter
 from .taxonomy import AuditAction, AuditSource
-
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-governed-editing"])
 ASSET_PERMISSIONS = {"eoats": "admin.eoat.edit", "machines": "admin.machine.edit", "tools": "admin.tool.edit"}
@@ -122,6 +120,35 @@ def issue_rehearsal_session(
             .order_by(db.AuditEvent.id.desc())
         ),
     }
+
+
+@router.post("/data/eoats/bulk-status/preview")
+def bulk_preview_route(
+    payload: AdminBulkStatusPreview,
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin_session("admin.bulk.execute")),
+):
+    return bulk_status_preview(session, payload.identifiers, payload.status, payload.expected_versions)
+
+
+@router.post("/data/eoats/bulk-status/commit")
+def bulk_commit_route(
+    payload: AdminBulkStatusCommit,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require_admin_mutation("admin.bulk.execute")),
+):
+    _confirmation(payload.confirmation, f"BULK STATUS {len(payload.identifiers)}")
+    return idempotent(
+        session,
+        actor,
+        "admin.eoat.bulk-status",
+        idempotency_key,
+        payload.model_dump(),
+        lambda: bulk_status_commit(
+            session, actor, payload.identifiers, payload.status, payload.expected_versions, payload.reason
+        ),
+    )
 
 
 @router.get("/data/{kind}")
@@ -211,35 +238,6 @@ def correct_asset_route(
         idempotency_key,
         {"identifier": identifier, **values},
         lambda: update_asset_governed(session, actor, ASSET_TYPES[kind], identifier, values.copy(), correction=True),
-    )
-
-
-@router.post("/data/eoats/bulk-status/preview")
-def bulk_preview_route(
-    payload: AdminBulkStatusPreview,
-    session: Session = Depends(get_runtime_session),
-    _actor: ActorContext = Depends(require_admin_session("admin.bulk.execute")),
-):
-    return bulk_status_preview(session, payload.identifiers, payload.status, payload.expected_versions)
-
-
-@router.post("/data/eoats/bulk-status/commit")
-def bulk_commit_route(
-    payload: AdminBulkStatusCommit,
-    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
-    session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require_admin_mutation("admin.bulk.execute")),
-):
-    _confirmation(payload.confirmation, f"BULK STATUS {len(payload.identifiers)}")
-    return idempotent(
-        session,
-        actor,
-        "admin.eoat.bulk-status",
-        idempotency_key,
-        payload.model_dump(),
-        lambda: bulk_status_commit(
-            session, actor, payload.identifiers, payload.status, payload.expected_versions, payload.reason
-        ),
     )
 
 
