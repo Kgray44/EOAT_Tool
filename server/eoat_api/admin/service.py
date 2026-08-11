@@ -79,6 +79,11 @@ class AuditEventWriter:
                 schema_version=1,
             )
         )
+        # `audit_changes.audit_event_id` references the event's public UUID,
+        # rather than its numeric primary key.  Flush the parent first so
+        # MySQL can enforce that foreign key even though the ORM has no
+        # relationship dependency to infer the insert order from.
+        session.flush()
         for field_path in diff.changed_fields:
             session.add(
                 db.AuditChange(
