@@ -32,7 +32,6 @@ export function AtlasSelector({
 }: Props) {
   const id = useId().replaceAll(":", "");
   const root = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -60,7 +59,6 @@ export function AtlasSelector({
     onChange(option.value, option);
     setQuery("");
     setOpen(false);
-    input.current?.focus();
   };
   const display = open ? query : selected?.label || value;
   return (
@@ -69,7 +67,6 @@ export function AtlasSelector({
       <div className="atlas-selector__control">
         <input
           id={id}
-          ref={input}
           value={display}
           placeholder={placeholder || `Search ${label.toLocaleLowerCase()}`}
           role="combobox"
