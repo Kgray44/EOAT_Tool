@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -71,3 +71,47 @@ class AuditEventRepository:
             .limit(page_size)
         ).all()
         return rows, total
+
+    def overview(self, *, now: datetime, recent_limit: int = 8) -> tuple[dict[str, int], list[db.AuditEvent]]:
+        """Return bounded, server-derived Admin overview facts.
+
+        UTC is deliberate: it is the persisted source-of-truth timestamp and
+        avoids falsely presenting browser-local date boundaries as server facts.
+        """
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        else:
+            now = now.astimezone(timezone.utc)
+        last_24_hours = now - timedelta(hours=24)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        recent = self.session.scalars(
+            select(db.AuditEvent)
+            .order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.event_id.desc())
+            .limit(recent_limit)
+        ).all()
+
+        def count(*criteria) -> int:
+            return self.session.scalar(select(func.count(db.AuditEvent.id)).where(*criteria)) or 0
+
+        window = db.AuditEvent.occurred_at_utc >= last_24_hours
+        metrics = {
+            "events_today": count(db.AuditEvent.occurred_at_utc >= today_start),
+            "events_last_24_hours": count(window),
+            "successful_events_last_24_hours": count(window, db.AuditEvent.result == "SUCCESS"),
+            "failed_events_last_24_hours": count(window, db.AuditEvent.result == "FAILURE"),
+            "denied_events_last_24_hours": count(window, db.AuditEvent.result == "DENIED"),
+            "security_events_last_24_hours": count(
+                window, db.AuditEvent.action_category.in_(("AUTHENTICATION", "AUTHORIZATION"))
+            ),
+            "administrative_events_last_24_hours": count(
+                window,
+                db.AuditEvent.action_category.in_(("SETTINGS", "EXPORTS", "SYSTEM_OPERATIONS", "DANGER_ZONE")),
+            ),
+            "unique_actors_last_24_hours": self.session.scalar(
+                select(func.count(func.distinct(db.AuditEvent.actor_id))).where(
+                    window, db.AuditEvent.actor_id.is_not(None)
+                )
+            )
+            or 0,
+        }
+        return metrics, recent

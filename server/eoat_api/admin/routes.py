@@ -11,6 +11,9 @@ from ..database.session import get_runtime_session
 from ..security import ActorContext, require_admin
 from ..services import API_VERSION, AtlasService
 from .contracts import (
+    AdminAccessStateContract,
+    AdminAuditMetricsContract,
+    AdminDiagnosticsContract,
     AdminOverviewContract,
     AuditActor,
     AuditCatalogResponse,
@@ -58,11 +61,56 @@ def overview(
     _actor: ActorContext = Depends(require_admin("admin.area.view")),
 ):
     service = AtlasService(session)
+    observed_at = datetime.now(timezone.utc)
+    metrics, recent_events = AuditEventRepository(session).overview(now=observed_at)
     return AdminOverviewContract(
         api_version=API_VERSION,
         schema_revision=service.schema_revision(),
-        observation_time_utc=datetime.now(timezone.utc),
+        observation_time_utc=observed_at,
         writes_enabled=os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"},
+        environment=os.getenv("EOAT_API_ENVIRONMENT", "development"),
+        api_status="healthy",
+        database_status="healthy",
+        audit_status="healthy",
+        metrics=AdminAuditMetricsContract(**metrics),
+        recent_events=[_event_response(row) for row in recent_events],
+    )
+
+
+@router.get("/system", response_model=AdminDiagnosticsContract)
+def system_status(
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin("admin.area.view")),
+):
+    service = AtlasService(session)
+    revision = service.schema_revision()
+    return AdminDiagnosticsContract(
+        observation_time_utc=datetime.now(timezone.utc),
+        api_status="healthy",
+        database_status="healthy",
+        audit_status="healthy",
+        schema_revision=revision,
+        expected_schema_revision="20260811_0006",
+        compatible=revision == "20260811_0006",
+    )
+
+
+@router.get("/diagnostics", response_model=AdminDiagnosticsContract)
+def diagnostics(
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin("admin.system.diagnostics")),
+):
+    return system_status(session=session, _actor=_actor)
+
+
+@router.get("/access/status", response_model=AdminAccessStateContract)
+def access_status(_actor: ActorContext = Depends(require_admin("admin.area.view"))):
+    environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
+    is_local_rehearsal = environment in {"development", "staging_local"}
+    return AdminAccessStateContract(
+        authentication_provider="local_rehearsal" if is_local_rehearsal else None,
+        administrator_group_mapping_configured=is_local_rehearsal,
+        status="ready" if is_local_rehearsal else "unavailable",
     )
 
 

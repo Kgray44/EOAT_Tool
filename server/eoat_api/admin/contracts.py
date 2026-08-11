@@ -63,6 +63,23 @@ class AdminOverviewContract(BaseModel):
     audit_schema_version: int = 1
     observation_time_utc: datetime
     writes_enabled: bool
+    environment: str
+    api_status: str
+    database_status: str
+    audit_status: str
+    metrics: AdminAuditMetricsContract
+    recent_events: list[AuditEventResponse] = Field(default_factory=list)
+
+
+class AdminAuditMetricsContract(BaseModel):
+    events_today: int
+    events_last_24_hours: int
+    successful_events_last_24_hours: int
+    failed_events_last_24_hours: int
+    denied_events_last_24_hours: int
+    security_events_last_24_hours: int
+    administrative_events_last_24_hours: int
+    unique_actors_last_24_hours: int
 
 
 class AdminDataIntegrityContract(BaseModel):
@@ -83,6 +100,9 @@ class AdminDiagnosticsContract(BaseModel):
     api_status: str
     database_status: str
     audit_status: str
+    schema_revision: str | None = None
+    expected_schema_revision: str | None = None
+    compatible: bool
 
 
 class AdminSettingsContract(BaseModel):
