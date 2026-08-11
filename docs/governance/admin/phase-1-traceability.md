@@ -48,3 +48,6 @@ temporary test state was restored afterward.
 Focused server regression: `tests/server/test_admin_audit_foundation.py` ran
 on the disposable Debian test runner with **8 passed** (0.61 seconds), including
 the MySQL parent-event flush-order regression check.
+
+Real MySQL foundation regression: `tests/integration/test_mysql_foundation.py`
+ran against a clean isolated migration with **6 passed** (0.41 seconds).
