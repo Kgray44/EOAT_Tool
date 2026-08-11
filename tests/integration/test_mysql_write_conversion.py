@@ -528,6 +528,39 @@ def test_eoat_history_event_coverage_idempotency_and_archive_restore(api):
         ) == 1
 
 
+def test_eoat_history_tied_timestamps_follow_persisted_sequence(api):
+    """Newest-first History uses event sequence, never random UUID order."""
+    factory = create_session_factory(migration=True)
+    with factory() as session, session.begin():
+        tied_identifier = f"HISTORY-TIE-{uuid4().hex[:10]}"
+        tied_eoat = db.EOAT(business_identifier=tied_identifier, source_system="integration_test")
+        session.add(tied_eoat)
+        session.flush()
+        eoat_id = tied_eoat.id
+        unknown_type = session.scalar(select(db.HistoryEventType.id).where(db.HistoryEventType.code == "location_unknown"))
+        updated_type = session.scalar(select(db.HistoryEventType.id).where(db.HistoryEventType.code == "record_edited"))
+        assert eoat_id and unknown_type and updated_type
+        tied_at = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
+        earlier = db.EntityHistoryEvent(
+            event_uuid="ffffffff-ffff-4fff-8fff-ffffffffffff",
+            entity_type="eoat", entity_id=eoat_id, event_type_id=unknown_type,
+            occurred_at=tied_at, event_category="LOCATION_STATE", summary="Earlier location event",
+            source_table="integration_test", source_record_id=1,
+        )
+        later = db.EntityHistoryEvent(
+            event_uuid="00000000-0000-4000-8000-000000000000",
+            entity_type="eoat", entity_id=eoat_id, event_type_id=updated_type,
+            occurred_at=tied_at, event_category="BUSINESS_DATA", summary="Later update event",
+            source_table="integration_test", source_record_id=2,
+        )
+        session.add_all((earlier, later))
+        session.flush()
+        earlier_uuid, later_uuid = earlier.event_uuid, later.event_uuid
+    items = api.get(f"/api/v1/eoats/{tied_identifier}/history", params={"page_size": 200}).json()["items"]
+    event_ids = [item["event_id"] for item in items]
+    assert event_ids.index(later_uuid) < event_ids.index(earlier_uuid)
+
+
 def test_failed_business_write_rolls_back_audit_and_change_feed(api):
     factory = create_session_factory(migration=True)
     with factory() as session:

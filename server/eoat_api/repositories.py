@@ -489,10 +489,14 @@ class AtlasRepository:
         count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
         total = int(self.session.scalar(count_stmt) or 0)
         direction = db.EntityHistoryEvent.occurred_at.asc() if sort_order.casefold() == "asc" else db.EntityHistoryEvent.occurred_at.desc()
+        # Event UUIDs are identities, not chronology.  MySQL can preserve
+        # multiple history writes at the same DATETIME precision, so use the
+        # immutable auto-increment sequence to make tied timestamps reflect
+        # actual persisted event order deterministically.
         tie_direction = (
-            db.EntityHistoryEvent.event_uuid.asc()
+            db.EntityHistoryEvent.id.asc()
             if sort_order.casefold() == "asc"
-            else db.EntityHistoryEvent.event_uuid.desc()
+            else db.EntityHistoryEvent.id.desc()
         )
         rows = self.session.execute(
             stmt.order_by(direction, tie_direction).offset((page - 1) * page_size).limit(page_size)
@@ -525,7 +529,7 @@ class AtlasRepository:
             .order_by(
                 db.EOAT.business_identifier,
                 db.EntityHistoryEvent.occurred_at.desc(),
-                db.EntityHistoryEvent.event_uuid.desc(),
+                db.EntityHistoryEvent.id.desc(),
             )
         ).all()
         return [
