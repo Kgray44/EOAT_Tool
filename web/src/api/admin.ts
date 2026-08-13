@@ -147,6 +147,7 @@ export const adminApi = {
     return body;
   },
   assets: (kind: "eoats" | "machines" | "tools", search = "") => adminFetch<{ items: AdminRecord[] }>(`/api/v1/admin/data/${kind}?search=${encodeURIComponent(search)}`),
+  lookup: (lookupType: string) => adminFetch<Array<{ code: string; display_name: string }>>(`/api/v1/lookups/${encodeURIComponent(lookupType)}`),
   previewAsset: (kind: string, identifier: string, payload: Record<string, AuditValue>) => adminPost<{ changed_fields: string[]; before: Record<string, AuditValue>; after: Record<string, AuditValue> }>(`/api/v1/admin/data/${kind}/${encodeURIComponent(identifier)}/preview`, payload),
   updateAsset: (kind: string, identifier: string, payload: Record<string, AuditValue>, correction = false) => adminWrite<AdminMutationSuccess>(`/api/v1/admin/data/${kind}/${encodeURIComponent(identifier)}${correction ? "/correction" : ""}`, payload),
   lifecycleAsset: (kind: string, identifier: string, action: "archive" | "restore", payload: Record<string, AuditValue>) => adminPost<AdminMutationSuccess>(`/api/v1/admin/data/${kind}/${encodeURIComponent(identifier)}/${action}`, payload),
@@ -156,7 +157,7 @@ export const adminApi = {
   photos: () => adminFetch<{ items: Array<{ photo: AdminRecord; document: AdminRecord; row_version: number }> }>("/api/v1/admin/photos"),
   updatePhoto: (photoId: number, payload: Record<string, AuditValue>) => adminWrite<AdminMutationSuccess>(`/api/v1/admin/photos/${photoId}`, payload),
   archivePhoto: (photoId: number, payload: Record<string, AuditValue>) => adminPost<AdminMutationSuccess>(`/api/v1/admin/photos/${photoId}/archive`, payload),
-  linkRelationship: (relationshipType: string, payload: Record<string, AuditValue>) => adminPost<AdminMutationSuccess>(`/api/v1/admin/data/relationships/${encodeURIComponent(relationshipType)}`, payload),
+  linkRelationship: (relationshipType: string, payload: Record<string, AuditValue | undefined>) => adminPost<AdminMutationSuccess>(`/api/v1/admin/data/relationships/${encodeURIComponent(relationshipType)}`, payload),
   relationships: (relationshipType: string) => adminFetch<{ items: AdminRecord[] }>(`/api/v1/admin/data/relationships/${encodeURIComponent(relationshipType)}`),
   unlinkRelationship: (relationshipType: string, relationshipId: number, payload: Record<string, AuditValue>) => adminPost<AdminMutationSuccess>(`/api/v1/admin/data/relationships/${encodeURIComponent(relationshipType)}/${relationshipId}/unlink`, payload),
   previewBulkStatus: (payload: Record<string, AuditValue>) => adminPost<{ count: number; records: AdminRecord[]; atomic: boolean }>("/api/v1/admin/data/eoats/bulk-status/preview", payload),

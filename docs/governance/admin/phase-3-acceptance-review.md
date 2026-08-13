@@ -40,13 +40,44 @@ post-commit Audit Event link.
 This review remains intentionally unaccepted. The browser audit event's
 normal-profile link now uses the authorized same-origin relative contract and
 the historic canonical display identifier: `/eoats/:identifier`,
-`/machines/:number`, and `/tools/:identifier`. The normal profile renderer
-itself is proven to exist only on the separate newer web lineage
-`codex/web-desktop-full-parity` (`7d9b6952ca`), which has no Git merge base
-with this accepted Admin lineage. This branch intentionally does not recreate
-normal-profile components or merge that broad unrelated history. Full rendered
-cross-navigation is therefore an explicit reconciliation dependency, while
-the Phase C real-MySQL mutation matrix, browser matrix, performance
-measurement, and complete regression matrix also remain outstanding. Do not
-make a protected-main, deployment, or Phase 4 decision from this partial
-evidence.
+`/machines/:identifier`, and `/tools/:identifier`. The normal router was
+located on the unrelated newer `codex/web-desktop-full-parity`
+`7d9b6952ca` lineage (which has no Git merge base). Its profile components
+cannot be copied in isolation without recreating a normal-client substitute or
+merging substantial unrelated application state, so neither action was taken.
+The provenance, exact URL contract, and smallest reconciliation boundary are
+recorded in `phase-3-normal-profile-reconciliation.md`. Full rendered
+cross-navigation is therefore an explicit integration dependency, while the
+Phase C real-MySQL mutation matrix, browser matrix, performance measurement,
+and complete regression matrix also remain outstanding. Do not make a
+protected-main, deployment, or Phase 4 decision from this partial evidence.
+
+## Continuation evidence — 2026-08-13
+
+The protected configuration file was recovered without printing its contents.
+It configured both migration/test and runtime identities to loopback port
+`58571` and `eoat_atlas_test`. The approved `eoat-atlas` SSH alias resolved to
+`EOAT-ATLAS`; MySQL itself confirmed both identities selected only
+`eoat_atlas_test` on MySQL `8.4.10` at revision `20260811_0007`.
+
+The real-MySQL Phase 3 suite was rerun twice against that target, passing
+**11/11** on each run. A real browser rehearsal path then completed an EOAT
+preview/commit and navigated to its immutable Audit Event Detail. The browser
+showed the server-derived actor, exact before/after, request and correlation
+IDs, and the relative EOAT href. The normal-profile destination is
+intentionally not claimed as rendered acceptance because the actual normal
+client remains on the unrelated lineage described above.
+
+That real browser run exposed two relationship workflow defects that the
+service-level suite had not exercised: the specific relationship GET route was
+shadowed by generic asset-detail routing, and the browser sent inactive target
+fields as null. Both were corrected. The relationship page now loads over the
+real API, uses server-provided EOAT/Machine/Tool and compatibility selectors,
+and completed a real `LINK` with Audit evidence. The browser did not accept a
+free-text compatibility code.
+
+The recovery point was restored after the run. It is a UTF-16LE acceptance-only
+dump, so restoration required a UTF-16-to-UTF-8 stream conversion before MySQL
+parsing; it then completed successfully. Both identities were rechecked at
+`eoat_atlas_test` revision `20260811_0007`, and the temporary API, Vite, and
+SSH-tunnel processes were stopped.

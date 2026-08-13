@@ -164,6 +164,24 @@ def get_assets(
     return {"items": list_assets(session, ASSET_TYPES[kind], search, include_archived)}
 
 
+@router.get("/data/relationships/{relationship_type}")
+def get_relationships(
+    relationship_type: str,
+    include_archived: bool = False,
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin_session("admin.relationship.manage")),
+):
+    """Register before the generic asset detail route.
+
+    FastAPI selects the first matching path operation. Without this precedence,
+    `relationships` is mistaken for an asset collection and the real browser
+    relationship workflow receives a misleading 404.
+    """
+    if relationship_type not in RELATIONSHIP_TYPES:
+        raise not_found("relationship type", relationship_type)
+    return {"items": list_relationships(session, relationship_type, include_archived)}
+
+
 @router.get("/data/{kind}/{identifier}")
 def get_asset(
     kind: str,
@@ -399,18 +417,6 @@ def link_relationship_route(
         {"relationship_type": relationship_type, **values},
         lambda: link_relationship_governed(session, actor, relationship_type, values.copy()),
     )
-
-
-@router.get("/data/relationships/{relationship_type}")
-def get_relationships(
-    relationship_type: str,
-    include_archived: bool = False,
-    session: Session = Depends(get_runtime_session),
-    _actor: ActorContext = Depends(require_admin_session("admin.relationship.manage")),
-):
-    if relationship_type not in RELATIONSHIP_TYPES:
-        raise not_found("relationship type", relationship_type)
-    return {"items": list_relationships(session, relationship_type, include_archived)}
 
 
 @router.post("/data/relationships/{relationship_type}/{relationship_id}/unlink")

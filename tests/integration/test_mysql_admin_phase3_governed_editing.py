@@ -471,6 +471,8 @@ def test_phase3_machine_and_tool_mutations_validate_conflicts_and_audit(api, gov
 
 def test_phase3_relationship_link_rejection_and_unlink_are_audited(api, governed_records):
     client, csrf, _session_reference = api
+    relationship_list = client.get("/api/v1/admin/data/relationships/eoat-machine")
+    assert relationship_list.status_code == 200, relationship_list.text
     effective_from = datetime.now(timezone.utc).isoformat()
     payload = {
         "eoat_identifier": governed_records["eoat"],
