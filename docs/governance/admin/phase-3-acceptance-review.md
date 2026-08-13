@@ -2,6 +2,41 @@
 
 Status: **in progress; not accepted**.
 
+## Continuation evidence — 2026-08-13 (normal-route and secret-receipt follow-up)
+
+The protected acceptance configuration was again verified without printing it:
+both configured identities resolve through the Windows loopback SSH tunnel at
+port `58571`, and MySQL itself selected only `eoat_atlas_test` on Debian MySQL
+`8.4.10`, revision `20260811_0007`. No local Windows MySQL service was used.
+
+A real browser session against that API completed governed EOAT, Machine, and
+Tool preview/commit workflows. The EOAT browser event
+`612895d1-de51-49ef-88a2-3bfc38fdc88d` records the server-derived actor,
+request/correlation IDs, and exact `display_name` change. Its Event Detail
+opens `/eoats/P3-15b5838285-A`, the normal profile renders the committed value,
+and browser Back returns to that exact Event Detail. Direct EOAT, Machine, and
+Tool deep links and a Machine refresh also rendered through the integrated
+normal router; an unauthenticated normal-browser visit to `/admin/audit`
+received the Administrator access boundary.
+
+This browser proof exposed a navigation defect: a raw normal-profile anchor
+discarded in-memory rehearsal state on a document reload, and page-local
+session readiness prompted again on client-side Admin navigation. Follow-up
+commit `3d2efb0d9c` uses router navigation for the same-origin normal link and
+holds the rehearsal-ready state at the Admin application boundary. This does
+not persist the CSRF proof across a full refresh; that remains intentionally
+fail-closed and requires a new rehearsal sign-in.
+
+A non-secret setting browser mutation produced a `SETTINGS_CHANGE` receipt.
+For a synthetic secret replacement, the submitted marker was absent from the
+browser DOM, browser console, response, and Event Detail. The initial receipt
+showed no material safe diff for an already-configured secret. Follow-up commit
+`33ca06eacd` preserves immutable, non-secret evidence as
+`replacement_recorded: false -> true`; the real browser receipt now renders
+that exact safe diff and no marker. The full real-MySQL Phase 3 suite was
+rerun after this correction: **12/12 PASS** (one unrelated TestClient
+deprecation warning).
+
 The earlier block was caused by incorrectly relying on the unavailable local
 Windows `MySQL80_dashboard` service. Acceptance resumed through the already
 approved Debian MySQL 8.4.10 architecture: Windows process -> loopback SSH
