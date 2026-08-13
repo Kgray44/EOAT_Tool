@@ -17,7 +17,7 @@ Before change, an acceptance-only recovery dump was created at
 MySQL foreign-key/index-order defect in the migration. A follow-up commit
 corrected the downgrade, and `0006 -> 0007 -> 0006 -> 0007` then passed.
 
-The expanded real-MySQL Phase 3 integration suite passes **11/11** against
+The expanded real-MySQL Phase 3 integration suite passes **12/12** against
 this environment. It now covers session/CSRF, EOAT single- and multi-field
 editing, stale conflict, idempotency, correction, archive/restore, Machine and
 Tool validation/conflicts, relationship link/duplicate/free-text rejection and
@@ -61,7 +61,9 @@ It configured both migration/test and runtime identities to loopback port
 `eoat_atlas_test` on MySQL `8.4.10` at revision `20260811_0007`.
 
 The real-MySQL Phase 3 suite was rerun twice against that target, passing
-**11/11** on each run. A real browser rehearsal path then completed an EOAT
+**11/11** on each pre-expansion run. The expanded suite then passed **12/12**,
+including forced audit-persistence failures across the asset, document,
+setting, relationship, and bulk transaction architectures. A real browser rehearsal path then completed an EOAT
 preview/commit and navigated to its immutable Audit Event Detail. The browser
 showed the server-derived actor, exact before/after, request and correlation
 IDs, and the relative EOAT href. The normal-profile destination is
@@ -81,3 +83,20 @@ dump, so restoration required a UTF-16-to-UTF-8 stream conversion before MySQL
 parsing; it then completed successfully. Both identities were rechecked at
 `eoat_atlas_test` revision `20260811_0007`, and the temporary API, Vite, and
 SSH-tunnel processes were stopped.
+
+## Performance evidence — 2026-08-13
+
+A real-MySQL performance sample used 100 disposable EOAT records, one
+disposable Machine relationship, and one disposable non-secret setting through
+the governed API with audit persistence enabled. Observed end-to-end mutation
+latencies were: single EOAT edit **569.8 ms**; relationship LINK **1564.1 ms**;
+setting change **480.2 ms**; and an atomic 100-EOAT bulk status commit
+**20642.9 ms** with `affected_count=100`. No SLA is asserted.
+
+The bulk result is reconstructable from the parent and per-row events, but its
+implementation currently performs per-identifier read/preview and governed
+update/audit work. The resulting N+1-style database behavior is an explicit
+performance finding, not a reason to reduce mandatory audit durability. The
+100-record test database fixtures were restored from the clean Phase 3
+recovery point immediately after measurement; no production or development
+schema was contacted.

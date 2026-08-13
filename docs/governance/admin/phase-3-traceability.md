@@ -19,7 +19,7 @@
 | `python -m compileall -q server/eoat_api ...` | PASS |
 | Focused Phase 1/2 server tests | PASS: 14 tests |
 | Real MySQL migration | PASS on Debian MySQL 8.4.10: `20260811_0006 -> 20260811_0007`; recovery/repeat PASS after the MySQL downgrade index-order correction. |
-| New `test_mysql_admin_phase3_governed_editing.py` | PASS: 11/11 against `eoat_atlas_test` through the protected loopback SSH tunnel. The suite now covers governed EOAT/Machine/Tool, relationships, document/photo, bulk, settings, access, CSRF, actor-forgery, revocation, idempotency, and required-audit rollback paths. |
+| New `test_mysql_admin_phase3_governed_editing.py` | PASS: 12/12 against `eoat_atlas_test` through the protected loopback SSH tunnel. The suite covers governed EOAT/Machine/Tool, relationships, document/photo, bulk, settings, access, CSRF, actor-forgery, revocation, idempotency, and required-audit rollback for the asset, document, setting, relationship, and bulk transaction architectures. |
 | `pnpm --dir web typecheck` | PASS |
 | `pnpm --dir web lint` | PASS |
 | `pnpm --dir web build` | PASS |
@@ -30,6 +30,7 @@
 | Continued real browser acceptance | PASS for EOAT edit and relationship LINK over `127.0.0.1` browser/API with Debian MySQL through the approved tunnel. The route-list shadowing and null inactive-selector payload defects found there were fixed; relationship compatibility is now a server-backed selector. Full browser mutation matrix and actual normal-client cross-navigation remain open. |
 | Continued web regression | PASS: TypeScript, ESLint, Vitest 1/1, production Vite build, and Playwright Admin shell 8/8 after the relationship corrections. |
 | Clean test-database restoration | PASS: acceptance-only snapshot restored to `eoat_atlas_test` revision `20260811_0007`; the UTF-16LE snapshot was safely transcoded for MySQL import. Both accepted identities reselected the same test schema afterwards. |
+| Performance sample | PASS as measurement, not an SLA: real 100-record bulk sample measured single edit 569.8 ms, relationship LINK 1564.1 ms, setting 480.2 ms, and atomic 100-row bulk 20642.9 ms. The per-row preview/update/audit loop is recorded as an N+1-style finding; audit durability was not weakened. |
 
 ## Production isolation
 

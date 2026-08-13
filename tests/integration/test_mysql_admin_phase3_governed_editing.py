@@ -313,6 +313,73 @@ def test_phase3_required_audit_failure_rolls_back_business_mutation(api, seed_re
     assert after.json()["row_version"] == before["row_version"]
 
 
+def test_phase3_required_audit_failure_rolls_back_distinct_mutation_architectures(api, seed_records, governed_records, monkeypatch):
+    """Audit is mandatory for service-specific writes, not just asset editing."""
+    client, csrf, _session_reference = api
+    document = client.get(f"/api/v1/admin/documents/{governed_records['document_id']}").json()
+    setting = next(item for item in client.get("/api/v1/admin/settings").json()["items"] if item["key"] == seed_records[1])
+    bulk_identifiers = list(seed_records[0])
+    bulk_records = {identifier: client.get(f"/api/v1/admin/data/eoats/{identifier}").json() for identifier in bulk_identifiers}
+    versions = {identifier: record["row_version"] for identifier, record in bulk_records.items()}
+    with create_session_factory(migration=True)() as session:
+        audit_before = session.scalar(select(__import__("sqlalchemy").func.count()).select_from(db.AuditEvent))
+        active_relationships_before = session.scalar(
+            select(__import__("sqlalchemy").func.count()).select_from(db.EOATMachineCompatibility).where(db.EOATMachineCompatibility.is_active.is_(True))
+        )
+
+    def fail_required_audit(*_args, **_kwargs):
+        raise RuntimeError("forced phase3 audit persistence failure")
+
+    monkeypatch.setattr("server.eoat_api.write_services.AuditEventWriter.write_change", fail_required_audit)
+    document_failed = client.patch(
+        f"/api/v1/admin/documents/{governed_records['document_id']}",
+        json={"title": "must not persist document", "expected_row_version": document["row_version"]},
+        headers={**csrf, "Idempotency-Key": f"p3-audit-failure-document-{RUN}"},
+    )
+    setting_failed = client.patch(
+        f"/api/v1/admin/settings/{setting['key']}",
+        json={"value": True, "expected_row_version": setting["row_version"], "reason": "must not persist setting"},
+        headers={**csrf, "Idempotency-Key": f"p3-audit-failure-setting-{RUN}"},
+    )
+    relationship_failed = client.post(
+        "/api/v1/admin/data/relationships/eoat-machine",
+        json={
+            "eoat_identifier": governed_records["eoat"],
+            "machine_number": governed_records["machine"],
+            "compatibility_status": governed_records["compatibility_status"],
+            "effective_from": datetime.now(timezone.utc).isoformat(),
+            "confirmation": "LINK eoat-machine",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-audit-failure-relationship-{RUN}"},
+    )
+    bulk_failed = client.post(
+        "/api/v1/admin/data/eoats/bulk-status/commit",
+        json={
+            "identifiers": bulk_identifiers,
+            "status": governed_records["bulk_status"],
+            "expected_versions": versions,
+            "reason": "must not persist bulk",
+            "confirmation": "BULK STATUS 2",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-audit-failure-bulk-{RUN}"},
+    )
+    assert all(response.status_code >= 500 for response in (document_failed, setting_failed, relationship_failed, bulk_failed))
+    with create_session_factory(migration=True)() as session:
+        persisted_document = session.get(db.Document, governed_records["document_id"])
+        persisted_setting = session.scalar(select(db.SystemSetting).where(db.SystemSetting.setting_key == setting["key"]))
+        audit_after = session.scalar(select(__import__("sqlalchemy").func.count()).select_from(db.AuditEvent))
+        active_relationships_after = session.scalar(
+            select(__import__("sqlalchemy").func.count()).select_from(db.EOATMachineCompatibility).where(db.EOATMachineCompatibility.is_active.is_(True))
+        )
+        assert persisted_document is not None and persisted_document.title == document["title"]
+        assert persisted_setting is not None and persisted_setting.setting_value_json == setting["value"]
+        assert audit_after == audit_before
+        assert active_relationships_after == active_relationships_before
+    for identifier, before in bulk_records.items():
+        after = client.get(f"/api/v1/admin/data/eoats/{identifier}").json()
+        assert after == before
+
+
 def test_phase3_capability_denial_leaves_authoritative_data_unchanged(seed_records):
     identifier = seed_records[0][1]
     with TestClient(app, raise_server_exceptions=False) as client:
