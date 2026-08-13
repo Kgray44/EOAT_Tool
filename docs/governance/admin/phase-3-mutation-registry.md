@@ -22,6 +22,16 @@ success/failure contract.
 | `admin.access.mapping` | `PATCH /api/v1/admin/access/test-mappings/{identity}` | `admin.access.manage` | Configured development/test identities only and role selector; no corporate groups | `ROLE_MAPPING_CHANGE` | Idempotent key; invalid/unauthorized tests |
 | `admin.session.revoke` | `POST /api/v1/admin/access/sessions/{id}/revoke` | `admin.session.manage` | Phase 3 local rehearsal sessions only; confirmation | `SESSION_REVOKED` | Idempotent key; revoked-session test |
 
+## Non-business supporting endpoints
+
+The following Phase 3 endpoints are intentionally not business mutations and
+therefore do not create a domain-change event. They perform no authoritative
+write: `POST /session/rehearsal` issues a local test session and records the
+security `LOGIN_SUCCESS` event; `POST /data/eoats/bulk-status/preview` and
+`POST /data/{kind}/{identifier}/preview` are read-only validation/preview
+operations. All other POST/PATCH routes in `mutation_routes.py` are covered by
+the registry above. There are no unlisted Admin mutation endpoints.
+
 All failure responses use the Phase 1/2 safe error envelope: controlled error
 code, safe message, request ID, and field errors where applicable. Audit
 persistence failure is never represented as success; the transaction rolls

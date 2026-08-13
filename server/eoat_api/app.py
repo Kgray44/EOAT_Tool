@@ -12,8 +12,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .admin.routes import router as admin_router
 from .admin.mutation_routes import router as admin_mutation_router
+from .admin.routes import router as admin_router
 from .contracts import (
     FitCheckRequest,
     HealthResult,

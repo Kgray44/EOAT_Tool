@@ -7,6 +7,7 @@ from core.data_gateway.configuration import GatewayConfiguration
 from core.data_gateway.exceptions import ApiUnavailableError
 from core.data_gateway.gateway import AtlasDataGateway
 from core.eoat_history import EOATHistoryService, GatewayEOATHistoryRepository
+from server.eoat_api.services import API_VERSION, EXPECTED_SCHEMA_REVISION
 
 
 def _event(identifier: str = "EOAT-1", event_id: str = "event-1") -> dict:
@@ -34,8 +35,8 @@ class OnlineClient:
 
     def health(self):
         return {
-            "api_version": "1.3.0",
-            "current_schema_revision": "20260714_0004",
+            "api_version": API_VERSION,
+            "current_schema_revision": EXPECTED_SCHEMA_REVISION,
             "compatible": True,
         }
 

@@ -114,3 +114,17 @@ The synthetic replacement secret was not present in the browser DOM after its
 successful mutation. Server-side no-secret-in-response or Audit evidence is
 also covered by the 12/12 real-MySQL suite. These runs used only
 `eoat_atlas_test` and were followed by recovery-point restoration.
+
+## Desktop schema compatibility regression â€” 2026-08-13
+
+The Phase 3 schema revision was already correctly advertised by the API as
+`20260811_0007`, but the desktop data-gateway default was still
+`20260811_0006`. This caused an otherwise representative EOAT History gateway
+test to model an obsolete server contract. The default and test fixture were
+aligned to the current Phase 3 schema revision; no database data or migration
+was changed. Targeted Ruff for the changed files passed, as did EOAT History,
+gateway, and Admin audit-foundation regression tests: **16 passed**.
+
+Repository-wide Ruff remains an inherited baseline limitation: it reports 30
+unrelated findings under `core/` outside the Phase 3 change surface. Those
+files were not reformatted or altered to manufacture a Phase 3 green result.
