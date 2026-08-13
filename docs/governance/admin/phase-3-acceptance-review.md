@@ -100,3 +100,17 @@ performance finding, not a reason to reduce mandatory audit durability. The
 100-record test database fixtures were restored from the clean Phase 3
 recovery point immediately after measurement; no production or development
 schema was contacted.
+
+## Continued browser-to-real-MySQL evidence — 2026-08-13
+
+With a fresh disposable browser fixture set, the loopback browser/API path
+completed Machine edit preview/commit, Tool edit preview/commit, EOAT bulk
+preview and atomic two-record commit, a non-secret setting change, and a secret
+setting change. Each successful mutation retained a browser Audit Event link
+after refresh. The setting page originally lost that link when the list
+refreshed; this was corrected by retaining the parent-page event reference.
+
+The synthetic replacement secret was not present in the browser DOM after its
+successful mutation. Server-side no-secret-in-response or Audit evidence is
+also covered by the 12/12 real-MySQL suite. These runs used only
+`eoat_atlas_test` and were followed by recovery-point restoration.

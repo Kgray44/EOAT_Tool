@@ -31,6 +31,7 @@
 | Continued web regression | PASS: TypeScript, ESLint, Vitest 1/1, production Vite build, and Playwright Admin shell 8/8 after the relationship corrections. |
 | Clean test-database restoration | PASS: acceptance-only snapshot restored to `eoat_atlas_test` revision `20260811_0007`; the UTF-16LE snapshot was safely transcoded for MySQL import. Both accepted identities reselected the same test schema afterwards. |
 | Performance sample | PASS as measurement, not an SLA: real 100-record bulk sample measured single edit 569.8 ms, relationship LINK 1564.1 ms, setting 480.2 ms, and atomic 100-row bulk 20642.9 ms. The per-row preview/update/audit loop is recorded as an N+1-style finding; audit durability was not weakened. |
+| Continued real browser mutations | PASS for Machine and Tool preview/commit, EOAT bulk preview/atomic commit, non-secret setting, and secret setting against the loopback API plus `eoat_atlas_test`. Every observed success retained an Audit Event link after refresh. The secret browser DOM did not contain the submitted synthetic secret. |
 
 ## Production isolation
 
