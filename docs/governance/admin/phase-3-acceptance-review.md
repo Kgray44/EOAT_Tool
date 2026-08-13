@@ -150,3 +150,12 @@ does not contain the suite's imported P4 records/counts and its legacy normal
 write path remains disabled. No fixture was invented and no write gate was
 weakened merely to make that suite green. The test schema was restored
 immediately afterward.
+
+## OpenAPI and cleanup evidence â€” 2026-08-13
+
+In-process OpenAPI generation passed with 116 paths and all nine representative
+Phase 3 governed paths present (session, asset, bulk, document, photo,
+relationship, setting, mapping, and revocation). This was a schema-contract
+check only and did not contact a database. The worktree is clean, the accepted
+recovery schema is `eoat_atlas_test` at `20260811_0007`, and no listener
+remains on the temporary acceptance tunnel port.

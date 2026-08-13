@@ -37,6 +37,7 @@
 | Combined Phase 2 and Phase 3 real MySQL regression | PASS: **15/15** through the protected tunnel, followed by snapshot restoration and MySQL self-verification of `eoat_atlas_test` at `20260811_0007`. |
 | Continued web regression | PASS: bundled-runtime TypeScript, ESLint, Vitest **1/1**, production build, and fixture-intercept Admin Playwright **8/8**. The Playwright result is explicitly not represented as real-persistence proof. |
 | Legacy normal read/write conversion regression | Not applicable to the clean Phase 3 recovery snapshot: 18 passed / 18 failed after current-schema alignment because required imported P4 fixtures/counts are absent and the legacy normal write gate is deliberately disabled. No source workaround, fixture invention, or gate change was made; the snapshot was restored. |
+| OpenAPI | PASS: in-process schema generation found 116 paths and all nine representative governed mutation paths. It was non-mutating and database-independent. |
 
 ## Production isolation
 
