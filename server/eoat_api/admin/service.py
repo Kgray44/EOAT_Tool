@@ -98,6 +98,59 @@ class AuditEventWriter:
         session.flush()
         return AuditWriteResult(event_id=event_id, changed_fields=diff.changed_fields)
 
+    def write_event(
+        self,
+        session: Session,
+        actor: ActorContext,
+        *,
+        entity_type: str,
+        entity_id: int | str,
+        entity_display_id: str | None,
+        operation: str,
+        action: AuditAction,
+        result: AuditResult,
+        reason: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        source: AuditSource = AuditSource.WEB,
+        correlation_id: str | None = None,
+    ) -> str:
+        """Persist an auditable non-business operation result.
+
+        Denials and failures cannot use the normal business-change writer, but
+        they remain structured, redacted, and durable evidence.
+        """
+        event_id = str(uuid4())
+        session.add(
+            db.AuditEvent(
+                event_id=event_id,
+                occurred_at_utc=datetime.now(timezone.utc),
+                actor_type=AuditActorType.USER.value,
+                actor_id=str(actor.user_id),
+                actor_display_name=actor.display_name,
+                actor_directory_name=actor.identity,
+                actor_user_id=actor.user_id,
+                action=action.value,
+                action_category=category_for_action(action).value,
+                entity_type=entity_type,
+                entity_id=str(entity_id),
+                entity_display_id=entity_display_id,
+                changed_fields_json=[],
+                before_state_json=None,
+                after_state_json=None,
+                reason_or_note=reason,
+                source_client=source.value,
+                request_id=actor.request_id,
+                correlation_id=correlation_id or actor.request_id,
+                transaction_id=None,
+                operation=operation,
+                result=result.value,
+                metadata_json=redact(metadata or {}),
+                schema_version=1,
+            )
+        )
+        session.flush()
+        return event_id
+
 
 def execute_with_required_audit(session: Session, mutate, write_audit):
     """Shared savepoint seam for new governed services and rollback tests."""

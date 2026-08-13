@@ -162,62 +162,6 @@
         "title": "AdminBulkStatusPreview",
         "type": "object"
       },
-      "AdminDiagnosticsContract": {
-        "properties": {
-          "api_status": {
-            "title": "Api Status",
-            "type": "string"
-          },
-          "audit_status": {
-            "title": "Audit Status",
-            "type": "string"
-          },
-          "compatible": {
-            "title": "Compatible",
-            "type": "boolean"
-          },
-          "database_status": {
-            "title": "Database Status",
-            "type": "string"
-          },
-          "expected_schema_revision": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Schema Revision"
-          },
-          "observation_time_utc": {
-            "format": "date-time",
-            "title": "Observation Time Utc",
-            "type": "string"
-          },
-          "schema_revision": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Schema Revision"
-          }
-        },
-        "required": [
-          "observation_time_utc",
-          "api_status",
-          "database_status",
-          "audit_status",
-          "compatible"
-        ],
-        "title": "AdminDiagnosticsContract",
-        "type": "object"
-      },
       "AdminDocumentPatch": {
         "additionalProperties": false,
         "properties": {
@@ -1000,6 +944,17 @@
           "GROUP_MAPPING_CHANGE",
           "SETTINGS_CHANGE",
           "EXPORT",
+          "AUDIT_EXPORT",
+          "ADMIN_EXPORT",
+          "DIAGNOSTIC_RUN",
+          "INTEGRITY_SCAN",
+          "BACKUP_TRIGGERED",
+          "RESTORE_STARTED",
+          "RESTORE_COMPLETED",
+          "RESTORE_FAILED",
+          "FACTORY_RESET_REQUESTED",
+          "DATA_PURGE_REQUEST",
+          "DESTRUCTIVE_OPERATION",
           "SCHEMA_MIGRATED",
           "ADMIN_REPAIR",
           "DANGER_ATTEMPT",
@@ -1759,6 +1714,68 @@
           "source"
         ],
         "title": "CurrentEOATLocation",
+        "type": "object"
+      },
+      "DangerCommitRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmation": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Confirmation",
+            "type": "string"
+          },
+          "preview_reference": {
+            "maxLength": 36,
+            "minLength": 36,
+            "title": "Preview Reference",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preview_reference",
+          "confirmation",
+          "reason"
+        ],
+        "title": "DangerCommitRequest",
+        "type": "object"
+      },
+      "DangerPreviewRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "fixture_namespace": {
+            "maxLength": 96,
+            "minLength": 6,
+            "title": "Fixture Namespace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fixture_namespace"
+        ],
+        "title": "DangerPreviewRequest",
+        "type": "object"
+      },
+      "DangerStepUpRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "rehearsal_step_up_secret": {
+            "maxLength": 512,
+            "minLength": 16,
+            "title": "Rehearsal Step Up Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rehearsal_step_up_secret"
+        ],
+        "title": "DangerStepUpRequest",
         "type": "object"
       },
       "DocumentCreate": {
@@ -3091,6 +3108,38 @@
         "title": "ExpectedVersion",
         "type": "object"
       },
+      "ExportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "filters": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Filters",
+            "type": "object"
+          },
+          "format": {
+            "pattern": "^(csv|json)$",
+            "title": "Format",
+            "type": "string"
+          }
+        },
+        "required": [
+          "format"
+        ],
+        "title": "ExportRequest",
+        "type": "object"
+      },
       "FitCheckOption": {
         "description": "A browser-safe selectable asset for the read-only Fit Check.",
         "properties": {
@@ -3563,6 +3612,25 @@
           "expected_row_version"
         ],
         "title": "InstallationClose",
+        "type": "object"
+      },
+      "IntegrityScanRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "IntegrityScanRequest",
         "type": "object"
       },
       "MachineCreate": {
@@ -5251,6 +5319,37 @@
         "title": "RobotPatch",
         "type": "object"
       },
+      "SupportBundleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "sections": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Sections",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sections"
+        ],
+        "title": "SupportBundleRequest",
+        "type": "object"
+      },
       "TagAssignmentArchiveBatch": {
         "additionalProperties": false,
         "properties": {
@@ -6704,6 +6803,180 @@
         ]
       }
     },
+    "/api/v1/admin/audit/exports": {
+      "post": {
+        "operationId": "create_audit_export_api_v1_admin_audit_exports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Audit Export",
+        "tags": [
+          "admin-phase4"
+        ]
+      }
+    },
+    "/api/v1/admin/danger-zone/fixture-recovery/commit": {
+      "post": {
+        "operationId": "commit_fixture_recovery_api_v1_admin_danger_zone_fixture_recovery_commit_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DangerCommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Commit Fixture Recovery",
+        "tags": [
+          "admin-phase4"
+        ]
+      }
+    },
+    "/api/v1/admin/danger-zone/fixture-recovery/preview": {
+      "post": {
+        "operationId": "preview_fixture_recovery_api_v1_admin_danger_zone_fixture_recovery_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DangerPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Fixture Recovery",
+        "tags": [
+          "admin-phase4"
+        ]
+      }
+    },
+    "/api/v1/admin/danger-zone/fixture-recovery/step-up": {
+      "post": {
+        "operationId": "danger_step_up_api_v1_admin_danger_zone_fixture_recovery_step_up_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DangerStepUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Danger Step Up",
+        "tags": [
+          "admin-phase4"
+        ]
+      }
+    },
     "/api/v1/admin/data/eoats/bulk-status/commit": {
       "post": {
         "operationId": "bulk_commit_route_api_v1_admin_data_eoats_bulk_status_commit_post",
@@ -7437,9 +7710,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminDiagnosticsContract"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"
@@ -7676,6 +7947,85 @@
         "summary": "Archive Document Route",
         "tags": [
           "admin-governed-editing"
+        ]
+      }
+    },
+    "/api/v1/admin/integrity/scans": {
+      "post": {
+        "operationId": "start_integrity_scan_api_v1_admin_integrity_scans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrityScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Integrity Scan",
+        "tags": [
+          "admin-phase4"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/{operation_id}": {
+      "get": {
+        "operationId": "operation_status_api_v1_admin_operations__operation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operation_id",
+            "required": true,
+            "schema": {
+              "title": "Operation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Operation Status",
+        "tags": [
+          "admin-phase4"
         ]
       }
     },
@@ -7997,6 +8347,45 @@
         ]
       }
     },
+    "/api/v1/admin/support-bundles": {
+      "post": {
+        "operationId": "create_support_bundle_api_v1_admin_support_bundles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupportBundleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Support Bundle",
+        "tags": [
+          "admin-phase4"
+        ]
+      }
+    },
     "/api/v1/admin/system": {
       "get": {
         "operationId": "system_status_api_v1_admin_system_get",
@@ -8004,9 +8393,7 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminDiagnosticsContract"
-                }
+                "schema": {}
               }
             },
             "description": "Successful Response"

@@ -140,6 +140,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Audit Export */
+        post: operations["create_audit_export_api_v1_admin_audit_exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/danger-zone/fixture-recovery/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit Fixture Recovery */
+        post: operations["commit_fixture_recovery_api_v1_admin_danger_zone_fixture_recovery_commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/danger-zone/fixture-recovery/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Fixture Recovery */
+        post: operations["preview_fixture_recovery_api_v1_admin_danger_zone_fixture_recovery_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/danger-zone/fixture-recovery/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Danger Step Up */
+        post: operations["danger_step_up_api_v1_admin_danger_zone_fixture_recovery_step_up_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/data/eoats/bulk-status/commit": {
         parameters: {
             query?: never;
@@ -371,6 +439,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/integrity/scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Integrity Scan */
+        post: operations["start_integrity_scan_api_v1_admin_integrity_scans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/operations/{operation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Operation Status */
+        get: operations["operation_status_api_v1_admin_operations__operation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/overview": {
         parameters: {
             query?: never;
@@ -488,6 +590,23 @@ export interface paths {
         head?: never;
         /** Update Setting Route */
         patch: operations["update_setting_route_api_v1_admin_settings__key__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/support-bundles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Support Bundle */
+        post: operations["create_support_bundle_api_v1_admin_support_bundles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/system": {
@@ -2167,26 +2286,6 @@ export interface components {
             /** Status */
             status: string;
         };
-        /** AdminDiagnosticsContract */
-        AdminDiagnosticsContract: {
-            /** Api Status */
-            api_status: string;
-            /** Audit Status */
-            audit_status: string;
-            /** Compatible */
-            compatible: boolean;
-            /** Database Status */
-            database_status: string;
-            /** Expected Schema Revision */
-            expected_schema_revision?: string | null;
-            /**
-             * Observation Time Utc
-             * Format: date-time
-             */
-            observation_time_utc: string;
-            /** Schema Revision */
-            schema_revision?: string | null;
-        };
         /** AdminDocumentPatch */
         AdminDocumentPatch: {
             /** Description */
@@ -2390,7 +2489,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "CREATE" | "UPDATE" | "ARCHIVE" | "RESTORE" | "DELETE" | "LINK" | "UNLINK" | "ASSIGN" | "UNASSIGN" | "LOCATION_CHANGE" | "STATUS_CHANGE" | "UPLOAD" | "METADATA_CHANGE" | "SUPERSEDE" | "PHOTO_ADD" | "PHOTO_ARCHIVE" | "PM_COMPLETE" | "INSPECTION_COMPLETE" | "IMPORT_COMMIT" | "BULK_OPERATION" | "CORRECTION" | "LOGIN_SUCCESS" | "LOGIN_FAILURE" | "LOGOUT" | "SESSION_REVOKED" | "ACCESS_DENIED" | "ROLE_MAPPING_CHANGE" | "GROUP_MAPPING_CHANGE" | "SETTINGS_CHANGE" | "EXPORT" | "SCHEMA_MIGRATED" | "ADMIN_REPAIR" | "DANGER_ATTEMPT" | "DANGER_CONFIRMED" | "DANGER_STARTED" | "DANGER_SUCCEEDED" | "DANGER_FAILED";
+        AuditAction: "CREATE" | "UPDATE" | "ARCHIVE" | "RESTORE" | "DELETE" | "LINK" | "UNLINK" | "ASSIGN" | "UNASSIGN" | "LOCATION_CHANGE" | "STATUS_CHANGE" | "UPLOAD" | "METADATA_CHANGE" | "SUPERSEDE" | "PHOTO_ADD" | "PHOTO_ARCHIVE" | "PM_COMPLETE" | "INSPECTION_COMPLETE" | "IMPORT_COMMIT" | "BULK_OPERATION" | "CORRECTION" | "LOGIN_SUCCESS" | "LOGIN_FAILURE" | "LOGOUT" | "SESSION_REVOKED" | "ACCESS_DENIED" | "ROLE_MAPPING_CHANGE" | "GROUP_MAPPING_CHANGE" | "SETTINGS_CHANGE" | "EXPORT" | "AUDIT_EXPORT" | "ADMIN_EXPORT" | "DIAGNOSTIC_RUN" | "INTEGRITY_SCAN" | "BACKUP_TRIGGERED" | "RESTORE_STARTED" | "RESTORE_COMPLETED" | "RESTORE_FAILED" | "FACTORY_RESET_REQUESTED" | "DATA_PURGE_REQUEST" | "DESTRUCTIVE_OPERATION" | "SCHEMA_MIGRATED" | "ADMIN_REPAIR" | "DANGER_ATTEMPT" | "DANGER_CONFIRMED" | "DANGER_STARTED" | "DANGER_SUCCEEDED" | "DANGER_FAILED";
         /**
          * AuditActionCategory
          * @enum {string}
@@ -2605,6 +2704,25 @@ export interface components {
             state: "INSTALLED" | "STORED" | "UNKNOWN" | "INACTIVE" | "CONFLICTING";
             /** Storage Location */
             storage_location?: string | null;
+        };
+        /** DangerCommitRequest */
+        DangerCommitRequest: {
+            /** Confirmation */
+            confirmation: string;
+            /** Preview Reference */
+            preview_reference: string;
+            /** Reason */
+            reason: string;
+        };
+        /** DangerPreviewRequest */
+        DangerPreviewRequest: {
+            /** Fixture Namespace */
+            fixture_namespace: string;
+        };
+        /** DangerStepUpRequest */
+        DangerStepUpRequest: {
+            /** Rehearsal Step Up Secret */
+            rehearsal_step_up_secret: string;
         };
         /** DocumentCreate */
         DocumentCreate: {
@@ -2893,6 +3011,15 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** ExportRequest */
+        ExportRequest: {
+            /** Filters */
+            filters?: {
+                [key: string]: string | boolean | null;
+            };
+            /** Format */
+            format: string;
+        };
         /**
          * FitCheckOption
          * @description A browser-safe selectable asset for the read-only Fit Check.
@@ -3041,6 +3168,11 @@ export interface components {
             reason?: string | null;
             /** Removed At */
             removed_at?: string | null;
+        };
+        /** IntegrityScanRequest */
+        IntegrityScanRequest: {
+            /** Reason */
+            reason?: string | null;
         };
         /** MachineCreate */
         MachineCreate: {
@@ -3447,6 +3579,13 @@ export interface components {
             serial_number?: string | null;
             /** Status */
             status?: string | null;
+        };
+        /** SupportBundleRequest */
+        SupportBundleRequest: {
+            /** Request Id */
+            request_id?: string | null;
+            /** Sections */
+            sections: string[];
         };
         /** TagAssignmentArchiveBatch */
         TagAssignmentArchiveBatch: {
@@ -3928,6 +4067,140 @@ export interface operations {
             };
         };
     };
+    create_audit_export_api_v1_admin_audit_exports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_fixture_recovery_api_v1_admin_danger_zone_fixture_recovery_commit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DangerCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_fixture_recovery_api_v1_admin_danger_zone_fixture_recovery_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DangerPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    danger_step_up_api_v1_admin_danger_zone_fixture_recovery_step_up_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DangerStepUpRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     bulk_commit_route_api_v1_admin_data_eoats_bulk_status_commit_post: {
         parameters: {
             query?: never;
@@ -4336,7 +4609,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminDiagnosticsContract"];
+                    "application/json": unknown;
                 };
             };
         };
@@ -4457,6 +4730,70 @@ export interface operations {
                 "application/json": components["schemas"]["AdminLifecycleRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_integrity_scan_api_v1_admin_integrity_scans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntegrityScanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    operation_status_api_v1_admin_operations__operation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -4693,6 +5030,39 @@ export interface operations {
             };
         };
     };
+    create_support_bundle_api_v1_admin_support_bundles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportBundleRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     system_status_api_v1_admin_system_get: {
         parameters: {
             query?: never;
@@ -4708,7 +5078,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminDiagnosticsContract"];
+                    "application/json": unknown;
                 };
             };
         };

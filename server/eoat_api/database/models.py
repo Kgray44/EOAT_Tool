@@ -202,6 +202,79 @@ class AdminRehearsalSession(Base):
     revoke_reason: Mapped[str | None] = mapped_column(String(512))
 
 
+class AdminDangerStepUp(Base):
+    """Short-lived, server-controlled development/test step-up proof.
+
+    This is deliberately separate from the Phase 3 rehearsal session.  It is
+    not a production corporate reauthentication mechanism.
+    """
+
+    __tablename__ = "admin_danger_step_ups"
+    __table_args__ = (
+        Index("ix_admin_danger_step_ups_session_expiry", "admin_rehearsal_session_id", "expires_at", "revoked_at"),
+        Index("ix_admin_danger_step_ups_scope", "operation_type", "risk_class", "expires_at"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    step_up_reference: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    admin_rehearsal_session_id: Mapped[int] = mapped_column(
+        PK, ForeignKey("admin_rehearsal_sessions.id", ondelete="CASCADE"), nullable=False
+    )
+    operation_type: Mapped[str] = mapped_column(String(96), nullable=False)
+    risk_class: Mapped[str] = mapped_column(String(32), nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AdminOperation(Base):
+    """Durable, browser-independent state for bounded Phase 4 operations."""
+
+    __tablename__ = "admin_operations"
+    __table_args__ = (
+        UniqueConstraint("preview_reference", name="uq_admin_operations_preview_reference"),
+        Index("ix_admin_operations_status", "operation_type", "status", "created_at"),
+        Index("ix_admin_operations_actor", "actor_user_id", "created_at"),
+        Index("ix_admin_operations_lock", "lock_key", "status"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    operation_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    operation_type: Mapped[str] = mapped_column(String(96), nullable=False)
+    risk_class: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    target_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    preview_reference: Mapped[str | None] = mapped_column(String(36))
+    preview_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    target_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    lock_key: Mapped[str | None] = mapped_column(String(128))
+    correlation_id: Mapped[str | None] = mapped_column(String(64))
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AdminOperationFixture(Base):
+    """Non-authoritative disposable data used only to exercise Phase 4 recovery.
+
+    It is never exposed through a browser creation endpoint and is not a
+    business-record table.  Acceptance fixtures are inserted by tests and may
+    be removed only by the tightly scoped fixture-recovery rehearsal.
+    """
+
+    __tablename__ = "admin_operation_fixtures"
+    __table_args__ = (
+        UniqueConstraint("fixture_namespace", "fixture_key", name="uq_admin_operation_fixture_namespace_key"),
+        Index("ix_admin_operation_fixtures_namespace", "fixture_namespace"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    fixture_namespace: Mapped[str] = mapped_column(String(96), nullable=False)
+    fixture_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+
+
 class ApplicationInstance(TimestampMixin, Base):
     __tablename__ = "application_instances"
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)

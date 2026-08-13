@@ -55,6 +55,12 @@ ROLE_PERMISSIONS = {
             "admin.data.manage",
             "admin.access.manage",
             "admin.system.diagnostics",
+            "admin.diagnostics.read",
+            "admin.integrity.run",
+            "admin.export.audit",
+            "admin.export.support",
+            "admin.operations.backup",
+            "admin.operations.restore",
             "admin.settings.manage",
             "admin.danger.execute",
         }
@@ -271,6 +277,7 @@ def require_admin(permission: str):
 ADMIN_SESSION_COOKIE = "eoat_admin_rehearsal"
 ADMIN_CSRF_HEADER = "X-EOAT-CSRF-Token"
 ADMIN_SESSION_MAX_BODY_BYTES = 64 * 1024
+DANGER_STEP_UP_TTL_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -390,3 +397,78 @@ def require_admin_mutation(permission: str):
         return actor
 
     return dependency
+
+
+def issue_danger_step_up(
+    request: Request,
+    session: Session,
+    actor: ActorContext,
+    *,
+    operation_type: str,
+    risk_class: str,
+    rehearsal_step_up_secret: str,
+) -> db.AdminDangerStepUp:
+    """Issue a development/test-only step-up proof bound to this session.
+
+    The proof is an additional recent server-side verification of the existing
+    rehearsal secret. It deliberately is not described as a user password or
+    production corporate reauthentication.
+    """
+    _local_environment()
+    configured_secret = os.getenv("EOAT_API_ADMIN_REHEARSAL_SECRET", "")
+    if not configured_secret or not hmac.compare_digest(configured_secret, rehearsal_step_up_secret):
+        raise APIError(401, "DANGER_STEP_UP_REJECTED", "The development/test step-up proof could not be verified.")
+    if not actor.permits("admin.danger.execute"):
+        raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
+    token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
+    rehearsal = session.scalar(
+        select(db.AdminRehearsalSession).where(db.AdminRehearsalSession.session_token_hash == _sha256(token))
+    )
+    now = datetime.now(timezone.utc)
+    if rehearsal is None or rehearsal.revoked_at is not None or _as_utc(rehearsal.expires_at) <= now:
+        raise APIError(401, "ADMIN_SESSION_EXPIRED", "The Administrator session is expired or unavailable.")
+    proof = db.AdminDangerStepUp(
+        step_up_reference=str(uuid4()),
+        admin_rehearsal_session_id=rehearsal.id,
+        operation_type=operation_type,
+        risk_class=risk_class,
+        expires_at=now + timedelta(seconds=DANGER_STEP_UP_TTL_SECONDS),
+    )
+    session.add(proof)
+    session.flush()
+    return proof
+
+
+def require_active_danger_step_up(
+    request: Request,
+    session: Session,
+    actor: ActorContext,
+    *,
+    operation_type: str,
+    risk_class: str,
+) -> db.AdminDangerStepUp:
+    """Return the currently valid scoped proof or fail closed."""
+    _local_environment()
+    if not actor.permits("admin.danger.execute"):
+        raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
+    token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
+    rehearsal = session.scalar(
+        select(db.AdminRehearsalSession).where(db.AdminRehearsalSession.session_token_hash == _sha256(token))
+    )
+    now = datetime.now(timezone.utc)
+    if rehearsal is None or rehearsal.revoked_at is not None or _as_utc(rehearsal.expires_at) <= now:
+        raise APIError(401, "ADMIN_SESSION_EXPIRED", "The Administrator session is expired or unavailable.")
+    proof = session.scalar(
+        select(db.AdminDangerStepUp)
+        .where(
+            db.AdminDangerStepUp.admin_rehearsal_session_id == rehearsal.id,
+            db.AdminDangerStepUp.operation_type == operation_type,
+            db.AdminDangerStepUp.risk_class == risk_class,
+            db.AdminDangerStepUp.revoked_at.is_(None),
+            db.AdminDangerStepUp.expires_at > now,
+        )
+        .order_by(db.AdminDangerStepUp.issued_at.desc())
+    )
+    if proof is None:
+        raise APIError(403, "DANGER_STEP_UP_REQUIRED", "A current development/test step-up proof is required.")
+    return proof

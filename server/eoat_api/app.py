@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .admin.mutation_routes import router as admin_mutation_router
+from .admin.operation_routes import router as admin_operation_router
 from .admin.routes import router as admin_router
 from .contracts import (
     CurrentEOATLocation,
@@ -704,3 +705,4 @@ def home_summary(repo: AtlasRepository = Depends(repository)):
 app.include_router(write_router)
 app.include_router(admin_router)
 app.include_router(admin_mutation_router)
+app.include_router(admin_operation_router)

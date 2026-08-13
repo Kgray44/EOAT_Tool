@@ -22,6 +22,7 @@ from .contracts import (
     AuditListResponse,
 )
 from .repository import AuditEventRepository
+from .operations import diagnostic_summary
 from .taxonomy import AUDIT_ENTITY_TYPES, AuditAction, AuditActionCategory, AuditResult, AuditSource
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -63,44 +64,37 @@ def overview(
     service = AtlasService(session)
     observed_at = datetime.now(timezone.utc)
     metrics, recent_events = AuditEventRepository(session).overview(now=observed_at)
+    health = diagnostic_summary(session).get("by_subsystem", {})
+    def health_state(subsystem: str) -> str:
+        return str((health.get(subsystem) or {}).get("state", "UNKNOWN")).casefold()
     return AdminOverviewContract(
         api_version=API_VERSION,
         schema_revision=service.schema_revision(),
         observation_time_utc=observed_at,
         writes_enabled=os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"},
         environment=os.getenv("EOAT_API_ENVIRONMENT", "development"),
-        api_status="healthy",
-        database_status="healthy",
-        audit_status="healthy",
+        api_status=health_state("api"),
+        database_status=health_state("database"),
+        audit_status=health_state("audit"),
         metrics=AdminAuditMetricsContract(**metrics),
         recent_events=[_event_response(row) for row in recent_events],
     )
 
 
-@router.get("/system", response_model=AdminDiagnosticsContract)
+@router.get("/system")
 def system_status(
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin("admin.area.view")),
 ):
-    service = AtlasService(session)
-    revision = service.schema_revision()
-    return AdminDiagnosticsContract(
-        observation_time_utc=datetime.now(timezone.utc),
-        api_status="healthy",
-        database_status="healthy",
-        audit_status="healthy",
-        schema_revision=revision,
-        expected_schema_revision="20260811_0007",
-        compatible=revision == "20260811_0007",
-    )
+    return diagnostic_summary(session)
 
 
-@router.get("/diagnostics", response_model=AdminDiagnosticsContract)
+@router.get("/diagnostics")
 def diagnostics(
     session: Session = Depends(get_runtime_session),
-    _actor: ActorContext = Depends(require_admin("admin.system.diagnostics")),
+    _actor: ActorContext = Depends(require_admin("admin.diagnostics.read")),
 ):
-    return system_status(session=session, _actor=_actor)
+    return diagnostic_summary(session)
 
 
 @router.get("/access/status", response_model=AdminAccessStateContract)
