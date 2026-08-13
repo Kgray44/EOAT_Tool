@@ -146,7 +146,7 @@ export const adminApi = {
     rehearsalIdentity = identity;
     return body;
   },
-  assets: (kind: "eoats" | "machines" | "tools", search = "") => adminFetch<{ items: AdminRecord[] }>(`/api/v1/admin/data/${kind}?search=${encodeURIComponent(search)}`),
+  assets: (kind: "eoats" | "machines" | "tools", search = "", includeArchived = false) => adminFetch<{ items: AdminRecord[] }>(`/api/v1/admin/data/${kind}?search=${encodeURIComponent(search)}${includeArchived ? "&include_archived=true" : ""}`),
   lookup: (lookupType: string) => adminFetch<Array<{ code: string; display_name: string }>>(`/api/v1/lookups/${encodeURIComponent(lookupType)}`),
   previewAsset: (kind: string, identifier: string, payload: Record<string, AuditValue>) => adminPost<{ changed_fields: string[]; before: Record<string, AuditValue>; after: Record<string, AuditValue> }>(`/api/v1/admin/data/${kind}/${encodeURIComponent(identifier)}/preview`, payload),
   updateAsset: (kind: string, identifier: string, payload: Record<string, AuditValue>, correction = false) => adminWrite<AdminMutationSuccess>(`/api/v1/admin/data/${kind}/${encodeURIComponent(identifier)}${correction ? "/correction" : ""}`, payload),
