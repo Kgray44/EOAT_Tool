@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -80,6 +82,74 @@ def seed_records():
             )
         )
     return identifiers, setting_key, secret_setting_key, bulk_status
+
+
+@pytest.fixture(scope="module")
+def governed_records():
+    """Namespaced real-MySQL records covering each Phase 3 mutation service."""
+    factory = create_session_factory(migration=True)
+    values = {
+        "eoat": f"P3-GOV-{RUN}",
+        "machine": f"P3-M-{RUN}",
+        "tool": f"P3-T-{RUN}",
+        "document_number": f"P3-DOC-{RUN}",
+    }
+    with factory() as session, session.begin():
+        plant = db.Plant(plant_code=f"P3-{RUN}", plant_name="Phase 3 governed-editing plant", source_system="integration_test")
+        document_type = db.DocumentType(code=f"p3-{RUN}-document", display_name="Phase 3 acceptance document")
+        compatibility = db.CompatibilityStatus(code=f"p3-{RUN}-compatible", display_name="Phase 3 compatible")
+        bulk_status = db.AssetStatus(code=f"p3-{RUN}-bulk", display_name="Phase 3 bulk target")
+        session.add_all([plant, document_type, compatibility, bulk_status])
+        session.flush()
+        session.add_all(
+            [
+                db.EOAT(business_identifier=values["eoat"], display_name="Governed before", source_system="integration_test"),
+                db.Machine(
+                    plant_id=plant.id,
+                    machine_number=values["machine"],
+                    machine_name="Governed machine before",
+                    source_system="integration_test",
+                ),
+                db.Tool(
+                    business_identifier=values["tool"],
+                    tool_number=f"P3-TN-{RUN}",
+                    display_name="Governed tool before",
+                    source_system="integration_test",
+                ),
+            ]
+        )
+        document = db.Document(
+            document_uuid=str(uuid4()),
+            document_type_id=document_type.id,
+            document_number=values["document_number"],
+            title="Governed document before",
+            file_name="phase3-acceptance.txt",
+            storage_path="acceptance://phase3/governed-document",
+            source_system="integration_test",
+        )
+        photo_document = db.Document(
+            document_uuid=str(uuid4()),
+            document_type_id=document_type.id,
+            title="Governed photo before",
+            file_name="phase3-acceptance-photo.jpg",
+            storage_path="acceptance://phase3/governed-photo",
+            source_system="integration_test",
+        )
+        session.add_all([document, photo_document])
+        session.flush()
+        photo = db.Photo(document_id=photo_document.id, caption="Photo before", photo_view_type="overview")
+        session.add(photo)
+        session.flush()
+        values.update(
+            {
+                "compatibility_status": compatibility.code,
+                "bulk_status": bulk_status.code,
+                "document_id": document.id,
+                "photo_id": photo.id,
+                "photo_document_id": photo_document.id,
+            }
+        )
+    return values
 
 
 @pytest.fixture
@@ -179,8 +249,12 @@ def test_phase3_bulk_and_settings_are_atomic_and_audited(api, seed_records):
     with create_session_factory(migration=True)() as session:
         event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == secret_changed.json()["audit_event_id"]))
         assert event is not None
-        assert synthetic_secret not in str(event.before_state_json)
-        assert synthetic_secret not in str(event.after_state_json)
+        changes = session.scalars(select(db.AuditChange).where(db.AuditChange.audit_event_id == event.event_id)).all()
+        assert synthetic_secret not in json.dumps(
+            {"before": event.before_state_json, "after": event.after_state_json, "metadata": event.metadata_json, "changes": [(value.before_value_json, value.after_value_json) for value in changes]}
+        )
+    secret_listing = client.get("/api/v1/admin/settings")
+    assert secret_listing.status_code == 200 and synthetic_secret not in secret_listing.text
 
 
 def test_phase3_rejects_actor_forgery_and_allows_controlled_session_revocation(api, seed_records):
@@ -214,6 +288,8 @@ def test_phase3_rejects_actor_forgery_and_allows_controlled_session_revocation(a
     )
     assert revoked.status_code == 200, revoked.text
     assert revoked.json()["audit_event_id"]
+    denied_after_revoke = client.get("/api/v1/admin/data/eoats")
+    assert denied_after_revoke.status_code == 401
 
 
 def test_phase3_required_audit_failure_rolls_back_business_mutation(api, seed_records, monkeypatch):
@@ -256,3 +332,361 @@ def test_phase3_capability_denial_leaves_authoritative_data_unchanged(seed_recor
     with create_session_factory(migration=True)() as session:
         record = session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier))
         assert record is not None and record.display_name != "Viewer must not change"
+
+
+def test_phase3_eoat_edit_correction_lifecycle_and_idempotency_are_real_mysql_audited(api, governed_records):
+    client, csrf, _session_reference = api
+    identifier = governed_records["eoat"]
+    initial = client.get(f"/api/v1/admin/data/eoats/{identifier}")
+    assert initial.status_code == 200
+    before_version = initial.json()["row_version"]
+
+    update_key = f"p3-governed-eoat-update-{RUN}"
+    update_payload = {
+        "display_name": "Governed one-field edit",
+        "description": "Two material fields are deliberately committed together.",
+        "expected_row_version": before_version,
+    }
+    updated = client.patch(
+        f"/api/v1/admin/data/eoats/{identifier}", json=update_payload, headers={**csrf, "Idempotency-Key": update_key}
+    )
+    assert updated.status_code == 200, updated.text
+    replay = client.patch(
+        f"/api/v1/admin/data/eoats/{identifier}", json=update_payload, headers={**csrf, "Idempotency-Key": update_key}
+    )
+    assert replay.status_code == 200
+    assert replay.json()["audit_event_id"] == updated.json()["audit_event_id"]
+    assert replay.json()["idempotent_replay"] is True
+    event_id = updated.json()["audit_event_id"]
+    with create_session_factory(migration=True)() as session:
+        event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == event_id))
+        assert event is not None
+        assert event.action == "UPDATE" and event.actor_directory_name == "dev.admin"
+        assert event.before_state_json["display_name"] == "Governed before"
+        assert event.after_state_json["display_name"] == "Governed one-field edit"
+        assert {"display_name", "description"}.issubset(event.changed_fields_json)
+        assert event.request_id and event.correlation_id and event.correlation_id == event.request_id
+        assert session.scalars(select(db.AuditChange).where(db.AuditChange.audit_event_id == event_id)).all()
+
+    stale = client.patch(
+        f"/api/v1/admin/data/eoats/{identifier}",
+        json={"display_name": "stale write", "expected_row_version": before_version},
+        headers={**csrf, "Idempotency-Key": f"p3-governed-eoat-stale-{RUN}"},
+    )
+    assert stale.status_code == 409
+    invalid = client.patch(
+        f"/api/v1/admin/data/eoats/{identifier}",
+        json={"number_of_parts_picked": -1, "expected_row_version": updated.json()["record"]["row_version"]},
+        headers={**csrf, "Idempotency-Key": f"p3-governed-eoat-invalid-{RUN}"},
+    )
+    assert invalid.status_code == 422
+
+    spoofed = client.patch(
+        f"/api/v1/admin/data/eoats/{identifier}",
+        json={"notes": "Server-derived actor remains authoritative", "expected_row_version": updated.json()["record"]["row_version"]},
+        headers={
+            **csrf,
+            "Idempotency-Key": f"p3-governed-eoat-spoofed-headers-{RUN}",
+            "X-EOAT-Identity": "dev.viewer",
+            "X-EOAT-Role": "VIEWER",
+            "X-EOAT-Administrator": "false",
+        },
+    )
+    assert spoofed.status_code == 200
+    with create_session_factory(migration=True)() as session:
+        spoofed_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == spoofed.json()["audit_event_id"]))
+        assert spoofed_event is not None and spoofed_event.actor_directory_name == "dev.admin"
+
+    correction = client.patch(
+        f"/api/v1/admin/data/eoats/{identifier}/correction",
+        json={
+            "display_name": "Governed corrected value",
+            "expected_row_version": spoofed.json()["record"]["row_version"],
+            "reason": "Correct synthetic acceptance value",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-governed-eoat-correction-{RUN}"},
+    )
+    assert correction.status_code == 200, correction.text
+    archived = client.post(
+        f"/api/v1/admin/data/eoats/{identifier}/archive",
+        json={
+            "expected_row_version": correction.json()["record"]["row_version"],
+            "reason": "Archive governed acceptance EOAT",
+            "confirmation": f"ARCHIVE {identifier}",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-governed-eoat-archive-{RUN}"},
+    )
+    assert archived.status_code == 200 and archived.json()["record"]["is_active"] is False
+    restored = client.post(
+        f"/api/v1/admin/data/eoats/{identifier}/restore",
+        json={
+            "expected_row_version": archived.json()["record"]["row_version"],
+            "reason": "Restore governed acceptance EOAT",
+            "confirmation": f"RESTORE {identifier}",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-governed-eoat-restore-{RUN}"},
+    )
+    assert restored.status_code == 200 and restored.json()["record"]["is_active"] is True
+    with create_session_factory(migration=True)() as session:
+        original = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == event_id))
+        correction_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == correction.json()["audit_event_id"]))
+        archive_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == archived.json()["audit_event_id"]))
+        restore_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == restored.json()["audit_event_id"]))
+        assert original is not None and original.after_state_json["display_name"] == "Governed one-field edit"
+        assert correction_event is not None and correction_event.action == "CORRECTION"
+        assert correction_event.reason_or_note == "Correct synthetic acceptance value"
+        assert archive_event is not None and archive_event.action == "ARCHIVE"
+        assert restore_event is not None and restore_event.action == "RESTORE"
+
+
+def test_phase3_machine_and_tool_mutations_validate_conflicts_and_audit(api, governed_records):
+    client, csrf, _session_reference = api
+    matrix = (("machines", governed_records["machine"], "machine_name", "Governed machine after", "press_capacity_tons"), ("tools", governed_records["tool"], "display_name", "Governed tool after", "cavity_count"))
+    for kind, identifier, field, value, invalid_field in matrix:
+        current = client.get(f"/api/v1/admin/data/{kind}/{identifier}")
+        assert current.status_code == 200
+        version = current.json()["row_version"]
+        changed = client.patch(
+            f"/api/v1/admin/data/{kind}/{identifier}",
+            json={field: value, "expected_row_version": version},
+            headers={**csrf, "Idempotency-Key": f"p3-{kind}-update-{RUN}"},
+        )
+        assert changed.status_code == 200, changed.text
+        stale = client.patch(
+            f"/api/v1/admin/data/{kind}/{identifier}",
+            json={field: "stale", "expected_row_version": version},
+            headers={**csrf, "Idempotency-Key": f"p3-{kind}-stale-{RUN}"},
+        )
+        assert stale.status_code == 409
+        invalid = client.patch(
+            f"/api/v1/admin/data/{kind}/{identifier}",
+            json={invalid_field: -1, "expected_row_version": changed.json()["record"]["row_version"]},
+            headers={**csrf, "Idempotency-Key": f"p3-{kind}-invalid-{RUN}"},
+        )
+        assert invalid.status_code == 422
+        with create_session_factory(migration=True)() as session:
+            event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == changed.json()["audit_event_id"]))
+            assert event is not None and event.action == "UPDATE" and field in event.changed_fields_json
+
+
+def test_phase3_relationship_link_rejection_and_unlink_are_audited(api, governed_records):
+    client, csrf, _session_reference = api
+    effective_from = datetime.now(timezone.utc).isoformat()
+    payload = {
+        "eoat_identifier": governed_records["eoat"],
+        "machine_number": governed_records["machine"],
+        "compatibility_status": governed_records["compatibility_status"],
+        "effective_from": effective_from,
+        "attributes": {"connection_compatible": True},
+        "reason": "Link only server-resolved identifiers",
+        "confirmation": "LINK eoat-machine",
+    }
+    linked = client.post(
+        "/api/v1/admin/data/relationships/eoat-machine",
+        json=payload,
+        headers={**csrf, "Idempotency-Key": f"p3-relationship-link-{RUN}"},
+    )
+    assert linked.status_code == 200, linked.text
+    relationship = linked.json()["record"]
+    assert relationship["eoat_id"] and relationship["machine_id"]
+    duplicate = client.post(
+        "/api/v1/admin/data/relationships/eoat-machine",
+        json=payload,
+        headers={**csrf, "Idempotency-Key": f"p3-relationship-duplicate-{RUN}"},
+    )
+    assert duplicate.status_code == 409 and duplicate.json()["error_code"] == "DUPLICATE_ACTIVE_RELATIONSHIP"
+    invalid_selector = client.post(
+        "/api/v1/admin/data/relationships/eoat-tool",
+        json={
+            "eoat_identifier": governed_records["eoat"],
+            "tool_identifier": "not-a-server-resolved-tool",
+            "compatibility_status": governed_records["compatibility_status"],
+            "effective_from": effective_from,
+            "confirmation": "LINK eoat-tool",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-relationship-selector-{RUN}"},
+    )
+    assert invalid_selector.status_code == 404
+    invalid_compatibility = client.post(
+        "/api/v1/admin/data/relationships/eoat-tool",
+        json={
+            "eoat_identifier": governed_records["eoat"],
+            "tool_identifier": governed_records["tool"],
+            "compatibility_status": "free-text-compatibility-bypass",
+            "effective_from": effective_from,
+            "confirmation": "LINK eoat-tool",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-relationship-compatibility-{RUN}"},
+    )
+    assert invalid_compatibility.status_code == 422
+    unlinked = client.post(
+        f"/api/v1/admin/data/relationships/eoat-machine/{relationship['id']}/unlink",
+        json={
+            "expected_row_version": relationship["row_version"],
+            "reason": "Unlink governed acceptance relationship",
+            "confirmation": f"UNLINK eoat-machine:{relationship['id']}",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-relationship-unlink-{RUN}"},
+    )
+    assert unlinked.status_code == 200 and unlinked.json()["record"]["is_active"] is False
+    with create_session_factory(migration=True)() as session:
+        link_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == linked.json()["audit_event_id"]))
+        unlink_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == unlinked.json()["audit_event_id"]))
+        assert link_event is not None and link_event.action == "LINK"
+        assert unlink_event is not None and unlink_event.action == "UNLINK"
+
+
+def test_phase3_document_and_photo_metadata_archive_are_safe_and_audited(api, governed_records):
+    client, csrf, _session_reference = api
+    document = client.get(f"/api/v1/admin/documents/{governed_records['document_id']}")
+    assert document.status_code == 200 and "storage_path" not in document.text
+    changed = client.patch(
+        f"/api/v1/admin/documents/{governed_records['document_id']}",
+        json={"title": "Governed document after", "revision": "P3-R2", "expected_row_version": document.json()["row_version"]},
+        headers={**csrf, "Idempotency-Key": f"p3-document-update-{RUN}"},
+    )
+    assert changed.status_code == 200 and "storage_path" not in changed.text
+    archived = client.post(
+        f"/api/v1/admin/documents/{governed_records['document_id']}/archive",
+        json={
+            "expected_row_version": changed.json()["record"]["row_version"],
+            "reason": "Archive governed document",
+            "confirmation": f"ARCHIVE DOCUMENT {governed_records['document_id']}",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-document-archive-{RUN}"},
+    )
+    assert archived.status_code == 200 and archived.json()["record"]["is_active"] is False
+    photos = client.get("/api/v1/admin/photos")
+    photo = next(item for item in photos.json()["items"] if item["photo"]["id"] == governed_records["photo_id"])
+    photo_changed = client.patch(
+        f"/api/v1/admin/photos/{governed_records['photo_id']}",
+        json={"caption": "Governed photo after", "expected_row_version": photo["row_version"]},
+        headers={**csrf, "Idempotency-Key": f"p3-photo-update-{RUN}"},
+    )
+    assert photo_changed.status_code == 200 and "storage_path" not in photo_changed.text
+    photo_archived = client.post(
+        f"/api/v1/admin/photos/{governed_records['photo_id']}/archive",
+        json={
+            "expected_row_version": photo_changed.json()["record"]["document"]["row_version"],
+            "reason": "Archive governed photo",
+            "confirmation": f"ARCHIVE PHOTO {governed_records['photo_id']}",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-photo-archive-{RUN}"},
+    )
+    assert photo_archived.status_code == 200 and photo_archived.json()["record"]["document"]["is_active"] is False
+    with create_session_factory(migration=True)() as session:
+        document_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == changed.json()["audit_event_id"]))
+        document_archive = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == archived.json()["audit_event_id"]))
+        photo_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == photo_changed.json()["audit_event_id"]))
+        photo_archive = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == photo_archived.json()["audit_event_id"]))
+        assert document_event is not None and document_event.action == "METADATA_CHANGE"
+        assert document_archive is not None and document_archive.action == "ARCHIVE"
+        assert photo_event is not None and photo_event.action == "METADATA_CHANGE"
+        assert photo_archive is not None and photo_archive.action == "PHOTO_ARCHIVE"
+
+
+def test_phase3_bulk_preview_rejection_commit_and_correlated_ledger_evidence(api, seed_records, governed_records):
+    client, csrf, _session_reference = api
+    target_one, target_two = governed_records["eoat"], seed_records[0][1]
+    records = {identifier: client.get(f"/api/v1/admin/data/eoats/{identifier}").json() for identifier in (target_one, target_two)}
+    versions = {identifier: records[identifier]["row_version"] for identifier in records}
+    preview = client.post(
+        "/api/v1/admin/data/eoats/bulk-status/preview",
+        json={"identifiers": [target_one, target_two], "status": governed_records["bulk_status"], "expected_versions": versions},
+    )
+    assert preview.status_code == 200 and preview.json()["count"] == 2 and preview.json()["atomic"] is True
+    assert {row["identifier"] for row in preview.json()["records"]} == {target_one, target_two}
+    zero_target = client.post(
+        "/api/v1/admin/data/eoats/bulk-status/preview",
+        json={"identifiers": [], "status": governed_records["bulk_status"], "expected_versions": {}},
+    )
+    assert zero_target.status_code == 422
+    invalid_target = client.post(
+        "/api/v1/admin/data/eoats/bulk-status/commit",
+        json={
+            "identifiers": [target_one, "not-a-real-bulk-target"],
+            "status": governed_records["bulk_status"],
+            "expected_versions": {target_one: versions[target_one], "not-a-real-bulk-target": 1},
+            "reason": "Invalid bulk target must be atomic",
+            "confirmation": "BULK STATUS 2",
+        },
+        headers={**csrf, "Idempotency-Key": f"p3-bulk-invalid-{RUN}"},
+    )
+    assert invalid_target.status_code == 404
+    unchanged = client.get(f"/api/v1/admin/data/eoats/{target_one}").json()
+    assert unchanged["row_version"] == versions[target_one]
+    key = f"p3-bulk-commit-{RUN}"
+    committed = client.post(
+        "/api/v1/admin/data/eoats/bulk-status/commit",
+        json={
+            "identifiers": [target_one, target_two],
+            "status": governed_records["bulk_status"],
+            "expected_versions": versions,
+            "reason": "Bulk status acceptance commit",
+            "confirmation": "BULK STATUS 2",
+        },
+        headers={**csrf, "Idempotency-Key": key},
+    )
+    assert committed.status_code == 200, committed.text
+    assert committed.json()["affected_count"] == 2 and committed.json()["failed_count"] == 0 and committed.json()["atomic"] is True
+    replay = client.post(
+        "/api/v1/admin/data/eoats/bulk-status/commit",
+        json={
+            "identifiers": [target_one, target_two],
+            "status": governed_records["bulk_status"],
+            "expected_versions": versions,
+            "reason": "Bulk status acceptance commit",
+            "confirmation": "BULK STATUS 2",
+        },
+        headers={**csrf, "Idempotency-Key": key},
+    )
+    assert replay.status_code == 200 and replay.json()["idempotent_replay"] is True
+    correlation_id = committed.json()["correlation_id"]
+    with create_session_factory(migration=True)() as session:
+        events = session.scalars(select(db.AuditEvent).where(db.AuditEvent.correlation_id == correlation_id)).all()
+        actions = [event.action for event in events]
+        assert actions.count("STATUS_CHANGE") == 2 and actions.count("BULK_OPERATION") == 1
+        parent = next(event for event in events if event.action == "BULK_OPERATION")
+        assert parent.after_state_json == {"count": 2, "status": governed_records["bulk_status"]}
+
+
+def test_phase3_settings_and_development_role_mapping_are_governed(api, seed_records):
+    client, csrf, _session_reference = api
+    setting_key = seed_records[1]
+    setting = next(value for value in client.get("/api/v1/admin/settings").json()["items"] if value["key"] == setting_key)
+    changed = client.patch(
+        f"/api/v1/admin/settings/{setting_key}",
+        json={"value": False, "expected_row_version": setting["row_version"], "reason": "Safe non-secret setting acceptance"},
+        headers={**csrf, "Idempotency-Key": f"p3-setting-safe-{RUN}"},
+    )
+    assert changed.status_code == 200 and changed.json()["setting"]["value"] is False
+    mappings = client.get("/api/v1/admin/access/test-mappings")
+    assert mappings.status_code == 200
+    viewer = next(value for value in mappings.json()["items"] if value["identity"] == "dev.viewer" and value["environment"] == "development")
+    mapping_changed = client.patch(
+        "/api/v1/admin/access/test-mappings/dev.viewer",
+        json={"role_code": "ADMIN_AUDITOR", "expected_row_version": viewer["row_version"], "reason": "Development-only role rehearsal"},
+        headers={**csrf, "Idempotency-Key": f"p3-mapping-valid-{RUN}"},
+    )
+    assert mapping_changed.status_code == 200 and mapping_changed.json()["mapping"]["role_code"] == "ADMIN_AUDITOR"
+    invalid_role = client.patch(
+        "/api/v1/admin/access/test-mappings/dev.viewer",
+        json={"role_code": "PRODUCTION_DIRECTORY_ADMIN", "expected_row_version": mapping_changed.json()["mapping"]["row_version"], "reason": "Must reject invalid role"},
+        headers={**csrf, "Idempotency-Key": f"p3-mapping-invalid-{RUN}"},
+    )
+    assert invalid_role.status_code == 422
+    with TestClient(app, raise_server_exceptions=False) as viewer_client:
+        login = viewer_client.post("/api/v1/admin/session/rehearsal", json={"identity": "dev.viewer", "rehearsal_secret": REHEARSAL_SECRET})
+        assert login.status_code == 200
+        denied = viewer_client.patch(
+            f"/api/v1/admin/settings/{setting_key}",
+            json={"value": True, "expected_row_version": changed.json()["setting"]["row_version"], "reason": "Auditor must not edit settings"},
+            headers={"X-EOAT-CSRF-Token": login.json()["csrf_token"], "Idempotency-Key": f"p3-mapping-denied-{RUN}"},
+        )
+        assert denied.status_code == 403
+    with create_session_factory(migration=True)() as session:
+        setting_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == changed.json()["audit_event_id"]))
+        mapping_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == mapping_changed.json()["audit_event_id"]))
+        assert setting_event is not None and setting_event.action == "SETTINGS_CHANGE"
+        assert setting_event.before_state_json == {"value": True} and setting_event.after_state_json == {"value": False}
+        assert mapping_event is not None and mapping_event.action == "ROLE_MAPPING_CHANGE"

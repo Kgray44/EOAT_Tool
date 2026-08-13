@@ -15,22 +15,20 @@ from ..write_services import (
     COMPATIBILITY_CONFIG,
     _asset_values,
     _entity_by_identifier,
-    audit_change,
+    archive_compatibility,
     check_version,
     public_record,
     record_dict,
     set_asset_archived,
     update_asset,
-    write_compatibility,
-    archive_compatibility,
     update_document,
     update_photo,
+    write_compatibility,
 )
 from .diffing import material_diff
 from .redaction import redact
 from .service import AuditEventWriter
 from .taxonomy import AuditAction, AuditSource
-
 
 SAFE_DOCUMENT_FIELDS = {
     "document_number",
@@ -134,7 +132,7 @@ def update_document_governed(
         correlation_id=actor.request_id,
         governed_action=AuditAction.ARCHIVE if archive else AuditAction.METADATA_CHANGE,
     )
-    return mutation_success(safe_record(record), audit_event_for_request(session, actor), actor)
+    return mutation_success(safe_view(record), audit_event_for_request(session, actor), actor)
 
 
 def list_photos(session: Session, include_archived: bool) -> list[dict[str, Any]]:
