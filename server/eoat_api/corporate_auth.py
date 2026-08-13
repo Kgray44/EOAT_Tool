@@ -13,6 +13,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from .database import models as db
+
 SUPPORTED_PROVIDERS = frozenset({"kerberos_form"})
 
 _REQUIRED_CONFIGURATION = {
@@ -36,6 +41,9 @@ class CorporateProviderState:
     administrator_group_mapping_configured: bool
     missing_configuration_names: tuple[str, ...]
     detail: str
+
+
+ADMINISTRATOR_GROUP_IDENTIFIER = "CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com"
 
 
 def _configured(value: str) -> bool:
@@ -89,3 +97,24 @@ def corporate_provider_state(environment: dict[str, str] | None = None) -> Corpo
         missing_configuration_names=(),
         detail="Approved Kerberos-form LDAP configuration is present; provider and persisted role-mapping readiness still require verification.",
     )
+
+
+def administrator_group_mapping_configured(session: Session) -> bool:
+    """Check the approved mapping without returning its group identifier.
+
+    This deliberate exact-match query makes authorization derive from the
+    persisted mapping store rather than from a browser assertion or an
+    environment variable.  Database errors are allowed to propagate to the
+    caller so it can fail closed instead of declaring the mapping available.
+    """
+
+    row = session.scalar(
+        select(db.ExternalGroupRoleMapping.id).where(
+            db.ExternalGroupRoleMapping.provider == "kerberos_form",
+            db.ExternalGroupRoleMapping.external_group_identifier == ADMINISTRATOR_GROUP_IDENTIFIER,
+            db.ExternalGroupRoleMapping.role_code == "ADMINISTRATOR",
+            db.ExternalGroupRoleMapping.explicit_deny.is_(False),
+            db.ExternalGroupRoleMapping.is_active.is_(True),
+        )
+    )
+    return row is not None

@@ -12,7 +12,8 @@ new corporate-authentication standard.**
 | Current Phase 5 baseline repository | Contains only the rehearsal secret, local identities, and local session configuration; it contains no LDAPS/SAML endpoint, metadata, trust chain, or Administrator group mapping. | Directly verified.  No enterprise provider selected. |
 | Current server service configuration | The installed service declares `kerberos_form` with application scope and Kerberos configuration.  The inspection intentionally did not read secret values. | Directly verified current implementation and configuration standard. |
 | Historical provider-neutral worktree | A separate later worktree contains LDAPS/SAML adapters marked unselected and a Kerberos-form implementation. | Historical/supporting context only; not merged into this accepted Phase 4 baseline and not provider approval. |
-| Explicit IT approval | IT approved LDAP and identified the current `kerberos_form` server configuration as Phase E approval and the new standard.  The existing Administrator group remains server-side mapping data. | Authoritative 2026-08-13 user-supplied IT decision.  It replaces the prior pending-provider conclusion. |
+| Existing Administrator mapping | `kerberos_form` maps `CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com` to `ADMINISTRATOR` as one active persisted mapping. | Previously verified server-side evidence; the identifier is configuration authority only and is never returned to a browser client. |
+| Explicit IT approval | IT approved LDAP and identified the current `kerberos_form` server configuration as Phase E approval and the new standard. | Authoritative 2026-08-13 user-supplied IT decision.  It replaces the prior pending-provider conclusion. |
 
 ## Directly verified safe configuration facts
 
@@ -36,9 +37,10 @@ new corporate-authentication standard.**
   logs, audit data, or browser storage.
 * Query LDAP using the Kerberos-authenticated SASL/GSSAPI channel and enforce
   the configured security floor.
-* Resolve the existing persisted Administrator mapping server-side.  Do not
-  copy its group identifier to browser claims or public diagnostics, and do not
-  replace it with a guessed group.
+* Resolve the existing persisted Administrator mapping server-side.  Its
+  authority identifier is `CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com`;
+  do not copy it to browser claims or public diagnostics, and do not replace it
+  with a guessed group.
 * Retain the local rehearsal path only for development/staging-local tests.
 
 ## Consequence

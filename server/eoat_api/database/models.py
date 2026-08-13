@@ -179,6 +179,21 @@ class DevelopmentIdentityMapping(VersionMixin, Base):
     role_code: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
+class ExternalGroupRoleMapping(TimestampMixin, Base):
+    """Server-side corporate directory group to application-role mapping."""
+
+    __tablename__ = "external_group_role_mappings"
+    __table_args__ = (
+        UniqueConstraint("provider", "external_group_identifier", "role_code", name="uq_external_group_role"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    external_group_identifier: Mapped[str] = mapped_column(String(512), nullable=False)
+    role_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    explicit_deny: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
+
+
 class AdminRehearsalSession(Base):
     """Opaque server-side session used only by Phase 3 local/test admin mutations."""
 

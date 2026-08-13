@@ -8,8 +8,10 @@ private keys, session cookies, or token values in this file.
 * Approved provider: `kerberos_form` using the existing Kerberos-authenticated
   LDAP/SASL-GSSAPI server configuration.
 * Authority source: IT approval communicated on 2026-08-13.
-* Existing approved Administrator directory mapping: persisted server-side;
-  neither its identifier nor membership data belongs in this document.
+* Existing approved Administrator directory mapping:
+  `CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com` maps to
+  `ADMINISTRATOR` in the persisted server-side mapping store.  Membership data
+  never belongs in this document or a browser response.
 * Explicit Viewer, Technician, and Engineer mapping rules, if any.
 * Stable immutable subject attribute/claim and the supported login format.
 * Approved real Administrator and real non-admin acceptance identities.

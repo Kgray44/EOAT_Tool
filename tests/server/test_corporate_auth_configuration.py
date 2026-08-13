@@ -1,4 +1,8 @@
-from server.eoat_api.corporate_auth import corporate_provider_state
+from server.eoat_api.corporate_auth import ADMINISTRATOR_GROUP_IDENTIFIER, corporate_provider_state
+
+
+def test_administrator_group_identifier_is_the_approved_persisted_mapping_key():
+    assert ADMINISTRATOR_GROUP_IDENTIFIER == "CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com"
 
 
 def test_unselected_provider_fails_closed_without_claiming_rehearsal_is_enterprise_authentication():

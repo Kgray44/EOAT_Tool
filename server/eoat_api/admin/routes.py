@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from ..corporate_auth import corporate_provider_state
+from ..corporate_auth import administrator_group_mapping_configured, corporate_provider_state
 from ..database.session import get_runtime_session
 from ..security import ActorContext, require_admin
 from ..services import API_VERSION, AtlasService
@@ -101,11 +101,18 @@ def diagnostics(
 
 
 @router.get("/access/status", response_model=AdminAccessStateContract)
-def access_status(_actor: ActorContext = Depends(require_admin("admin.area.view"))):
+def access_status(
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin("admin.area.view")),
+):
     provider = corporate_provider_state()
+    try:
+        mapping_configured = administrator_group_mapping_configured(session)
+    except Exception:
+        mapping_configured = False
     return AdminAccessStateContract(
         authentication_provider=provider.provider,
-        administrator_group_mapping_configured=provider.administrator_group_mapping_configured,
+        administrator_group_mapping_configured=mapping_configured,
         status=provider.state.casefold(),
     )
 
