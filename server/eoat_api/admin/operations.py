@@ -55,12 +55,27 @@ def operation_ledger_writable(session: Session) -> bool:
         grants = [str(row[0]).upper() for row in session.execute(text("SHOW GRANTS FOR CURRENT_USER"))]
     except SQLAlchemyError:
         return False
-    required = ("INSERT", "UPDATE", "DELETE")
+
+    # The application deliberately has no schema-wide write grant.  Keep this
+    # check aligned with the narrow table privileges required by the owned
+    # Phase 4 flows instead of accepting an unrelated broad DML grant.
+    required = {
+        "ADMIN_DANGER_STEP_UPS": {"INSERT"},
+        "ADMIN_OPERATIONS": {"INSERT", "UPDATE"},
+        "ADMIN_OPERATION_FIXTURES": {"INSERT", "DELETE"},
+    }
+    granted = {table: set() for table in required}
     for grant in grants:
-        applies_to_ledger = "`ADMIN_OPERATIONS`" in grant or "`EOAT_ATLAS_TEST`.*" in grant
-        if applies_to_ledger and all(permission in grant for permission in required):
-            return True
-    return False
+        privilege_clause, _, target_clause = grant.partition(" ON ")
+        if not target_clause:
+            continue
+        permissions = {part.strip() for part in privilege_clause.removeprefix("GRANT ").split(",")}
+        if "ALL PRIVILEGES" in permissions:
+            permissions = {"INSERT", "UPDATE", "DELETE"}
+        for table in required:
+            if f"`EOAT_ATLAS_TEST`.`{table}`" in target_clause:
+                granted[table].update(permissions)
+    return all(required[table].issubset(granted[table]) for table in required)
 
 
 def require_operation_ledger(session: Session) -> None:

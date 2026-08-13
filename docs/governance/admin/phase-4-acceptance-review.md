@@ -4,49 +4,67 @@ Date: 2026-08-13
 Branch: `feature/admin-phase4-danger-operations`  
 Baseline: `eed879b5ce1d5840ce76bc81bbf31ed62ce443ce`
 
+## Privilege repair and scope proof
+
+The existing test runtime identity retained its prior read access and received
+only these additional table permissions in `eoat_atlas_test`:
+
+| Table                      | Additional DML     | Exercised live                                 |
+| -------------------------- | ------------------ | ---------------------------------------------- |
+| `admin_danger_step_ups`    | `INSERT`           | Yes: scoped step-up creation.                  |
+| `admin_operations`         | `INSERT`, `UPDATE` | Yes: integrity and Danger operation lifecycle. |
+| `admin_operation_fixtures` | `INSERT`, `DELETE` | Yes: bounded test-fixture recovery.            |
+
+`DELETE` is present only because the owned recovery rehearsal deletes an exact
+test-fixture namespace. It is absent from operation and audit evidence tables.
+Direct runtime SQL exercised the approved DML and rejected audit-table update,
+test-schema DDL, production-schema read, and `GRANT`. The diagnostics guard
+now verifies this exact three-table privilege shape and fails closed if it is
+not available.
+
 ## Passed evidence
 
-- The Phase 4 migration applied to `eoat_atlas_test`. The pre-Phase-4
-  recovery artifact was actually restored to `0007`; the three tables not
-  present in that predecessor artifact were then removed in exact dependency
-  order and the forward migration ended at `20260813_0008` with the expected
-  three tables. A fresh `0008` artifact was checksum-verified, restored, and
-  verified at the same revision with all three tables present.
-- `python -m compileall -q server` passed. In-process OpenAPI generation found
-  all six required Phase 4 operation routes.
-- Web generated types were refreshed. `pnpm typecheck`, `pnpm lint`, and
-  `pnpm test` passed (47 tests).
-- Existing Phase 2/3 server and real-MySQL governed-editing regression subset
-  passed (26 tests). The only warning was the existing FastAPI TestClient
-  deprecation warning.
-- Real runtime Audit CSV, JSON, and support exports passed when bounded by the
-  login request ID. Their audit manifests/checksums were returned; a synthetic
-  secret marker was absent from both export and support evidence, and
-  anonymous/viewer requests were denied. The clean `0008` recovery point was
-  restored afterward.
-- The diagnostics API proved independent state: database, schema, and audit
-  remained healthy while only the unavailable operation ledger was shown as
-  failed. Web checks passed: 47 Vitest and 10 mocked Playwright scenarios.
-- The code contains no production deployment, production DB access, browser
-  backup/restore command, NGINX, LDAP/AD, secret, or arbitrary administration
-  capability.
+- Real MySQL Phase 4 integration and failure-mode tests passed with the normal
+  runtime identity. The successful operation persisted its evidence and
+  removed only named disposable `phase4-...` fixtures.
+- The failure matrix passed live CSRF, namespace, bad step-up, missing
+  idempotency key, no-step-up, revoked newest step-up, target-drift, and
+  conflicting-operation denial paths. The revocation test found and corrected
+  a fallback-to-older-proof defect before this decision.
+- The recovery metadata unit test passed missing hash, incorrect revision,
+  modified artifact, and stale artifact cases. The clean `0008` artifact was
+  hash-verified, restored with an explicit `eoat_atlas_test` target, and
+  verified at `20260813_0008` with all three tables and zero Phase 4 rows.
+- A real browser session used the local Vite/API pair backed by MySQL to start
+  a governed session, perform a scoped step-up, obtain a server preview with
+  all required preconditions, type the confirmation, and complete deletion of
+  exactly one disposable fixture. Mobile (375x812) and tablet (768x1024)
+  checks preserved the live operation state.
+- Local HTTP observations were all below one second: diagnostics 567.1 ms,
+  integrity 558.9 ms, bounded audit export 435.5 ms, and support bundle
+  625.4 ms. An unbounded audit export correctly remained rejected with
+  `EXPORT_SCOPE_TOO_LARGE`.
+- `python -m compileall -q server` and the focused Phase 2/3/4 real-MySQL
+  regression suite passed: 30 tests. The only warning was the existing
+  FastAPI TestClient deprecation warning.
+- OpenAPI generation/check, TypeScript, ESLint, Vitest (47 tests), production
+  build, and Playwright (10 tests) passed. The build retained its existing
+  chunk-size advisory only.
+- No production database, production migration, deployment, NGINX, LDAP/AD,
+  external MySQL privilege, secret disclosure, or browser backup/restore
+  capability was introduced.
 
-## Blocking evidence
+## Cleanup evidence
 
-The committed Phase 4 real-MySQL operation acceptance test seeded two disposable
-`phase4-...` rows with the migrator, then opened the normal runtime API path.
-Diagnostics returned 200. The first integrity scan correctly failed closed
-with `503 OPERATION_LEDGER_UNAVAILABLE`: grant inspection showed that the
-isolated runtime principal cannot persist the required operation evidence.
-
-The two disposable fixture rows were deleted immediately by exact namespace
-using the migrator session; verification found zero remaining rows. No
-business record, production schema, production service, deployment, or
-credential was changed or disclosed.
+- Local API/Vite acceptance processes and the protected SSH tunnel were
+  stopped.
+- The temporary remote Codex sudo rule was removed, credentials invalidated
+  with `sudo -k`, and `sudo -n true` then failed as required.
+- The original UNC checkout was not changed; all source changes remain in the
+  owned Phase 4 worktree and branch.
 
 ## Decision
 
-**ADMIN PHASE 4: INCOMPLETE.** The implementation and migration are present,
-but real persistence, export, and Danger Zone acceptance cannot be claimed
-until the test-only runtime-role grant gap is resolved by an authorized owner
-and `tests/integration/test_mysql_admin_phase4_danger_operations.py` passes.
+**ADMIN PHASE 4: PASS.** This is acceptance of the isolated development/test
+scope only. Phase 5 corporate identity and Phase 6 broader operational or
+production-like capabilities remain separately governed and unstarted.

@@ -65,5 +65,12 @@ was not invoked in this pass because the action could not begin under the
 least-privilege runtime account and no authoritative test-recovery approval
 was supplied.
 
+The recovery artifact was restored before the privilege repair and then
+verified again at `20260813_0008` with all three Phase 4 tables. The
+controlled fixture-recovery action was subsequently exercised with the normal
+runtime identity only against disposable `phase4-...` rows. The final
+acceptance cleanup restores the same validated `0008` artifact; the browser
+never executes or receives access to that restore procedure.
+
 Production restore, overwrite, purge, or factory reset have no API route and
 remain blocked pending a separate approved runbook.

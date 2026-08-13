@@ -464,11 +464,12 @@ def require_active_danger_step_up(
             db.AdminDangerStepUp.admin_rehearsal_session_id == rehearsal.id,
             db.AdminDangerStepUp.operation_type == operation_type,
             db.AdminDangerStepUp.risk_class == risk_class,
-            db.AdminDangerStepUp.revoked_at.is_(None),
-            db.AdminDangerStepUp.expires_at > now,
         )
         .order_by(db.AdminDangerStepUp.issued_at.desc())
     )
-    if proof is None:
+    # A new step-up supersedes the prior proof for this scoped operation.  Do
+    # not silently fall back to an earlier proof when the newest was revoked
+    # or expired: that would defeat explicit revocation during a live session.
+    if proof is None or proof.revoked_at is not None or _as_utc(proof.expires_at) <= now:
         raise APIError(403, "DANGER_STEP_UP_REQUIRED", "A current development/test step-up proof is required.")
     return proof
