@@ -23,6 +23,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from ..corporate_auth import corporate_provider_state
 from ..database import models as db
 from ..errors import APIError
 from ..security import ActorContext, require_active_danger_step_up
@@ -30,7 +31,7 @@ from ..services import API_VERSION, EXPECTED_SCHEMA_REVISION, AtlasService
 from .redaction import redact
 from .repository import AuditEventRepository
 from .service import AuditEventWriter
-from .taxonomy import AuditAction, AuditResult, AuditSource
+from .taxonomy import AuditAction, AuditResult
 
 OP_FIXTURE_RECOVERY = "danger.fixture-recovery-rehearsal"
 RISK_HIGH = "HIGH"
@@ -141,9 +142,17 @@ def diagnostic_checks(session: Session, *, request_id: str | None = None) -> lis
         values.append(_result("operations.ledger", "operations", state, detail, hint, request_id=request_id))
     except SQLAlchemyError:
         values.append(_result("operations.ledger", "operations", "FAILED", "Durable operation evidence is not accessible to this runtime.", "Restore the approved least-privilege runtime access before operations are enabled.", request_id=request_id))
-    environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
-    auth_state = "HEALTHY" if environment in {"development", "staging_local"} else "UNAVAILABLE"
-    values.append(_result("identity.rehearsal", "authentication", auth_state, "Development/test rehearsal identity is available." if auth_state == "HEALTHY" else "No approved production identity provider is configured here.", "Use only the approved local rehearsal environment for Phase 4.", request_id=request_id))
+    provider = corporate_provider_state()
+    values.append(
+        _result(
+            "identity.provider",
+            "authentication",
+            provider.state,
+            provider.detail,
+            "Supply the IT-approved provider decision and protected configuration; local rehearsal is never a production fallback.",
+            request_id=request_id,
+        )
+    )
     writes_enabled = os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"}
     values.append(_result("write.gate", "write_gate", "HEALTHY" if writes_enabled else "DEGRADED", "Governed writes are enabled for the local rehearsal." if writes_enabled else "Governed writes are disabled by the current environment gate.", "Enable writes only through the approved local rehearsal procedure.", request_id=request_id))
     values.append(_result("release.metadata", "release", "HEALTHY", f"API version {API_VERSION}; expected schema {EXPECTED_SCHEMA_REVISION}.", "No action required.", request_id=request_id))

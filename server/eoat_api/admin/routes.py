@@ -7,13 +7,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from ..corporate_auth import corporate_provider_state
 from ..database.session import get_runtime_session
 from ..security import ActorContext, require_admin
 from ..services import API_VERSION, AtlasService
 from .contracts import (
     AdminAccessStateContract,
     AdminAuditMetricsContract,
-    AdminDiagnosticsContract,
     AdminOverviewContract,
     AuditActor,
     AuditCatalogResponse,
@@ -21,8 +21,8 @@ from .contracts import (
     AuditEventResponse,
     AuditListResponse,
 )
-from .repository import AuditEventRepository
 from .operations import diagnostic_summary
+from .repository import AuditEventRepository
 from .taxonomy import AUDIT_ENTITY_TYPES, AuditAction, AuditActionCategory, AuditResult, AuditSource
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -102,12 +102,11 @@ def diagnostics(
 
 @router.get("/access/status", response_model=AdminAccessStateContract)
 def access_status(_actor: ActorContext = Depends(require_admin("admin.area.view"))):
-    environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
-    is_local_rehearsal = environment in {"development", "staging_local"}
+    provider = corporate_provider_state()
     return AdminAccessStateContract(
-        authentication_provider="local_rehearsal" if is_local_rehearsal else None,
-        administrator_group_mapping_configured=is_local_rehearsal,
-        status="ready" if is_local_rehearsal else "unavailable",
+        authentication_provider=provider.provider,
+        administrator_group_mapping_configured=provider.administrator_group_mapping_configured,
+        status=provider.state.casefold(),
     )
 
 
