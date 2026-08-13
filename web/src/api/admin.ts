@@ -68,6 +68,7 @@ export interface AdminSetting { key: string; value: AuditValue | null; secret_co
 export interface AdminMapping { identity: string; environment: string; role_code: string; row_version: number; }
 
 let csrfToken: string | undefined;
+let rehearsalIdentity: string | undefined;
 
 export class AdminApiError extends Error {
   constructor(
@@ -85,7 +86,7 @@ const apiBase = import.meta.env.VITE_EOAT_API_BASE_URL ?? "";
 function localRehearsalHeaders(): HeadersInit {
   // This optional value makes local development runnable.  The API treats it
   // only as an input to its server-owned, environment-gated rehearsal mapper.
-  const identity = import.meta.env.VITE_EOAT_IDENTITY;
+  const identity = rehearsalIdentity ?? import.meta.env.VITE_EOAT_IDENTITY;
   return identity ? { "X-EOAT-Identity": identity } : {};
 }
 
@@ -142,6 +143,7 @@ export const adminApi = {
     const body = (await response.json().catch(() => null)) as AdminSession & { message?: string; error_code?: string; request_id?: string };
     if (!response.ok) throw new AdminApiError(body?.message ?? "The development/test session could not start.", response.status, body?.request_id, body?.error_code);
     csrfToken = body.csrf_token;
+    rehearsalIdentity = identity;
     return body;
   },
   assets: (kind: "eoats" | "machines" | "tools", search = "") => adminFetch<{ items: AdminRecord[] }>(`/api/v1/admin/data/${kind}?search=${encodeURIComponent(search)}`),
