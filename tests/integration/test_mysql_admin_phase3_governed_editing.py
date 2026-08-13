@@ -250,6 +250,8 @@ def test_phase3_bulk_and_settings_are_atomic_and_audited(api, seed_records):
         event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == secret_changed.json()["audit_event_id"]))
         assert event is not None
         changes = session.scalars(select(db.AuditChange).where(db.AuditChange.audit_event_id == event.event_id)).all()
+        assert event.before_state_json == {"replacement_recorded": False}
+        assert event.after_state_json == {"replacement_recorded": True}
         assert synthetic_secret not in json.dumps(
             {"before": event.before_state_json, "after": event.after_state_json, "metadata": event.metadata_json, "changes": [(value.before_value_json, value.after_value_json) for value in changes]}
         )

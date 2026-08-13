@@ -324,12 +324,22 @@ def update_setting_governed(
         raise not_found("setting", key)
     check_version(record, expected_row_version)
     next_value = _setting_value(value, record.value_type, record.is_sensitive)
-    before = {"configured": bool(record.setting_value_json)} if record.is_sensitive else {"value": record.setting_value_json}
+    # A replacement of an already-configured sensitive setting must remain
+    # reconstructable without serializing either the prior or supplied value.
+    before = (
+        {"configured": bool(record.setting_value_json), "replacement_recorded": False}
+        if record.is_sensitive
+        else {"value": record.setting_value_json}
+    )
     record.setting_value_json = next_value
     record.row_version += 1
     record.updated_by_user_id = actor.user_id
     session.flush()
-    after = {"configured": bool(record.setting_value_json)} if record.is_sensitive else {"value": record.setting_value_json}
+    after = (
+        {"configured": bool(record.setting_value_json), "replacement_recorded": True}
+        if record.is_sensitive
+        else {"value": record.setting_value_json}
+    )
     result = AuditEventWriter().write_change(
         session,
         actor,
