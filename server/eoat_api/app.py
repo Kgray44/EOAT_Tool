@@ -17,9 +17,9 @@ from .admin.routes import router as admin_router
 from .contracts import (
     CurrentEOATLocation,
     EOATProfile,
+    FitCheckOption,
     FitCheckRequest,
     FitCheckResult,
-    FitCheckOption,
     HealthResult,
     MachineProfile,
     PaginatedEOATs,
