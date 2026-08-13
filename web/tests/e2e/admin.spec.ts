@@ -32,13 +32,13 @@ const relatedEvent = {
 const machineEvent = {
   ...event,
   event_id: "event-machine-0001",
-  entity: { type: "Machine", id: "machine-27", display_id: "MACHINE-27" },
+  entity: { type: "Machine", id: "machine-27", display_id: "27" },
 };
 
 const toolEvent = {
   ...event,
   event_id: "event-tool-0001",
-  entity: { type: "Tool", id: "tool-88", display_id: "TOOL-88" },
+  entity: { type: "Tool", id: "tool-88", display_id: "4611380030" },
 };
 
 async function mockAdminApi(page: Page) {
@@ -97,7 +97,7 @@ test("event detail renders structured redaction and correlation navigation witho
   await expect(page.getByRole("heading", { name: "Audit event detail" })).toBeVisible();
   await expect(page.getByText("Development Administrator")).toBeVisible();
   await expect(page.getByText("UTC: 2026-08-11T18:00:00Z")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/eoats/54");
+  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/eoats/CL-EOAT-0054");
   await expect(page.getByRole("link", { name: "request-123" })).toHaveAttribute("href", "/admin/audit?request_id=request-123");
   await expect(page.getByText("Redacted").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /LOCATION_CHANGE.*CL-EOAT-0054/ })).toBeVisible();
@@ -108,10 +108,18 @@ test("event detail renders structured redaction and correlation navigation witho
 test("Machine and Tool evidence links remain normal-profile navigation", async ({ page }) => {
   await mockAdminApi(page);
   await page.goto(`/admin/audit/events/${machineEvent.event_id}`);
-  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/machines/machine-27");
+  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/machines/27");
   await page.goto(`/admin/audit/events/${toolEvent.event_id}`);
-  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/tools/tool-88");
+  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveAttribute("href", "/tools/4611380030");
   await expect(page.getByRole("link", { name: /Audit ledger/ })).toHaveCount(1);
+});
+
+test("historical events without a canonical profile identifier do not invent a normal-profile link", async ({ page }) => {
+  await mockAdminApi(page);
+  await page.route("**/api/v1/admin/audit/events/event-0002", async (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ...event, entity: { type: "EOAT", id: "historical-only", display_id: null } }) }));
+  await page.goto("/admin/audit/events/event-0002");
+  await expect(page.getByText("No canonical normal-profile link is available for this entity type.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open normal profile" })).toHaveCount(0);
 });
 
 test("narrow audit view retains accessible navigation and evidence", async ({ page }) => {
@@ -162,6 +170,7 @@ test("server pagination and intentional empty results remain readable", async ({
   await page.goto("/admin/audit?page_size=1");
   await expect(page.getByRole("link", { name: /UPDATE.*CL-EOAT-0054/ })).toBeVisible();
   await page.getByRole("button", { name: "Next" }).click();
+  await expect(page).toHaveURL(/page=2/);
   await expect(page.getByRole("link", { name: /LOCATION_CHANGE.*CL-EOAT-0054/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /UPDATE.*CL-EOAT-0054/ })).toHaveCount(0);
   await page.goto("/admin/audit?search=no-match");

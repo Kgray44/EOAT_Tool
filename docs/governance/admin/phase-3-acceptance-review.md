@@ -25,7 +25,15 @@ same loopback API; the persisted immutable `UPDATE` event retained the
 server-derived actor, request ID, correlation ID, and exact before/after.
 
 This review remains intentionally unaccepted. The browser audit event's
-normal-profile link currently resolves to an unimplemented admin-shell route,
-and the full Phase C real-MySQL mutation matrix, browser matrix, performance
-measurement, and complete regression matrix remain outstanding. Do not make a
-protected-main, deployment, or Phase 4 decision from this partial evidence.
+normal-profile link now uses the authorized same-origin relative contract and
+the historic canonical display identifier: `/eoats/:identifier`,
+`/machines/:number`, and `/tools/:identifier`. The normal profile renderer
+itself is proven to exist only on the separate newer web lineage
+`codex/web-desktop-full-parity` (`7d9b6952ca`), which has no Git merge base
+with this accepted Admin lineage. This branch intentionally does not recreate
+normal-profile components or merge that broad unrelated history. Full rendered
+cross-navigation is therefore an explicit reconciliation dependency, while
+the Phase C real-MySQL mutation matrix, browser matrix, performance
+measurement, and complete regression matrix also remain outstanding. Do not
+make a protected-main, deployment, or Phase 4 decision from this partial
+evidence.

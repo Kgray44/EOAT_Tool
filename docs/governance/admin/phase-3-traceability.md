@@ -23,7 +23,9 @@
 | `pnpm --dir web typecheck` | PASS |
 | `pnpm --dir web lint` | PASS |
 | `pnpm --dir web build` | PASS |
-| Browser-to-real-MySQL EOAT mutation | Partial PASS: rehearsal session, preview, commit and `/admin/audit/events/:eventId` exact diff/actor/correlation were observed. The linked normal-profile route is currently not implemented by the admin shell, so this is not full Phase C browser acceptance. |
+| Normal-profile link contract | Implemented: Audit Event Detail uses only same-origin relative links and the immutable Audit `entity.display_id`: EOAT `/eoats/:identifier`, Machine `/machines/:number`, Tool `/tools/:identifier`. Events without a canonical display identifier deliberately have no profile link. |
+| Canonical web-client provenance | The existing normal browser router is on unrelated newer lineage `codex/web-desktop-full-parity` at `7d9b6952ca` (Machine profile first introduced by `6d39823d08309cba3a109edda698ad8c47563748`; EOAT QR profile by `7918d0da79dc244081937d2f67a1fc2389123d39`). It defines `/eoats/:identifier`, `/machines/:number`, and `/tools/:identifier`; `git merge-base` with this accepted Admin lineage returns no common ancestor. No broad merge or duplicate profile components were introduced. |
+| Browser-to-real-MySQL EOAT mutation | Partial PASS: rehearsal session, preview, commit and `/admin/audit/events/:eventId` exact diff/actor/correlation were observed. The audit href contract now points to the canonical normal-app path, but rendered cross-navigation awaits the separately reconciled normal-client lineage. |
 
 ## Production isolation
 
