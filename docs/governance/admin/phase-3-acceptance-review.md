@@ -1,6 +1,53 @@
 # EOAT Atlas Admin Phase 3 Acceptance Review
 
-Status: **in progress; not accepted**.
+Status: **accepted for Phase C development/test scope**.
+
+## Final Phase C continuation evidence — 2026-08-13
+
+The accepted Debian architecture was recovered again without disclosing
+credentials: Windows acceptance process -> `127.0.0.1:58571` SSH tunnel ->
+EOAT Atlas Debian `127.0.0.1:3306` -> `eoat_atlas_test`. Both the migration
+and runtime identities asked MySQL for their selected database and each
+reported only `eoat_atlas_test`, on MySQL `8.4.10` at revision
+`20260811_0007`. No Windows MySQL service, production/development schema,
+NGINX, LDAP/AD, firewall, or externally exposed MySQL port was used.
+
+The previously accepted clean Phase 3 recovery dump was restored before and
+after the final real-MySQL run. It is an acceptance-only UTF-16LE dump at
+`%LOCALAPPDATA%\EOAT Atlas Development\admin-phase3-acceptance-backups\eoat_atlas_test-phase3-clean-0007-20260813-100617.sql`.
+The restoration stream was transcoded to UTF-8 for the MySQL client only after
+MySQL self-verification of the exact test schema. The final restored state was
+again `eoat_atlas_test`, MySQL `8.4.10`, revision `20260811_0007`.
+
+The Phase 3 real-MySQL suite passed **12/12**. The cross-phase Phase 2 plus
+Phase 3 run initially exposed a test-fixture cleanup condition: a preceding
+role-mapping test had altered the disposable viewer mapping, so a Phase 2
+viewer-denial assertion received `200` rather than `403`. This was not
+accepted as an authorization pass. After clean-snapshot restoration the exact
+combined sequence passed **15/15**. This records a test isolation observation,
+not a production authorization change.
+
+Real browser-to-MySQL acceptance (Playwright browser control, same loopback
+API and test schema) now includes: EOAT preview/update/correction with exact
+before/after, audit link, normal profile navigation and Back; archive followed
+by explicit archived-record discovery and governed restore; Machine and Tool
+preview/commit; relationship unlink, selected-identity LINK, and duplicate
+rejection; EOAT bulk preview/commit; non-secret and secret-safe settings;
+document and photo metadata edits; development-only role mapping; and
+rehearsal session revocation. The document, photo, and access pages initially
+dropped their receipt on refresh; follow-up commits retain the parent Audit
+Event link. Browser pages showed no `storage_path`, `path_available`, or
+synthetic secret marker. Narrow-width (`390x844`) session/data controls and
+keyboard focus progression were also exercised; the viewport override was
+reset.
+
+The returned normal paths are relative and canonical: EOAT
+`/eoats/:identifier`, Machine `/machines/:identifier`, Tool
+`/tools/:identifier`. Direct normal EOAT/Machine/Tool routes, a Machine
+refresh, Event Detail -> normal EOAT navigation, normal-profile committed
+state, Browser Back to the same event, and ordinary-user denial of Admin Audit
+were observed against the unified router. Normal profiles expose no Admin-only
+metadata.
 
 ## Continuation evidence — 2026-08-13 (normal-route and secret-receipt follow-up)
 

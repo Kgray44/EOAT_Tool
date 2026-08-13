@@ -40,6 +40,10 @@
 | Continued web regression | PASS: bundled-runtime TypeScript, ESLint, Vitest **1/1**, production build, and fixture-intercept Admin Playwright **8/8**. The Playwright result is explicitly not represented as real-persistence proof. |
 | Legacy normal read/write conversion regression | Not applicable to the clean Phase 3 recovery snapshot: 18 passed / 18 failed after current-schema alignment because required imported P4 fixtures/counts are absent and the legacy normal write gate is deliberately disabled. No source workaround, fixture invention, or gate change was made; the snapshot was restored. |
 | OpenAPI | PASS: in-process schema generation found 116 paths and all nine representative governed mutation paths. It was non-mutating and database-independent. |
+| Final protected real-MySQL regression | PASS: Phase 3 12/12 and Phase 2+3 15/15 after restoring the approved clean test snapshot. The first combined run correctly failed closed because disposable role-mapping fixture state had persisted; rerun from the clean snapshot passed. |
+| Final browser mutation continuation | PASS: real loopback browser/API/MySQL workflows covered correction, archive/restore with explicit archived discovery, authoritative relationship unlink/link/duplicate rejection, document/photo metadata with retained Audit receipts, development-only mapping, and session revocation. No document/photo path field or secret marker appeared in the DOM. |
+| Responsive and keyboard browser evidence | PASS: 390x844 Administration session/data controls rendered and keyboard focus progressed from rehearsal-secret entry to the enabled action. The temporary viewport was reset. |
+| Browser receipt retention | PASS: follow-up commits `06813980b1` and `4c59217a71` preserve the parent-page Audit Event link after document, photo, mapping, and revocation list refreshes. |
 
 ## Production isolation
 
@@ -52,6 +56,7 @@ used.
 
 ## Acceptance status
 
-**ADMIN PHASE 3: NOT YET ACCEPTED.** Real-MySQL migration and the original
-five tests now pass, but full mutation/browser/security/performance/regression
-reconciliation is still required.
+**ADMIN PHASE 3: ACCEPTED FOR PHASE C DEVELOPMENT/TEST SCOPE.** The complete
+registry is reconciled to real-MySQL and browser evidence; the clean test
+snapshot was restored after acceptance. This is not a production deployment
+or a Phase 4 authorization.

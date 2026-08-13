@@ -1,5 +1,21 @@
 # Phase 3 Normal-Web Lineage Reconciliation
 
+## Acceptance continuation — 2026-08-13
+
+The smallest safe reconciliation was completed without merging the unrelated
+normal-client lineage: the unified router owns the normal profile routes and
+the accepted backend exposes the normal application's read-only Fit Check
+selector contract at `/api/v1/web-fit-checks/options`. The endpoint uses only
+active, non-archived authoritative records and compatibility joins; it
+performs no write. The normal Fit Check page rendered against the protected
+real-MySQL acceptance path, and the normal profile routes retained their
+relative same-origin identifiers.
+
+Browser acceptance confirmed Audit Event Detail -> `/eoats/:identifier`, the
+committed normal EOAT profile, Browser Back to the original event, direct
+EOAT/Machine/Tool profile routes, and Machine refresh. No `/admin/eoats`,
+`/admin/machines`, or `/admin/tools` substitute route was created.
+
 ## Decision and provenance
 
 Phase 3 Audit Event Detail must return people to the normal EOAT Atlas

@@ -36,3 +36,11 @@ All failure responses use the Phase 1/2 safe error envelope: controlled error
 code, safe message, request ID, and field errors where applicable. Audit
 persistence failure is never represented as success; the transaction rolls
 back. No registry entry permits audit-ledger mutation.
+
+## Phase C reconciliation
+
+Every registry row is **implemented + real-MySQL tested**. Browser evidence
+also covers the user-facing EOAT, Machine, Tool, relationship, document,
+photo, bulk, setting, access-mapping, and session-revocation workflows. No
+row is deferred or unexplained; upload/revision mutation is not implemented in
+Phase 3 and therefore is not represented as an Admin mutation endpoint.
