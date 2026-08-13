@@ -21,7 +21,7 @@ from core.data_gateway.gateway import AtlasDataGateway
 from server.eoat_api.app import app
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory, get_write_session
-from server.eoat_api.services import AtlasService
+from server.eoat_api.services import EXPECTED_SCHEMA_REVISION, AtlasService
 
 pytestmark = pytest.mark.skipif(
     os.getenv("EOAT_DB_NAME") != "eoat_atlas_test",
@@ -637,14 +637,14 @@ def test_two_independent_gateway_caches_and_conflict(api, tmp_path):
     config_a = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-a.db",
-        expected_schema_revision="20260811_0006",
+        expected_schema_revision=EXPECTED_SCHEMA_REVISION,
         writes_enabled=True,
         environment="development",
     )
     config_b = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "client-b.db",
-        expected_schema_revision="20260811_0006",
+        expected_schema_revision=EXPECTED_SCHEMA_REVISION,
         writes_enabled=True,
         environment="development",
     )
@@ -680,7 +680,7 @@ def test_gateway_blocks_offline_writes_without_queueing(tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "offline.db",
-        expected_schema_revision="20260811_0006",
+        expected_schema_revision=EXPECTED_SCHEMA_REVISION,
         writes_enabled=True,
         environment="development",
     )
@@ -694,7 +694,7 @@ def test_server_success_survives_local_cache_refresh_failure(api, tmp_path):
     config = GatewayConfiguration(
         backend="mysql_api",
         cache_path=tmp_path / "fail-cache.db",
-        expected_schema_revision="20260811_0006",
+        expected_schema_revision=EXPECTED_SCHEMA_REVISION,
         writes_enabled=True,
         environment="development",
     )

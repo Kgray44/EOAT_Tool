@@ -17,6 +17,7 @@ from core.data_gateway.models import ConnectivityMode
 from server.eoat_api.app import app, database_error
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
+from server.eoat_api.services import API_VERSION, EXPECTED_SCHEMA_REVISION
 from tools.migration.import_pipeline import build_review_items
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -109,8 +110,8 @@ def test_health_version_and_schema(api):
     payload = health.json()
     assert payload["database_reachable"] is True
     assert payload["compatible"] is True
-    assert payload["current_schema_revision"] == "20260811_0006"
-    assert api.get("/api/v1/version").json()["api_version"] == "1.4.0"
+    assert payload["current_schema_revision"] == EXPECTED_SCHEMA_REVISION
+    assert api.get("/api/v1/version").json()["api_version"] == API_VERSION
     assert api.get("/api/v1/schema-status").json()["compatible"] is True
 
 

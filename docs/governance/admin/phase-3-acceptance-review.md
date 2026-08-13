@@ -128,3 +128,25 @@ gateway, and Admin audit-foundation regression tests: **16 passed**.
 Repository-wide Ruff remains an inherited baseline limitation: it reports 30
 unrelated findings under `core/` outside the Phase 3 change surface. Those
 files were not reformatted or altered to manufacture a Phase 3 green result.
+
+## Continued regression evidence â€” 2026-08-13
+
+The real-MySQL Phase 2 read-only and Phase 3 governed suites were run together
+through the protected tunnel and passed **15/15**. The recovery point was then
+restored and MySQL re-confirmed `eoat_atlas_test`, MySQL `8.4.10`, and schema
+revision `20260811_0007` before the tunnel was stopped.
+
+With the bundled Node runtime (the interactive PowerShell PATH did not itself
+contain Node), web TypeScript, ESLint, Vitest (**1/1**), production Vite build,
+and Admin Playwright (**8/8**) passed. The eight Playwright checks retain their
+correct scope: they are fixture-intercept UI regressions, not proof of real
+persistence.
+
+The older normal read/write conversion suite was also attempted after replacing
+its retired schema literals with the API schema constant. It yielded **18
+passed, 18 failed**. The failures are fixture-baseline assumptions rather than
+Phase 3 mutation defects: this clean acceptance recovery snapshot intentionally
+does not contain the suite's imported P4 records/counts and its legacy normal
+write path remains disabled. No fixture was invented and no write gate was
+weakened merely to make that suite green. The test schema was restored
+immediately afterward.
