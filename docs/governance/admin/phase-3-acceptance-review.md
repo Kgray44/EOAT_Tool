@@ -17,12 +17,25 @@ Before change, an acceptance-only recovery dump was created at
 MySQL foreign-key/index-order defect in the migration. A follow-up commit
 corrected the downgrade, and `0006 -> 0007 -> 0006 -> 0007` then passed.
 
-The five existing real-MySQL Phase 3 integration tests pass against this
-environment (session/CSRF, bulk/settings/secret containment, actor forgery
-and session revocation, forced audit failure rollback, and capability denial).
-A browser rehearsal session also performed an EOAT preview/commit over the
-same loopback API; the persisted immutable `UPDATE` event retained the
-server-derived actor, request ID, correlation ID, and exact before/after.
+The expanded real-MySQL Phase 3 integration suite passes **11/11** against
+this environment. It now covers session/CSRF, EOAT single- and multi-field
+editing, stale conflict, idempotency, correction, archive/restore, Machine and
+Tool validation/conflicts, relationship link/duplicate/free-text rejection and
+unlink, document and photo metadata/archive with path containment, bulk
+preview/zero-target/invalid-target atomicity/commit/replay correlation,
+non-secret and secret settings, development-only role mapping, actor forgery,
+session revocation, forced audit failure rollback, and capability denial. The
+suite exposed and corrected a document response serialization defect; it was
+then rerun successfully before the test schema was restored from the clean
+Phase 3 recovery point.
+
+A browser rehearsal session performed an EOAT preview/commit over the same
+loopback API. The persisted immutable `UPDATE` event retained the
+server-derived actor, request ID, correlation ID, exact before/after, and a
+working in-app Audit Event link. Browser Back restored the request-filtered
+Audit Ledger state. This browser pass also exposed and corrected the missing
+rehearsal-identity handoff for Admin read endpoints and the disappearing
+post-commit Audit Event link.
 
 This review remains intentionally unaccepted. The browser audit event's
 normal-profile link now uses the authorized same-origin relative contract and
