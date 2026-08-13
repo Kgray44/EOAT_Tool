@@ -155,6 +155,13 @@ class AtlasRepository:
             vacuum_confirmation_sensor_present=entity.vacuum_confirmation_sensor_present,
             quick_disconnect_present=entity.quick_disconnect_present,
             cup_material=entity.cup_material,
+            frame_material=entity.frame_material,
+            weight_kg=float(entity.weight_kg) if entity.weight_kg is not None else None,
+            maximum_payload_kg=float(entity.maximum_payload_kg) if entity.maximum_payload_kg is not None else None,
+            drawing_number=entity.drawing_number,
+            manufacturer=entity.manufacturer,
+            date_built=entity.date_built.isoformat() if entity.date_built else None,
+            date_commissioned=entity.date_commissioned.isoformat() if entity.date_commissioned else None,
             notes=entity.notes,
             relationships=self.eoat_relationships(summary.business_identifier),
             audit_evidence=[
@@ -211,7 +218,8 @@ class AtlasRepository:
         clean_l = aliased(db.CleanroomClassification)
         status_l = aliased(db.AssetStatus)
         stmt = (
-            select(db.Machine, area_l.area_name, clean_l.display_name, status_l.display_name)
+            select(db.Machine, db.Plant.plant_code, area_l.area_name, clean_l.display_name, status_l.display_name)
+            .outerjoin(db.Plant, db.Plant.id == db.Machine.plant_id)
             .outerjoin(area_l, db.Machine.area_id == area_l.id)
             .outerjoin(clean_l, db.Machine.cleanroom_classification_id == clean_l.id)
             .outerjoin(status_l, db.Machine.status_id == status_l.id)
@@ -232,6 +240,7 @@ class AtlasRepository:
         ).all()
         return [
             MachineSummary(
+                plant_code=plant_code,
                 machine_number=m.machine_number,
                 machine_name=m.machine_name,
                 area=a,
@@ -242,7 +251,7 @@ class AtlasRepository:
                 is_active=m.is_active,
                 row_version=m.row_version,
             )
-            for m, a, c, s in rows
+            for m, plant_code, a, c, s in rows
         ], PaginationMetadata(
             page=page, page_size=page_size, total=total, pages=ceil(total / page_size) if total else 0
         )
@@ -309,6 +318,9 @@ class AtlasRepository:
             **summary.model_dump(),
             controller_type=entity.controller_type,
             press_capacity_tons=float(entity.press_capacity_tons) if entity.press_capacity_tons else None,
+            serial_number=entity.serial_number,
+            machine_type=entity.machine_type,
+            installation_date=entity.installation_date.isoformat() if entity.installation_date else None,
             notes=entity.notes,
             relationships=relationships,
             robots=robots,
@@ -404,6 +416,7 @@ class AtlasRepository:
         return ToolProfile(
             **summary.model_dump(),
             description=entity.description,
+            cavity_count=entity.cavity_count,
             tool_type=entity.tool_type,
             customer=entity.customer,
             program_name=entity.program_name,

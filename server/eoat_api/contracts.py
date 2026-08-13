@@ -40,6 +40,19 @@ class RelationshipSummary(BaseModel):
     reason: str | None = None
 
 
+class CurrentEOATLocation(BaseModel):
+    """Safe, current-location presentation where source evidence is limited."""
+
+    state: Literal["INSTALLED", "STORED", "UNKNOWN", "INACTIVE", "CONFLICTING"]
+    source: Literal["OBSERVATION", "LIFECYCLE_EVENT", "RESOLVER", "NONE"]
+    machine_number: str | None = None
+    storage_location: str | None = None
+    observed_at: datetime | None = None
+    confidence: str = "UNKNOWN"
+    resolution_status: Literal["CURRENT", "SUPERSEDED", "REVIEW_REQUIRED"] = "CURRENT"
+    evidence: str = "Current read-model state"
+
+
 class EOATSummary(BaseModel):
     business_identifier: str
     legacy_identifier: str | None = None
@@ -52,6 +65,9 @@ class EOATSummary(BaseModel):
     is_active: bool
     row_version: int
     current_location: str = "UNKNOWN_NOT_VERIFIED"
+    current_location_detail: CurrentEOATLocation | None = None
+    photo_document_uuid: str | None = None
+    photo_available_through_web: bool = False
 
 
 class EOATProfile(EOATSummary):
@@ -65,6 +81,13 @@ class EOATProfile(EOATSummary):
     vacuum_confirmation_sensor_present: bool | None = None
     quick_disconnect_present: bool | None = None
     cup_material: str | None = None
+    frame_material: str | None = None
+    weight_kg: float | None = None
+    maximum_payload_kg: float | None = None
+    drawing_number: str | None = None
+    manufacturer: str | None = None
+    date_built: str | None = None
+    date_commissioned: str | None = None
     notes: str | None = None
     part_status: str = "NOT_YET_VERIFIED"
     relationships: list[RelationshipSummary] = Field(default_factory=list)
@@ -72,6 +95,7 @@ class EOATProfile(EOATSummary):
 
 
 class MachineSummary(BaseModel):
+    plant_code: str | None = None
     machine_number: str
     machine_name: str | None = None
     area: str | None = None
@@ -87,6 +111,9 @@ class MachineSummary(BaseModel):
 class MachineProfile(MachineSummary):
     controller_type: str | None = None
     press_capacity_tons: float | None = None
+    serial_number: str | None = None
+    machine_type: str | None = None
+    installation_date: str | None = None
     notes: str | None = None
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     robots: list[RelationshipSummary] = Field(default_factory=list)
@@ -106,6 +133,7 @@ class ToolSummary(BaseModel):
 
 class ToolProfile(ToolSummary):
     description: str | None = None
+    cavity_count: int | None = None
     tool_type: str | None = None
     customer: str | None = None
     program_name: str | None = None
@@ -152,6 +180,26 @@ class DocumentMetadata(BaseModel):
 
 
 class PhotoMetadata(DocumentMetadata):
+    photo_view_type: str | None = None
+    captured_at: datetime | None = None
+    caption: str | None = None
+    is_profile_photo: bool = False
+
+
+class WebDocumentMetadata(BaseModel):
+    """Browser-safe document metadata; storage paths are never serialized."""
+
+    document_uuid: str
+    document_number: str | None = None
+    title: str
+    description: str | None = None
+    file_name: str
+    mime_type: str | None = None
+    related_entities: list[RelationshipSummary] = Field(default_factory=list)
+    content_delivery_state: Literal["AVAILABLE", "NOT_AVAILABLE_THROUGH_WEB"] = "NOT_AVAILABLE_THROUGH_WEB"
+
+
+class WebPhotoMetadata(WebDocumentMetadata):
     photo_view_type: str | None = None
     captured_at: datetime | None = None
     caption: str | None = None

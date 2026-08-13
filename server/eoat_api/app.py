@@ -15,12 +15,20 @@ from sqlalchemy.orm import Session
 from .admin.mutation_routes import router as admin_mutation_router
 from .admin.routes import router as admin_router
 from .contracts import (
+    CurrentEOATLocation,
+    EOATProfile,
     FitCheckRequest,
+    FitCheckResult,
     HealthResult,
+    MachineProfile,
     PaginatedEOATs,
     PaginatedHistory,
     PaginatedMachines,
     PaginatedTools,
+    RelationshipSummary,
+    ToolProfile,
+    WebDocumentMetadata,
+    WebPhotoMetadata,
 )
 from .database import models as db
 from .database.session import get_runtime_session, get_write_session
@@ -37,6 +45,15 @@ logging.basicConfig(
 LOGGER = logging.getLogger("eoat_api")
 
 app = FastAPI(title="EOAT Atlas API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+
+def _browser_safe_documents(rows):
+    """Remove storage/internal fields before normal browser serialization."""
+    safe = []
+    for row in rows:
+        values = row.model_dump(exclude={"storage_path", "path_available"})
+        safe.append(WebPhotoMetadata(**values) if "photo_view_type" in values else WebDocumentMetadata(**values))
+    return safe
 
 
 @app.middleware("http")
@@ -202,7 +219,7 @@ def eoats(
     return PaginatedEOATs(items=items, pagination=pagination)
 
 
-@app.get("/api/v1/eoats/{identifier}")
+@app.get("/api/v1/eoats/{identifier}", response_model=EOATProfile)
 def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     value = repo.eoat(identifier)
     if value is None:
@@ -210,7 +227,21 @@ def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     return value
 
 
-@app.get("/api/v1/eoats/{identifier}/relationships")
+@app.get("/api/v1/eoats/{identifier}/current-location", response_model=CurrentEOATLocation)
+def eoat_current_location(identifier: str, repo: AtlasRepository = Depends(repository)):
+    value = repo.eoat(identifier)
+    if value is None:
+        raise not_found("EOAT", identifier)
+    state = "STORED" if str(value.current_location).startswith("STORED") else "UNKNOWN"
+    return CurrentEOATLocation(
+        state=state,
+        source="NONE",
+        storage_location=value.current_location if state == "STORED" else None,
+        evidence="Current read-model state; no more-specific location evidence is available.",
+    )
+
+
+@app.get("/api/v1/eoats/{identifier}/relationships", response_model=list[RelationshipSummary])
 def eoat_relationships(identifier: str, repo: AtlasRepository = Depends(repository)):
     if repo.eoat(identifier) is None:
         raise not_found("EOAT", identifier)
@@ -250,24 +281,24 @@ def eoat_history(
     )
 
 
-@app.get("/api/v1/eoats/{identifier}/documents")
+@app.get("/api/v1/eoats/{identifier}/documents", response_model=list[WebDocumentMetadata])
 def eoat_documents(identifier: str, repo: AtlasRepository = Depends(repository)):
     entity = repo.session.scalar(
         __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
     )
     if entity is None:
         raise not_found("EOAT", identifier)
-    return repo.documents("eoat", entity.id)
+    return _browser_safe_documents(repo.documents("eoat", entity.id))
 
 
-@app.get("/api/v1/eoats/{identifier}/photos")
+@app.get("/api/v1/eoats/{identifier}/photos", response_model=list[WebPhotoMetadata])
 def eoat_photos(identifier: str, repo: AtlasRepository = Depends(repository)):
     entity = repo.session.scalar(
         __import__("sqlalchemy").select(db.EOAT).where(db.EOAT.business_identifier == identifier)
     )
     if entity is None:
         raise not_found("EOAT", identifier)
-    return repo.documents("eoat", entity.id, photos_only=True)
+    return _browser_safe_documents(repo.documents("eoat", entity.id, photos_only=True))
 
 
 @app.get("/api/v1/machines", response_model=PaginatedMachines)
@@ -282,7 +313,7 @@ def machines(
     return PaginatedMachines(items=items, pagination=pagination)
 
 
-@app.get("/api/v1/machines/{number}")
+@app.get("/api/v1/machines/{number}", response_model=MachineProfile)
 def machine(number: str, repo: AtlasRepository = Depends(repository)):
     value = repo.machine(number)
     if value is None:
@@ -290,12 +321,28 @@ def machine(number: str, repo: AtlasRepository = Depends(repository)):
     return value
 
 
-@app.get("/api/v1/machines/{number}/relationships")
+@app.get("/api/v1/machines/{number}/relationships", response_model=list[RelationshipSummary])
 def machine_relationships(number: str, repo: AtlasRepository = Depends(repository)):
     value = repo.machine(number)
     if value is None:
         raise not_found("Machine", number)
     return value.relationships + value.robots
+
+
+@app.get("/api/v1/machines/{number}/documents", response_model=list[WebDocumentMetadata])
+def machine_documents(number: str, repo: AtlasRepository = Depends(repository)):
+    entity = repo.session.scalar(__import__("sqlalchemy").select(db.Machine).where(db.Machine.machine_number == number))
+    if entity is None:
+        raise not_found("Machine", number)
+    return _browser_safe_documents(repo.documents("machine", entity.id))
+
+
+@app.get("/api/v1/machines/{number}/photos", response_model=list[WebPhotoMetadata])
+def machine_photos(number: str, repo: AtlasRepository = Depends(repository)):
+    entity = repo.session.scalar(__import__("sqlalchemy").select(db.Machine).where(db.Machine.machine_number == number))
+    if entity is None:
+        raise not_found("Machine", number)
+    return _browser_safe_documents(repo.documents("machine", entity.id, photos_only=True))
 
 
 @app.get("/api/v1/machines/{number}/current-setup")
@@ -331,7 +378,7 @@ def tools(
     return PaginatedTools(items=items, pagination=pagination)
 
 
-@app.get("/api/v1/tools/{identifier}")
+@app.get("/api/v1/tools/{identifier}", response_model=ToolProfile)
 def tool(identifier: str, repo: AtlasRepository = Depends(repository)):
     value = repo.tool(identifier)
     if value is None:
@@ -339,12 +386,28 @@ def tool(identifier: str, repo: AtlasRepository = Depends(repository)):
     return value
 
 
-@app.get("/api/v1/tools/{identifier}/relationships")
+@app.get("/api/v1/tools/{identifier}/relationships", response_model=list[RelationshipSummary])
 def tool_relationships(identifier: str, repo: AtlasRepository = Depends(repository)):
     value = repo.tool(identifier)
     if value is None:
         raise not_found("Tool", identifier)
     return value.relationships
+
+
+@app.get("/api/v1/tools/{identifier}/documents", response_model=list[WebDocumentMetadata])
+def tool_documents(identifier: str, repo: AtlasRepository = Depends(repository)):
+    entity = repo.session.scalar(__import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == identifier))
+    if entity is None:
+        raise not_found("Tool", identifier)
+    return _browser_safe_documents(repo.documents("tool", entity.id))
+
+
+@app.get("/api/v1/tools/{identifier}/photos", response_model=list[WebPhotoMetadata])
+def tool_photos(identifier: str, repo: AtlasRepository = Depends(repository)):
+    entity = repo.session.scalar(__import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == identifier))
+    if entity is None:
+        raise not_found("Tool", identifier)
+    return _browser_safe_documents(repo.documents("tool", entity.id, photos_only=True))
 
 
 @app.get("/api/v1/tools/{identifier}/history")
@@ -364,7 +427,7 @@ def search(
     return repo.search(q, limit=limit)
 
 
-@app.post("/api/v1/fit-checks/evaluate")
+@app.post("/api/v1/fit-checks/evaluate", response_model=FitCheckResult)
 def evaluate_fit_check(
     payload: FitCheckRequest,
     request: Request,

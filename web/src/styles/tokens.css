@@ -1,0 +1,29 @@
+@import "./generated-theme-tokens.css";
+
+:root {
+  --atlas-motion-scale: 1;
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
+  color: var(--atlas-text-primary);
+  background: var(--atlas-app-background);
+}
+
+:root[data-atlas-accent="neutral_gray"] {
+  --atlas-accent: #7f9ab6;
+  --atlas-accent-hover: #adc4da;
+  --atlas-accent-soft: #203247;
+}
+:root[data-atlas-accent="high_contrast_blue"] {
+  --atlas-accent: #00a6ff;
+  --atlas-accent-hover: #78d8ff;
+  --atlas-accent-soft: #003d66;
+}
+:root[data-atlas-theme="light"][data-atlas-accent="neutral_gray"] {
+  --atlas-accent: #637b94;
+  --atlas-accent-hover: #506a84;
+  --atlas-accent-soft: #e2ebf4;
+}
+:root[data-atlas-theme="light"][data-atlas-accent="high_contrast_blue"] {
+  --atlas-accent: #005fd6;
+  --atlas-accent-hover: #004fb5;
+  --atlas-accent-soft: #d6ecff;
+}
