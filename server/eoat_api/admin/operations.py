@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import hmac
 import io
 import json
 import os
@@ -35,6 +36,7 @@ OP_FIXTURE_RECOVERY = "danger.fixture-recovery-rehearsal"
 RISK_HIGH = "HIGH"
 PREVIEW_TTL = timedelta(minutes=10)
 FIXTURE_NAMESPACE = re.compile(r"^phase4-[a-z0-9-]{6,64}$")
+TEST_RECOVERY_MAX_AGE_SECONDS = 4 * 60 * 60
 
 
 def _utcnow() -> datetime:
@@ -47,53 +49,101 @@ def _utc(value: datetime | None) -> datetime | None:
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
-def _result(check_id: str, subsystem: str, state: str, detail: str, hint: str, *, source: str = "server") -> dict[str, str]:
+def operation_ledger_writable(session: Session) -> bool:
+    """Inspect the current MySQL grant shape without creating a probe row."""
+    try:
+        grants = [str(row[0]).upper() for row in session.execute(text("SHOW GRANTS FOR CURRENT_USER"))]
+    except SQLAlchemyError:
+        return False
+    required = ("INSERT", "UPDATE", "DELETE")
+    for grant in grants:
+        applies_to_ledger = "`ADMIN_OPERATIONS`" in grant or "`EOAT_ATLAS_TEST`.*" in grant
+        if applies_to_ledger and all(permission in grant for permission in required):
+            return True
+    return False
+
+
+def require_operation_ledger(session: Session) -> None:
+    if not operation_ledger_writable(session):
+        raise APIError(
+            503,
+            "OPERATION_LEDGER_UNAVAILABLE",
+            "The runtime account cannot persist the required Phase 4 operation evidence.",
+            retryable=False,
+        )
+
+
+def _result(
+    check_id: str,
+    subsystem: str,
+    state: str,
+    detail: str,
+    hint: str,
+    *,
+    source: str = "server",
+    request_id: str | None = None,
+) -> dict[str, Any]:
     return {
         "check_id": check_id,
         "subsystem": subsystem,
         "state": state,
+        "severity": "HIGH" if state in {"FAILED", "UNAVAILABLE"} else "INFO",
+        "read_only": True,
+        "timeout_seconds": 5,
         "safe_detail": detail,
         "remediation_hint": hint,
         "source": source,
         "observed_at_utc": _utcnow().isoformat(),
+        "request_id": request_id,
     }
 
 
-def diagnostic_checks(session: Session) -> list[dict[str, str]]:
+def diagnostic_checks(session: Session, *, request_id: str | None = None) -> list[dict[str, Any]]:
     """Run independent, non-mutating checks.  A single failure is isolated."""
     values: list[dict[str, str]] = []
-    values.append(_result("api.self", "api", "HEALTHY", f"API {API_VERSION} is responding.", "Inspect the request ID if a later call fails."))
+    values.append(_result("api.self", "api", "HEALTHY", f"API {API_VERSION} is responding.", "Inspect the request ID if a later call fails.", request_id=request_id))
     try:
         session.execute(text("SELECT 1"))
-        values.append(_result("database.connectivity", "database", "HEALTHY", "Database connectivity succeeded.", "No action required."))
+        values.append(_result("database.connectivity", "database", "HEALTHY", "Database connectivity succeeded.", "No action required.", request_id=request_id))
     except SQLAlchemyError:
-        values.append(_result("database.connectivity", "database", "UNAVAILABLE", "Database connectivity could not be verified.", "Check the approved database service and tunnel."))
+        values.append(_result("database.connectivity", "database", "UNAVAILABLE", "Database connectivity could not be verified.", "Check the approved database service and tunnel.", request_id=request_id))
     try:
         revision = AtlasService(session).schema_revision()
         state = "HEALTHY" if revision == EXPECTED_SCHEMA_REVISION else "FAILED"
-        values.append(_result("schema.revision", "schema", state, f"Schema revision is {revision or 'unknown'}.", "Apply the approved migration or recover the expected schema."))
+        values.append(_result("schema.revision", "schema", state, f"Schema revision is {revision or 'unknown'}.", "Apply the approved migration or recover the expected schema.", request_id=request_id))
     except SQLAlchemyError:
-        values.append(_result("schema.revision", "schema", "UNKNOWN", "Schema revision could not be read.", "Resolve database connectivity before a high-risk operation."))
+        values.append(_result("schema.revision", "schema", "UNKNOWN", "Schema revision could not be read.", "Resolve database connectivity before a high-risk operation.", request_id=request_id))
     try:
         session.scalar(select(db.AuditEvent.id).limit(1))
-        values.append(_result("audit.read", "audit", "HEALTHY", "The append-only audit ledger is readable.", "No action required."))
+        values.append(_result("audit.read", "audit", "HEALTHY", "The append-only audit ledger is readable.", "No action required.", request_id=request_id))
     except SQLAlchemyError:
-        values.append(_result("audit.read", "audit", "FAILED", "Audit ledger access could not be verified.", "Do not run governed operations until audit health is restored."))
+        values.append(_result("audit.read", "audit", "FAILED", "Audit ledger access could not be verified.", "Do not run governed operations until audit health is restored.", request_id=request_id))
+    try:
+        session.scalar(select(db.AdminOperation.id).limit(1))
+        state = "HEALTHY" if operation_ledger_writable(session) else "FAILED"
+        detail = "Durable operation evidence is readable and writable." if state == "HEALTHY" else "Durable operation evidence is readable, but its required writes are not authorized."
+        hint = "No action required." if state == "HEALTHY" else "Restore the approved least-privilege runtime access before operations are enabled."
+        values.append(_result("operations.ledger", "operations", state, detail, hint, request_id=request_id))
+    except SQLAlchemyError:
+        values.append(_result("operations.ledger", "operations", "FAILED", "Durable operation evidence is not accessible to this runtime.", "Restore the approved least-privilege runtime access before operations are enabled.", request_id=request_id))
     environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
     auth_state = "HEALTHY" if environment in {"development", "staging_local"} else "UNAVAILABLE"
-    values.append(_result("identity.rehearsal", "authentication", auth_state, "Development/test rehearsal identity is available." if auth_state == "HEALTHY" else "No approved production identity provider is configured here.", "Use only the approved local rehearsal environment for Phase 4."))
+    values.append(_result("identity.rehearsal", "authentication", auth_state, "Development/test rehearsal identity is available." if auth_state == "HEALTHY" else "No approved production identity provider is configured here.", "Use only the approved local rehearsal environment for Phase 4.", request_id=request_id))
+    writes_enabled = os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"}
+    values.append(_result("write.gate", "write_gate", "HEALTHY" if writes_enabled else "DEGRADED", "Governed writes are enabled for the local rehearsal." if writes_enabled else "Governed writes are disabled by the current environment gate.", "Enable writes only through the approved local rehearsal procedure.", request_id=request_id))
+    values.append(_result("release.metadata", "release", "HEALTHY", f"API version {API_VERSION}; expected schema {EXPECTED_SCHEMA_REVISION}.", "No action required.", request_id=request_id))
     root = os.getenv("EOAT_DOCUMENT_ROOT", "").strip()
     if not root:
-        values.append(_result("storage.document-root", "storage", "UNKNOWN", "No approved document root is configured for this process.", "Configure an approved storage probe; do not expose a filesystem browser."))
+        values.append(_result("storage.document-root", "storage", "UNKNOWN", "No approved document root is configured for this process.", "Configure an approved storage probe; do not expose a filesystem browser.", request_id=request_id))
     elif os.path.isdir(root):
-        values.append(_result("storage.document-root", "storage", "HEALTHY", "The configured document root is accessible.", "No action required."))
+        values.append(_result("storage.document-root", "storage", "HEALTHY", "The configured document root is accessible.", "No action required.", request_id=request_id))
     else:
-        values.append(_result("storage.document-root", "storage", "FAILED", "The configured document root is not accessible.", "Check the approved storage service configuration."))
+        values.append(_result("storage.document-root", "storage", "FAILED", "The configured document root is not accessible.", "Check the approved storage service configuration.", request_id=request_id))
     return values
 
 
-def diagnostic_summary(session: Session) -> dict[str, Any]:
-    checks = diagnostic_checks(session)
+def diagnostic_summary(session: Session, *, request_id: str | None = None) -> dict[str, Any]:
+    checks = diagnostic_checks(session, request_id=request_id)
     by_subsystem = {item["subsystem"]: item for item in checks}
     return {"observation_time_utc": _utcnow(), "checks": checks, "by_subsystem": by_subsystem}
 
@@ -141,6 +191,29 @@ def run_integrity_scan(session: Session, actor: ActorContext) -> dict[str, Any]:
 
 def operation_view(row: db.AdminOperation) -> dict[str, Any]:
     return {"operation_id": row.operation_id, "operation_type": row.operation_type, "risk_class": row.risk_class, "status": row.status, "target": redact(row.target_json or {}), "correlation_id": row.correlation_id, "result": redact(row.result_json or {}), "error_code": row.error_code, "created_at": row.created_at, "started_at": row.started_at, "completed_at": row.completed_at}
+
+
+def latest_integrity_summary(session: Session) -> dict[str, Any]:
+    """Return a bounded prior-scan summary; never run an expensive scan on page load."""
+    try:
+        latest = session.scalar(
+            select(db.AdminOperation)
+            .where(db.AdminOperation.operation_type == "integrity.scan")
+            .order_by(db.AdminOperation.created_at.desc())
+        )
+    except SQLAlchemyError:
+        return {"status": "UNAVAILABLE", "finding_count": None, "by_severity": {}, "by_entity_type": {}, "completed_at": None}
+    if latest is None:
+        return {"status": "NOT_RUN", "finding_count": 0, "by_severity": {}, "by_entity_type": {}, "completed_at": None}
+    findings = list((latest.result_json or {}).get("findings") or [])
+    by_severity: dict[str, int] = {}
+    by_entity_type: dict[str, int] = {}
+    for finding in findings:
+        severity = str(finding.get("severity", "UNKNOWN"))
+        entity_type = str(finding.get("entity_type", "Unknown"))
+        by_severity[severity] = by_severity.get(severity, 0) + 1
+        by_entity_type[entity_type] = by_entity_type.get(entity_type, 0) + 1
+    return {"status": latest.status, "operation_id": latest.operation_id, "finding_count": len(findings), "by_severity": by_severity, "by_entity_type": by_entity_type, "completed_at": latest.completed_at}
 
 
 def _safe_event(row: db.AuditEvent) -> dict[str, Any]:
@@ -202,10 +275,31 @@ def _fixture_target(session: Session, namespace: str) -> tuple[int, str]:
 
 
 def _recovery_point_state() -> tuple[str, str]:
+    """Validate only local test-recovery metadata; never reveal its path."""
     path = os.getenv("EOAT_PHASE4_TEST_RECOVERY_POINT", "").strip()
     if not path:
         return "FAIL", "No validated Phase 4 test recovery point is configured."
-    return ("PASS", "A configured test recovery point is available.") if os.path.isfile(path) else ("FAIL", "The configured test recovery point is unavailable.")
+    if not os.path.isfile(path):
+        return "FAIL", "The configured test recovery point is unavailable."
+    configured_hash = os.getenv("EOAT_PHASE4_TEST_RECOVERY_POINT_SHA256", "").strip().casefold()
+    configured_revision = os.getenv("EOAT_PHASE4_TEST_RECOVERY_POINT_REVISION", "").strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", configured_hash):
+        return "FAIL", "The test recovery point has no approved integrity metadata."
+    if configured_revision != EXPECTED_SCHEMA_REVISION:
+        return "FAIL", "The test recovery point does not declare the current approved schema revision."
+    try:
+        age = _utcnow().timestamp() - os.path.getmtime(path)
+        if age > TEST_RECOVERY_MAX_AGE_SECONDS:
+            return "FAIL", "The configured test recovery point is older than the rehearsal freshness limit."
+        digest = hashlib.sha256()
+        with open(path, "rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if not hmac.compare_digest(digest.hexdigest(), configured_hash):
+            return "FAIL", "The configured test recovery point did not match its approved integrity metadata."
+    except OSError:
+        return "FAIL", "The test recovery point could not be inspected safely."
+    return "PASS", "A recent, integrity-verified Phase 4 test recovery point is available."
 
 
 def _preconditions(session: Session, actor: ActorContext, namespace: str, *, request: Request | None = None, require_step_up: bool = False) -> list[dict[str, str]]:
@@ -221,12 +315,14 @@ def _preconditions(session: Session, actor: ActorContext, namespace: str, *, req
     recovery_state, recovery_detail = _recovery_point_state()
     checks.append({"name": "recovery_point", "state": recovery_state, "detail": recovery_detail})
     diagnostics = {check["subsystem"]: check for check in diagnostic_checks(session)}
-    for subsystem in ("database", "audit", "schema"):
+    for subsystem in ("database", "audit", "schema", "operations"):
         check = diagnostics.get(subsystem)
         state = "PASS" if check and check["state"] == "HEALTHY" else "FAIL"
         checks.append({"name": f"{subsystem}_health", "state": state, "detail": check["safe_detail"] if check else "Status is unknown."})
     running = session.scalar(select(db.AdminOperation.id).where(db.AdminOperation.lock_key == "phase4.fixture-recovery", db.AdminOperation.status == "RUNNING"))
     checks.append({"name": "operation_lock", "state": "FAIL" if running else "PASS", "detail": "No conflicting fixture recovery is running." if not running else "Another fixture recovery operation is running."})
+    writes_enabled = os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() in {"1", "true", "yes", "on"}
+    checks.append({"name": "write_gate", "state": "PASS" if writes_enabled else "FAIL", "detail": "The local rehearsal write gate is enabled." if writes_enabled else "The local rehearsal write gate is disabled."})
     if require_step_up and request is not None:
         try:
             require_active_danger_step_up(request, session, actor, operation_type=OP_FIXTURE_RECOVERY, risk_class=RISK_HIGH)
@@ -288,4 +384,3 @@ def danger_commit(session: Session, request: Request, actor: ActorContext, previ
     operation.result_json = {"removed_count": count, "fixture_namespace": namespace, "recovery": "validated test recovery point remains available"}
     event_id = writer.write_event(session, actor, entity_type="System", entity_id=operation.id, entity_display_id=operation.operation_id, operation="admin.danger.fixture-recovery.complete", action=AuditAction.DANGER_SUCCEEDED, result=AuditResult.SUCCESS, reason=reason, metadata=operation.result_json)
     return {"operation_id": operation.operation_id, "status": operation.status, "removed_count": count, "audit_event_id": event_id, "correlation_id": actor.request_id}
-

@@ -68,10 +68,14 @@ export interface AdminDiagnostics {
     check_id: string;
     subsystem: string;
     state: string;
+    severity?: string;
+    read_only?: boolean;
+    timeout_seconds?: number;
     safe_detail: string;
     remediation_hint: string;
     source: string;
     observed_at_utc: string;
+    request_id?: string | null;
   }>;
   by_subsystem: Record<
     string,
@@ -79,10 +83,14 @@ export interface AdminDiagnostics {
       check_id: string;
       subsystem: string;
       state: string;
+      severity?: string;
+      read_only?: boolean;
+      timeout_seconds?: number;
       safe_detail: string;
       remediation_hint: string;
       source: string;
       observed_at_utc: string;
+      request_id?: string | null;
     }
   >;
 }
@@ -500,6 +508,15 @@ export const adminApi = {
       findings: Array<Record<string, AuditValue>>;
       audit_event_id: string;
     }>("/api/v1/admin/integrity/scans", {}),
+  latestIntegrity: (signal?: AbortSignal) =>
+    adminFetch<{
+      status: string;
+      operation_id?: string;
+      finding_count: number | null;
+      by_severity: Record<string, number>;
+      by_entity_type: Record<string, number>;
+      completed_at?: string | null;
+    }>("/api/v1/admin/integrity/latest", signal),
   operation: (operationId: string) =>
     adminFetch<AdminOperation>(
       `/api/v1/admin/operations/${encodeURIComponent(operationId)}`,

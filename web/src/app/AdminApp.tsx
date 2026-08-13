@@ -960,8 +960,14 @@ function DiagnosticsPage({ diagnostics = false }: { diagnostics?: boolean }) {
             <p>{check.safe_detail}</p>
             <p className="state-note">
               {check.remediation_hint} · Source: {check.source} ·{" "}
-              {formatTime(check.observed_at_utc)}
+              {formatTime(check.observed_at_utc)} · timeout{" "}
+              {check.timeout_seconds ?? 5}s
             </p>
+            {check.request_id ? (
+              <p className="state-note">
+                Request ID: <code>{check.request_id}</code>
+              </p>
+            ) : null}
           </article>
         ))}
       </section>
@@ -1341,6 +1347,56 @@ function AssetEditor({
   );
 }
 
+function DataIntegritySummary() {
+  const remote = useRemote(
+    (signal) => adminApi.latestIntegrity(signal),
+    "latest-integrity-summary",
+  );
+  if (remote.state === "loading") {
+    return (
+      <p className="state-note">
+        Loading the latest explicit integrity scan summary.
+      </p>
+    );
+  }
+  if (remote.state === "error") {
+    return (
+      <p className="inline-error">
+        Integrity summary is unavailable: {remote.error.message}
+      </p>
+    );
+  }
+  const value = remote.value;
+  return (
+    <section className="editor-card" aria-labelledby="data-integrity-summary">
+      <div className="section-heading">
+        <h2 id="data-integrity-summary">Integrity summary</h2>
+        <strong>{value.status}</strong>
+      </div>
+      <p>
+        {value.finding_count == null
+          ? "The latest integrity result is unavailable."
+          : `${value.finding_count} finding(s) from the latest explicit scan.`}
+      </p>
+      {value.completed_at ? (
+        <p className="state-note">
+          Completed {formatTime(value.completed_at)}.
+        </p>
+      ) : null}
+      <p className="state-note">
+        By severity:{" "}
+        {Object.entries(value.by_severity)
+          .map(([key, count]) => `${key} ${count}`)
+          .join(", ") || "none"}
+        .
+      </p>
+      <Link to="/admin/integrity">
+        Open integrity details and run a new scan
+      </Link>
+    </section>
+  );
+}
+
 function DataPage({
   initialKind = "eoats",
 }: {
@@ -1373,6 +1429,7 @@ function DataPage({
         </p>
       </PageTitle>
       <AuditSuccess eventId={lastAuditEvent} />
+      <DataIntegritySummary />
       <section className="filters">
         <div className="filter-grid">
           <Select
@@ -2436,6 +2493,7 @@ function downloadEvidence(result: { blob: Blob; filename: string }) {
 }
 function IntegrityEvidencePage() {
   const { ready, setReady } = useAdminSession();
+  const [supportRequestId, setSupportRequestId] = useState("");
   const [scan, setScan] = useState<{
     operation_id: string;
     finding_count: number;
@@ -2457,7 +2515,12 @@ function IntegrityEvidencePage() {
   const evidence = (kind: "csv" | "json" | "support") => {
     const call =
       kind === "support"
-        ? adminApi.supportBundle(["health", "integrity", "release"])
+        ? adminApi.supportBundle(
+            supportRequestId.trim()
+              ? ["health", "integrity", "release", "request"]
+              : ["health", "integrity", "release"],
+            supportRequestId.trim() || undefined,
+          )
         : adminApi.auditExport(kind, {});
     call
       .then(downloadEvidence)
@@ -2513,6 +2576,15 @@ function IntegrityEvidencePage() {
       </section>
       <section className="editor-card">
         <h2>Authorized evidence exports</h2>
+        <label>
+          Request ID for safe support context (optional)
+          <input
+            value={supportRequestId}
+            onChange={(event) => setSupportRequestId(event.target.value)}
+            maxLength={64}
+            autoComplete="off"
+          />
+        </label>
         <div className="editor-actions">
           <button type="button" onClick={() => evidence("csv")}>
             Download Audit CSV
@@ -2526,7 +2598,8 @@ function IntegrityEvidencePage() {
         </div>
         <p className="state-note">
           No secret, cookie, token, credential, path, raw log, or environment
-          dump is included.
+          dump is included. When supplied, the request ID retrieves only its
+          matching safe Audit context; it is not a log-search capability.
         </p>
       </section>
       {error ? <p className="inline-error">{error.message}</p> : null}

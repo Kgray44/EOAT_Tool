@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from ..database.session import get_runtime_session
@@ -58,13 +58,14 @@ def _event_response(row) -> AuditEventResponse:
 
 @router.get("/overview", response_model=AdminOverviewContract)
 def overview(
+    request: Request,
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin("admin.area.view")),
 ):
     service = AtlasService(session)
     observed_at = datetime.now(timezone.utc)
     metrics, recent_events = AuditEventRepository(session).overview(now=observed_at)
-    health = diagnostic_summary(session).get("by_subsystem", {})
+    health = diagnostic_summary(session, request_id=getattr(request.state, "request_id", None)).get("by_subsystem", {})
     def health_state(subsystem: str) -> str:
         return str((health.get(subsystem) or {}).get("state", "UNKNOWN")).casefold()
     return AdminOverviewContract(
@@ -83,18 +84,20 @@ def overview(
 
 @router.get("/system")
 def system_status(
+    request: Request,
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin("admin.area.view")),
 ):
-    return diagnostic_summary(session)
+    return diagnostic_summary(session, request_id=getattr(request.state, "request_id", None))
 
 
 @router.get("/diagnostics")
 def diagnostics(
+    request: Request,
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin("admin.diagnostics.read")),
 ):
-    return diagnostic_summary(session)
+    return diagnostic_summary(session, request_id=getattr(request.state, "request_id", None))
 
 
 @router.get("/access/status", response_model=AdminAccessStateContract)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,8 +10,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from server.eoat_api.app import app
+from server.eoat_api.admin.service import AuditEventWriter
+from server.eoat_api.admin.taxonomy import AuditAction, AuditResult
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
+from server.eoat_api.security import ActorContext
 
 pytestmark = pytest.mark.skipif(
     os.getenv("EOAT_DB_NAME") != "eoat_atlas_test",
@@ -29,11 +33,17 @@ def phase4_environment():
             "EOAT_API_WRITES_ENABLED",
             "EOAT_API_ENVIRONMENT",
             "EOAT_API_ADMIN_REHEARSAL_SECRET",
+            "EOAT_PHASE4_TEST_RECOVERY_POINT_SHA256",
+            "EOAT_PHASE4_TEST_RECOVERY_POINT_REVISION",
         )
     }
     os.environ["EOAT_API_WRITES_ENABLED"] = "true"
     os.environ["EOAT_API_ENVIRONMENT"] = "development"
     os.environ["EOAT_API_ADMIN_REHEARSAL_SECRET"] = REHEARSAL_SECRET
+    recovery = Path(os.environ.get("EOAT_PHASE4_TEST_RECOVERY_POINT", ""))
+    assert recovery.is_file(), "A tested EOAT_PHASE4_TEST_RECOVERY_POINT is required for the dangerous-operation rehearsal."
+    os.environ["EOAT_PHASE4_TEST_RECOVERY_POINT_SHA256"] = sha256(recovery.read_bytes()).hexdigest()
+    os.environ["EOAT_PHASE4_TEST_RECOVERY_POINT_REVISION"] = "20260813_0008"
     yield
     for key, value in previous.items():
         if value is None:
@@ -73,7 +83,7 @@ def api():
             json={"identity": "dev.admin", "rehearsal_secret": REHEARSAL_SECRET},
         )
         assert login.status_code == 200, login.text
-        yield client, {"X-EOAT-CSRF-Token": login.json()["csrf_token"]}
+        yield client, {"X-EOAT-CSRF-Token": login.json()["csrf_token"]}, login.headers["X-Request-ID"]
 
 
 def test_phase4_controlled_evidence_and_fixture_recovery_are_real_mysql_audited(api, fixture_namespace):
@@ -83,7 +93,7 @@ def test_phase4_controlled_evidence_and_fixture_recovery_are_real_mysql_audited(
     migrator.  That proves the deployed application account has the minimum
     DML it needs for the new durable operation evidence tables.
     """
-    client, csrf = api
+    client, csrf, login_request_id = api
     diagnostics = client.get("/api/v1/admin/diagnostics", headers={"X-EOAT-Identity": "dev.admin"})
     assert diagnostics.status_code == 200, diagnostics.text
     assert {"api", "database", "schema", "audit"}.issubset(diagnostics.json()["by_subsystem"])
@@ -92,7 +102,11 @@ def test_phase4_controlled_evidence_and_fixture_recovery_are_real_mysql_audited(
     assert integrity.status_code == 200, integrity.text
     assert integrity.json()["status"] == "COMPLETED"
 
-    exported = client.post("/api/v1/admin/audit/exports", json={"format": "json", "filters": {}}, headers=csrf)
+    exported = client.post(
+        "/api/v1/admin/audit/exports",
+        json={"format": "json", "filters": {"request_id": login_request_id}},
+        headers=csrf,
+    )
     assert exported.status_code == 200, exported.text
     assert exported.headers["X-EOAT-Export-Checksum"]
     assert b'"manifest"' in exported.content
@@ -165,3 +179,65 @@ def test_phase4_controlled_evidence_and_fixture_recovery_are_real_mysql_audited(
             ).all()
         )
         assert {"DANGER_ATTEMPT", "DANGER_CONFIRMED", "DANGER_STARTED", "DANGER_SUCCEEDED"}.issubset(actions)
+
+
+def test_phase4_exports_redact_synthetic_secret_and_enforce_session_authorization(api):
+    client, csrf, _login_request_id = api
+    marker = "phase4-synthetic-secret-marker-never-export"
+    request_id = f"phase4-export-{RUN}"
+    factory = create_session_factory()
+    with factory() as session, session.begin():
+        user = session.scalar(select(db.User).where(db.User.external_identity == "dev.admin"))
+        assert user is not None
+        actor = ActorContext(
+            user_id=user.id,
+            identity="dev.admin",
+            display_name=user.display_name,
+            role="ADMINISTRATOR",
+            request_id=request_id,
+            application_instance_id=None,
+            client_version="phase4-integration",
+        )
+        AuditEventWriter().write_event(
+            session,
+            actor,
+            entity_type="System",
+            entity_id=f"phase4-export-{RUN}",
+            entity_display_id="phase4-redaction",
+            operation="phase4.export.redaction-test",
+            action=AuditAction.ADMIN_EXPORT,
+            result=AuditResult.SUCCESS,
+            metadata={"synthetic_secret": marker, "safe_marker": "redaction-check"},
+        )
+
+    exported = client.post(
+        "/api/v1/admin/audit/exports",
+        json={"format": "json", "filters": {"request_id": request_id}},
+        headers=csrf,
+    )
+    assert exported.status_code == 200, exported.text
+    assert marker.encode() not in exported.content
+    assert b"redaction-check" in exported.content
+
+    bundle = client.post(
+        "/api/v1/admin/support-bundles",
+        json={"sections": ["request"], "request_id": request_id},
+        headers=csrf,
+    )
+    assert bundle.status_code == 200, bundle.text
+    assert marker.encode() not in bundle.content
+
+    with TestClient(app, raise_server_exceptions=False) as anonymous:
+        denied = anonymous.post("/api/v1/admin/audit/exports", json={"format": "json", "filters": {}})
+        assert denied.status_code == 401
+        viewer_login = anonymous.post(
+            "/api/v1/admin/session/rehearsal",
+            json={"identity": "dev.viewer", "rehearsal_secret": REHEARSAL_SECRET},
+        )
+        assert viewer_login.status_code == 200, viewer_login.text
+        viewer_denied = anonymous.post(
+            "/api/v1/admin/audit/exports",
+            json={"format": "json", "filters": {"request_id": request_id}},
+            headers={"X-EOAT-CSRF-Token": viewer_login.json()["csrf_token"]},
+        )
+        assert viewer_denied.status_code == 403

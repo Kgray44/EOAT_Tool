@@ -7950,6 +7950,25 @@
         ]
       }
     },
+    "/api/v1/admin/integrity/latest": {
+      "get": {
+        "operationId": "latest_integrity_scan_api_v1_admin_integrity_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Latest Integrity Scan",
+        "tags": [
+          "admin-phase4"
+        ]
+      }
+    },
     "/api/v1/admin/integrity/scans": {
       "post": {
         "operationId": "start_integrity_scan_api_v1_admin_integrity_scans_post",

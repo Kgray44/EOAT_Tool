@@ -15,7 +15,7 @@ from ..errors import APIError
 from ..security import ActorContext, issue_danger_step_up, require_admin, require_admin_mutation
 from ..write_services import idempotent
 from .operation_contracts import DangerCommitRequest, DangerPreviewRequest, DangerStepUpRequest, ExportRequest, IntegrityScanRequest, SupportBundleRequest
-from .operations import OP_FIXTURE_RECOVERY, RISK_HIGH, audit_export, danger_commit, danger_preview, operation_view, run_integrity_scan, support_bundle
+from .operations import OP_FIXTURE_RECOVERY, RISK_HIGH, audit_export, danger_commit, danger_preview, latest_integrity_summary, operation_view, require_operation_ledger, run_integrity_scan, support_bundle
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-phase4"])
 
@@ -26,7 +26,16 @@ def start_integrity_scan(
     session: Session = Depends(get_write_session),
     actor: ActorContext = Depends(require_admin_mutation("admin.integrity.run")),
 ):
+    require_operation_ledger(session)
     return run_integrity_scan(session, actor)
+
+
+@router.get("/integrity/latest")
+def latest_integrity_scan(
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin("admin.area.view")),
+):
+    return latest_integrity_summary(session)
 
 
 @router.get("/operations/{operation_id}")
@@ -92,6 +101,7 @@ def danger_step_up(
     session: Session = Depends(get_write_session),
     actor: ActorContext = Depends(require_admin_mutation("admin.danger.execute")),
 ):
+    require_operation_ledger(session)
     proof = issue_danger_step_up(request, session, actor, operation_type=OP_FIXTURE_RECOVERY, risk_class=RISK_HIGH, rehearsal_step_up_secret=payload.rehearsal_step_up_secret)
     return {"step_up_reference": proof.step_up_reference, "expires_at": proof.expires_at, "operation_type": proof.operation_type, "environment": os.getenv("EOAT_API_ENVIRONMENT", "development"), "rehearsal_only": True}
 
@@ -102,6 +112,7 @@ def preview_fixture_recovery(
     session: Session = Depends(get_write_session),
     actor: ActorContext = Depends(require_admin_mutation("admin.danger.execute")),
 ):
+    require_operation_ledger(session)
     return danger_preview(session, actor, payload.fixture_namespace)
 
 
@@ -113,4 +124,5 @@ def commit_fixture_recovery(
     session: Session = Depends(get_write_session),
     actor: ActorContext = Depends(require_admin_mutation("admin.danger.execute")),
 ):
+    require_operation_ledger(session)
     return idempotent(session, actor, OP_FIXTURE_RECOVERY, idempotency_key, payload.model_dump(), lambda: danger_commit(session, request, actor, payload.preview_reference, payload.confirmation, payload.reason))
