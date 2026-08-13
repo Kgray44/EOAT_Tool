@@ -46,7 +46,7 @@ def test_configured_provider_is_not_reported_ready_without_verified_provider_pro
 
     state = corporate_provider_state(environment)
 
-    assert state.provider == "saml"
+    assert state.provider == "kerberos_form"
     assert state.state == "UNKNOWN"
     assert not state.administrator_group_mapping_configured
     assert not state.missing_configuration_names

@@ -19,9 +19,17 @@ reconciled into the Phase 4 lineage; real-provider acceptance remains pending.
 
 * `ruff check` passed for the Phase 5 provider-state implementation, its
   Admin consumers, and focused configuration tests.
-* Earlier bundled-Python assertions covered the superseded unselected-provider
-  boundary.  The approved Kerberos-form configuration tests are pending the
-  current amendment validation.
+* Focused configuration, provider/session, header-forgery, CSRF, logout, and
+  HTTP authorization tests pass **10/10**.  The test-only fake authenticator
+  asserts that a supplied password reaches only the authentication boundary;
+  no raw token or password is persisted or returned.
+* Alembic static SQL passed and the protected loopback test target migrated
+  from `20260813_0008` to `20260813_0010`.  The pre-existing compatible group
+  mapping table was safely adopted, the approved mapping was seeded once, and
+  the new session/event tables were verified.
+* A real test-schema runtime transaction was intentionally rolled back after
+  it exposed missing least-privilege DML on `corporate_authentication_events`.
+  This is a fail-closed deployment prerequisite, not a passing runtime test.
 * `compileall` passed for the new provider-state module and its Admin callers.
 * The normal project pytest executable from the archived UNC environment timed
   out before emitting test collection output, both with normal discovery and

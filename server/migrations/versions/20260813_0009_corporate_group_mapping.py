@@ -6,9 +6,7 @@ Revises: 20260813_0008
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import mysql
 
 revision = "20260813_0009"
 down_revision = "20260813_0008"
@@ -17,20 +15,48 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "external_group_role_mappings",
-        sa.Column("id", mysql.BIGINT(unsigned=True), autoincrement=True, nullable=False),
-        sa.Column("provider", sa.String(length=32), nullable=False),
-        sa.Column("external_group_identifier", sa.String(length=512), nullable=False),
-        sa.Column("role_code", sa.String(length=64), nullable=False),
-        sa.Column("explicit_deny", sa.Boolean(), server_default=sa.text("0"), nullable=False),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("UTC_TIMESTAMP(6)"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("UTC_TIMESTAMP(6)"), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("provider", "external_group_identifier", "role_code", name="uq_external_group_role"),
+    # The deployed Kerberos-form implementation can already own this exact
+    # table while an older accepted lineage still reports revision 0008.  A
+    # compatible pre-existing table is therefore adopted, not recreated.
+    op.execute(
+        """
+        CREATE TABLE IF NOT EXISTS external_group_role_mappings (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            provider VARCHAR(32) NOT NULL,
+            external_group_identifier VARCHAR(512) NOT NULL,
+            role_code VARCHAR(64) NOT NULL,
+            explicit_deny BOOL NOT NULL DEFAULT 0,
+            is_active BOOL NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
+            updated_at DATETIME NOT NULL DEFAULT (UTC_TIMESTAMP(6)),
+            PRIMARY KEY (id),
+            CONSTRAINT uq_external_group_role UNIQUE (provider, external_group_identifier, role_code)
+        )
+        """
+    )
+    # IT-approved Phase E baseline.  The conditional seed is idempotent and
+    # keeps the directory authorization source server-side; it never creates
+    # a directory group or changes directory membership.
+    op.execute(
+        """
+        INSERT INTO external_group_role_mappings
+            (provider, external_group_identifier, role_code, explicit_deny, is_active)
+        SELECT 'kerberos_form',
+               'CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com',
+               'ADMINISTRATOR', 0, 1
+        WHERE NOT EXISTS (
+            SELECT 1 FROM external_group_role_mappings
+            WHERE provider = 'kerberos_form'
+              AND external_group_identifier = 'CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com'
+              AND role_code = 'ADMINISTRATOR'
+        )
+        """
     )
 
 
 def downgrade() -> None:
-    op.drop_table("external_group_role_mappings")
+    # The table may predate this adopted migration.  Dropping it would erase
+    # persisted authorization state, so downgrade is deliberately non-
+    # destructive.  A governed cleanup migration can remove only a table it
+    # has independently proven to own.
+    pass

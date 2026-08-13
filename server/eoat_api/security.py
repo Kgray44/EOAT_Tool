@@ -14,6 +14,13 @@ from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .corporate_sessions import (
+    CORPORATE_CSRF_COOKIE,
+    CORPORATE_CSRF_HEADER,
+    CORPORATE_SESSION_COOKIE,
+    CorporateSessionService,
+    corporate_csrf_valid,
+)
 from .database import models as db
 from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
@@ -137,6 +144,12 @@ def _local_environment() -> str:
     return environment
 
 
+def _corporate_auth_enabled() -> bool:
+    return os.getenv("EOAT_AUTH_PROVIDER", "").strip().casefold() == "kerberos_form" and os.getenv(
+        "EOAT_AUTH_SCOPE", ""
+    ).strip().casefold() == "application"
+
+
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -200,6 +213,8 @@ def actor_context(
 ) -> ActorContext:
     if os.getenv("EOAT_API_WRITES_ENABLED", "false").strip().casefold() not in {"1", "true", "yes", "on"}:
         raise APIError(403, "WRITES_DISABLED", "Permanent writes are disabled for this API environment.")
+    if _corporate_auth_enabled():
+        return corporate_session_actor(request, session)
     environment = _local_environment()
     identity = request.headers.get("X-EOAT-Identity", "").strip()
     role_code = _role_for_identity(session, identity, environment)
@@ -236,6 +251,8 @@ def read_actor_context(
     remain independently authorized even while all mutations are disabled.
     Production identity-provider integration remains a separate Phase 5 seam.
     """
+    if _corporate_auth_enabled():
+        return corporate_session_actor(request, session)
     environment = _local_environment()
     identity = request.headers.get("X-EOAT-Identity", "").strip()
     role_code = _role_for_identity(session, identity, environment)
@@ -250,6 +267,23 @@ def read_actor_context(
         identity=identity,
         display_name=user.display_name if user is not None else identity.replace(".", " ").title(),
         role=role_code,
+        request_id=getattr(request.state, "request_id", None) or str(uuid4()),
+        application_instance_id=None,
+        client_version=request.headers.get("X-EOAT-Client-Version"),
+    )
+
+
+def corporate_session_actor(request: Request, session: Session) -> ActorContext:
+    """Resolve a production actor only from the opaque corporate session."""
+
+    row, user = CorporateSessionService(session).resolve(request.cookies.get(CORPORATE_SESSION_COOKIE, ""))
+    roles = set(row.roles_json or [])
+    role = next((value for value in ("ADMINISTRATOR", "ENGINEER", "TECHNICIAN", "VIEWER") if value in roles), "VIEWER")
+    return ActorContext(
+        user_id=user.id,
+        identity=user.external_identity or user.username,
+        display_name=user.display_name,
+        role=role,
         request_id=getattr(request.state, "request_id", None) or str(uuid4()),
         application_instance_id=None,
         client_version=request.headers.get("X-EOAT-Client-Version"),
@@ -333,6 +367,8 @@ def admin_session_actor(
     session: Session = Depends(get_write_session),
 ) -> ActorContext:
     """Resolve a Phase 3 mutation actor only from the opaque server-side session."""
+    if _corporate_auth_enabled():
+        return corporate_session_actor(request, session)
     environment = _local_environment()
     token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
     if not token:
@@ -385,13 +421,19 @@ def require_admin_mutation(permission: str):
         content_length = request.headers.get("content-length")
         if content_length and (not content_length.isdigit() or int(content_length) > ADMIN_SESSION_MAX_BODY_BYTES):
             raise APIError(413, "REQUEST_TOO_LARGE", "The Administrator mutation request is too large.")
-        token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
-        record = session.scalar(
-            select(db.AdminRehearsalSession).where(db.AdminRehearsalSession.session_token_hash == _sha256(token))
-        )
-        submitted = request.headers.get(ADMIN_CSRF_HEADER, "")
-        if record is None or not submitted or not hmac.compare_digest(record.csrf_token_hash, _sha256(submitted)):
-            raise APIError(403, "CSRF_INVALID", "The Administrator mutation could not be verified.")
+        if _corporate_auth_enabled():
+            record, _user = CorporateSessionService(session).resolve(request.cookies.get(CORPORATE_SESSION_COOKIE, ""))
+            submitted = request.headers.get(CORPORATE_CSRF_HEADER, "")
+            if request.cookies.get(CORPORATE_CSRF_COOKIE, "") != submitted or not corporate_csrf_valid(record, submitted):
+                raise APIError(403, "CSRF_INVALID", "The Administrator mutation could not be verified.")
+        else:
+            token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
+            record = session.scalar(
+                select(db.AdminRehearsalSession).where(db.AdminRehearsalSession.session_token_hash == _sha256(token))
+            )
+            submitted = request.headers.get(ADMIN_CSRF_HEADER, "")
+            if record is None or not submitted or not hmac.compare_digest(record.csrf_token_hash, _sha256(submitted)):
+                raise APIError(403, "CSRF_INVALID", "The Administrator mutation could not be verified.")
         if not actor.permits(permission):
             raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
         return actor

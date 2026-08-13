@@ -194,6 +194,44 @@ class ExternalGroupRoleMapping(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
 
 
+class CorporateAuthenticationSession(Base):
+    """Opaque, short-lived corporate session; raw tokens are never persisted."""
+
+    __tablename__ = "corporate_authentication_sessions"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_corporate_authentication_session_token"),
+        Index("ix_corporate_authentication_sessions_user_active", "user_id", "expires_at", "revoked_at"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    session_reference: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    csrf_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[int] = mapped_column(PK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    roles_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoke_reason: Mapped[str | None] = mapped_column(String(128))
+
+
+class CorporateAuthenticationEvent(Base):
+    """Bounded, credential-free authentication event evidence."""
+
+    __tablename__ = "corporate_authentication_events"
+    __table_args__ = (Index("ix_corporate_authentication_events_occurred", "occurred_at", "event_type"),)
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    event_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    result: Mapped[str] = mapped_column(String(32), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    provider: Mapped[str | None] = mapped_column(String(32))
+    reason_code: Mapped[str | None] = mapped_column(String(64))
+
+
 class AdminRehearsalSession(Base):
     """Opaque server-side session used only by Phase 3 local/test admin mutations."""
 

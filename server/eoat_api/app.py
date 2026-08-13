@@ -33,6 +33,7 @@ from .contracts import (
     WebFitCheckOptions,
     WebPhotoMetadata,
 )
+from .corporate_auth_routes import router as corporate_auth_router
 from .database import models as db
 from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
@@ -703,6 +704,7 @@ def home_summary(repo: AtlasRepository = Depends(repository)):
 
 
 app.include_router(write_router)
+app.include_router(corporate_auth_router)
 app.include_router(admin_router)
 app.include_router(admin_mutation_router)
 app.include_router(admin_operation_router)

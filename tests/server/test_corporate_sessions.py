@@ -1,0 +1,224 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+from starlette.requests import Request
+
+from server.eoat_api.app import app
+from server.eoat_api.corporate_auth import ADMINISTRATOR_GROUP_IDENTIFIER
+from server.eoat_api.corporate_auth_routes import corporate_session_service
+from server.eoat_api.corporate_sessions import (
+    CorporateSessionService,
+    DirectoryIdentity,
+    corporate_csrf_valid,
+    normalize_principal,
+)
+from server.eoat_api.database import models as db
+from server.eoat_api.database.session import get_runtime_session, get_write_session
+from server.eoat_api.errors import APIError
+from server.eoat_api.security import actor_context, corporate_session_actor
+
+
+class FakeAuthenticator:
+    def authenticate(self, principal: str, password: str) -> DirectoryIdentity:
+        assert principal == "kgray@GWPLASTICS.COM"
+        assert password == "not-persisted"
+        return DirectoryIdentity(
+            username="kgray",
+            upn="KGray@GWPLASTICS.COM",
+            display_name="K Gray",
+            groups=(ADMINISTRATOR_GROUP_IDENTIFIER,),
+        )
+
+
+def _configure(monkeypatch) -> None:
+    monkeypatch.setenv("EOAT_KERBEROS_REALM", "GWPLASTICS.COM")
+    monkeypatch.setenv("EOAT_KERBEROS_BASE_DN", "DC=gwplastics,DC=com")
+    monkeypatch.setenv("EOAT_KERBEROS_CACHE_DIRECTORY", "/not-used-by-fake")
+    monkeypatch.setenv("EOAT_KERBEROS_LOGIN_TIMEOUT_SECONDS", "15")
+    monkeypatch.setenv("EOAT_KERBEROS_MIN_SASL_SSF", "256")
+    monkeypatch.setenv("EOAT_AUTH_SESSION_MINUTES", "15")
+
+
+def _engine():
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, external_identity TEXT UNIQUE,
+                username TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, email TEXT,
+                authentication_provider TEXT, last_login_at DATETIME,
+                created_by_user_id INTEGER, updated_by_user_id INTEGER, row_version INTEGER DEFAULT 1,
+                is_active BOOLEAN DEFAULT 1, archived_at DATETIME, archived_by_user_id INTEGER,
+                source_system TEXT DEFAULT 'eoat_atlas', source_import_batch_id INTEGER,
+                created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE external_group_role_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, provider TEXT NOT NULL,
+                external_group_identifier TEXT NOT NULL, role_code TEXT NOT NULL,
+                explicit_deny BOOLEAN DEFAULT 0, is_active BOOLEAN DEFAULT 1,
+                created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE corporate_authentication_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, session_reference TEXT UNIQUE NOT NULL,
+                token_hash TEXT UNIQUE NOT NULL, csrf_token_hash TEXT NOT NULL, user_id INTEGER NOT NULL,
+                provider TEXT NOT NULL, roles_json JSON NOT NULL, authenticated_at DATETIME NOT NULL,
+                issued_at DATETIME NOT NULL, expires_at DATETIME NOT NULL, last_seen_at DATETIME,
+                revoked_at DATETIME, revoke_reason TEXT
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE corporate_authentication_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, event_uuid TEXT UNIQUE NOT NULL,
+                event_type TEXT NOT NULL, occurred_at DATETIME NOT NULL, result TEXT NOT NULL,
+                user_id INTEGER, provider TEXT, reason_code TEXT
+            )
+            """
+        )
+    return engine
+
+
+def test_kerberos_form_login_uses_persisted_group_mapping_and_never_persists_password(monkeypatch):
+    _configure(monkeypatch)
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            session.add(
+                db.ExternalGroupRoleMapping(
+                    provider="kerberos_form",
+                    external_group_identifier=ADMINISTRATOR_GROUP_IDENTIFIER,
+                    role_code="ADMINISTRATOR",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            session.commit()
+            issued = CorporateSessionService(session, authenticator=FakeAuthenticator()).login("GWP\\kgray", "not-persisted")
+            session.commit()
+            stored = session.scalar(select(db.CorporateAuthenticationSession))
+            assert issued.roles == ("ADMINISTRATOR",)
+            assert stored is not None
+            assert stored.token_hash != issued.token
+            assert "password" not in db.CorporateAuthenticationSession.__table__.columns
+            assert corporate_csrf_valid(stored, issued.csrf_token)
+            assert not corporate_csrf_valid(stored, "forged")
+            assert session.scalar(select(db.CorporateAuthenticationEvent.event_type)) == "LOGIN"
+    finally:
+        engine.dispose()
+
+
+def test_unmapped_authenticated_identity_is_not_an_administrator(monkeypatch):
+    _configure(monkeypatch)
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            issued = CorporateSessionService(session, authenticator=FakeAuthenticator()).login("kgray", "not-persisted")
+            assert issued.roles == ()
+    finally:
+        engine.dispose()
+
+
+def test_normalization_rejects_untrusted_domain_and_empty_session(monkeypatch):
+    _configure(monkeypatch)
+    assert normalize_principal("kgray@gwplastics.com", "GWPLASTICS.COM") == "kgray@GWPLASTICS.COM"
+    try:
+        normalize_principal("OTHER\\kgray", "GWPLASTICS.COM")
+    except Exception as exc:
+        assert type(exc).__name__ == "CorporateAuthenticationFailure"
+    else:
+        raise AssertionError("untrusted domain was accepted")
+
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            try:
+                CorporateSessionService(session, authenticator=FakeAuthenticator()).resolve("")
+            except APIError as exc:
+                assert exc.error_code == "CORPORATE_SESSION_REQUIRED"
+            else:
+                raise AssertionError("missing corporate session was accepted")
+    finally:
+        engine.dispose()
+
+
+def test_corporate_mode_never_accepts_a_forged_identity_header(monkeypatch):
+    _configure(monkeypatch)
+    monkeypatch.setenv("EOAT_AUTH_PROVIDER", "kerberos_form")
+    monkeypatch.setenv("EOAT_AUTH_SCOPE", "application")
+    monkeypatch.setenv("EOAT_API_WRITES_ENABLED", "true")
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/eoats",
+            "headers": [(b"x-eoat-identity", b"dev.admin")],
+        }
+    )
+    for resolver in (corporate_session_actor, actor_context):
+        try:
+            resolver(request, None)  # type: ignore[arg-type]
+        except APIError as exc:
+            assert exc.error_code == "CORPORATE_SESSION_REQUIRED"
+        else:
+            raise AssertionError("forged header was accepted without a corporate session")
+
+
+def test_http_corporate_session_enforces_admin_mapping_csrf_and_logout(monkeypatch):
+    _configure(monkeypatch)
+    monkeypatch.setenv("EOAT_AUTH_PROVIDER", "kerberos_form")
+    monkeypatch.setenv("EOAT_AUTH_SCOPE", "application")
+    monkeypatch.setenv("EOAT_API_ENVIRONMENT", "development")
+    engine = _engine()
+    session = Session(engine)
+    try:
+        now = datetime.now(timezone.utc)
+        session.add(
+            db.ExternalGroupRoleMapping(
+                provider="kerberos_form",
+                external_group_identifier=ADMINISTRATOR_GROUP_IDENTIFIER,
+                role_code="ADMINISTRATOR",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+        def shared_session():
+            yield session
+
+        def fake_service():
+            return CorporateSessionService(session, authenticator=FakeAuthenticator())
+
+        app.dependency_overrides[get_runtime_session] = shared_session
+        app.dependency_overrides[get_write_session] = shared_session
+        app.dependency_overrides[corporate_session_service] = fake_service
+        with TestClient(app) as client:
+            assert client.get("/api/v1/admin/audit/catalog", headers={"X-EOAT-Identity": "dev.admin"}).status_code == 401
+            login = client.post("/api/v1/auth/kerberos-form/login", json={"username": "kgray", "password": "not-persisted"})
+            assert login.status_code == 200
+            assert "password" not in login.text
+            assert client.get("/api/v1/auth/session").json()["roles"] == ["ADMINISTRATOR"]
+            assert client.get("/api/v1/admin/audit/catalog").status_code == 200
+            assert client.post("/api/v1/auth/logout").status_code == 403
+            csrf = client.cookies.get("eoat_corporate_csrf")
+            assert client.post("/api/v1/auth/logout", headers={"X-EOAT-CSRF-Token": csrf}).status_code == 200
+            assert client.get("/api/v1/admin/audit/catalog").status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+        session.close()
+        engine.dispose()

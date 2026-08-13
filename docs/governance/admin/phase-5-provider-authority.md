@@ -41,6 +41,8 @@ new corporate-authentication standard.**
   authority identifier is `CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com`;
   do not copy it to browser claims or public diagnostics, and do not replace it
   with a guessed group.
+* Migration `20260813_0009` establishes that approved mapping idempotently for
+  a new Phase 5 schema; it never changes AD group membership.
 * Retain the local rehearsal path only for development/staging-local tests.
 
 ## Consequence
