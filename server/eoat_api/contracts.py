@@ -240,6 +240,24 @@ class FitCheckRequest(BaseModel):
     persist: bool = False
 
 
+class FitCheckOption(BaseModel):
+    """A browser-safe selectable asset for the read-only Fit Check."""
+
+    identifier: str
+    label: str
+    plant_code: str | None = None
+
+
+class WebFitCheckOptions(BaseModel):
+    """Effective, compatible candidates for a partial normal-browser Fit Check."""
+
+    machines: list[FitCheckOption] = Field(default_factory=list)
+    tools: list[FitCheckOption] = Field(default_factory=list)
+    eoats: list[FitCheckOption] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    unresolved_inputs: list[Literal["machine", "tool", "eoat"]] = Field(default_factory=list)
+
+
 class SyncStatus(BaseModel):
     api_version: str
     schema_revision: str | None

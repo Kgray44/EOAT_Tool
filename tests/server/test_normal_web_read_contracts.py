@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from server.eoat_api.app import app, repository
 from server.eoat_api.contracts import DocumentMetadata, EOATProfile, MachineProfile, PhotoMetadata, ToolProfile
+from server.eoat_api.database.session import get_runtime_session
 
 
 class _Session:
@@ -44,6 +45,22 @@ class _Repository:
         ]
 
 
+class _Rows:
+    def all(self):
+        return []
+
+
+class _FitCheckSession:
+    def scalar(self, *_args, **_kwargs):
+        return None
+
+    def scalars(self, *_args, **_kwargs):
+        return _Rows()
+
+    def execute(self, *_args, **_kwargs):
+        return _Rows()
+
+
 def _client():
     app.dependency_overrides[repository] = _Repository
     return TestClient(app)
@@ -65,3 +82,18 @@ def test_normal_profiles_and_safe_document_contracts_are_same_backend_routes():
             assert "path_available" not in payload[0]
             assert payload[0]["content_delivery_state"] == "NOT_AVAILABLE_THROUGH_WEB"
     app.dependency_overrides.clear()
+
+
+def test_normal_fit_check_options_are_a_read_only_browser_contract():
+    app.dependency_overrides[get_runtime_session] = _FitCheckSession
+    with TestClient(app) as client:
+        response = client.get("/api/v1/web-fit-checks/options")
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json() == {
+        "machines": [],
+        "tools": [],
+        "eoats": [],
+        "warnings": [],
+        "unresolved_inputs": [],
+    }

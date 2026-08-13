@@ -2085,6 +2085,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/web-fit-checks/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Fit Check Options
+         * @description Return browser-safe, currently-effective Fit Check candidates.
+         *
+         *     This is a normal-app read endpoint. It never persists a Fit Check and it
+         *     only suggests explicit compatible relationships; a missing relationship is
+         *     not treated as compatibility.
+         */
+        get: operations["web_fit_check_options_api_v1_web_fit_checks_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2869,6 +2893,18 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /**
+         * FitCheckOption
+         * @description A browser-safe selectable asset for the read-only Fit Check.
+         */
+        FitCheckOption: {
+            /** Identifier */
+            identifier: string;
+            /** Label */
+            label: string;
+            /** Plant Code */
+            plant_code?: string | null;
+        };
         /** FitCheckRequest */
         FitCheckRequest: {
             /** Eoat Identifier */
@@ -3600,6 +3636,22 @@ export interface components {
             related_entities?: components["schemas"]["RelationshipSummary"][];
             /** Title */
             title: string;
+        };
+        /**
+         * WebFitCheckOptions
+         * @description Effective, compatible candidates for a partial normal-browser Fit Check.
+         */
+        WebFitCheckOptions: {
+            /** Eoats */
+            eoats?: components["schemas"]["FitCheckOption"][];
+            /** Machines */
+            machines?: components["schemas"]["FitCheckOption"][];
+            /** Tools */
+            tools?: components["schemas"]["FitCheckOption"][];
+            /** Unresolved Inputs */
+            unresolved_inputs?: ("machine" | "tool" | "eoat")[];
+            /** Warnings */
+            warnings?: string[];
         };
         /** WebPhotoMetadata */
         WebPhotoMetadata: {
@@ -8138,6 +8190,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    web_fit_check_options_api_v1_web_fit_checks_options_get: {
+        parameters: {
+            query?: {
+                machine_number?: string | null;
+                plant_code?: string | null;
+                tool_number?: string | null;
+                eoat_identifier?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebFitCheckOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

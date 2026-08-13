@@ -3091,6 +3091,36 @@
         "title": "ExpectedVersion",
         "type": "object"
       },
+      "FitCheckOption": {
+        "description": "A browser-safe selectable asset for the read-only Fit Check.",
+        "properties": {
+          "identifier": {
+            "title": "Identifier",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "plant_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Code"
+          }
+        },
+        "required": [
+          "identifier",
+          "label"
+        ],
+        "title": "FitCheckOption",
+        "type": "object"
+      },
       "FitCheckRequest": {
         "properties": {
           "eoat_identifier": {
@@ -5966,6 +5996,53 @@
           "file_name"
         ],
         "title": "WebDocumentMetadata",
+        "type": "object"
+      },
+      "WebFitCheckOptions": {
+        "description": "Effective, compatible candidates for a partial normal-browser Fit Check.",
+        "properties": {
+          "eoats": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckOption"
+            },
+            "title": "Eoats",
+            "type": "array"
+          },
+          "machines": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckOption"
+            },
+            "title": "Machines",
+            "type": "array"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckOption"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "unresolved_inputs": {
+            "items": {
+              "enum": [
+                "machine",
+                "tool",
+                "eoat"
+              ],
+              "type": "string"
+            },
+            "title": "Unresolved Inputs",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "WebFitCheckOptions",
         "type": "object"
       },
       "WebPhotoMetadata": {
@@ -12934,6 +13011,101 @@
           }
         },
         "summary": "Version"
+      }
+    },
+    "/api/v1/web-fit-checks/options": {
+      "get": {
+        "description": "Return browser-safe, currently-effective Fit Check candidates.\n\nThis is a normal-app read endpoint. It never persists a Fit Check and it\nonly suggests explicit compatible relationships; a missing relationship is\nnot treated as compatibility.",
+        "operationId": "web_fit_check_options_api_v1_web_fit_checks_options_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "machine_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Machine Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tool_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tool Number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eoat_identifier",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Eoat Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebFitCheckOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Fit Check Options"
       }
     }
   }

@@ -8,7 +8,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,7 @@ from .contracts import (
     EOATProfile,
     FitCheckRequest,
     FitCheckResult,
+    FitCheckOption,
     HealthResult,
     MachineProfile,
     PaginatedEOATs,
@@ -28,6 +29,7 @@ from .contracts import (
     RelationshipSummary,
     ToolProfile,
     WebDocumentMetadata,
+    WebFitCheckOptions,
     WebPhotoMetadata,
 )
 from .database import models as db
@@ -43,6 +45,7 @@ logging.basicConfig(
     format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
 )
 LOGGER = logging.getLogger("eoat_api")
+COMPATIBLE_STATUS_CODES = frozenset({"compatible", "verified_compatible", "approved"})
 
 app = FastAPI(title="EOAT Atlas API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -425,6 +428,146 @@ def search(
     q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=250), repo: AtlasRepository = Depends(repository)
 ):
     return repo.search(q, limit=limit)
+
+
+@app.get("/api/v1/web-fit-checks/options", response_model=WebFitCheckOptions)
+def web_fit_check_options(
+    machine_number: str | None = None,
+    plant_code: str | None = None,
+    tool_number: str | None = None,
+    eoat_identifier: str | None = None,
+    session: Session = Depends(get_runtime_session),
+):
+    """Return browser-safe, currently-effective Fit Check candidates.
+
+    This is a normal-app read endpoint. It never persists a Fit Check and it
+    only suggests explicit compatible relationships; a missing relationship is
+    not treated as compatibility.
+    """
+    now = datetime.now(timezone.utc)
+    archived_status_ids = select(db.AssetStatus.id).where(db.AssetStatus.code == "archived")
+
+    def available(model):
+        return (
+            model.is_active.is_(True),
+            or_(model.status_id.is_(None), model.status_id.not_in(archived_status_ids)),
+        )
+
+    def available_value(value) -> bool:
+        if value is None or not value.is_active:
+            return False
+        status = (
+            session.scalar(select(db.AssetStatus.code).where(db.AssetStatus.id == value.status_id))
+            if value.status_id is not None
+            else None
+        )
+        return (status or "").strip().casefold() != "archived"
+
+    def compatible_ids(model, column, *criteria):
+        return set(
+            session.scalars(
+                select(column)
+                .join(db.CompatibilityStatus, db.CompatibilityStatus.id == model.compatibility_status_id)
+                .where(
+                    *criteria,
+                    model.is_active.is_(True),
+                    model.effective_from <= now,
+                    or_(model.effective_to.is_(None), model.effective_to >= now),
+                    db.CompatibilityStatus.code.in_(COMPATIBLE_STATUS_CODES),
+                )
+            )
+        )
+
+    machine_query = select(db.Machine).where(db.Machine.machine_number == machine_number) if machine_number else None
+    if machine_query is not None and plant_code:
+        machine_query = machine_query.join(db.Plant, db.Plant.id == db.Machine.plant_id).where(
+            db.Plant.plant_code == plant_code,
+            db.Plant.is_active.is_(True),
+        )
+    machine_matches = (
+        [value for value in session.scalars(machine_query.order_by(db.Machine.id)).all() if available_value(value)]
+        if machine_query is not None
+        else []
+    )
+    machine = machine_matches[0] if len(machine_matches) == 1 else None
+    tool_matches = (
+        list(
+            session.scalars(
+                select(db.Tool)
+                .where(or_(db.Tool.business_identifier == tool_number, db.Tool.tool_number == tool_number))
+                .order_by(db.Tool.id)
+            ).all()
+        )
+        if tool_number
+        else []
+    )
+    tool = tool_matches[0] if len(tool_matches) == 1 and available_value(tool_matches[0]) else None
+    eoat_matches = (
+        list(
+            session.scalars(
+                select(db.EOAT)
+                .where(or_(db.EOAT.business_identifier == eoat_identifier, db.EOAT.legacy_identifier == eoat_identifier))
+                .order_by(db.EOAT.id)
+            ).all()
+        )
+        if eoat_identifier
+        else []
+    )
+    eoat = eoat_matches[0] if len(eoat_matches) == 1 and available_value(eoat_matches[0]) else None
+    machine_ids: set[int] | None = None
+    tool_ids: set[int] | None = None
+    eoat_ids: set[int] | None = None
+
+    def intersect(current: set[int] | None, values: set[int]) -> set[int]:
+        return values if current is None else current & values
+
+    if machine:
+        tool_ids = intersect(tool_ids, compatible_ids(db.ToolMachineCompatibility, db.ToolMachineCompatibility.tool_id, db.ToolMachineCompatibility.machine_id == machine.id))
+        eoat_ids = intersect(eoat_ids, compatible_ids(db.EOATMachineCompatibility, db.EOATMachineCompatibility.eoat_id, db.EOATMachineCompatibility.machine_id == machine.id))
+    if tool:
+        machine_ids = intersect(machine_ids, compatible_ids(db.ToolMachineCompatibility, db.ToolMachineCompatibility.machine_id, db.ToolMachineCompatibility.tool_id == tool.id))
+        eoat_ids = intersect(eoat_ids, compatible_ids(db.EOATToolCompatibility, db.EOATToolCompatibility.eoat_id, db.EOATToolCompatibility.tool_id == tool.id))
+    if eoat:
+        machine_ids = intersect(machine_ids, compatible_ids(db.EOATMachineCompatibility, db.EOATMachineCompatibility.machine_id, db.EOATMachineCompatibility.eoat_id == eoat.id))
+        tool_ids = intersect(tool_ids, compatible_ids(db.EOATToolCompatibility, db.EOATToolCompatibility.tool_id, db.EOATToolCompatibility.eoat_id == eoat.id))
+
+    machine_filters = [*available(db.Machine)]
+    tool_filters = [*available(db.Tool)]
+    eoat_filters = [*available(db.EOAT)]
+    if machine_ids is not None:
+        machine_filters.append(db.Machine.id.in_(machine_ids))
+    if tool_ids is not None:
+        tool_filters.append(db.Tool.id.in_(tool_ids))
+    if eoat_ids is not None:
+        eoat_filters.append(db.EOAT.id.in_(eoat_ids))
+    machines = list(
+        session.execute(
+            select(db.Machine, db.Plant.plant_code)
+            .join(db.Plant, db.Plant.id == db.Machine.plant_id)
+            .where(*machine_filters, db.Plant.is_active.is_(True))
+            .order_by(db.Plant.plant_code, db.Machine.machine_number)
+        ).all()
+    )
+    tools = list(session.scalars(select(db.Tool).where(*tool_filters).order_by(db.Tool.business_identifier)).all())
+    eoats = list(session.scalars(select(db.EOAT).where(*eoat_filters).order_by(db.EOAT.business_identifier)).all())
+    warnings: list[str] = []
+    unresolved: list[str] = []
+    if machine_number and len(machine_matches) != 1:
+        warnings.append("Machine selection is unknown, unavailable, or ambiguous; choose a plant code when necessary.")
+        unresolved.append("machine")
+    if tool_number and tool is None:
+        warnings.append("Tool selection is unknown, unavailable, or ambiguous; use its business identifier.")
+        unresolved.append("tool")
+    if eoat_identifier and eoat is None:
+        warnings.append("EOAT selection is unknown or unavailable.")
+        unresolved.append("eoat")
+    return WebFitCheckOptions(
+        machines=[FitCheckOption(identifier=value.machine_number, label=value.machine_name or value.machine_number, plant_code=plant) for value, plant in machines],
+        tools=[FitCheckOption(identifier=value.business_identifier, label=value.display_name or value.tool_number or value.business_identifier) for value in tools],
+        eoats=[FitCheckOption(identifier=value.business_identifier, label=value.display_name or value.business_identifier) for value in eoats],
+        warnings=warnings,
+        unresolved_inputs=unresolved,
+    )
 
 
 @app.post("/api/v1/fit-checks/evaluate", response_model=FitCheckResult)
