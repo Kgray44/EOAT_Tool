@@ -1,7 +1,7 @@
 # EOAT Atlas Admin Phase 5: Corporate Authentication Design
 
-Status: active Phase 5 design; enterprise-provider acceptance is not yet
-authorized.
+Status: active Phase 5 design; the `kerberos_form` LDAP standard is approved
+for non-production integration and acceptance.
 
 ## Baseline and isolation
 
@@ -33,20 +33,22 @@ identity with no approved elevated mapping is never an Administrator.
 
 ## Provider-neutral implementation boundary
 
-Until the approved provider is established, implementation may add only:
+The approved provider is the existing `kerberos_form` flow: browser form to a
+temporary private Kerberos cache, followed by LDAP over SASL/GSSAPI with the
+configured security floor.  Implementation must:
 
-* a provider-neutral identity, group-mapping, role-resolution, and session
-  contract;
+* preserve a provider-neutral identity, group-mapping, role-resolution, and
+  session contract;
 * server-controlled opaque session storage with token digests, expiry,
   revocation, and fixation rotation;
 * explicit production rejection of the local rehearsal issuer and all
   browser-supplied actor/role claims;
 * safe provider readiness and mapping status contracts; and
-* synthetic, non-corporate tests for the above boundary.
+* synthetic, non-corporate tests for the above boundary; and
+* use the existing persisted Administrator group mapping without exposing or
+  guessing its identifier.
 
-Provider-specific login, directory queries, password handling, SAML assertion
-validation, callback registration, and production configuration remain disabled
-until IT provides the required approved configuration.  There is no fallback
+There is no fallback
 from an unavailable enterprise provider to rehearsal, a generic user, or a
 browser header.
 
@@ -73,6 +75,7 @@ corporate login alone will not authorize a Danger Zone operation.
 
 ## Current decision
 
-No LDAPS or SAML provider, Administrator group, lower-role mapping, or real
-acceptance identities are approved in the Phase 5 evidence presently available.
-Therefore this design does not claim production readiness or a Phase 5 pass.
+IT approved LDAP on 2026-08-13 and designated the current `kerberos_form`
+server configuration as Phase E approval and the new standard.  This allows
+provider-specific non-production implementation; it does not claim production
+readiness or a Phase 5 pass.

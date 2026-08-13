@@ -3,30 +3,26 @@
 This is an input checklist, not a credential store.  Do not enter passwords,
 private keys, session cookies, or token values in this file.
 
-## Required decision
+## Approved decision
 
-* Approved production provider: `LDAPS` or `SAML` (one only unless a governed
-  addendum explicitly approves a different design).
-* Authority source, approver, and approval date.
-* Exact approved Administrator directory group or SAML claim value.
+* Approved provider: `kerberos_form` using the existing Kerberos-authenticated
+  LDAP/SASL-GSSAPI server configuration.
+* Authority source: IT approval communicated on 2026-08-13.
+* Existing approved Administrator directory mapping: persisted server-side;
+  neither its identifier nor membership data belongs in this document.
 * Explicit Viewer, Technician, and Engineer mapping rules, if any.
 * Stable immutable subject attribute/claim and the supported login format.
 * Approved real Administrator and real non-admin acceptance identities.
 
-## LDAPS-only inputs
+## Kerberos-form LDAP inputs
 
-* Approved hostname(s), port, certificate chain/trust source, and hostname
-  validation policy.
-* User/group search bases, safe filter template, bind strategy, secret
-  reference name only, group attribute, and nested-group policy.
-
-## SAML-only inputs
-
-* Signed IdP metadata location or managed metadata artifact, IdP entity ID,
-  service-provider entity ID, and approved ACS/callback URL.
-* Signature, certificate rotation, audience, destination, assertion window,
-  replay, and logout policy.
-* Stable subject, username, display-name, email, and group claim names.
+* Kerberos realm, directory base DN, private credential-cache directory,
+  login timeout, and minimum SASL security factor are application-protected
+  runtime settings; record names only, never their sensitive values.
+* Username normalization, identity/group lookup, disabled-account treatment,
+  nested-group policy, and stable-subject derivation must remain server-side.
+* The LDAP connection must use SASL/GSSAPI with its required protection, not a
+  simple or anonymous bind.
 
 ## Deployment prerequisites
 

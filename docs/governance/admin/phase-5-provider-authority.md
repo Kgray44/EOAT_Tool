@@ -1,18 +1,18 @@
 # EOAT Atlas Admin Phase 5: Provider Authority Record
 
-Status: **provider decision unresolved; Phase 5 cannot pass until the missing
-enterprise inputs are supplied and accepted.**
+Status: **Phase E provider approved on 2026-08-13.  `kerberos_form` is the
+new corporate-authentication standard.**
 
 ## Authority hierarchy result
 
 | Evidence class | Finding | Authority disposition |
 | --- | --- | --- |
-| Governing specification | Phase E permits an IT-approved `LDAPS` or `SAML` provider and requires an explicit Administrator group or equivalent server-side mapping.  Appendix D expressly defers the exact group name. | Authoritative.  No provider or group value is supplied. |
+| Governing specification | Phase E requires an IT-approved corporate identity provider and an explicit Administrator group or equivalent server-side mapping. | Authoritative, as amended by the later IT approval below. |
 | Accepted Phase 1-4 records | Phase 3/4 use an explicitly labelled local rehearsal session and defer corporate provider/group integration to Phase 5. | Authoritative for the rehearsal boundary; not provider approval. |
 | Current Phase 5 baseline repository | Contains only the rehearsal secret, local identities, and local session configuration; it contains no LDAPS/SAML endpoint, metadata, trust chain, or Administrator group mapping. | Directly verified.  No enterprise provider selected. |
-| Current server service configuration | The installed service declares `kerberos_form` with application scope and Kerberos configuration.  The inspection intentionally did not read secret values. | Directly verified current state, but not Phase E approval: the governing Phase E choice is LDAPS or SAML and expressly forbids inferring a new browser architecture from historical directory success. |
+| Current server service configuration | The installed service declares `kerberos_form` with application scope and Kerberos configuration.  The inspection intentionally did not read secret values. | Directly verified current implementation and configuration standard. |
 | Historical provider-neutral worktree | A separate later worktree contains LDAPS/SAML adapters marked unselected and a Kerberos-form implementation. | Historical/supporting context only; not merged into this accepted Phase 4 baseline and not provider approval. |
-| Explicit IT approval | No current IT-approved LDAPS or SAML configuration, exact Administrator group, metadata, or acceptance identity was found in the available evidence. | Missing. |
+| Explicit IT approval | IT approved LDAP and identified the current `kerberos_form` server configuration as Phase E approval and the new standard.  The existing Administrator group remains server-side mapping data. | Authoritative 2026-08-13 user-supplied IT decision.  It replaces the prior pending-provider conclusion. |
 
 ## Directly verified safe configuration facts
 
@@ -24,27 +24,27 @@ enterprise inputs are supplied and accepted.**
   material was read or recorded.
 * The Phase 5 baseline exposes only `EOAT_API_ADMIN_REHEARSAL_SECRET` and
   `EOAT_API_ADMIN_COOKIE_SECURE` for the local rehearsal path.
+* The approved LDAP path is Kerberos-authenticated LDAP over SASL/GSSAPI with
+  a configured security floor.  It is not an anonymous, simple-bind, or
+  plaintext LDAP design.
 
-## Required IT inputs before provider-specific work or PASS
+## Approved-provider constraints
 
-Choose exactly one approved production identity provider and supply safe
-configuration through the approved secret/configuration channel:
-
-* For LDAPS: approved host(s)/port, TLS trust chain and hostname policy,
-  approved bind/search pattern, identity and stable-subject attributes, group
-  strategy including nesting semantics, exact Administrator group, and approved
-  acceptance identities.
-* For SAML: signed IdP metadata, entity IDs, approved ACS URL, certificate
-  rotation/signature policy, stable subject and group claims, exact
-  Administrator claim/group, replay/time/RelayState policy, and approved
-  acceptance identities.
-* For either: approved Viewer/Technician/Engineer mapping rules, session and
-  fresh-auth policy, a real approved Administrator, and a real non-admin test
-  identity.  No password belongs in this record or in Codex chat.
+* Use the current `kerberos_form` server configuration with application scope.
+* Authenticate credentials through a unique temporary private Kerberos cache;
+  never retain passwords or place them in command arguments, environment,
+  logs, audit data, or browser storage.
+* Query LDAP using the Kerberos-authenticated SASL/GSSAPI channel and enforce
+  the configured security floor.
+* Resolve the existing persisted Administrator mapping server-side.  Do not
+  copy its group identifier to browser claims or public diagnostics, and do not
+  replace it with a guessed group.
+* Retain the local rehearsal path only for development/staging-local tests.
 
 ## Consequence
 
-Provider-neutral hardening may continue.  Selecting LDAPS or SAML, testing a
-real directory/IdP, assigning roles from guessed group data, and asserting a
-real administrator/non-admin result are blocked.  The only compliant final
-verdict absent those inputs is `ADMIN PHASE 5: INCOMPLETE`.
+Provider-specific implementation and non-production acceptance may proceed
+against the approved standard.  A PASS remains gated on verified mapping,
+real Administrator/non-admin flows, expiry/revocation and outage evidence,
+and all other Phase 5 acceptance criteria.  No production activation is
+authorized by this record.
