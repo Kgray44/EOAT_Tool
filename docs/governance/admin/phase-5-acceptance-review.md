@@ -60,10 +60,12 @@ existing persisted Administrator mapping before real acceptance can begin.
 
 ## Remaining completion evidence
 
-1. Identify and activate the approved **non-production** EOAT Atlas runtime
-   environment containing the current `kerberos_form` application settings.
-   The safely checked EOAT-ATLAS environment path had Kerberos prerequisites
-   but did not expose the required provider/scope settings.
+1. Update the approved **non-production** `eoat-atlas-write-test.service`
+   release with the Phase 5 candidate, then verify the deployed API exposes
+   the Kerberos-form login route.  Its active staging environment does select
+   `kerberos_form` with application scope, but the current root-owned release
+   (`eoat-atlas-0.26.10-725e97f`) lacks the Phase 5 corporate-auth module and
+   API route.  No production deployment is authorized or required.
 2. Approved real corporate Administrator and non-admin test identities must
    manually enter their credentials into the prepared browser form.  No
    credential may be provided in chat or retained by Codex.

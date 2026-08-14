@@ -10,15 +10,18 @@ new corporate-authentication standard.**
 | Governing specification | Phase E requires an IT-approved corporate identity provider and an explicit Administrator group or equivalent server-side mapping. | Authoritative, as amended by the later IT approval below. |
 | Accepted Phase 1-4 records | Phase 3/4 use an explicitly labelled local rehearsal session and defer corporate provider/group integration to Phase 5. | Authoritative for the rehearsal boundary; not provider approval. |
 | Current Phase 5 baseline repository | Contains only the rehearsal secret, local identities, and local session configuration; it contains no LDAPS/SAML endpoint, metadata, trust chain, or Administrator group mapping. | Directly verified.  No enterprise provider selected. |
-| Current server service configuration | The installed service declares `kerberos_form` with application scope and Kerberos configuration.  The inspection intentionally did not read secret values. | Directly verified current implementation and configuration standard. |
+| Current server service configuration | The active non-production `eoat-atlas-write-test.service` declares `kerberos_form` with application scope through `/etc/eoat-atlas/eoat-atlas-staging.env`; the primary service's `/etc/eoat-atlas/runtime.env` does not select that provider.  The inspection intentionally did not read secret values. | Directly verified current configuration standard; it is not evidence that the deployed staging release contains the Phase 5 API. |
 | Historical provider-neutral worktree | A separate later worktree contains LDAPS/SAML adapters marked unselected and a Kerberos-form implementation. | Historical/supporting context only; not merged into this accepted Phase 4 baseline and not provider approval. |
 | Existing Administrator mapping | `kerberos_form` maps `CN=GWP-VT - EOAT Atlas Administrators,OU=GW,DC=gwplastics,DC=com` to `ADMINISTRATOR` as one active persisted mapping. | Previously verified server-side evidence; the identifier is configuration authority only and is never returned to a browser client. |
 | Explicit IT approval | IT approved LDAP and identified the current `kerberos_form` server configuration as Phase E approval and the new standard. | Authoritative 2026-08-13 user-supplied IT decision.  It replaces the prior pending-provider conclusion. |
 
 ## Directly verified safe configuration facts
 
-* The active service has an `/etc/eoat-atlas/runtime.env` environment file and
-  reports `EOAT_AUTH_PROVIDER=kerberos_form`.
+* The active non-production `eoat-atlas-write-test.service` uses
+  `/etc/eoat-atlas/eoat-atlas-staging.env`, which reports
+  `EOAT_AUTH_PROVIDER=kerberos_form` and application scope.  The primary
+  service's `/etc/eoat-atlas/runtime.env` is readable but does not select those
+  values.
 * Kerberos configuration is present on the server.
 * The inspected runtime file exposes names for Kerberos-related settings; no
   secret value, password, bind credential, token, private key, or certificate
@@ -28,6 +31,11 @@ new corporate-authentication standard.**
 * The approved LDAP path is Kerberos-authenticated LDAP over SASL/GSSAPI with
   a configured security floor.  It is not an anonymous, simple-bind, or
   plaintext LDAP design.
+* The non-production service currently resolves to the root-owned release
+  `eoat-atlas-0.26.10-725e97f`.  That release lacks
+  `server/eoat_api/corporate_auth_routes.py` and does not expose the
+  `kerberos_form_login` OpenAPI operation, so it cannot supply Phase 5 live
+  provider acceptance until it is updated with the Phase 5 candidate.
 
 ## Approved-provider constraints
 

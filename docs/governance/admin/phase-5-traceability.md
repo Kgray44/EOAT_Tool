@@ -5,7 +5,7 @@ reconciled into the Phase 4 lineage; real-provider acceptance remains pending.
 
 | Requirement area | Planned evidence | Current status |
 | --- | --- | --- |
-| ADM-AUTH-001 to 003 / ADM-IDP-001 | Provider authority record, selected provider configuration, persisted group mapping, real Admin/non-admin acceptance | In progress: IT approved `kerberos_form`; the approved mapping is persisted and runtime/session evidence passes, while real flows require an active non-production provider configuration and human credential entry. |
+| ADM-AUTH-001 to 003 / ADM-IDP-001 | Provider authority record, selected provider configuration, persisted group mapping, real Admin/non-admin acceptance | In progress: IT approved `kerberos_form`; the approved mapping is persisted and runtime/session evidence passes.  The active non-production configuration is present, but its deployed release lacks the Phase 5 login API; after a test-only candidate update, real flows require human credential entry. |
 | ADM-AUTH-004 to 009 | Existing server-held rehearsal session remains environment-gated; `corporate_auth.py` reports the approved no-fallback provider boundary and config-only safe state. | Partial: opaque corporate session issuance, revocation, expiry, mapping refresh, and fresh-auth semantics are implemented and tested against real MySQL with a synthetic authenticator. |
 | ADM-ACC-001 to 004 | `/admin/access/status` exposes provider state and mapping-configured state without endpoints, group values, or secrets. | Partial: persisted mapping and provider diagnostic data still require verification. |
 | ADM-DNG-001 | Corporate fresh-auth reconciliation with Phase 4 safeguards | Implemented and real-MySQL exercised: a password is revalidated only through the corporate authenticator, the proof is session-bound, operation/risk scoped, short-lived, and invalidated by session revocation. The Danger operation remains test-only. |
@@ -46,6 +46,9 @@ reconciled into the Phase 4 lineage; real-provider acceptance remains pending.
   and is not counted as a pass; four pre-existing-or-interrupted non-authoritative
   Phase 4 fixture rows were preserved rather than deleted without provenance.
 * EOAT-ATLAS prerequisite probing confirmed Kerberos tools, krb5 configuration,
-  and LDAP SRV discovery.  The assumed active runtime environment file did not
-  expose the Phase E `kerberos_form`/application settings, so no live provider
-  readiness or real credential acceptance is claimed.
+  and LDAP SRV discovery.  It also established that the active non-production
+  `eoat-atlas-write-test.service` selects `kerberos_form` with application
+  scope through its staging environment file, while the primary runtime file
+  does not.  The active root-owned staging release lacks the Phase 5
+  corporate-auth API, so no live provider readiness or real credential
+  acceptance is claimed.
