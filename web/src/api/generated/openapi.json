@@ -1765,16 +1765,37 @@
       "DangerStepUpRequest": {
         "additionalProperties": false,
         "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
           "rehearsal_step_up_secret": {
-            "maxLength": 512,
-            "minLength": 16,
-            "title": "Rehearsal Step Up Secret",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 512,
+                "minLength": 16,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rehearsal Step Up Secret"
           }
         },
-        "required": [
-          "rehearsal_step_up_secret"
-        ],
         "title": "DangerStepUpRequest",
         "type": "object"
       },
@@ -3631,6 +3652,30 @@
           }
         },
         "title": "IntegrityScanRequest",
+        "type": "object"
+      },
+      "KerberosFormLoginRequest": {
+        "properties": {
+          "password": {
+            "format": "password",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string",
+            "writeOnly": true
+          },
+          "username": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "KerberosFormLoginRequest",
         "type": "object"
       },
       "MachineCreate": {
@@ -9212,6 +9257,102 @@
           }
         },
         "summary": "Complete Audit Route"
+      }
+    },
+    "/api/v1/auth/kerberos-form/login": {
+      "post": {
+        "operationId": "kerberos_form_login_api_v1_auth_kerberos_form_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KerberosFormLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Kerberos Form Login",
+        "tags": [
+          "corporate-authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "corporate-authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/session": {
+      "get": {
+        "operationId": "session_status_api_v1_auth_session_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Session Status",
+        "tags": [
+          "corporate-authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/status": {
+      "get": {
+        "operationId": "status_api_v1_auth_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "corporate-authentication"
+        ]
       }
     },
     "/api/v1/compatibility/alternatives": {

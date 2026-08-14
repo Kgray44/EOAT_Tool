@@ -209,12 +209,20 @@ class CorporateAuthenticationSession(Base):
     user_id: Mapped[int] = mapped_column(PK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     roles_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    # Persist only directory groups which were relevant to an EOAT role
+    # mapping.  This lets every protected request re-evaluate authorization
+    # without retaining an unrelated directory-membership inventory.
+    authorization_groups_json: Mapped[list[str] | None] = mapped_column(JSON)
     authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoke_reason: Mapped[str | None] = mapped_column(String(128))
+    fresh_authenticated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fresh_auth_operation: Mapped[str | None] = mapped_column(String(96))
+    fresh_auth_risk_class: Mapped[str | None] = mapped_column(String(32))
+    fresh_auth_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class CorporateAuthenticationEvent(Base):

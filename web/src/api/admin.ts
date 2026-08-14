@@ -156,6 +156,15 @@ export class AdminApiError extends Error {
 
 const apiBase = import.meta.env.VITE_EOAT_API_BASE_URL ?? "";
 
+function cookieValue(name: string): string | undefined {
+  const prefix = `${encodeURIComponent(name)}=`;
+  return document.cookie
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(prefix))
+    ?.slice(prefix.length);
+}
+
 function localRehearsalHeaders(): HeadersInit {
   // This optional value makes local development runnable.  The API treats it
   // only as an input to its server-owned, environment-gated rehearsal mapper.
@@ -313,6 +322,41 @@ async function adminDownload(
 }
 
 export const adminApi = {
+  corporateStatus: () =>
+    adminFetch<{
+      provider: string | null;
+      status: "ready" | "degraded" | "unavailable" | "misconfigured" | "unknown";
+      mapping_configured: boolean;
+    }>("/api/v1/auth/status"),
+  corporateLogin: async (username: string, password: string): Promise<void> => {
+    const response = await fetch(`${apiBase}/api/v1/auth/kerberos-form/login`, {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    const body = (await response.json().catch(() => null)) as {
+      message?: string;
+      error_code?: string;
+      request_id?: string;
+    } | null;
+    if (!response.ok)
+      throw new AdminApiError(
+        body?.message ?? "Corporate sign-in could not be verified.",
+        response.status,
+        body?.request_id,
+        body?.error_code,
+      );
+    csrfToken = cookieValue("eoat_corporate_csrf");
+    rehearsalIdentity = undefined;
+    if (!csrfToken)
+      throw new AdminApiError(
+        "Corporate sign-in did not establish a CSRF proof.",
+        503,
+        undefined,
+        "CORPORATE_CSRF_UNAVAILABLE",
+      );
+  },
   catalog: (signal?: AbortSignal) =>
     adminFetch<AuditCatalog>("/api/v1/admin/audit/catalog", signal),
   overview: (signal?: AbortSignal) =>
@@ -530,14 +574,12 @@ export const adminApi = {
       sections,
       request_id: requestId ?? null,
     }),
-  dangerStepUp: (rehearsal_step_up_secret: string) =>
+  dangerStepUp: (payload: { rehearsal_step_up_secret?: string; password?: string }) =>
     adminPost<{
       step_up_reference: string;
       expires_at: string;
       rehearsal_only: boolean;
-    }>("/api/v1/admin/danger-zone/fixture-recovery/step-up", {
-      rehearsal_step_up_secret,
-    }),
+    }>("/api/v1/admin/danger-zone/fixture-recovery/step-up", payload),
   dangerPreview: (fixture_namespace: string) =>
     adminPost<{
       operation_id: string;

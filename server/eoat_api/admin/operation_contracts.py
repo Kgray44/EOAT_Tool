@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pydantic import Field
+from pydantic.types import SecretStr
 
 from ..write_contracts import WriteModel
 
@@ -20,7 +21,8 @@ class SupportBundleRequest(WriteModel):
 
 
 class DangerStepUpRequest(WriteModel):
-    rehearsal_step_up_secret: str = Field(min_length=16, max_length=512)
+    rehearsal_step_up_secret: SecretStr | None = Field(default=None, min_length=16, max_length=512)
+    password: SecretStr | None = Field(default=None, min_length=1, max_length=1024)
 
 
 class DangerPreviewRequest(WriteModel):

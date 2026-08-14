@@ -236,8 +236,11 @@ class CorporateSessionService:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
     def _roles(self, groups: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(sorted({row.role_code for row in self._mapping_rows(groups) if row.role_code in _ROLE_PRIORITY}))
+
+    def _mapping_rows(self, groups: tuple[str, ...]) -> list[db.ExternalGroupRoleMapping]:
         if not groups:
-            return ()
+            return []
         rows = self.session.scalars(
             select(db.ExternalGroupRoleMapping).where(
                 db.ExternalGroupRoleMapping.provider == "kerberos_form",
@@ -246,8 +249,15 @@ class CorporateSessionService:
             )
         ).all()
         if any(row.explicit_deny for row in rows):
-            return ()
-        return tuple(sorted({row.role_code for row in rows if row.role_code in _ROLE_PRIORITY}))
+            return []
+        return rows
+
+    def _authorization(self, groups: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        rows = self._mapping_rows(groups)
+        return (
+            tuple(sorted({row.role_code for row in rows if row.role_code in _ROLE_PRIORITY})),
+            tuple(sorted({row.external_group_identifier for row in rows})),
+        )
 
     def _event(self, event_type: str, result: str, *, user_id: int | None = None, reason_code: str | None = None) -> None:
         self.session.add(
@@ -299,7 +309,7 @@ class CorporateSessionService:
             user.display_name = identity.display_name
             user.authentication_provider = "kerberos_form"
             user.last_login_at = now
-        roles = self._roles(identity.groups)
+        roles, authorization_groups = self._authorization(identity.groups)
         token = secrets.token_urlsafe(32)
         csrf_token = secrets.token_urlsafe(32)
         expires_at = now + timedelta(minutes=self.configuration.session_minutes)
@@ -310,6 +320,7 @@ class CorporateSessionService:
             user_id=user.id,
             provider="kerberos_form",
             roles_json=list(roles),
+            authorization_groups_json=list(authorization_groups),
             authenticated_at=now,
             issued_at=now,
             expires_at=expires_at,
@@ -332,6 +343,19 @@ class CorporateSessionService:
             row.revoke_reason = "identity_inactive"
             self._event("SESSION", "DENIED", user_id=row.user_id, reason_code="USER_INACTIVE")
             raise APIError(403, "CORPORATE_SESSION_REVOKED", "The corporate session is no longer authorized.")
+        authorization_groups = row.authorization_groups_json
+        if authorization_groups is None:
+            # Sessions created before the authorization-invalidation migration
+            # have no safe way to be re-evaluated.  They must not retain an
+            # elevated role until expiry.
+            row.revoked_at = now
+            row.revoke_reason = "authorization_context_unavailable"
+            self._event("SESSION", "DENIED", user_id=row.user_id, reason_code="AUTHORIZATION_CONTEXT_UNAVAILABLE")
+            raise APIError(403, "CORPORATE_SESSION_REVOKED", "The corporate session must be renewed after an authorization update.")
+        current_roles = self._roles(tuple(authorization_groups))
+        if tuple(row.roles_json or ()) != current_roles:
+            row.roles_json = list(current_roles)
+            self._event("ROLE_MAPPING", "SUCCEEDED", user_id=row.user_id, reason_code="SESSION_AUTHORIZATION_REFRESHED")
         row.last_seen_at = now
         return row, user
 
@@ -340,6 +364,52 @@ class CorporateSessionService:
         row.revoked_at = datetime.now(timezone.utc)
         row.revoke_reason = "logout"
         self._event("LOGOUT", "SUCCEEDED", user_id=user.id)
+
+    def fresh_authenticate_for_step_up(
+        self,
+        token: str,
+        password: str,
+        *,
+        operation_type: str,
+        risk_class: str,
+        ttl_seconds: int,
+    ) -> db.CorporateAuthenticationSession:
+        """Revalidate the active corporate identity for one scoped danger action.
+
+        The password is handed directly to the Kerberos authenticator and is
+        never persisted.  The proof lives only on the already opaque,
+        server-controlled corporate session, so revocation invalidates it.
+        """
+        row, user = self.resolve(token)
+        try:
+            principal = normalize_principal(user.external_identity or user.username, self.configuration.realm)
+            identity = self.authenticator.authenticate(principal, password)
+        except CorporateAuthenticationFailure as exc:
+            self._event("STEP_UP", "DENIED", user_id=user.id, reason_code=exc.reason_code)
+            raise APIError(401, "CORPORATE_FRESH_AUTHENTICATION_FAILED", "Corporate fresh authentication could not be verified.") from exc
+        if identity.upn.casefold() != (user.external_identity or "").casefold():
+            self._event("STEP_UP", "DENIED", user_id=user.id, reason_code="IDENTITY_MISMATCH")
+            raise APIError(403, "CORPORATE_FRESH_AUTHENTICATION_FAILED", "Corporate fresh authentication could not be verified.")
+        if "ADMINISTRATOR" not in self._roles(identity.groups):
+            self._event("STEP_UP", "DENIED", user_id=user.id, reason_code="ROLE_NOT_AUTHORIZED")
+            raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
+        now = datetime.now(timezone.utc)
+        row.fresh_authenticated_at = now
+        row.fresh_auth_operation = operation_type
+        row.fresh_auth_risk_class = risk_class
+        row.fresh_auth_expires_at = now + timedelta(seconds=ttl_seconds)
+        self._event("STEP_UP", "SUCCEEDED", user_id=user.id)
+        return row
+
+    @staticmethod
+    def fresh_step_up_valid(row: db.CorporateAuthenticationSession, *, operation_type: str, risk_class: str) -> bool:
+        return bool(
+            row.fresh_authenticated_at
+            and row.fresh_auth_operation == operation_type
+            and row.fresh_auth_risk_class == risk_class
+            and row.fresh_auth_expires_at
+            and _as_utc(row.fresh_auth_expires_at) > datetime.now(timezone.utc)
+        )
 
 
 def _as_utc(value: datetime) -> datetime:

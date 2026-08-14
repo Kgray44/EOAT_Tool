@@ -448,8 +448,9 @@ def issue_danger_step_up(
     *,
     operation_type: str,
     risk_class: str,
-    rehearsal_step_up_secret: str,
-) -> db.AdminDangerStepUp:
+    rehearsal_step_up_secret: str | None,
+    corporate_password: str | None = None,
+) -> db.AdminDangerStepUp | db.CorporateAuthenticationSession:
     """Issue a development/test-only step-up proof bound to this session.
 
     The proof is an additional recent server-side verification of the existing
@@ -457,8 +458,22 @@ def issue_danger_step_up(
     production corporate reauthentication.
     """
     _local_environment()
+    if _corporate_auth_enabled():
+        if not corporate_password:
+            raise APIError(401, "CORPORATE_FRESH_AUTHENTICATION_REQUIRED", "Corporate credential re-entry is required for this test-only operation.")
+        corporate = CorporateSessionService(session)
+        proof = corporate.fresh_authenticate_for_step_up(
+            request.cookies.get(CORPORATE_SESSION_COOKIE, ""),
+            corporate_password,
+            operation_type=operation_type,
+            risk_class=risk_class,
+            ttl_seconds=DANGER_STEP_UP_TTL_SECONDS,
+        )
+        if proof.user_id != actor.user_id:
+            raise APIError(403, "DANGER_STEP_UP_REJECTED", "The corporate fresh-auth proof is not bound to this actor.")
+        return proof
     configured_secret = os.getenv("EOAT_API_ADMIN_REHEARSAL_SECRET", "")
-    if not configured_secret or not hmac.compare_digest(configured_secret, rehearsal_step_up_secret):
+    if not rehearsal_step_up_secret or not configured_secret or not hmac.compare_digest(configured_secret, rehearsal_step_up_secret):
         raise APIError(401, "DANGER_STEP_UP_REJECTED", "The development/test step-up proof could not be verified.")
     if not actor.permits("admin.danger.execute"):
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
@@ -488,11 +503,18 @@ def require_active_danger_step_up(
     *,
     operation_type: str,
     risk_class: str,
-) -> db.AdminDangerStepUp:
+) -> db.AdminDangerStepUp | db.CorporateAuthenticationSession:
     """Return the currently valid scoped proof or fail closed."""
     _local_environment()
     if not actor.permits("admin.danger.execute"):
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
+    if _corporate_auth_enabled():
+        proof, _user = CorporateSessionService(session).resolve(request.cookies.get(CORPORATE_SESSION_COOKIE, ""))
+        if proof.user_id != actor.user_id or not CorporateSessionService.fresh_step_up_valid(
+            proof, operation_type=operation_type, risk_class=risk_class
+        ):
+            raise APIError(403, "DANGER_STEP_UP_REQUIRED", "A current corporate fresh-auth proof is required.")
+        return proof
     token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
     rehearsal = session.scalar(
         select(db.AdminRehearsalSession).where(db.AdminRehearsalSession.session_token_hash == _sha256(token))

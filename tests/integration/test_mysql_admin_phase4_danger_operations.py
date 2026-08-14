@@ -16,6 +16,7 @@ from server.eoat_api.admin.taxonomy import AuditAction, AuditResult
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import create_session_factory
 from server.eoat_api.security import ActorContext
+from server.eoat_api.services import EXPECTED_SCHEMA_REVISION
 
 pytestmark = pytest.mark.skipif(
     os.getenv("EOAT_DB_NAME") != "eoat_atlas_test",
@@ -44,7 +45,7 @@ def phase4_environment():
     recovery = Path(os.environ.get("EOAT_PHASE4_TEST_RECOVERY_POINT", ""))
     assert recovery.is_file(), "A tested EOAT_PHASE4_TEST_RECOVERY_POINT is required for the dangerous-operation rehearsal."
     os.environ["EOAT_PHASE4_TEST_RECOVERY_POINT_SHA256"] = sha256(recovery.read_bytes()).hexdigest()
-    os.environ["EOAT_PHASE4_TEST_RECOVERY_POINT_REVISION"] = "20260813_0008"
+    os.environ["EOAT_PHASE4_TEST_RECOVERY_POINT_REVISION"] = EXPECTED_SCHEMA_REVISION
     yield
     for key, value in previous.items():
         if value is None:

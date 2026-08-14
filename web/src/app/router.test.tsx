@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router-dom";
+import { afterEach, vi } from "vitest";
 import { AppProviders } from "@/app/providers";
 import { createTestRouter } from "@/app/router";
 
@@ -13,6 +14,7 @@ function renderAt(path: string) {
 }
 
 describe("router", () => {
+  afterEach(() => vi.unstubAllGlobals());
   it("registers a machine deep route as a real profile route", () => {
     renderAt("/machines/test-machine");
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -25,10 +27,27 @@ describe("router", () => {
       screen.getByRole("heading", { name: "Page not found" }),
     ).toBeInTheDocument();
   });
-  it("keeps the governed Admin application outside the normal application shell", () => {
+  it("keeps the governed Admin application outside the normal application shell", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        if (String(input).endsWith("/api/v1/auth/status")) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                provider: null,
+                status: "unavailable",
+                mapping_configured: false,
+              }),
+            ),
+          );
+        }
+        return Promise.resolve(new Response(JSON.stringify({ items: [] })));
+      }),
+    );
     renderAt("/admin/data");
     expect(
-      screen.getByRole("heading", {
+      await screen.findByRole("heading", {
         name: "Start development/test Administrator session",
       }),
     ).toBeInTheDocument();

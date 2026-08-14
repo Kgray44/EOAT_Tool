@@ -980,19 +980,29 @@ function DiagnosticsPage({ diagnostics = false }: { diagnostics?: boolean }) {
 }
 
 function SessionGate({ onReady }: { onReady: () => void }) {
+  const corporate = useRemote(
+    () => adminApi.corporateStatus(),
+    "corporate-auth-status",
+  );
   const [identity, setIdentity] = useState(
     import.meta.env.VITE_EOAT_IDENTITY ?? "dev.admin",
   );
   const [rehearsalSecret, setRehearsalSecret] = useState("");
+  const [corporatePassword, setCorporatePassword] = useState("");
   const [error, setError] = useState<AdminApiError | undefined>();
   const [busy, setBusy] = useState(false);
+  const corporateEnabled =
+    corporate.state === "ready" && corporate.value.provider === "kerberos_form";
   const start = () => {
     setBusy(true);
     setError(undefined);
-    adminApi
-      .startRehearsal(identity, rehearsalSecret)
+    const action = corporateEnabled
+      ? adminApi.corporateLogin(identity, corporatePassword)
+      : adminApi.startRehearsal(identity, rehearsalSecret);
+    action
       .then(() => {
         setRehearsalSecret("");
+        setCorporatePassword("");
         onReady();
       })
       .catch((value: unknown) =>
@@ -1007,39 +1017,52 @@ function SessionGate({ onReady }: { onReady: () => void }) {
       )
       .finally(() => setBusy(false));
   };
+  if (corporate.state === "loading") return <LoadingState />;
+  if (corporate.state === "error") return <ErrorState error={corporate.error} />;
   return (
     <section className="state-panel">
-      <h1>Start development/test Administrator session</h1>
+      <h1>{corporateEnabled ? "Corporate Administrator sign-in" : "Start development/test Administrator session"}</h1>
       <p>
-        This local rehearsal session is separate from production corporate
-        authentication. Its CSRF proof remains only in this browser memory; the
-        actor is resolved from the HttpOnly server session for every governed
-        mutation.
+        {corporateEnabled
+          ? "Sign-in uses the approved Kerberos-form provider. The password is used only for the protected server-side Kerberos exchange and is never retained by this browser or EOAT Atlas."
+          : "This local rehearsal session is separate from production corporate authentication. Its CSRF proof remains only in this browser memory; the actor is resolved from the HttpOnly server session for every governed mutation."}
       </p>
       <label>
-        Configured development/test identity
+        {corporateEnabled ? "Corporate username" : "Configured development/test identity"}
         <input
           value={identity}
           onChange={(event) => setIdentity(event.target.value)}
-          autoComplete="off"
+          autoComplete={corporateEnabled ? "username" : "off"}
         />
       </label>
-      <label>
-        Development/test rehearsal secret
-        <input
-          type="password"
-          value={rehearsalSecret}
-          onChange={(event) => setRehearsalSecret(event.target.value)}
-          autoComplete="current-password"
-        />
-      </label>
+      {corporateEnabled ? (
+        <label>
+          Corporate password
+          <input
+            type="password"
+            value={corporatePassword}
+            onChange={(event) => setCorporatePassword(event.target.value)}
+            autoComplete="current-password"
+          />
+        </label>
+      ) : (
+        <label>
+          Development/test rehearsal secret
+          <input
+            type="password"
+            value={rehearsalSecret}
+            onChange={(event) => setRehearsalSecret(event.target.value)}
+            autoComplete="current-password"
+          />
+        </label>
+      )}
       <button
         className="primary-button"
         type="button"
-        disabled={busy || rehearsalSecret.length < 16}
+        disabled={busy || (corporateEnabled ? corporatePassword.length < 1 : rehearsalSecret.length < 16)}
         onClick={start}
       >
-        {busy ? "Starting…" : "Start governed session"}
+        {busy ? "Starting…" : corporateEnabled ? "Sign in" : "Start governed session"}
       </button>
       {error ? (
         <p className="inline-error">
@@ -2609,6 +2632,10 @@ function IntegrityEvidencePage() {
 
 function DangerZonePage() {
   const { ready, setReady } = useAdminSession();
+  const corporate = useRemote(
+    () => adminApi.corporateStatus(),
+    "corporate-auth-status",
+  );
   const [namespace, setNamespace] = useState("phase4-");
   const [stepUpSecret, setStepUpSecret] = useState("");
   const [steppedUp, setSteppedUp] = useState<string>();
@@ -2627,9 +2654,15 @@ function DangerZonePage() {
     removed_count?: number;
   }>();
   const [error, setError] = useState<AdminApiError>();
+  const corporateEnabled =
+    corporate.state === "ready" && corporate.value.provider === "kerberos_form";
   const stepUp = () =>
     adminApi
-      .dangerStepUp(stepUpSecret)
+      .dangerStepUp(
+        corporateEnabled
+          ? { password: stepUpSecret }
+          : { rehearsal_step_up_secret: stepUpSecret },
+      )
       .then((value) => {
         setSteppedUp(value.expires_at);
         setStepUpSecret("");
@@ -2672,6 +2705,8 @@ function DangerZonePage() {
         ),
       );
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
+  if (corporate.state === "loading") return <LoadingState />;
+  if (corporate.state === "error") return <ErrorState error={corporate.error} />;
   return (
     <>
       <PageTitle title="Danger Zone">
@@ -2698,20 +2733,20 @@ function DangerZonePage() {
           />
         </label>
         <label>
-          Development/test step-up secret
+          {corporateEnabled ? "Re-enter corporate password for fresh authentication" : "Development/test step-up secret"}
           <input
             type="password"
             value={stepUpSecret}
             onChange={(event) => setStepUpSecret(event.target.value)}
-            autoComplete="off"
+          autoComplete={corporateEnabled ? "current-password" : "off"}
           />
         </label>
         <button
           type="button"
-          disabled={stepUpSecret.length < 16}
+          disabled={stepUpSecret.length < (corporateEnabled ? 1 : 16)}
           onClick={stepUp}
         >
-          Verify fresh rehearsal step-up
+          {corporateEnabled ? "Verify fresh corporate authentication" : "Verify fresh rehearsal step-up"}
         </button>
         {steppedUp ? (
           <p className="success-note">

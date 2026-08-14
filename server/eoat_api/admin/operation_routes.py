@@ -14,8 +14,26 @@ from ..database.session import get_runtime_session, get_write_session
 from ..errors import APIError
 from ..security import ActorContext, issue_danger_step_up, require_admin, require_admin_mutation
 from ..write_services import idempotent
-from .operation_contracts import DangerCommitRequest, DangerPreviewRequest, DangerStepUpRequest, ExportRequest, IntegrityScanRequest, SupportBundleRequest
-from .operations import OP_FIXTURE_RECOVERY, RISK_HIGH, audit_export, danger_commit, danger_preview, latest_integrity_summary, operation_view, require_operation_ledger, run_integrity_scan, support_bundle
+from .operation_contracts import (
+    DangerCommitRequest,
+    DangerPreviewRequest,
+    DangerStepUpRequest,
+    ExportRequest,
+    IntegrityScanRequest,
+    SupportBundleRequest,
+)
+from .operations import (
+    OP_FIXTURE_RECOVERY,
+    RISK_HIGH,
+    audit_export,
+    danger_commit,
+    danger_preview,
+    latest_integrity_summary,
+    operation_view,
+    require_operation_ledger,
+    run_integrity_scan,
+    support_bundle,
+)
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-phase4"])
 
@@ -102,8 +120,23 @@ def danger_step_up(
     actor: ActorContext = Depends(require_admin_mutation("admin.danger.execute")),
 ):
     require_operation_ledger(session)
-    proof = issue_danger_step_up(request, session, actor, operation_type=OP_FIXTURE_RECOVERY, risk_class=RISK_HIGH, rehearsal_step_up_secret=payload.rehearsal_step_up_secret)
-    return {"step_up_reference": proof.step_up_reference, "expires_at": proof.expires_at, "operation_type": proof.operation_type, "environment": os.getenv("EOAT_API_ENVIRONMENT", "development"), "rehearsal_only": True}
+    proof = issue_danger_step_up(
+        request,
+        session,
+        actor,
+        operation_type=OP_FIXTURE_RECOVERY,
+        risk_class=RISK_HIGH,
+        rehearsal_step_up_secret=payload.rehearsal_step_up_secret.get_secret_value() if payload.rehearsal_step_up_secret else None,
+        corporate_password=payload.password.get_secret_value() if payload.password else None,
+    )
+    corporate = hasattr(proof, "fresh_auth_expires_at")
+    return {
+        "step_up_reference": proof.session_reference if corporate else proof.step_up_reference,
+        "expires_at": proof.fresh_auth_expires_at if corporate else proof.expires_at,
+        "operation_type": OP_FIXTURE_RECOVERY,
+        "environment": os.getenv("EOAT_API_ENVIRONMENT", "development"),
+        "rehearsal_only": not corporate,
+    }
 
 
 @router.post("/danger-zone/fixture-recovery/preview")

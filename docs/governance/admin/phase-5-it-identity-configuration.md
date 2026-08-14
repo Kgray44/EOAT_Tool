@@ -33,5 +33,18 @@ private keys, session cookies, or token values in this file.
 * Session absolute, idle, and fresh-auth policies.
 * IT-approved manual real-credential acceptance procedure.
 
+## Phase 6 production runtime privilege requirement
+
+Phase 6 must provision the production runtime identity explicitly and only on
+the production authentication tables:
+
+* `corporate_authentication_sessions`: `SELECT`, `INSERT`, `UPDATE`
+* `corporate_authentication_events`: `INSERT`
+
+These are application runtime requirements introduced by Phase 5.  They do
+not authorize `UPDATE` or `DELETE` on authentication events, `GRANT OPTION`,
+schema privileges, or any grant on `eoat_atlas_prod` during Phase 5.  Phase 5
+applied and verified the equivalent grants only on `eoat_atlas_test`.
+
 No production configuration is activated by this document.  Phase 6 owns
 production deployment and NGINX/runtime activation.

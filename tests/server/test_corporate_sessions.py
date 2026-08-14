@@ -77,7 +77,9 @@ def _engine():
                 token_hash TEXT UNIQUE NOT NULL, csrf_token_hash TEXT NOT NULL, user_id INTEGER NOT NULL,
                 provider TEXT NOT NULL, roles_json JSON NOT NULL, authenticated_at DATETIME NOT NULL,
                 issued_at DATETIME NOT NULL, expires_at DATETIME NOT NULL, last_seen_at DATETIME,
-                revoked_at DATETIME, revoke_reason TEXT
+                revoked_at DATETIME, revoke_reason TEXT, authorization_groups_json JSON,
+                fresh_authenticated_at DATETIME, fresh_auth_operation TEXT,
+                fresh_auth_risk_class TEXT, fresh_auth_expires_at DATETIME
             )
             """
         )
@@ -129,6 +131,47 @@ def test_unmapped_authenticated_identity_is_not_an_administrator(monkeypatch):
         with Session(engine) as session:
             issued = CorporateSessionService(session, authenticator=FakeAuthenticator()).login("kgray", "not-persisted")
             assert issued.roles == ()
+    finally:
+        engine.dispose()
+
+
+def test_mapping_change_removes_elevated_role_and_fresh_auth_is_scoped(monkeypatch):
+    _configure(monkeypatch)
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            mapping = db.ExternalGroupRoleMapping(
+                provider="kerberos_form",
+                external_group_identifier=ADMINISTRATOR_GROUP_IDENTIFIER,
+                role_code="ADMINISTRATOR",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            )
+            session.add(mapping)
+            session.commit()
+            service = CorporateSessionService(session, authenticator=FakeAuthenticator())
+            issued = service.login("kgray", "not-persisted")
+            session.flush()
+            row, _user = service.resolve(issued.token)
+            assert row.roles_json == ["ADMINISTRATOR"]
+            fresh = service.fresh_authenticate_for_step_up(
+                issued.token,
+                "not-persisted",
+                operation_type="danger.fixture-recovery-rehearsal",
+                risk_class="HIGH",
+                ttl_seconds=300,
+            )
+            assert CorporateSessionService.fresh_step_up_valid(
+                fresh, operation_type="danger.fixture-recovery-rehearsal", risk_class="HIGH"
+            )
+            assert not CorporateSessionService.fresh_step_up_valid(
+                fresh, operation_type="different-operation", risk_class="HIGH"
+            )
+            mapping.is_active = False
+            mapping.updated_at = datetime.now(timezone.utc)
+            session.flush()
+            refreshed, _user = service.resolve(issued.token)
+            assert refreshed.roles_json == []
     finally:
         engine.dispose()
 

@@ -19,7 +19,7 @@ from .repositories import AtlasRepository
 from .security import ActorContext
 
 API_VERSION = "1.4.0"
-EXPECTED_SCHEMA_REVISION = "20260813_0008"
+EXPECTED_SCHEMA_REVISION = "20260814_0011"
 SERVER_REVISION = "mysql-cutover-rehearsal-rc1"
 
 
