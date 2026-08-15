@@ -73,6 +73,20 @@ rehearsal.  A corporate fresh-auth proof will be selected only after the
 approved provider defines a safe reauthentication mechanism.  A normal
 corporate login alone will not authorize a Danger Zone operation.
 
+## Nonproduction acceptance deployment
+
+The Phase 5 candidate is deployed only through the isolated
+`eoat-atlas-write-test.service` release pointer and the separate
+`/var/www/eoat-atlas/staging/current` static pointer.  Its API remains
+loopback-only on `127.0.0.1:8766`; the staging NGINX virtual host is unchanged
+and proxies only to that listener.  The prior versioned staging server/static
+releases remain retained as rollback targets.
+
+Manual corporate credential entry is permitted only in a browser profile that
+validates the hostname-valid staging certificate through the approved test CA.
+Neither a browser certificate bypass nor an untrusted TLS page is an acceptable
+substitute for the Phase E real-user acceptance flow.
+
 ## Current decision
 
 IT approved LDAP on 2026-08-13 and designated the current `kerberos_form`

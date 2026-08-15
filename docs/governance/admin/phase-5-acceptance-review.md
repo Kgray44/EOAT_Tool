@@ -1,6 +1,6 @@
 # EOAT Atlas Admin Phase 5 Acceptance Review
 
-Date: 2026-08-14
+Date: 2026-08-15
 Branch: `feature/admin-phase5-corporate-auth`
 Baseline: `341270e2bb7a500ead7d61466279b61e590b4246`
 
@@ -57,15 +57,28 @@ existing persisted Administrator mapping before real acceptance can begin.
   Danger rehearsal **3/3**, and targeted Ruff/compile/TypeScript/ESLint/build
   all passed.  A bounded broad integration run timed out without results and
   is not treated as a pass.
+* Built a clean server/static candidate from exact commit
+  `a2b91c6c642e7c6456a47389e599fadd239ad07c`, excluding Git metadata,
+  environment files, dependency caches, and browser artifacts.  Its staged
+  archives were SHA-256 verified before extraction into retained versioned
+  nonproduction release directories.
+* Switched only `eoat-atlas-write-test.service` and its separate staging static
+  pointer to `eoat-atlas-phase5-a2b91c6c`.  The test service is active only on
+  `127.0.0.1:8766`; health reports `eoat_atlas_test` schema `20260814_0011`,
+  the approved provider/mapping, and the Kerberos-form login route.  The old
+  `eoat-atlas-0.26.10-725e97f` releases remain intact as rollback targets.
+* The staging-only release allowlist was expanded from the old release to the
+  old release plus this exact candidate; its database, staging-environment,
+  explicit-write, and database-URL-override fail-closed checks were preserved.
+  Production service, release roots, listener, and health were read-only
+  verified unchanged.
 
 ## Remaining completion evidence
 
-1. Update the approved **non-production** `eoat-atlas-write-test.service`
-   release with the Phase 5 candidate, then verify the deployed API exposes
-   the Kerberos-form login route.  Its active staging environment does select
-   `kerberos_form` with application scope, but the current root-owned release
-   (`eoat-atlas-0.26.10-725e97f`) lacks the Phase 5 corporate-auth module and
-   API route.  No production deployment is authorized or required.
+1. Use an approved browser profile that trusts the staging test TLS CA for
+   `https://eoat-atlas.gwplastics.com:8443/`.  The hostname-valid test
+   certificate is untrusted by the available Codex in-app browser, and no
+   certificate bypass is acceptable for corporate credential entry.
 2. Approved real corporate Administrator and non-admin test identities must
    manually enter their credentials into the prepared browser form.  No
    credential may be provided in chat or retained by Codex.

@@ -30,6 +30,9 @@ private keys, session cookies, or token values in this file.
 
 * Approved test/staging callback or LDAPS network path.
 * Application-scoped trust/metadata placement and protected secret names.
+* The nonproduction browser profile used for manual acceptance must trust the
+  approved EOAT-ATLAS test TLS CA for `eoat-atlas.gwplastics.com`; do not
+  bypass certificate validation to enter corporate credentials.
 * Session absolute, idle, and fresh-auth policies.
 * IT-approved manual real-credential acceptance procedure.
 

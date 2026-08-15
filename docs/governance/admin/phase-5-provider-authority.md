@@ -31,11 +31,17 @@ new corporate-authentication standard.**
 * The approved LDAP path is Kerberos-authenticated LDAP over SASL/GSSAPI with
   a configured security floor.  It is not an anonymous, simple-bind, or
   plaintext LDAP design.
-* The non-production service currently resolves to the root-owned release
-  `eoat-atlas-0.26.10-725e97f`.  That release lacks
-  `server/eoat_api/corporate_auth_routes.py` and does not expose the
-  `kerberos_form_login` OpenAPI operation, so it cannot supply Phase 5 live
-  provider acceptance until it is updated with the Phase 5 candidate.
+* On 2026-08-15 the retained staging service was updated to the isolated
+  `eoat-atlas-phase5-a2b91c6c` server and static releases, both bound to
+  `a2b91c6c642e7c6456a47389e599fadd239ad07c`.  Health, schema `20260814_0011`,
+  provider selection, mapping configuration, and the Kerberos-form route were
+  verified on the loopback service.  The old
+  `eoat-atlas-0.26.10-725e97f` releases remain the rollback target.
+* The staging browser listener presents a certificate whose subject/SAN is
+  `eoat-atlas.gwplastics.com` and whose test CA is not trusted by the Codex
+  in-app browser.  Certificate validation was not bypassed.  A browser profile
+  that trusts the approved staging test CA is required before manual corporate
+  credential entry can begin.
 
 ## Approved-provider constraints
 
