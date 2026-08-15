@@ -104,9 +104,9 @@ function mockApi(overrides: Record<string, Response> = {}) {
         ? json(location)
         : path.endsWith("/relationships")
           ? json(relationships)
-          : path.endsWith("/web-documents")
+          : path.endsWith("/documents")
             ? json([])
-            : path.endsWith("/web-photos")
+            : path.endsWith("/photos")
               ? json(photos)
               : path.includes("/history?")
                 ? json(history)
@@ -132,14 +132,15 @@ describe("EOAT profile route", () => {
     await user.click(screen.getByRole("link", { name: "Relationships" }));
     expect(await screen.findByRole("link", { name: /M-42/ })).toHaveAttribute(
       "href",
-      "/machines/M-42?tab=relationships",
+      "/machines/M-42",
     );
     expect(
-      screen.queryByRole("link", {
+      await screen.findByRole("link", {
         name: "Open full-resolution photo for EOAT A+1",
       }),
-    ).not.toBeInTheDocument();
+    ).toHaveAttribute("href", "/api/v1/web-photos/photo-hero/content");
     await user.click(screen.getByRole("link", { name: "Docs & Photos" }));
+    expect((await screen.findAllByAltText("EOAT overview")).length).toBe(2);
     await waitFor(() =>
       expect(fetcher.mock.calls.map(([path]) => path)).toEqual(
         expect.arrayContaining([

@@ -13560,6 +13560,44 @@
         "summary": "Version"
       }
     },
+    "/api/v1/web-documents/{document_uuid}/content": {
+      "get": {
+        "description": "Serve a document only after UUID lookup and approved-root validation.",
+        "operationId": "web_document_content_api_v1_web_documents__document_uuid__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_uuid",
+            "required": true,
+            "schema": {
+              "title": "Document Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Document Content"
+      }
+    },
     "/api/v1/web-fit-checks/options": {
       "get": {
         "description": "Return browser-safe, currently-effective Fit Check candidates.\n\nThis is a normal-app read endpoint. It never persists a Fit Check and it\nonly suggests explicit compatible relationships; a missing relationship is\nnot treated as compatibility.",
@@ -13653,6 +13691,81 @@
           }
         },
         "summary": "Web Fit Check Options"
+      }
+    },
+    "/api/v1/web-photos/{document_uuid}/content": {
+      "get": {
+        "description": "Serve a photo only after UUID lookup and approved-root validation.",
+        "operationId": "web_photo_content_api_v1_web_photos__document_uuid__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_uuid",
+            "required": true,
+            "schema": {
+              "title": "Document Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Photo Content"
+      }
+    },
+    "/api/v1/web-photos/{document_uuid}/thumbnail": {
+      "get": {
+        "operationId": "web_photo_thumbnail_api_v1_web_photos__document_uuid__thumbnail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_uuid",
+            "required": true,
+            "schema": {
+              "title": "Document Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Web Photo Thumbnail"
       }
     }
   }

@@ -101,11 +101,13 @@ export function EntityHeader({
   identifier,
   title,
   summary,
+  actions,
 }: {
   category: string;
   identifier: string;
   title?: string | null;
   summary: Array<[string, string | null | undefined]>;
+  actions?: ReactNode;
 }) {
   return (
     <header className="profile-header">
@@ -128,6 +130,7 @@ export function EntityHeader({
           </div>
         ))}
       </div>
+      {actions}
     </header>
   );
 }
@@ -314,7 +317,9 @@ export function ProfileTabs() {
   const activeTab = normalizeProfileTab(searchParams.get("tab"));
   const destination = (tab: ProfileTab) => {
     const next = new URLSearchParams(searchParams);
-    if (tab === "overview") next.delete("tab");
+    // An absent tab is the canonical Relationships route.  Keep an explicit
+    // Overview tab in the URL so refresh/back/forward never lose intent.
+    if (tab === "relationships") next.delete("tab");
     else next.set("tab", tab);
     const value = next.toString();
     return value ? `?${value}` : "";

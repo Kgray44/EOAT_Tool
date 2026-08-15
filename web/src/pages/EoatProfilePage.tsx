@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   apiClient,
@@ -29,6 +29,11 @@ import {
   profileTabForSection,
 } from "@/components/profile/profileTabs";
 import { QrLabel } from "@/components/qr/QrLabel";
+import { EntityEditor } from "@/components/profile/EntityEditor";
+import { CompatibilityEditor } from "@/components/profile/CompatibilityEditor";
+import { InstallationEditor } from "@/components/profile/InstallationEditor";
+import { MediaUpload } from "@/components/profile/MediaUpload";
+import { ProfileActionMenu } from "@/components/profile/ProfileActionMenu";
 import {
   isRoutableAuthoritativeIdentifier,
   presentationText,
@@ -139,10 +144,12 @@ function ProfileHeader({
   profile,
   location,
   heroPhoto,
+  actions,
 }: {
   profile: EoatProfile;
   location?: EoatLocation;
   heroPhoto?: WebPhoto;
+  actions?: ReactNode;
 }) {
   const locationText =
     location?.state === "INSTALLED" && location.machine_number
@@ -197,6 +204,7 @@ function ProfileHeader({
           <strong>{truthLabel(location)}</strong>
         </div>
       </div>
+      {actions}
     </header>
   );
 }
@@ -204,9 +212,11 @@ function ProfileHeader({
 function ProfileContent({
   identifier,
   profile,
+  onSaved,
 }: {
   identifier: string;
   profile: EoatProfile;
+  onSaved: () => void;
 }) {
   const [searchParams] = useSearchParams();
   useEffect(() => {
@@ -285,6 +295,171 @@ function ProfileContent({
         heroPhoto={
           photos.data?.find((photo) => photo.is_profile_photo) ??
           photos.data?.[0]
+        }
+        actions={
+          <ProfileActionMenu identifier={profile.business_identifier}>
+            <EntityEditor
+              kind="eoat"
+              identifier={profile.business_identifier}
+              rowVersion={profile.row_version}
+              onSaved={onSaved}
+              fields={[
+                {
+                  key: "legacy_identifier",
+                  label: "Legacy identifier",
+                  value: profile.legacy_identifier,
+                },
+                {
+                  key: "display_name",
+                  label: "Display name",
+                  value: profile.display_name,
+                },
+                {
+                  key: "description",
+                  label: "Description",
+                  kind: "textarea",
+                  value: profile.description,
+                },
+                {
+                  key: "eoat_type",
+                  label: "EOAT type",
+                  value: profile.eoat_type,
+                  catalog: "eoat_type",
+                },
+                {
+                  key: "connection_type",
+                  label: "Connection type",
+                  value: profile.connection_type,
+                },
+                {
+                  key: "cleanroom_classification",
+                  label: "Cleanroom classification",
+                  value: profile.cleanroom_classification,
+                  catalog: "cleanroom",
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  value: profile.status,
+                  catalog: "status",
+                },
+                { key: "revision", label: "Revision", value: profile.revision },
+                {
+                  key: "number_of_parts_picked",
+                  label: "Parts picked",
+                  kind: "number",
+                  value: profile.number_of_parts_picked,
+                },
+                {
+                  key: "number_of_vacuum_cups",
+                  label: "Vacuum cups",
+                  kind: "number",
+                  value: profile.number_of_vacuum_cups,
+                },
+                {
+                  key: "number_of_grippers",
+                  label: "Grippers",
+                  kind: "number",
+                  value: profile.number_of_grippers,
+                },
+                {
+                  key: "vacuum_present",
+                  label: "Vacuum present",
+                  kind: "boolean",
+                  value: profile.vacuum_present,
+                },
+                {
+                  key: "sensors_present",
+                  label: "Sensors present",
+                  kind: "boolean",
+                  value: profile.sensors_present,
+                },
+                {
+                  key: "part_present_sensor_present",
+                  label: "Part-present sensor",
+                  kind: "boolean",
+                  value: profile.part_present_sensor_present,
+                },
+                {
+                  key: "vacuum_confirmation_sensor_present",
+                  label: "Vacuum-confirmation sensor",
+                  kind: "boolean",
+                  value: profile.vacuum_confirmation_sensor_present,
+                },
+                {
+                  key: "quick_disconnect_present",
+                  label: "Quick disconnect",
+                  kind: "boolean",
+                  value: profile.quick_disconnect_present,
+                },
+                {
+                  key: "cup_material",
+                  label: "Cup material",
+                  value: profile.cup_material,
+                },
+                {
+                  key: "frame_material",
+                  label: "Frame material",
+                  value: profile.frame_material,
+                },
+                {
+                  key: "weight_kg",
+                  label: "Weight (kg)",
+                  kind: "number",
+                  value: profile.weight_kg,
+                },
+                {
+                  key: "maximum_payload_kg",
+                  label: "Maximum payload (kg)",
+                  kind: "number",
+                  value: profile.maximum_payload_kg,
+                },
+                {
+                  key: "drawing_number",
+                  label: "Drawing number",
+                  value: profile.drawing_number,
+                },
+                {
+                  key: "manufacturer",
+                  label: "Manufacturer",
+                  value: profile.manufacturer,
+                },
+                {
+                  key: "date_built",
+                  label: "Date built",
+                  kind: "date",
+                  value: profile.date_built,
+                },
+                {
+                  key: "date_commissioned",
+                  label: "Date commissioned",
+                  kind: "date",
+                  value: profile.date_commissioned,
+                },
+                {
+                  key: "notes",
+                  label: "Notes",
+                  kind: "textarea",
+                  value: profile.notes,
+                },
+              ]}
+            />
+            <CompatibilityEditor
+              kind="eoat"
+              identifier={profile.business_identifier}
+              onSaved={onSaved}
+            />
+            <InstallationEditor
+              identifier={profile.business_identifier}
+              rowVersion={profile.row_version}
+              onSaved={onSaved}
+            />
+            <MediaUpload
+              entityType="eoat"
+              identifier={profile.business_identifier}
+              onSaved={onSaved}
+            />
+          </ProfileActionMenu>
         }
       />
       <ProfileTabs />
@@ -532,6 +707,7 @@ function ProfileContent({
 
 export function EoatProfilePage() {
   const location = useLocation();
+  const queryClient = useQueryClient();
   const identifier = decodeEoatIdentifier(location.pathname);
   const profile = useQuery({
     queryKey: ["eoat", identifier, "profile"],
@@ -569,7 +745,13 @@ export function EoatProfilePage() {
     );
   return (
     <section className="profile-page">
-      <ProfileContent identifier={identifier} profile={profile.data} />
+      <ProfileContent
+        identifier={identifier}
+        profile={profile.data}
+        onSaved={() =>
+          void queryClient.invalidateQueries({ queryKey: ["eoat", identifier] })
+        }
+      />
     </section>
   );
 }

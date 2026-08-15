@@ -40,6 +40,7 @@ from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
 from .services import API_VERSION, EXPECTED_SCHEMA_REVISION, SERVER_REVISION, AtlasService
+from .web_content import content_is_available, content_response, thumbnail_response
 from .write_routes import router as write_router
 
 logging.basicConfig(
@@ -57,6 +58,9 @@ def _browser_safe_documents(rows):
     safe = []
     for row in rows:
         values = row.model_dump(exclude={"storage_path", "path_available"})
+        values["content_delivery_state"] = (
+            "AVAILABLE" if content_is_available(row.storage_path) else "NOT_AVAILABLE_THROUGH_WEB"
+        )
         safe.append(WebPhotoMetadata(**values) if "photo_view_type" in values else WebDocumentMetadata(**values))
     return safe
 
@@ -142,6 +146,23 @@ def not_found(entity: str, identifier: str) -> HTTPException:
     return HTTPException(
         status_code=404, detail={"code": "NOT_FOUND", "message": f"{entity} '{identifier}' was not found."}
     )
+
+
+@app.get("/api/v1/web-documents/{document_uuid}/content", response_model=None)
+def web_document_content(document_uuid: str, session: Session = Depends(get_runtime_session)):
+    """Serve a document only after UUID lookup and approved-root validation."""
+    return content_response(session, document_uuid, photo_only=False)
+
+
+@app.get("/api/v1/web-photos/{document_uuid}/content", response_model=None)
+def web_photo_content(document_uuid: str, session: Session = Depends(get_runtime_session)):
+    """Serve a photo only after UUID lookup and approved-root validation."""
+    return content_response(session, document_uuid, photo_only=True)
+
+
+@app.get("/api/v1/web-photos/{document_uuid}/thumbnail", response_model=None)
+def web_photo_thumbnail(document_uuid: str, session: Session = Depends(get_runtime_session)):
+    return thumbnail_response(session, document_uuid)
 
 
 @app.get("/api/v1/health", response_model=HealthResult)

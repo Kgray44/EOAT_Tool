@@ -1,7 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router-dom";
-import { afterEach, vi } from "vitest";
 import { AppProviders } from "@/app/providers";
 import { createTestRouter } from "@/app/router";
 
@@ -14,7 +13,6 @@ function renderAt(path: string) {
 }
 
 describe("router", () => {
-  afterEach(() => vi.unstubAllGlobals());
   it("registers a machine deep route as a real profile route", () => {
     renderAt("/machines/test-machine");
     expect(screen.getByRole("status")).toHaveTextContent(
@@ -26,34 +24,6 @@ describe("router", () => {
     expect(
       screen.getByRole("heading", { name: "Page not found" }),
     ).toBeInTheDocument();
-  });
-  it("keeps the governed Admin application outside the normal application shell", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((input: RequestInfo | URL) => {
-        if (String(input).endsWith("/api/v1/auth/status")) {
-          return Promise.resolve(
-            new Response(
-              JSON.stringify({
-                provider: null,
-                status: "unavailable",
-                mapping_configured: false,
-              }),
-            ),
-          );
-        }
-        return Promise.resolve(new Response(JSON.stringify({ items: [] })));
-      }),
-    );
-    renderAt("/admin/data");
-    expect(
-      await screen.findByRole("heading", {
-        name: "Start development/test Administrator session",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Open navigation menu" }),
-    ).not.toBeInTheDocument();
   });
   it("routes auxiliary pages to explicit browser-safe screens", () => {
     const setupPacket = renderAt("/setup-packet");

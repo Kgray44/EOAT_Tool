@@ -37,11 +37,13 @@ new corporate-authentication standard.**
   provider selection, mapping configuration, and the Kerberos-form route were
   verified on the loopback service.  The old
   `eoat-atlas-0.26.10-725e97f` releases remain the rollback target.
-* The staging browser listener presents a certificate whose subject/SAN is
-  `eoat-atlas.gwplastics.com` and whose test CA is not trusted by the Codex
-  in-app browser.  Certificate validation was not bypassed.  A browser profile
-  that trusts the approved staging test CA is required before manual corporate
-  credential entry can begin.
+* On 2026-08-15, read-only NGINX/OpenSSL inspection proved the staging `:8443`
+  certificate is self-issued. It has the required hostname/SAN but fails normal
+  chain validation (OpenSSL error 18); the production `:443` vhost references
+  the same test files, so there is no trusted production certificate on this
+  host to reuse. Certificate validation was not bypassed. A corporate-CA
+  trusted chain/key or approved CA trust path is required before manual
+  corporate credential entry can begin.
 
 ## Approved-provider constraints
 

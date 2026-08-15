@@ -93,6 +93,27 @@ security-negative test, provider outage proof, real actor mutation,
 corporate-session expiration/revocation proof, or real-provider browser
 acceptance to report.  This record is not a PASS.
 
+## Frontend reconciliation and TLS correction status (2026-08-15)
+
+Production and pre-Phase-5 staging frontend metadata both identify
+`725e97fa4603f10d32312a9b41f9b52c310dedb5`; the deployed Phase-5 static bundle
+instead identifies `a2b91c6c`. This caused the reported return of obsolete
+normal UI and hid corporate Sign In inside the Admin surface. The controlled
+source reconciliation restores the current production normal-web boundary,
+preserves accepted Phase 1-5 Admin/authentication implementation, adds a
+normal-shell Sign In/account control, regenerates the current API contract,
+and restores hardened read-only media delivery. TypeScript, ESLint, production
+build, 53 web Vitest tests, and 10 focused media-security tests pass locally.
+It has not yet been deployed to staging.
+
+The current staging TLS certificate cannot be accepted for credential entry:
+it is self-issued despite the correct hostname/SAN, and the same test files are
+also referenced by the production vhost. No trusted certificate exists on the
+host to reuse. An IT-provided browser-trusted corporate-CA chain/key or
+approved CA trust path is required before staging-vhost-only TLS correction,
+trusted-browser verification, or any real corporate login. No warning was
+bypassed and no credential was handled.
+
 ## Production safety
 
 No production deployment, production database migration, production write

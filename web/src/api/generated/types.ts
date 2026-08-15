@@ -2289,6 +2289,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/web-documents/{document_uuid}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Document Content
+         * @description Serve a document only after UUID lookup and approved-root validation.
+         */
+        get: operations["web_document_content_api_v1_web_documents__document_uuid__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/web-fit-checks/options": {
         parameters: {
             query?: never;
@@ -2305,6 +2325,43 @@ export interface paths {
          *     not treated as compatibility.
          */
         get: operations["web_fit_check_options_api_v1_web_fit_checks_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web-photos/{document_uuid}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Web Photo Content
+         * @description Serve a photo only after UUID lookup and approved-root validation.
+         */
+        get: operations["web_photo_content_api_v1_web_photos__document_uuid__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/web-photos/{document_uuid}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Web Photo Thumbnail */
+        get: operations["web_photo_thumbnail_api_v1_web_photos__document_uuid__thumbnail_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8774,6 +8831,37 @@ export interface operations {
             };
         };
     };
+    web_document_content_api_v1_web_documents__document_uuid__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     web_fit_check_options_api_v1_web_fit_checks_options_get: {
         parameters: {
             query?: {
@@ -8795,6 +8883,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WebFitCheckOptions"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    web_photo_content_api_v1_web_photos__document_uuid__content_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    web_photo_thumbnail_api_v1_web_photos__document_uuid__thumbnail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

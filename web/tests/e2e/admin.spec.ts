@@ -374,6 +374,16 @@ async function mockPhase4Api(page: Page) {
       request_id: "req-phase4",
     },
   ];
+  await page.route("**/api/v1/auth/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        provider: null,
+        status: "unavailable",
+        mapping_configured: false,
+      }),
+    });
+  });
   await page.route("**/api/v1/admin/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/session/rehearsal")) {

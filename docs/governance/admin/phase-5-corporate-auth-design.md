@@ -82,10 +82,12 @@ loopback-only on `127.0.0.1:8766`; the staging NGINX virtual host is unchanged
 and proxies only to that listener.  The prior versioned staging server/static
 releases remain retained as rollback targets.
 
-Manual corporate credential entry is permitted only in a browser profile that
-validates the hostname-valid staging certificate through the approved test CA.
-Neither a browser certificate bypass nor an untrusted TLS page is an acceptable
-substitute for the Phase E real-user acceptance flow.
+Manual corporate credential entry is permitted only after the staging hostname
+validates through a browser-trusted corporate CA chain. Read-only inspection on
+2026-08-15 found the current hostname-valid test certificate is self-issued,
+including on the production vhost, so it is not a reusable trusted-certificate
+source. Neither a browser certificate bypass nor an untrusted TLS page is an
+acceptable substitute for the Phase E real-user acceptance flow.
 
 ## Current decision
 

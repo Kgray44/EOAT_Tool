@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { apiClient, type ToolProfile } from "@/api/client";
 import { decodeRouteIdentifier } from "@/api/routes";
@@ -24,6 +24,10 @@ import {
 } from "@/components/profile/ProfileBlocks";
 import { QrLabel } from "@/components/qr/QrLabel";
 import { presentationText } from "@/api/presentation";
+import { EntityEditor } from "@/components/profile/EntityEditor";
+import { CompatibilityEditor } from "@/components/profile/CompatibilityEditor";
+import { MediaUpload } from "@/components/profile/MediaUpload";
+import { ProfileActionMenu } from "@/components/profile/ProfileActionMenu";
 
 function Retry({ retry }: { retry: () => void }) {
   return (
@@ -36,9 +40,11 @@ function Retry({ retry }: { retry: () => void }) {
 function ToolContent({
   identifier,
   profile,
+  onSaved,
 }: {
   identifier: string;
   profile: ToolProfile;
+  onSaved: () => void;
 }) {
   const [relationships, documents, photos, history] = useQueries({
     queries: [
@@ -97,6 +103,78 @@ function ToolContent({
           ["Mold number", profile.mold_number],
           ["Part verification", profile.part_status],
         ]}
+        actions={
+          <ProfileActionMenu identifier={profile.business_identifier}>
+            <EntityEditor
+              kind="tool"
+              identifier={profile.business_identifier}
+              rowVersion={profile.row_version}
+              onSaved={onSaved}
+              fields={[
+                {
+                  key: "tool_number",
+                  label: "Tool number",
+                  value: profile.tool_number,
+                },
+                {
+                  key: "mold_number",
+                  label: "Mold number",
+                  value: profile.mold_number,
+                },
+                {
+                  key: "display_name",
+                  label: "Display name",
+                  value: profile.display_name,
+                },
+                {
+                  key: "description",
+                  label: "Description",
+                  kind: "textarea",
+                  value: profile.description,
+                },
+                {
+                  key: "cavity_count",
+                  label: "Cavity count",
+                  kind: "number",
+                  value: profile.cavity_count,
+                },
+                {
+                  key: "tool_type",
+                  label: "Tool type",
+                  value: profile.tool_type,
+                },
+                { key: "customer", label: "Customer", value: profile.customer },
+                {
+                  key: "program_name",
+                  label: "Program / part family",
+                  value: profile.program_name,
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  value: profile.status,
+                  catalog: "status",
+                },
+                {
+                  key: "notes",
+                  label: "Notes",
+                  kind: "textarea",
+                  value: profile.notes,
+                },
+              ]}
+            />
+            <CompatibilityEditor
+              kind="tool"
+              identifier={profile.business_identifier}
+              onSaved={onSaved}
+            />
+            <MediaUpload
+              entityType="tool"
+              identifier={profile.business_identifier}
+              onSaved={onSaved}
+            />
+          </ProfileActionMenu>
+        }
       />
       <ProfileTabs />
       <div className="profile-sections">
@@ -197,6 +275,7 @@ function ToolContent({
 
 export function ToolProfilePage() {
   const location = useLocation();
+  const queryClient = useQueryClient();
   const identifier = decodeRouteIdentifier(location.pathname, "tool");
   const profile = useQuery({
     queryKey: ["tool", identifier, "profile"],
@@ -230,7 +309,13 @@ export function ToolProfilePage() {
     );
   return (
     <section className="profile-page">
-      <ToolContent identifier={identifier} profile={profile.data} />
+      <ToolContent
+        identifier={identifier}
+        profile={profile.data}
+        onSaved={() =>
+          void queryClient.invalidateQueries({ queryKey: ["tool", identifier] })
+        }
+      />
     </section>
   );
 }

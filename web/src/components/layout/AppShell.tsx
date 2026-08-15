@@ -14,11 +14,13 @@ import {
 } from "@/app/browserSettings";
 import { readLibraryContext } from "@/app/libraryContext";
 import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
+import { AuthenticationPanel } from "@/components/auth/AuthenticationPanel";
 
 const navigation = [
   ["/", "Home", "⌂"],
   ["/fit-check", "Fit Check", "◉"],
   ["/library", "Library", "▦"],
+  ["/settings", "Settings", "⚙"],
 ] as const;
 
 function isEditable(target: EventTarget | null) {
@@ -186,14 +188,8 @@ export function AppShell({ children }: PropsWithChildren) {
 
   const returnToLibrary = () => {
     const context = readLibraryContext(location.state);
-    const historyIndex =
-      (window.history.state as { idx?: number } | null)?.idx || 0;
-    if (context && historyIndex > 0) {
-      navigate(-1);
-      return;
-    }
     navigate(`/library${context?.search || ""}`, {
-      replace: true,
+      replace: false,
       state: context ? { restoreLibraryContext: context } : undefined,
     });
   };
@@ -314,6 +310,9 @@ export function AppShell({ children }: PropsWithChildren) {
       <main id="main-content" className="atlas-main">
         {children}
       </main>
+      <aside className="atlas-auth-dock" aria-label="Account controls">
+        <AuthenticationPanel />
+      </aside>
       <GlobalSearchOverlay
         open={searchOpen}
         initialQuery={initialQuery}

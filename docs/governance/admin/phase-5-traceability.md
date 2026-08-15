@@ -59,3 +59,16 @@ reconciled into the Phase 4 lineage; real-provider acceptance remains pending.
 * The test certificate is hostname-valid but untrusted by the Codex in-app
   browser.  Validation was not bypassed, so live provider readiness and real
   credential acceptance remain unclaimed pending a trusted browser profile.
+* Frontend provenance inspection established that live production and retained
+  pre-Phase-5 staging are `725e97fa4603f10d32312a9b41f9b52c310dedb5`, whereas
+  the deployed Phase-5 web bundle came from the older Admin-focused tree at
+  `a2b91c6c`. Controlled reconciliation restored the production normal-web
+  boundary, preserved Phase 1-5 Admin/auth UI, regenerated OpenAPI types, and
+  added the normal-shell corporate Sign In/role-gated account control. Local
+  web validation now passes TypeScript, ESLint, production build, and **53/53**
+  Vitest tests; the restored fail-closed media boundary passes **10/10** focused
+  server tests. See `phase-5-frontend-reconciliation.md`.
+* Further certificate inspection established that staging and production vhosts
+  use the same self-issued test certificate; there is no trusted existing
+  certificate to reuse for `:8443`. Corporate-CA material or approved CA trust
+  is an external prerequisite, not a browser workaround.
