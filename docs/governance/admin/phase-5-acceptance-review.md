@@ -122,3 +122,77 @@ or secret commit occurred.  No real corporate credential was requested or
 handled.
 
 ADMIN PHASE 5: INCOMPLETE
+
+## Continuation update — 2026-08-18
+
+### Current staging candidate
+
+The authoritative reconciled source base is
+`0c7833b07e808537c6f82d73d68e3718fd83aecf` on
+`feature/admin-phase5-corporate-auth`. It was deployed to staging before
+acceptance continued, replacing the obsolete `a2b91c6c` Admin-only frontend
+lineage. The current staging server and static release is
+`eoat-atlas-phase5-c2898bd6`, source
+`c2898bd66566548c6ee4be51f5bb598dc615a09c`. Its UI asset remains the
+reconciled normal EOAT Atlas frontend; the follow-up commits only correct
+governed role restoration, generated API typing, exact test-schema grant
+inspection, and deterministic fresh-auth proof selection.
+
+The retained staging rollback chain is immediately available:
+`c2898bd6 -> 64ba0405 -> 0d7ec9f -> 0c7833b0`, with the earlier pre-Phase-5
+release also retained. Production was not deployed or modified.
+
+### Accepted nonproduction evidence
+
+* Staging health is compatible with schema `20260814_0011`; its API remains
+  loopback-bound and the authorized test database is the only write-enabled
+  target.
+* Normal Home, Library, Fit Check, EOAT, Machine, Tool, media, history,
+  lookup, and navigation API contracts were exercised successfully. Anonymous
+  Admin overview, settings, and audit requests correctly return `401`.
+* Local browser regression on the reconciled frontend completed with
+  Playwright **23 passed / 5 intentional live-or-visual skips**. Web Vitest
+  completed **54 passed**; TypeScript, ESLint, API-contract generation, and
+  production build passed. The build has only the established chunk-size
+  advisory. The repository-wide formatter continues to report 84 pre-existing
+  unrelated web files and was not mass-rewritten.
+* Focused server coverage for corporate sessions, Admin roles and audit,
+  normal-web contracts, and media delivery completed **39 passed**. The real
+  MySQL Phase 2--4 governed Admin suite completed **18 passed**, including
+  role-gated editing, receipts, before/after values, append-only audit denial,
+  logout/revocation/expiry semantics, CSRF/idempotency, fresh-auth, and Danger
+  safeguards.
+* A fresh staging-only recovery snapshot of the authorized test database was
+  restored into a separate allowlisted schema, compared across all 66 tables,
+  and removed after verification. The snapshot is retained in protected
+  staging recovery storage with SHA-256
+  `f6f4539cad92e8b2eb70d8e9f03042efbaeea3e60df045c8b38a8e45941b20ce`.
+  It is test recovery material, not a production release artifact; refresh it
+  before a later recovery drill when its four-hour freshness window has passed.
+
+### Corporate TLS boundary
+
+IT has confirmed that no approved browser-trusted PKI/certificate solution is
+currently available. The staging and production vhosts continue to present the
+same hostname-valid but self-issued EOAT test certificate. Normal verification
+fails at the untrusted self-signed chain; no browser exception, ignored warning,
+insecure curl mode, trust-root installation, or real corporate credential was
+used. This is an external infrastructure limitation, not a reason to revert or
+stop the safely testable Phase 5 work.
+
+Accordingly, **only real browser corporate-login acceptance is externally
+blocked**: managed-browser chain trust and approved human Administrator and
+non-Admin identity/outage exercises. Development/synthetic authentication
+evidence is functional evidence only and is not represented as real corporate
+authentication acceptance.
+
+### Production disposition
+
+Production remains at `eoat-atlas-0.26.10-725e97f`
+(`725e97fa4603f10d32312a9b41f9b52c310dedb5`), healthy, and
+`writes_enabled: false`. No production data, TLS/NGINX configuration, database
+migration, service, or release pointer was changed. A production release
+candidate and bounded rollback procedure are recorded in
+`phase-5-production-release-candidate.md`; it is prepared but is not authorized
+for deployment while corporate browser acceptance and release approval remain
+open.

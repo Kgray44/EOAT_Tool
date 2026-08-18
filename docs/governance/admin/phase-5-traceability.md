@@ -72,3 +72,20 @@ reconciled into the Phase 4 lineage; real-provider acceptance remains pending.
   use the same self-issued test certificate; there is no trusted existing
   certificate to reuse for `:8443`. Corporate-CA material or approved CA trust
   is an external prerequisite, not a browser workaround.
+
+## Continuation evidence — 2026-08-18
+
+This section supersedes the candidate/release-status statements above where
+they name `a2b91c6c`. The reconciled normal EOAT Atlas frontend base
+`0c7833b07e808537c6f82d73d68e3718fd83aecf` was deployed to staging first.
+Current staging is `eoat-atlas-phase5-c2898bd6`
+(`c2898bd66566548c6ee4be51f5bb598dc615a09c`), retaining that reconciled UI.
+
+| Requirement area | Continuation evidence | Current status |
+| --- | --- | --- |
+| Normal-web parity | Current normal shell, navigation, representative API and media/history routes were checked on staging; local Playwright was 23 passed with 5 intentional non-live/visual skips. | Complete for non-corporate functional regression. |
+| Admin access boundary | Anonymous overview/settings/audit routes deny with `401`; focused role/session/audit coverage passed. | Complete for synthetic/development evidence; real corporate identity evidence remains external. |
+| Governed editing and audit | Real-MySQL Phase 2--4 suite passed 18/18, including controlled changes, correlation/receipt data, before/after state, append-only denial, CSRF/idempotency, fresh-auth and Danger safeguards. | Complete on the authorized test database. |
+| Recovery and rollback | A staging-only recovery snapshot was restored, all 66 table counts matched, and the temporary restore schema was removed. Retained staging release pointers provide rollback through the reconciled base. | Complete; refresh recovery material before any later time-bounded drill. |
+| Corporate browser sign-in | No real credentials were entered. IT has confirmed no approved trusted certificate is currently available; normal browser verification cannot be claimed. | Externally blocked solely by PKI/browser trust and the corresponding approved human corporate identity tests. |
+| Production readiness | Candidate and rollback plan are prepared. Production remains healthy with writes disabled and has not been changed. | Prepared but not authorized to deploy pending corporate browser acceptance and release approval. |
