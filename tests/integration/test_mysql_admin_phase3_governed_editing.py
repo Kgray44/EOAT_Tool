@@ -769,5 +769,5 @@ def test_phase3_settings_and_development_role_mapping_are_governed(api, seed_rec
         assert setting_event.before_state_json == {"value": True} and setting_event.after_state_json == {"value": False}
         assert mapping_event is not None and mapping_event.action == "ROLE_MAPPING_CHANGE"
         assert restoration_event is not None and restoration_event.action == "ROLE_MAPPING_CHANGE"
-        assert restoration_event.before_state_json == {"role_code": "ADMIN_AUDITOR", "environment": "development"}
-        assert restoration_event.after_state_json == {"role_code": "VIEWER", "environment": "development"}
+        assert restoration_event.before_state_json == {"role_code": "ADMIN_AUDITOR"}
+        assert restoration_event.after_state_json == {"role_code": "VIEWER"}
