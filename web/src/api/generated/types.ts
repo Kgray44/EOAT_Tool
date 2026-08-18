@@ -2545,7 +2545,7 @@ export interface components {
              * Role Code
              * @enum {string}
              */
-            role_code: "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER" | "ADMINISTRATOR";
+            role_code: "VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER" | "ADMINISTRATOR";
         };
         /** AdminSessionRevoke */
         AdminSessionRevoke: {

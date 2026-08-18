@@ -597,6 +597,9 @@
           },
           "role_code": {
             "enum": [
+              "VIEWER",
+              "TECHNICIAN",
+              "ENGINEER",
               "ADMIN_AUDITOR",
               "ADMIN_DATA_MANAGER",
               "ADMIN_SETTINGS_MANAGER",
