@@ -139,8 +139,10 @@ governed role restoration, generated API typing, exact test-schema grant
 inspection, and deterministic fresh-auth proof selection.
 
 The retained staging rollback chain is immediately available:
-`c2898bd6 -> 64ba0405 -> 0d7ec9f -> 0c7833b0`, with the earlier pre-Phase-5
-release also retained. Production was not deployed or modified.
+`c2898bd6 -> 64ba0405 -> 0d7ec9f0`, with the earlier pre-Phase-5 release also
+retained. The `0d7ec9f0` source is descended from the reconciled `0c7833b0`
+base; `0c7833b0` is not represented as a separate retained release directory.
+Production was not deployed or modified.
 
 ### Accepted nonproduction evidence
 

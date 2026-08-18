@@ -46,11 +46,12 @@ Before any production deployment, require all of the following:
 ## Rollback plan
 
 The staging release can immediately roll back from `c2898bd6` to `64ba0405`,
-then `0d7ec9f`, then the reconciled base `0c7833b0`; the prior non-Phase-5
-release is also retained. Each activation must preserve the staging startup
-guard, run NGINX syntax validation where NGINX is changed, restart only the
-staging service when required, and prove loopback health after the pointer
-switch.
+then `0d7ec9f0`; the prior non-Phase-5 release is also retained.
+`0d7ec9f0` is descended from the reconciled `0c7833b0` frontend base, while
+`0c7833b0` itself is not a separately retained release directory. Each
+activation must preserve the staging startup guard, run NGINX syntax validation
+where NGINX is changed, restart only the staging service when required, and
+prove loopback health after the pointer switch.
 
 For any future authorized production rollout, retain the current production
 server and static release pointers before changing either pointer. Roll back
