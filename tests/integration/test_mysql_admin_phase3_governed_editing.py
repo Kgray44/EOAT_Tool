@@ -755,9 +755,19 @@ def test_phase3_settings_and_development_role_mapping_are_governed(api, seed_rec
             headers={"X-EOAT-CSRF-Token": login.json()["csrf_token"], "Idempotency-Key": f"p3-mapping-denied-{RUN}"},
         )
         assert denied.status_code == 403
+    restored = client.patch(
+        "/api/v1/admin/access/test-mappings/dev.viewer",
+        json={"role_code": "VIEWER", "expected_row_version": mapping_changed.json()["mapping"]["row_version"], "reason": "Restore development fixture"},
+        headers={**csrf, "Idempotency-Key": f"p3-mapping-restore-{RUN}"},
+    )
+    assert restored.status_code == 200 and restored.json()["mapping"]["role_code"] == "VIEWER"
     with create_session_factory(migration=True)() as session:
         setting_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == changed.json()["audit_event_id"]))
         mapping_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == mapping_changed.json()["audit_event_id"]))
+        restoration_event = session.scalar(select(db.AuditEvent).where(db.AuditEvent.event_id == restored.json()["audit_event_id"]))
         assert setting_event is not None and setting_event.action == "SETTINGS_CHANGE"
         assert setting_event.before_state_json == {"value": True} and setting_event.after_state_json == {"value": False}
         assert mapping_event is not None and mapping_event.action == "ROLE_MAPPING_CHANGE"
+        assert restoration_event is not None and restoration_event.action == "ROLE_MAPPING_CHANGE"
+        assert restoration_event.before_state_json == {"role_code": "ADMIN_AUDITOR", "environment": "development"}
+        assert restoration_event.after_state_json == {"role_code": "VIEWER", "environment": "development"}

@@ -46,7 +46,16 @@ class AdminSettingUpdate(WriteModel):
 
 
 class AdminRoleMappingUpdate(WriteModel):
-    role_code: Literal["ADMIN_AUDITOR", "ADMIN_DATA_MANAGER", "ADMIN_SETTINGS_MANAGER", "ADMIN_ACCESS_MANAGER", "ADMINISTRATOR"]
+    role_code: Literal[
+        "VIEWER",
+        "TECHNICIAN",
+        "ENGINEER",
+        "ADMIN_AUDITOR",
+        "ADMIN_DATA_MANAGER",
+        "ADMIN_SETTINGS_MANAGER",
+        "ADMIN_ACCESS_MANAGER",
+        "ADMINISTRATOR",
+    ]
     expected_row_version: int = Field(ge=1)
     reason: str = Field(min_length=3, max_length=2000)
 
