@@ -4,7 +4,7 @@ import hashlib
 import os
 from pathlib import Path
 
-from server.eoat_api.admin.operations import _recovery_point_state
+from server.eoat_api.admin.operations import _recovery_point_state, operation_ledger_writable
 from server.eoat_api.services import EXPECTED_SCHEMA_REVISION
 
 
@@ -35,3 +35,23 @@ def test_phase4_recovery_point_requires_hash_revision_and_freshness(tmp_path, mo
     stale = os.path.getmtime(artifact) - (5 * 60 * 60)
     os.utime(artifact, (stale, stale))
     assert _recovery_point_state()[0] == "FAIL"
+
+
+class _GrantSession:
+    def __init__(self, grant: str):
+        self.grant = grant
+
+    def execute(self, _statement):
+        return [(self.grant,)]
+
+
+def test_phase4_operation_ledger_accepts_only_the_exact_test_schema_dml_scope():
+    assert operation_ledger_writable(
+        _GrantSession("GRANT SELECT, INSERT, UPDATE, DELETE ON `eoat_atlas_test`.* TO `runtime`@`127.0.0.1`")
+    )
+    assert not operation_ledger_writable(
+        _GrantSession("GRANT SELECT, INSERT, DELETE ON `eoat_atlas_test`.* TO `runtime`@`127.0.0.1`")
+    )
+    assert not operation_ledger_writable(
+        _GrantSession("GRANT SELECT, INSERT, UPDATE, DELETE ON `eoat_atlas`.* TO `runtime`@`127.0.0.1`")
+    )

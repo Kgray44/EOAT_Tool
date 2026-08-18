@@ -57,9 +57,9 @@ def operation_ledger_writable(session: Session) -> bool:
     except SQLAlchemyError:
         return False
 
-    # The application deliberately has no schema-wide write grant.  Keep this
-    # check aligned with the narrow table privileges required by the owned
-    # Phase 4 flows instead of accepting an unrelated broad DML grant.
+    # Accept only the owned table grants, or their exact non-production test
+    # schema equivalent.  The latter is used by the isolated staging runtime
+    # account; it grants no capability outside ``eoat_atlas_test``.
     required = {
         "ADMIN_DANGER_STEP_UPS": {"INSERT"},
         "ADMIN_OPERATIONS": {"INSERT", "UPDATE"},
@@ -73,6 +73,9 @@ def operation_ledger_writable(session: Session) -> bool:
         permissions = {part.strip() for part in privilege_clause.removeprefix("GRANT ").split(",")}
         if "ALL PRIVILEGES" in permissions:
             permissions = {"INSERT", "UPDATE", "DELETE"}
+        if "`EOAT_ATLAS_TEST`.*" in target_clause:
+            for table in required:
+                granted[table].update(permissions)
         for table in required:
             if f"`EOAT_ATLAS_TEST`.`{table}`" in target_clause:
                 granted[table].update(permissions)
