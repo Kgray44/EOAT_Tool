@@ -529,7 +529,7 @@ def require_active_danger_step_up(
             db.AdminDangerStepUp.operation_type == operation_type,
             db.AdminDangerStepUp.risk_class == risk_class,
         )
-        .order_by(db.AdminDangerStepUp.issued_at.desc())
+        .order_by(db.AdminDangerStepUp.issued_at.desc(), db.AdminDangerStepUp.id.desc())
     )
     # A new step-up supersedes the prior proof for this scoped operation.  Do
     # not silently fall back to an earlier proof when the newest was revoked
