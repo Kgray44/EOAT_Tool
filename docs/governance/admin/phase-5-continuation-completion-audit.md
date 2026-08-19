@@ -63,5 +63,30 @@ test-database qualification above.
 Production remains `eoat-atlas-0.26.10-725e97f`
 (`725e97fa4603f10d32312a9b41f9b52c310dedb5`), healthy, schema-compatible, and
 `writes_enabled: false`. No production service, release pointer, database,
-write setting, NGINX configuration, certificate configuration, or data was
-changed by this continuation.
+write setting, NGINX configuration, certificate configuration, or business data
+was changed by this continuation. The separately documented human
+authentication event below did create production authentication/audit state.
+
+## Corporate-login acceptance incident — 2026-08-19
+
+A human corporate login reported as staging acceptance did not create a
+corporate session or authentication event in `eoat_atlas_test`. Read-only
+staging evidence remains empty. The corresponding safe production audit
+evidence instead showed a current `kerberos_form` Administrator session on the
+default HTTPS host, which the production virtual host routes to the production
+API. No identity, credential, cookie, ticket, token, or session reference is
+recorded in this document.
+
+That login cannot be counted as staging acceptance. No Admin operation,
+mutation, session revocation, or other production action was performed by this
+continuation. The human owner must end that default-host session through the
+ordinary production Sign Out flow (or an independently authorized production
+response) before retrying the exact `:8443` staging URL.
+
+The staging listener itself is correctly isolated to port `8766` and
+`eoat_atlas_test`, but its NGINX configuration injects a
+`/staging-environment.css` reference that is absent from the static release and
+returns `404`. This is a staging-environment identification defect. It does not
+alter application authorization, but it should be corrected through the normal
+staging release/configuration process before relying on the visual environment
+cue for human acceptance.
