@@ -10,7 +10,7 @@ from starlette.requests import Request
 
 from server.eoat_api.app import app
 from server.eoat_api.corporate_auth import ADMINISTRATOR_GROUP_IDENTIFIER
-from server.eoat_api.corporate_auth_routes import corporate_session_service
+from server.eoat_api.corporate_auth_routes import _cookie_secure, corporate_session_service
 from server.eoat_api.corporate_sessions import (
     CorporateSessionService,
     DirectoryIdentity,
@@ -20,7 +20,7 @@ from server.eoat_api.corporate_sessions import (
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import get_runtime_session, get_write_session
 from server.eoat_api.errors import APIError
-from server.eoat_api.security import actor_context, corporate_session_actor
+from server.eoat_api.security import ROLE_PERMISSIONS, actor_context, corporate_session_actor
 
 
 class FakeAuthenticator:
@@ -255,7 +255,12 @@ def test_http_corporate_session_enforces_admin_mapping_csrf_and_logout(monkeypat
             login = client.post("/api/v1/auth/kerberos-form/login", json={"username": "kgray", "password": "not-persisted"})
             assert login.status_code == 200
             assert "password" not in login.text
-            assert client.get("/api/v1/auth/session").json()["roles"] == ["ADMINISTRATOR"]
+            assert login.json()["permissions"] == sorted(ROLE_PERMISSIONS["ADMINISTRATOR"])
+            assert login.json()["scope"] == "application"
+            session_payload = client.get("/api/v1/auth/session").json()
+            assert session_payload["roles"] == ["ADMINISTRATOR"]
+            assert session_payload["permissions"] == login.json()["permissions"]
+            assert session_payload["scope"] == "application"
             assert client.get("/api/v1/admin/audit/catalog").status_code == 200
             assert client.post("/api/v1/auth/logout").status_code == 403
             csrf = client.cookies.get("eoat_corporate_csrf")
@@ -265,3 +270,9 @@ def test_http_corporate_session_enforces_admin_mapping_csrf_and_logout(monkeypat
         app.dependency_overrides.clear()
         session.close()
         engine.dispose()
+
+
+def test_staging_corporate_cookies_are_secure_by_default(monkeypatch):
+    monkeypatch.delenv("EOAT_API_CORPORATE_COOKIE_SECURE", raising=False)
+    monkeypatch.setenv("EOAT_API_ENVIRONMENT", "staging")
+    assert _cookie_secure()
