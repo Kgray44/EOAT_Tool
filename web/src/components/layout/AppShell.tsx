@@ -9,7 +9,6 @@ import {
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   readBrowserSettings,
-  resolvedTheme,
   type BrowserSettings,
 } from "@/app/browserSettings";
 import { readLibraryContext } from "@/app/libraryContext";
@@ -73,7 +72,6 @@ export function AppShell({ children }: PropsWithChildren) {
   const [settings, setSettings] = useState<BrowserSettings>(() =>
     readBrowserSettings(),
   );
-  const theme = resolvedTheme(settings.theme);
   const profileRoute = /^\/(eoats|machines|tools)\//.test(location.pathname);
 
   const closeMenu = useCallback((restore = true) => {
@@ -102,28 +100,6 @@ export function AppShell({ children }: PropsWithChildren) {
     window.setTimeout(() => restoreSearchFocus.current?.focus(), 0);
   }, []);
 
-  useEffect(() => {
-    document.documentElement.dataset.atlasTheme = theme;
-    document.documentElement.dataset.atlasAccent = settings.accent;
-    document.documentElement.dataset.atlasContrast = String(
-      settings.enhancedContrast,
-    );
-    document.documentElement.style.setProperty(
-      "--atlas-motion-scale",
-      settings.reduceMotion || settings.animationSpeed === "reduced"
-        ? "0.28"
-        : settings.animationSpeed === "smooth"
-          ? "1.25"
-          : "1",
-    );
-  }, [settings, theme]);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const media = window.matchMedia("(prefers-color-scheme: light)");
-    const refresh = () => setSettings((value) => ({ ...value }));
-    media.addEventListener("change", refresh);
-    return () => media.removeEventListener("change", refresh);
-  }, []);
   useEffect(() => {
     const handler = (event: Event) =>
       openSearch((event as CustomEvent<string>).detail || "");

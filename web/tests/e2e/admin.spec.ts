@@ -298,6 +298,170 @@ test("denied and spoofed browser state cannot reveal Administrator evidence", as
   await expect(page.getByRole("table")).toHaveCount(0);
 });
 
+test("governed Viewer assignment commits, refreshes authoritative access, and preserves directory navigation", async ({
+  page,
+}) => {
+  await page.context().addCookies([
+    {
+      name: "eoat_corporate_csrf",
+      value: "test-csrf-proof",
+      url: "http://127.0.0.1:4173",
+    },
+  ]);
+  await mockAdminApi(page);
+  let role = "VIEWER";
+  let source = "default";
+  let rowVersion = 1;
+  let committed = false;
+  const summary = () => ({
+    user_id: "wyatt-1",
+    name: "Wyatt Jones",
+    corporate_identity: "wyatt.jones@gwplastics.com",
+    provider: "kerberos_form",
+    effective_role: role,
+    access_source: source,
+    group_roles: [],
+    explicit_role: role === "VIEWER" ? null : role,
+    explicit_denied: false,
+    status: "active",
+    first_sign_in: "2026-08-20T12:00:00Z",
+    last_sign_in: "2026-08-20T12:30:00Z",
+    sign_in_count: 1,
+    active_sessions: role === "VIEWER" ? 1 : 0,
+    row_version: rowVersion,
+  });
+  await page.route("**/api/v1/admin/users**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/access/preview")) {
+      const body = request.postDataJSON();
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          user_id: "wyatt-1",
+          action: body.action,
+          before: summary(),
+          after: {
+            ...summary(),
+            effective_role: body.role_code,
+            access_source: "explicit_user_assignment",
+          },
+          confirmation: "USER ACCESS ASSIGN wyatt-1",
+        }),
+      });
+      return;
+    }
+    if (url.pathname.endsWith("/access/commit")) {
+      const body = request.postDataJSON();
+      expect(request.method()).toBe("POST");
+      expect(body).toMatchObject({
+        action: "assign",
+        role_code: "ADMINISTRATOR",
+        reason: "Testing",
+        expected_row_version: 1,
+        confirmation: "USER ACCESS ASSIGN wyatt-1",
+      });
+      expect(request.headers()["idempotency-key"]).toBeTruthy();
+      role = "ADMINISTRATOR";
+      source = "explicit_user_assignment";
+      rowVersion += 1;
+      committed = true;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          user: summary(),
+          audit_event_id: "role-assignment-receipt",
+          revoked_session_count: 1,
+        }),
+      });
+      return;
+    }
+    if (url.pathname === "/api/v1/admin/users/wyatt-1") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...summary(),
+          sessions: [],
+          access_history: committed
+            ? [
+                {
+                  event_id: "role-assignment-receipt",
+                  occurred_at: "2026-08-20T12:31:00Z",
+                  action: "ROLE_MAPPING_CHANGE",
+                  result: "SUCCESS",
+                  reason: "Testing",
+                  actor: "Corporate Administrator",
+                },
+              ]
+            : [],
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [summary()],
+        page: 2,
+        page_size: 50,
+        total: 1,
+        sort: "name:asc",
+      }),
+    });
+  });
+
+  await page.goto(
+    "/admin/users/wyatt-1?search=Wyatt&sort=name&direction=asc&page=2",
+  );
+  await expect(page.getByText("VIEWER", { exact: true }).first()).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Role", exact: true })
+    .selectOption("ADMINISTRATOR");
+  await page.getByLabel("Reason").fill("Testing");
+  await page.getByRole("button", { name: "Preview change" }).click();
+  await page.getByRole("textbox").nth(1).fill("USER ACCESS ASSIGN wyatt-1");
+  await page.getByRole("button", { name: "Confirm governed change" }).click();
+  await expect.poll(() => committed).toBe(true);
+  await expect(
+    page.getByText("ADMINISTRATOR", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText("explicit user assignment", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("ROLE_MAPPING_CHANGE")).toBeVisible();
+  await page.getByRole("link", { name: "← Back to Users & Access" }).click();
+  await expect(page).toHaveURL(
+    /search=Wyatt.*sort=name.*direction=asc.*page=2/,
+  );
+  await expect(page.getByRole("cell", { name: "ADMINISTRATOR" })).toBeVisible();
+  await page.goto("/admin/users/wyatt-1");
+  await expect(
+    page.getByText("ADMINISTRATOR", { exact: true }).first(),
+  ).toBeVisible();
+});
+
+test("direct Admin navigation honors the saved Atlas Light preference", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "eoat-atlas-mirrorline-settings-v1",
+      JSON.stringify({ theme: "light" }),
+    ),
+  );
+  await mockAdminApi(page);
+  await page.goto("/admin");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-atlas-theme",
+    "light",
+  );
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-atlas-theme",
+    "light",
+  );
+});
+
 test("detail not-found and backend-failure states are controlled", async ({
   page,
 }) => {

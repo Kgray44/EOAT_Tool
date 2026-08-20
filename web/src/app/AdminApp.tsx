@@ -4,6 +4,7 @@ import {
   NavLink,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -2442,25 +2443,165 @@ function UsersPage() {
     <>
       <PageTitle title="Users & Access">
         <p>
-          Corporate users are registered only after successful sign-in. Effective
-          application access is resolved server-side; external group membership
-          remains externally managed.
+          Corporate users are registered only after successful sign-in.
+          Effective application access is resolved server-side; external group
+          membership remains externally managed.
         </p>
       </PageTitle>
       <section className="filters" aria-label="User directory filters">
         <div className="filter-grid">
-          <label>Search name or identity<input value={search} onChange={(event) => update({ search: event.target.value })} /></label>
-          <label>Role<select value={role} onChange={(event) => update({ role: event.target.value })}><option value="">All roles</option>{["VIEWER", "ADMIN_AUDITOR", "ADMIN_DATA_MANAGER", "ADMIN_SETTINGS_MANAGER", "ADMIN_ACCESS_MANAGER", "ADMINISTRATOR"].map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label>Status<select value={status} onChange={(event) => update({ status: event.target.value })}><option value="">All statuses</option><option value="active">Active</option><option value="disabled">Disabled</option></select></label>
-          <label>Access source<select value={source} onChange={(event) => update({ access_source: event.target.value })}><option value="">All sources</option><option value="explicit_user_assignment">Explicit assignment</option><option value="corporate_group">Corporate group</option><option value="default">Default</option><option value="explicit_deny">Explicit deny</option></select></label>
-          <label>Sort<select value={sort} onChange={(event) => update({ sort: event.target.value })}><option value="name">Name</option><option value="role">Role</option><option value="first_sign_in">First sign-in</option><option value="last_sign_in">Last sign-in</option><option value="status">Status</option></select></label>
-          <label>Direction<select value={direction} onChange={(event) => update({ direction: event.target.value })}><option value="asc">Ascending</option><option value="desc">Descending</option></select></label>
+          <label>
+            Search name or identity
+            <input
+              value={search}
+              onChange={(event) => update({ search: event.target.value })}
+            />
+          </label>
+          <label>
+            Role
+            <select
+              value={role}
+              onChange={(event) => update({ role: event.target.value })}
+            >
+              <option value="">All roles</option>
+              {[
+                "VIEWER",
+                "ADMIN_AUDITOR",
+                "ADMIN_DATA_MANAGER",
+                "ADMIN_SETTINGS_MANAGER",
+                "ADMIN_ACCESS_MANAGER",
+                "ADMINISTRATOR",
+              ].map((value) => (
+                <option key={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Status
+            <select
+              value={status}
+              onChange={(event) => update({ status: event.target.value })}
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </label>
+          <label>
+            Access source
+            <select
+              value={source}
+              onChange={(event) =>
+                update({ access_source: event.target.value })
+              }
+            >
+              <option value="">All sources</option>
+              <option value="explicit_user_assignment">
+                Explicit assignment
+              </option>
+              <option value="corporate_group">Corporate group</option>
+              <option value="default">Default</option>
+              <option value="explicit_deny">Explicit deny</option>
+            </select>
+          </label>
+          <label>
+            Sort
+            <select
+              value={sort}
+              onChange={(event) => update({ sort: event.target.value })}
+            >
+              <option value="name">Name</option>
+              <option value="role">Role</option>
+              <option value="first_sign_in">First sign-in</option>
+              <option value="last_sign_in">Last sign-in</option>
+              <option value="status">Status</option>
+            </select>
+          </label>
+          <label>
+            Direction
+            <select
+              value={direction}
+              onChange={(event) => update({ direction: event.target.value })}
+            >
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </label>
         </div>
       </section>
-      {!remote.value.items.length ? <p className="state-note">No corporate users match the current filters.</p> : (
-        <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th>Name</th><th>Corporate identity</th><th>Effective role</th><th>Source</th><th>Status</th><th>Last sign-in</th><th>First sign-in</th><th>Sessions</th></tr></thead><tbody>{remote.value.items.map((user) => <tr key={user.user_id}><td data-label="Name"><Link to={`/admin/users/${encodeURIComponent(user.user_id)}`}>{user.name}</Link></td><td data-label="Corporate identity">{user.corporate_identity}</td><td data-label="Effective role">{user.effective_role}</td><td data-label="Source">{user.access_source.replaceAll("_", " ")}</td><td data-label="Status">{user.status}</td><td data-label="Last sign-in">{formatTime(user.last_sign_in)}</td><td data-label="First sign-in">{formatTime(user.first_sign_in)}</td><td data-label="Sessions">{user.active_sessions ? `${user.active_sessions} active` : "None"}</td></tr>)}</tbody></table></div>
+      {!remote.value.items.length ? (
+        <p className="state-note">
+          No corporate users match the current filters.
+        </p>
+      ) : (
+        <div className="audit-table-wrap">
+          <table className="audit-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Corporate identity</th>
+                <th>Effective role</th>
+                <th>Source</th>
+                <th>Status</th>
+                <th>Last sign-in</th>
+                <th>First sign-in</th>
+                <th>Sessions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {remote.value.items.map((user) => (
+                <tr key={user.user_id}>
+                  <td data-label="Name">
+                    <Link
+                      to={`/admin/users/${encodeURIComponent(user.user_id)}${params.toString() ? `?${params}` : ""}`}
+                    >
+                      {user.name}
+                    </Link>
+                  </td>
+                  <td data-label="Corporate identity">
+                    {user.corporate_identity}
+                  </td>
+                  <td data-label="Effective role">{user.effective_role}</td>
+                  <td data-label="Source">
+                    {user.access_source.replaceAll("_", " ")}
+                  </td>
+                  <td data-label="Status">{user.status}</td>
+                  <td data-label="Last sign-in">
+                    {formatTime(user.last_sign_in)}
+                  </td>
+                  <td data-label="First sign-in">
+                    {formatTime(user.first_sign_in)}
+                  </td>
+                  <td data-label="Sessions">
+                    {user.active_sessions
+                      ? `${user.active_sessions} active`
+                      : "None"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-      <div className="pagination"><button type="button" disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>Previous</button><span>Page {page} · {remote.value.total} users</span><button type="button" disabled={remote.value.items.length < remote.value.page_size} onClick={() => update({ page: String(page + 1) })}>Next</button></div>
+      <div className="pagination">
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={() => update({ page: String(page - 1) })}
+        >
+          Previous
+        </button>
+        <span>
+          Page {page} · {remote.value.total} users
+        </span>
+        <button
+          type="button"
+          disabled={remote.value.items.length < remote.value.page_size}
+          onClick={() => update({ page: String(page + 1) })}
+        >
+          Next
+        </button>
+      </div>
     </>
   );
 }
@@ -2468,33 +2609,299 @@ function UsersPage() {
 function UserDetailPage() {
   const { ready, setReady } = useAdminSession();
   const { userId = "" } = useParams();
+  const location = useLocation();
   const [refresh, setRefresh] = useState(0);
-  const remote = useRemote<CorporateUserDetail>((signal) => adminApi.user(userId, signal), `user:${userId}:${ready}:${refresh}`);
+  const remote = useRemote<CorporateUserDetail>(
+    (signal) => adminApi.user(userId, signal),
+    `user:${userId}:${ready}:${refresh}`,
+  );
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
   if (remote.state === "error") return <ErrorState error={remote.error} />;
   if (remote.state === "loading") return <LoadingState />;
   const user = remote.value;
-  return <>
-    <PageTitle title={user.name}><p>{user.corporate_identity} · {user.provider}</p></PageTitle>
-    <div className="detail-summary"><div><strong>Effective role</strong><span>{user.effective_role}</span></div><div><strong>Access source</strong><span>{user.access_source.replaceAll("_", " ")}</span></div><div><strong>Status</strong><span>{user.status}</span></div><div><strong>Sign-ins</strong><span>{user.sign_in_count}</span></div></div>
-    <div className="detail-grid"><article><h2>Identity</h2><dl className="detail"><dt>First seen</dt><dd>{formatTime(user.first_sign_in)}</dd><dt>Last sign-in</dt><dd>{formatTime(user.last_sign_in)}</dd><dt>Explicit assignment</dt><dd>{user.explicit_role ?? "None"}</dd><dt>Explicit deny</dt><dd>{user.explicit_denied ? "Yes" : "No"}</dd></dl></article><article><h2>Governed access</h2><CorporateAccessEditor user={user} onDone={() => setRefresh((value) => value + 1)} /></article></div>
-    <section className="editor-card"><h2>Safe session references</h2><p>Session tokens, cookies, and CSRF proofs are never displayed.</p>{user.sessions.map((session) => <CorporateSessionEditor key={session.session_reference} userId={user.user_id} session={session} onDone={() => setRefresh((value) => value + 1)} />)}{!user.sessions.length ? <p className="state-note">No corporate sessions are recorded.</p> : null}</section>
-    <section className="editor-card"><h2>Access history</h2>{user.access_history.map((event) => <p key={event.event_id}><Link to={`/admin/audit/events/${encodeURIComponent(event.event_id)}`}>{event.action}</Link> · {event.actor ?? "Unknown actor"} · {formatTime(event.occurred_at)}{event.reason ? ` · ${event.reason}` : ""}</p>)}{!user.access_history.length ? <p className="state-note">No governed access changes are recorded.</p> : null}</section>
-  </>;
+  return (
+    <>
+      <PageTitle title={user.name}>
+        <Link className="return-link" to={`/admin/users${location.search}`}>
+          ← Back to Users &amp; Access
+        </Link>
+        <p>
+          {user.corporate_identity} · {user.provider}
+        </p>
+      </PageTitle>
+      <div className="detail-summary">
+        <div>
+          <strong>Effective role</strong>
+          <span>{user.effective_role}</span>
+        </div>
+        <div>
+          <strong>Access source</strong>
+          <span>{user.access_source.replaceAll("_", " ")}</span>
+        </div>
+        <div>
+          <strong>Status</strong>
+          <span>{user.status}</span>
+        </div>
+        <div>
+          <strong>Sign-ins</strong>
+          <span>{user.sign_in_count}</span>
+        </div>
+      </div>
+      <div className="detail-grid">
+        <article>
+          <h2>Identity</h2>
+          <dl className="detail">
+            <dt>First seen</dt>
+            <dd>{formatTime(user.first_sign_in)}</dd>
+            <dt>Last sign-in</dt>
+            <dd>{formatTime(user.last_sign_in)}</dd>
+            <dt>Explicit assignment</dt>
+            <dd>{user.explicit_role ?? "None"}</dd>
+            <dt>Explicit deny</dt>
+            <dd>{user.explicit_denied ? "Yes" : "No"}</dd>
+          </dl>
+        </article>
+        <article>
+          <h2>Governed access</h2>
+          <CorporateAccessEditor
+            user={user}
+            onDone={() => setRefresh((value) => value + 1)}
+          />
+        </article>
+      </div>
+      <section className="editor-card">
+        <h2>Safe session references</h2>
+        <p>Session tokens, cookies, and CSRF proofs are never displayed.</p>
+        {user.sessions.map((session) => (
+          <CorporateSessionEditor
+            key={session.session_reference}
+            userId={user.user_id}
+            session={session}
+            onDone={() => setRefresh((value) => value + 1)}
+          />
+        ))}
+        {!user.sessions.length ? (
+          <p className="state-note">No corporate sessions are recorded.</p>
+        ) : null}
+      </section>
+      <section className="editor-card">
+        <h2>Access history</h2>
+        {user.access_history.map((event) => (
+          <p key={event.event_id}>
+            <Link
+              to={`/admin/audit/events/${encodeURIComponent(event.event_id)}`}
+            >
+              {event.action}
+            </Link>{" "}
+            · {event.actor ?? "Unknown actor"} · {formatTime(event.occurred_at)}
+            {event.reason ? ` · ${event.reason}` : ""}
+          </p>
+        ))}
+        {!user.access_history.length ? (
+          <p className="state-note">No governed access changes are recorded.</p>
+        ) : null}
+      </section>
+    </>
+  );
 }
 
-function CorporateAccessEditor({ user, onDone }: { user: CorporateUserSummary; onDone: () => void }) {
-  const [action, setAction] = useState("assign"); const [role, setRole] = useState("VIEWER"); const [reason, setReason] = useState(""); const [preview, setPreview] = useState<{ confirmation: string }>(); const [confirmation, setConfirmation] = useState(""); const [error, setError] = useState<AdminApiError>();
-  const payload = { action, ...(action === "assign" ? { role_code: role } : {}), reason, expected_row_version: user.row_version };
-  const previewChange = () => adminApi.previewUserAccess(user.user_id, payload).then((value) => { setPreview(value); setConfirmation(""); }).catch((value: unknown) => setError(value instanceof AdminApiError ? value : new AdminApiError("Access preview failed.", 0)));
-  const commit = () => adminApi.commitUserAccess(user.user_id, { ...payload, confirmation }).then(() => onDone()).catch((value: unknown) => setError(value instanceof AdminApiError ? value : new AdminApiError("Access change failed.", 0)));
-  return <div className="editor-grid"><label>Action<select value={action} onChange={(event) => { setAction(event.target.value); setPreview(undefined); }}><option value="assign">Assign or change role</option><option value="revoke">Revoke application access</option><option value="restore">Restore access</option><option value="remove">Remove explicit assignment</option></select></label>{action === "assign" ? <label>Role<select value={role} onChange={(event) => setRole(event.target.value)}>{["VIEWER", "ADMIN_AUDITOR", "ADMIN_DATA_MANAGER", "ADMIN_SETTINGS_MANAGER", "ADMIN_ACCESS_MANAGER", "ADMINISTRATOR"].map((value) => <option key={value}>{value}</option>)}</select></label> : null}<label>Reason<input value={reason} onChange={(event) => setReason(event.target.value)} /></label><button className="primary-button" type="button" disabled={reason.trim().length < 3} onClick={previewChange}>Preview change</button>{preview ? <><label>Type <code>{preview.confirmation}</code><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><button className="primary-button" type="button" disabled={confirmation !== preview.confirmation} onClick={commit}>Confirm governed change</button></> : null}{error ? <p className="inline-error">{error.message}</p> : null}</div>;
+function CorporateAccessEditor({
+  user,
+  onDone,
+}: {
+  user: CorporateUserSummary;
+  onDone: () => void;
+}) {
+  const [action, setAction] = useState("assign");
+  const [role, setRole] = useState("VIEWER");
+  const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<{ confirmation: string }>();
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState<AdminApiError>();
+  const payload = {
+    action,
+    ...(action === "assign" ? { role_code: role } : {}),
+    reason,
+    expected_row_version: user.row_version,
+  };
+  const previewChange = () => {
+    setError(undefined);
+    adminApi
+      .previewUserAccess(user.user_id, payload)
+      .then((value) => {
+        setPreview(value);
+        setConfirmation("");
+      })
+      .catch((value: unknown) =>
+        setError(
+          value instanceof AdminApiError
+            ? value
+            : new AdminApiError("Access preview failed.", 0),
+        ),
+      );
+  };
+  const commit = () => {
+    setError(undefined);
+    adminApi
+      .commitUserAccess(user.user_id, { ...payload, confirmation })
+      .then(() => {
+        setPreview(undefined);
+        setConfirmation("");
+        onDone();
+      })
+      .catch((value: unknown) =>
+        setError(
+          value instanceof AdminApiError
+            ? value
+            : new AdminApiError("Access change failed.", 0),
+        ),
+      );
+  };
+  return (
+    <div className="editor-grid">
+      <label>
+        Action
+        <select
+          value={action}
+          onChange={(event) => {
+            setAction(event.target.value);
+            setPreview(undefined);
+          }}
+        >
+          <option value="assign">Assign or change role</option>
+          <option value="revoke">Revoke application access</option>
+          <option value="restore">Restore access</option>
+          <option value="remove">Remove explicit assignment</option>
+        </select>
+      </label>
+      {action === "assign" ? (
+        <label>
+          Role
+          <select
+            value={role}
+            onChange={(event) => setRole(event.target.value)}
+          >
+            {[
+              "VIEWER",
+              "ADMIN_AUDITOR",
+              "ADMIN_DATA_MANAGER",
+              "ADMIN_SETTINGS_MANAGER",
+              "ADMIN_ACCESS_MANAGER",
+              "ADMINISTRATOR",
+            ].map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <label>
+        Reason
+        <input
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+      <button
+        className="primary-button"
+        type="button"
+        disabled={reason.trim().length < 3}
+        onClick={previewChange}
+      >
+        Preview change
+      </button>
+      {preview ? (
+        <>
+          <label>
+            Type <code>{preview.confirmation}</code>
+            <input
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+            />
+          </label>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={confirmation !== preview.confirmation}
+            onClick={commit}
+          >
+            Confirm governed change
+          </button>
+        </>
+      ) : null}
+      {error ? <p className="inline-error">{error.message}</p> : null}
+    </div>
+  );
 }
 
-function CorporateSessionEditor({ userId, session, onDone }: { userId: string; session: { session_reference: string; issued_at: string; expires_at: string; state: string; provider: string }; onDone: () => void }) {
-  const [reason, setReason] = useState(""); const [confirmation, setConfirmation] = useState(""); const [error, setError] = useState<AdminApiError>(); const expected = `REVOKE ${session.session_reference}`;
-  const revoke = () => adminApi.revokeCorporateSession(userId, session.session_reference, { reason, confirmation }).then(onDone).catch((value: unknown) => setError(value instanceof AdminApiError ? value : new AdminApiError("Session revocation failed.", 0)));
-  return <div className="lifecycle-panel"><strong>{session.session_reference}</strong><span> · {session.provider} · {session.state} · expires {formatTime(session.expires_at)}</span>{session.state === "active" ? <><label>Reason<input value={reason} onChange={(event) => setReason(event.target.value)} /></label><label>Type <code>{expected}</code><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><button type="button" disabled={reason.trim().length < 3 || confirmation !== expected} onClick={revoke}>Revoke session</button></> : null}{error ? <p className="inline-error">{error.message}</p> : null}</div>;
+function CorporateSessionEditor({
+  userId,
+  session,
+  onDone,
+}: {
+  userId: string;
+  session: {
+    session_reference: string;
+    issued_at: string;
+    expires_at: string;
+    state: string;
+    provider: string;
+  };
+  onDone: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState<AdminApiError>();
+  const expected = `REVOKE ${session.session_reference}`;
+  const revoke = () =>
+    adminApi
+      .revokeCorporateSession(userId, session.session_reference, {
+        reason,
+        confirmation,
+      })
+      .then(onDone)
+      .catch((value: unknown) =>
+        setError(
+          value instanceof AdminApiError
+            ? value
+            : new AdminApiError("Session revocation failed.", 0),
+        ),
+      );
+  return (
+    <div className="lifecycle-panel">
+      <strong>{session.session_reference}</strong>
+      <span>
+        {" "}
+        · {session.provider} · {session.state} · expires{" "}
+        {formatTime(session.expires_at)}
+      </span>
+      {session.state === "active" ? (
+        <>
+          <label>
+            Reason
+            <input
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+          <label>
+            Type <code>{expected}</code>
+            <input
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={reason.trim().length < 3 || confirmation !== expected}
+            onClick={revoke}
+          >
+            Revoke session
+          </button>
+        </>
+      ) : null}
+      {error ? <p className="inline-error">{error.message}</p> : null}
+    </div>
+  );
 }
 
 function AccessPage() {

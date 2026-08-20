@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#09283b" />
+    <script>
+      (() => {
+        try {
+          const saved = JSON.parse(
+            localStorage.getItem("eoat-atlas-mirrorline-settings-v1") || "{}",
+          );
+          const preference = saved.theme || "dark";
+          const theme =
+            preference === "system"
+              ? matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark"
+              : preference;
+          document.documentElement.dataset.atlasTheme = theme;
+        } catch {
+          /* BrowserAppearance applies the established default. */
+        }
+      })();
+    </script>
     <meta name="description" content="EOAT Atlas read-only web foundation" />
     <title>EOAT Atlas</title>
   </head>
