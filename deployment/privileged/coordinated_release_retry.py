@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.4.2"
+HELPER_VERSION = "1.4.3"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -813,12 +813,16 @@ def apply_migration_plan(server: Path, plan: tuple[str, str, tuple[dict[str, str
         if _staged_alembic_current(server, environment) != target:
             fail("approved migration did not reach the policy target revision")
     except Exception:
+        subprocess.run(["/bin/systemctl", "stop", SERVICE], check=True)
         try:
             restore_backup(backup)
         except Exception:
+            subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
             fail("migration failed and verified backup restoration failed")
         if _staged_alembic_current(server, environment) != current:
+            subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
             fail("migration failed and backup did not restore the approved starting revision")
+        subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
         raise
     return {
         "current_schema": current,
