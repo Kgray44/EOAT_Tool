@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.4.4"
+HELPER_VERSION = "1.4.5"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -856,8 +856,19 @@ def deployment_lock():
 
 def wait_target(value: dict[str, object]) -> None:
     health = web.api_health(value)
-    if health.get("application_version") != value["application_version"]:
+    reported_version = health.get("application_version")
+    if reported_version is not None and reported_version != value["application_version"]:
         fail("active API version does not match coordinated release")
+    reported_release = health.get("release_id")
+    if reported_release is not None and reported_release != f"eoat-atlas-{value['application_version']}":
+        fail("active API release identifier does not match coordinated release")
+    _, attestation = _api_release_attestation(API_CURRENT.resolve(), "active_api")
+    if (
+        attestation["application_version"] != value["application_version"]
+        or attestation["schema"] != value["schema"]
+        or attestation["source_commit"] != value["source_commit"]
+    ):
+        fail("active API release metadata does not match coordinated release")
 
 
 def _within(path: Path, root: Path) -> bool:

@@ -259,6 +259,53 @@ def test_shared_http_acceptance_is_bound_to_the_just_activated_server_release(tm
     assert "api_release" not in source
 
 
+def test_wait_target_uses_immutable_api_metadata_when_legacy_health_fields_are_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    release = tmp_path / "eoat-atlas-server-0.26.11"
+    release.mkdir()
+    monkeypatch.setattr(coordinator, "API_CURRENT", release)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda _value: {"compatible": True})
+    monkeypatch.setattr(
+        coordinator,
+        "_api_release_attestation",
+        lambda *_args: (
+            release,
+            {
+                "application_version": "0.26.11",
+                "schema": "20260820_0013",
+                "source_commit": "a" * 40,
+            },
+        ),
+    )
+    coordinator.wait_target(
+        {"application_version": "0.26.11", "schema": "20260820_0013", "source_commit": "a" * 40}
+    )
+
+
+def test_wait_target_rejects_mismatched_immutable_api_metadata(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    release = tmp_path / "eoat-atlas-server-0.26.11"
+    release.mkdir()
+    monkeypatch.setattr(coordinator, "API_CURRENT", release)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda _value: {"compatible": True})
+    monkeypatch.setattr(
+        coordinator,
+        "_api_release_attestation",
+        lambda *_args: (
+            release,
+            {
+                "application_version": "0.26.11",
+                "schema": "20260820_0013",
+                "source_commit": "b" * 40,
+            },
+        ),
+    )
+    with pytest.raises(coordinator.web.InstallError, match="metadata does not match"):
+        coordinator.wait_target(
+            {"application_version": "0.26.11", "schema": "20260820_0013", "source_commit": "a" * 40}
+        )
+
+
 def test_extract_failure_removes_only_temporary_api_staging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     archive = tmp_path / "server.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
