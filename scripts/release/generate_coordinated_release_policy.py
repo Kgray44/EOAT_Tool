@@ -20,6 +20,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = re.compile(r"\d{8}_\d{4}(?:_[A-Za-z0-9_-]+)?")
 SHA256 = re.compile(r"[0-9a-f]{64}")
+FULL_SHA = re.compile(r"[0-9a-f]{40}")
 
 
 class PolicyError(RuntimeError):
@@ -128,7 +129,7 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
         "expected_active_web": args.expected_active_web,
         "migration_plan": {"current_schema": args.current_schema, "target_schema": target, "revisions": plan},
     }
-    if not SHA256.fullmatch(args.bundle_sha256) or not SHA256.fullmatch(str(manifest["source_git_commit"])):
+    if not SHA256.fullmatch(args.bundle_sha256) or not FULL_SHA.fullmatch(str(manifest["source_git_commit"])):
         raise PolicyError("bundle or source identity is invalid")
     return value
 
