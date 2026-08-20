@@ -115,6 +115,24 @@ def test_utc_timestamp_round_trips_with_an_explicit_offset():
         engine.dispose()
 
 
+def test_central_utc_type_covers_admin_corporate_and_normal_history_timestamps():
+    timestamp_columns = (
+        (db.AuditEvent, "occurred_at_utc"),
+        (db.CorporateUser, "first_successful_sign_in_at"),
+        (db.CorporateUser, "last_successful_sign_in_at"),
+        (db.CorporateAuthenticationSession, "issued_at"),
+        (db.CorporateAuthenticationSession, "expires_at"),
+        (db.CorporateAuthenticationEvent, "occurred_at"),
+        (db.EntityHistoryEvent, "occurred_at"),
+        (db.ChangeAuditLog, "occurred_at"),
+    )
+
+    assert all(
+        isinstance(model.__table__.c[column].type, db.UTCDateTime)
+        for model, column in timestamp_columns
+    )
+
+
 def test_catalog_keeps_authorization_server_side_for_anonymous_viewer_and_admin():
     def anonymous():
         raise APIError(401, "UNKNOWN_IDENTITY", "A configured local identity is required.")
