@@ -268,7 +268,7 @@ def approved_existing_self_signed_tls_listener() -> bool:
         "ssl_certificate /etc/ssl/certs/eoat-atlas-test.crt;",
         "ssl_certificate_key /etc/ssl/private/eoat-atlas-test.key;",
     }
-    if not required.issubset(nginx.stdout):
+    if not all(item in nginx.stdout for item in required):
         return False
     certificate = subprocess.run(
         ["/usr/bin/openssl", "x509", "-in", "/etc/ssl/certs/eoat-atlas-test.crt", "-noout", "-subject", "-issuer"],

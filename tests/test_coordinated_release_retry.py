@@ -217,6 +217,18 @@ def test_listener_policy_requires_an_explicit_approved_tls_exception(monkeypatch
     assert not coordinator.web.listener_policy({"tls_listener_policy": "unexpected"})
 
 
+def test_approved_tls_listener_requires_each_nginx_declaration_as_a_substring(monkeypatch: pytest.MonkeyPatch) -> None:
+    responses = iter(
+        [
+            type("Result", (), {"stdout": 'LISTEN 0 511 0.0.0.0:443 0.0.0.0:* users:(("nginx",pid=1))\n', "returncode": 0})(),
+            type("Result", (), {"stdout": "listen 443 ssl;\nlisten 8443 ssl;\nssl_certificate /etc/ssl/certs/eoat-atlas-test.crt;\nssl_certificate_key /etc/ssl/private/eoat-atlas-test.key;", "returncode": 0})(),
+            type("Result", (), {"stdout": "subject=CN=eoat\nissuer=CN=eoat\n", "returncode": 0})(),
+        ]
+    )
+    monkeypatch.setattr(coordinator.web.subprocess, "run", lambda *_args, **_kwargs: next(responses))
+    assert coordinator.web.approved_existing_self_signed_tls_listener()
+
+
 def test_policy_requires_explicit_pre_activation_targets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     helper = tmp_path / "helper.py"
     helper.write_text("helper", encoding="utf-8")
