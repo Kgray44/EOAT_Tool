@@ -1141,23 +1141,38 @@ def _api_release_attestation(path_text: object, field: str) -> tuple[Path, dict[
             relative = member.relative_to(path).as_posix()
             info = member.lstat()
             if stat.S_ISLNK(info.st_mode):
-                if relative != "venv":
-                    fail(f"unsafe API release symlink: {member}")
                 raw_target = os.readlink(member)
                 resolved = member.resolve(strict=False)
+                if relative == "venv":
+                    if (
+                        not raw_target
+                        or not resolved.is_dir()
+                        or not _within(resolved, API_RELEASES)
+                        or resolved.name != "venv"
+                        or resolved.parent.parent != API_RELEASES
+                    ):
+                        fail("API release virtual-environment linkage is unsafe")
+                    venv = {"path": relative, "target": str(resolved)}
+                    continue
+                embedded_root = path / "venv"
                 if (
-                    not raw_target
-                    or not resolved.is_dir()
-                    or not _within(resolved, API_RELEASES)
-                    or resolved.name != "venv"
-                    or resolved.parent.parent != API_RELEASES
+                    venv is not None
+                    and venv.get("embedded") is True
+                    and relative.startswith("venv/")
+                    and raw_target
+                    and (_within(resolved, embedded_root) or resolved == Path("/usr/bin/python3"))
                 ):
-                    fail("API release virtual-environment linkage is unsafe")
-                venv = {"path": relative, "target": str(resolved)}
-                continue
+                    continue
+                fail(f"unsafe API release symlink: {member}")
             if not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
                 fail(f"unsafe API release member: {member}")
             _safe_mode(member, info, owner_uid=service_uid, owner_gid=service_gid)
+            if relative == "venv" and stat.S_ISDIR(info.st_mode):
+                # Predates coordinator-managed release extraction. The legacy
+                # rollback release embeds a hardened venv instead of linking
+                # to a sibling immutable venv; retain it only after the same
+                # ownership and non-writability traversal above succeeds.
+                venv = {"path": relative, "target": str(member), "embedded": True}
             if stat.S_ISREG(info.st_mode):
                 inventory[relative] = web.sha256(member)
     if venv is None:
