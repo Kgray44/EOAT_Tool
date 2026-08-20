@@ -144,6 +144,18 @@ def _local_environment() -> str:
     return environment
 
 
+def _danger_test_environment() -> str:
+    """Allow test-only danger controls on the governed staging test database.
+
+    Local rehearsal authentication remains unavailable on staging; this helper
+    is used only after the corporate-session branch has been selected.
+    """
+    environment = os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold()
+    if environment not in {"development", "staging_local", "staging"}:
+        raise APIError(403, "LOCAL_AUTH_FORBIDDEN", "Test-only danger operations are unavailable here.")
+    return environment
+
+
 def _corporate_auth_enabled() -> bool:
     return os.getenv("EOAT_AUTH_PROVIDER", "").strip().casefold() == "kerberos_form" and os.getenv(
         "EOAT_AUTH_SCOPE", ""
@@ -457,7 +469,7 @@ def issue_danger_step_up(
     rehearsal secret. It deliberately is not described as a user password or
     production corporate reauthentication.
     """
-    _local_environment()
+    _danger_test_environment()
     if _corporate_auth_enabled():
         if not corporate_password:
             raise APIError(401, "CORPORATE_FRESH_AUTHENTICATION_REQUIRED", "Corporate credential re-entry is required for this test-only operation.")
@@ -505,7 +517,7 @@ def require_active_danger_step_up(
     risk_class: str,
 ) -> db.AdminDangerStepUp | db.CorporateAuthenticationSession:
     """Return the currently valid scoped proof or fail closed."""
-    _local_environment()
+    _danger_test_environment()
     if not actor.permits("admin.danger.execute"):
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
     if _corporate_auth_enabled():

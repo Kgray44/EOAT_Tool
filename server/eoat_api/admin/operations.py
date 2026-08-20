@@ -337,7 +337,7 @@ def _preconditions(session: Session, actor: ActorContext, namespace: str, *, req
         selected = str(session.execute(text("SELECT DATABASE()")).scalar() or "")
     except SQLAlchemyError:
         selected = ""
-    environment_ok = environment in {"development", "staging_local"} and selected == "eoat_atlas_test"
+    environment_ok = environment in {"development", "staging_local", "staging"} and selected == "eoat_atlas_test"
     checks.append({"name": "environment", "state": "PASS" if environment_ok else "FAIL", "detail": "Test-only target verified." if environment_ok else "Operation requires eoat_atlas_test in an approved test environment."})
     recovery_state, recovery_detail = _recovery_point_state()
     checks.append({"name": "recovery_point", "state": recovery_state, "detail": recovery_detail})
