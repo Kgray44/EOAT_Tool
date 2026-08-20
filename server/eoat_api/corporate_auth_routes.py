@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy.orm import Session
 
 from .corporate_auth import administrator_group_mapping_configured, corporate_provider_state
+from .corporate_users import access_state, corporate_user_for_user
 from .corporate_sessions import (
     CORPORATE_CSRF_COOKIE,
     CORPORATE_CSRF_HEADER,
@@ -101,6 +102,7 @@ def kerberos_form_login(
         identity={"username": issued.username, "display_name": issued.display_name},
         session_reference=issued.session_reference,
         expires_at=issued.expires_at,
+        access_source=issued.access_source,
     )
 
 
@@ -111,12 +113,15 @@ def session_status(request: Request, service: CorporateSessionService = Depends(
         row, user = service.resolve(request.cookies.get(CORPORATE_SESSION_COOKIE, ""))
     except CorporateAuthenticationFailure as exc:
         raise APIError(503, "CORPORATE_AUTH_UNAVAILABLE", "Corporate authentication is temporarily unavailable.", retryable=True) from exc
+    registry = corporate_user_for_user(service.session, user.id)
+    access = access_state(service.session, registry, groups=tuple(row.authorization_groups_json or ())) if registry else {}
     return _session_payload(
         roles=list(row.roles_json or []),
         identity={"username": user.username, "display_name": user.display_name},
         session_reference=row.session_reference,
         authenticated_at=row.authenticated_at,
         expires_at=row.expires_at,
+        access_source=access.get("access_source"),
     )
 
 

@@ -141,6 +141,34 @@ export interface AdminMapping {
   role_code: string;
   row_version: number;
 }
+export interface CorporateUserSummary {
+  user_id: string;
+  name: string;
+  corporate_identity: string;
+  provider: string;
+  effective_role: string;
+  access_source: "explicit_user_assignment" | "corporate_group" | "default" | "explicit_deny";
+  group_roles: string[];
+  explicit_role?: string | null;
+  explicit_denied: boolean;
+  status: "active" | "disabled";
+  first_sign_in: string;
+  last_sign_in: string;
+  sign_in_count: number;
+  active_sessions: number;
+  row_version: number;
+}
+export interface CorporateUsersList {
+  items: CorporateUserSummary[];
+  page: number;
+  page_size: number;
+  total: number;
+  sort: string;
+}
+export interface CorporateUserDetail extends CorporateUserSummary {
+  sessions: Array<{ session_reference: string; issued_at: string; expires_at: string; state: string; provider: string }>;
+  access_history: Array<{ event_id: string; occurred_at: string; action: string; result: string; reason?: string | null; actor?: string | null; request_id?: string | null; correlation_id?: string | null }>;
+}
 
 let csrfToken: string | undefined;
 let rehearsalIdentity: string | undefined;
@@ -554,6 +582,25 @@ export const adminApi = {
       request_id: string;
     }>(
       `/api/v1/admin/access/sessions/${encodeURIComponent(reference)}/revoke`,
+      payload,
+    ),
+  users: (params: URLSearchParams, signal?: AbortSignal) =>
+    adminFetch<CorporateUsersList>(`/api/v1/admin/users?${params}`, signal),
+  user: (userId: string, signal?: AbortSignal) =>
+    adminFetch<CorporateUserDetail>(`/api/v1/admin/users/${encodeURIComponent(userId)}`, signal),
+  previewUserAccess: (userId: string, payload: Record<string, AuditValue>) =>
+    adminPost<{ user_id: string; action: string; before: AdminRecord; after: AdminRecord; confirmation: string }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/access/preview`,
+      payload,
+    ),
+  commitUserAccess: (userId: string, payload: Record<string, AuditValue>) =>
+    adminPost<{ user: CorporateUserSummary; audit_event_id: string; revoked_session_count: number }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/access/commit`,
+      payload,
+    ),
+  revokeCorporateSession: (userId: string, reference: string, payload: Record<string, AuditValue>) =>
+    adminPost<{ session_reference: string; audit_event_id: string }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(reference)}/revoke`,
       payload,
     ),
   integrityScan: () =>

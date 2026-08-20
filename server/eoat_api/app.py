@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from .admin.mutation_routes import router as admin_mutation_router
 from .admin.operation_routes import router as admin_operation_router
+from .admin.corporate_user_routes import router as admin_corporate_user_router
 from .admin.routes import router as admin_router
 from .contracts import (
     CurrentEOATLocation,
@@ -734,4 +735,5 @@ app.include_router(write_router)
 app.include_router(corporate_auth_router)
 app.include_router(admin_router)
 app.include_router(admin_mutation_router)
+app.include_router(admin_corporate_user_router)
 app.include_router(admin_operation_router)

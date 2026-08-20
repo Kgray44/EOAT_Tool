@@ -25,6 +25,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .corporate_users import access_state, corporate_user_for_user, register_successful_login
 from .database import models as db
 from .errors import APIError
 
@@ -93,6 +94,7 @@ class IssuedCorporateSession:
     username: str
     display_name: str
     roles: tuple[str, ...]
+    access_source: str
 
 
 class DirectoryAuthenticator(Protocol):
@@ -309,7 +311,16 @@ class CorporateSessionService:
             user.display_name = identity.display_name
             user.authentication_provider = "kerberos_form"
             user.last_login_at = now
-        roles, authorization_groups = self._authorization(identity.groups)
+        _roles, authorization_groups = self._authorization(identity.groups)
+        corporate_user = register_successful_login(
+            self.session,
+            user,
+            provider="kerberos_form",
+            canonical_identity=subject,
+            display_name=identity.display_name,
+        )
+        access = access_state(self.session, corporate_user, groups=authorization_groups)
+        roles = (str(access["effective_role"]),)
         token = secrets.token_urlsafe(32)
         csrf_token = secrets.token_urlsafe(32)
         expires_at = now + timedelta(minutes=self.configuration.session_minutes)
@@ -328,7 +339,16 @@ class CorporateSessionService:
         )
         self.session.add(row)
         self._event("LOGIN", "SUCCEEDED", user_id=user.id)
-        return IssuedCorporateSession(token, csrf_token, row.session_reference, expires_at, user.username, user.display_name, roles)
+        return IssuedCorporateSession(
+            token,
+            csrf_token,
+            row.session_reference,
+            expires_at,
+            user.username,
+            user.display_name,
+            roles,
+            str(access["access_source"]),
+        )
 
     def resolve(self, token: str) -> tuple[db.CorporateAuthenticationSession, db.User]:
         if not token:
@@ -352,7 +372,15 @@ class CorporateSessionService:
             row.revoke_reason = "authorization_context_unavailable"
             self._event("SESSION", "DENIED", user_id=row.user_id, reason_code="AUTHORIZATION_CONTEXT_UNAVAILABLE")
             raise APIError(403, "CORPORATE_SESSION_REVOKED", "The corporate session must be renewed after an authorization update.")
-        current_roles = self._roles(tuple(authorization_groups))
+        corporate_user = corporate_user_for_user(self.session, user.id)
+        if corporate_user is None:
+            # A session from before registry installation cannot safely claim
+            # an application role until its identity completes a fresh login.
+            row.revoked_at = now
+            row.revoke_reason = "corporate_user_registry_required"
+            raise APIError(403, "CORPORATE_SESSION_REVOKED", "The corporate session must be renewed after an authorization update.")
+        access = access_state(self.session, corporate_user, groups=tuple(authorization_groups))
+        current_roles = (str(access["effective_role"]),)
         if tuple(row.roles_json or ()) != current_roles:
             row.roles_json = list(current_roles)
             self._event("ROLE_MAPPING", "SUCCEEDED", user_id=row.user_id, reason_code="SESSION_AUTHORIZATION_REFRESHED")
@@ -390,7 +418,9 @@ class CorporateSessionService:
         if identity.upn.casefold() != (user.external_identity or "").casefold():
             self._event("STEP_UP", "DENIED", user_id=user.id, reason_code="IDENTITY_MISMATCH")
             raise APIError(403, "CORPORATE_FRESH_AUTHENTICATION_FAILED", "Corporate fresh authentication could not be verified.")
-        if "ADMINISTRATOR" not in self._roles(identity.groups):
+        corporate_user = corporate_user_for_user(self.session, user.id)
+        groups = self._authorization(identity.groups)[1]
+        if corporate_user is None or access_state(self.session, corporate_user, groups=groups)["effective_role"] != "ADMINISTRATOR":
             self._event("STEP_UP", "DENIED", user_id=user.id, reason_code="ROLE_NOT_AUTHORIZED")
             raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
         now = datetime.now(timezone.utc)

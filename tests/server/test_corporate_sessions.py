@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
@@ -17,6 +17,11 @@ from server.eoat_api.corporate_sessions import (
     DirectoryIdentity,
     corporate_csrf_valid,
     normalize_principal,
+)
+from server.eoat_api.corporate_users import (
+    access_state,
+    change_explicit_access,
+    corporate_user_for_user,
 )
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import get_runtime_session, get_write_session
@@ -56,6 +61,9 @@ def _configure(monkeypatch) -> None:
 
 def _engine():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    @event.listens_for(engine, "connect")
+    def _sqlite_utc_timestamp(connection, _record):
+        connection.create_function("UTC_TIMESTAMP", 1, lambda _precision: datetime.now(timezone.utc).replace(tzinfo=None).isoformat(" "))
     with engine.begin() as connection:
         connection.exec_driver_sql(
             """
@@ -77,6 +85,25 @@ def _engine():
                 external_group_identifier TEXT NOT NULL, role_code TEXT NOT NULL,
                 explicit_deny BOOLEAN DEFAULT 0, is_active BOOLEAN DEFAULT 1,
                 created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE corporate_users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, user_uuid TEXT UNIQUE NOT NULL,
+                user_id INTEGER UNIQUE NOT NULL, provider TEXT NOT NULL,
+                canonical_identity TEXT NOT NULL, display_name TEXT NOT NULL,
+                first_successful_sign_in_at DATETIME NOT NULL,
+                last_successful_sign_in_at DATETIME NOT NULL, sign_in_count INTEGER NOT NULL,
+                explicit_role_code TEXT, explicit_denied BOOLEAN DEFAULT 0,
+                access_reason TEXT, access_changed_at DATETIME,
+                access_changed_by_user_id INTEGER, created_by_user_id INTEGER,
+                updated_by_user_id INTEGER, row_version INTEGER DEFAULT 1,
+                is_active BOOLEAN DEFAULT 1, archived_at DATETIME,
+                archived_by_user_id INTEGER, source_system TEXT DEFAULT 'corporate_auth',
+                source_import_batch_id INTEGER, created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
             )
             """
         )
@@ -140,7 +167,7 @@ def test_unmapped_authenticated_identity_is_not_an_administrator(monkeypatch):
     try:
         with Session(engine) as session:
             issued = CorporateSessionService(session, authenticator=FakeAuthenticator()).login("kgray", "not-persisted")
-            assert issued.roles == ()
+            assert issued.roles == ("VIEWER",)
     finally:
         engine.dispose()
 
@@ -181,7 +208,57 @@ def test_mapping_change_removes_elevated_role_and_fresh_auth_is_scoped(monkeypat
             mapping.updated_at = datetime.now(timezone.utc)
             session.flush()
             refreshed, _user = service.resolve(issued.token)
-            assert refreshed.roles_json == []
+            assert refreshed.roles_json == ["VIEWER"]
+    finally:
+        engine.dispose()
+
+
+def test_explicit_access_precedence_and_role_change_revokes_existing_sessions(monkeypatch):
+    _configure(monkeypatch)
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            now = datetime.now(timezone.utc)
+            session.add(
+                db.ExternalGroupRoleMapping(
+                    provider="kerberos_form",
+                    external_group_identifier=ADMINISTRATOR_GROUP_IDENTIFIER,
+                    role_code="ADMINISTRATOR",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            service = CorporateSessionService(session, authenticator=FakeAuthenticator())
+            issued = service.login("kgray", "not-persisted")
+            row, user = service.resolve(issued.token)
+            registry = corporate_user_for_user(session, user.id)
+            assert registry is not None
+            assert registry.sign_in_count == 1
+            assert access_state(session, registry, groups=tuple(row.authorization_groups_json or ()))["access_source"] == "corporate_group"
+            before, after, revoked = change_explicit_access(
+                session,
+                registry,
+                action="assign",
+                role_code="ADMIN_ACCESS_MANAGER",
+                reason="Focused governed access test",
+                actor_user_id=user.id + 100,
+                expected_row_version=registry.row_version,
+            )
+            assert before["effective_role"] == "ADMINISTRATOR"
+            assert after["effective_role"] == "ADMIN_ACCESS_MANAGER"
+            assert after["access_source"] == "explicit_user_assignment"
+            assert revoked == 1
+            assert row.revoked_at is not None
+            _before, denied, _revoked = change_explicit_access(
+                session,
+                registry,
+                action="revoke",
+                role_code=None,
+                reason="Focused governed denial test",
+                actor_user_id=user.id + 100,
+                expected_row_version=registry.row_version,
+            )
+            assert denied["access_source"] == "explicit_deny"
     finally:
         engine.dispose()
 

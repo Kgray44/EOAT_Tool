@@ -290,7 +290,23 @@ def corporate_session_actor(request: Request, session: Session) -> ActorContext:
 
     row, user = CorporateSessionService(session).resolve(request.cookies.get(CORPORATE_SESSION_COOKIE, ""))
     roles = set(row.roles_json or [])
-    role = next((value for value in ("ADMINISTRATOR", "ENGINEER", "TECHNICIAN", "VIEWER") if value in roles), "VIEWER")
+    role = next(
+        (
+            value
+            for value in (
+                "ADMINISTRATOR",
+                "ADMIN_ACCESS_MANAGER",
+                "ADMIN_SETTINGS_MANAGER",
+                "ADMIN_DATA_MANAGER",
+                "ADMIN_AUDITOR",
+                "ENGINEER",
+                "TECHNICIAN",
+                "VIEWER",
+            )
+            if value in roles
+        ),
+        "VIEWER",
+    )
     return ActorContext(
         user_id=user.id,
         identity=user.external_identity or user.username,

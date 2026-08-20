@@ -194,6 +194,38 @@ class ExternalGroupRoleMapping(TimestampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
 
 
+class CorporateUser(VersionMixin, Base):
+    """Governed EOAT record for an identity that completed corporate sign-in.
+
+    This intentionally records only the identity and access facts EOAT owns. It
+    is neither an Active Directory mirror nor a store for provider secrets.
+    """
+
+    __tablename__ = "corporate_users"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_corporate_users_user"),
+        UniqueConstraint("provider", "canonical_identity", name="uq_corporate_users_provider_identity"),
+        CheckConstraint("sign_in_count >= 1", name="ck_corporate_users_sign_in_count"),
+        CheckConstraint("row_version > 0", name="ck_corporate_users_row_version"),
+        Index("ix_corporate_users_last_sign_in", "last_successful_sign_in_at"),
+        Index("ix_corporate_users_access", "explicit_role_code", "explicit_denied", "is_active"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    user_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(PK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    canonical_identity: Mapped[str] = mapped_column(String(255), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    first_successful_sign_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_successful_sign_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sign_in_count: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
+    explicit_role_code: Mapped[str | None] = mapped_column(String(64))
+    explicit_denied: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
+    access_reason: Mapped[str | None] = mapped_column(Text)
+    access_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    access_changed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+
+
 class CorporateAuthenticationSession(Base):
     """Opaque, short-lived corporate session; raw tokens are never persisted."""
 
