@@ -47,7 +47,7 @@ FORBIDDEN_CONTENT = (b"EOAT_API_DEVICE_TOKEN", b"X-EOAT-Device-Token", b"mysql:/
 DEVELOPMENT_API_URL = re.compile(rb"https?://(?:localhost|127[.]0[.]0[.]1)(?::[0-9]+)?/api(?:/|[^A-Za-z0-9_-])", re.I)
 FORBIDDEN_PATH_PARTS = {"node_modules"}
 FORBIDDEN_SUFFIXES = {".map", ".env", ".pem", ".key"}
-WEB_HOST_HELPER_VERSION = "1.1.1"
+WEB_HOST_HELPER_VERSION = "1.1.2"
 
 
 def sha256(path: Path) -> str:
@@ -612,10 +612,12 @@ def acceptance(release: Path, policy: dict[str, object]) -> list[dict[str, objec
     checks.extend([
         request_check("api_health", base_url + "/api/v1/health", 200, json_body=True, excludes="<html"),
         request_check("data_status", base_url + "/api/v1/data-status", 200, json_body=True, excludes="<html"),
-        request_check("machine_27", base_url + "/machines/27", 200, contains="EOAT", content_type_contains="text/html"),
+        request_check("machine_1", base_url + "/machines/1", 200, contains="EOAT", content_type_contains="text/html"),
         request_check("frontend_refresh", base_url + "/fit-check", 200, contains="EOAT"),
-        request_check("machine_27_web_photos", base_url + "/api/v1/machines/27/web-photos", 200, json_body=True, excludes="<html"),
-        request_check("machine_27_web_documents", base_url + "/api/v1/machines/27/web-documents", 200, json_body=True, excludes="<html"),
+        request_check("machine_1_profile", base_url + "/api/v1/machines/1", 200, json_body=True, excludes="<html"),
+        request_check("machine_1_history", base_url + "/api/v1/machines/1/history", 200, json_body=True, excludes="<html"),
+        request_check("machine_1_photos", base_url + "/api/v1/machines/1/photos", 200, json_body=True, excludes="<html"),
+        request_check("machine_1_documents", base_url + "/api/v1/machines/1/documents", 200, json_body=True, excludes="<html"),
         request_check("api_404", base_url + "/api/v1/not-a-real-route", 404, json_body=True, excludes="<html"),
     ])
     headers = subprocess.run(["/usr/bin/curl", "--silent", "--show-error", "--resolve", HOST + ":80:127.0.0.1", "-D", "-", "-o", "/dev/null", "http://" + HOST + "/"], text=True, capture_output=True)

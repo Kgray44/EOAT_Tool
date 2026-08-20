@@ -281,6 +281,36 @@ def test_shared_http_acceptance_is_bound_to_the_just_activated_server_release(tm
     assert "api_release" not in source
 
 
+def test_shared_acceptance_uses_existing_read_only_machine_media_routes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    release = tmp_path / "eoat-atlas-server-0.26.11"
+    release.mkdir()
+    observed: list[tuple[str, str]] = []
+    monkeypatch.setattr(coordinator.web, "assert_static_assets", lambda _release: ("/assets/app.js", "/assets/app.css"))
+    monkeypatch.setattr(
+        coordinator.web,
+        "request_check",
+        lambda name, url, *_args, **_kwargs: observed.append((name, url)) or {"name": name, "url": url},
+    )
+    monkeypatch.setattr(
+        coordinator.web.subprocess,
+        "run",
+        lambda *_args, **_kwargs: type("Result", (), {"stdout": "HTTP/1.1 200 OK\n", "returncode": 0})(),
+    )
+    monkeypatch.setattr(coordinator.web, "api_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "mysql_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "listener_policy", lambda _policy: True)
+    monkeypatch.setattr(coordinator.web, "active_release", lambda: str(release))
+    monkeypatch.setattr(coordinator.web, "api_health", lambda _policy: {"compatible": True})
+
+    coordinator.web.acceptance(release, {"api_release": str(release), "tls_listener_policy": "http_only"})
+
+    assert ("machine_1_photos", "http://eoat-atlas.gwplastics.com/api/v1/machines/1/photos") in observed
+    assert ("machine_1_documents", "http://eoat-atlas.gwplastics.com/api/v1/machines/1/documents") in observed
+    assert all("web-photos" not in url and "web-documents" not in url for _name, url in observed)
+
+
 def test_wait_target_uses_immutable_api_metadata_when_legacy_health_fields_are_absent(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
