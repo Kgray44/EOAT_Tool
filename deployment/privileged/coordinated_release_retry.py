@@ -467,12 +467,16 @@ def _archive_migration_graph(archive: zipfile.ZipFile) -> dict[str, tuple[str, .
             fail("sealed archive migration source is unreadable")
         values: dict[str, object] = {}
         for node in tree.body:
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                if node.targets[0].id in {"revision", "down_revision"}:
-                    try:
-                        values[node.targets[0].id] = ast.literal_eval(node.value)
-                    except ValueError:
-                        fail("sealed archive migration revision metadata is unsafe")
+            target_node = None
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target_node = node.targets[0]
+            elif isinstance(node, ast.AnnAssign):
+                target_node = node.target
+            if isinstance(target_node, ast.Name) and target_node.id in {"revision", "down_revision"}:
+                try:
+                    values[target_node.id] = ast.literal_eval(node.value)
+                except ValueError:
+                    fail("sealed archive migration revision metadata is unsafe")
         revision, down = values.get("revision"), values.get("down_revision")
         if not isinstance(revision, str) or not MIGRATION_REVISION.fullmatch(revision):
             continue

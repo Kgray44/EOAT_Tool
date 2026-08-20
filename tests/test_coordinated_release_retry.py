@@ -630,7 +630,7 @@ def test_migration_archive_requires_a_complete_dag_traversal_from_production_hea
     approved: list[dict[str, str]] = []
     with zipfile.ZipFile(archive, "w") as bundle:
         for revision, predecessor in migrations.items():
-            payload = f"revision = {revision!r}\ndown_revision = {predecessor!r}\n".encode()
+            payload = f"revision: str = {revision!r}\ndown_revision: object = {predecessor!r}\n".encode()
             bundle.writestr(f"server/migrations/versions/{revision}_fixture.py", payload)
             if revision not in {"20260713_0001", "20260729_0009"}:
                 approved.append({"revision": revision, "sha256": hashlib.sha256(payload).hexdigest()})
