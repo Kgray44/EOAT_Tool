@@ -711,6 +711,12 @@ def test_multi_migration_failure_restores_the_verified_backup(monkeypatch: pytes
         lambda *_args, **_kwargs: (_ for _ in ()).throw(coordinator.web.InstallError("migration failed")),
     )
     monkeypatch.setattr(coordinator, "restore_backup", lambda backup: observed.append(backup))
+    service_commands: list[list[str]] = []
+    monkeypatch.setattr(
+        coordinator.subprocess,
+        "run",
+        lambda command, **_kwargs: service_commands.append(command) or type("Result", (), {"returncode": 0})(),
+    )
     backup = {"path": "/fixed/recovery.sql.gz", "sha256": "a" * 64}
     with pytest.raises(coordinator.web.InstallError, match="migration failed"):
         coordinator.apply_migration_plan(
@@ -719,3 +725,7 @@ def test_multi_migration_failure_restores_the_verified_backup(monkeypatch: pytes
             backup,
         )
     assert observed == [backup]
+    assert service_commands == [
+        ["/bin/systemctl", "stop", coordinator.SERVICE],
+        ["/bin/systemctl", "restart", coordinator.SERVICE],
+    ]
