@@ -47,6 +47,28 @@ const toolEvent = {
 };
 
 async function mockAdminApi(page: Page) {
+  await page.route("**/api/v1/auth/session", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        identity: { display_name: "Corporate Administrator" },
+        roles: ["ADMINISTRATOR"],
+        permissions: ["*"],
+        scope: "application",
+      }),
+    });
+  });
+  await page.route("**/api/v1/auth/status", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        provider: "kerberos_form",
+        status: "ready",
+        mapping_configured: true,
+      }),
+    });
+  });
   await page.route("**/api/v1/admin/**", async (route) => {
     const url = new URL(route.request().url());
     const detail = [event, machineEvent, toolEvent].find((candidate) =>
@@ -98,6 +120,19 @@ async function mockAdminApi(page: Page) {
     });
   });
 }
+
+test("existing corporate Administrator session opens a governed page without a second login", async ({
+  page,
+}) => {
+  await mockAdminApi(page);
+  await page.goto("/admin/data");
+  await expect(
+    page.getByRole("heading", { name: "Governed data management" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Corporate Administrator sign-in" }),
+  ).not.toBeVisible();
+});
 
 test("administrator can deep-link to the overview and ledger investigation", async ({
   page,

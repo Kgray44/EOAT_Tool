@@ -22,6 +22,8 @@ import {
   type AuditList,
   type AuditValue,
 } from "../api/admin";
+import { apiClient } from "../api/client";
+import { ApiError } from "../api/errors";
 import { AuditDiff } from "../components/AuditDiff";
 
 type Remote<T> =
@@ -984,21 +986,79 @@ function SessionGate({ onReady }: { onReady: () => void }) {
     () => adminApi.corporateStatus(),
     "corporate-auth-status",
   );
-  const [identity, setIdentity] = useState(
-    import.meta.env.VITE_EOAT_IDENTITY ?? "dev.admin",
-  );
+  const [corporateSession, setCorporateSession] = useState<
+    | { state: "loading" }
+    | { state: "anonymous" }
+    | { state: "authorized" }
+    | { state: "denied" }
+    | { state: "error"; error: AdminApiError }
+  >({ state: "loading" });
+  const [identity, setIdentity] = useState("");
   const [rehearsalSecret, setRehearsalSecret] = useState("");
   const [corporatePassword, setCorporatePassword] = useState("");
   const [error, setError] = useState<AdminApiError | undefined>();
   const [busy, setBusy] = useState(false);
   const corporateEnabled =
     corporate.state === "ready" && corporate.value.provider === "kerberos_form";
+  const configuredDevelopmentIdentity =
+    import.meta.env.VITE_EOAT_IDENTITY ?? "dev.admin";
+
+  useEffect(() => {
+    if (corporate.state !== "ready") return;
+    if (!corporateEnabled) {
+      setCorporateSession({ state: "anonymous" });
+      return;
+    }
+    let active = true;
+    void apiClient
+      .getAuthenticatedSession()
+      .then((session) => {
+        if (!active) return;
+        setCorporateSession(
+          session.authenticated && session.roles?.includes("ADMINISTRATOR")
+            ? { state: "authorized" }
+            : { state: "denied" },
+        );
+      })
+      .catch((value: unknown) => {
+        if (!active) return;
+        if (value instanceof ApiError && value.status === 401) {
+          setCorporateSession({ state: "anonymous" });
+          return;
+        }
+        setCorporateSession({
+          state: "error",
+          error:
+            value instanceof ApiError
+              ? new AdminApiError(
+                  value.message,
+                  value.status ?? 0,
+                  value.requestId,
+                )
+              : new AdminApiError(
+                  "The corporate session could not be verified.",
+                  0,
+                ),
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [corporate.state, corporateEnabled]);
+
+  useEffect(() => {
+    if (corporateSession.state === "authorized") onReady();
+  }, [corporateSession.state, onReady]);
+
   const start = () => {
     setBusy(true);
     setError(undefined);
     const action = corporateEnabled
       ? adminApi.corporateLogin(identity, corporatePassword)
-      : adminApi.startRehearsal(identity, rehearsalSecret);
+      : adminApi.startRehearsal(
+          identity.trim() || configuredDevelopmentIdentity,
+          rehearsalSecret,
+        );
     action
       .then(() => {
         setRehearsalSecret("");
@@ -1018,21 +1078,50 @@ function SessionGate({ onReady }: { onReady: () => void }) {
       .finally(() => setBusy(false));
   };
   if (corporate.state === "loading") return <LoadingState />;
-  if (corporate.state === "error") return <ErrorState error={corporate.error} />;
+  if (corporate.state === "error")
+    return <ErrorState error={corporate.error} />;
+  if (corporateSession.state === "loading") return <LoadingState />;
+  if (corporateSession.state === "authorized") return <LoadingState />;
+  if (corporateSession.state === "denied") {
+    return (
+      <ErrorState
+        error={
+          new AdminApiError(
+            "The active corporate session is not authorized for Administration.",
+            403,
+          )
+        }
+      />
+    );
+  }
+  if (corporateSession.state === "error") {
+    return <ErrorState error={corporateSession.error} />;
+  }
   return (
     <section className="state-panel">
-      <h1>{corporateEnabled ? "Corporate Administrator sign-in" : "Start development/test Administrator session"}</h1>
+      <h1>
+        {corporateEnabled
+          ? "Corporate Administrator sign-in"
+          : "Start development/test Administrator session"}
+      </h1>
       <p>
         {corporateEnabled
           ? "Sign-in uses the approved Kerberos-form provider. The password is used only for the protected server-side Kerberos exchange and is never retained by this browser or EOAT Atlas."
           : "This local rehearsal session is separate from production corporate authentication. Its CSRF proof remains only in this browser memory; the actor is resolved from the HttpOnly server session for every governed mutation."}
       </p>
       <label>
-        {corporateEnabled ? "Corporate username" : "Configured development/test identity"}
+        {corporateEnabled
+          ? "Corporate username"
+          : "Configured development/test identity"}
         <input
           value={identity}
           onChange={(event) => setIdentity(event.target.value)}
           autoComplete={corporateEnabled ? "username" : "off"}
+          placeholder={
+            corporateEnabled
+              ? "jdoe or GWP\\jdoe"
+              : configuredDevelopmentIdentity
+          }
         />
       </label>
       {corporateEnabled ? (
@@ -1059,10 +1148,19 @@ function SessionGate({ onReady }: { onReady: () => void }) {
       <button
         className="primary-button"
         type="button"
-        disabled={busy || (corporateEnabled ? corporatePassword.length < 1 : rehearsalSecret.length < 16)}
+        disabled={
+          busy ||
+          (corporateEnabled
+            ? identity.trim().length < 1 || corporatePassword.length < 1
+            : rehearsalSecret.length < 16)
+        }
         onClick={start}
       >
-        {busy ? "Starting…" : corporateEnabled ? "Sign in" : "Start governed session"}
+        {busy
+          ? "Starting…"
+          : corporateEnabled
+            ? "Sign in"
+            : "Start governed session"}
       </button>
       {error ? (
         <p className="inline-error">
@@ -2706,7 +2804,8 @@ function DangerZonePage() {
       );
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
   if (corporate.state === "loading") return <LoadingState />;
-  if (corporate.state === "error") return <ErrorState error={corporate.error} />;
+  if (corporate.state === "error")
+    return <ErrorState error={corporate.error} />;
   return (
     <>
       <PageTitle title="Danger Zone">
@@ -2733,12 +2832,14 @@ function DangerZonePage() {
           />
         </label>
         <label>
-          {corporateEnabled ? "Re-enter corporate password for fresh authentication" : "Development/test step-up secret"}
+          {corporateEnabled
+            ? "Re-enter corporate password for fresh authentication"
+            : "Development/test step-up secret"}
           <input
             type="password"
             value={stepUpSecret}
             onChange={(event) => setStepUpSecret(event.target.value)}
-          autoComplete={corporateEnabled ? "current-password" : "off"}
+            autoComplete={corporateEnabled ? "current-password" : "off"}
           />
         </label>
         <button
@@ -2746,7 +2847,9 @@ function DangerZonePage() {
           disabled={stepUpSecret.length < (corporateEnabled ? 1 : 16)}
           onClick={stepUp}
         >
-          {corporateEnabled ? "Verify fresh corporate authentication" : "Verify fresh rehearsal step-up"}
+          {corporateEnabled
+            ? "Verify fresh corporate authentication"
+            : "Verify fresh rehearsal step-up"}
         </button>
         {steppedUp ? (
           <p className="success-note">
