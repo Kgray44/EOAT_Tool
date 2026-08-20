@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.4.0"
+HELPER_VERSION = "1.4.1"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -49,7 +49,7 @@ SEALING_RECEIPT_SCHEMA_VERSION = 2
 TRANSACTION_RECEIPT_SCHEMA_VERSION = 3
 LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION = 2
 LEGACY_HELPER_VERSION = "1.3.1"
-SUPPORTED_TRANSACTION_HELPER_VERSIONS = {"1.3.2", "1.3.3", "1.3.4", HELPER_VERSION}
+SUPPORTED_TRANSACTION_HELPER_VERSIONS = {"1.3.2", "1.3.3", "1.3.4", "1.4.0", HELPER_VERSION}
 LEGACY_APPLICATION_VERSION = "0.22.12"
 LEGACY_SCHEMA = "20260721_0008"
 TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
@@ -778,7 +778,8 @@ def restore_backup(backup: object) -> None:
             command.insert(1, f"--defaults-extra-file={defaults}")
         result = subprocess.run(command, stdin=stream, stderr=subprocess.PIPE, check=False, env=environment)
     if result.returncode:
-        fail("approved backup restoration failed")
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        fail(f"approved backup restoration failed: {detail[:1000] or 'mysql returned a nonzero status'}")
 
 
 def apply_migration_plan(server: Path, plan: tuple[str, str, tuple[dict[str, str], ...]], backup: dict[str, object]) -> dict[str, object]:
@@ -1292,6 +1293,116 @@ def _transaction_receipt(transaction_id: str) -> tuple[Path, dict[str, object]]:
     return transaction, receipt
 
 
+def _failed_migration_transaction(transaction_id: str) -> tuple[Path, dict[str, object], Path, Path, str]:
+    """Load only a receipt awaiting backup-based recovery after migration."""
+    transaction, receipt_path = _legacy_transaction_path(transaction_id)
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"failed transaction receipt is malformed: {error}")
+    required = {
+        "receipt_schema_version",
+        "helper_version",
+        "state",
+        "activation_complete",
+        "old_api",
+        "old_web",
+        "old_api_attestation",
+        "old_web_attestation",
+        "active_pointer_identities",
+        "migration",
+        "backup",
+        "service",
+        "writes_enabled",
+    }
+    if not isinstance(receipt, dict) or not required.issubset(receipt):
+        fail("failed transaction receipt is incomplete")
+    migration = receipt["migration"]
+    if (
+        receipt["receipt_schema_version"] != TRANSACTION_RECEIPT_SCHEMA_VERSION
+        or receipt["helper_version"] != "1.4.0"
+        or receipt["state"] != "manual_intervention_required"
+        or receipt["activation_complete"] is not False
+        or receipt["service"] != SERVICE
+        or receipt["writes_enabled"] is not False
+        or not isinstance(migration, dict)
+        or migration.get("applied") is not True
+        or not isinstance(migration.get("current_schema"), str)
+    ):
+        fail("failed transaction is not an approved backup-recovery state")
+    old_api, api_attestation = _api_release_attestation(receipt["old_api"], "old_api")
+    old_web, web_attestation = _web_release_attestation(receipt["old_web"], "old_web")
+    _require_attestation(api_attestation, receipt["old_api_attestation"], "old_api")
+    _require_attestation(web_attestation, receipt["old_web_attestation"], "old_web")
+    pointers = receipt["active_pointer_identities"]
+    if (
+        not isinstance(pointers, dict)
+        or pointers.get("api") != {"path": str(API_CURRENT), "target": str(old_api)}
+        or pointers.get("web") != {"path": str(WEB_CURRENT), "target": str(old_web)}
+        or API_CURRENT.resolve() != old_api
+        or WEB_CURRENT.resolve() != old_web
+    ):
+        fail("failed transaction rollback pointers are not intact")
+    return transaction, receipt, old_api, old_web, str(migration["current_schema"])
+
+
+def recover_failed_migration(transaction_id: str) -> dict[str, object]:
+    """Recover only the verified backup bound to one failed coordinator receipt."""
+    with deployment_lock():
+        transaction, receipt, old_api, old_web, starting_schema = _failed_migration_transaction(transaction_id)
+        recovery_receipt = transaction / "manual-recovery.json"
+        if recovery_receipt.exists() or recovery_receipt.is_symlink():
+            if recovery_receipt.is_symlink() or not recovery_receipt.is_file():
+                fail("manual recovery receipt is unsafe")
+            try:
+                prior = json.loads(recovery_receipt.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                fail(f"manual recovery receipt is malformed: {error}")
+            if not isinstance(prior, dict) or prior.get("state") != "recovered":
+                fail("manual recovery receipt conflicts with prior recovery evidence")
+            if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
+                fail("recovered transaction no longer has its approved rollback targets")
+            health = web.api_health({"schema": starting_schema})
+            if health.get("writes_enabled") is not False:
+                fail("recovered transaction has writes enabled")
+            return {"transaction": transaction_id, "state": "recovered", "idempotent": True}
+        subprocess.run(["/bin/systemctl", "stop", SERVICE], check=True)
+        try:
+            restore_backup(receipt["backup"])
+            environment = _migration_environment()
+            if _staged_alembic_current(old_api, environment) != starting_schema:
+                fail("manual recovery backup did not restore the approved starting revision")
+        except Exception:
+            subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
+            raise
+        web.nginx_test_reload()
+        subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
+        web.wait_api({"schema": starting_schema})
+        if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
+            fail("manual recovery did not preserve both rollback pointers")
+        health = web.api_health({"schema": starting_schema})
+        if health.get("writes_enabled") is not False:
+            fail("manual recovery did not preserve writes-disabled state")
+        evidence = {
+            "receipt_schema_version": TRANSACTION_RECEIPT_SCHEMA_VERSION,
+            "transaction": transaction_id,
+            "state": "recovered",
+            "recovery_mode": "receipt_bound_verified_backup",
+            "rollback_api": str(old_api),
+            "rollback_web": str(old_web),
+            "restored_schema": starting_schema,
+            "helper_version": HELPER_VERSION,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            descriptor = os.open(recovery_receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            fail("manual recovery receipt appeared concurrently")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            output.write(json.dumps(evidence, sort_keys=True, indent=2) + "\n")
+        return {"transaction": transaction_id, "state": "recovered", "idempotent": False}
+
+
 def _rollback_receipt_path(transaction: Path) -> Path:
     return transaction / "post-activation-rollback.json"
 
@@ -1607,13 +1718,18 @@ def activate(value: dict[str, object]) -> Path:
             web.atomic_symlink(old_api, API_CURRENT)
             web.atomic_symlink(old_web, WEB_CURRENT)
             if migration_complete:
+                subprocess.run(["/bin/systemctl", "stop", SERVICE], check=True)
                 try:
                     restore_backup(backup)
                     environment = _migration_environment()
                     if _staged_alembic_current(old_api, environment) != migration_current:
                         fail("rollback backup did not restore the approved starting revision")
-                except web.InstallError:
-                    receipt.update(state="manual_intervention_required", failure="activation failed; backup recovery failed")
+                except Exception as backup_error:
+                    subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
+                    receipt.update(
+                        state="manual_intervention_required",
+                        failure=f"activation failed; backup recovery failed: {backup_error}",
+                    )
                     (transaction / "receipt.json").write_text(
                         json.dumps(receipt, sort_keys=True, indent=2) + "\n", encoding="utf-8"
                     )
@@ -1647,7 +1763,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "action",
         nargs="?",
-        choices=("preflight", "activate", "post-activation-rollback", "reconcile-legacy-rollback"),
+        choices=(
+            "preflight",
+            "activate",
+            "post-activation-rollback",
+            "reconcile-legacy-rollback",
+            "recover-failed-migration",
+        ),
     )
     parser.add_argument("--policy", type=Path)
     parser.add_argument("--transaction")
@@ -1671,6 +1793,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.policy is not None or not args.transaction:
             fail("legacy reconciliation requires only a governed transaction identifier")
         print(json.dumps(reconcile_legacy_rollback(args.transaction), sort_keys=True))
+        return 0
+    if args.action == "recover-failed-migration":
+        if args.policy is not None or not args.transaction:
+            fail("failed-migration recovery requires only a governed transaction identifier")
+        print(json.dumps(recover_failed_migration(args.transaction), sort_keys=True))
         return 0
     if args.policy is None or args.transaction is not None:
         fail("preflight and activate require only a governed policy")
