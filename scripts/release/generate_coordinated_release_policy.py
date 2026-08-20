@@ -14,7 +14,7 @@ import json
 import re
 import sys
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -105,7 +105,7 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
     if canonical is None:
         raise PolicyError("server archive lacks the canonical production migration")
     for field, value in {"expected_active_api": args.expected_active_api, "expected_active_web": args.expected_active_web}.items():
-        if not Path(value).is_absolute():
+        if not PurePosixPath(value).is_absolute() or ".." in PurePosixPath(value).parts:
             raise PolicyError(f"{field} must be absolute")
     coordinator = ROOT / "deployment" / "privileged" / "coordinated_release_retry.py"
     web_helper = ROOT / "deployment" / "privileged" / "install_http_web_host.py"
