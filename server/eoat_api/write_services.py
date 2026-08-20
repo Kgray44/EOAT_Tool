@@ -1963,7 +1963,7 @@ def idempotent(
                 409, "IDEMPOTENCY_KEY_REUSED", "This idempotency key was already used with a different request."
             )
         return dict(existing.response_json) | {"idempotent_replay": True}
-    result = execute()
+    result = json.loads(json.dumps(execute(), default=_json_value))
     session.add(
         db.IdempotencyRecord(
             actor_user_id=actor.user_id,
@@ -1977,4 +1977,8 @@ def idempotent(
             request_id=actor.request_id,
         )
     )
+    # Persist the idempotency receipt before a route can report success.  A
+    # governed mutation must not be visible as a 200 response if its receipt
+    # cannot be serialized and committed with the same transaction.
+    session.flush()
     return result
