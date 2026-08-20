@@ -221,10 +221,19 @@ async function requestJson(
 }
 
 function csrfHeader(): HeadersInit {
-  const value = document.cookie
-    .split("; ")
-    .find((item) => item.startsWith("eoat_atlas_csrf="))
-    ?.split("=", 2)[1];
+  const cookies = new Map(
+    document.cookie
+      .split("; ")
+      .filter(Boolean)
+      .map((item) => {
+        const [name, ...parts] = item.split("=");
+        return [name, parts.join("=")];
+      }),
+  );
+  // Corporate sessions use a distinct, server-issued CSRF cookie. Preserve the
+  // legacy local-rehearsal cookie only for its existing non-corporate flow.
+  const value =
+    cookies.get("eoat_corporate_csrf") ?? cookies.get("eoat_atlas_csrf");
   return value ? { "X-EOAT-CSRF-Token": decodeURIComponent(value) } : {};
 }
 

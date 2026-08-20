@@ -41,6 +41,24 @@ describe("apiClient", () => {
     );
   });
 
+  it("uses the server-issued corporate CSRF cookie for logout", async () => {
+    document.cookie = "eoat_corporate_csrf=corporate-test-csrf; path=/";
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+
+    await apiClient.logout(fetcher);
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/auth/logout",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "X-EOAT-CSRF-Token": "corporate-test-csrf",
+        }),
+      }),
+    );
+    document.cookie = "eoat_corporate_csrf=; Max-Age=0; path=/";
+  });
+
   it("reports unavailable API responses distinctly", async () => {
     const fetcher = vi
       .fn()
