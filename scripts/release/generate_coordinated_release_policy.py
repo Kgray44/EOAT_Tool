@@ -105,6 +105,9 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
     canonical = archived.get("20260721_0008")
     if canonical is None:
         raise PolicyError("server archive lacks the canonical production migration")
+    policy_root = PurePosixPath(args.policy_artifact_root)
+    if not policy_root.is_absolute() or ".." in policy_root.parts:
+        raise PolicyError("policy artifact root must be an absolute non-traversing POSIX path")
     for field, value in {"expected_active_api": args.expected_active_api, "expected_active_web": args.expected_active_web}.items():
         if not PurePosixPath(value).is_absolute() or ".." in PurePosixPath(value).parts:
             raise PolicyError(f"{field} must be absolute")
@@ -113,13 +116,13 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
     value = {
         "helper_sha256": sha256(coordinator),
         "web_helper_sha256": sha256(web_helper),
-        "server_archive_path": str(args.server_archive.resolve()),
+        "server_archive_path": str(policy_root / args.server_archive.name),
         "server_archive_sha256": archive_sha,
-        "server_manifest_path": str(args.server_manifest.resolve()),
+        "server_manifest_path": str(policy_root / args.server_manifest.name),
         "server_manifest_sha256": sha256(args.server_manifest),
         "server_release_id": f"eoat-atlas-server-{manifest['version']}-{str(manifest['source_git_commit'])[:7]}",
         "web_release_id": args.web_release_id,
-        "bundle_path": str(args.bundle_path.resolve()),
+        "bundle_path": str(policy_root / args.bundle_path.name),
         "bundle_sha256": args.bundle_sha256,
         "application_version": manifest["version"],
         "source_commit": manifest["source_git_commit"],
@@ -145,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expected-active-web", required=True)
     parser.add_argument("--current-schema", required=True)
     parser.add_argument("--migration-revisions", required=True)
+    parser.add_argument("--policy-artifact-root", default="/opt/eoat-atlas/incoming")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
