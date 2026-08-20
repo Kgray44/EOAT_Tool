@@ -61,12 +61,16 @@ def archive_migrations(archive: Path) -> dict[str, tuple[str, str]]:
                     raise PolicyError("server archive migration source is unreadable") from error
                 revision = None
                 for node in tree.body:
-                    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                        if node.targets[0].id == "revision":
-                            try:
-                                revision = ast.literal_eval(node.value)
-                            except ValueError as error:
-                                raise PolicyError("server archive migration revision is unsafe") from error
+                    target_node = None
+                    if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                        target_node = node.targets[0]
+                    elif isinstance(node, ast.AnnAssign):
+                        target_node = node.target
+                    if isinstance(target_node, ast.Name) and target_node.id == "revision":
+                        try:
+                            revision = ast.literal_eval(node.value)
+                        except ValueError as error:
+                            raise PolicyError("server archive migration revision is unsafe") from error
                 if not isinstance(revision, str) or not MIGRATION.fullmatch(revision):
                     continue
                 if revision in values:
