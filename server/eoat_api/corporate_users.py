@@ -90,11 +90,11 @@ def _group_roles(session: Session, *, provider: str, groups: tuple[str, ...] | l
 def resolve_effective_access(session: Session, corporate_user: db.CorporateUser, *, groups: tuple[str, ...] | list[str] = ()) -> EffectiveAccess:
     """Resolve access in the only permitted precedence order."""
 
-    if not corporate_user.is_active or corporate_user.archived_at is not None or corporate_user.explicit_denied:
-        return EffectiveAccess(DEFAULT_ROLE, "explicit_deny")
-    if corporate_user.explicit_role_code:
-        return EffectiveAccess(corporate_user.explicit_role_code, "explicit_user_assignment")
     group_roles = _group_roles(session, provider=corporate_user.provider, groups=groups)
+    if not corporate_user.is_active or corporate_user.archived_at is not None or corporate_user.explicit_denied:
+        return EffectiveAccess(DEFAULT_ROLE, "explicit_deny", group_roles)
+    if corporate_user.explicit_role_code:
+        return EffectiveAccess(corporate_user.explicit_role_code, "explicit_user_assignment", group_roles)
     if group_roles:
         return EffectiveAccess(next(role for role in ROLE_PRIORITY if role in group_roles), "corporate_group", group_roles)
     return EffectiveAccess(DEFAULT_ROLE, "default")
@@ -189,12 +189,21 @@ def preview_explicit_access(session: Session, corporate_user: db.CorporateUser, 
     before = access_state(session, corporate_user, groups=groups)
     explicit_role = role_code if action == "assign" else (corporate_user.explicit_role_code if action == "restore" else None)
     explicit_denied = action == "revoke"
-    # A preview cannot infer unpersisted group membership for a historical
-    # row, so its fallback state is explicitly represented as such.
+    # The registry retains only groups that were relevant to an EOAT mapping,
+    # which is enough to truthfully preview a fallback without mirroring AD.
     if explicit_denied:
         after = {**before, "effective_role": DEFAULT_ROLE, "access_source": "explicit_deny", "explicit_role": explicit_role, "explicit_denied": True}
     elif explicit_role:
         after = {**before, "effective_role": explicit_role, "access_source": "explicit_user_assignment", "explicit_role": explicit_role, "explicit_denied": False}
+    elif before["group_roles"]:
+        group_roles = set(before["group_roles"])
+        after = {
+            **before,
+            "effective_role": next(role for role in ROLE_PRIORITY if role in group_roles),
+            "access_source": "corporate_group",
+            "explicit_role": None,
+            "explicit_denied": False,
+        }
     else:
         after = {**before, "effective_role": DEFAULT_ROLE, "access_source": "default", "explicit_role": None, "explicit_denied": False}
     return before, after

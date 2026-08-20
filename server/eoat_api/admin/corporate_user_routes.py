@@ -9,7 +9,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import asc, desc, func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..corporate_users import (
@@ -112,32 +112,32 @@ def list_users(
         stmt = stmt.where(db.CorporateUser.is_active.is_(True), db.CorporateUser.archived_at.is_(None))
     elif status == "disabled":
         stmt = stmt.where(or_(db.CorporateUser.is_active.is_(False), db.CorporateUser.archived_at.is_not(None)))
-    if role:
-        stmt = stmt.where(db.CorporateUser.explicit_role_code == role)
     if access_source == "explicit_user_assignment":
         stmt = stmt.where(db.CorporateUser.explicit_role_code.is_not(None), db.CorporateUser.explicit_denied.is_(False))
     elif access_source == "explicit_deny":
         stmt = stmt.where(db.CorporateUser.explicit_denied.is_(True))
     elif access_source == "default":
         stmt = stmt.where(db.CorporateUser.explicit_role_code.is_(None), db.CorporateUser.explicit_denied.is_(False))
-    # Group-derived role is resolved from an authenticated session's bounded
-    # mapping context, so list filtering narrows candidates then verifies it.
-    total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    sort_column = {
-        "name": db.CorporateUser.display_name,
-        "role": db.CorporateUser.explicit_role_code,
-        "first_sign_in": db.CorporateUser.first_successful_sign_in_at,
-        "last_sign_in": db.CorporateUser.last_successful_sign_in_at,
-        "status": db.CorporateUser.is_active,
-    }[sort]
-    ordering = asc(sort_column) if direction == "asc" else desc(sort_column)
-    rows = session.scalars(stmt.order_by(ordering, db.CorporateUser.id.asc()).offset((page - 1) * page_size).limit(page_size)).all()
+    # The effective role/source can be group-derived and is therefore resolved
+    # from safe, bounded session context before sorting or paginating.  EOAT
+    # only holds users who have authenticated, not an imported directory.
+    rows = session.scalars(stmt.order_by(db.CorporateUser.id.asc())).all()
     items = [_user_summary(session, row) for row in rows]
     if role:
-        items = [item for item in items if item["effective_role"] == role or item["explicit_role"] == role]
+        items = [item for item in items if item["effective_role"] == role]
     if access_source == "corporate_group":
         items = [item for item in items if item["access_source"] == "corporate_group"]
-    return {"items": items, "page": page, "page_size": page_size, "total": total, "sort": f"{sort}:{direction}"}
+    sort_key = {
+        "name": lambda item: str(item["name"]).casefold(),
+        "role": lambda item: str(item["effective_role"]),
+        "first_sign_in": lambda item: item["first_sign_in"],
+        "last_sign_in": lambda item: item["last_sign_in"],
+        "status": lambda item: str(item["status"]),
+    }[sort]
+    items.sort(key=sort_key, reverse=direction == "desc")
+    total = len(items)
+    start = (page - 1) * page_size
+    return {"items": items[start : start + page_size], "page": page, "page_size": page_size, "total": total, "sort": f"{sort}:{direction}"}
 
 
 @router.get("/{user_id}")

@@ -22,6 +22,7 @@ from server.eoat_api.corporate_users import (
     access_state,
     change_explicit_access,
     corporate_user_for_user,
+    preview_explicit_access,
 )
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import get_runtime_session, get_write_session
@@ -249,6 +250,26 @@ def test_explicit_access_precedence_and_role_change_revokes_existing_sessions(mo
             assert after["access_source"] == "explicit_user_assignment"
             assert revoked == 1
             assert row.revoked_at is not None
+            preview_before, preview_after = preview_explicit_access(
+                session,
+                registry,
+                action="remove",
+                role_code=None,
+            )
+            assert preview_before["access_source"] == "explicit_user_assignment"
+            assert preview_after["effective_role"] == "ADMINISTRATOR"
+            assert preview_after["access_source"] == "corporate_group"
+            _before, fallback, _revoked = change_explicit_access(
+                session,
+                registry,
+                action="remove",
+                role_code=None,
+                reason="Focused fallback test",
+                actor_user_id=user.id + 100,
+                expected_row_version=registry.row_version,
+            )
+            assert fallback["effective_role"] == "ADMINISTRATOR"
+            assert fallback["access_source"] == "corporate_group"
             _before, denied, _revoked = change_explicit_access(
                 session,
                 registry,
