@@ -2,9 +2,9 @@
 """Root-owned, policy-pinned coordinated EOAT API/static-release activation.
 
 This helper is deliberately narrow: it accepts only a root-owned JSON policy
-whose hashes pin the server ZIP and the already sealed static bundle.  It is
-used for zero-migration coordinated activation where the NGINX architecture is
-already installed.  It never executes a migration or accepts caller commands.
+whose hashes pin the server ZIP and the already sealed static bundle. It may
+apply only that policy's deterministic, sealed Alembic traversal before paired
+API/frontend activation; it never accepts caller-supplied migration commands.
 """
 
 from __future__ import annotations
@@ -44,6 +44,7 @@ WEB_CURRENT = Path("/var/www/eoat-atlas/current")
 WEB_RELEASES = web.WEB_ROOT / "releases"
 CONTROL_ROOT = Path("/var/lib/eoat-atlas-http-web-host")
 SERVICE = "eoat-atlas.service"
+SYSTEM_PYTHON = Path("/usr/bin/python3").resolve()
 SEALING_RECEIPT_SCHEMA_VERSION = 2
 TRANSACTION_RECEIPT_SCHEMA_VERSION = 3
 LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION = 2
@@ -1155,12 +1156,17 @@ def _api_release_attestation(path_text: object, field: str) -> tuple[Path, dict[
                     venv = {"path": relative, "target": str(resolved)}
                     continue
                 embedded_root = path / "venv"
+                approved_embedded_python = (
+                    member.parent == embedded_root / "bin"
+                    and re.fullmatch(r"python(?:3(?:\.\d+)?)?", member.name) is not None
+                    and resolved == SYSTEM_PYTHON
+                )
                 if (
                     venv is not None
                     and venv.get("embedded") is True
                     and relative.startswith("venv/")
                     and raw_target
-                    and (_within(resolved, embedded_root) or resolved == Path("/usr/bin/python3"))
+                    and (_within(resolved, embedded_root) or approved_embedded_python)
                 ):
                     continue
                 fail(f"unsafe API release symlink: {member}")

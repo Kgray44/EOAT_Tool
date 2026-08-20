@@ -419,6 +419,36 @@ def test_service_owned_api_release_attestation_rejects_drift_and_unsafe_members(
         coordinator._api_release_attestation(release, "old_api")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="embedded virtualenv validation is Linux-only")
+def test_service_owned_api_release_attestation_accepts_only_versioned_system_python_in_embedded_venv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    releases = tmp_path / "opt" / "eoat-atlas" / "releases"
+    release = releases / "eoat-atlas-server-0.26.10-legacy"
+    venv_bin = release / "venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    release.joinpath("release_metadata.json").write_text(
+        json.dumps(
+            {
+                "app_version": "0.26.10",
+                "release_id": "eoat-atlas-0.26.10",
+                "source_git_commit": "a" * 40,
+                "database_schema_revision": "20260729_0009",
+            }
+        ),
+        encoding="utf-8",
+    )
+    venv_bin.joinpath("python3").symlink_to("/usr/bin/python3")
+    monkeypatch.setattr(coordinator, "API_RELEASES", releases)
+    monkeypatch.setattr(coordinator, "_service_identity", lambda: (os.getuid(), os.getgid()))
+    monkeypatch.setattr(coordinator, "_api_release_parent_chain", lambda *_args: None)
+    coordinator._api_release_attestation(release, "old_api")
+    venv_bin.joinpath("python3").unlink()
+    venv_bin.joinpath("python3").symlink_to("/usr/bin/env")
+    with pytest.raises(coordinator.web.InstallError, match="unsafe API release symlink"):
+        coordinator._api_release_attestation(release, "old_api")
+
+
 @pytest.mark.parametrize("identifier", ["../receipt", "coordinated-20260728T001346Z-f99297d1/../x"])
 def test_post_activation_rollback_rejects_traversal(identifier: str) -> None:
     with pytest.raises(coordinator.web.InstallError, match="identifier is invalid"):
