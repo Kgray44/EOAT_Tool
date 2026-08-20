@@ -8,6 +8,7 @@ sudo, service, database, or activation capability.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import re
@@ -51,13 +52,26 @@ def archive_migrations(archive: Path) -> dict[str, tuple[str, str]]:
     try:
         with zipfile.ZipFile(archive) as bundle:
             for name in bundle.namelist():
-                match = re.fullmatch(r"server/migrations/versions/(\d{8}_\d{4}(?:_[A-Za-z0-9_-]+)?)_.+\.py", name)
-                if not match:
+                if not name.startswith("server/migrations/versions/") or not name.endswith(".py"):
                     continue
-                revision = match.group(1)
+                payload = bundle.read(name)
+                try:
+                    tree = ast.parse(payload.decode("utf-8"), filename=name)
+                except (SyntaxError, UnicodeDecodeError) as error:
+                    raise PolicyError("server archive migration source is unreadable") from error
+                revision = None
+                for node in tree.body:
+                    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                        if node.targets[0].id == "revision":
+                            try:
+                                revision = ast.literal_eval(node.value)
+                            except ValueError as error:
+                                raise PolicyError("server archive migration revision is unsafe") from error
+                if not isinstance(revision, str) or not MIGRATION.fullmatch(revision):
+                    continue
                 if revision in values:
                     raise PolicyError("server archive has ambiguous migration revisions")
-                values[revision] = (name, hashlib.sha256(bundle.read(name)).hexdigest())
+                values[revision] = (name, hashlib.sha256(payload).hexdigest())
     except (OSError, zipfile.BadZipFile) as error:
         raise PolicyError("server release archive is unreadable") from error
     return values
