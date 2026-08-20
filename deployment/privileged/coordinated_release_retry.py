@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.4.1"
+HELPER_VERSION = "1.4.2"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -773,10 +773,23 @@ def restore_backup(backup: object) -> None:
         command = ["/usr/bin/mysql", PRODUCTION_DATABASE]
     else:
         fail("backup restoration identity is invalid")
-    with defaults_context as defaults, gzip.open(path, "rb") as stream:
+    with defaults_context as defaults:
         if defaults is not None:
             command.insert(1, f"--defaults-extra-file={defaults}")
-        result = subprocess.run(command, stdin=stream, stderr=subprocess.PIPE, check=False, env=environment)
+        command.insert(1, "--binary-mode=1")
+        decompressor = subprocess.Popen(
+            ["/usr/bin/gzip", "-cd", "--", str(path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert decompressor.stdout is not None
+        try:
+            result = subprocess.run(command, stdin=decompressor.stdout, stderr=subprocess.PIPE, check=False, env=environment)
+        finally:
+            decompressor.stdout.close()
+        decompressor_error = decompressor.communicate()[1].decode("utf-8", errors="replace").strip()
+    if decompressor.returncode:
+        fail(f"approved backup decompression failed: {decompressor_error[:1000] or 'gzip returned a nonzero status'}")
     if result.returncode:
         detail = result.stderr.decode("utf-8", errors="replace").strip()
         fail(f"approved backup restoration failed: {detail[:1000] or 'mysql returned a nonzero status'}")
