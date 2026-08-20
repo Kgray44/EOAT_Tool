@@ -12,6 +12,7 @@ from server.eoat_api.app import app
 from server.eoat_api.corporate_auth import ADMINISTRATOR_GROUP_IDENTIFIER
 from server.eoat_api.corporate_auth_routes import _cookie_secure, corporate_session_service
 from server.eoat_api.corporate_sessions import (
+    CorporateAuthenticationFailure,
     CorporateSessionService,
     DirectoryIdentity,
     corporate_csrf_valid,
@@ -32,6 +33,15 @@ class FakeAuthenticator:
             upn="KGray@GWPLASTICS.COM",
             display_name="K Gray",
             groups=(ADMINISTRATOR_GROUP_IDENTIFIER,),
+        )
+
+
+class UnavailableAuthenticator:
+    """Safe application-side stand-in for a provider transport failure."""
+
+    def authenticate(self, _principal: str, _password: str) -> DirectoryIdentity:
+        raise CorporateAuthenticationFailure(
+            "Authentication is unavailable.", reason_code="KERBEROS_UNAVAILABLE"
         )
 
 
@@ -266,6 +276,46 @@ def test_http_corporate_session_enforces_admin_mapping_csrf_and_logout(monkeypat
             csrf = client.cookies.get("eoat_corporate_csrf")
             assert client.post("/api/v1/auth/logout", headers={"X-EOAT-CSRF-Token": csrf}).status_code == 200
             assert client.get("/api/v1/admin/audit/catalog").status_code == 401
+    finally:
+        app.dependency_overrides.clear()
+        session.close()
+        engine.dispose()
+
+
+def test_provider_unavailability_fails_closed_without_a_session(monkeypatch):
+    """Exercise the production route's structured provider-failure branch safely."""
+    _configure(monkeypatch)
+    monkeypatch.setenv("EOAT_AUTH_PROVIDER", "kerberos_form")
+    monkeypatch.setenv("EOAT_AUTH_SCOPE", "application")
+    engine = _engine()
+    session = Session(engine)
+    try:
+        def shared_session():
+            yield session
+
+        def unavailable_service():
+            return CorporateSessionService(session, authenticator=UnavailableAuthenticator())
+
+        app.dependency_overrides[get_runtime_session] = shared_session
+        app.dependency_overrides[get_write_session] = shared_session
+        app.dependency_overrides[corporate_session_service] = unavailable_service
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/v1/auth/kerberos-form/login",
+                json={"username": "kgray", "password": "test-only-provider-failure"},
+            )
+            assert response.status_code == 503
+            assert response.json()["error_code"] == "CORPORATE_AUTHENTICATION_UNAVAILABLE"
+            assert "test-only-provider-failure" not in response.text
+            assert not response.headers.get_list("set-cookie")
+            assert not client.cookies
+        event = session.scalar(select(db.CorporateAuthenticationEvent))
+        assert event is not None
+        assert (event.event_type, event.result, event.reason_code) == (
+            "LOGIN",
+            "DENIED",
+            "KERBEROS_UNAVAILABLE",
+        )
     finally:
         app.dependency_overrides.clear()
         session.close()
