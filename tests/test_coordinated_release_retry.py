@@ -178,7 +178,7 @@ def test_preflight_seals_then_uses_only_final_paths_without_changing_active_poin
     monkeypatch.setattr(coordinator.web, "api_health", lambda *_: {"writes_enabled": False})
     monkeypatch.setattr(coordinator.web, "api_loopback_only", lambda: True)
     monkeypatch.setattr(coordinator.web, "mysql_loopback_only", lambda: True)
-    monkeypatch.setattr(coordinator.web, "no_tls_listener", lambda: True)
+    monkeypatch.setattr(coordinator.web, "listener_policy", lambda _value: True)
     monkeypatch.setattr(coordinator.web, "nginx_worker_user", lambda: "www-data")
     monkeypatch.setattr(
         coordinator.subprocess, "run", lambda *_args, **_kwargs: type("Result", (), {"returncode": 0})()
@@ -207,6 +207,14 @@ def test_preflight_rejects_unsealed_artifacts_without_mutating_active_pointers(
     with pytest.raises(coordinator.web.InstallError, match="already-sealed"):
         coordinator.preflight(value)
     assert not list(coordinator.SEALED_ROOT.iterdir())
+
+
+def test_listener_policy_requires_an_explicit_approved_tls_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(coordinator.web, "no_tls_listener", lambda: True)
+    monkeypatch.setattr(coordinator.web, "approved_existing_self_signed_tls_listener", lambda: True)
+    assert coordinator.web.listener_policy({"tls_listener_policy": "http_only"})
+    assert coordinator.web.listener_policy({"tls_listener_policy": "approved_self_signed_existing"})
+    assert not coordinator.web.listener_policy({"tls_listener_policy": "unexpected"})
 
 
 def test_policy_requires_explicit_pre_activation_targets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

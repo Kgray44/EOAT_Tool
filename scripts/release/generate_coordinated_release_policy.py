@@ -130,6 +130,7 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
         "canonical_migration_sha256": canonical[1],
         "expected_active_api": args.expected_active_api,
         "expected_active_web": args.expected_active_web,
+        "tls_listener_policy": args.tls_listener_policy,
         "migration_plan": {"current_schema": args.current_schema, "target_schema": target, "revisions": plan},
     }
     if not SHA256.fullmatch(args.bundle_sha256) or not FULL_SHA.fullmatch(str(manifest["source_git_commit"])):
@@ -149,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--current-schema", required=True)
     parser.add_argument("--migration-revisions", required=True)
     parser.add_argument("--policy-artifact-root", default="/opt/eoat-atlas/incoming")
+    parser.add_argument("--tls-listener-policy", choices=("http_only", "approved_self_signed_existing"), default="http_only")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:

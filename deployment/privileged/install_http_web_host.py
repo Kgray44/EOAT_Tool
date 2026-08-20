@@ -253,6 +253,44 @@ def no_tls_listener() -> bool:
     return not any(re.search(r":443\s", line) for line in output.splitlines())
 
 
+def approved_existing_self_signed_tls_listener() -> bool:
+    """Accept only the documented EOAT TLS exception without broadening exposure."""
+    listeners = subprocess.run(["/usr/bin/ss", "-ltnp"], text=True, capture_output=True, check=True).stdout
+    protected = [line for line in listeners.splitlines() if re.search(r":(?:443|8443)\s", line)]
+    if not protected or not all('(\"nginx\"' in line for line in protected):
+        return False
+    nginx = subprocess.run(["/usr/sbin/nginx", "-T"], text=True, capture_output=True, check=False)
+    if nginx.returncode:
+        return False
+    required = {
+        "listen 443 ssl;",
+        "listen 8443 ssl;",
+        "ssl_certificate /etc/ssl/certs/eoat-atlas-test.crt;",
+        "ssl_certificate_key /etc/ssl/private/eoat-atlas-test.key;",
+    }
+    if not required.issubset(nginx.stdout):
+        return False
+    certificate = subprocess.run(
+        ["/usr/bin/openssl", "x509", "-in", "/etc/ssl/certs/eoat-atlas-test.crt", "-noout", "-subject", "-issuer"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if certificate.returncode:
+        return False
+    fields = dict(line.split("=", 1) for line in certificate.stdout.splitlines() if "=" in line)
+    return fields.get("subject") == fields.get("issuer") and bool(fields.get("subject"))
+
+
+def listener_policy(value: dict[str, object]) -> bool:
+    mode = value.get("tls_listener_policy", "http_only")
+    if mode == "http_only":
+        return no_tls_listener()
+    if mode == "approved_self_signed_existing":
+        return approved_existing_self_signed_tls_listener()
+    return False
+
+
 def nginx_worker_user() -> str:
     config = Path("/etc/nginx/nginx.conf").read_text(encoding="utf-8", errors="replace")
     match = re.search(r"^\s*user\s+([^\s;]+)", config, re.MULTILINE)
@@ -567,8 +605,8 @@ def acceptance(release: Path, policy: dict[str, object]) -> list[dict[str, objec
     header_text = headers.stdout.lower()
     if headers.returncode or "strict-transport-security:" in header_text or re.search(r"^location:\s*https://", header_text, re.MULTILINE):
         raise InstallError("HTTP-only acceptance failed")
-    if not api_loopback_only() or not mysql_loopback_only() or not no_tls_listener() or active_release() != policy["api_release"]:
-        raise InstallError("post-activation listener, HTTP-only, or release boundary failed")
+    if not api_loopback_only() or not mysql_loopback_only() or not listener_policy(policy) or active_release() != policy["api_release"]:
+        raise InstallError("post-activation listener or release boundary failed")
     api_health(policy)
     return checks
 

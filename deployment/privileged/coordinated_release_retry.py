@@ -1478,8 +1478,8 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
         environment = _migration_environment()
         if _staged_alembic_current(API_CURRENT.resolve(), environment) != migration_current:
             fail("production schema does not match the approved migration-plan start")
-    if not web.api_loopback_only() or not web.mysql_loopback_only() or not web.no_tls_listener():
-        fail("API, MySQL, or HTTP-only listener policy failed")
+    if not web.api_loopback_only() or not web.mysql_loopback_only() or not web.listener_policy(value):
+        fail("API, MySQL, or listener policy failed")
     nginx = subprocess.run(["/usr/sbin/nginx", "-t"], text=True, capture_output=True)
     if nginx.returncode:
         fail("nginx -t failed before coordinated deployment")
