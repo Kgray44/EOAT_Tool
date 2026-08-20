@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.4.3"
+HELPER_VERSION = "1.4.4"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -1757,7 +1757,11 @@ def activate(value: dict[str, object]) -> Path:
             if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
                 fail("rollback did not restore both prior release targets")
             web.request_check(
-                "rollback_homepage", "http://" + web.HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!"
+                "rollback_homepage",
+                web.acceptance_base_url(value) + "/",
+                200,
+                contains="EOAT",
+                excludes="Welcome to nginx!",
             )
             rollback_health = web.api_health({"schema": migration_current})
             if rollback_health.get("writes_enabled") is not False:

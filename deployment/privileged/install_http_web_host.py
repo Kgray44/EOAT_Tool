@@ -20,6 +20,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -572,8 +573,21 @@ def nginx_test_reload() -> None:
         raise InstallError("nginx reload failed: " + (reloaded.stderr + reloaded.stdout).strip())
 
 
+def acceptance_base_url(policy: dict[str, object]) -> str:
+    if policy.get("tls_listener_policy") == "approved_self_signed_existing":
+        return "https://" + HOST + ":8443"
+    return "http://" + HOST
+
+
 def request_check(name: str, url: str, expected: int, *, contains: str | None = None, excludes: str | None = None, json_body: bool = False, content_type_contains: str | None = None) -> dict[str, object]:
-    command = ["/usr/bin/curl", "--silent", "--show-error", "--location", "--max-redirs", "0", "--resolve", HOST + ":80:127.0.0.1", "-D", "-", "-o", "-", "-w", "\nEOAT_STATUS:%{http_code}\nEOAT_CONTENT_TYPE:%{content_type}\nEOAT_CURL_EXIT:%{exitcode}\n", url]
+    parsed = urlsplit(url)
+    if parsed.scheme == "https" and parsed.hostname == HOST and parsed.port == 8443:
+        transport = ["--insecure", "--resolve", HOST + ":8443:127.0.0.1"]
+    elif parsed.scheme == "http" and parsed.hostname == HOST and parsed.port is None:
+        transport = ["--resolve", HOST + ":80:127.0.0.1"]
+    else:
+        raise InstallError("acceptance URL uses an unapproved transport")
+    command = ["/usr/bin/curl", "--silent", "--show-error", "--location", "--max-redirs", "0", *transport, "-D", "-", "-o", "-", "-w", "\nEOAT_STATUS:%{http_code}\nEOAT_CONTENT_TYPE:%{content_type}\nEOAT_CURL_EXIT:%{exitcode}\n", url]
     completed = subprocess.run(command, text=True, capture_output=True)
     payload = completed.stdout
     status_match = re.search(r"EOAT_STATUS:(\d+)", payload)
@@ -589,21 +603,25 @@ def request_check(name: str, url: str, expected: int, *, contains: str | None = 
 
 def acceptance(release: Path, policy: dict[str, object]) -> list[dict[str, object]]:
     script, style = assert_static_assets(release)
-    checks = [request_check("homepage", "http://" + HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!", content_type_contains="text/html"), request_check("javascript", "http://" + HOST + "/" + script.lstrip("/"), 200, content_type_contains="javascript")]
+    base_url = acceptance_base_url(policy)
+    checks = [request_check("homepage", base_url + "/", 200, contains="EOAT", excludes="Welcome to nginx!", content_type_contains="text/html"), request_check("javascript", base_url + "/" + script.lstrip("/"), 200, content_type_contains="javascript")]
     if style:
-        checks.append(request_check("css", "http://" + HOST + "/" + style.lstrip("/"), 200, content_type_contains="text/css"))
+        checks.append(request_check("css", base_url + "/" + style.lstrip("/"), 200, content_type_contains="text/css"))
     checks.extend([
-        request_check("api_health", "http://" + HOST + "/api/v1/health", 200, json_body=True, excludes="<html"),
-        request_check("data_status", "http://" + HOST + "/api/v1/data-status", 200, json_body=True, excludes="<html"),
-        request_check("machine_27", "http://" + HOST + "/machines/27", 200, contains="EOAT", content_type_contains="text/html"),
-        request_check("frontend_refresh", "http://" + HOST + "/fit-check", 200, contains="EOAT"),
-        request_check("machine_27_web_photos", "http://" + HOST + "/api/v1/machines/27/web-photos", 200, json_body=True, excludes="<html"),
-        request_check("machine_27_web_documents", "http://" + HOST + "/api/v1/machines/27/web-documents", 200, json_body=True, excludes="<html"),
-        request_check("api_404", "http://" + HOST + "/api/v1/not-a-real-route", 404, json_body=True, excludes="<html"),
+        request_check("api_health", base_url + "/api/v1/health", 200, json_body=True, excludes="<html"),
+        request_check("data_status", base_url + "/api/v1/data-status", 200, json_body=True, excludes="<html"),
+        request_check("machine_27", base_url + "/machines/27", 200, contains="EOAT", content_type_contains="text/html"),
+        request_check("frontend_refresh", base_url + "/fit-check", 200, contains="EOAT"),
+        request_check("machine_27_web_photos", base_url + "/api/v1/machines/27/web-photos", 200, json_body=True, excludes="<html"),
+        request_check("machine_27_web_documents", base_url + "/api/v1/machines/27/web-documents", 200, json_body=True, excludes="<html"),
+        request_check("api_404", base_url + "/api/v1/not-a-real-route", 404, json_body=True, excludes="<html"),
     ])
     headers = subprocess.run(["/usr/bin/curl", "--silent", "--show-error", "--resolve", HOST + ":80:127.0.0.1", "-D", "-", "-o", "/dev/null", "http://" + HOST + "/"], text=True, capture_output=True)
     header_text = headers.stdout.lower()
-    if headers.returncode or "strict-transport-security:" in header_text or re.search(r"^location:\s*https://", header_text, re.MULTILINE):
+    if policy.get("tls_listener_policy") == "approved_self_signed_existing":
+        if headers.returncode or not re.search(r"^location:\s*https://", header_text, re.MULTILINE):
+            raise InstallError("approved HTTPS redirect acceptance failed")
+    elif headers.returncode or "strict-transport-security:" in header_text or re.search(r"^location:\s*https://", header_text, re.MULTILINE):
         raise InstallError("HTTP-only acceptance failed")
     if not api_loopback_only() or not mysql_loopback_only() or not listener_policy(policy) or active_release() != policy["api_release"]:
         raise InstallError("post-activation listener or release boundary failed")

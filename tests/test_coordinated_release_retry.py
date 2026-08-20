@@ -217,6 +217,14 @@ def test_listener_policy_requires_an_explicit_approved_tls_exception(monkeypatch
     assert not coordinator.web.listener_policy({"tls_listener_policy": "unexpected"})
 
 
+def test_approved_tls_exception_uses_only_the_pinned_loopback_https_listener() -> None:
+    assert coordinator.web.acceptance_base_url({"tls_listener_policy": "http_only"}) == "http://eoat-atlas.gwplastics.com"
+    assert (
+        coordinator.web.acceptance_base_url({"tls_listener_policy": "approved_self_signed_existing"})
+        == "https://eoat-atlas.gwplastics.com:8443"
+    )
+
+
 def test_approved_tls_listener_requires_each_nginx_declaration_as_a_substring(monkeypatch: pytest.MonkeyPatch) -> None:
     responses = iter(
         [
