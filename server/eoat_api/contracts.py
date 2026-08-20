@@ -25,6 +25,15 @@ class HealthResult(BaseModel):
     server_timestamp: datetime
 
 
+class DataStatus(BaseModel):
+    """Read-only freshness evidence for the normal browser shell."""
+
+    status: Literal["available"] = "available"
+    data_last_modified_at: datetime
+    server_time: datetime
+    data_revision: int = Field(ge=0)
+
+
 class LookupValue(BaseModel):
     code: str
     display_name: str

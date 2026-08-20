@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from server.eoat_api.app import app, repository
-from server.eoat_api.contracts import DocumentMetadata, EOATProfile, MachineProfile, PhotoMetadata, ToolProfile
+from server.eoat_api.app import app, repository, service
+from server.eoat_api.contracts import (
+    DataStatus,
+    DocumentMetadata,
+    EOATProfile,
+    MachineProfile,
+    PhotoMetadata,
+    ToolProfile,
+)
 from server.eoat_api.database.session import get_runtime_session
 
 
@@ -96,4 +103,26 @@ def test_normal_fit_check_options_are_a_read_only_browser_contract():
         "eoats": [],
         "warnings": [],
         "unresolved_inputs": [],
+    }
+
+
+def test_normal_browser_data_status_has_safe_freshness_evidence():
+    class _DataStatusService:
+        def data_status(self):
+            return DataStatus(
+                data_last_modified_at="2026-08-20T12:00:00Z",
+                data_revision=42,
+                server_time="2026-08-20T12:01:00Z",
+            )
+
+    app.dependency_overrides[service] = _DataStatusService
+    with TestClient(app) as client:
+        response = client.get("/api/v1/data-status")
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "available",
+        "data_last_modified_at": "2026-08-20T12:00:00Z",
+        "server_time": "2026-08-20T12:01:00Z",
+        "data_revision": 42,
     }

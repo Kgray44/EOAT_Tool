@@ -17,6 +17,7 @@ from .admin.operation_routes import router as admin_operation_router
 from .admin.routes import router as admin_router
 from .contracts import (
     CurrentEOATLocation,
+    DataStatus,
     EOATProfile,
     FitCheckOption,
     FitCheckRequest,
@@ -179,6 +180,11 @@ def health(svc: AtlasService = Depends(service)):
         api_version=API_VERSION,
         server_timestamp=datetime.now(timezone.utc),
     )
+
+
+@app.get("/api/v1/data-status", response_model=DataStatus)
+def data_status(svc: AtlasService = Depends(service)):
+    return svc.data_status()
 
 
 @app.get("/api/v1/version")

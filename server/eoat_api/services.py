@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from .contracts import (
+    DataStatus,
     FitCheckRequest,
     FitCheckResult,
     PairCompatibility,
@@ -192,6 +193,17 @@ class AtlasService:
             server_revision=SERVER_REVISION,
             current_cursor=cursor,
             compatible=revision == EXPECTED_SCHEMA_REVISION,
+        )
+
+    def data_status(self) -> DataStatus:
+        """Expose safe browser freshness metadata without opening a write path."""
+        now = datetime.now(timezone.utc)
+        revision = self.session.scalar(select(func.max(db.ChangeFeed.change_id))) or 0
+        last_modified = self.session.scalar(select(func.max(db.ChangeFeed.changed_at))) or now
+        return DataStatus(
+            data_last_modified_at=last_modified,
+            data_revision=revision,
+            server_time=now,
         )
 
     def changes(self, after_cursor: int, limit: int = 1000) -> SyncChangeBatch:

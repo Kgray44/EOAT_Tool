@@ -1106,6 +1106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/data-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Data Status */
+        get: operations["data_status_api_v1_data_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents": {
         parameters: {
             query?: never;
@@ -2867,6 +2884,30 @@ export interface components {
             password?: string | null;
             /** Rehearsal Step Up Secret */
             rehearsal_step_up_secret?: string | null;
+        };
+        /**
+         * DataStatus
+         * @description Read-only freshness evidence for the normal browser shell.
+         */
+        DataStatus: {
+            /**
+             * Data Last Modified At
+             * Format: date-time
+             */
+            data_last_modified_at: string;
+            /** Data Revision */
+            data_revision: number;
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /**
+             * Status
+             * @default available
+             * @constant
+             */
+            status: "available";
         };
         /** DocumentCreate */
         DocumentCreate: {
@@ -6264,6 +6305,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    data_status_api_v1_data_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataStatus"];
                 };
             };
         };
