@@ -723,6 +723,31 @@ def test_migration_archive_requires_each_approved_revision_once_and_untampered(t
         coordinator.validate_migration_archive(archive, ({"revision": "20260820_0013", "sha256": "a" * 64},))
 
 
+def test_migration_environment_prevents_root_bytecode_in_staged_release(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    profile = tmp_path / "migration.env"
+    profile.write_text(
+        "\n".join(
+            (
+                "EOAT_API_ENVIRONMENT=production",
+                "EOAT_API_WRITES_ENABLED=false",
+                "EOAT_DB_NAME=eoat_atlas_prod",
+                "EOAT_DB_HOST=127.0.0.1",
+                "EOAT_DB_PORT=3306",
+                "EOAT_DB_MIGRATION_USER=eoat_atlas_migrator",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(coordinator, "MIGRATION_ENVIRONMENT", profile)
+
+    environment = coordinator._migration_environment()
+
+    assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
+
+
 def test_migration_archive_requires_a_complete_dag_traversal_from_production_head(tmp_path: Path) -> None:
     archive = tmp_path / "server.zip"
     migrations = {

@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.4.5"
+HELPER_VERSION = "1.4.6"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -584,6 +584,11 @@ def _migration_environment() -> dict[str, str]:
         "HOME": "/root",
         "LANG": "C.UTF-8",
         "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        # Alembic is run as root against the staged immutable release tree.
+        # Writing __pycache__ there would invalidate the later service-owner
+        # attestation, so keep interpreter cache generation outside the
+        # governed release transaction entirely.
+        "PYTHONDONTWRITEBYTECODE": "1",
         **values,
     }
 
