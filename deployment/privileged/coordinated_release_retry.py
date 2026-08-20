@@ -1448,7 +1448,7 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
     """Read-only identity and service checks before staging or activation."""
     migration_current, migration_target, migration_revisions = migration_plan(value)
     if not _within(Path(str(value["bundle_path"])), SEALED_ROOT):
-        value = sealed_policy(value)
+        fail("preflight requires already-sealed coordinator artifacts")
     archive = Path(str(value["server_archive_path"]))
     manifest = Path(str(value["server_manifest_path"]))
     bundle = Path(str(value["bundle_path"]))

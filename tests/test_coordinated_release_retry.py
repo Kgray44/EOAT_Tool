@@ -184,12 +184,29 @@ def test_preflight_seals_then_uses_only_final_paths_without_changing_active_poin
         coordinator.subprocess, "run", lambda *_args, **_kwargs: type("Result", (), {"returncode": 0})()
     )
     before = (api_current.resolve(), web_current.resolve())
-    result = coordinator.preflight(value)
+    sealed_policy = coordinator.sealed_policy(value)
+    result = coordinator.preflight(sealed_policy)
     assert result["helper_version"] == "1.4.0"
     assert (api_current.resolve(), web_current.resolve()) == before
     sealed = coordinator.sealed_policy(value)
     assert Path(sealed["server_archive_path"]).is_relative_to(coordinator.SEALED_ROOT)
     assert Path(sealed["bundle_path"]).is_relative_to(coordinator.SEALED_ROOT)
+
+
+def test_preflight_rejects_unsealed_artifacts_without_mutating_active_pointers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    api, web = tmp_path / "api-current", tmp_path / "web-current"
+    api.mkdir()
+    web.mkdir()
+    value["expected_active_api"] = str(api)
+    value["expected_active_web"] = str(web)
+    monkeypatch.setattr(coordinator, "API_CURRENT", api)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web)
+    with pytest.raises(coordinator.web.InstallError, match="already-sealed"):
+        coordinator.preflight(value)
+    assert not list(coordinator.SEALED_ROOT.iterdir())
 
 
 def test_policy_requires_explicit_pre_activation_targets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
