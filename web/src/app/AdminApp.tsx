@@ -28,6 +28,7 @@ import {
 } from "../api/admin";
 import { ApiError } from "../api/errors";
 import { AuditDiff } from "../components/AuditDiff";
+import { formatTime } from "../lib/time";
 
 type Remote<T> =
   | { state: "loading" }
@@ -74,18 +75,6 @@ function useRemote<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return state;
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    timeZoneName: "short",
-  }).format(new Date(value));
 }
 
 function copy(value: string) {

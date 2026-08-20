@@ -99,6 +99,22 @@ def test_overview_recent_events_use_the_governed_tied_timestamp_order():
     assert [event.event_id for event in recent] == ["event-a", "event-z"]
 
 
+def test_utc_timestamp_round_trips_with_an_explicit_offset():
+    engine = create_engine("sqlite://")
+    db.AuditEvent.__table__.create(engine)
+    eastern_event_time = datetime(2026, 8, 20, 13, 9, 20, tzinfo=timezone(timedelta(hours=-4)))
+    try:
+        with Session(engine) as session:
+            session.add(audit_event("event-utc", eastern_event_time))
+            session.commit()
+            persisted = session.get(db.AuditEvent, sum(ord(character) for character in "event-utc"))
+            assert persisted is not None
+            assert persisted.occurred_at_utc == datetime(2026, 8, 20, 17, 9, 20, tzinfo=timezone.utc)
+            assert persisted.occurred_at_utc.tzinfo is timezone.utc
+    finally:
+        engine.dispose()
+
+
 def test_catalog_keeps_authorization_server_side_for_anonymous_viewer_and_admin():
     def anonymous():
         raise APIError(401, "UNKNOWN_IDENTITY", "A configured local identity is required.")
@@ -156,6 +172,10 @@ def test_audit_api_uses_server_filters_pagination_and_controlled_failures():
                 second_page = client.get("/api/v1/admin/audit/events?page=2&page_size=1")
                 assert first_page.status_code == second_page.status_code == 200
                 assert first_page.json()["items"][0]["event_id"] == "event-3"
+                # SQLite, like MySQL DATETIME, rehydrates a naive value.  The
+                # database UTC type must make that instant explicit on every
+                # API response so browsers do not interpret it as local time.
+                assert first_page.json()["items"][0]["occurred_at_utc"].endswith(("Z", "+00:00"))
                 assert second_page.json()["items"][0]["event_id"] == "event-2"
                 assert client.get("/api/v1/admin/audit/events?current_user_changes=true").json()["total"] == 1
                 assert client.get("/api/v1/admin/audit/events?administrative_events_only=true").json()["total"] == 1

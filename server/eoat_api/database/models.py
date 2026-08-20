@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -22,6 +22,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.mysql import BIGINT, MEDIUMTEXT
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 from .base import Base
 
@@ -29,10 +30,40 @@ PK = BIGINT(unsigned=True)
 UTC_DEFAULT = text("UTC_TIMESTAMP(6)")
 
 
+class UTCDateTime(TypeDecorator[datetime]):
+    """Store UTC wall-clock values and always return timezone-aware UTC datetimes.
+
+    MySQL's ``DATETIME`` deliberately does not preserve a timezone offset.  The
+    application has always written UTC values, but SQLAlchemy consequently
+    rehydrated them as naive datetimes and FastAPI serialized ambiguous ISO
+    strings.  Normalizing at this single database boundary keeps the database
+    representation in UTC while ensuring every API path identifies the instant
+    as UTC.
+    """
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        # Legacy MySQL values and server defaults are UTC wall-clock values.
+        # Treat an unannotated value the same way rather than applying a host
+        # or user-local timezone while persisting it.
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+    def process_result_value(self, value: datetime | None, dialect) -> datetime | None:
+        if value is None:
+            return None
+        return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=UTC_DEFAULT, onupdate=UTC_DEFAULT, nullable=False
+        UTCDateTime(), server_default=UTC_DEFAULT, onupdate=UTC_DEFAULT, nullable=False
     )
 
 
@@ -41,7 +72,7 @@ class VersionMixin(TimestampMixin):
     updated_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     row_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
-    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    archived_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     archived_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     source_system: Mapped[str] = mapped_column(String(64), server_default=text("'eoat_atlas'"), nullable=False)
     source_import_batch_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_batches.id", ondelete="SET NULL"))
@@ -96,8 +127,8 @@ class ImportBatch(Base):
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source_file_name: Mapped[str] = mapped_column(String(512), nullable=False)
     source_file_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     # Deliberately not an FK: import_batches must be creatable before users during
     # the first legacy import, and the actor may be an external administrator.
     started_by_user_id: Mapped[int | None] = mapped_column(PK)
@@ -108,7 +139,7 @@ class ImportBatch(Base):
     records_rejected: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
     warnings_count: Mapped[int] = mapped_column(Integer, server_default=text("0"), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class Plant(VersionMixin, Base):
@@ -142,7 +173,7 @@ class User(VersionMixin, Base):
     display_name: Mapped[str] = mapped_column(String(160), nullable=False)
     email: Mapped[str | None] = mapped_column(String(320))
     authentication_provider: Mapped[str | None] = mapped_column(String(64))
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class Role(TimestampMixin, Base):
@@ -160,9 +191,9 @@ class UserRole(Base):
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(PK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     role_id: Mapped[int] = mapped_column(PK, ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False)
-    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    assigned_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     assigned_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
-    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class DevelopmentIdentityMapping(VersionMixin, Base):
@@ -216,13 +247,13 @@ class CorporateUser(VersionMixin, Base):
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     canonical_identity: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(160), nullable=False)
-    first_successful_sign_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    last_successful_sign_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    first_successful_sign_in_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    last_successful_sign_in_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     sign_in_count: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
     explicit_role_code: Mapped[str | None] = mapped_column(String(64))
     explicit_denied: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
     access_reason: Mapped[str | None] = mapped_column(Text)
-    access_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    access_changed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     access_changed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
 
 
@@ -245,16 +276,16 @@ class CorporateAuthenticationSession(Base):
     # mapping.  This lets every protected request re-evaluate authorization
     # without retaining an unrelated directory-membership inventory.
     authorization_groups_json: Mapped[list[str] | None] = mapped_column(JSON)
-    authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    authenticated_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     revoke_reason: Mapped[str | None] = mapped_column(String(128))
-    fresh_authenticated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fresh_authenticated_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     fresh_auth_operation: Mapped[str | None] = mapped_column(String(96))
     fresh_auth_risk_class: Mapped[str | None] = mapped_column(String(32))
-    fresh_auth_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fresh_auth_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class CorporateAuthenticationEvent(Base):
@@ -265,7 +296,7 @@ class CorporateAuthenticationEvent(Base):
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     event_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     result: Mapped[str] = mapped_column(String(32), nullable=False)
     user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     provider: Mapped[str | None] = mapped_column(String(32))
@@ -287,10 +318,10 @@ class AdminRehearsalSession(Base):
     csrf_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     user_id: Mapped[int] = mapped_column(PK, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     environment: Mapped[str] = mapped_column(String(32), nullable=False)
-    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    issued_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     revoked_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     revoke_reason: Mapped[str | None] = mapped_column(String(512))
 
@@ -314,9 +345,9 @@ class AdminDangerStepUp(Base):
     )
     operation_type: Mapped[str] = mapped_column(String(96), nullable=False)
     risk_class: Mapped[str] = mapped_column(String(32), nullable=False)
-    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    issued_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class AdminOperation(Base):
@@ -337,15 +368,15 @@ class AdminOperation(Base):
     actor_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     target_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     preview_reference: Mapped[str | None] = mapped_column(String(36))
-    preview_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    preview_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     target_fingerprint: Mapped[str | None] = mapped_column(String(64))
     lock_key: Mapped[str | None] = mapped_column(String(128))
     correlation_id: Mapped[str | None] = mapped_column(String(64))
     result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     error_code: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class AdminOperationFixture(Base):
@@ -365,7 +396,7 @@ class AdminOperationFixture(Base):
     fixture_namespace: Mapped[str] = mapped_column(String(96), nullable=False)
     fixture_key: Mapped[str] = mapped_column(String(128), nullable=False)
     payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class ApplicationInstance(TimestampMixin, Base):
@@ -379,8 +410,8 @@ class ApplicationInstance(TimestampMixin, Base):
     application_version: Mapped[str] = mapped_column(String(64), nullable=False)
     launcher_version: Mapped[str | None] = mapped_column(String(64))
     operating_system: Mapped[str | None] = mapped_column(String(255))
-    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
-    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    registered_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
 
@@ -502,11 +533,11 @@ class MachineRobotAssignment(Base):
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     machine_id: Mapped[int] = mapped_column(PK, ForeignKey("machines.id", ondelete="RESTRICT"), nullable=False)
     robot_id: Mapped[int] = mapped_column(PK, ForeignKey("robots.id", ondelete="RESTRICT"), nullable=False)
-    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    assigned_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     assignment_reason: Mapped[str | None] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     created_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
 
 
@@ -553,10 +584,10 @@ class ToolPart(Base):
     tool_id: Mapped[int] = mapped_column(PK, ForeignKey("tools.id", ondelete="RESTRICT"), nullable=False)
     part_id: Mapped[int] = mapped_column(PK, ForeignKey("parts.id", ondelete="RESTRICT"), nullable=False)
     is_primary_part: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
-    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    effective_from: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    effective_to: Mapped[datetime | None] = mapped_column(UTCDateTime())
     notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     created_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
 
 
@@ -564,13 +595,13 @@ class CompatibilityMixin(VersionMixin):
     compatibility_status_id: Mapped[int] = mapped_column(
         PK, ForeignKey("compatibility_statuses.id", ondelete="RESTRICT"), nullable=False
     )
-    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     verified_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     verification_source_id: Mapped[int | None] = mapped_column(
         PK, ForeignKey("compatibility_sources.id", ondelete="SET NULL")
     )
-    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    effective_from: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    effective_to: Mapped[datetime | None] = mapped_column(UTCDateTime())
     reason: Mapped[str | None] = mapped_column(Text)
     conditions: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
@@ -657,7 +688,7 @@ class FitCheckRecord(Base):
         PK, ForeignKey("compatibility_statuses.id", ondelete="SET NULL")
     )
     evaluation_engine_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    performed_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     performed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     application_instance_id: Mapped[int | None] = mapped_column(
         PK, ForeignKey("application_instances.id", ondelete="SET NULL")
@@ -665,7 +696,7 @@ class FitCheckRecord(Base):
     request_id: Mapped[str] = mapped_column(String(36), nullable=False)
     result_summary: Mapped[str | None] = mapped_column(Text)
     result_details_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class EOATInstallation(TimestampMixin, Base):
@@ -683,9 +714,9 @@ class EOATInstallation(TimestampMixin, Base):
     machine_id: Mapped[int] = mapped_column(PK, ForeignKey("machines.id", ondelete="RESTRICT"), nullable=False)
     tool_id: Mapped[int | None] = mapped_column(PK, ForeignKey("tools.id", ondelete="SET NULL"))
     robot_id: Mapped[int | None] = mapped_column(PK, ForeignKey("robots.id", ondelete="SET NULL"))
-    installed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    installed_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     installed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
-    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     removed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     installation_reason: Mapped[str | None] = mapped_column(String(255))
     removal_reason: Mapped[str | None] = mapped_column(String(255))
@@ -718,13 +749,13 @@ class EOATStorageAssignment(Base):
     storage_location_id: Mapped[int] = mapped_column(
         PK, ForeignKey("storage_locations.id", ondelete="RESTRICT"), nullable=False
     )
-    stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    removed_from_storage_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stored_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    removed_from_storage_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     stored_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     removed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     reason: Mapped[str | None] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     active_eoat_marker: Mapped[int | None] = mapped_column(
         PK, Computed("CASE WHEN removed_from_storage_at IS NULL THEN eoat_id ELSE NULL END")
     )
@@ -753,8 +784,8 @@ class Document(VersionMixin, Base):
     file_size_bytes: Mapped[int | None] = mapped_column(PK)
     mime_type: Mapped[str | None] = mapped_column(String(255))
     status_id: Mapped[int | None] = mapped_column(PK, ForeignKey("asset_statuses.id", ondelete="SET NULL"))
-    effective_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    effective_from: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    superseded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     superseded_by_document_id: Mapped[int | None] = mapped_column(PK, ForeignKey("documents.id", ondelete="SET NULL"))
 
 
@@ -765,7 +796,7 @@ class Photo(TimestampMixin, Base):
         PK, ForeignKey("documents.id", ondelete="CASCADE"), unique=True, nullable=False
     )
     photo_view_type: Mapped[str | None] = mapped_column(String(64))
-    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    captured_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     captured_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     caption: Mapped[str | None] = mapped_column(Text)
     is_profile_photo: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
@@ -786,7 +817,7 @@ class DocumentLink(Base):
     entity_id: Mapped[int] = mapped_column(PK, nullable=False)
     relationship_type: Mapped[str] = mapped_column(String(64), nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     created_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
 
 
@@ -802,7 +833,7 @@ class AuditRecord(VersionMixin, Base):
     machine_id: Mapped[int | None] = mapped_column(PK, ForeignKey("machines.id", ondelete="SET NULL"))
     tool_id: Mapped[int | None] = mapped_column(PK, ForeignKey("tools.id", ondelete="SET NULL"))
     robot_id: Mapped[int | None] = mapped_column(PK, ForeignKey("robots.id", ondelete="SET NULL"))
-    audit_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    audit_date: Mapped[datetime | None] = mapped_column(UTCDateTime())
     performed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     status_id: Mapped[int | None] = mapped_column(PK, ForeignKey("asset_statuses.id", ondelete="SET NULL"))
     source_sheet: Mapped[str | None] = mapped_column(String(128))
@@ -825,7 +856,7 @@ class EntityHistoryEvent(Base):
     event_type_id: Mapped[int] = mapped_column(
         PK, ForeignKey("history_event_types.id", ondelete="RESTRICT"), nullable=False
     )
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     actor_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     application_instance_id: Mapped[int | None] = mapped_column(
         PK, ForeignKey("application_instances.id", ondelete="SET NULL")
@@ -844,7 +875,7 @@ class EntityHistoryEvent(Base):
     related_entity_id: Mapped[int | None] = mapped_column(PK)
     source_table: Mapped[str | None] = mapped_column(String(64))
     source_record_id: Mapped[int | None] = mapped_column(PK)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class AuditEvent(Base):
@@ -872,7 +903,7 @@ class AuditEvent(Base):
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     event_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     occurred_at_utc: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False
+        UTCDateTime(), server_default=UTC_DEFAULT, nullable=False
     )
     actor_type: Mapped[str] = mapped_column(String(32), nullable=False)
     actor_id: Mapped[str | None] = mapped_column(String(255))
@@ -896,7 +927,7 @@ class AuditEvent(Base):
     result: Mapped[str] = mapped_column(String(16), nullable=False)
     metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     schema_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class AuditChange(Base):
@@ -912,7 +943,7 @@ class AuditChange(Base):
     field_path: Mapped[str] = mapped_column(String(512), nullable=False)
     before_value_json: Mapped[Any | None] = mapped_column(JSON)
     after_value_json: Mapped[Any | None] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class ChangeAuditLog(Base):
@@ -925,7 +956,7 @@ class ChangeAuditLog(Base):
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     event_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     request_id: Mapped[str | None] = mapped_column(String(36))
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     actor_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     application_instance_id: Mapped[int | None] = mapped_column(
         PK, ForeignKey("application_instances.id", ondelete="SET NULL")
@@ -942,7 +973,7 @@ class ChangeAuditLog(Base):
     error_code: Mapped[str | None] = mapped_column(String(64))
     api_version: Mapped[str | None] = mapped_column(String(64))
     client_version: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class ChangeFeed(Base):
@@ -956,7 +987,7 @@ class ChangeFeed(Base):
     entity_id: Mapped[int] = mapped_column(PK, nullable=False)
     operation: Mapped[str] = mapped_column(String(32), nullable=False)
     entity_row_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     changed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     request_id: Mapped[str | None] = mapped_column(String(36))
 
@@ -980,7 +1011,7 @@ class ImportRow(Base):
     raw_values_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     normalized_values_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     error_summary: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class ImportIssue(Base):
@@ -997,10 +1028,10 @@ class ImportIssue(Base):
     source_value: Mapped[str | None] = mapped_column(MEDIUMTEXT)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     suggested_resolution: Mapped[str | None] = mapped_column(Text)
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     resolved_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     resolution_notes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class SystemSetting(VersionMixin, Base):
@@ -1073,9 +1104,9 @@ class EntityTag(Base):
         PK, ForeignKey("annotation_targets.id", ondelete="RESTRICT")
     )
     comment: Mapped[str | None] = mapped_column(Text)
-    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    assigned_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     assigned_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
-    removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     removed_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     row_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
     source_record_identifier: Mapped[str | None] = mapped_column(String(255), unique=True)
@@ -1119,7 +1150,7 @@ class AnnotationTargetLink(Base):
     annotation_target_id: Mapped[int] = mapped_column(
         PK, ForeignKey("annotation_targets.id", ondelete="CASCADE"), nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
 
 
 class MaintenanceEvent(VersionMixin, Base):
@@ -1136,8 +1167,8 @@ class MaintenanceEvent(VersionMixin, Base):
     machine_id: Mapped[int | None] = mapped_column(PK, ForeignKey("machines.id", ondelete="SET NULL"))
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     downtime_minutes: Mapped[int | None] = mapped_column(Integer)
     summary: Mapped[str] = mapped_column(String(512), nullable=False)
     details_json: Mapped[dict[str, Any] | None] = mapped_column(JSON)
@@ -1162,8 +1193,8 @@ class IdempotencyRecord(Base):
     result_entity_type: Mapped[str | None] = mapped_column(String(64))
     result_entity_id: Mapped[int | None] = mapped_column(PK)
     request_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=UTC_DEFAULT, nullable=False)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class CutoverSession(VersionMixin, Base):
@@ -1180,17 +1211,17 @@ class CutoverSession(VersionMixin, Base):
     cutover_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
     environment: Mapped[str] = mapped_column(String(64), nullable=False)
     source_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_snapshot_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_snapshot_timestamp: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     database_schema_revision: Mapped[str] = mapped_column(String(64), nullable=False)
     api_version: Mapped[str] = mapped_column(String(32), nullable=False)
     client_version: Mapped[str] = mapped_column(String(64), nullable=False)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     started_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    authority_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    rollback_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    rollback_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    rollback_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    authority_enabled_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    rollback_deadline: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    rollback_started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    rollback_completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     start_change_feed_cursor: Mapped[int] = mapped_column(PK, server_default=text("0"), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
