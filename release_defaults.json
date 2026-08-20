@@ -1,0 +1,17 @@
+{
+  "app_name": "EOAT Atlas",
+  "api_contract_version": "1.4.0",
+  "database_schema_revision": "20260820_0013",
+  "environment": "production",
+  "release_channel": "server",
+  "launcher_version": "0.1.0",
+  "installer_version": "0.1.0",
+  "minimum_supported_installer_version": "0.1.0",
+  "minimum_supported_launcher_version": "0.1.0",
+  "metadata_schema_version": 2,
+  "cache_schema_version": 1,
+  "globalization_sqlite_schema_version": 1,
+  "api_cache_schema_version": 4,
+  "config_schema_version": 1,
+  "event_schema_version": 1
+}

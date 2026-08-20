@@ -1,0 +1,433 @@
+{
+  "schema_version": 1,
+  "releases": [
+    {
+      "application_version": "0.9.1",
+      "release_id": "eoat-atlas-0.9.1",
+      "state": "historical",
+      "task_id": "pre-ledger-history",
+      "finalized_at_utc": null
+    },
+    {
+      "application_version": "0.10.0",
+      "release_id": "eoat-atlas-0.10.0",
+      "state": "finalized",
+      "task_id": "phase10-provider-independent-foundation-20260715",
+      "finalized_at_utc": "2026-07-15T13:48:37Z"
+    },
+    {
+      "application_version": "0.11.0",
+      "release_id": "eoat-atlas-0.11.0",
+      "state": "finalized",
+      "task_id": "codex-mysql-excel-parity-verifier-20260715",
+      "finalized_at_utc": "2026-07-15T13:55:52Z"
+    },
+    {
+      "application_version": "0.12.0",
+      "release_id": "eoat-atlas-0.12.0",
+      "state": "finalized",
+      "task_id": "codex-automatic-version-enforcement-20260715",
+      "finalized_at_utc": "2026-07-15T14:04:17Z"
+    },
+    {
+      "application_version": "0.13.0",
+      "release_id": "eoat-atlas-0.13.0",
+      "build_id": "eoat-atlas-0.13.0-dc3f0f7-20260715T150437Z",
+      "commit_sha": "dc3f0f7cd9dda512345f5e4cc96968997fa67aad",
+      "state": "finalized",
+      "task_id": "codex-project-wide-release-propagation-20260715",
+      "finalized_at_utc": "2026-07-15T15:04:37Z"
+    },
+    {
+      "application_version": "0.13.1",
+      "release_id": "eoat-atlas-0.13.1",
+      "build_id": "eoat-atlas-0.13.1-b501665-20260715T162009Z",
+      "commit_sha": "b501665b1cdabb8d37104e2a06dba98fdad07d48",
+      "state": "finalized",
+      "task_id": "codex-mysql-migration-e2e-validation-20260715",
+      "finalized_at_utc": "2026-07-15T16:20:09Z"
+    },
+    {
+      "application_version": "0.14.0",
+      "release_id": "eoat-atlas-0.14.0",
+      "build_id": "eoat-atlas-0.14.0-6c5b65b-20260715T185824Z",
+      "commit_sha": "6c5b65b83c0410810da2b11937cc1944a30d72f1",
+      "state": "finalized",
+      "task_id": "codex-full-stabilization-20260715",
+      "finalized_at_utc": "2026-07-15T18:58:24Z"
+    },
+    {
+      "application_version": "0.15.0",
+      "release_id": "eoat-atlas-0.15.0",
+      "build_id": "eoat-atlas-0.15.0-af7d1bb-20260715T213131Z",
+      "commit_sha": "af7d1bba359dc47156a003629aad32d6f474c696",
+      "state": "finalized",
+      "task_id": "codex-history-sanitization-and-release-qualification-20260715",
+      "finalized_at_utc": "2026-07-15T21:31:31Z"
+    },
+    {
+      "application_version": "0.15.1",
+      "release_id": "eoat-atlas-0.15.1",
+      "state": "finalized",
+      "task_id": "fix-release-provenance-20260716",
+      "finalized_at_utc": "2026-07-16T20:07:50Z"
+    },
+    {
+      "application_version": "0.15.2",
+      "release_id": "eoat-atlas-0.15.2",
+      "state": "finalized",
+      "task_id": "state-aware-eoat-location-parity-20260717",
+      "finalized_at_utc": "2026-07-17T18:38:23Z"
+    },
+    {
+      "application_version": "0.17.0",
+      "release_id": "eoat-atlas-0.17.0",
+      "state": "finalized",
+      "task_id": "observed-eoat-location-model-20260717",
+      "finalized_at_utc": "2026-07-17T19:29:06Z"
+    },
+    {
+      "application_version": "0.17.1",
+      "release_id": "eoat-atlas-0.17.1",
+      "state": "finalized",
+      "task_id": "codex-production-observed-location-correction-20260720",
+      "finalized_at_utc": "2026-07-20T19:08:40Z"
+    },
+    {
+      "application_version": "0.17.2",
+      "release_id": "eoat-atlas-0.17.2",
+      "state": "finalized",
+      "task_id": "codex-safe-github-publication-20260720",
+      "finalized_at_utc": "2026-07-20T20:01:57Z"
+    },
+    {
+      "application_version": "0.17.3",
+      "release_id": "eoat-atlas-0.17.3",
+      "state": "finalized",
+      "task_id": "release-manager-0.17.3",
+      "finalized_at_utc": "2026-07-21T20:56:10Z"
+    },
+    {
+      "application_version": "0.18.0",
+      "release_id": "eoat-atlas-0.18.0",
+      "state": "finalized",
+      "task_id": "web-phase1-eoat-qr-profile",
+      "finalized_at_utc": "2026-07-21T21:29:34Z"
+    },
+    {
+      "application_version": "0.19.0",
+      "release_id": "eoat-atlas-0.19.0",
+      "state": "finalized",
+      "task_id": "web-phase2-read-only-discovery",
+      "finalized_at_utc": "2026-07-21T22:34:09Z"
+    },
+    {
+      "application_version": "0.20.0",
+      "release_id": "eoat-atlas-0.20.0",
+      "state": "finalized",
+      "task_id": "web-phase3-production-hosting",
+      "finalized_at_utc": "2026-07-22T14:32:00Z"
+    },
+    {
+      "application_version": "0.20.1",
+      "release_id": "eoat-atlas-0.20.1",
+      "state": "finalized",
+      "task_id": "codex-web-phase3-deploy-fix-20260722",
+      "finalized_at_utc": "2026-07-22T14:58:12Z"
+    },
+    {
+      "application_version": "0.20.2",
+      "release_id": "eoat-atlas-0.20.2",
+      "state": "finalized",
+      "task_id": "codex-web-http-canary-template-20260722",
+      "finalized_at_utc": "2026-07-22T19:35:08Z"
+    },
+    {
+      "application_version": "0.20.3",
+      "release_id": "eoat-atlas-0.20.3",
+      "state": "finalized",
+      "task_id": "eoat-http-web-host-installer-20260724",
+      "finalized_at_utc": "2026-07-24T13:21:39Z"
+    },
+    {
+      "application_version": "0.20.4",
+      "release_id": "eoat-atlas-0.20.4",
+      "state": "finalized",
+      "task_id": "eoat-http-web-host-installer-token-file-fix-20260724",
+      "finalized_at_utc": "2026-07-24T13:38:36Z"
+    },
+    {
+      "application_version": "0.20.5",
+      "release_id": "eoat-atlas-0.20.5",
+      "state": "finalized",
+      "task_id": "eoat-http-web-host-installer-api-readiness-and-conflict-fix-20260724",
+      "finalized_at_utc": "2026-07-24T13:50:13Z"
+    },
+    {
+      "application_version": "0.20.6",
+      "release_id": "eoat-atlas-0.20.6",
+      "state": "finalized",
+      "task_id": "eoat-http-web-host-static-staging-fix-20260724",
+      "finalized_at_utc": "2026-07-24T13:58:24Z"
+    },
+    {
+      "application_version": "0.21.0",
+      "release_id": "eoat-atlas-0.21.0",
+      "state": "finalized",
+      "task_id": "http-web-host-redesign-20260724",
+      "finalized_at_utc": "2026-07-24T14:57:57Z"
+    },
+    {
+      "application_version": "0.22.0",
+      "release_id": "eoat-atlas-0.22.0",
+      "state": "finalized",
+      "task_id": "machine-profile-vertical-slice-20260724",
+      "finalized_at_utc": "2026-07-24T18:47:37Z"
+    },
+    {
+      "application_version": "0.22.1",
+      "release_id": "eoat-atlas-0.22.1",
+      "state": "finalized",
+      "task_id": "reconcile-machine-profile-schema-0008-20260724",
+      "finalized_at_utc": "2026-07-24T20:03:06Z"
+    },
+    {
+      "application_version": "0.22.2",
+      "release_id": "eoat-atlas-0.22.2",
+      "state": "finalized",
+      "task_id": "deterministic-migration-packaging-20260724",
+      "finalized_at_utc": "2026-07-24T20:22:53Z"
+    },
+    {
+      "application_version": "0.22.3",
+      "release_id": "eoat-atlas-0.22.3",
+      "state": "finalized",
+      "task_id": "deterministic-migration-zip-bytes-20260724",
+      "finalized_at_utc": "2026-07-24T20:36:43Z"
+    },
+    {
+      "application_version": "0.22.4",
+      "release_id": "eoat-atlas-0.22.4",
+      "state": "finalized",
+      "task_id": "legacy-migration-attestation-20260724",
+      "finalized_at_utc": "2026-07-24T21:03:55Z"
+    },
+    {
+      "application_version": "0.22.5",
+      "release_id": "eoat-atlas-0.22.5",
+      "state": "finalized",
+      "task_id": "package-migration-attestation-20260725",
+      "finalized_at_utc": "2026-07-25T13:34:56Z"
+    },
+    {
+      "application_version": "0.22.6",
+      "release_id": "eoat-atlas-0.22.6",
+      "state": "finalized",
+      "task_id": "coordinated-machine-profile-relationship-0.22.6",
+      "finalized_at_utc": "2026-07-25T15:58:48Z"
+    },
+    {
+      "application_version": "0.22.7",
+      "release_id": "eoat-atlas-0.22.7",
+      "state": "finalized",
+      "task_id": "coordinated-live-console-acceptance-0.22.7",
+      "finalized_at_utc": "2026-07-25T16:44:00Z"
+    },
+    {
+      "application_version": "0.22.8",
+      "release_id": "eoat-atlas-0.22.8",
+      "state": "finalized",
+      "task_id": "generic-machine-profile-browser-boundary-0.22.8",
+      "finalized_at_utc": "2026-07-25T18:49:11Z"
+    },
+    {
+      "application_version": "0.22.9",
+      "release_id": "eoat-atlas-0.22.9",
+      "state": "finalized",
+      "task_id": "main-convergence-ci-gates-0.22.9",
+      "finalized_at_utc": "2026-07-25T19:26:28Z"
+    },
+    {
+      "application_version": "0.22.10",
+      "release_id": "eoat-atlas-0.22.10",
+      "state": "finalized",
+      "task_id": "main-convergence-windows-root-harness-0.22.10",
+      "finalized_at_utc": "2026-07-25T19:45:47Z"
+    },
+    {
+      "application_version": "0.22.11",
+      "release_id": "eoat-atlas-0.22.11",
+      "state": "finalized",
+      "task_id": "main-convergence-packaged-release-notes-0.22.11",
+      "finalized_at_utc": "2026-07-25T19:53:35Z"
+    },
+    {
+      "application_version": "0.22.12",
+      "release_id": "eoat-atlas-0.22.12",
+      "state": "finalized",
+      "task_id": "main-convergence-bash-command-doubles-0.22.12",
+      "finalized_at_utc": "2026-07-25T20:02:13Z"
+    },
+    {
+      "application_version": "0.23.0",
+      "release_id": "eoat-atlas-0.23.0",
+      "state": "finalized",
+      "task_id": "codex-project-mirrorline-phase2-20260727",
+      "finalized_at_utc": "2026-07-27T18:16:24Z"
+    },
+    {
+      "application_version": "0.23.1",
+      "release_id": "eoat-atlas-0.23.1",
+      "state": "finalized",
+      "task_id": "codex-project-mirrorline-exhaustive-parity-20260727",
+      "finalized_at_utc": "2026-07-27T19:39:36Z"
+    },
+    {
+      "application_version": "0.23.2",
+      "release_id": "eoat-atlas-0.23.2",
+      "state": "finalized",
+      "task_id": "codex-project-mirrorline-composition-corrections-20260727",
+      "finalized_at_utc": "2026-07-27T21:26:31Z"
+    },
+    {
+      "application_version": "0.23.3",
+      "release_id": "eoat-atlas-0.23.3",
+      "state": "finalized",
+      "task_id": "codex-project-mirrorline-final-integration-20260727",
+      "finalized_at_utc": "2026-07-27T22:29:49Z"
+    },
+    {
+      "application_version": "0.23.4",
+      "release_id": "eoat-atlas-0.23.4",
+      "state": "finalized",
+      "task_id": "codex-mirrorline-sentinel-and-rollback-hotfix-20260728",
+      "finalized_at_utc": "2026-07-28T12:27:22Z"
+    },
+    {
+      "application_version": "0.23.5",
+      "release_id": "eoat-atlas-0.23.5",
+      "state": "finalized",
+      "task_id": "codex-coordinator-artifact-sealing-hotfix-20260728",
+      "finalized_at_utc": "2026-07-28T13:35:03Z"
+    },
+    {
+      "application_version": "0.23.6",
+      "release_id": "eoat-atlas-0.23.6",
+      "state": "finalized",
+      "task_id": "coordinator-sealed-receipt-path-hotfix-20260728",
+      "finalized_at_utc": "2026-07-28T15:11:35Z"
+    },
+    {
+      "application_version": "0.24.0",
+      "release_id": "eoat-atlas-0.24.0",
+      "state": "finalized",
+      "task_id": "unified-release-train-0.24.0",
+      "finalized_at_utc": "2026-07-27T12:25:15Z"
+    },
+    {
+      "application_version": "0.24.1",
+      "release_id": "eoat-atlas-0.24.1",
+      "state": "finalized",
+      "task_id": "codex-machine-assignment-and-rollback-compatibility-hotfix-20260728",
+      "finalized_at_utc": "2026-07-28T17:57:40Z"
+    },
+    {
+      "application_version": "0.25.0",
+      "release_id": "eoat-atlas-0.25.0",
+      "state": "finalized",
+      "task_id": "eoat-physical-identity-66-20260729",
+      "finalized_at_utc": "2026-07-29T21:10:43Z"
+    },
+    {
+      "application_version": "0.25.1",
+      "release_id": "eoat-atlas-0.25.1",
+      "state": "finalized",
+      "task_id": "mirrorline-functional-parity-0.25.1-20260729",
+      "finalized_at_utc": "2026-07-29T22:31:10Z"
+    },
+    {
+      "application_version": "0.26.0",
+      "release_id": "eoat-atlas-0.26.0",
+      "state": "finalized",
+      "task_id": "web-desktop-full-parity-20260810",
+      "finalized_at_utc": "2026-08-10T16:11:05Z"
+    },
+    {
+      "application_version": "0.26.1",
+      "release_id": "eoat-atlas-0.26.1",
+      "state": "finalized",
+      "task_id": "codex-release-contract-drift-20260810",
+      "finalized_at_utc": "2026-08-10T21:05:45Z"
+    },
+    {
+      "application_version": "0.26.2",
+      "release_id": "eoat-atlas-0.26.2",
+      "state": "finalized",
+      "task_id": "codex-staging-kerberos-form-hotfix-20260810",
+      "finalized_at_utc": "2026-08-10T22:08:30Z"
+    },
+    {
+      "application_version": "0.26.3",
+      "release_id": "eoat-atlas-0.26.3",
+      "state": "finalized",
+      "task_id": "codex-staging-uat-parity-remediation-20260811",
+      "finalized_at_utc": "2026-08-11T12:44:54Z"
+    },
+    {
+      "application_version": "0.26.4",
+      "release_id": "eoat-atlas-0.26.4",
+      "state": "finalized",
+      "task_id": "codex-staging-auth-dock-layout-fix-20260811",
+      "finalized_at_utc": "2026-08-11T12:57:19Z"
+    },
+    {
+      "application_version": "0.26.5",
+      "release_id": "eoat-atlas-0.26.5",
+      "state": "finalized",
+      "task_id": "codex-staging-profile-action-menu-20260811",
+      "finalized_at_utc": "2026-08-11T13:08:23Z"
+    },
+    {
+      "application_version": "0.26.6",
+      "release_id": "eoat-atlas-0.26.6",
+      "state": "finalized",
+      "task_id": "codex-staging-fit-check-profile-overlay-20260811",
+      "finalized_at_utc": "2026-08-11T13:27:21Z"
+    },
+    {
+      "application_version": "0.26.7",
+      "release_id": "eoat-atlas-0.26.7",
+      "state": "finalized",
+      "task_id": "codex-staging-profile-action-portal-20260811",
+      "finalized_at_utc": "2026-08-11T13:35:49Z"
+    },
+    {
+      "application_version": "0.26.8",
+      "release_id": "eoat-atlas-0.26.8",
+      "state": "finalized",
+      "task_id": "codex-staging-settings-session-light-library-20260811",
+      "finalized_at_utc": "2026-08-11T13:48:44Z"
+    },
+    {
+      "application_version": "0.26.9",
+      "release_id": "eoat-atlas-0.26.9",
+      "state": "finalized",
+      "task_id": "codex-staging-light-home-search-20260811",
+      "finalized_at_utc": "2026-08-11T13:58:14Z"
+    },
+    {
+      "application_version": "0.26.10",
+      "release_id": "eoat-atlas-0.26.10",
+      "state": "finalized",
+      "task_id": "codex-staging-uat-parity-e2e-20260811",
+      "finalized_at_utc": "2026-08-11T14:10:27Z"
+    },
+    {
+      "application_version": "0.26.11",
+      "release_id": "eoat-atlas-0.26.11",
+      "state": "finalized",
+      "task_id": "eoat-admin-release-lineage-reconciliation-20260820",
+      "finalized_at_utc": "2026-08-20T19:13:15Z"
+    }
+  ]
+}
