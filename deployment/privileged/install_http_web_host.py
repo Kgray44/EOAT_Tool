@@ -47,7 +47,7 @@ FORBIDDEN_CONTENT = (b"EOAT_API_DEVICE_TOKEN", b"X-EOAT-Device-Token", b"mysql:/
 DEVELOPMENT_API_URL = re.compile(rb"https?://(?:localhost|127[.]0[.]0[.]1)(?::[0-9]+)?/api(?:/|[^A-Za-z0-9_-])", re.I)
 FORBIDDEN_PATH_PARTS = {"node_modules"}
 FORBIDDEN_SUFFIXES = {".map", ".env", ".pem", ".key"}
-WEB_HOST_HELPER_VERSION = "1.1.0"
+WEB_HOST_HELPER_VERSION = "1.1.1"
 
 
 def sha256(path: Path) -> str:
@@ -257,7 +257,10 @@ def no_tls_listener() -> bool:
 def approved_existing_self_signed_tls_listener() -> bool:
     """Accept only the documented EOAT TLS exception without broadening exposure."""
     listeners = subprocess.run(["/usr/bin/ss", "-ltnp"], text=True, capture_output=True, check=True).stdout
-    protected = [line for line in listeners.splitlines() if re.search(r":(?:443|8443)\s", line)]
+    # The production virtual host is the existing HTTPS listener on 443.  The
+    # separately isolated 8443 staging listener must never be used as release
+    # acceptance evidence for the production current pointer.
+    protected = [line for line in listeners.splitlines() if re.search(r":443\s", line)]
     if not protected or not all('(\"nginx\"' in line for line in protected):
         return False
     nginx = subprocess.run(["/usr/sbin/nginx", "-T"], text=True, capture_output=True, check=False)
@@ -265,7 +268,6 @@ def approved_existing_self_signed_tls_listener() -> bool:
         return False
     required = {
         "listen 443 ssl;",
-        "listen 8443 ssl;",
         "ssl_certificate /etc/ssl/certs/eoat-atlas-test.crt;",
         "ssl_certificate_key /etc/ssl/private/eoat-atlas-test.key;",
     }
@@ -575,14 +577,14 @@ def nginx_test_reload() -> None:
 
 def acceptance_base_url(policy: dict[str, object]) -> str:
     if policy.get("tls_listener_policy") == "approved_self_signed_existing":
-        return "https://" + HOST + ":8443"
+        return "https://" + HOST
     return "http://" + HOST
 
 
 def request_check(name: str, url: str, expected: int, *, contains: str | None = None, excludes: str | None = None, json_body: bool = False, content_type_contains: str | None = None) -> dict[str, object]:
     parsed = urlsplit(url)
-    if parsed.scheme == "https" and parsed.hostname == HOST and parsed.port == 8443:
-        transport = ["--insecure", "--resolve", HOST + ":8443:127.0.0.1"]
+    if parsed.scheme == "https" and parsed.hostname == HOST and parsed.port in (None, 443):
+        transport = ["--insecure", "--resolve", HOST + ":443:127.0.0.1"]
     elif parsed.scheme == "http" and parsed.hostname == HOST and parsed.port is None:
         transport = ["--resolve", HOST + ":80:127.0.0.1"]
     else:

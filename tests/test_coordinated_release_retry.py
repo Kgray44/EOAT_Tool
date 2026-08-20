@@ -217,19 +217,41 @@ def test_listener_policy_requires_an_explicit_approved_tls_exception(monkeypatch
     assert not coordinator.web.listener_policy({"tls_listener_policy": "unexpected"})
 
 
-def test_approved_tls_exception_uses_only_the_pinned_loopback_https_listener() -> None:
+def test_approved_tls_exception_uses_the_production_tls_listener() -> None:
     assert coordinator.web.acceptance_base_url({"tls_listener_policy": "http_only"}) == "http://eoat-atlas.gwplastics.com"
     assert (
         coordinator.web.acceptance_base_url({"tls_listener_policy": "approved_self_signed_existing"})
-        == "https://eoat-atlas.gwplastics.com:8443"
+        == "https://eoat-atlas.gwplastics.com"
     )
+
+
+def test_approved_tls_request_is_pinned_to_loopback_port_443(monkeypatch: pytest.MonkeyPatch) -> None:
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        coordinator.web.subprocess,
+        "run",
+        lambda command, **_kwargs: commands.append(command)
+        or type(
+            "Result",
+            (),
+            {
+                "stdout": "HTTP/1.1 200 OK\nContent-Type: text/html\n\nEOAT_STATUS:200\nEOAT_CONTENT_TYPE:text/html\n",
+                "returncode": 0,
+            },
+        )(),
+    )
+
+    coordinator.web.request_check("fixture", "https://eoat-atlas.gwplastics.com/", 200)
+
+    assert "eoat-atlas.gwplastics.com:443:127.0.0.1" in commands[0]
+    assert not any("8443" in item for item in commands[0])
 
 
 def test_approved_tls_listener_requires_each_nginx_declaration_as_a_substring(monkeypatch: pytest.MonkeyPatch) -> None:
     responses = iter(
         [
             type("Result", (), {"stdout": 'LISTEN 0 511 0.0.0.0:443 0.0.0.0:* users:(("nginx",pid=1))\n', "returncode": 0})(),
-            type("Result", (), {"stdout": "listen 443 ssl;\nlisten 8443 ssl;\nssl_certificate /etc/ssl/certs/eoat-atlas-test.crt;\nssl_certificate_key /etc/ssl/private/eoat-atlas-test.key;", "returncode": 0})(),
+            type("Result", (), {"stdout": "listen 443 ssl;\nssl_certificate /etc/ssl/certs/eoat-atlas-test.crt;\nssl_certificate_key /etc/ssl/private/eoat-atlas-test.key;", "returncode": 0})(),
             type("Result", (), {"stdout": "subject=CN=eoat\nissuer=CN=eoat\n", "returncode": 0})(),
         ]
     )
