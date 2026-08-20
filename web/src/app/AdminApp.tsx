@@ -22,7 +22,6 @@ import {
   type AuditList,
   type AuditValue,
 } from "../api/admin";
-import { apiClient } from "../api/client";
 import { ApiError } from "../api/errors";
 import { AuditDiff } from "../components/AuditDiff";
 
@@ -1010,8 +1009,8 @@ function SessionGate({ onReady }: { onReady: () => void }) {
       return;
     }
     let active = true;
-    void apiClient
-      .getAuthenticatedSession()
+    void adminApi
+      .corporateSession()
       .then((session) => {
         if (!active) return;
         setCorporateSession(

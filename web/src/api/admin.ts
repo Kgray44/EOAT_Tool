@@ -1,3 +1,5 @@
+import { apiClient, type AuthenticatedSession } from "./client";
+
 export type AuditValue =
   | string
   | number
@@ -322,17 +324,27 @@ async function adminDownload(
 }
 
 export const adminApi = {
+  corporateSession: async (): Promise<AuthenticatedSession> => {
+    const session = await apiClient.getAuthenticatedSession();
+    csrfToken = cookieValue("eoat_corporate_csrf");
+    rehearsalIdentity = undefined;
+    return session;
+  },
   corporateStatus: () =>
     adminFetch<{
       provider: string | null;
-      status: "ready" | "degraded" | "unavailable" | "misconfigured" | "unknown";
+      status:
+        "ready" | "degraded" | "unavailable" | "misconfigured" | "unknown";
       mapping_configured: boolean;
     }>("/api/v1/auth/status"),
   corporateLogin: async (username: string, password: string): Promise<void> => {
     const response = await fetch(`${apiBase}/api/v1/auth/kerberos-form/login`, {
       method: "POST",
       credentials: "include",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ username, password }),
     });
     const body = (await response.json().catch(() => null)) as {
@@ -574,7 +586,10 @@ export const adminApi = {
       sections,
       request_id: requestId ?? null,
     }),
-  dangerStepUp: (payload: { rehearsal_step_up_secret?: string; password?: string }) =>
+  dangerStepUp: (payload: {
+    rehearsal_step_up_secret?: string;
+    password?: string;
+  }) =>
     adminPost<{
       step_up_reference: string;
       expires_at: string;
