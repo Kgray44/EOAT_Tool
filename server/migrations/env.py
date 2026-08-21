@@ -127,6 +127,46 @@ def _phase_head_has_verified_production_mapping(connection) -> bool:
     return True
 
 
+def _group_mapping_was_created_on_the_other_merged_lineage(connection) -> bool:
+    """Permit only the duplicate historic CREATE in a fresh merge traversal.
+
+    20260813_0009 created this exact table before the later merge traverses
+    20260714_0005. Newer migration DDL is intentionally not included here.
+    """
+    revisions = {row[0] for row in connection.execute(text("SELECT version_num FROM alembic_version"))}
+    # Alembic stores the branch head, not every ancestor.  0012 is the only
+    # valid Admin-lineage head at this point and therefore entails 0009.
+    if revisions != {_ADMIN_HEAD}:
+        return False
+    required_columns = {
+        "id",
+        "provider",
+        "external_group_identifier",
+        "role_code",
+        "explicit_deny",
+        "is_active",
+        "created_at",
+        "updated_at",
+    }
+    columns = {
+        row[0]
+        for row in connection.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = DATABASE() AND table_name = 'external_group_role_mappings'"
+            )
+        )
+    }
+    unique_constraint = connection.execute(
+        text(
+            "SELECT COUNT(*) FROM information_schema.table_constraints "
+            "WHERE table_schema = DATABASE() AND table_name = 'external_group_role_mappings' "
+            "AND constraint_name = 'uq_external_group_role' AND constraint_type = 'UNIQUE'"
+        )
+    ).scalar_one()
+    return required_columns.issubset(columns) and unique_constraint == 1
+
+
 def _install_phase_schema_adoption_guard(connection) -> None:
     """Adopt only pre-verified Phase 5 DDL; retain every migration revision/DML."""
     adopt_full_phase_schema = _phase_schema_is_verified_adoption(connection)
@@ -135,6 +175,10 @@ def _install_phase_schema_adoption_guard(connection) -> None:
         normalized = statement.lstrip().upper()
         if adopt_full_phase_schema and normalized.startswith(("CREATE ", "ALTER TABLE")):
             return "SELECT 1 /* verified existing Phase 5 schema adoption */", parameters
+        if normalized.startswith("CREATE TABLE EXTERNAL_GROUP_ROLE_MAPPINGS") and _group_mapping_was_created_on_the_other_merged_lineage(
+            _connection
+        ):
+            return "SELECT 1 /* duplicate historical group mapping create after 0009 */", parameters
         if normalized.startswith("CREATE TABLE EXTERNAL_GROUP_ROLE_MAPPINGS") and _phase_head_has_verified_production_mapping(
             _connection
         ):

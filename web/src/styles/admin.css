@@ -422,6 +422,39 @@ th {
   font-weight: 700;
   padding: 0.55rem 0.8rem;
 }
+.secondary-button {
+  background: #fff;
+  border: 1px solid #557da0;
+  border-radius: 0.3rem;
+  color: #173e62;
+  font-weight: 700;
+  padding: 0.55rem 0.8rem;
+}
+.secondary-button:hover {
+  background: #eaf1f8;
+}
+.destructive-button {
+  background: #b42318;
+  border: 1px solid #8d1b13;
+  border-radius: 0.3rem;
+  color: #fff;
+  font-weight: 700;
+  padding: 0.55rem 0.8rem;
+}
+.destructive-button:hover {
+  background: #8d1b13;
+}
+.primary-button:disabled,
+.secondary-button:disabled,
+.destructive-button:disabled,
+button:disabled {
+  background: #e8eef5;
+  border-color: #c8d3df;
+  color: #718196;
+  cursor: not-allowed;
+  opacity: 1;
+  pointer-events: none;
+}
 .primary-button:disabled,
 .editor-actions button:disabled {
   cursor: not-allowed;
@@ -507,6 +540,130 @@ th {
   display: grid;
   gap: 1rem;
 }
+.admin-settings-workspace {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.admin-settings-nav {
+  display: grid;
+  gap: 0.35rem;
+  position: sticky;
+  top: 1rem;
+}
+.admin-settings-nav button {
+  background: #fff;
+  border: 1px solid #d5e0e9;
+  border-radius: 0.35rem;
+  color: #173e62;
+  font-weight: 700;
+  padding: 0.65rem;
+  text-align: left;
+}
+.admin-settings-nav button.is-active {
+  background: #173e62;
+  color: #fff;
+}
+.admin-settings-panel {
+  background: #fff;
+  border: 1px solid #d5e0e9;
+  border-radius: 0.55rem;
+  padding: 1rem;
+}
+.settings-search {
+  max-width: 18rem;
+}
+.admin-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 0.45fr);
+  gap: 1rem;
+  border-top: 1px solid #dce5ec;
+  padding: 1rem 0;
+}
+.admin-setting-row:first-of-type {
+  border-top: 0;
+}
+.admin-setting-row h3 {
+  margin: 0 0 0.25rem;
+  color: #173e62;
+}
+.admin-setting-row p {
+  margin: 0;
+  color: #536575;
+}
+.admin-setting-control {
+  display: grid;
+  align-content: start;
+  gap: 0.55rem;
+}
+.admin-setting-control label {
+  display: grid;
+  gap: 0.3rem;
+  font-weight: 700;
+}
+.settings-confirmation {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  background: #edf3f7;
+  border-radius: 0.35rem;
+  padding: 0.75rem;
+}
+.settings-confirmation label {
+  display: grid;
+  gap: 0.2rem;
+  flex: 1 1 16rem;
+}
+.test-only-note {
+  background: #fff3cd;
+  border: 1px solid #e9c96c;
+  border-radius: 0.35rem;
+  color: #684c00;
+  font-weight: 700;
+  padding: 0.7rem;
+}
+.protected-policy-note {
+  display: inline-block;
+  color: #4a5661;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-top: 0.4rem;
+}
+.event-summary-card {
+  background: #eef6ff;
+  border: 1px solid #a9c8e8;
+  border-radius: 0.55rem;
+  margin: 0 0 1rem;
+  padding: 1rem;
+}
+.event-summary-card h2 {
+  display: inline;
+  margin-left: 0.6rem;
+}
+.event-summary-card p {
+  margin: 0.55rem 0;
+}
+.event-summary-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0.7rem 0 0;
+}
+.event-summary-facts div {
+  min-width: 10rem;
+}
+.event-summary-facts dt {
+  color: #536575;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.event-summary-facts dd {
+  margin: 0.15rem 0 0;
+}
 .inline-error {
   color: #912018;
   font-weight: 650;
@@ -518,6 +675,16 @@ th {
   padding: 0.7rem;
 }
 @media (max-width: 760px) {
+  .admin-settings-workspace {
+    grid-template-columns: 1fr;
+  }
+  .admin-settings-nav {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    position: static;
+  }
+  .admin-setting-row {
+    grid-template-columns: 1fr;
+  }
   .admin-layout {
     grid-template-columns: 1fr;
   }

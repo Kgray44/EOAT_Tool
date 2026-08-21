@@ -266,6 +266,8 @@ class WebFitCheckOptions(BaseModel):
     eoats: list[FitCheckOption] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     unresolved_inputs: list[Literal["machine", "tool", "eoat"]] = Field(default_factory=list)
+    query_mode: Literal["recommendations", "global_catalog"] = "recommendations"
+    query_slot: Literal["machine", "tool", "eoat"] | None = None
 
 
 class SyncStatus(BaseModel):

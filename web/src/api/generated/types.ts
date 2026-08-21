@@ -39,6 +39,23 @@ export interface paths {
         patch: operations["update_group_policy_route_api_v1_admin_access_group_policies__mapping_id__patch"];
         trace?: never;
     };
+    "/api/v1/admin/access/group-policies/{mapping_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Group Policy Route */
+        post: operations["deactivate_group_policy_route_api_v1_admin_access_group_policies__mapping_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/access/sessions": {
         parameters: {
             query?: never;
@@ -313,6 +330,23 @@ export interface paths {
         put?: never;
         /** Unlink Relationship Route */
         post: operations["unlink_relationship_route_api_v1_admin_data_relationships__relationship_type___relationship_id__unlink_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/data/relationships/{relationship_type}/{relationship_id}/unlink-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unlink Relationship Preview Route */
+        get: operations["unlink_relationship_preview_route_api_v1_admin_data_relationships__relationship_type___relationship_id__unlink_preview_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3417,6 +3451,15 @@ export interface components {
              */
             role_code: "VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER" | "ADMINISTRATOR";
         };
+        /** GroupPolicyDeactivate */
+        GroupPolicyDeactivate: {
+            /** Confirmed */
+            confirmed: boolean;
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** Reason */
+            reason: string;
+        };
         /** GroupPolicyUpdate */
         GroupPolicyUpdate: {
             /** Expected Row Version */
@@ -4148,6 +4191,14 @@ export interface components {
             eoats?: components["schemas"]["FitCheckOption"][];
             /** Machines */
             machines?: components["schemas"]["FitCheckOption"][];
+            /**
+             * Query Mode
+             * @default recommendations
+             * @enum {string}
+             */
+            query_mode: "recommendations" | "global_catalog";
+            /** Query Slot */
+            query_slot?: ("machine" | "tool" | "eoat") | null;
             /** Tools */
             tools?: components["schemas"]["FitCheckOption"][];
             /** Unresolved Inputs */
@@ -4200,7 +4251,9 @@ export type $defs = Record<string, never>;
 export interface operations {
     list_group_policies_api_v1_admin_access_group_policies_get: {
         parameters: {
-            query?: never;
+            query?: {
+                include_inactive?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -4214,6 +4267,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -4267,6 +4329,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["GroupPolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_group_policy_route_api_v1_admin_access_group_policies__mapping_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                mapping_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPolicyDeactivate"];
             };
         };
         responses: {
@@ -4811,6 +4910,38 @@ export interface operations {
                 "application/json": components["schemas"]["AdminLifecycleRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unlink_relationship_preview_route_api_v1_admin_data_relationships__relationship_type___relationship_id__unlink_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relationship_type: string;
+                relationship_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

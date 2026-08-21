@@ -778,6 +778,7 @@ function EventDetailPage() {
   if (remote.state === "error") return <ErrorState error={remote.error} />;
   const event = remote.value;
   const entityPath = entityLink(event);
+  const summary = auditEventSummary(event);
   return (
     <>
       <PageTitle title="Audit event detail">
@@ -789,6 +790,34 @@ function EventDetailPage() {
           ← Back to investigation
         </button>
       </PageTitle>
+      <section className="event-summary-card" aria-label="Event summary">
+        <div>
+          <span className={`result result-${event.result.toLowerCase()}`}>
+            {event.result}
+          </span>
+          <h2>Event summary</h2>
+        </div>
+        <p>
+          <strong>{summary.sentence}</strong>
+        </p>
+        {summary.changes.length ? <p>{summary.changes.join(" · ")}</p> : null}
+        <dl className="event-summary-facts">
+          <div>
+            <dt>Actor</dt>
+            <dd>{event.actor.display_name ?? event.actor.type}</dd>
+          </div>
+          <div>
+            <dt>Occurred</dt>
+            <dd>{formatTime(event.occurred_at_utc)}</dd>
+          </div>
+          {event.reason_or_note ? (
+            <div>
+              <dt>Reason</dt>
+              <dd>{event.reason_or_note}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </section>
       <section className="detail-summary">
         <Detail label="Event ID" value={event.event_id} copyable />
         <Detail
@@ -893,6 +922,46 @@ function EventDetailPage() {
       </section>
     </>
   );
+}
+
+function auditEventSummary(event: AuditEvent) {
+  const actor = event.actor.display_name ?? event.actor.type;
+  const entity =
+    event.entity.display_id || `${event.entity.type} ${event.entity.id}`;
+  const operation = event.operation || event.action;
+  const verbs: Record<string, string> = {
+    "admin.group-policy.create": "created corporate group policy",
+    "admin.group-policy.update": "changed corporate group policy",
+    "admin.group-policy.deactivate": "deactivated corporate group policy",
+    "admin.relationship.unlink": "unlinked relationship",
+    "admin.setting.update": "changed setting",
+    "admin.document.metadata.update": "changed document metadata",
+    "admin.photo.metadata.update": "changed photo metadata",
+    "admin.bulk-status.commit": "updated status for",
+  };
+  const sentence = `${actor} ${verbs[operation] || `performed ${event.action}`} on ${entity}.`;
+  const labels: Record<string, string> = {
+    role_code: "EOAT Atlas role",
+    is_active: "Active",
+    provider: "Authentication provider",
+    value: "Value",
+  };
+  const sensitive = /(secret|password|token|credential|key)/i;
+  const changes = event.changed_fields
+    .filter((field) => !sensitive.test(field))
+    .slice(0, 3)
+    .map(
+      (field) =>
+        `${labels[field] || field.replaceAll("_", " ")}: ${auditSummaryValue(event.before?.[field])} → ${auditSummaryValue(event.after?.[field])}`,
+    );
+  return { sentence, changes };
+}
+
+function auditSummaryValue(value: AuditValue | undefined) {
+  if (value === undefined) return "Not recorded";
+  if (value === null) return "None";
+  if (typeof value === "object") return "Updated";
+  return String(value);
 }
 
 function RelatedEvents({
@@ -2464,6 +2533,7 @@ function RelationshipsPage() {
                       <RelationshipUnlinkEditor
                         relationshipType={relationshipType}
                         row={row}
+                        onDone={(auditEventId) => setAudit(auditEventId)}
                       />
                     </td>
                   </tr>
@@ -2481,24 +2551,36 @@ function RelationshipsPage() {
 function RelationshipUnlinkEditor({
   relationshipType,
   row,
+  onDone,
 }: {
   relationshipType: string;
   row: AdminRecord;
+  onDone: (auditEventId: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [audit, setAudit] = useState<string>();
   const [error, setError] = useState<AdminApiError>();
-  const label = `${String(row.left)} ↔ ${String(row.right)}`;
-  const expected = `UNLINK ${relationshipType}:${Number(row.id)}`;
+  const preview = useRemote(
+    () => adminApi.relationshipUnlinkPreview(relationshipType, Number(row.id)),
+    `unlink-preview:${relationshipType}:${String(row.id)}:${open}`,
+  );
+  const expected =
+    preview.state === "ready" ? preview.value.confirmation_phrase : "";
   const unlink = () =>
     adminApi
       .unlinkRelationship(relationshipType, Number(row.id), {
-        expected_row_version: Number(row.row_version),
+        expected_row_version:
+          preview.state === "ready"
+            ? preview.value.row_version
+            : Number(row.row_version),
         reason,
         confirmation,
       })
-      .then((value) => setAudit(value.audit_event_id))
+      .then((value) => {
+        setOpen(false);
+        onDone(value.audit_event_id);
+      })
       .catch((value: unknown) =>
         setError(
           value instanceof AdminApiError
@@ -2507,32 +2589,73 @@ function RelationshipUnlinkEditor({
         ),
       );
   return (
-    <div className="lifecycle-panel">
-      <strong>{label}</strong>
-      <span> · revision {String(row.row_version)}</span>
-      <label>
-        Unlink reason
-        <input
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-        />
-      </label>
-      <label>
-        Type <code>{expected}</code>
-        <input
-          value={confirmation}
-          onChange={(event) => setConfirmation(event.target.value)}
-        />
-      </label>
+    <div>
       <button
+        className="destructive-button"
         type="button"
-        disabled={reason.trim().length < 3 || confirmation !== expected}
-        onClick={unlink}
+        onClick={() => setOpen(true)}
       >
-        Unlink relationship
+        Unlink
       </button>
-      {error ? <p className="inline-error">{error.message}</p> : null}
-      <AuditSuccess eventId={audit} />
+      {open ? (
+        <div
+          className="lifecycle-panel"
+          role="dialog"
+          aria-label="Unlink relationship"
+        >
+          <h3>Unlink relationship</h3>
+          {preview.state === "loading" ? (
+            <p>Resolving the current relationship…</p>
+          ) : null}
+          {preview.state === "ready" ? (
+            <>
+              <p>
+                <strong>{preview.value.left}</strong> →{" "}
+                <strong>{preview.value.right}</strong>
+              </p>
+              <p>
+                Compatibility: {preview.value.compatibility_status}. Source:{" "}
+                {preview.value.verification_source || "Not recorded"}.
+              </p>
+              <label>
+                Unlink reason
+                <input
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+              </label>
+              <label>
+                Type the exact confirmation: <code>{expected}</code>
+                <input
+                  value={confirmation}
+                  onChange={(event) => setConfirmation(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="destructive-button"
+                disabled={reason.trim().length < 3 || confirmation !== expected}
+                onClick={unlink}
+              >
+                Unlink relationship
+              </button>
+            </>
+          ) : null}
+          {preview.state === "error" ? (
+            <p className="inline-error">
+              The relationship is no longer available; refresh the list.
+            </p>
+          ) : null}
+          {error ? <p className="inline-error">{error.message}</p> : null}
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2682,6 +2805,8 @@ function SettingsPage() {
   const { ready, setReady } = useAdminSession();
   const [refresh, setRefresh] = useState(0);
   const [lastAuditEvent, setLastAuditEvent] = useState<string>();
+  const [category, setCategory] = useState("");
+  const [search, setSearch] = useState("");
   const remote = useRemote<{ items: AdminSetting[] }>(
     () => adminApi.settings(),
     `settings:${ready}:${refresh}`,
@@ -2689,28 +2814,20 @@ function SettingsPage() {
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
   if (remote.state === "error") return <ErrorState error={remote.error} />;
   if (remote.state === "loading") return <LoadingState />;
-  const sections = remote.value.items.reduce<Record<string, AdminSetting[]>>(
-    (groups, setting) => {
-      const prefix = setting.key.split(".")[0]?.toLowerCase();
-      const category =
-        prefix === "auth"
-          ? "Authentication"
-          : prefix === "media"
-            ? "Media"
-            : prefix === "data"
-              ? "Data"
-              : prefix === "fit"
-                ? "Fit Check"
-                : prefix === "admin"
-                  ? "Administration"
-                  : prefix === "app" || prefix === "ui"
-                    ? "User Experience"
-                    : "General";
-      (groups[category] ??= []).push(setting);
-      return groups;
-    },
-    {},
-  );
+  const categories = [
+    ...new Set(
+      remote.value.items.map((setting) => setting.presentation.category),
+    ),
+  ];
+  const activeCategory = category || categories[0] || "";
+  const settings = remote.value.items.filter((setting) => {
+    const haystack =
+      `${setting.presentation.label} ${setting.presentation.description} ${setting.key}`.toLowerCase();
+    return (
+      setting.presentation.category === activeCategory &&
+      haystack.includes(search.toLowerCase())
+    );
+  });
   return (
     <>
       <PageTitle title="Administrator Settings">
@@ -2720,22 +2837,53 @@ function SettingsPage() {
         </p>
       </PageTitle>
       <AuditSuccess eventId={lastAuditEvent} />
-      <div className="settings-list">
-        {Object.entries(sections).map(([category, settings]) => (
-          <section key={category} className="settings-category">
-            <h2>{category}</h2>
-            {settings.map((setting) => (
-              <SettingEditor
-                key={setting.key}
-                setting={setting}
-                onDone={(auditEventId) => {
-                  setLastAuditEvent(auditEventId);
-                  setRefresh((value) => value + 1);
-                }}
+      <div className="admin-settings-workspace">
+        <nav className="admin-settings-nav" aria-label="Settings categories">
+          {categories.map((value) => (
+            <button
+              className={value === activeCategory ? "is-active" : ""}
+              key={value}
+              type="button"
+              onClick={() => setCategory(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </nav>
+        <section className="admin-settings-panel">
+          <div className="section-heading">
+            <h2>{activeCategory}</h2>
+            <label className="settings-search">
+              Search settings
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search this category"
               />
-            ))}
-          </section>
-        ))}
+            </label>
+          </div>
+          {activeCategory === "Test / Development" ? (
+            <p className="test-only-note">
+              TEST ONLY — these controls are separated from production
+              Administration Settings.
+            </p>
+          ) : null}
+          {settings.map((setting) => (
+            <SettingEditor
+              key={setting.key}
+              setting={setting}
+              onDone={(auditEventId) => {
+                setLastAuditEvent(auditEventId);
+                setRefresh((value) => value + 1);
+              }}
+            />
+          ))}
+          {!settings.length ? (
+            <p className="state-note">
+              No settings match this category and search.
+            </p>
+          ) : null}
+        </section>
         {!remote.value.items.length ? (
           <p className="state-note">
             No persisted Administrator settings are configured in this
@@ -2757,6 +2905,7 @@ function SettingEditor({
   const secret = setting.secret_configured != null;
   const [value, setValue] = useState(String(setting.value ?? ""));
   const [reason, setReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<AdminApiError>();
   const save = () =>
     adminApi
@@ -2780,49 +2929,100 @@ function SettingEditor({
         ),
       );
   return (
-    <section className="editor-card">
-      <h2>{setting.key}</h2>
-      <p>
-        {setting.description ?? "Server-declared Administrator setting."}
-        {setting.restart_required ? " Restart required after commit." : ""}
-      </p>
-      <label>
-        {secret ? "Replacement secret" : "Value"}
-        {setting.value_type === "boolean" && !secret ? (
-          <select
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
+    <section className="admin-setting-row">
+      <div>
+        <h3>{setting.presentation.label}</h3>
+        <p>
+          {setting.presentation.description}
+          {setting.restart_required ? " Restart required after commit." : ""}
+        </p>
+        {setting.presentation.sensitivity === "secret" ? (
+          <p className="table-subtitle">
+            Existing secret values are never displayed.
+          </p>
+        ) : null}
+      </div>
+      <div className="admin-setting-control">
+        <label>
+          {secret ? "Replacement secret" : "Value"}
+          {setting.presentation.control_type === "select" &&
+          setting.presentation.allowed_values ? (
+            <select
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            >
+              {setting.presentation.allowed_values.map((option) => (
+                <option key={String(option)} value={String(option)}>
+                  {String(option)}
+                </option>
+              ))}
+            </select>
+          ) : setting.value_type === "boolean" && !secret ? (
+            <select
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            >
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          ) : (
+            <input
+              type={
+                secret
+                  ? "password"
+                  : setting.value_type === "integer"
+                    ? "number"
+                    : "text"
+              }
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              autoComplete="off"
+            />
+          )}
+        </label>
+        <button
+          className="primary-button"
+          type="button"
+          disabled={
+            setting.value_type === "integer" && !Number.isInteger(Number(value))
+          }
+          onClick={() => setConfirming(true)}
+        >
+          Save setting
+        </button>
+      </div>
+      {confirming ? (
+        <div
+          className="settings-confirmation"
+          role="dialog"
+          aria-label={`Confirm ${setting.presentation.label}`}
+        >
+          <strong>Record a reason before saving</strong>
+          <label>
+            Reason
+            <input
+              autoFocus
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setConfirming(false)}
           >
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
-        ) : (
-          <input
-            type={secret ? "password" : "text"}
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            autoComplete="off"
-          />
-        )}
-      </label>
-      <label>
-        Reason
-        <input
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-        />
-      </label>
-      <button
-        className="primary-button"
-        type="button"
-        disabled={
-          reason.trim().length < 3 ||
-          (setting.value_type === "integer" && !Number.isInteger(Number(value)))
-        }
-        onClick={save}
-      >
-        Save setting
-      </button>
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={reason.trim().length < 3}
+            onClick={save}
+          >
+            Confirm save
+          </button>
+        </div>
+      ) : null}
       {error ? <p className="inline-error">{error.message}</p> : null}
     </section>
   );
@@ -3342,10 +3542,11 @@ function GroupPolicyPage() {
   const { ready, setReady } = useAdminSession();
   const [refresh, setRefresh] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [lastAuditEvent, setLastAuditEvent] = useState<string>();
   const remote = useRemote<{ items: AdminGroupPolicy[] }>(
-    () => adminApi.groupPolicies(),
-    `group-policies:${ready}:${refresh}`,
+    () => adminApi.groupPolicies(showInactive),
+    `group-policies:${ready}:${showInactive}:${refresh}`,
   );
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
   if (remote.state === "error") return <ErrorState error={remote.error} />;
@@ -3373,6 +3574,14 @@ function GroupPolicyPage() {
         >
           + Add group policy
         </button>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(event) => setShowInactive(event.target.checked)}
+          />{" "}
+          Show inactive policies
+        </label>
       </div>
       {adding ? (
         <GroupPolicyCreateForm
@@ -3525,6 +3734,7 @@ function GroupPolicyRow({
   const [role, setRole] = useState(policy.role_code);
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<AdminApiError>();
   const commit = (isActive = policy.is_active) =>
     adminApi
@@ -3542,6 +3752,21 @@ function GroupPolicyRow({
             : new AdminApiError("Group policy update failed.", 0),
         ),
       );
+  const remove = () =>
+    adminApi
+      .deactivateGroupPolicy(policy.id, {
+        expected_row_version: policy.row_version,
+        reason,
+        confirmed: true,
+      })
+      .then((result) => onDone(result.audit_event_id))
+      .catch((value: unknown) =>
+        setError(
+          value instanceof AdminApiError
+            ? value
+            : new AdminApiError("Group policy removal failed.", 0),
+        ),
+      );
   return (
     <>
       <tr>
@@ -3555,9 +3780,29 @@ function GroupPolicyRow({
         <td data-label="Status">{policy.status}</td>
         <td data-label="Updated">{formatTime(policy.updated_at)}</td>
         <td data-label="Actions">
-          <button type="button" onClick={() => setEditing((value) => !value)}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setEditing((value) => !value)}
+          >
             View / edit
           </button>
+          {policy.is_protected_system_policy ? (
+            <span className="protected-policy-note">
+              Required Administrator recovery policy
+            </span>
+          ) : policy.is_active ? (
+            <button
+              className="destructive-button"
+              type="button"
+              onClick={() => {
+                setRemoving(true);
+                setEditing(false);
+              }}
+            >
+              Remove policy
+            </button>
+          ) : null}
         </td>
       </tr>
       {editing ? (
@@ -3622,6 +3867,49 @@ function GroupPolicyRow({
               <button type="button" onClick={() => setEditing(false)}>
                 Close
               </button>
+              {error ? <p className="inline-error">{error.message}</p> : null}
+            </div>
+          </td>
+        </tr>
+      ) : null}
+      {removing ? (
+        <tr>
+          <td colSpan={5}>
+            <div
+              className="lifecycle-panel"
+              role="dialog"
+              aria-label={`Remove ${policy.corporate_group} policy`}
+            >
+              <h3>Remove policy</h3>
+              <p>
+                <strong>{policy.corporate_group}</strong> → {policy.role_code}.
+                This deactivates the policy, stops it granting access, preserves
+                audit history, and may invalidate affected active sessions.
+              </p>
+              <label>
+                Reason
+                <input
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+              </label>
+              <div className="editor-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setRemoving(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="destructive-button"
+                  type="button"
+                  disabled={reason.trim().length < 3}
+                  onClick={remove}
+                >
+                  Confirm remove policy
+                </button>
+              </div>
               {error ? <p className="inline-error">{error.message}</p> : null}
             </div>
           </td>

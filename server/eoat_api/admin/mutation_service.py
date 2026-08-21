@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from typing import Any
@@ -7,6 +8,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from ..corporate_auth import ADMINISTRATOR_GROUP_IDENTIFIER
 from ..database import models as db
 from ..errors import APIError, conflict, not_found
 from ..security import ActorContext
@@ -117,6 +119,8 @@ def list_relationships(session: Session, relationship_type: str, include_archive
                 else None,
                 "compatibility_status_id": row.compatibility_status_id,
                 "compatibility_status": status_record.code if status_record is not None else None,
+                "verification_source": getattr(row, "verification_source", None),
+                "effective_from": getattr(row, "effective_from", None),
             }
         )
     return items
@@ -309,7 +313,87 @@ def unlink_relationship_governed(
     return mutation_success(record, audit_event_for_request(session, actor), actor)
 
 
-def _setting_value(value: Any, value_type: str, sensitive: bool) -> Any:
+def relationship_unlink_preview(
+    session: Session, relationship_type: str, relationship_id: int
+) -> dict[str, Any]:
+    """Resolve the relationship server-side before showing its destructive prompt."""
+
+    model, left, right = COMPATIBILITY_CONFIG[relationship_type]
+    record = session.get(model, relationship_id)
+    if record is None or not record.is_active:
+        raise not_found("active relationship", relationship_id)
+    left_record = session.get(ASSET_CONFIG[left[2]]["model"], getattr(record, left[0]))
+    right_record = session.get(ASSET_CONFIG[right[2]]["model"], getattr(record, right[0]))
+    if left_record is None or right_record is None:
+        raise not_found("relationship participant", relationship_id)
+
+    def label(kind: str, value: Any) -> str:
+        identifier = getattr(value, ASSET_CONFIG[kind]["identifier"])
+        return f"{kind.upper() if kind == 'eoat' else kind.title()} {identifier}"
+
+    left_label = label(left[2], left_record)
+    right_label = label(right[2], right_record)
+    status = session.get(db.CompatibilityStatus, record.compatibility_status_id)
+    return {
+        "relationship_type": relationship_type,
+        "relationship_id": record.id,
+        "row_version": record.row_version,
+        "left": left_label,
+        "right": right_label,
+        "compatibility_status": status.code if status is not None else "Not recorded",
+        "verification_source": getattr(record, "verification_source", None),
+        "confirmation_phrase": f"Unlink {left_label} from {right_label}",
+    }
+
+
+def _expected_unlink_confirmation(session: Session, relationship_type: str, relationship_id: int) -> str:
+    return str(relationship_unlink_preview(session, relationship_type, relationship_id)["confirmation_phrase"])
+
+
+def _setting_metadata(record: db.SystemSetting) -> dict[str, Any]:
+    """Authoritative browser presentation metadata; raw keys remain identities only."""
+
+    if record.setting_key == "app.default_catalog_page_size":
+        return {
+            "label": "Default Library page size",
+            "category": "Library & Search",
+            "description": "How many Library results are shown by default when a user has not selected another page size.",
+            "control_type": "select",
+            "allowed_values": [25, 50, 100, 250],
+            "editable": True,
+            "environment_visibility": "all",
+            "sensitivity": "normal",
+        }
+    if record.setting_key.startswith("phase3."):
+        suffix = record.setting_key.rsplit(".", 1)[-1].replace("_", " ")
+        return {
+            "label": f"Phase 3 test setting ({suffix})",
+            "category": "Test / Development",
+            "description": "Acceptance-only configuration. It is not available in production Administrator Settings.",
+            "control_type": "password" if record.is_sensitive else "text",
+            "allowed_values": None,
+            "editable": True,
+            "environment_visibility": "non_production",
+            "sensitivity": "secret" if record.is_sensitive else "test",
+        }
+    label = record.setting_key.replace("_", " ").replace(".", " · ").title()
+    return {
+        "label": label,
+        "category": "Advanced",
+        "description": record.description or "Server-declared Administrator setting.",
+        "control_type": "password" if record.is_sensitive else record.value_type,
+        "allowed_values": None,
+        "editable": True,
+        "environment_visibility": "all",
+        "sensitivity": "secret" if record.is_sensitive else "normal",
+    }
+
+
+def _setting_visible(metadata: dict[str, Any]) -> bool:
+    return metadata["environment_visibility"] != "non_production" or os.getenv("EOAT_API_ENVIRONMENT", "development") != "production"
+
+
+def _setting_value(value: Any, value_type: str, sensitive: bool, metadata: dict[str, Any]) -> Any:
     if sensitive:
         if not isinstance(value, str) or not value:
             raise APIError(422, "INVALID_SECRET_SETTING", "A non-empty replacement secret is required.")
@@ -320,18 +404,23 @@ def _setting_value(value: Any, value_type: str, sensitive: bool) -> Any:
         raise APIError(422, "INVALID_SETTING_VALUE", "This setting requires an integer value.")
     if value_type == "string" and not isinstance(value, str):
         raise APIError(422, "INVALID_SETTING_VALUE", "This setting requires a string value.")
+    allowed_values = metadata.get("allowed_values")
+    if allowed_values and value not in allowed_values:
+        raise APIError(422, "INVALID_SETTING_VALUE", "Choose one of the approved values for this setting.")
     return value
 
 
 def setting_view(record: db.SystemSetting) -> dict[str, Any]:
+    metadata = _setting_metadata(record)
     return {
         "key": record.setting_key,
         "value": None if record.is_sensitive else record.setting_value_json,
         "secret_configured": bool(record.setting_value_json) if record.is_sensitive else None,
         "value_type": record.value_type,
-        "description": record.description,
+        "description": metadata["description"],
         "row_version": record.row_version,
         "restart_required": False,
+        "presentation": metadata,
     }
 
 
@@ -341,8 +430,11 @@ def update_setting_governed(
     record = session.scalar(select(db.SystemSetting).where(db.SystemSetting.setting_key == key).with_for_update())
     if record is None:
         raise not_found("setting", key)
+    metadata = _setting_metadata(record)
+    if not _setting_visible(metadata):
+        raise APIError(404, "SETTING_NOT_AVAILABLE", "This setting is not available in this environment.")
     check_version(record, expected_row_version)
-    next_value = _setting_value(value, record.value_type, record.is_sensitive)
+    next_value = _setting_value(value, record.value_type, record.is_sensitive, metadata)
     # A replacement of an already-configured sensitive setting must remain
     # reconstructable without serializing either the prior or supplied value.
     before = (
@@ -391,9 +483,33 @@ def group_policy_view(record: db.ExternalGroupRoleMapping) -> dict[str, Any]:
         "provider": record.provider,
         "is_active": record.is_active,
         "status": "active" if record.is_active else "inactive",
+        "is_protected_system_policy": _is_protected_group_policy(record),
         "row_version": record.row_version,
         "updated_at": record.updated_at,
     }
+
+
+def setting_visible_view(record: db.SystemSetting) -> dict[str, Any] | None:
+    metadata = _setting_metadata(record)
+    return setting_view(record) if _setting_visible(metadata) else None
+
+
+def _is_protected_group_policy(record: db.ExternalGroupRoleMapping) -> bool:
+    return bool(record.is_system_policy) or (
+        record.provider == "kerberos_form"
+        and record.external_group_identifier == ADMINISTRATOR_GROUP_IDENTIFIER
+        and record.role_code == "ADMINISTRATOR"
+        and not record.explicit_deny
+    )
+
+
+def _ensure_policy_is_mutable(record: db.ExternalGroupRoleMapping) -> None:
+    if _is_protected_group_policy(record):
+        raise APIError(
+            422,
+            "SYSTEM_POLICY_PROTECTED",
+            "The required Administrator recovery policy is protected and cannot be changed or removed.",
+        )
 
 
 def _active_role(session: Session, role_code: str) -> db.Role:
@@ -473,6 +589,7 @@ def create_group_policy_governed(
         role_code=role_code,
         explicit_deny=False,
         is_active=True,
+        is_system_policy=False,
         row_version=1,
         created_at=now,
         updated_at=now,
@@ -518,6 +635,7 @@ def update_group_policy_governed(
     if record is None:
         raise not_found("group policy", str(mapping_id))
     check_version(record, expected_row_version)
+    _ensure_policy_is_mutable(record)
     next_role = role_code or record.role_code
     next_active = record.is_active if is_active is None else is_active
     _active_role(session, next_role)
@@ -568,6 +686,39 @@ def update_group_policy_governed(
         "request_id": actor.request_id,
         "revoked_session_count": revoked_session_count,
     }
+
+
+def deactivate_group_policy_governed(
+    session: Session, actor: ActorContext, mapping_id: int, expected_row_version: int, reason: str
+) -> dict[str, Any]:
+    record = session.scalar(
+        select(db.ExternalGroupRoleMapping)
+        .where(db.ExternalGroupRoleMapping.id == mapping_id, db.ExternalGroupRoleMapping.provider == "kerberos_form")
+        .with_for_update()
+    )
+    if record is None:
+        raise not_found("group policy", str(mapping_id))
+    check_version(record, expected_row_version)
+    _ensure_policy_is_mutable(record)
+    _ensure_admin_recovery_path(session, record, next_role=record.role_code, next_active=False)
+    if not record.is_active:
+        raise APIError(409, "GROUP_POLICY_ALREADY_INACTIVE", "This group policy is already inactive.")
+    before = {"role_code": record.role_code, "is_active": True, "provider": record.provider}
+    record.is_active = False
+    record.row_version += 1
+    revoked_session_count = _revoke_sessions_for_group_policy(
+        session, record.external_group_identifier, reason="group_policy_deactivated"
+    )
+    session.flush()
+    result = AuditEventWriter().write_change(
+        session, actor, entity_type="GroupPolicy", entity_id=record.id,
+        entity_display_id=record.external_group_identifier, operation="admin.group-policy.deactivate",
+        previous=before, current={"role_code": record.role_code, "is_active": False, "provider": record.provider},
+        reason=reason, source=AuditSource.WEB, correlation_id=actor.request_id, action=AuditAction.GROUP_MAPPING_CHANGE,
+    )
+    return {"policy": group_policy_view(record), "audit_event_id": result.event_id,
+            "correlation_id": actor.request_id, "request_id": actor.request_id,
+            "revoked_session_count": revoked_session_count}
 
 
 def update_mapping_governed(

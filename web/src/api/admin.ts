@@ -134,6 +134,16 @@ export interface AdminSetting {
   description?: string | null;
   row_version: number;
   restart_required: boolean;
+  presentation: {
+    label: string;
+    category: string;
+    description: string;
+    control_type: string;
+    allowed_values?: Array<string | number> | null;
+    editable: boolean;
+    environment_visibility: "all" | "non_production";
+    sensitivity: "normal" | "test" | "secret";
+  };
 }
 export interface AdminMapping {
   identity: string;
@@ -150,6 +160,7 @@ export interface AdminGroupPolicy {
   status: "active" | "inactive";
   row_version: number;
   updated_at: string;
+  is_protected_system_policy: boolean;
 }
 export interface CorporateUserSummary {
   user_id: string;
@@ -568,6 +579,22 @@ export const adminApi = {
       `/api/v1/admin/data/relationships/${encodeURIComponent(relationshipType)}/${relationshipId}/unlink`,
       payload,
     ),
+  relationshipUnlinkPreview: (
+    relationshipType: string,
+    relationshipId: number,
+  ) =>
+    adminFetch<{
+      relationship_type: string;
+      relationship_id: number;
+      row_version: number;
+      left: string;
+      right: string;
+      compatibility_status: string;
+      verification_source?: string | null;
+      confirmation_phrase: string;
+    }>(
+      `/api/v1/admin/data/relationships/${encodeURIComponent(relationshipType)}/${relationshipId}/unlink-preview`,
+    ),
   previewBulkStatus: (payload: Record<string, AuditValue>) =>
     adminPost<{ count: number; records: AdminRecord[]; atomic: boolean }>(
       "/api/v1/admin/data/eoats/bulk-status/preview",
@@ -601,9 +628,9 @@ export const adminApi = {
       `/api/v1/admin/access/test-mappings/${encodeURIComponent(identity)}`,
       payload,
     ),
-  groupPolicies: () =>
+  groupPolicies: (includeInactive = false) =>
     adminFetch<{ items: AdminGroupPolicy[] }>(
-      "/api/v1/admin/access/group-policies",
+      `/api/v1/admin/access/group-policies${includeInactive ? "?include_inactive=true" : ""}`,
     ),
   createGroupPolicy: (payload: Record<string, AuditValue>) =>
     adminPost<{
@@ -619,6 +646,14 @@ export const adminApi = {
       correlation_id: string;
       request_id: string;
     }>(`/api/v1/admin/access/group-policies/${id}`, payload),
+  deactivateGroupPolicy: (id: number, payload: Record<string, AuditValue>) =>
+    adminPost<{
+      policy: AdminGroupPolicy;
+      audit_event_id: string;
+      correlation_id: string;
+      request_id: string;
+      revoked_session_count: number;
+    }>(`/api/v1/admin/access/group-policies/${id}/deactivate`, payload),
   sessions: () =>
     adminFetch<{ items: AdminRecord[] }>("/api/v1/admin/access/sessions"),
   revokeSession: (reference: string, payload: Record<string, AuditValue>) =>

@@ -155,6 +155,7 @@ test("Group Access Policies previews and confirms audited create and edit withou
       status: "active",
       row_version: 4,
       updated_at: "2026-08-21T20:00:00Z",
+      is_protected_system_policy: false,
     },
   ];
   const writes: Array<{ method: string; body: Record<string, unknown> }> = [];
@@ -197,6 +198,25 @@ test("Group Access Policies previews and confirms audited create and edit withou
       }),
     });
   });
+  await page.route(
+    "**/api/v1/admin/access/group-policies/*/deactivate",
+    async (route) => {
+      writes.push({
+        method: route.request().method(),
+        body: route.request().postDataJSON() as Record<string, unknown>,
+      });
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          policy: { ...policies[0], is_active: false, status: "inactive" },
+          audit_event_id: "group-audit-deactivate",
+          correlation_id: "corr-3",
+          request_id: "req-3",
+          revoked_session_count: 1,
+        }),
+      });
+    },
+  );
 
   await page.goto("/admin/group-policies");
   await expect(
@@ -251,6 +271,22 @@ test("Group Access Policies previews and confirms audited create and edit withou
       is_active: true,
       expected_row_version: 4,
       reason: "Correct policy scope after review",
+    },
+  });
+
+  await page.getByRole("button", { name: "Remove policy" }).click();
+  await page
+    .getByRole("dialog", { name: /Remove .* policy/ })
+    .getByLabel("Reason")
+    .fill("The governed corporate policy is no longer approved");
+  await page.getByRole("button", { name: "Confirm remove policy" }).click();
+  await expect.poll(() => writes.length).toBe(3);
+  expect(writes[2]).toMatchObject({
+    method: "POST",
+    body: {
+      expected_row_version: 4,
+      reason: "The governed corporate policy is no longer approved",
+      confirmed: true,
     },
   });
 });
@@ -403,7 +439,9 @@ test("event detail renders structured redaction and correlation navigation witho
   await expect(
     page.getByRole("heading", { name: "Audit event detail" }),
   ).toBeVisible();
-  await expect(page.getByText("Development Administrator")).toBeVisible();
+  await expect(page.getByLabel("Event summary")).toContainText(
+    "Development Administrator performed UPDATE on CL-EOAT-0054.",
+  );
   await expect(page.getByText("UTC: 2026-08-11T18:00:00Z")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Open normal profile" }),

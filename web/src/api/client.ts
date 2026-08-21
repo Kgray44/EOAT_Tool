@@ -46,6 +46,8 @@ export type WebFitCheckOptions = {
   eoats: Array<{ identifier: string; label: string; plant_code?: string }>;
   warnings: string[];
   unresolved_inputs: string[];
+  query_mode: "recommendations" | "global_catalog";
+  query_slot?: FitCheckSearchSlot | null;
 };
 export type FitCheckSearchSlot = "machine" | "tool" | "eoat";
 export type WebDocument = components["schemas"]["WebDocumentMetadata"];

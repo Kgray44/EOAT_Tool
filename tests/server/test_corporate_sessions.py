@@ -98,7 +98,7 @@ def _engine():
             CREATE TABLE external_group_role_mappings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, provider TEXT NOT NULL,
                 external_group_identifier TEXT NOT NULL, role_code TEXT NOT NULL,
-                explicit_deny BOOLEAN DEFAULT 0, is_active BOOLEAN DEFAULT 1, row_version INTEGER NOT NULL DEFAULT 1,
+                explicit_deny BOOLEAN DEFAULT 0, is_active BOOLEAN DEFAULT 1, is_system_policy BOOLEAN NOT NULL DEFAULT 0, row_version INTEGER NOT NULL DEFAULT 1,
                 created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL
             )
             """
@@ -189,8 +189,8 @@ def test_group_policy_editor_service_validates_audits_and_versions(monkeypatch):
         )
         assert updated["policy"]["role_code"] == "ENGINEER"
         assert updated["policy"]["row_version"] == 2
-        inactive = mutation_service.update_group_policy_governed(
-            session, actor, policy_id, None, False, 2, "Policy is no longer active"
+        inactive = mutation_service.deactivate_group_policy_governed(
+            session, actor, policy_id, 2, "Policy is no longer active"
         )
         assert inactive["policy"]["status"] == "inactive"
         with pytest.raises(APIError) as stale:
@@ -198,6 +198,41 @@ def test_group_policy_editor_service_validates_audits_and_versions(monkeypatch):
                 session, actor, policy_id, None, True, 1, "Stale request must fail"
             )
         assert stale.value.error_code == "STALE_RECORD_VERSION"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_protected_recovery_group_policy_cannot_be_deactivated(monkeypatch):
+    engine = _engine()
+    session = Session(engine)
+
+    class AuditWriter:
+        def write_change(self, *_args, **_kwargs):
+            return SimpleNamespace(event_id="protected-policy-audit")
+
+    monkeypatch.setattr(mutation_service, "AuditEventWriter", AuditWriter)
+    now = datetime.now(timezone.utc)
+    actor = ActorContext(1, "kgray", "K Gray", "ADMINISTRATOR", "request-protected", None, None)
+    try:
+        protected = db.ExternalGroupRoleMapping(
+            provider="kerberos_form",
+            external_group_identifier=ADMINISTRATOR_GROUP_IDENTIFIER,
+            role_code="ADMINISTRATOR",
+            is_active=True,
+            is_system_policy=True,
+            row_version=1,
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(protected)
+        session.flush()
+        with pytest.raises(APIError) as blocked:
+            mutation_service.deactivate_group_policy_governed(
+                session, actor, protected.id, 1, "Attempted recovery-policy removal"
+            )
+        assert blocked.value.error_code == "SYSTEM_POLICY_PROTECTED"
+        assert protected.is_active is True
     finally:
         session.close()
         engine.dispose()

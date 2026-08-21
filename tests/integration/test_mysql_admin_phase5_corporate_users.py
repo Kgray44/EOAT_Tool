@@ -184,10 +184,11 @@ def test_real_mysql_group_policy_editor_persists_audits_and_rejects_invalid_or_d
         )
         assert changed["policy"]["role_code"] == "ENGINEER"
         assert changed["policy"]["row_version"] == 2
-        archived = mutation_service.update_group_policy_governed(
-            session, actor, policy["id"], None, False, 2, "Real-MySQL policy deactivation"
+        archived = mutation_service.deactivate_group_policy_governed(
+            session, actor, policy["id"], 2, "Real-MySQL policy deactivation"
         )
         assert archived["policy"]["status"] == "inactive"
+        assert archived["revoked_session_count"] >= 0
         with pytest.raises(APIError) as stale:
             mutation_service.update_group_policy_governed(
                 session, actor, policy["id"], None, True, 1, "Stale version must fail"

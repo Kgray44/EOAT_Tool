@@ -739,6 +739,8 @@ def web_fit_check_options(
         ),
         warnings=warnings,
         unresolved_inputs=unresolved,
+        query_mode="global_catalog" if catalog_search and search_slot else "recommendations",
+        query_slot=search_slot if catalog_search and search_slot else None,
     )
 
 
@@ -906,5 +908,7 @@ def _catalog_page_size(repo: AtlasRepository, requested: int | None) -> int:
     record = repo.session.scalar(
         select(db.SystemSetting).where(db.SystemSetting.setting_key == "app.default_catalog_page_size")
     )
-    value = record.setting_value_json if record is not None else 50
+    # Lightweight read-contract repositories intentionally do not materialize
+    # every settings column; fall back to the governed default there as well.
+    value = getattr(record, "setting_value_json", 50) if record is not None else 50
     return value if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 250 else 50

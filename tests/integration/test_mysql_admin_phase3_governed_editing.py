@@ -590,12 +590,17 @@ def test_phase3_relationship_link_rejection_and_unlink_are_audited(api, governed
         headers={**csrf, "Idempotency-Key": f"p3-relationship-compatibility-{RUN}"},
     )
     assert invalid_compatibility.status_code == 422
+    preview = client.get(
+        f"/api/v1/admin/data/relationships/eoat-machine/{relationship['id']}/unlink-preview"
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["confirmation_phrase"].startswith("Unlink EOAT ")
     unlinked = client.post(
         f"/api/v1/admin/data/relationships/eoat-machine/{relationship['id']}/unlink",
         json={
-            "expected_row_version": relationship["row_version"],
+            "expected_row_version": preview.json()["row_version"],
             "reason": "Unlink governed acceptance relationship",
-            "confirmation": f"UNLINK eoat-machine:{relationship['id']}",
+            "confirmation": preview.json()["confirmation_phrase"],
         },
         headers={**csrf, "Idempotency-Key": f"p3-relationship-unlink-{RUN}"},
     )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiClient, type FitCheckSearchSlot } from "@/api/client";
@@ -17,15 +17,6 @@ function resultTone(value: string) {
   return "danger";
 }
 
-function useDebouncedValue<T>(value: T, delay = 220) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebounced(value), delay);
-    return () => window.clearTimeout(timeout);
-  }, [delay, value]);
-  return debounced;
-}
-
 /** The desktop workflow is three named records, never three interchangeable slots. */
 export function FitCheckPage() {
   const [params] = useSearchParams();
@@ -39,8 +30,8 @@ export function FitCheckPage() {
   const activeSearch = (
     Object.entries(selectorQueries) as Array<[FitCheckSearchSlot, string]>
   ).find(([, query]) => query.trim());
-  const debouncedSearch = useDebouncedValue(activeSearch?.[1] || "");
-  const debouncedSearchSlot = debouncedSearch ? activeSearch?.[0] : undefined;
+  const catalogSearch = activeSearch?.[1].trim() || "";
+  const catalogSearchSlot = catalogSearch ? activeSearch?.[0] : undefined;
   const options = useQuery({
     queryKey: [
       "fit-check",
@@ -49,8 +40,8 @@ export function FitCheckPage() {
       machine,
       tool,
       eoat,
-      debouncedSearchSlot,
-      debouncedSearch,
+      catalogSearchSlot,
+      catalogSearch,
     ],
     queryFn: () =>
       apiClient.getWebFitCheckOptions({
@@ -58,8 +49,8 @@ export function FitCheckPage() {
         machine_number: machine || undefined,
         tool_number: tool || undefined,
         eoat_identifier: eoat || undefined,
-        search: debouncedSearch || undefined,
-        search_slot: debouncedSearchSlot,
+        search: catalogSearch || undefined,
+        search_slot: catalogSearchSlot,
       }),
   });
   const evaluation = useMutation({
@@ -172,8 +163,17 @@ export function FitCheckPage() {
         </button>
       </form>
       {options.isPending && (
-        <p className="notes">Loading compatible options…</p>
+        <p className="notes">
+          {catalogSearch
+            ? "Searching the entire catalog…"
+            : "Loading compatibility recommendations…"}
+        </p>
       )}
+      {options.data?.query_mode === "global_catalog" ? (
+        <p className="notes">
+          Showing global catalog results for the typed search.
+        </p>
+      ) : null}
       {options.isError && <ErrorState error={options.error} />}
       {(options.data?.warnings || []).length ? (
         <section className="fit-option-warnings" aria-live="polite">

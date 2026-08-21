@@ -125,6 +125,8 @@ def test_normal_fit_check_options_are_a_read_only_browser_contract():
         "eoats": [],
         "warnings": [],
         "unresolved_inputs": [],
+        "query_mode": "recommendations",
+        "query_slot": None,
     }
 
 

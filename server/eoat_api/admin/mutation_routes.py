@@ -33,6 +33,7 @@ from .mutation_contracts import (
     AdminSessionRevoke,
     AdminSettingUpdate,
     GroupPolicyCreate,
+    GroupPolicyDeactivate,
     GroupPolicyUpdate,
     RehearsalSessionIssue,
 )
@@ -41,6 +42,7 @@ from .mutation_service import (
     bulk_status_commit,
     bulk_status_preview,
     create_group_policy_governed,
+    deactivate_group_policy_governed,
     document_record,
     group_policy_view,
     lifecycle_asset_governed,
@@ -50,7 +52,8 @@ from .mutation_service import (
     list_photos,
     list_relationships,
     preview_asset_update,
-    setting_view,
+    relationship_unlink_preview,
+    setting_visible_view,
     unlink_relationship_governed,
     update_asset_governed,
     update_document_governed,
@@ -436,7 +439,7 @@ def unlink_relationship_route(
 ):
     if relationship_type not in RELATIONSHIP_TYPES:
         raise not_found("relationship type", relationship_type)
-    _confirmation(payload.confirmation, f"UNLINK {relationship_type}:{relationship_id}")
+    _confirmation(payload.confirmation, relationship_unlink_preview(session, relationship_type, relationship_id)["confirmation_phrase"])
     return idempotent(
         session,
         actor,
@@ -449,6 +452,18 @@ def unlink_relationship_route(
     )
 
 
+@router.get("/data/relationships/{relationship_type}/{relationship_id}/unlink-preview")
+def unlink_relationship_preview_route(
+    relationship_type: str,
+    relationship_id: int,
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin_session("admin.relationship.manage")),
+):
+    if relationship_type not in RELATIONSHIP_TYPES:
+        raise not_found("relationship type", relationship_type)
+    return relationship_unlink_preview(session, relationship_type, relationship_id)
+
+
 @router.get("/settings")
 def list_settings(
     session: Session = Depends(get_runtime_session),
@@ -456,8 +471,9 @@ def list_settings(
 ):
     return {
         "items": [
-            setting_view(row)
+            view
             for row in session.scalars(select(db.SystemSetting).order_by(db.SystemSetting.setting_key))
+            if (view := setting_visible_view(row)) is not None
         ]
     }
 
@@ -484,14 +500,14 @@ def update_setting_route(
 
 @router.get("/access/group-policies")
 def list_group_policies(
+    include_inactive: bool = False,
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin_session("admin.group_policy.manage")),
 ):
-    rows = session.scalars(
-        select(db.ExternalGroupRoleMapping)
-        .where(db.ExternalGroupRoleMapping.provider == "kerberos_form")
-        .order_by(db.ExternalGroupRoleMapping.external_group_identifier, db.ExternalGroupRoleMapping.role_code)
-    )
+    statement = select(db.ExternalGroupRoleMapping).where(db.ExternalGroupRoleMapping.provider == "kerberos_form")
+    if not include_inactive:
+        statement = statement.where(db.ExternalGroupRoleMapping.is_active.is_(True))
+    rows = session.scalars(statement.order_by(db.ExternalGroupRoleMapping.external_group_identifier, db.ExternalGroupRoleMapping.role_code))
     return {"items": [group_policy_view(row) for row in rows]}
 
 
@@ -536,6 +552,28 @@ def update_group_policy_route(
             payload.is_active,
             payload.expected_row_version,
             payload.reason,
+        ),
+    )
+
+
+@router.post("/access/group-policies/{mapping_id}/deactivate")
+def deactivate_group_policy_route(
+    mapping_id: int,
+    payload: GroupPolicyDeactivate,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require_admin_mutation("admin.group_policy.manage")),
+):
+    if not payload.confirmed:
+        raise APIError(422, "GROUP_POLICY_CONFIRMATION_REQUIRED", "Explicit confirmation is required to remove this policy.")
+    return idempotent(
+        session,
+        actor,
+        "admin.group-policy.deactivate",
+        idempotency_key,
+        {"mapping_id": mapping_id, **payload.model_dump()},
+        lambda: deactivate_group_policy_governed(
+            session, actor, mapping_id, payload.expected_row_version, payload.reason
         ),
     )
 

@@ -99,6 +99,11 @@ class GroupPolicyUpdate(ExpectedVersion):
         return self
 
 
+class GroupPolicyDeactivate(ExpectedVersion):
+    reason: str = Field(min_length=3, max_length=2000)
+    confirmed: bool
+
+
 class AdminSessionRevoke(WriteModel):
     reason: str = Field(min_length=3, max_length=512)
     confirmation: str = Field(min_length=3, max_length=255)

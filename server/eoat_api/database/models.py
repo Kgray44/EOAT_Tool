@@ -223,6 +223,10 @@ class ExternalGroupRoleMapping(TimestampMixin, Base):
     role_code: Mapped[str] = mapped_column(String(64), nullable=False)
     explicit_deny: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
+    # A canonical recovery mapping is a security control, not presentation
+    # text.  It is intentionally persisted so a renamed directory group cannot
+    # turn an Administrator recovery path into an ordinary removable policy.
+    is_system_policy: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
     # The original corporate-authentication seam predates governed browser
     # editing.  Keep its compact model, but give administrators an optimistic
     # concurrency token rather than silently overwriting another policy edit.

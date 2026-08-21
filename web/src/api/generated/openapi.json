@@ -3450,6 +3450,33 @@
         "title": "GroupPolicyCreate",
         "type": "object"
       },
+      "GroupPolicyDeactivate": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmed": {
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "expected_row_version": {
+            "minimum": 1.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_row_version",
+          "reason",
+          "confirmed"
+        ],
+        "title": "GroupPolicyDeactivate",
+        "type": "object"
+      },
       "GroupPolicyUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -6371,6 +6398,31 @@
             "title": "Machines",
             "type": "array"
           },
+          "query_mode": {
+            "default": "recommendations",
+            "enum": [
+              "recommendations",
+              "global_catalog"
+            ],
+            "title": "Query Mode",
+            "type": "string"
+          },
+          "query_slot": {
+            "anyOf": [
+              {
+                "enum": [
+                  "machine",
+                  "tool",
+                  "eoat"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Slot"
+          },
           "tools": {
             "items": {
               "$ref": "#/components/schemas/FitCheckOption"
@@ -6523,6 +6575,18 @@
     "/api/v1/admin/access/group-policies": {
       "get": {
         "operationId": "list_group_policies_api_v1_admin_access_group_policies_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_inactive",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Inactive",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6531,6 +6595,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Group Policies",
@@ -6655,6 +6729,72 @@
           }
         },
         "summary": "Update Group Policy Route",
+        "tags": [
+          "admin-governed-editing"
+        ]
+      }
+    },
+    "/api/v1/admin/access/group-policies/{mapping_id}/deactivate": {
+      "post": {
+        "operationId": "deactivate_group_policy_route_api_v1_admin_access_group_policies__mapping_id__deactivate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPolicyDeactivate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Deactivate Group Policy Route",
         "tags": [
           "admin-governed-editing"
         ]
@@ -7655,6 +7795,55 @@
           }
         },
         "summary": "Unlink Relationship Route",
+        "tags": [
+          "admin-governed-editing"
+        ]
+      }
+    },
+    "/api/v1/admin/data/relationships/{relationship_type}/{relationship_id}/unlink-preview": {
+      "get": {
+        "operationId": "unlink_relationship_preview_route_api_v1_admin_data_relationships__relationship_type___relationship_id__unlink_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "relationship_type",
+            "required": true,
+            "schema": {
+              "title": "Relationship Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "relationship_id",
+            "required": true,
+            "schema": {
+              "title": "Relationship Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlink Relationship Preview Route",
         "tags": [
           "admin-governed-editing"
         ]
