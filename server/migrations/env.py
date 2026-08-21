@@ -77,6 +77,14 @@ def _phase_schema_is_verified_adoption(connection) -> bool:
 
 def _phase_head_has_verified_production_mapping(connection) -> bool:
     """Retain reciprocal Phase-head convergence without relaxing its DDL."""
+    version_table_exists = connection.execute(
+        text(
+            "SELECT COUNT(*) FROM information_schema.tables "
+            "WHERE table_schema = DATABASE() AND table_name = 'alembic_version'"
+        )
+    ).scalar_one()
+    if version_table_exists != 1:
+        return False
     revisions = {row[0] for row in connection.execute(text("SELECT version_num FROM alembic_version"))}
     if revisions != {_ADMIN_HEAD}:
         return False
@@ -90,16 +98,14 @@ def _phase_head_has_verified_production_mapping(connection) -> bool:
 def _install_phase_schema_adoption_guard(connection) -> None:
     """Adopt only pre-verified Phase 5 DDL; retain every migration revision/DML."""
     adopt_full_phase_schema = _phase_schema_is_verified_adoption(connection)
-    adopt_production_mapping = _phase_head_has_verified_production_mapping(connection)
-    if not adopt_full_phase_schema and not adopt_production_mapping:
-        return
-
     @event.listens_for(connection, "before_cursor_execute", retval=True)
     def _adopt_existing_phase_schema(_connection, _cursor, statement, parameters, _context, _executemany):
         normalized = statement.lstrip().upper()
         if adopt_full_phase_schema and normalized.startswith(("CREATE TABLE", "CREATE INDEX", "ALTER TABLE")):
             return "SELECT 1 /* verified existing Phase 5 schema adoption */", parameters
-        if adopt_production_mapping and normalized.startswith("CREATE TABLE EXTERNAL_GROUP_ROLE_MAPPINGS"):
+        if normalized.startswith("CREATE TABLE EXTERNAL_GROUP_ROLE_MAPPINGS") and _phase_head_has_verified_production_mapping(
+            _connection
+        ):
             return "SELECT 1 /* verified existing external_group_role_mappings adoption */", parameters
         return statement, parameters
 
