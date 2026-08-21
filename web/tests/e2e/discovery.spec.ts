@@ -113,7 +113,8 @@ async function routeApi(
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     seen.push(request);
-    const path = new URL(request.url()).pathname;
+    const url = new URL(request.url());
+    const path = url.pathname;
     if (path.includes("MISSING"))
       return route.fulfill({
         status: 404,
@@ -178,7 +179,22 @@ async function routeApi(
             }
           : [],
       });
-    if (path.endsWith("/web-fit-checks/options"))
+    if (path.endsWith("/web-fit-checks/options")) {
+      if (
+        url.searchParams.get("search_slot") === "tool" &&
+        url.searchParams.get("search") === "461"
+      )
+        return route.fulfill({
+          json: {
+            machines: [
+              { identifier: "M-1", label: "Press 1", plant_code: "P1" },
+            ],
+            tools: [{ identifier: "TOOL-461", label: "Unrelated Tool 461" }],
+            eoats: [{ identifier: "EOAT-1", label: "Picker" }],
+            warnings: [],
+            unresolved_inputs: [],
+          },
+        });
       return route.fulfill({
         json: {
           machines: [{ identifier: "M-1", label: "Press 1", plant_code: "P1" }],
@@ -188,6 +204,7 @@ async function routeApi(
           unresolved_inputs: [],
         },
       });
+    }
     if (path.includes("/catalog-options/")) return route.fulfill({ json: [] });
     if (path.endsWith("/fit-checks/evaluate"))
       return route.fulfill({
@@ -374,13 +391,24 @@ test("EOAT Library, profile, and Docs & Photos use the same browser-safe photo",
   );
 
   await card.click();
-  const fullImage = page.getByRole("link", {
+  const fullImage = page.getByRole("button", {
     name: "Open full-resolution photo for EOAT-1",
   });
-  await expect(fullImage).toHaveAttribute(
-    "href",
+  await fullImage.click();
+  const lightbox = page.getByRole("dialog", { name: /Photo viewer/ });
+  await expect(lightbox).toBeVisible();
+  await expect(lightbox.locator("img")).toHaveAttribute(
+    "src",
     "/api/v1/web-photos/photo-1/content",
   );
+  await expect
+    .poll(() => page.evaluate(() => document.body.style.overflow))
+    .toBe("hidden");
+  await page.keyboard.press("Escape");
+  await expect(lightbox).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => document.body.style.overflow))
+    .toBe("");
 
   await page.getByRole("link", { name: "Docs & Photos" }).click();
   const galleryImage = page.locator(".photo-gallery img").first();
@@ -388,10 +416,14 @@ test("EOAT Library, profile, and Docs & Photos use the same browser-safe photo",
     "src",
     "/api/v1/web-photos/photo-1/thumbnail",
   );
-  await expect(page.locator(".photo-gallery a").first()).toHaveAttribute(
-    "href",
-    "/api/v1/web-photos/photo-1/content",
-  );
+  await page
+    .locator(".photo-gallery")
+    .getByRole("button", { name: /Open full-resolution photo/ })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: /Photo viewer/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close photo viewer" }).click();
   expect(
     seen.every((request) => !request.headers()["x-eoat-device-token"]),
   ).toBeTruthy();
@@ -422,6 +454,41 @@ test("Fit Check keeps dedicated searchable Machine, Tool, and EOAT selectors", a
   ).toBeEnabled();
   await page.getByRole("button", { name: "Evaluate without saving" }).click();
   await expect(page.getByRole("heading", { name: "COMPATIBLE" })).toBeVisible();
+  const toolSelector = page.getByRole("combobox", { name: "Tool" });
+  await toolSelector.click();
+  await toolSelector.fill("461");
+  const globalTool = page.getByRole("option", { name: /Unrelated Tool 461/ });
+  await expect(globalTool).toBeVisible();
+  const selectorMenu = page.getByRole("listbox", { name: "Tool options" });
+  await expect(selectorMenu).toHaveCSS("position", "fixed");
+  await expect(selectorMenu).toHaveCSS("z-index", "1100");
+  expect(
+    await selectorMenu.evaluate((menu) => {
+      const bounds = menu.getBoundingClientRect();
+      const topElement = document.elementFromPoint(
+        bounds.left + Math.min(12, bounds.width / 2),
+        bounds.top + Math.min(12, bounds.height / 2),
+      );
+      return topElement === menu || menu.contains(topElement);
+    }),
+  ).toBeTruthy();
+  await globalTool.click();
+  for (const [width, height] of [
+    [1920, 1080],
+    [1440, 900],
+    [768, 900],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/fit-check");
+    await expect(
+      page.getByRole("heading", { name: "Fit Check" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBeTruthy();
+  }
   expect(
     seen.filter(
       (request) =>

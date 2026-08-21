@@ -47,6 +47,7 @@ export type WebFitCheckOptions = {
   warnings: string[];
   unresolved_inputs: string[];
 };
+export type FitCheckSearchSlot = "machine" | "tool" | "eoat";
 export type WebDocument = components["schemas"]["WebDocumentMetadata"];
 export type WebPhoto = components["schemas"]["WebPhotoMetadata"];
 export type SetupPacketData = {
@@ -742,7 +743,10 @@ export const apiClient = {
     );
   },
   async getWebFitCheckOptions(
-    selection: Partial<FitCheckRequest>,
+    selection: Partial<FitCheckRequest> & {
+      search?: string;
+      search_slot?: FitCheckSearchSlot;
+    },
     fetcher?: typeof fetch,
   ): Promise<WebFitCheckOptions> {
     const query = new URLSearchParams();
@@ -752,6 +756,10 @@ export const apiClient = {
     if (selection.tool_number) query.set("tool_number", selection.tool_number);
     if (selection.eoat_identifier)
       query.set("eoat_identifier", selection.eoat_identifier);
+    if (selection.search?.trim() && selection.search_slot) {
+      query.set("search", selection.search.trim());
+      query.set("search_slot", selection.search_slot);
+    }
     return assertObject<WebFitCheckOptions>(
       await requestJson(
         `/api/v1/web-fit-checks/options${query.size ? `?${query}` : ""}`,

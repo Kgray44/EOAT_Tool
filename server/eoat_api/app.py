@@ -439,7 +439,9 @@ def tool_relationships(identifier: str, repo: AtlasRepository = Depends(reposito
 
 @app.get("/api/v1/tools/{identifier}/documents", response_model=list[WebDocumentMetadata])
 def tool_documents(identifier: str, repo: AtlasRepository = Depends(repository)):
-    entity = repo.session.scalar(__import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == identifier))
+    entity = repo.session.scalar(
+        __import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == identifier)
+    )
     if entity is None:
         raise not_found("Tool", identifier)
     return _browser_safe_documents(repo.documents("tool", entity.id))
@@ -447,7 +449,9 @@ def tool_documents(identifier: str, repo: AtlasRepository = Depends(repository))
 
 @app.get("/api/v1/tools/{identifier}/photos", response_model=list[WebPhotoMetadata])
 def tool_photos(identifier: str, repo: AtlasRepository = Depends(repository)):
-    entity = repo.session.scalar(__import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == identifier))
+    entity = repo.session.scalar(
+        __import__("sqlalchemy").select(db.Tool).where(db.Tool.business_identifier == identifier)
+    )
     if entity is None:
         raise not_found("Tool", identifier)
     return _browser_safe_documents(repo.documents("tool", entity.id, photos_only=True))
@@ -476,6 +480,8 @@ def web_fit_check_options(
     plant_code: str | None = None,
     tool_number: str | None = None,
     eoat_identifier: str | None = None,
+    search: str = Query("", max_length=120),
+    search_slot: str | None = Query(None, pattern="^(machine|tool|eoat)$"),
     session: Session = Depends(get_runtime_session),
 ):
     """Return browser-safe, currently-effective Fit Check candidates.
@@ -546,7 +552,9 @@ def web_fit_check_options(
         list(
             session.scalars(
                 select(db.EOAT)
-                .where(or_(db.EOAT.business_identifier == eoat_identifier, db.EOAT.legacy_identifier == eoat_identifier))
+                .where(
+                    or_(db.EOAT.business_identifier == eoat_identifier, db.EOAT.legacy_identifier == eoat_identifier)
+                )
                 .order_by(db.EOAT.id)
             ).all()
         )
@@ -562,14 +570,52 @@ def web_fit_check_options(
         return values if current is None else current & values
 
     if machine:
-        tool_ids = intersect(tool_ids, compatible_ids(db.ToolMachineCompatibility, db.ToolMachineCompatibility.tool_id, db.ToolMachineCompatibility.machine_id == machine.id))
-        eoat_ids = intersect(eoat_ids, compatible_ids(db.EOATMachineCompatibility, db.EOATMachineCompatibility.eoat_id, db.EOATMachineCompatibility.machine_id == machine.id))
+        tool_ids = intersect(
+            tool_ids,
+            compatible_ids(
+                db.ToolMachineCompatibility,
+                db.ToolMachineCompatibility.tool_id,
+                db.ToolMachineCompatibility.machine_id == machine.id,
+            ),
+        )
+        eoat_ids = intersect(
+            eoat_ids,
+            compatible_ids(
+                db.EOATMachineCompatibility,
+                db.EOATMachineCompatibility.eoat_id,
+                db.EOATMachineCompatibility.machine_id == machine.id,
+            ),
+        )
     if tool:
-        machine_ids = intersect(machine_ids, compatible_ids(db.ToolMachineCompatibility, db.ToolMachineCompatibility.machine_id, db.ToolMachineCompatibility.tool_id == tool.id))
-        eoat_ids = intersect(eoat_ids, compatible_ids(db.EOATToolCompatibility, db.EOATToolCompatibility.eoat_id, db.EOATToolCompatibility.tool_id == tool.id))
+        machine_ids = intersect(
+            machine_ids,
+            compatible_ids(
+                db.ToolMachineCompatibility,
+                db.ToolMachineCompatibility.machine_id,
+                db.ToolMachineCompatibility.tool_id == tool.id,
+            ),
+        )
+        eoat_ids = intersect(
+            eoat_ids,
+            compatible_ids(
+                db.EOATToolCompatibility, db.EOATToolCompatibility.eoat_id, db.EOATToolCompatibility.tool_id == tool.id
+            ),
+        )
     if eoat:
-        machine_ids = intersect(machine_ids, compatible_ids(db.EOATMachineCompatibility, db.EOATMachineCompatibility.machine_id, db.EOATMachineCompatibility.eoat_id == eoat.id))
-        tool_ids = intersect(tool_ids, compatible_ids(db.EOATToolCompatibility, db.EOATToolCompatibility.tool_id, db.EOATToolCompatibility.eoat_id == eoat.id))
+        machine_ids = intersect(
+            machine_ids,
+            compatible_ids(
+                db.EOATMachineCompatibility,
+                db.EOATMachineCompatibility.machine_id,
+                db.EOATMachineCompatibility.eoat_id == eoat.id,
+            ),
+        )
+        tool_ids = intersect(
+            tool_ids,
+            compatible_ids(
+                db.EOATToolCompatibility, db.EOATToolCompatibility.tool_id, db.EOATToolCompatibility.eoat_id == eoat.id
+            ),
+        )
 
     machine_filters = [*available(db.Machine)]
     tool_filters = [*available(db.Tool)]
@@ -590,6 +636,23 @@ def web_fit_check_options(
     )
     tools = list(session.scalars(select(db.Tool).where(*tool_filters).order_by(db.Tool.business_identifier)).all())
     eoats = list(session.scalars(select(db.EOAT).where(*eoat_filters).order_by(db.EOAT.business_identifier)).all())
+
+    # A typed query deliberately uses the normal authoritative catalog for
+    # just that selector. Compatibility remains a recommendation for an empty
+    # selector and an evaluation rule after selection; it must not censor an
+    # operator who needs to check an unfamiliar or incompatible combination.
+    catalog_search = search.strip()
+    global_machines = None
+    global_tools = None
+    global_eoats = None
+    if catalog_search and search_slot:
+        catalog = AtlasRepository(session)
+        if search_slot == "machine":
+            global_machines = catalog.list_machines(search=catalog_search, page_size=50, active=True)[0]
+        elif search_slot == "tool":
+            global_tools = catalog.list_tools(search=catalog_search, page_size=50, active=True)[0]
+        else:
+            global_eoats = catalog.list_eoats(search=catalog_search, page_size=50, active=True)[0]
     warnings: list[str] = []
     unresolved: list[str] = []
     if machine_number and len(machine_matches) != 1:
@@ -602,9 +665,55 @@ def web_fit_check_options(
         warnings.append("EOAT selection is unknown or unavailable.")
         unresolved.append("eoat")
     return WebFitCheckOptions(
-        machines=[FitCheckOption(identifier=value.machine_number, label=value.machine_name or value.machine_number, plant_code=plant) for value, plant in machines],
-        tools=[FitCheckOption(identifier=value.business_identifier, label=value.display_name or value.tool_number or value.business_identifier) for value in tools],
-        eoats=[FitCheckOption(identifier=value.business_identifier, label=value.display_name or value.business_identifier) for value in eoats],
+        machines=(
+            [
+                FitCheckOption(
+                    identifier=value.machine_number,
+                    label=value.machine_name or value.machine_number,
+                    plant_code=value.plant_code,
+                )
+                for value in global_machines
+            ]
+            if global_machines is not None
+            else [
+                FitCheckOption(
+                    identifier=value.machine_number, label=value.machine_name or value.machine_number, plant_code=plant
+                )
+                for value, plant in machines
+            ]
+        ),
+        tools=(
+            [
+                FitCheckOption(
+                    identifier=value.business_identifier,
+                    label=value.display_name or value.tool_number or value.business_identifier,
+                )
+                for value in global_tools
+            ]
+            if global_tools is not None
+            else [
+                FitCheckOption(
+                    identifier=value.business_identifier,
+                    label=value.display_name or value.tool_number or value.business_identifier,
+                )
+                for value in tools
+            ]
+        ),
+        eoats=(
+            [
+                FitCheckOption(
+                    identifier=value.business_identifier, label=value.display_name or value.business_identifier
+                )
+                for value in global_eoats
+            ]
+            if global_eoats is not None
+            else [
+                FitCheckOption(
+                    identifier=value.business_identifier, label=value.display_name or value.business_identifier
+                )
+                for value in eoats
+            ]
+        ),
         warnings=warnings,
         unresolved_inputs=unresolved,
     )

@@ -294,6 +294,7 @@ export function AppShell({ children }: PropsWithChildren) {
         initialQuery={initialQuery}
         onClose={closeSearch}
       />
+      <div id="atlas-selector-overlay-root" />
     </div>
   );
 }

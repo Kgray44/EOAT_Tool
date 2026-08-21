@@ -9,11 +9,14 @@ from server.eoat_api.contracts import (
     EOATProfile,
     EOATSummary,
     MachineProfile,
+    MachineSummary,
     PaginationMetadata,
     PhotoMetadata,
     ToolProfile,
+    ToolSummary,
 )
 from server.eoat_api.database.session import get_runtime_session
+from server.eoat_api.repositories import AtlasRepository
 
 
 class _Session:
@@ -123,6 +126,45 @@ def test_normal_fit_check_options_are_a_read_only_browser_contract():
         "warnings": [],
         "unresolved_inputs": [],
     }
+
+
+def test_typed_fit_check_search_uses_only_the_requested_authoritative_catalog_slot(monkeypatch):
+    page = PaginationMetadata(page=1, page_size=50, total=1, pages=1)
+
+    def machines(_self, *, search, page_size, active):
+        assert (search, page_size, active) == ("40", 50, True)
+        return [
+            MachineSummary(
+                machine_number="040", machine_name="Global Machine 040", plant_code="P4", is_active=True, row_version=1
+            )
+        ], page
+
+    def tools(_self, *, search, page_size, active):
+        assert (search, page_size, active) == ("461", 50, True)
+        return [
+            ToolSummary(business_identifier="T-461", display_name="Global Tool 461", is_active=True, row_version=1)
+        ], page
+
+    def eoats(_self, *, search, page_size, active):
+        assert (search, page_size, active) == ("0042", 50, True)
+        return [
+            EOATSummary(business_identifier="E-0042", display_name="Global EOAT 0042", is_active=True, row_version=1)
+        ], page
+
+    monkeypatch.setattr(AtlasRepository, "list_machines", machines)
+    monkeypatch.setattr(AtlasRepository, "list_tools", tools)
+    monkeypatch.setattr(AtlasRepository, "list_eoats", eoats)
+    app.dependency_overrides[get_runtime_session] = _FitCheckSession
+    try:
+        with TestClient(app) as client:
+            machine = client.get("/api/v1/web-fit-checks/options?search_slot=machine&search=40")
+            tool = client.get("/api/v1/web-fit-checks/options?search_slot=tool&search=461")
+            eoat = client.get("/api/v1/web-fit-checks/options?search_slot=eoat&search=0042")
+    finally:
+        app.dependency_overrides.clear()
+    assert machine.json()["machines"] == [{"identifier": "040", "label": "Global Machine 040", "plant_code": "P4"}]
+    assert tool.json()["tools"] == [{"identifier": "T-461", "label": "Global Tool 461", "plant_code": None}]
+    assert eoat.json()["eoats"] == [{"identifier": "E-0042", "label": "Global EOAT 0042", "plant_code": None}]
 
 
 def test_normal_browser_data_status_has_safe_freshness_evidence():

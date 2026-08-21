@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   apiClient,
@@ -24,6 +24,7 @@ import {
   profileTabForSection,
   type ProfileTab,
 } from "./profileTabs";
+import { PhotoLightbox } from "./PhotoLightbox";
 
 export function ProfileSection({
   title,
@@ -394,6 +395,7 @@ export function RelationshipList({
 }
 
 export function PhotoGallery({ photos }: { photos: WebPhoto[] }) {
+  const [activePhoto, setActivePhoto] = useState<WebPhoto | null>(null);
   if (photos.length === 0)
     return (
       <EmptyState title="No photos recorded">
@@ -401,37 +403,41 @@ export function PhotoGallery({ photos }: { photos: WebPhoto[] }) {
       </EmptyState>
     );
   return (
-    <div className="photo-gallery">
-      {photos.map((photo) => (
-        <figure key={photo.document_uuid} className="photo-card">
-          {photo.content_delivery_state === "AVAILABLE" ? (
-            <a
-              href={apiClient.photoContentUrl(photo.document_uuid)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <img
-                src={apiClient.photoThumbnailUrl(photo.document_uuid)}
-                alt={photo.caption || photo.title || photo.file_name}
-                loading="lazy"
-              />
-            </a>
-          ) : (
-            <div
-              className="media-unavailable"
-              role="img"
-              aria-label={`Photo unavailable: ${photo.title}`}
-            >
-              Photo unavailable
-            </div>
-          )}
-          <figcaption>
-            <strong>{photo.title}</strong>
-            <span>{photo.caption || photo.file_name}</span>
-          </figcaption>
-        </figure>
-      ))}
-    </div>
+    <>
+      <div className="photo-gallery">
+        {photos.map((photo) => (
+          <figure key={photo.document_uuid} className="photo-card">
+            {photo.content_delivery_state === "AVAILABLE" ? (
+              <button
+                type="button"
+                className="photo-card__open"
+                aria-label={`Open full-resolution photo: ${photo.caption || photo.title || photo.file_name}`}
+                onClick={() => setActivePhoto(photo)}
+              >
+                <img
+                  src={apiClient.photoThumbnailUrl(photo.document_uuid)}
+                  alt={photo.caption || photo.title || photo.file_name}
+                  loading="lazy"
+                />
+              </button>
+            ) : (
+              <div
+                className="media-unavailable"
+                role="img"
+                aria-label={`Photo unavailable: ${photo.title}`}
+              >
+                Photo unavailable
+              </div>
+            )}
+            <figcaption>
+              <strong>{photo.title}</strong>
+              <span>{photo.caption || photo.file_name}</span>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      <PhotoLightbox photo={activePhoto} onClose={() => setActivePhoto(null)} />
+    </>
   );
 }
 

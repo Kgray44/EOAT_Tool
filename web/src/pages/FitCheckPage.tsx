@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { apiClient } from "@/api/client";
+import { apiClient, type FitCheckSearchSlot } from "@/api/client";
 import { AtlasSelector } from "@/components/inputs/AtlasSelector";
 import { ErrorState, LoadingState } from "@/components/feedback/StateViews";
 
@@ -17,6 +17,15 @@ function resultTone(value: string) {
   return "danger";
 }
 
+function useDebouncedValue<T>(value: T, delay = 220) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timeout);
+  }, [delay, value]);
+  return debounced;
+}
+
 /** The desktop workflow is three named records, never three interchangeable slots. */
 export function FitCheckPage() {
   const [params] = useSearchParams();
@@ -24,14 +33,33 @@ export function FitCheckPage() {
   const [tool, setTool] = useState(params.get("tool") || "");
   const [eoat, setEoat] = useState(params.get("eoat") || "");
   const [plantCode, setPlantCode] = useState(params.get("plant") || "");
+  const [selectorQueries, setSelectorQueries] = useState<
+    Record<FitCheckSearchSlot, string>
+  >({ machine: "", tool: "", eoat: "" });
+  const activeSearch = (
+    Object.entries(selectorQueries) as Array<[FitCheckSearchSlot, string]>
+  ).find(([, query]) => query.trim());
+  const debouncedSearch = useDebouncedValue(activeSearch?.[1] || "");
+  const debouncedSearchSlot = debouncedSearch ? activeSearch?.[0] : undefined;
   const options = useQuery({
-    queryKey: ["fit-check", "options", plantCode, machine, tool, eoat],
+    queryKey: [
+      "fit-check",
+      "options",
+      plantCode,
+      machine,
+      tool,
+      eoat,
+      debouncedSearchSlot,
+      debouncedSearch,
+    ],
     queryFn: () =>
       apiClient.getWebFitCheckOptions({
         plant_code: plantCode || undefined,
         machine_number: machine || undefined,
         tool_number: tool || undefined,
         eoat_identifier: eoat || undefined,
+        search: debouncedSearch || undefined,
+        search_slot: debouncedSearchSlot,
       }),
   });
   const evaluation = useMutation({
@@ -43,29 +71,15 @@ export function FitCheckPage() {
         eoat_identifier: eoat,
       }),
   });
-  useEffect(() => {
-    if (!options.data) return;
-    const unresolved = new Set(options.data.unresolved_inputs || []);
-    if (
-      machine &&
-      !unresolved.has("machine") &&
-      !(options.data.machines || []).some((item) => item.identifier === machine)
-    )
-      setMachine("");
-    if (
-      tool &&
-      !unresolved.has("tool") &&
-      !(options.data.tools || []).some((item) => item.identifier === tool)
-    )
-      setTool("");
-    if (
-      eoat &&
-      !unresolved.has("eoat") &&
-      !(options.data.eoats || []).some((item) => item.identifier === eoat)
-    )
-      setEoat("");
-  }, [eoat, machine, options.data, tool]);
   const result = evaluation.data;
+  const setSelectorQuery = (slot: FitCheckSearchSlot, query: string) => {
+    setSelectorQueries({
+      machine: "",
+      tool: "",
+      eoat: "",
+      [slot]: query,
+    });
+  };
   const choices = (
     items: Array<{
       identifier: string;
@@ -120,22 +134,35 @@ export function FitCheckPage() {
           label="Machine"
           value={machine}
           options={choices(options.data?.machines || [])}
+          searchQuery={selectorQueries.machine}
+          onSearchQueryChange={(query) => setSelectorQuery("machine", query)}
           onChange={(value, option) => {
             setMachine(value);
             setPlantCode(option?.context?.match(/^Plant ([^ ·]+)/)?.[1] || "");
+            setSelectorQuery("machine", "");
           }}
         />
         <AtlasSelector
           label="Tool"
           value={tool}
           options={choices(options.data?.tools || [])}
-          onChange={setTool}
+          searchQuery={selectorQueries.tool}
+          onSearchQueryChange={(query) => setSelectorQuery("tool", query)}
+          onChange={(value) => {
+            setTool(value);
+            setSelectorQuery("tool", "");
+          }}
         />
         <AtlasSelector
           label="EOAT"
           value={eoat}
           options={choices(options.data?.eoats || [])}
-          onChange={setEoat}
+          searchQuery={selectorQueries.eoat}
+          onSearchQueryChange={(query) => setSelectorQuery("eoat", query)}
+          onChange={(value) => {
+            setEoat(value);
+            setSelectorQuery("eoat", "");
+          }}
         />
         <button
           type="submit"
