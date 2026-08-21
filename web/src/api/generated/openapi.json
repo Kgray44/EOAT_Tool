@@ -3320,6 +3320,17 @@
             "title": "Persist",
             "type": "boolean"
           },
+          "plant_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Code"
+          },
           "tool_number": {
             "title": "Tool Number",
             "type": "string"
@@ -9908,6 +9919,22 @@
               "title": "Eoat Identifier",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "plant_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Code"
+            }
           }
         ],
         "responses": {
@@ -13260,6 +13287,22 @@
             "schema": {
               "title": "Eoat Identifier",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "plant_code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Plant Code"
             }
           }
         ],

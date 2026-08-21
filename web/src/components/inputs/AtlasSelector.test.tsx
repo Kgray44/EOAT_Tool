@@ -27,4 +27,19 @@ describe("AtlasSelector", () => {
     expect(input).toHaveValue("Machine 040");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
+
+  it("dismisses the selection and its option menu from the clear control", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    const input = screen.getByRole("combobox", { name: "Machine" });
+    await user.click(input);
+    await user.click(screen.getByRole("option", { name: "Machine 040" }));
+    await user.click(
+      screen.getByRole("button", { name: "Clear Machine selection" }),
+    );
+
+    expect(input).toHaveValue("");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
 });

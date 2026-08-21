@@ -742,6 +742,7 @@ export const apiClient = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           machine_number: payload.machine_number,
+          ...(payload.plant_code ? { plant_code: payload.plant_code } : {}),
           tool_number: payload.tool_number,
           eoat_identifier: payload.eoat_identifier,
           persist: false,

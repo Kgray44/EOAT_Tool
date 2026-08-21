@@ -3336,6 +3336,8 @@ export interface components {
              * @default false
              */
             persist: boolean;
+            /** Plant Code */
+            plant_code?: string | null;
             /** Tool Number */
             tool_number: string;
         };
@@ -6261,6 +6263,7 @@ export interface operations {
                 machine_number: string;
                 tool_number: string;
                 eoat_identifier: string;
+                plant_code?: string | null;
             };
             header?: never;
             path?: never;
@@ -8534,6 +8537,7 @@ export interface operations {
                 machine_number: string;
                 tool_number: string;
                 eoat_identifier: string;
+                plant_code?: string | null;
             };
             header?: never;
             path?: never;

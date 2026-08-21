@@ -331,15 +331,18 @@ class AtlasRepository:
             page=page, page_size=page_size, total=total, pages=ceil(total / page_size) if total else 0
         )
 
-    def machine(self, number: str) -> MachineProfile | None:
-        entity = self.session.scalar(select(db.Machine).where(db.Machine.machine_number == number))
+    def machine(self, number: str, *, plant_code: str | None = None) -> MachineProfile | None:
+        query = select(db.Machine).where(db.Machine.machine_number == number)
+        if plant_code:
+            query = query.join(db.Plant).where(db.Plant.plant_code == plant_code)
+        entity = self.session.scalar(query)
         if entity is None:
             return None
         summary = next(
             (
                 item
                 for item in self.list_machines(search=number, active=None, page_size=100)[0]
-                if item.machine_number == number
+                if item.machine_number == number and (plant_code is None or item.plant_code == plant_code)
             ),
             None,
         )

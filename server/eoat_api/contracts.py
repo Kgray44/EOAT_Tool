@@ -246,6 +246,7 @@ class FitCheckRequest(BaseModel):
     machine_number: str
     tool_number: str
     eoat_identifier: str
+    plant_code: str | None = None
     persist: bool = False
 
 

@@ -60,6 +60,11 @@ export function AtlasSelector({
     setQuery("");
     setOpen(false);
   };
+  const clear = () => {
+    onChange("");
+    setQuery("");
+    setOpen(false);
+  };
   const display = open ? query : selected?.label || value;
   return (
     <div className="atlas-selector" ref={root}>
@@ -110,8 +115,9 @@ export function AtlasSelector({
           <button
             type="button"
             className="atlas-selector__clear"
-            aria-label={`Clear ${label}`}
-            onClick={() => onChange("")}
+            aria-label={`Clear ${label} selection`}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={clear}
           >
             ×
           </button>
