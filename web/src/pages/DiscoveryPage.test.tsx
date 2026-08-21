@@ -213,6 +213,104 @@ describe("Library and Fit Check", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses compatible empty suggestions but a typed full-catalog Fit Check search", async () => {
+    const fetcher = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), "http://atlas.test");
+      if (url.pathname.endsWith("/web-fit-checks/options")) {
+        const slot = url.searchParams.get("search_slot");
+        const search = url.searchParams.get("search");
+        if (slot === "tool" && search === "461")
+          return Promise.resolve(
+            json({
+              machines: [
+                { identifier: "M-1", label: "Press 1", plant_code: "P1" },
+              ],
+              tools: [{ identifier: "T-461", label: "Unrelated Tool 461" }],
+              eoats: [{ identifier: "E-1", label: "EOAT 1" }],
+              warnings: [],
+              unresolved_inputs: [],
+            }),
+          );
+        return Promise.resolve(
+          json({
+            machines: [
+              { identifier: "M-1", label: "Press 1", plant_code: "P1" },
+            ],
+            tools: [{ identifier: "T-1", label: "Compatible Tool 1" }],
+            eoats: [{ identifier: "E-1", label: "EOAT 1" }],
+            warnings: [],
+            unresolved_inputs: [],
+          }),
+        );
+      }
+      if (url.pathname.endsWith("/fit-checks/evaluate"))
+        return Promise.resolve(
+          json({
+            overall_result: "INCOMPATIBLE",
+            machine_tool_result: {
+              pair: "machine_tool",
+              result: "INCOMPATIBLE",
+              reason: "Not recommended",
+            },
+            machine_eoat_result: {
+              pair: "machine_eoat",
+              result: "COMPATIBLE",
+              reason: "Verified",
+            },
+            tool_eoat_result: {
+              pair: "tool_eoat",
+              result: "COMPATIBLE",
+              reason: "Verified",
+            },
+            reasons: ["The selected Machine and Tool are incompatible."],
+            warnings: [],
+            unknown_relationships: [],
+            alternative_compatible_eoats: [],
+            stored: false,
+          }),
+        );
+      return mockFetch()(input, init);
+    });
+    vi.stubGlobal("fetch", fetcher);
+    renderAt("/fit-check");
+    const user = userEvent.setup();
+
+    await user.click(screen.getByLabelText("Machine"));
+    await user.click(await screen.findByRole("option", { name: /Press 1/ }));
+    await user.click(screen.getByLabelText("Tool"));
+    expect(
+      await screen.findByRole("option", { name: /Compatible Tool 1/ }),
+    ).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Tool"), "461");
+    expect(
+      await screen.findByRole("option", { name: /Unrelated Tool 461/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Compatible Tool 1/ }),
+    ).not.toBeInTheDocument();
+
+    await user.keyboard("{Control>}a{/Control}{Backspace}");
+    expect(
+      await screen.findByRole("option", { name: /Compatible Tool 1/ }),
+    ).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Tool"), "461");
+    await user.click(
+      await screen.findByRole("option", { name: /Unrelated Tool 461/ }),
+    );
+    await user.click(screen.getByLabelText("EOAT"));
+    await user.click(await screen.findByRole("option", { name: /EOAT 1/ }));
+    await user.click(
+      screen.getByRole("button", { name: /Evaluate without saving/ }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "INCOMPATIBLE" }),
+    ).toBeInTheDocument();
+    expect(fetcher.mock.calls.map(([input]) => String(input))).toContain(
+      "/api/v1/web-fit-checks/options?plant_code=P1&machine_number=M-1&search=461&search_slot=tool",
+    );
+  });
+
   it("renders a browser-safe setup packet that can be printed as a PDF", async () => {
     vi.stubGlobal("fetch", mockFetch());
     renderAt("/setup-packet?machine=M-1&tool=T-1&eoat=E-1&plant=P1");

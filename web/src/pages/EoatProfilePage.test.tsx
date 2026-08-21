@@ -145,11 +145,17 @@ describe("EOAT profile route", () => {
       "href",
       "/machines/M-42",
     );
+    const heroPhoto = await screen.findByRole("button", {
+      name: "Open full-resolution photo for EOAT A+1",
+    });
+    await user.click(heroPhoto);
+    expect(screen.getByRole("dialog", { name: /Photo viewer/ })).toBeVisible();
+    expect(document.body.style.overflow).toBe("hidden");
+    await user.keyboard("{Escape}");
     expect(
-      await screen.findByRole("link", {
-        name: "Open full-resolution photo for EOAT A+1",
-      }),
-    ).toHaveAttribute("href", "/api/v1/web-photos/photo-hero/content");
+      screen.queryByRole("dialog", { name: /Photo viewer/ }),
+    ).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("");
     await user.click(screen.getByRole("link", { name: "Docs & Photos" }));
     expect((await screen.findAllByAltText("EOAT overview")).length).toBe(2);
     await waitFor(() =>

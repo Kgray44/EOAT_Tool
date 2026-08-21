@@ -14250,6 +14250,34 @@
               ],
               "title": "Eoat Identifier"
             }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 120,
+              "title": "Search",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search_slot",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(machine|tool|eoat)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search Slot"
+            }
           }
         ],
         "responses": {

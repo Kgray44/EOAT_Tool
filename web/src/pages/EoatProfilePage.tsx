@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
@@ -24,6 +24,7 @@ import {
   ProfileTabs,
   RelationshipFlow,
 } from "@/components/profile/ProfileBlocks";
+import { PhotoLightbox } from "@/components/profile/PhotoLightbox";
 import {
   normalizeProfileTab,
   profileTabForSection,
@@ -151,6 +152,7 @@ function ProfileHeader({
   heroPhoto?: WebPhoto;
   actions?: ReactNode;
 }) {
+  const [activePhoto, setActivePhoto] = useState<WebPhoto | null>(null);
   const locationText =
     location?.state === "INSTALLED" && location.machine_number
       ? `Installed on machine ${location.machine_number}`
@@ -160,18 +162,17 @@ function ProfileHeader({
   return (
     <header className="profile-header">
       {heroPhoto?.content_delivery_state === "AVAILABLE" ? (
-        <a
+        <button
+          type="button"
           className="profile-hero-photo"
-          href={apiClient.photoContentUrl(heroPhoto.document_uuid)}
-          target="_blank"
-          rel="noreferrer"
           aria-label={`Open full-resolution photo for ${profile.business_identifier}`}
+          onClick={() => setActivePhoto(heroPhoto)}
         >
           <img
             src={apiClient.photoThumbnailUrl(heroPhoto.document_uuid)}
             alt={heroPhoto.caption || heroPhoto.title || heroPhoto.file_name}
           />
-        </a>
+        </button>
       ) : (
         <div className="profile-medallion" aria-hidden="true">
           ◇
@@ -205,6 +206,7 @@ function ProfileHeader({
         </div>
       </div>
       {actions}
+      <PhotoLightbox photo={activePhoto} onClose={() => setActivePhoto(null)} />
     </header>
   );
 }

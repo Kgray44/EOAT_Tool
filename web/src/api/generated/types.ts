@@ -9222,6 +9222,8 @@ export interface operations {
                 plant_code?: string | null;
                 tool_number?: string | null;
                 eoat_identifier?: string | null;
+                search?: string;
+                search_slot?: string | null;
             };
             header?: never;
             path?: never;

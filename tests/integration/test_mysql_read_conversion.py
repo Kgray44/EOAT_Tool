@@ -118,7 +118,7 @@ def test_health_version_and_schema(api):
 def test_database_outage_is_normalized_to_503():
     response = asyncio.run(database_error(None, OperationalError("SELECT 1", {}, RuntimeError("simulated outage"))))
     assert response.status_code == 503
-    assert b'DATABASE_UNAVAILABLE' in response.body
+    assert b"DATABASE_UNAVAILABLE" in response.body
 
 
 def test_paginated_filtered_entity_contracts(api):
@@ -165,9 +165,7 @@ def test_history_contract_pagination_sort_filter_search_and_empty_states(api):
     first = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page": 1, "page_size": 2}).json()
     second = api.get("/api/v1/eoats/P4-EOAT-0001/history", params={"page": 2, "page_size": 2}).json()
     assert first["pagination"]["pages"] >= 2
-    assert {item["event_id"] for item in first["items"]}.isdisjoint(
-        {item["event_id"] for item in second["items"]}
-    )
+    assert {item["event_id"] for item in first["items"]}.isdisjoint({item["event_id"] for item in second["items"]})
     ordering = [(item["occurred_at"], item["event_id"]) for item in first["items"]]
     assert ordering == sorted(ordering, reverse=True)
     filtered = api.get(
@@ -244,7 +242,8 @@ def test_fit_check_options_follow_real_imported_compatibility_data(api):
         "/api/v1/web-fit-checks/options", params=machine_params | {"eoat_identifier": eoat["identifier"]}
     ).json()
     by_tool_eoat = api.get(
-        "/api/v1/web-fit-checks/options", params={"tool_number": tool["identifier"], "eoat_identifier": eoat["identifier"]}
+        "/api/v1/web-fit-checks/options",
+        params={"tool_number": tool["identifier"], "eoat_identifier": eoat["identifier"]},
     ).json()
     assert machine["identifier"] in {item["identifier"] for item in by_tool["machines"]}
     assert eoat["identifier"] in {item["identifier"] for item in by_tool["eoats"]}
@@ -287,6 +286,72 @@ def test_fit_check_options_follow_real_imported_compatibility_data(api):
     ).json()
     assert incompatible_tool["identifier"] not in {item["identifier"] for item in rejected["tools"]}
     assert not rejected["eoats"]
+
+    # A deliberate typed search is full-catalog discovery, not a compatibility
+    # assertion. The same non-recommended Tool remains selectable and its
+    # ensuing Fit Check is responsible for reporting the actual relationship.
+    global_search = api.get(
+        "/api/v1/web-fit-checks/options",
+        params=machine_params
+        | {
+            "search_slot": "tool",
+            "search": incompatible_tool["identifier"],
+        },
+    )
+    assert global_search.status_code == 200
+    assert incompatible_tool["identifier"] in {item["identifier"] for item in global_search.json()["tools"]}
+    incompatible_machine = next(
+        (
+            item
+            for item in initial.json()["machines"]
+            if item["identifier"] not in {candidate["identifier"] for candidate in by_tool["machines"]}
+        ),
+        None,
+    )
+    assert (
+        incompatible_machine is not None
+    ), "Production-shaped fixture needs an unrelated Machine for global search coverage."
+    global_machine_search = api.get(
+        "/api/v1/web-fit-checks/options",
+        params={
+            "tool_number": tool["identifier"],
+            "search_slot": "machine",
+            "search": incompatible_machine["identifier"],
+        },
+    )
+    assert incompatible_machine["identifier"] in {
+        item["identifier"] for item in global_machine_search.json()["machines"]
+    }
+    incompatible_eoat = next(
+        (
+            item
+            for item in initial.json()["eoats"]
+            if item["identifier"] not in {candidate["identifier"] for candidate in by_machine["eoats"]}
+        ),
+        None,
+    )
+    assert (
+        incompatible_eoat is not None
+    ), "Production-shaped fixture needs an unrelated EOAT for global search coverage."
+    global_eoat_search = api.get(
+        "/api/v1/web-fit-checks/options",
+        params=machine_params
+        | {
+            "search_slot": "eoat",
+            "search": incompatible_eoat["identifier"],
+        },
+    )
+    assert incompatible_eoat["identifier"] in {item["identifier"] for item in global_eoat_search.json()["eoats"]}
+    global_evaluation = api.post(
+        "/api/v1/fit-checks/evaluate",
+        json=machine_params
+        | {
+            "tool_number": incompatible_tool["identifier"],
+            "eoat_identifier": eoat["identifier"],
+        },
+    )
+    assert global_evaluation.status_code == 200
+    assert global_evaluation.json()["overall_result"] in {"INCOMPATIBLE", "NEEDS_REVIEW"}
 
 
 def test_snapshot_cache_refresh_and_offline_read_only(api, tmp_path):
