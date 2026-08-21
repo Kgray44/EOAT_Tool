@@ -149,7 +149,12 @@ describe("apiClient", () => {
         new Response(JSON.stringify(fitResult), { status: 200 }),
       );
     await apiClient.evaluateWebFitCheck(
-      { machine_number: "M/1", tool_number: "T1", eoat_identifier: "E1" },
+      {
+        machine_number: "M/1",
+        plant_code: "Plant 4",
+        tool_number: "T1",
+        eoat_identifier: "E1",
+      },
       fetcher,
     );
     expect(fetcher).toHaveBeenCalledWith(
@@ -158,6 +163,13 @@ describe("apiClient", () => {
         method: "POST",
         headers: expect.not.objectContaining({
           "X-EOAT-Device-Token": expect.anything(),
+        }),
+        body: JSON.stringify({
+          machine_number: "M/1",
+          plant_code: "Plant 4",
+          tool_number: "T1",
+          eoat_identifier: "E1",
+          persist: false,
         }),
       }),
     );

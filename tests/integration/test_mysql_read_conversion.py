@@ -196,6 +196,91 @@ def test_search_fit_check_and_setup_packet(api):
     assert packet.json()["source"] == "mysql_api"
 
 
+def test_fit_check_options_follow_real_imported_compatibility_data(api):
+    """Exercise selector discovery against the real MySQL import, not a mocked response."""
+    initial = api.get("/api/v1/web-fit-checks/options")
+    assert initial.status_code == 200
+
+    selection = None
+    for machine in initial.json()["machines"]:
+        by_machine = api.get(
+            "/api/v1/web-fit-checks/options",
+            params={"machine_number": machine["identifier"], "plant_code": machine["plant_code"]},
+        ).json()
+        for tool in by_machine["tools"]:
+            by_machine_tool = api.get(
+                "/api/v1/web-fit-checks/options",
+                params={
+                    "machine_number": machine["identifier"],
+                    "plant_code": machine["plant_code"],
+                    "tool_number": tool["identifier"],
+                },
+            ).json()
+            if by_machine_tool["eoats"]:
+                selection = machine, tool, by_machine_tool["eoats"][0], by_machine
+                break
+        if selection:
+            break
+
+    assert selection is not None, "The imported MySQL data has no complete known Machine/Tool/EOAT setup."
+    machine, tool, eoat, by_machine = selection
+    machine_params = {"machine_number": machine["identifier"], "plant_code": machine["plant_code"]}
+    assert tool["identifier"] in {item["identifier"] for item in by_machine["tools"]}
+    assert eoat["identifier"] in {item["identifier"] for item in by_machine["eoats"]}
+
+    # Tool-first, EOAT-first, and every remaining two-item ordering remain
+    # constrained by the same current, explicit compatibility relationships.
+    by_tool = api.get("/api/v1/web-fit-checks/options", params={"tool_number": tool["identifier"]}).json()
+    by_eoat = api.get("/api/v1/web-fit-checks/options", params={"eoat_identifier": eoat["identifier"]}).json()
+    by_machine_eoat = api.get(
+        "/api/v1/web-fit-checks/options", params=machine_params | {"eoat_identifier": eoat["identifier"]}
+    ).json()
+    by_tool_eoat = api.get(
+        "/api/v1/web-fit-checks/options", params={"tool_number": tool["identifier"], "eoat_identifier": eoat["identifier"]}
+    ).json()
+    assert machine["identifier"] in {item["identifier"] for item in by_tool["machines"]}
+    assert eoat["identifier"] in {item["identifier"] for item in by_tool["eoats"]}
+    assert machine["identifier"] in {item["identifier"] for item in by_eoat["machines"]}
+    assert tool["identifier"] in {item["identifier"] for item in by_eoat["tools"]}
+    assert tool["identifier"] in {item["identifier"] for item in by_machine_eoat["tools"]}
+    assert machine["identifier"] in {item["identifier"] for item in by_tool_eoat["machines"]}
+
+    evaluation = api.post(
+        "/api/v1/fit-checks/evaluate",
+        json={
+            **machine_params,
+            "tool_number": tool["identifier"],
+            "eoat_identifier": eoat["identifier"],
+        },
+    )
+    assert evaluation.status_code == 200
+    assert evaluation.json()["overall_result"] == "COMPATIBLE"
+
+    packet = api.get(
+        "/api/v1/setup-packets/data",
+        params=machine_params | {"tool_number": tool["identifier"], "eoat_identifier": eoat["identifier"]},
+    )
+    assert packet.status_code == 200
+    assert packet.json()["machine"]["plant_code"] == machine["plant_code"]
+    assert packet.json()["fit_check"]["overall_result"] == "COMPATIBLE"
+
+    incompatible_tool = next(
+        (
+            item
+            for item in initial.json()["tools"]
+            if item["identifier"] not in {candidate["identifier"] for candidate in by_machine["tools"]}
+        ),
+        None,
+    )
+    assert incompatible_tool is not None, "Production-shaped fixture needs an unrelated Tool for negative coverage."
+    rejected = api.get(
+        "/api/v1/web-fit-checks/options",
+        params=machine_params | {"tool_number": incompatible_tool["identifier"]},
+    ).json()
+    assert incompatible_tool["identifier"] not in {item["identifier"] for item in rejected["tools"]}
+    assert not rejected["eoats"]
+
+
 def test_snapshot_cache_refresh_and_offline_read_only(api, tmp_path):
     cache = CacheRepository(tmp_path / "client.db")
     adapter = ApiClientAdapter(api)

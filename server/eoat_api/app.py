@@ -12,9 +12,9 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from .admin.corporate_user_routes import router as admin_corporate_user_router
 from .admin.mutation_routes import router as admin_mutation_router
 from .admin.operation_routes import router as admin_operation_router
-from .admin.corporate_user_routes import router as admin_corporate_user_router
 from .admin.routes import router as admin_router
 from .contracts import (
     CurrentEOATLocation,
@@ -41,7 +41,13 @@ from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
-from .services import API_VERSION, EXPECTED_SCHEMA_REVISION, SERVER_REVISION, AtlasService
+from .services import (
+    API_VERSION,
+    EXPECTED_SCHEMA_REVISION,
+    SELECTABLE_COMPATIBILITY_STATUS_CODES,
+    SERVER_REVISION,
+    AtlasService,
+)
 from .web_content import content_is_available, content_response, thumbnail_response
 from .write_routes import router as write_router
 
@@ -50,8 +56,6 @@ logging.basicConfig(
     format='{"time":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
 )
 LOGGER = logging.getLogger("eoat_api")
-COMPATIBLE_STATUS_CODES = frozenset({"compatible", "verified_compatible", "approved"})
-
 app = FastAPI(title="EOAT Atlas API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
 
 
@@ -503,7 +507,7 @@ def web_fit_check_options(
                     model.is_active.is_(True),
                     model.effective_from <= now,
                     or_(model.effective_to.is_(None), model.effective_to >= now),
-                    db.CompatibilityStatus.code.in_(COMPATIBLE_STATUS_CODES),
+                    db.CompatibilityStatus.code.in_(SELECTABLE_COMPATIBILITY_STATUS_CODES),
                 )
             )
         )
@@ -648,9 +652,20 @@ def recent_fit_checks(limit: int = Query(25, ge=1, le=250), repo: AtlasRepositor
 
 
 @app.get("/api/v1/compatibility/alternatives")
-def alternatives(machine_number: str, tool_number: str, eoat_identifier: str, svc: AtlasService = Depends(service)):
+def alternatives(
+    machine_number: str,
+    tool_number: str,
+    eoat_identifier: str,
+    plant_code: str | None = None,
+    svc: AtlasService = Depends(service),
+):
     result = svc.fit_check(
-        FitCheckRequest(machine_number=machine_number, tool_number=tool_number, eoat_identifier=eoat_identifier)
+        FitCheckRequest(
+            machine_number=machine_number,
+            plant_code=plant_code,
+            tool_number=tool_number,
+            eoat_identifier=eoat_identifier,
+        )
     )
     return {
         "alternatives": result.alternative_compatible_eoats,
@@ -663,10 +678,11 @@ def setup_packet_data(
     machine_number: str,
     tool_number: str,
     eoat_identifier: str,
+    plant_code: str | None = None,
     repo: AtlasRepository = Depends(repository),
     svc: AtlasService = Depends(service),
 ):
-    machine_value = repo.machine(machine_number)
+    machine_value = repo.machine(machine_number, plant_code=plant_code)
     tool_value = repo.tool(tool_number)
     eoat_value = repo.eoat(eoat_identifier)
     if not all((machine_value, tool_value, eoat_value)):
@@ -679,7 +695,12 @@ def setup_packet_data(
         "tool": tool_value,
         "eoat": eoat_value,
         "fit_check": svc.fit_check(
-            FitCheckRequest(machine_number=machine_number, tool_number=tool_number, eoat_identifier=eoat_identifier)
+            FitCheckRequest(
+                machine_number=machine_number,
+                plant_code=plant_code,
+                tool_number=tool_number,
+                eoat_identifier=eoat_identifier,
+            )
         ),
         "generated_at": datetime.now(timezone.utc),
         "source": "mysql_api",
