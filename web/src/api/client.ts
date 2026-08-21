@@ -2,22 +2,51 @@ import type { components } from "@/api/generated/types";
 import { ApiError } from "@/api/errors";
 
 export type HealthStatus = components["schemas"]["HealthResult"];
-export type DataStatus = { status: "available"; data_last_modified_at: string; server_time: string; data_revision: number };
+export type DataStatus = {
+  status: "available";
+  data_last_modified_at: string;
+  server_time: string;
+  data_revision: number;
+};
 export type EoatProfile = components["schemas"]["EOATProfile"];
 export type EoatLocation = components["schemas"]["CurrentEOATLocation"];
 export type EoatRelationship = components["schemas"]["RelationshipSummary"];
 export type EoatHistory = components["schemas"]["PaginatedHistory"];
 export type MachineProfile = components["schemas"]["MachineProfile"];
-export type MachineSetup = { machine_number: string; current_eoat: string; current_tool: string; verified: boolean; location_semantics?: string };
+export type MachineSetup = {
+  machine_number: string;
+  current_eoat: string;
+  current_tool: string;
+  verified: boolean;
+  location_semantics?: string;
+};
 export type ToolProfile = components["schemas"]["ToolProfile"];
 export type HistoryEvent = components["schemas"]["HistoryEvent"];
 export type MachineList = components["schemas"]["PaginatedMachines"];
 export type ToolList = components["schemas"]["PaginatedTools"];
 export type EoatList = components["schemas"]["PaginatedEOATs"];
-export type SearchResult = { category: "eoat" | "machine" | "tool"; identifier: string; title: string; subtitle: string; matched_field: string };
-export type FitCheckRequest = { machine_number: string; tool_number: string; eoat_identifier: string; persist?: boolean; plant_code?: string };
+export type SearchResult = {
+  category: "eoat" | "machine" | "tool";
+  identifier: string;
+  title: string;
+  subtitle: string;
+  matched_field: string;
+};
+export type FitCheckRequest = {
+  machine_number: string;
+  tool_number: string;
+  eoat_identifier: string;
+  persist?: boolean;
+  plant_code?: string;
+};
 export type FitCheckResult = components["schemas"]["FitCheckResult"];
-export type WebFitCheckOptions = { machines: Array<{ identifier: string; label: string; plant_code?: string }>; tools: Array<{ identifier: string; label: string; plant_code?: string }>; eoats: Array<{ identifier: string; label: string; plant_code?: string }>; warnings: string[]; unresolved_inputs: string[] };
+export type WebFitCheckOptions = {
+  machines: Array<{ identifier: string; label: string; plant_code?: string }>;
+  tools: Array<{ identifier: string; label: string; plant_code?: string }>;
+  eoats: Array<{ identifier: string; label: string; plant_code?: string }>;
+  warnings: string[];
+  unresolved_inputs: string[];
+};
 export type WebDocument = components["schemas"]["WebDocumentMetadata"];
 export type WebPhoto = components["schemas"]["WebPhotoMetadata"];
 export type SetupPacketData = {

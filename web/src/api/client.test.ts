@@ -43,7 +43,9 @@ describe("apiClient", () => {
 
   it("uses the server-issued corporate CSRF cookie for logout", async () => {
     document.cookie = "eoat_corporate_csrf=corporate-test-csrf; path=/";
-    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
 
     await apiClient.logout(fetcher);
 
