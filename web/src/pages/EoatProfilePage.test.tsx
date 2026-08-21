@@ -17,6 +17,8 @@ const profile = {
   row_version: 1,
   current_location: "UNKNOWN_NOT_VERIFIED",
   current_location_detail: null,
+  photo_document_uuid: "photo-hero",
+  photo_available_through_web: true,
   relationships: [],
   audit_evidence: [],
   revision: "R2",
@@ -66,6 +68,15 @@ const history = {
   pagination: { page: 1, page_size: 12, total: 0, pages: 0 },
 };
 const photos = [
+  {
+    document_uuid: "photo-secondary",
+    title: "EOAT detail",
+    caption: "Secondary image",
+    file_name: "detail.jpg",
+    mime_type: "image/jpeg",
+    content_delivery_state: "AVAILABLE",
+    is_profile_photo: false,
+  },
   {
     document_uuid: "photo-hero",
     title: "EOAT overview",

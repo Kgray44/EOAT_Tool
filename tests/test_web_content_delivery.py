@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import io
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -36,21 +38,29 @@ def test_content_path_rejects_traversal_and_absolute_substitution(
     assert "secret.pdf" not in error.value.message
 
 
-def test_windows_storage_path_uses_only_an_exact_approved_mapping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_debian_unc_mapping_uses_only_an_exact_approved_prefix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mounted = tmp_path / "mount"
     mounted.mkdir()
     source = mounted / "Folder" / "photo.jpg"
     source.parent.mkdir()
     source.write_bytes(b"jpg")
-    _configure_root(monkeypatch, mounted)
     monkeypatch.setenv(
         "EOAT_WEB_CONTENT_PATH_MAPPINGS",
         json.dumps([{"source_prefix": r"\\fileserver\eoat-media", "target_root": str(mounted)}]),
     )
+    monkeypatch.setattr(web_content.os, "name", "posix")
 
-    assert web_content._reject_unsafe_path(r"\\fileserver\eoat-media\Folder\photo.jpg", web_content.approved_content_roots()) == source.resolve()
+    mapped = web_content._mapped_storage_path(r"\\fileserver\eoat-media\Folder\photo.jpg")
+    assert mapped.replace("\\", "/").casefold() == str(source).replace("\\", "/").casefold()
     with pytest.raises(APIError):
-        web_content._reject_unsafe_path(r"\\fileserver\eoat-media-evil\Folder\photo.jpg", web_content.approved_content_roots())
+        web_content._mapped_storage_path(r"\\fileserver\eoat-media-evil\Folder\photo.jpg")
+
+
+def test_windows_unc_path_does_not_require_a_debian_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(web_content.os, "name", "nt")
+    monkeypatch.delenv("EOAT_WEB_CONTENT_PATH_MAPPINGS", raising=False)
+
+    assert web_content._mapped_storage_path(r"\\fileserver\eoat-media\Folder\photo.jpg") == r"\\fileserver\eoat-media\Folder\photo.jpg"
 
 
 def test_content_response_uses_safe_filename_and_forces_active_content_download(
@@ -96,6 +106,25 @@ def test_thumbnail_delivery_is_nosniff_and_browser_safe(tmp_path: Path, monkeypa
     assert response.media_type == "image/jpeg"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["cache-control"] == "private, max-age=300"
+
+
+def test_thumbnail_normalizes_jpeg_exif_orientation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    Image = pytest.importorskip("PIL.Image")
+    _configure_root(monkeypatch, tmp_path)
+    source = tmp_path / "rotated.jpg"
+    exif = Image.Exif()
+    exif[274] = 6  # Camera rotated 90 degrees clockwise.
+    Image.new("RGB", (20, 40), "orange").save(source, exif=exif)
+    document = SimpleNamespace(storage_path=str(source), mime_type="image/jpeg", file_name="rotated.jpg")
+    monkeypatch.setattr(web_content, "_document", lambda *_args, **_kwargs: document)
+
+    response = web_content.thumbnail_response(SimpleNamespace(), "rotated-photo")
+
+    async def body() -> bytes:
+        return b"".join([chunk async for chunk in response.body_iterator])
+
+    with Image.open(io.BytesIO(asyncio.run(body()))) as thumbnail:
+        assert thumbnail.size == (40, 20)
 
 
 def test_content_routes_are_in_openapi() -> None:
