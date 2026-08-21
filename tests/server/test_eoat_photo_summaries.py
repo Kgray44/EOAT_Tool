@@ -51,14 +51,16 @@ def test_list_eoats_uses_explicit_profile_photo_and_real_web_availability(monkey
     checked_paths: list[str] = []
     monkeypatch.setattr(
         "server.eoat_api.repositories.content_is_available",
-        lambda path: checked_paths.append(path) or path.endswith("profile.png"),
+        lambda path, **context: checked_paths.append((path, context)) or path.endswith("profile.png"),
     )
 
     items, _pagination = AtlasRepository(session).list_eoats(active=None)
 
     assert items[0].photo_document_uuid == "explicit-profile"
     assert items[0].photo_available_through_web is True
-    assert checked_paths == ["C:/photos/profile.png"]
+    assert checked_paths == [
+        ("C:/photos/profile.png", {"document_uuid": "explicit-profile", "photo": True})
+    ]
 
 
 def test_list_eoats_reports_a_selected_photo_as_unavailable_when_its_file_is_not_browser_safe(monkeypatch):
@@ -66,7 +68,7 @@ def test_list_eoats_reports_a_selected_photo_as_unavailable_when_its_file_is_not
         [(_eoat(), None, None, None, None)],
         [(7, "unavailable-photo", "C:/photos/missing.jpg", "missing.jpg", False, False, 0)],
     )
-    monkeypatch.setattr("server.eoat_api.repositories.content_is_available", lambda _path: False)
+    monkeypatch.setattr("server.eoat_api.repositories.content_is_available", lambda _path, **_context: False)
 
     items, _pagination = AtlasRepository(session).list_eoats(active=None)
 
