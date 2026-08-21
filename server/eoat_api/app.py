@@ -65,7 +65,13 @@ def _browser_safe_documents(rows):
     for row in rows:
         values = row.model_dump(exclude={"storage_path", "path_available"})
         values["content_delivery_state"] = (
-            "AVAILABLE" if content_is_available(row.storage_path) else "NOT_AVAILABLE_THROUGH_WEB"
+            "AVAILABLE"
+            if content_is_available(
+                row.storage_path,
+                document_uuid=row.document_uuid,
+                photo="photo_view_type" in values,
+            )
+            else "NOT_AVAILABLE_THROUGH_WEB"
         )
         safe.append(WebPhotoMetadata(**values) if "photo_view_type" in values else WebDocumentMetadata(**values))
     return safe

@@ -8,8 +8,10 @@ import logging
 import mimetypes
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote
+from uuid import UUID
 
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
@@ -24,6 +26,84 @@ _THUMBNAIL_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._ -]+")
 _WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
 _BROWSER_MEDIA_CACHE_CONTROL = "private, max-age=300"
+
+
+@dataclass(frozen=True)
+class _ResolvedContent:
+    path: Path
+    media_type: str | None = None
+
+
+def _normalized_source_path(value: str) -> str:
+    """Normalize a source identity for manifest comparison, not path access."""
+    return value.replace("/", "\\").rstrip("\\").casefold()
+
+
+def _manifest_path() -> Path | None:
+    configured = os.getenv("EOAT_WEB_MEDIA_MANIFEST", "").strip()
+    if not configured:
+        return None
+    try:
+        path = Path(configured).expanduser().resolve(strict=True)
+    except OSError:
+        LOGGER.warning("web_media_manifest_unavailable")
+        raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.") from None
+    if not path.is_file():
+        LOGGER.warning("web_media_manifest_invalid")
+        raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    return path
+
+
+def _manifest_entry(document_uuid: str, storage_path: str) -> dict[str, object] | None:
+    """Return an exact manifest entry, or fail closed when media mapping is configured."""
+    path = _manifest_path()
+    if path is None:
+        return None
+    try:
+        UUID(document_uuid)
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        entries = payload["entries"]
+    except (KeyError, OSError, ValueError, json.JSONDecodeError):
+        LOGGER.warning("web_media_manifest_invalid")
+        raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.") from None
+    if payload.get("version") != 1 or not isinstance(entries, list):
+        LOGGER.warning("web_media_manifest_invalid")
+        raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    matches = [entry for entry in entries if isinstance(entry, dict) and entry.get("document_uuid") == document_uuid]
+    if len(matches) != 1 or not isinstance(matches[0].get("source_path"), str):
+        LOGGER.warning("web_media_manifest_mapping_unavailable")
+        raise APIError(404, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    if _normalized_source_path(str(matches[0]["source_path"])) != _normalized_source_path(storage_path):
+        LOGGER.warning("web_media_manifest_source_mismatch")
+        raise APIError(404, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    return matches[0]
+
+
+def _manifest_photo_path(document_uuid: str, storage_path: str, roots: tuple[Path, ...]) -> _ResolvedContent | None:
+    entry = _manifest_entry(document_uuid, storage_path)
+    if entry is None:
+        return None
+    web_relative_path = entry.get("web_relative_path")
+    if not isinstance(web_relative_path, str):
+        raise APIError(404, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    relative = Path(web_relative_path.replace("\\", "/"))
+    if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+        LOGGER.warning("web_media_manifest_rejected_relative_path")
+        raise APIError(404, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    if relative.suffix.casefold() not in {".jpg", ".jpeg"}:
+        LOGGER.warning("web_media_manifest_rejected_non_jpeg")
+        raise APIError(404, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
+    if not roots:
+        raise APIError(503, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.", retryable=True)
+    for root in roots:
+        try:
+            candidate = (root / relative).resolve(strict=True)
+        except OSError:
+            continue
+        if candidate.is_file() and candidate.is_relative_to(root):
+            return _ResolvedContent(candidate, "image/jpeg")
+    LOGGER.warning("web_media_manifest_derivative_unavailable")
+    raise APIError(404, "WEB_CONTENT_UNAVAILABLE", "Content is not available through the web interface.")
 
 
 def approved_content_roots() -> tuple[Path, ...]:
@@ -119,10 +199,15 @@ def _document(session: Session, document_uuid: str, *, photo_only: bool | None =
     return document
 
 
-def content_is_available(storage_path: str) -> bool:
+def content_is_available(storage_path: str, *, document_uuid: str | None = None, photo: bool = False) -> bool:
     """Safe metadata hint only; no path or root is exposed to clients."""
     try:
-        _reject_unsafe_path(storage_path, approved_content_roots())
+        roots = approved_content_roots()
+        if photo and document_uuid:
+            resolved = _manifest_photo_path(document_uuid, storage_path, roots)
+            if resolved is not None:
+                return True
+        _reject_unsafe_path(storage_path, roots)
     except APIError:
         return False
     return True
@@ -130,10 +215,18 @@ def content_is_available(storage_path: str) -> bool:
 
 def content_response(session: Session, document_uuid: str, *, photo_only: bool | None = None):
     document = _document(session, document_uuid, photo_only=photo_only)
-    path = _reject_unsafe_path(document.storage_path, approved_content_roots())
-    media_type = _media_type(document, path)
+    roots = approved_content_roots()
+    resolved = _manifest_photo_path(document_uuid, document.storage_path, roots) if photo_only else None
+    if resolved is None:
+        resolved = _ResolvedContent(_reject_unsafe_path(document.storage_path, roots))
+    media_type = resolved.media_type or _media_type(document, resolved.path)
     disposition = "inline" if media_type in _INLINE_TYPES else "attachment"
-    response = FileResponse(path, media_type=media_type, filename=safe_download_name(document.file_name), content_disposition_type=disposition)
+    download_name = safe_download_name(document.file_name)
+    if resolved.media_type == "image/jpeg":
+        download_name = f"{safe_download_name(Path(document.file_name).stem)}.jpg"
+    response = FileResponse(
+        resolved.path, media_type=media_type, filename=download_name, content_disposition_type=disposition
+    )
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Cache-Control"] = _BROWSER_MEDIA_CACHE_CONTROL
     return response
@@ -141,13 +234,16 @@ def content_response(session: Session, document_uuid: str, *, photo_only: bool |
 
 def thumbnail_response(session: Session, document_uuid: str):
     document = _document(session, document_uuid, photo_only=True)
-    path = _reject_unsafe_path(document.storage_path, approved_content_roots())
-    if _media_type(document, path) not in _THUMBNAIL_TYPES:
+    roots = approved_content_roots()
+    resolved = _manifest_photo_path(document_uuid, document.storage_path, roots)
+    if resolved is None:
+        resolved = _ResolvedContent(_reject_unsafe_path(document.storage_path, roots))
+    if (resolved.media_type or _media_type(document, resolved.path)) not in _THUMBNAIL_TYPES:
         raise APIError(409, "THUMBNAIL_UNAVAILABLE", "A thumbnail is not available for this photo.")
     try:
         from PIL import Image, ImageOps
 
-        with Image.open(path) as image:
+        with Image.open(resolved.path) as image:
             image = ImageOps.exif_transpose(image)
             image.thumbnail((640, 640))
             if image.mode not in {"RGB", "L"}:
