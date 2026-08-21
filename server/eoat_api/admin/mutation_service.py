@@ -85,7 +85,13 @@ def list_documents(session: Session, search: str | None, include_archived: bool)
         stmt = stmt.where(db.Document.is_active.is_(True))
     if search:
         needle = f"%{search.strip()}%"
-        stmt = stmt.where(or_(db.Document.document_number.like(needle), db.Document.title.like(needle), db.Document.description.like(needle)))
+        stmt = stmt.where(
+            or_(
+                db.Document.document_number.like(needle),
+                db.Document.title.like(needle),
+                db.Document.description.like(needle),
+            )
+        )
     return [safe_record(row) for row in session.scalars(stmt.order_by(db.Document.title).limit(100))]
 
 
@@ -106,7 +112,9 @@ def list_relationships(session: Session, relationship_type: str, include_archive
                 "row_version": row.row_version,
                 "is_active": row.is_active,
                 "left": getattr(left_record, ASSET_CONFIG[left[2]]["identifier"]) if left_record is not None else None,
-                "right": getattr(right_record, ASSET_CONFIG[right[2]]["identifier"]) if right_record is not None else None,
+                "right": getattr(right_record, ASSET_CONFIG[right[2]]["identifier"])
+                if right_record is not None
+                else None,
                 "compatibility_status_id": row.compatibility_status_id,
                 "compatibility_status": status_record.code if status_record is not None else None,
             }
@@ -142,7 +150,10 @@ def list_photos(session: Session, include_archived: bool) -> list[dict[str, Any]
     if not include_archived:
         stmt = stmt.where(db.Document.is_active.is_(True))
     rows = session.execute(stmt.order_by(db.Photo.id.desc()).limit(100)).all()
-    return [{"photo": safe_record(photo), "document": safe_record(document), "row_version": document.row_version} for photo, document in rows]
+    return [
+        {"photo": safe_record(photo), "document": safe_record(document), "row_version": document.row_version}
+        for photo, document in rows
+    ]
 
 
 def update_photo_governed(
@@ -158,7 +169,11 @@ def update_photo_governed(
         correlation_id=actor.request_id,
         governed_action=AuditAction.PHOTO_ARCHIVE if archive else AuditAction.METADATA_CHANGE,
     )
-    return mutation_success({"document": safe_view(record["document"]), "photo": safe_view(record["photo"])}, audit_event_for_request(session, actor), actor)
+    return mutation_success(
+        {"document": safe_view(record["document"]), "photo": safe_view(record["photo"])},
+        audit_event_for_request(session, actor),
+        actor,
+    )
 
 
 def preview_asset_update(
@@ -182,7 +197,9 @@ def preview_asset_update(
     }
 
 
-def audit_event_for_request(session: Session, actor: ActorContext, *, correlation_id: str | None = None) -> db.AuditEvent:
+def audit_event_for_request(
+    session: Session, actor: ActorContext, *, correlation_id: str | None = None
+) -> db.AuditEvent:
     event = session.scalar(
         select(db.AuditEvent)
         .where(
@@ -364,6 +381,195 @@ def update_setting_governed(
     }
 
 
+def group_policy_view(record: db.ExternalGroupRoleMapping) -> dict[str, Any]:
+    """Return policy provenance without exposing directory credentials or membership."""
+
+    return {
+        "id": record.id,
+        "corporate_group": record.external_group_identifier,
+        "role_code": record.role_code,
+        "provider": record.provider,
+        "is_active": record.is_active,
+        "status": "active" if record.is_active else "inactive",
+        "row_version": record.row_version,
+        "updated_at": record.updated_at,
+    }
+
+
+def _active_role(session: Session, role_code: str) -> db.Role:
+    role = session.scalar(select(db.Role).where(db.Role.role_code == role_code, db.Role.is_active.is_(True)))
+    if role is None:
+        raise APIError(422, "INVALID_ROLE", "The requested EOAT Atlas role is unavailable.")
+    return role
+
+
+def _normalize_group_identifier(value: str) -> str:
+    identifier = value.strip()
+    if len(identifier) < 3 or len(identifier) > 512 or any(character in identifier for character in "\r\n\x00"):
+        raise APIError(422, "INVALID_GROUP_IDENTIFIER", "Provide the exact approved corporate group identifier.")
+    return identifier
+
+
+def _ensure_admin_recovery_path(
+    session: Session, record: db.ExternalGroupRoleMapping, *, next_role: str, next_active: bool
+) -> None:
+    """Do not permit the editor to remove EOAT's final active Admin group path."""
+
+    if record.role_code != "ADMINISTRATOR" or not record.is_active or (next_role == "ADMINISTRATOR" and next_active):
+        return
+    replacement = session.scalar(
+        select(db.ExternalGroupRoleMapping.id).where(
+            db.ExternalGroupRoleMapping.id != record.id,
+            db.ExternalGroupRoleMapping.role_code == "ADMINISTRATOR",
+            db.ExternalGroupRoleMapping.is_active.is_(True),
+            db.ExternalGroupRoleMapping.explicit_deny.is_(False),
+        )
+    )
+    if replacement is None:
+        raise APIError(
+            422,
+            "ADMIN_RECOVERY_PATH_REQUIRED",
+            "Keep another active Administrator group policy before deactivating or changing this policy.",
+        )
+
+
+def _revoke_sessions_for_group_policy(session: Session, group_identifier: str, *, reason: str) -> int:
+    """Invalidate only existing corporate sessions that recorded this mapped group."""
+
+    now = datetime.now(timezone.utc)
+    rows = session.scalars(
+        select(db.CorporateAuthenticationSession).where(
+            db.CorporateAuthenticationSession.revoked_at.is_(None),
+            db.CorporateAuthenticationSession.expires_at > now,
+        )
+    ).all()
+    changed = 0
+    for row in rows:
+        if group_identifier in tuple(row.authorization_groups_json or ()):
+            row.revoked_at = now
+            row.revoke_reason = reason
+            changed += 1
+    return changed
+
+
+def create_group_policy_governed(
+    session: Session, actor: ActorContext, corporate_group: str, role_code: str, reason: str
+) -> dict[str, Any]:
+    identifier = _normalize_group_identifier(corporate_group)
+    _active_role(session, role_code)
+    duplicate = session.scalar(
+        select(db.ExternalGroupRoleMapping.id).where(
+            db.ExternalGroupRoleMapping.provider == "kerberos_form",
+            db.ExternalGroupRoleMapping.external_group_identifier == identifier,
+            db.ExternalGroupRoleMapping.role_code == role_code,
+        )
+    )
+    if duplicate is not None:
+        raise APIError(409, "GROUP_POLICY_DUPLICATE", "That corporate group already has this EOAT Atlas role policy.")
+    now = datetime.now(timezone.utc)
+    record = db.ExternalGroupRoleMapping(
+        provider="kerberos_form",
+        external_group_identifier=identifier,
+        role_code=role_code,
+        explicit_deny=False,
+        is_active=True,
+        row_version=1,
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(record)
+    session.flush()
+    result = AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type="GroupPolicy",
+        entity_id=record.id,
+        entity_display_id=identifier,
+        operation="admin.group-policy.create",
+        previous={},
+        current={"role_code": role_code, "is_active": True, "provider": record.provider},
+        reason=reason,
+        source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        action=AuditAction.GROUP_MAPPING_CHANGE,
+    )
+    return {
+        "policy": group_policy_view(record),
+        "audit_event_id": result.event_id,
+        "correlation_id": actor.request_id,
+        "request_id": actor.request_id,
+    }
+
+
+def update_group_policy_governed(
+    session: Session,
+    actor: ActorContext,
+    mapping_id: int,
+    role_code: str | None,
+    is_active: bool | None,
+    expected_row_version: int,
+    reason: str,
+) -> dict[str, Any]:
+    record = session.scalar(
+        select(db.ExternalGroupRoleMapping)
+        .where(db.ExternalGroupRoleMapping.id == mapping_id, db.ExternalGroupRoleMapping.provider == "kerberos_form")
+        .with_for_update()
+    )
+    if record is None:
+        raise not_found("group policy", str(mapping_id))
+    check_version(record, expected_row_version)
+    next_role = role_code or record.role_code
+    next_active = record.is_active if is_active is None else is_active
+    _active_role(session, next_role)
+    _ensure_admin_recovery_path(session, record, next_role=next_role, next_active=next_active)
+    if next_role != record.role_code:
+        duplicate = session.scalar(
+            select(db.ExternalGroupRoleMapping.id).where(
+                db.ExternalGroupRoleMapping.provider == record.provider,
+                db.ExternalGroupRoleMapping.external_group_identifier == record.external_group_identifier,
+                db.ExternalGroupRoleMapping.role_code == next_role,
+                db.ExternalGroupRoleMapping.id != record.id,
+            )
+        )
+        if duplicate is not None:
+            raise APIError(
+                409, "GROUP_POLICY_DUPLICATE", "That corporate group already has this EOAT Atlas role policy."
+            )
+    before = {"role_code": record.role_code, "is_active": record.is_active, "provider": record.provider}
+    changed = record.role_code != next_role or record.is_active != next_active
+    record.role_code = next_role
+    record.is_active = next_active
+    revoked_session_count = 0
+    if changed:
+        record.row_version += 1
+        revoked_session_count = _revoke_sessions_for_group_policy(
+            session, record.external_group_identifier, reason="group_policy_changed"
+        )
+    session.flush()
+    after = {"role_code": record.role_code, "is_active": record.is_active, "provider": record.provider}
+    result = AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type="GroupPolicy",
+        entity_id=record.id,
+        entity_display_id=record.external_group_identifier,
+        operation="admin.group-policy.update",
+        previous=before,
+        current=after,
+        reason=reason,
+        source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        action=AuditAction.GROUP_MAPPING_CHANGE,
+    )
+    return {
+        "policy": group_policy_view(record),
+        "audit_event_id": result.event_id,
+        "correlation_id": actor.request_id,
+        "request_id": actor.request_id,
+        "revoked_session_count": revoked_session_count,
+    }
+
+
 def update_mapping_governed(
     session: Session,
     actor: ActorContext,
@@ -395,7 +601,9 @@ def update_mapping_governed(
     user = session.scalar(select(db.User).where(db.User.external_identity == identity).with_for_update())
     if user is not None:
         for assignment in session.scalars(
-            select(db.UserRole).where(db.UserRole.user_id == user.id, db.UserRole.removed_at.is_(None)).with_for_update()
+            select(db.UserRole)
+            .where(db.UserRole.user_id == user.id, db.UserRole.removed_at.is_(None))
+            .with_for_update()
         ):
             assignment.removed_at = datetime.now(timezone.utc)
         session.add(db.UserRole(user_id=user.id, role_id=role.id, assigned_by_user_id=actor.user_id))
@@ -414,14 +622,21 @@ def update_mapping_governed(
         action=AuditAction.ROLE_MAPPING_CHANGE,
     )
     return {
-        "mapping": {"identity": identity, "environment": mapping.environment, "role_code": role_code, "row_version": mapping.row_version},
+        "mapping": {
+            "identity": identity,
+            "environment": mapping.environment,
+            "role_code": role_code,
+            "row_version": mapping.row_version,
+        },
         "audit_event_id": result.event_id,
         "correlation_id": actor.request_id,
         "request_id": actor.request_id,
     }
 
 
-def bulk_status_preview(session: Session, identifiers: Iterable[str], status: str, expected_versions: dict[str, int]) -> dict[str, Any]:
+def bulk_status_preview(
+    session: Session, identifiers: Iterable[str], status: str, expected_versions: dict[str, int]
+) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for identifier in identifiers:
         record = _entity_by_identifier(session, "eoat", identifier)
@@ -432,8 +647,22 @@ def bulk_status_preview(session: Session, identifiers: Iterable[str], status: st
         values = _asset_values(session, "eoat", {"status": status}, creating=False)
         proposed = dict(previous) | values
         diff = material_diff(previous, proposed)
-        rows.append({"identifier": identifier, "row_version": record.row_version, "changed_fields": diff.changed_fields, "before": diff.before, "after": diff.after})
-    return {"operation": "admin.eoat.bulk-status", "status": status, "count": len(rows), "records": rows, "atomic": True}
+        rows.append(
+            {
+                "identifier": identifier,
+                "row_version": record.row_version,
+                "changed_fields": diff.changed_fields,
+                "before": diff.before,
+                "after": diff.after,
+            }
+        )
+    return {
+        "operation": "admin.eoat.bulk-status",
+        "status": status,
+        "count": len(rows),
+        "records": rows,
+        "atomic": True,
+    }
 
 
 def bulk_status_commit(
@@ -474,4 +703,14 @@ def bulk_status_commit(
         action=AuditAction.BULK_OPERATION,
         metadata={"atomic": True, "preview_count": preview["count"], "failed_count": 0},
     )
-    return {"operation": preview["operation"], "status": "SUCCESS", "atomic": True, "affected_count": len(changed), "failed_count": 0, "records": changed, "audit_event_id": parent.event_id, "correlation_id": correlation_id, "request_id": actor.request_id}
+    return {
+        "operation": preview["operation"],
+        "status": "SUCCESS",
+        "atomic": True,
+        "affected_count": len(changed),
+        "failed_count": 0,
+        "records": changed,
+        "audit_event_id": parent.event_id,
+        "correlation_id": correlation_id,
+        "request_id": actor.request_id,
+    }

@@ -241,7 +241,7 @@ def lookup(lookup_type: str, repo: AtlasRepository = Depends(repository)):
 def eoats(
     search: str = "",
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=250),
+    page_size: int | None = Query(None, ge=1, le=250),
     sort: str = Query(
         "natural_identifier",
         pattern="^(natural_identifier|updated_desc|status|business_identifier_desc|machine_number_desc|mold)$",
@@ -255,7 +255,7 @@ def eoats(
     items, pagination = repo.list_eoats(
         search=search,
         page=page,
-        page_size=page_size,
+        page_size=_catalog_page_size(repo, page_size),
         sort=sort,
         active=active,
         eoat_type=eoat_type,
@@ -351,7 +351,7 @@ def eoat_photos(identifier: str, repo: AtlasRepository = Depends(repository)):
 def machines(
     search: str = "",
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=250),
+    page_size: int | None = Query(None, ge=1, le=250),
     active: bool | None = True,
     sort: str = Query(
         "natural_identifier",
@@ -362,7 +362,7 @@ def machines(
     items, pagination = repo.list_machines(
         search=search,
         page=page,
-        page_size=page_size,
+        page_size=_catalog_page_size(repo, page_size),
         active=active,
         sort=sort,
     )
@@ -426,7 +426,7 @@ def machine_history(number: str, repo: AtlasRepository = Depends(repository)):
 def tools(
     search: str = "",
     page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=250),
+    page_size: int | None = Query(None, ge=1, le=250),
     active: bool | None = True,
     sort: str = Query(
         "natural_identifier",
@@ -437,7 +437,7 @@ def tools(
     items, pagination = repo.list_tools(
         search=search,
         page=page,
-        page_size=page_size,
+        page_size=_catalog_page_size(repo, page_size),
         active=active,
         sort=sort,
     )
@@ -896,3 +896,15 @@ app.include_router(admin_router)
 app.include_router(admin_mutation_router)
 app.include_router(admin_corporate_user_router)
 app.include_router(admin_operation_router)
+
+
+def _catalog_page_size(repo: AtlasRepository, requested: int | None) -> int:
+    """Use the governed global default only when a caller did not choose one."""
+
+    if requested is not None:
+        return requested
+    record = repo.session.scalar(
+        select(db.SystemSetting).where(db.SystemSetting.setting_key == "app.default_catalog_page_size")
+    )
+    value = record.setting_value_json if record is not None else 50
+    return value if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 250 else 50

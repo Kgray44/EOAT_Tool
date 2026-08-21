@@ -42,7 +42,7 @@ class AdminPhotoPatch(ExpectedVersion):
 class AdminSettingUpdate(WriteModel):
     value: Any
     expected_row_version: int = Field(ge=1)
-    reason: str | None = Field(default=None, max_length=2000)
+    reason: str = Field(min_length=3, max_length=2000)
 
 
 class AdminRoleMappingUpdate(WriteModel):
@@ -58,6 +58,45 @@ class AdminRoleMappingUpdate(WriteModel):
     ]
     expected_row_version: int = Field(ge=1)
     reason: str = Field(min_length=3, max_length=2000)
+
+
+class GroupPolicyCreate(WriteModel):
+    corporate_group: str = Field(min_length=3, max_length=512)
+    role_code: Literal[
+        "VIEWER",
+        "TECHNICIAN",
+        "ENGINEER",
+        "ADMIN_AUDITOR",
+        "ADMIN_DATA_MANAGER",
+        "ADMIN_SETTINGS_MANAGER",
+        "ADMIN_ACCESS_MANAGER",
+        "ADMINISTRATOR",
+    ]
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class GroupPolicyUpdate(ExpectedVersion):
+    role_code: (
+        Literal[
+            "VIEWER",
+            "TECHNICIAN",
+            "ENGINEER",
+            "ADMIN_AUDITOR",
+            "ADMIN_DATA_MANAGER",
+            "ADMIN_SETTINGS_MANAGER",
+            "ADMIN_ACCESS_MANAGER",
+            "ADMINISTRATOR",
+        ]
+        | None
+    ) = None
+    is_active: bool | None = None
+    reason: str = Field(min_length=3, max_length=2000)
+
+    @model_validator(mode="after")
+    def _includes_change(self):
+        if self.role_code is None and self.is_active is None:
+            raise ValueError("A role or active-state change is required.")
+        return self
 
 
 class AdminSessionRevoke(WriteModel):

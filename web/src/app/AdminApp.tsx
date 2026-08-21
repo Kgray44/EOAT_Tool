@@ -14,6 +14,7 @@ import {
   adminApi,
   AdminApiError,
   type AdminDiagnostics,
+  type AdminGroupPolicy,
   type AdminMapping,
   type AdminOverview,
   type AdminRecord,
@@ -163,7 +164,7 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
           <NavLink to="/admin/data/bulk">Bulk Status Update</NavLink>
           <NavLink to="/admin/settings">Settings</NavLink>
           <NavLink to="/admin/users">Users &amp; Access</NavLink>
-          <NavLink to="/admin/access">Access mappings</NavLink>
+          <NavLink to="/admin/group-policies">Group access policies</NavLink>
           <NavLink to="/admin/system">System</NavLink>
           <NavLink to="/admin/integrity">Integrity and evidence</NavLink>
           {showTestControls ? (
@@ -2703,7 +2704,7 @@ function SettingsPage() {
                 : prefix === "admin"
                   ? "Administration"
                   : prefix === "app" || prefix === "ui"
-                    ? "Application / UI"
+                    ? "User Experience"
                     : "General";
       (groups[category] ??= []).push(setting);
       return groups;
@@ -2755,6 +2756,7 @@ function SettingEditor({
 }) {
   const secret = setting.secret_configured != null;
   const [value, setValue] = useState(String(setting.value ?? ""));
+  const [reason, setReason] = useState("");
   const [error, setError] = useState<AdminApiError>();
   const save = () =>
     adminApi
@@ -2763,8 +2765,11 @@ function SettingEditor({
           ? value
           : setting.value_type === "boolean"
             ? value === "true"
-            : value,
+            : setting.value_type === "integer"
+              ? Number(value)
+              : value,
         expected_row_version: setting.row_version,
+        reason,
       })
       .then((result) => onDone(result.audit_event_id))
       .catch((reason: unknown) =>
@@ -2800,7 +2805,22 @@ function SettingEditor({
           />
         )}
       </label>
-      <button className="primary-button" type="button" onClick={save}>
+      <label>
+        Reason
+        <input
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+      <button
+        className="primary-button"
+        type="button"
+        disabled={
+          reason.trim().length < 3 ||
+          (setting.value_type === "integer" && !Number.isInteger(Number(value)))
+        }
+        onClick={save}
+      >
         Save setting
       </button>
       {error ? <p className="inline-error">{error.message}</p> : null}
@@ -3307,73 +3327,311 @@ function CorporateSessionEditor({
   );
 }
 
-function AccessPage() {
+const GROUP_POLICY_ROLES = [
+  "VIEWER",
+  "TECHNICIAN",
+  "ENGINEER",
+  "ADMIN_AUDITOR",
+  "ADMIN_DATA_MANAGER",
+  "ADMIN_SETTINGS_MANAGER",
+  "ADMIN_ACCESS_MANAGER",
+  "ADMINISTRATOR",
+];
+
+function GroupPolicyPage() {
   const { ready, setReady } = useAdminSession();
   const [refresh, setRefresh] = useState(0);
+  const [adding, setAdding] = useState(false);
   const [lastAuditEvent, setLastAuditEvent] = useState<string>();
-  const mappings = useRemote<{ items: AdminMapping[] }>(
-    () => adminApi.mappings(),
-    `mappings:${ready}:${refresh}`,
-  );
-  const sessions = useRemote<{ items: AdminRecord[] }>(
-    () => adminApi.sessions(),
-    `sessions:${ready}:${refresh}`,
+  const remote = useRemote<{ items: AdminGroupPolicy[] }>(
+    () => adminApi.groupPolicies(),
+    `group-policies:${ready}:${refresh}`,
   );
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
-  if (mappings.state === "error") return <ErrorState error={mappings.error} />;
-  if (sessions.state === "error") return <ErrorState error={sessions.error} />;
-  if (mappings.state === "loading" || sessions.state === "loading")
-    return <LoadingState />;
-  const onDone = (auditEventId: string) => {
+  if (remote.state === "error") return <ErrorState error={remote.error} />;
+  if (remote.state === "loading") return <LoadingState />;
+  const done = (auditEventId: string) => {
     setLastAuditEvent(auditEventId);
     setRefresh((value) => value + 1);
+    setAdding(false);
   };
   return (
     <>
-      <PageTitle title="Development/test access mappings">
+      <PageTitle title="Group Access Policies">
         <p>
-          These local rehearsal mappings assign an EOAT Atlas role to a
-          development/test identity. They are not corporate directory-group
-          policies and cannot change Active Directory or production access.
+          Group policies map approved corporate directory groups to EOAT Atlas
+          roles. Users receive access according to their resolved corporate
+          group memberships and explicitly supported user-level rules.
         </p>
       </PageTitle>
       <AuditSuccess eventId={lastAuditEvent} />
-      <section className="settings-list" aria-label="Access mappings">
-        {mappings.value.items.map((mapping) => (
-          <MappingEditor
-            key={`${mapping.environment}:${mapping.identity}`}
-            mapping={mapping}
-            onDone={onDone}
-          />
-        ))}
-        {!mappings.value.items.length ? (
+      <div className="page-actions">
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => setAdding(true)}
+        >
+          + Add group policy
+        </button>
+      </div>
+      {adding ? (
+        <GroupPolicyCreateForm
+          onDone={done}
+          onCancel={() => setAdding(false)}
+        />
+      ) : null}
+      <section
+        className="audit-table-wrap"
+        aria-label="Corporate group policies"
+      >
+        <table className="audit-table">
+          <thead>
+            <tr>
+              <th>Corporate group</th>
+              <th>EOAT Atlas role</th>
+              <th>Status</th>
+              <th>Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {remote.value.items.map((policy) => (
+              <GroupPolicyRow key={policy.id} policy={policy} onDone={done} />
+            ))}
+          </tbody>
+        </table>
+        {!remote.value.items.length ? (
           <p className="state-note">
-            No development/test access mappings are configured in this
-            environment.
+            No corporate group policies are configured.
           </p>
         ) : null}
       </section>
-      <section className="editor-card">
-        <h2>Recent rehearsal sessions</h2>
-        <p>
-          References, age/state, and revocation status are safe to inspect.
-          Tokens and cookies are never shown.
-        </p>
-        {sessions.value.items.map((session) => (
-          <SessionRevokeEditor
-            key={String(session.session_reference)}
-            session={session}
-            onDone={onDone}
-          />
-        ))}
-        {!sessions.value.items.length ? (
-          <p className="state-note">No rehearsal sessions have been issued.</p>
-        ) : null}
-      </section>
+      <p className="table-subtitle">
+        Policies are resolved by the server. This view does not enumerate
+        directory membership or expose directory credentials.
+      </p>
     </>
   );
 }
-function SessionRevokeEditor({
+
+function GroupPolicyCreateForm({
+  onDone,
+  onCancel,
+}: {
+  onDone: (auditEventId: string) => void;
+  onCancel: () => void;
+}) {
+  const [corporateGroup, setCorporateGroup] = useState("");
+  const [role, setRole] = useState("VIEWER");
+  const [reason, setReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<AdminApiError>();
+  const changed = () => setConfirming(false);
+  const create = () =>
+    adminApi
+      .createGroupPolicy({
+        corporate_group: corporateGroup.trim(),
+        role_code: role,
+        reason,
+      })
+      .then((result) => onDone(result.audit_event_id))
+      .catch((value: unknown) =>
+        setError(
+          value instanceof AdminApiError
+            ? value
+            : new AdminApiError("Group policy creation failed.", 0),
+        ),
+      );
+  return (
+    <section className="editor-card focused-editor">
+      <h2>Add group policy</h2>
+      <p>
+        Enter the exact corporate group identifier used by the configured
+        corporate provider.
+      </p>
+      <div className="editor-grid">
+        <label>
+          Corporate group
+          <input
+            value={corporateGroup}
+            onChange={(event) => {
+              setCorporateGroup(event.target.value);
+              changed();
+            }}
+          />
+        </label>
+        <label>
+          EOAT Atlas role
+          <select
+            value={role}
+            onChange={(event) => {
+              setRole(event.target.value);
+              changed();
+            }}
+          >
+            {GROUP_POLICY_ROLES.map((value) => (
+              <option key={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Reason
+          <input
+            value={reason}
+            onChange={(event) => {
+              setReason(event.target.value);
+              changed();
+            }}
+          />
+        </label>
+      </div>
+      <div className="preview-panel">
+        <strong>Preview</strong>
+        <p>
+          {corporateGroup.trim() || "Corporate group"} → {role}
+        </p>
+      </div>
+      {!confirming ? (
+        <button
+          type="button"
+          disabled={
+            corporateGroup.trim().length < 3 || reason.trim().length < 3
+          }
+          onClick={() => setConfirming(true)}
+        >
+          Review change
+        </button>
+      ) : (
+        <button className="primary-button" type="button" onClick={create}>
+          Confirm and create policy
+        </button>
+      )}
+      <button type="button" onClick={onCancel}>
+        Cancel
+      </button>
+      {error ? <p className="inline-error">{error.message}</p> : null}
+    </section>
+  );
+}
+
+function GroupPolicyRow({
+  policy,
+  onDone,
+}: {
+  policy: AdminGroupPolicy;
+  onDone: (auditEventId: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [role, setRole] = useState(policy.role_code);
+  const [reason, setReason] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<AdminApiError>();
+  const commit = (isActive = policy.is_active) =>
+    adminApi
+      .updateGroupPolicy(policy.id, {
+        role_code: role,
+        is_active: isActive,
+        expected_row_version: policy.row_version,
+        reason,
+      })
+      .then((result) => onDone(result.audit_event_id))
+      .catch((value: unknown) =>
+        setError(
+          value instanceof AdminApiError
+            ? value
+            : new AdminApiError("Group policy update failed.", 0),
+        ),
+      );
+  return (
+    <>
+      <tr>
+        <td data-label="Corporate group">
+          <strong>{policy.corporate_group}</strong>
+          <span className="table-subtitle">
+            {policy.provider} · revision {policy.row_version}
+          </span>
+        </td>
+        <td data-label="EOAT Atlas role">{policy.role_code}</td>
+        <td data-label="Status">{policy.status}</td>
+        <td data-label="Updated">{formatTime(policy.updated_at)}</td>
+        <td data-label="Actions">
+          <button type="button" onClick={() => setEditing((value) => !value)}>
+            View / edit
+          </button>
+        </td>
+      </tr>
+      {editing ? (
+        <tr>
+          <td colSpan={5}>
+            <div className="lifecycle-panel">
+              <div className="editor-grid">
+                <label>
+                  Mapped role
+                  <select
+                    value={role}
+                    onChange={(event) => {
+                      setRole(event.target.value);
+                      setConfirming(false);
+                    }}
+                  >
+                    {GROUP_POLICY_ROLES.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Reason
+                  <input
+                    value={reason}
+                    onChange={(event) => {
+                      setReason(event.target.value);
+                      setConfirming(false);
+                    }}
+                  />
+                </label>
+              </div>
+              <p>
+                Preview: {policy.corporate_group} → {role};{" "}
+                {policy.is_active ? "active" : "inactive"}.
+              </p>
+              {!confirming ? (
+                <button
+                  type="button"
+                  disabled={reason.trim().length < 3}
+                  onClick={() => setConfirming(true)}
+                >
+                  Review change
+                </button>
+              ) : (
+                <>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => commit()}
+                  >
+                    Confirm and apply
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => commit(!policy.is_active)}
+                  >
+                    Confirm and {policy.is_active ? "deactivate" : "activate"}
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={() => setEditing(false)}>
+                Close
+              </button>
+              {error ? <p className="inline-error">{error.message}</p> : null}
+            </div>
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
+export function SessionRevokeEditor({
   session,
   onDone,
 }: {
@@ -3439,7 +3697,7 @@ function SessionRevokeEditor({
     </div>
   );
 }
-function MappingEditor({
+export function MappingEditor({
   mapping,
   onDone,
 }: {
@@ -3901,7 +4159,7 @@ export function AdminApp() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
-          <Route path="access" element={<AccessPage />} />
+          <Route path="group-policies" element={<GroupPolicyPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="integrity" element={<IntegrityEvidencePage />} />
           {showTestControls ? (

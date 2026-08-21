@@ -223,6 +223,10 @@ class ExternalGroupRoleMapping(TimestampMixin, Base):
     role_code: Mapped[str] = mapped_column(String(64), nullable=False)
     explicit_deny: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
+    # The original corporate-authentication seam predates governed browser
+    # editing.  Keep its compact model, but give administrators an optimistic
+    # concurrency token rather than silently overwriting another policy edit.
+    row_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
 
 
 class CorporateUser(VersionMixin, Base):
@@ -886,9 +890,7 @@ class AuditEvent(Base):
         CheckConstraint(
             "actor_type IN ('user','service','system','import','migration')", name="ck_audit_events_actor_type"
         ),
-        CheckConstraint(
-            "result IN ('SUCCESS','FAILURE','DENIED','PARTIAL')", name="ck_audit_events_result"
-        ),
+        CheckConstraint("result IN ('SUCCESS','FAILURE','DENIED','PARTIAL')", name="ck_audit_events_result"),
         CheckConstraint("action_category <> ''", name="ck_audit_events_action_category"),
         CheckConstraint("schema_version > 0", name="ck_audit_events_schema_version"),
         Index("ix_audit_events_time", "occurred_at_utc"),
@@ -902,9 +904,7 @@ class AuditEvent(Base):
     )
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     event_id: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
-    occurred_at_utc: Mapped[datetime] = mapped_column(
-        UTCDateTime(), server_default=UTC_DEFAULT, nullable=False
-    )
+    occurred_at_utc: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
     actor_type: Mapped[str] = mapped_column(String(32), nullable=False)
     actor_id: Mapped[str | None] = mapped_column(String(255))
     actor_display_name: Mapped[str | None] = mapped_column(String(255))

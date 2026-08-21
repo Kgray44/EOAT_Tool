@@ -4,6 +4,41 @@
  */
 
 export interface paths {
+    "/api/v1/admin/access/group-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Group Policies */
+        get: operations["list_group_policies_api_v1_admin_access_group_policies_get"];
+        put?: never;
+        /** Create Group Policy Route */
+        post: operations["create_group_policy_route_api_v1_admin_access_group_policies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/access/group-policies/{mapping_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Group Policy Route */
+        patch: operations["update_group_policy_route_api_v1_admin_access_group_policies__mapping_id__patch"];
+        trace?: never;
+    };
     "/api/v1/admin/access/sessions": {
         parameters: {
             query?: never;
@@ -2661,7 +2696,7 @@ export interface components {
             /** Expected Row Version */
             expected_row_version: number;
             /** Reason */
-            reason?: string | null;
+            reason: string;
             /** Value */
             value: unknown;
         };
@@ -3369,6 +3404,29 @@ export interface components {
             unknown_relationships: string[];
             /** Warnings */
             warnings: string[];
+        };
+        /** GroupPolicyCreate */
+        GroupPolicyCreate: {
+            /** Corporate Group */
+            corporate_group: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Role Code
+             * @enum {string}
+             */
+            role_code: "VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER" | "ADMINISTRATOR";
+        };
+        /** GroupPolicyUpdate */
+        GroupPolicyUpdate: {
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Reason */
+            reason: string;
+            /** Role Code */
+            role_code?: ("VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER" | "ADMINISTRATOR") | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4140,6 +4198,98 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_group_policies_api_v1_admin_access_group_policies_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_group_policy_route_api_v1_admin_access_group_policies_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPolicyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_group_policy_route_api_v1_admin_access_group_policies__mapping_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                mapping_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPolicyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_rehearsal_sessions_api_v1_admin_access_sessions_get: {
         parameters: {
             query?: never;
@@ -6942,7 +7092,7 @@ export interface operations {
             query?: {
                 search?: string;
                 page?: number;
-                page_size?: number;
+                page_size?: number | null;
                 sort?: string;
                 active?: boolean | null;
                 eoat_type?: string | null;
@@ -7655,8 +7805,9 @@ export interface operations {
             query?: {
                 search?: string;
                 page?: number;
-                page_size?: number;
+                page_size?: number | null;
                 active?: boolean | null;
+                sort?: string;
             };
             header?: never;
             path?: never;
@@ -8840,8 +8991,9 @@ export interface operations {
             query?: {
                 search?: string;
                 page?: number;
-                page_size?: number;
+                page_size?: number | null;
                 active?: boolean | null;
+                sort?: string;
             };
             header?: never;
             path?: never;

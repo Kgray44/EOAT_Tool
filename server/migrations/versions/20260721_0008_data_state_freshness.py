@@ -36,7 +36,8 @@ def upgrade() -> None:
     # that fact is documented rather than presented as historic precision.
     op.execute(
         "INSERT INTO data_state (id, current_revision, data_last_modified_at) "
-        "SELECT 1, COALESCE(MAX(change_id), 0), COALESCE(MAX(changed_at), UTC_TIMESTAMP(6)) FROM change_feed"
+        "SELECT 1, COALESCE(MAX(change_id), 0), COALESCE(MAX(changed_at), UTC_TIMESTAMP(6)) "
+        "FROM change_feed ON DUPLICATE KEY UPDATE id = data_state.id"
     )
 
 

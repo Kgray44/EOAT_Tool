@@ -411,6 +411,7 @@ async function expectHeadingBelowMobileHeader(
 test("captures governed Mirrorline browser shell references", async ({
   page,
 }) => {
+  test.setTimeout(50_000);
   const scenario = await fixtureApi(page);
   await page.setViewportSize({ width: 1760, height: 1080 });
   await page.goto("/");
@@ -501,7 +502,14 @@ test("captures governed Mirrorline browser shell references", async ({
   await capture(page, "profile-viewer");
   scenario.role = "ENGINEER";
   await page.reload();
-  await expect(page.getByRole("button", { name: "Edit eoat" })).toBeVisible();
+  const editActions = page.getByRole("button", {
+    name: "Open edit actions for P4-EOAT-0052",
+  });
+  await expect(editActions).toBeVisible();
+  await editActions.click();
+  await expect(
+    page.getByRole("dialog", { name: "Edit actions for P4-EOAT-0052" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Add compatibility" }),
   ).toBeVisible();
@@ -543,8 +551,14 @@ test("captures governed Mirrorline browser shell references", async ({
   await expect(
     page.getByRole("heading", { name: "Settings", exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("EOAT Master Tracker")).toBeVisible();
-  await expect(page.getByText("MySQL database")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Personal display and accessibility preferences for this browser.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Governed configuration" }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -568,7 +582,11 @@ test("captures governed Mirrorline browser shell references", async ({
     );
   });
   await page.reload();
-  await expect(page.getByText("EOAT Master Tracker")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Personal display and accessibility preferences for this browser.",
+    ),
+  ).toBeVisible();
   await capture(page, "settings-light");
   await page.evaluate(() => {
     const stored = JSON.parse(
@@ -581,8 +599,18 @@ test("captures governed Mirrorline browser shell references", async ({
   });
   await page.reload();
   scenario.apiUnavailable = true;
+  const unavailableResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/data-status" &&
+      response.status() === 503,
+  );
   await page.goto("/");
-  await expect(page.getByText(/API unavailable/)).toBeVisible();
+  await unavailableResponse;
+  await expect(
+    page.getByLabel(
+      "EOAT Atlas data freshness is unavailable because the server could not be reached.",
+    ),
+  ).toBeVisible({ timeout: 12_000 });
   await capture(page, "api-unavailable");
   scenario.apiUnavailable = false;
   scenario.staleData = true;

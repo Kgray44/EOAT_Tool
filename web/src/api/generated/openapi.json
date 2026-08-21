@@ -650,16 +650,10 @@
             "type": "integer"
           },
           "reason": {
-            "anyOf": [
-              {
-                "maxLength": 2000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
           },
           "value": {
             "title": "Value"
@@ -667,7 +661,8 @@
         },
         "required": [
           "value",
-          "expected_row_version"
+          "expected_row_version",
+          "reason"
         ],
         "title": "AdminSettingUpdate",
         "type": "object"
@@ -3415,6 +3410,98 @@
           "alternative_compatible_eoats"
         ],
         "title": "FitCheckResult",
+        "type": "object"
+      },
+      "GroupPolicyCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "corporate_group": {
+            "maxLength": 512,
+            "minLength": 3,
+            "title": "Corporate Group",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "role_code": {
+            "enum": [
+              "VIEWER",
+              "TECHNICIAN",
+              "ENGINEER",
+              "ADMIN_AUDITOR",
+              "ADMIN_DATA_MANAGER",
+              "ADMIN_SETTINGS_MANAGER",
+              "ADMIN_ACCESS_MANAGER",
+              "ADMINISTRATOR"
+            ],
+            "title": "Role Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "corporate_group",
+          "role_code",
+          "reason"
+        ],
+        "title": "GroupPolicyCreate",
+        "type": "object"
+      },
+      "GroupPolicyUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_row_version": {
+            "minimum": 1.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "role_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "VIEWER",
+                  "TECHNICIAN",
+                  "ENGINEER",
+                  "ADMIN_AUDITOR",
+                  "ADMIN_DATA_MANAGER",
+                  "ADMIN_SETTINGS_MANAGER",
+                  "ADMIN_ACCESS_MANAGER",
+                  "ADMINISTRATOR"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Code"
+          }
+        },
+        "required": [
+          "expected_row_version",
+          "reason"
+        ],
+        "title": "GroupPolicyUpdate",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -6433,6 +6520,146 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/access/group-policies": {
+      "get": {
+        "operationId": "list_group_policies_api_v1_admin_access_group_policies_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Group Policies",
+        "tags": [
+          "admin-governed-editing"
+        ]
+      },
+      "post": {
+        "operationId": "create_group_policy_route_api_v1_admin_access_group_policies_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPolicyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Group Policy Route",
+        "tags": [
+          "admin-governed-editing"
+        ]
+      }
+    },
+    "/api/v1/admin/access/group-policies/{mapping_id}": {
+      "patch": {
+        "operationId": "update_group_policy_route_api_v1_admin_access_group_policies__mapping_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPolicyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Group Policy Route",
+        "tags": [
+          "admin-governed-editing"
+        ]
+      }
+    },
     "/api/v1/admin/access/sessions": {
       "get": {
         "operationId": "list_rehearsal_sessions_api_v1_admin_access_sessions_get",
@@ -10900,11 +11127,17 @@
             "name": "page_size",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 250,
-              "minimum": 1,
-              "title": "Page Size",
-              "type": "integer"
+              "anyOf": [
+                {
+                  "maximum": 250,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page Size"
             }
           },
           {
@@ -10912,7 +11145,8 @@
             "name": "sort",
             "required": false,
             "schema": {
-              "default": "business_identifier",
+              "default": "natural_identifier",
+              "pattern": "^(natural_identifier|updated_desc|status|business_identifier_desc|machine_number_desc|mold)$",
               "title": "Sort",
               "type": "string"
             }
@@ -12059,11 +12293,17 @@
             "name": "page_size",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 250,
-              "minimum": 1,
-              "title": "Page Size",
-              "type": "integer"
+              "anyOf": [
+                {
+                  "maximum": 250,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page Size"
             }
           },
           {
@@ -12081,6 +12321,17 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "natural_identifier",
+              "pattern": "^(natural_identifier|updated_desc|status|business_identifier_desc|machine_number_desc|mold)$",
+              "title": "Sort",
+              "type": "string"
             }
           }
         ],
@@ -13682,11 +13933,17 @@
             "name": "page_size",
             "required": false,
             "schema": {
-              "default": 50,
-              "maximum": 250,
-              "minimum": 1,
-              "title": "Page Size",
-              "type": "integer"
+              "anyOf": [
+                {
+                  "maximum": 250,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page Size"
             }
           },
           {
@@ -13704,6 +13961,17 @@
               ],
               "default": true,
               "title": "Active"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "natural_identifier",
+              "pattern": "^(natural_identifier|updated_desc|status|business_identifier_desc|machine_number_desc|mold)$",
+              "title": "Sort",
+              "type": "string"
             }
           }
         ],

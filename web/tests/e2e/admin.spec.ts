@@ -134,6 +134,127 @@ test("existing corporate Administrator session opens a governed page without a s
   ).not.toBeVisible();
 });
 
+test("Group Access Policies previews and confirms audited create and edit without a typed phrase", async ({
+  page,
+}) => {
+  await page.context().addCookies([
+    {
+      name: "eoat_corporate_csrf",
+      value: "test-csrf-proof",
+      url: "http://127.0.0.1:4173",
+    },
+  ]);
+  await mockAdminApi(page);
+  const policies = [
+    {
+      id: 73,
+      corporate_group: "CN=EOAT Engineering,OU=Groups,DC=gwplastics,DC=com",
+      role_code: "ENGINEER",
+      provider: "kerberos_form",
+      is_active: true,
+      status: "active",
+      row_version: 4,
+      updated_at: "2026-08-21T20:00:00Z",
+    },
+  ];
+  const writes: Array<{ method: string; body: Record<string, unknown> }> = [];
+  await page.route("**/api/v1/admin/access/group-policies", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ items: policies }),
+      });
+      return;
+    }
+    writes.push({
+      method: request.method(),
+      body: request.postDataJSON() as Record<string, unknown>,
+    });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        policy: policies[0],
+        audit_event_id: "group-audit-create",
+        correlation_id: "corr-1",
+        request_id: "req-1",
+      }),
+    });
+  });
+  await page.route("**/api/v1/admin/access/group-policies/*", async (route) => {
+    const request = route.request();
+    writes.push({
+      method: request.method(),
+      body: request.postDataJSON() as Record<string, unknown>,
+    });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        policy: { ...policies[0], role_code: "ADMIN_AUDITOR", row_version: 5 },
+        audit_event_id: "group-audit-update",
+        correlation_id: "corr-2",
+        request_id: "req-2",
+      }),
+    });
+  });
+
+  await page.goto("/admin/group-policies");
+  await expect(
+    page.getByRole("heading", { name: "Group Access Policies" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "ENGINEER", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("revision 4")).toBeVisible();
+  await page.getByRole("button", { name: "+ Add group policy" }).click();
+  await page
+    .getByRole("textbox", { name: "Corporate group" })
+    .fill("CN=EOAT Quality,OU=Groups,DC=gwplastics,DC=com");
+  await page.getByLabel("EOAT Atlas role").selectOption("ADMIN_AUDITOR");
+  await page
+    .getByLabel("Reason")
+    .fill("Quality reviewers need governed audit access");
+  await expect(
+    page.getByText(
+      "CN=EOAT Quality,OU=Groups,DC=gwplastics,DC=com → ADMIN_AUDITOR",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Review change" }).click();
+  await expect(
+    page.getByRole("button", { name: "Confirm and create policy" }),
+  ).toBeVisible();
+  await expect(page.getByText(/Type .*CONFIRM/i)).toHaveCount(0);
+  await page.getByRole("button", { name: "Confirm and create policy" }).click();
+  await expect.poll(() => writes.length).toBe(1);
+  expect(writes[0]).toEqual({
+    method: "POST",
+    body: {
+      corporate_group: "CN=EOAT Quality,OU=Groups,DC=gwplastics,DC=com",
+      role_code: "ADMIN_AUDITOR",
+      reason: "Quality reviewers need governed audit access",
+    },
+  });
+
+  await page.getByRole("button", { name: "View / edit" }).click();
+  await page.getByLabel("Mapped role").selectOption("ADMIN_AUDITOR");
+  await page
+    .getByLabel("Reason")
+    .last()
+    .fill("Correct policy scope after review");
+  await page.getByRole("button", { name: "Review change" }).last().click();
+  await page.getByRole("button", { name: "Confirm and apply" }).click();
+  await expect.poll(() => writes.length).toBe(2);
+  expect(writes[1]).toMatchObject({
+    method: "PATCH",
+    body: {
+      role_code: "ADMIN_AUDITOR",
+      is_active: true,
+      expected_row_version: 4,
+      reason: "Correct policy scope after review",
+    },
+  });
+});
+
 test("administrator can deep-link to the overview and ledger investigation", async ({
   page,
 }) => {

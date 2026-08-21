@@ -97,6 +97,13 @@ export const navigationDestinations: readonly NavigationDestination[] = [
     administratorOnly: true,
   },
   {
+    path: "/admin/group-policies",
+    label: "Group Access Policies",
+    group: "Administration",
+    keywords: ["admin", "group", "policy", "directory", "roles", "access"],
+    administratorOnly: true,
+  },
+  {
     path: "/admin/audit",
     label: "Audit Ledger",
     group: "Administration",

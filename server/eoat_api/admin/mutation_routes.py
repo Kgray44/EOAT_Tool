@@ -32,13 +32,17 @@ from .mutation_contracts import (
     AdminRoleMappingUpdate,
     AdminSessionRevoke,
     AdminSettingUpdate,
+    GroupPolicyCreate,
+    GroupPolicyUpdate,
     RehearsalSessionIssue,
 )
 from .mutation_service import (
     asset_record,
     bulk_status_commit,
     bulk_status_preview,
+    create_group_policy_governed,
     document_record,
+    group_policy_view,
     lifecycle_asset_governed,
     link_relationship_governed,
     list_assets,
@@ -50,6 +54,7 @@ from .mutation_service import (
     unlink_relationship_governed,
     update_asset_governed,
     update_document_governed,
+    update_group_policy_governed,
     update_mapping_governed,
     update_photo_governed,
     update_setting_governed,
@@ -70,9 +75,10 @@ def _confirmation(actual: str, expected: str) -> None:
 
 
 def _cookie_secure() -> bool:
-    return os.getenv("EOAT_API_ADMIN_COOKIE_SECURE", "").strip().casefold() in {"1", "true", "yes", "on"} or os.getenv(
-        "EOAT_API_ENVIRONMENT", "development"
-    ).strip().casefold() == "staging_local"
+    return (
+        os.getenv("EOAT_API_ADMIN_COOKIE_SECURE", "").strip().casefold() in {"1", "true", "yes", "on"}
+        or os.getenv("EOAT_API_ENVIRONMENT", "development").strip().casefold() == "staging_local"
+    )
 
 
 @router.post("/session/rehearsal")
@@ -448,7 +454,12 @@ def list_settings(
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin_session("admin.settings.edit")),
 ):
-    return {"items": [setting_view(row) for row in session.scalars(select(db.SystemSetting).order_by(db.SystemSetting.setting_key))]}
+    return {
+        "items": [
+            setting_view(row)
+            for row in session.scalars(select(db.SystemSetting).order_by(db.SystemSetting.setting_key))
+        ]
+    }
 
 
 @router.patch("/settings/{key}")
@@ -465,7 +476,67 @@ def update_setting_route(
         "admin.setting.update",
         idempotency_key,
         {"key": key, **payload.model_dump()},
-        lambda: update_setting_governed(session, actor, key, payload.value, payload.expected_row_version, payload.reason),
+        lambda: update_setting_governed(
+            session, actor, key, payload.value, payload.expected_row_version, payload.reason
+        ),
+    )
+
+
+@router.get("/access/group-policies")
+def list_group_policies(
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin_session("admin.group_policy.manage")),
+):
+    rows = session.scalars(
+        select(db.ExternalGroupRoleMapping)
+        .where(db.ExternalGroupRoleMapping.provider == "kerberos_form")
+        .order_by(db.ExternalGroupRoleMapping.external_group_identifier, db.ExternalGroupRoleMapping.role_code)
+    )
+    return {"items": [group_policy_view(row) for row in rows]}
+
+
+@router.post("/access/group-policies")
+def create_group_policy_route(
+    payload: GroupPolicyCreate,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require_admin_mutation("admin.group_policy.manage")),
+):
+    return idempotent(
+        session,
+        actor,
+        "admin.group-policy.create",
+        idempotency_key,
+        payload.model_dump(),
+        lambda: create_group_policy_governed(
+            session, actor, payload.corporate_group, payload.role_code, payload.reason
+        ),
+    )
+
+
+@router.patch("/access/group-policies/{mapping_id}")
+def update_group_policy_route(
+    mapping_id: int,
+    payload: GroupPolicyUpdate,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require_admin_mutation("admin.group_policy.manage")),
+):
+    return idempotent(
+        session,
+        actor,
+        "admin.group-policy.update",
+        idempotency_key,
+        {"mapping_id": mapping_id, **payload.model_dump()},
+        lambda: update_group_policy_governed(
+            session,
+            actor,
+            mapping_id,
+            payload.role_code,
+            payload.is_active,
+            payload.expected_row_version,
+            payload.reason,
+        ),
     )
 
 
@@ -475,11 +546,21 @@ def list_test_mappings(
     _actor: ActorContext = Depends(require_admin_session("admin.access.manage")),
 ):
     rows = session.scalars(
-        select(db.DevelopmentIdentityMapping).where(db.DevelopmentIdentityMapping.is_active.is_(True)).order_by(
-            db.DevelopmentIdentityMapping.environment, db.DevelopmentIdentityMapping.identity
-        )
+        select(db.DevelopmentIdentityMapping)
+        .where(db.DevelopmentIdentityMapping.is_active.is_(True))
+        .order_by(db.DevelopmentIdentityMapping.environment, db.DevelopmentIdentityMapping.identity)
     )
-    return {"items": [{"identity": row.identity, "environment": row.environment, "role_code": row.role_code, "row_version": row.row_version} for row in rows]}
+    return {
+        "items": [
+            {
+                "identity": row.identity,
+                "environment": row.environment,
+                "role_code": row.role_code,
+                "row_version": row.row_version,
+            }
+            for row in rows
+        ]
+    }
 
 
 @router.patch("/access/test-mappings/{identity}")
@@ -513,8 +594,23 @@ def list_rehearsal_sessions(
     session: Session = Depends(get_runtime_session),
     _actor: ActorContext = Depends(require_admin_session("admin.session.manage")),
 ):
-    rows = session.scalars(select(db.AdminRehearsalSession).order_by(db.AdminRehearsalSession.issued_at.desc()).limit(100))
-    return {"items": [{"session_reference": row.session_reference, "user_id": row.user_id, "environment": row.environment, "issued_at": row.issued_at, "expires_at": row.expires_at, "last_seen_at": row.last_seen_at, "revoked_at": row.revoked_at} for row in rows]}
+    rows = session.scalars(
+        select(db.AdminRehearsalSession).order_by(db.AdminRehearsalSession.issued_at.desc()).limit(100)
+    )
+    return {
+        "items": [
+            {
+                "session_reference": row.session_reference,
+                "user_id": row.user_id,
+                "environment": row.environment,
+                "issued_at": row.issued_at,
+                "expires_at": row.expires_at,
+                "last_seen_at": row.last_seen_at,
+                "revoked_at": row.revoked_at,
+            }
+            for row in rows
+        ]
+    }
 
 
 @router.post("/access/sessions/{session_reference}/revoke")
@@ -553,7 +649,13 @@ def revoke_rehearsal_session(
             correlation_id=actor.request_id,
             action=AuditAction.SESSION_REVOKED,
         )
-        return {"session_reference": session_reference, "revoked": True, "audit_event_id": audit.event_id, "correlation_id": actor.request_id, "request_id": actor.request_id}
+        return {
+            "session_reference": session_reference,
+            "revoked": True,
+            "audit_event_id": audit.event_id,
+            "correlation_id": actor.request_id,
+            "request_id": actor.request_id,
+        }
 
     return idempotent(
         session,

@@ -69,6 +69,7 @@ ROLE_PERMISSIONS = {
             "admin.operations.backup",
             "admin.operations.restore",
             "admin.settings.manage",
+            "admin.group_policy.manage",
             "admin.danger.execute",
         }
     ),
@@ -157,9 +158,10 @@ def _danger_test_environment() -> str:
 
 
 def _corporate_auth_enabled() -> bool:
-    return os.getenv("EOAT_AUTH_PROVIDER", "").strip().casefold() == "kerberos_form" and os.getenv(
-        "EOAT_AUTH_SCOPE", ""
-    ).strip().casefold() == "application"
+    return (
+        os.getenv("EOAT_AUTH_PROVIDER", "").strip().casefold() == "kerberos_form"
+        and os.getenv("EOAT_AUTH_SCOPE", "").strip().casefold() == "application"
+    )
 
 
 def _sha256(value: str) -> str:
@@ -356,7 +358,11 @@ def issue_admin_rehearsal_session(session: Session, identity: str, rehearsal_sec
     environment = _local_environment()
     configured_secret = os.getenv("EOAT_API_ADMIN_REHEARSAL_SECRET", "")
     if not configured_secret or not hmac.compare_digest(configured_secret, rehearsal_secret):
-        raise APIError(401, "ADMIN_REHEARSAL_AUTHENTICATION_FAILED", "The development/test Administrator sign-in could not be verified.")
+        raise APIError(
+            401,
+            "ADMIN_REHEARSAL_AUTHENTICATION_FAILED",
+            "The development/test Administrator sign-in could not be verified.",
+        )
     if not identity or len(identity) > 255:
         raise APIError(422, "INVALID_REHEARSAL_IDENTITY", "A configured development/test identity is required.")
     role_code = _role_for_identity(session, identity, environment)
@@ -405,7 +411,12 @@ def admin_session_actor(
         select(db.AdminRehearsalSession).where(db.AdminRehearsalSession.session_token_hash == _sha256(token))
     )
     now = datetime.now(timezone.utc)
-    if record is None or record.environment != environment or record.revoked_at is not None or _as_utc(record.expires_at) <= now:
+    if (
+        record is None
+        or record.environment != environment
+        or record.revoked_at is not None
+        or _as_utc(record.expires_at) <= now
+    ):
         raise APIError(401, "ADMIN_SESSION_EXPIRED", "The Administrator session is expired or unavailable.")
     role = session.scalar(
         select(db.Role)
@@ -452,7 +463,9 @@ def require_admin_mutation(permission: str):
         if _corporate_auth_enabled():
             record, _user = CorporateSessionService(session).resolve(request.cookies.get(CORPORATE_SESSION_COOKIE, ""))
             submitted = request.headers.get(CORPORATE_CSRF_HEADER, "")
-            if request.cookies.get(CORPORATE_CSRF_COOKIE, "") != submitted or not corporate_csrf_valid(record, submitted):
+            if request.cookies.get(CORPORATE_CSRF_COOKIE, "") != submitted or not corporate_csrf_valid(
+                record, submitted
+            ):
                 raise APIError(403, "CSRF_INVALID", "The Administrator mutation could not be verified.")
         else:
             token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
@@ -488,7 +501,11 @@ def issue_danger_step_up(
     _danger_test_environment()
     if _corporate_auth_enabled():
         if not corporate_password:
-            raise APIError(401, "CORPORATE_FRESH_AUTHENTICATION_REQUIRED", "Corporate credential re-entry is required for this test-only operation.")
+            raise APIError(
+                401,
+                "CORPORATE_FRESH_AUTHENTICATION_REQUIRED",
+                "Corporate credential re-entry is required for this test-only operation.",
+            )
         corporate = CorporateSessionService(session)
         proof = corporate.fresh_authenticate_for_step_up(
             request.cookies.get(CORPORATE_SESSION_COOKIE, ""),
@@ -501,7 +518,11 @@ def issue_danger_step_up(
             raise APIError(403, "DANGER_STEP_UP_REJECTED", "The corporate fresh-auth proof is not bound to this actor.")
         return proof
     configured_secret = os.getenv("EOAT_API_ADMIN_REHEARSAL_SECRET", "")
-    if not rehearsal_step_up_secret or not configured_secret or not hmac.compare_digest(configured_secret, rehearsal_step_up_secret):
+    if (
+        not rehearsal_step_up_secret
+        or not configured_secret
+        or not hmac.compare_digest(configured_secret, rehearsal_step_up_secret)
+    ):
         raise APIError(401, "DANGER_STEP_UP_REJECTED", "The development/test step-up proof could not be verified.")
     if not actor.permits("admin.danger.execute"):
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this capability.")
