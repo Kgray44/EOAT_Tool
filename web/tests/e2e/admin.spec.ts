@@ -184,6 +184,96 @@ test("administrator can deep-link to the overview and ledger investigation", asy
   await expect(page.getByLabel("Entity ID")).toHaveValue("54");
 });
 
+test("Admin navigation, documents, and photo details use the compact governed surfaces", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/auth/session", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        identity: { display_name: "Corporate Administrator" },
+        roles: ["ADMINISTRATOR"],
+        permissions: ["*"],
+        scope: "application",
+      }),
+    }),
+  );
+  await page.route("**/api/v1/auth/status", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        provider: "kerberos_form",
+        status: "ready",
+        mapping_configured: true,
+      }),
+    }),
+  );
+  await page.route("**/api/v1/admin/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith("/documents")
+      ? {
+          items: [
+            {
+              id: 1,
+              document_uuid: "doc-1",
+              document_number: "DWG-1",
+              title: "EOAT drawing",
+              revision: "C",
+              status: "active",
+              row_version: 1,
+            },
+          ],
+        }
+      : path.endsWith("/photos")
+        ? {
+            items: [
+              {
+                photo: {
+                  id: 2,
+                  caption: "Front view",
+                  photo_view_type: "front",
+                  is_profile_photo: true,
+                },
+                document: {
+                  id: 2,
+                  document_uuid: "photo-1",
+                  title: "EOAT front photo",
+                  row_version: 1,
+                },
+                row_version: 1,
+              },
+            ],
+          }
+        : { items: [] };
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto("/admin/data/documents");
+  await expect(page.getByRole("link", { name: "Documents" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(page.getByText("Data management")).toHaveCount(1);
+  await expect(
+    page.getByRole("link", { name: "← Return to EOAT Atlas" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "View", exact: true }),
+  ).toHaveAttribute("href", "/api/v1/web-documents/doc-1/content");
+  await page.goto("/admin/data/photos");
+  await page.getByRole("link", { name: /EOAT front photo/ }).click();
+  await expect(page).toHaveURL(/\/admin\/data\/photos\/photo-1/);
+  await expect(
+    page.getByRole("heading", { name: "EOAT front photo", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Download full image" }),
+  ).toHaveAttribute("href", "/api/v1/web-photos/photo-1/content");
+});
+
 test("event detail renders structured redaction and correlation navigation without mutation controls", async ({
   page,
 }) => {
@@ -419,7 +509,9 @@ test("governed Viewer assignment commits, refreshes authoritative access, and pr
     .selectOption("ADMINISTRATOR");
   await page.getByLabel("Reason").fill("Testing");
   await page.getByRole("button", { name: "Preview change" }).click();
-  await page.getByRole("textbox").nth(1).fill("USER ACCESS ASSIGN wyatt-1");
+  await page
+    .getByLabel("I understand and confirm this governed access change.")
+    .check();
   await page.getByRole("button", { name: "Confirm governed change" }).click();
   await expect.poll(() => committed).toBe(true);
   await expect(
@@ -601,7 +693,10 @@ async function mockPhase4Api(page: Page) {
       });
       return;
     }
-    if (url.pathname.endsWith("/diagnostics")) {
+    if (
+      url.pathname.endsWith("/system") ||
+      url.pathname.endsWith("/diagnostics")
+    ) {
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -727,13 +822,13 @@ async function mockPhase4Api(page: Page) {
   });
 }
 
-test("Phase 4 diagnostics isolate a failure and the keyboard Danger rehearsal requires exact confirmation", async ({
+test("System health isolates a failure and the keyboard Danger rehearsal requires exact confirmation", async ({
   page,
 }) => {
   await mockPhase4Api(page);
-  await page.goto("/admin/diagnostics");
+  await page.goto("/admin/system");
   await expect(
-    page.getByRole("heading", { name: "Diagnostics" }),
+    page.getByRole("heading", { name: "System health" }),
   ).toBeVisible();
   await expect(
     page.getByText("Operation ledger is unavailable."),
@@ -777,7 +872,7 @@ test("Phase 4 diagnostics isolate a failure and the keyboard Danger rehearsal re
   ).toBeVisible();
 });
 
-test("Phase 4 integrity evidence is explicit and remains usable at tablet width", async ({
+test("Integrity evidence is explicit and remains usable at tablet width", async ({
   page,
 }) => {
   await mockPhase4Api(page);
@@ -787,9 +882,7 @@ test("Phase 4 integrity evidence is explicit and remains usable at tablet width"
     .getByLabel("Development/test rehearsal secret")
     .fill("phase4-browser-secret");
   await page.getByRole("button", { name: "Start governed session" }).click();
-  await page
-    .getByRole("button", { name: "Run explicit integrity scan" })
-    .click();
+  await page.getByRole("button", { name: "Run integrity scan" }).click();
   await expect(page.getByText("Synthetic controlled finding.")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "View Audit Event" }),

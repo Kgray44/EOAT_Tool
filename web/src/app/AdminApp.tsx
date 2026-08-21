@@ -27,6 +27,7 @@ import {
   type AuditValue,
 } from "../api/admin";
 import { ApiError } from "../api/errors";
+import { apiClient } from "../api/client";
 import { AuditDiff } from "../components/AuditDiff";
 import { formatTime } from "../lib/time";
 
@@ -137,6 +138,9 @@ function LoadingState() {
 }
 
 function AdminLayout({ children }: { children: React.ReactNode }) {
+  const showTestControls =
+    import.meta.env.DEV ||
+    import.meta.env.VITE_EOAT_ALLOW_TEST_CONTROLS === "true";
   return (
     <div className="admin-layout">
       <a className="skip-link" href="#admin-content">
@@ -152,22 +156,23 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
             Overview
           </NavLink>
           <NavLink to="/admin/audit">Audit ledger</NavLink>
-          <NavLink to="/admin/data">Data</NavLink>
+          <span className="nav-section">Data management</span>
           <NavLink to="/admin/data/relationships">Relationships</NavLink>
           <NavLink to="/admin/data/documents">Documents</NavLink>
           <NavLink to="/admin/data/photos">Photos</NavLink>
-          <NavLink to="/admin/data/bulk">Bulk workflow</NavLink>
+          <NavLink to="/admin/data/bulk">Bulk Status Update</NavLink>
           <NavLink to="/admin/settings">Settings</NavLink>
           <NavLink to="/admin/users">Users &amp; Access</NavLink>
-          <NavLink to="/admin/access">Access</NavLink>
+          <NavLink to="/admin/access">Access mappings</NavLink>
           <NavLink to="/admin/system">System</NavLink>
-          <NavLink to="/admin/diagnostics">Diagnostics</NavLink>
           <NavLink to="/admin/integrity">Integrity and evidence</NavLink>
-          <NavLink to="/admin/danger-zone">Danger Zone</NavLink>
+          {showTestControls ? (
+            <NavLink to="/admin/danger-zone">Test controls</NavLink>
+          ) : null}
+          <a className="return-link" href="/">
+            ← Return to EOAT Atlas
+          </a>
         </nav>
-        <a className="return-link" href="/">
-          ← Return to EOAT Atlas
-        </a>
       </aside>
       <main id="admin-content" className="admin-main" tabIndex={-1}>
         {children}
@@ -190,6 +195,32 @@ function PageTitle({
       {children}
     </header>
   );
+}
+
+function recordValue(record: AdminRecord, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = record[key];
+    if (value !== undefined && value !== null && value !== "")
+      return String(value);
+  }
+  return "Not recorded";
+}
+
+function humanize(value: string): string {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function statusLabel(value: string) {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("healthy") || normalized === "enabled")
+    return "healthy";
+  if (normalized.includes("disabled") || normalized.includes("controlled"))
+    return "controlled";
+  if (normalized.includes("warning") || normalized.includes("degraded"))
+    return "warning";
+  return normalized === "unknown" ? "unknown" : "attention";
 }
 
 function EventLink({ event }: { event: AuditEvent }) {
@@ -217,14 +248,39 @@ function OverviewPage() {
     ["Security", value.metrics.security_events_last_24_hours],
     ["Unique actors", value.metrics.unique_actors_last_24_hours],
   ];
+  const healthy = [
+    value.api_status,
+    value.database_status,
+    value.audit_status,
+  ].every((status) => status.toLowerCase() === "healthy");
   return (
     <>
       <PageTitle title="Administrative overview">
         <p>
-          Server-observed {formatTime(value.observation_time_utc)}. Audit
-          activity uses authoritative UTC event timestamps.
+          An operational summary from server-observed health and immutable audit
+          evidence. Last updated {formatTime(value.observation_time_utc)}.
         </p>
       </PageTitle>
+      <section className="heartbeat-banner" aria-label="Application heartbeat">
+        <span
+          className={`heartbeat-dot ${healthy ? "healthy" : "attention"}`}
+          aria-hidden="true"
+        />
+        <div>
+          <strong>
+            {healthy ? "EOAT Atlas is healthy" : "EOAT Atlas needs attention"}
+          </strong>
+          <span>
+            Heartbeat observed {formatTime(value.observation_time_utc)}
+          </span>
+        </div>
+        <dl>
+          <dt>Release / API</dt>
+          <dd>{value.api_version}</dd>
+          <dt>Schema</dt>
+          <dd>{value.schema_revision ?? "Not reported"}</dd>
+        </dl>
+      </section>
       <section className="card-grid status-grid" aria-label="System identity">
         <StatusCard
           label="API"
@@ -243,8 +299,12 @@ function OverviewPage() {
         />
         <StatusCard
           label="Writes"
-          value={value.writes_enabled ? "enabled" : "controlled / disabled"}
-          detail={`Environment ${value.environment}`}
+          value={
+            value.writes_enabled
+              ? "healthy — enabled"
+              : "healthy — disabled by policy"
+          }
+          detail={`Environment ${value.environment}; server-owned gate`}
         />
       </section>
       <section aria-labelledby="activity-title">
@@ -288,7 +348,7 @@ function OverviewPage() {
       <section className="shortcuts" aria-label="Administrator shortcuts">
         <Link to="/admin/audit">Full Audit Ledger</Link>
         <Link to="/admin/system">System status</Link>
-        <Link to="/admin/diagnostics">Diagnostics</Link>
+        <Link to="/admin/integrity">Integrity and evidence</Link>
       </section>
     </>
   );
@@ -304,7 +364,7 @@ function StatusCard({
   detail: string;
 }) {
   return (
-    <article className="status-card">
+    <article className={`status-card ${statusLabel(value)}`}>
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{detail}</small>
@@ -927,30 +987,36 @@ function Detail({
   );
 }
 
-function DiagnosticsPage({ diagnostics = false }: { diagnostics?: boolean }) {
+function SystemPage() {
   const remote = useRemote<AdminDiagnostics>(
-    (signal) =>
-      diagnostics ? adminApi.diagnostics(signal) : adminApi.system(signal),
-    diagnostics ? "diagnostics" : "system",
+    (signal) => adminApi.system(signal),
+    "system",
   );
   if (remote.state === "loading") return <LoadingState />;
   if (remote.state === "error") return <ErrorState error={remote.error} />;
   const value = remote.value;
   return (
     <>
-      <PageTitle title={diagnostics ? "Diagnostics" : "System status"}>
+      <PageTitle title="System health">
         <p>
-          Each server-owned check is observed independently at{" "}
-          {formatTime(value.observation_time_utc)}. A failed dependency does not
-          erase healthy evidence.
+          Server-owned operational evidence, last checked{" "}
+          {formatTime(value.observation_time_utc)}. A deliberately disabled
+          capability can be healthy when policy controls it.
         </p>
       </PageTitle>
       <section className="settings-list">
         {value.checks.map((check) => (
-          <article className="editor-card" key={check.check_id}>
+          <article
+            className={`editor-card health-check ${statusLabel(check.state)}`}
+            key={check.check_id}
+          >
             <div className="section-heading">
-              <h2>{check.subsystem}</h2>
-              <strong>{check.state}</strong>
+              <h2>{humanize(check.subsystem)}</h2>
+              <strong>
+                {check.state === "DISABLED"
+                  ? "HEALTHY — Disabled by policy"
+                  : check.state}
+              </strong>
             </div>
             <p>{check.safe_detail}</p>
             <p className="state-note">
@@ -967,7 +1033,7 @@ function DiagnosticsPage({ diagnostics = false }: { diagnostics?: boolean }) {
         ))}
       </section>
       <p className="state-note">
-        Diagnostics do not provide SQL, shell, filesystem, log-browsing, or
+        System health does not provide SQL, shell, filesystem, log-browsing, or
         arbitrary mutation capabilities.
       </p>
     </>
@@ -1634,42 +1700,128 @@ function DataPage({
 
 function DocumentsPage() {
   const { ready, setReady } = useAdminSession();
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<AdminRecord>();
   const [refresh, setRefresh] = useState(0);
   const [lastAuditEvent, setLastAuditEvent] = useState<string>();
   const remote = useRemote<{ items: AdminRecord[] }>(
-    () => adminApi.documents(),
-    `documents:${ready}:${refresh}`,
+    () => adminApi.documents(search),
+    `documents:${ready}:${search}:${refresh}`,
   );
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
   if (remote.state === "error") return <ErrorState error={remote.error} />;
   if (remote.state === "loading") return <LoadingState />;
   return (
     <>
-      <PageTitle title="Governed document metadata">
+      <PageTitle title="Documents">
         <p>
-          Documents are server-resolved records. File locations, checksums, and
-          storage internals are intentionally never shown or accepted in this
-          Administrator surface.
+          Review document records, open safe content, and make a focused,
+          audited metadata change. Storage locations and checksums are never
+          shown in Administration.
         </p>
       </PageTitle>
       <AuditSuccess eventId={lastAuditEvent} />
-      <div className="settings-list">
-        {remote.value.items.map((record) => (
+      <section className="filters">
+        <label>
+          Search documents
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Title, document number, or description"
+          />
+        </label>
+      </section>
+      {remote.value.items.length ? (
+        <div className="audit-table-wrap">
+          <table className="audit-table document-table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Type / revision</th>
+                <th>Status</th>
+                <th>Effective / updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {remote.value.items.map((record) => {
+                const uuid = recordValue(record, "document_uuid");
+                const contentUrl =
+                  uuid === "Not recorded"
+                    ? undefined
+                    : apiClient.documentContentUrl(uuid);
+                return (
+                  <tr key={String(record.id)}>
+                    <td data-label="Document">
+                      <strong>
+                        {recordValue(record, "document_number", "title")}
+                      </strong>
+                      <span className="table-subtitle">
+                        {recordValue(record, "title", "description")}
+                      </span>
+                    </td>
+                    <td data-label="Type / revision">
+                      {recordValue(record, "document_type", "document_type_id")}
+                      <span className="table-subtitle">
+                        Revision {recordValue(record, "revision")}
+                      </span>
+                    </td>
+                    <td data-label="Status">
+                      {recordValue(record, "status", "status_id")}
+                    </td>
+                    <td data-label="Effective / updated">
+                      {recordValue(record, "effective_from", "updated_at")}
+                    </td>
+                    <td data-label="Actions" className="row-actions">
+                      {contentUrl ? (
+                        <a href={contentUrl} target="_blank" rel="noreferrer">
+                          View
+                        </a>
+                      ) : null}
+                      {contentUrl ? (
+                        <a href={contentUrl} download>
+                          Download
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => setSelected(record)}
+                      >
+                        Edit metadata
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="state-note">No active documents match this search.</p>
+      )}
+      {selected ? (
+        <section className="focused-editor" aria-label="Edit document metadata">
+          <div className="section-heading">
+            <h2>Edit metadata</h2>
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => setSelected(undefined)}
+            >
+              Close
+            </button>
+          </div>
           <DocumentEditor
-            key={String(record.id)}
-            record={record}
+            record={selected}
             onDone={(auditEventId) => {
               setLastAuditEvent(auditEventId);
+              setSelected(undefined);
               setRefresh((value) => value + 1);
             }}
           />
-        ))}
-        {!remote.value.items.length ? (
-          <p className="state-note">
-            No active documents are available in this environment.
-          </p>
-        ) : null}
-      </div>
+        </section>
+      ) : null}
     </>
   );
 }
@@ -1775,44 +1927,102 @@ function DocumentEditor({
 
 function PhotosPage() {
   const { ready, setReady } = useAdminSession();
-  const [refresh, setRefresh] = useState(0);
-  const [lastAuditEvent, setLastAuditEvent] = useState<string>();
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"newest" | "caption">("newest");
   const remote = useRemote<{
     items: Array<{
       photo: AdminRecord;
       document: AdminRecord;
       row_version: number;
     }>;
-  }>(() => adminApi.photos(), `photos:${ready}:${refresh}`);
+  }>(() => adminApi.photos(), `photos:${ready}`);
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
   if (remote.state === "error") return <ErrorState error={remote.error} />;
   if (remote.state === "loading") return <LoadingState />;
   return (
     <>
-      <PageTitle title="Governed photo metadata">
+      <PageTitle title="Photos">
         <p>
-          Photo metadata is editable and archiveable; binary locations and file
-          internals remain outside the browser administration surface.
+          Browse managed images and open their Administration detail pages.
+          Image content is served only through the safe managed-media APIs.
         </p>
       </PageTitle>
-      <AuditSuccess eventId={lastAuditEvent} />
-      <div className="settings-list">
-        {remote.value.items.map((value) => (
-          <PhotoEditor
-            key={String(value.photo.id)}
-            value={value}
-            onDone={(auditEventId) => {
-              setLastAuditEvent(auditEventId);
-              setRefresh((current) => current + 1);
-            }}
-          />
-        ))}
-        {!remote.value.items.length ? (
-          <p className="state-note">
-            No active photos are available in this environment.
-          </p>
-        ) : null}
+      <section className="filters">
+        <div className="filter-grid">
+          <label>
+            Search photos
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Caption, photo type, or document"
+            />
+          </label>
+          <label>
+            Sort
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value as typeof sort)}
+            >
+              <option value="newest">Newest first</option>
+              <option value="caption">Caption</option>
+            </select>
+          </label>
+        </div>
+      </section>
+      <div className="photo-grid">
+        {remote.value.items
+          .filter(({ photo, document }) =>
+            `${recordValue(photo, "caption", "photo_view_type")} ${recordValue(document, "title", "document_number")}`
+              .toLowerCase()
+              .includes(search.toLowerCase()),
+          )
+          .sort((a, b) =>
+            sort === "caption"
+              ? recordValue(a.photo, "caption").localeCompare(
+                  recordValue(b.photo, "caption"),
+                )
+              : Number(b.photo.id) - Number(a.photo.id),
+          )
+          .map((value) => {
+            const uuid = recordValue(value.document, "document_uuid");
+            const title = recordValue(
+              value.document,
+              "title",
+              "document_number",
+            );
+            return (
+              <Link
+                className="photo-card"
+                key={String(value.photo.id)}
+                to={`/admin/data/photos/${encodeURIComponent(uuid)}`}
+              >
+                {uuid !== "Not recorded" ? (
+                  <img
+                    src={apiClient.photoThumbnailUrl(uuid)}
+                    alt={recordValue(
+                      value.photo,
+                      "caption",
+                      "photo_view_type",
+                      "Photo",
+                    )}
+                  />
+                ) : (
+                  <div className="photo-placeholder">Image unavailable</div>
+                )}
+                <strong>{title}</strong>
+                <span>
+                  {recordValue(value.photo, "caption", "photo_view_type")}
+                </span>
+                {value.photo.is_profile_photo ? <em>Profile photo</em> : null}
+              </Link>
+            );
+          })}
       </div>
+      {!remote.value.items.length ? (
+        <p className="state-note">
+          No active photos are available in this environment.
+        </p>
+      ) : null}
     </>
   );
 }
@@ -1908,9 +2118,80 @@ function PhotoEditor({
   );
 }
 
+function PhotoDetailPage() {
+  const { ready, setReady } = useAdminSession();
+  const { documentUuid = "" } = useParams();
+  const [refresh, setRefresh] = useState(0);
+  const remote = useRemote<{
+    items: Array<{
+      photo: AdminRecord;
+      document: AdminRecord;
+      row_version: number;
+    }>;
+  }>(
+    () => adminApi.photos(),
+    `photo-detail:${ready}:${documentUuid}:${refresh}`,
+  );
+  if (!ready) return <SessionGate onReady={() => setReady(true)} />;
+  if (remote.state === "error") return <ErrorState error={remote.error} />;
+  if (remote.state === "loading") return <LoadingState />;
+  const value = remote.value.items.find(
+    (item) => String(item.document.document_uuid) === documentUuid,
+  );
+  if (!value) return <NotFound />;
+  const contentUrl = apiClient.photoContentUrl(documentUuid);
+  return (
+    <>
+      <PageTitle
+        title={recordValue(value.document, "title", "document_number")}
+      >
+        <p>
+          Managed photo details and supported metadata. Filesystem paths are
+          never displayed.
+        </p>
+      </PageTitle>
+      <Link to="/admin/data/photos">← Back to Photos</Link>
+      <section className="photo-detail">
+        <img
+          src={contentUrl}
+          alt={recordValue(value.photo, "caption", "photo_view_type", "Photo")}
+        />
+        <div className="detail-grid">
+          <article>
+            <h2>Photo information</h2>
+            <dl className="detail">
+              <dt>Caption</dt>
+              <dd>{recordValue(value.photo, "caption")}</dd>
+              <dt>Photo type</dt>
+              <dd>{recordValue(value.photo, "photo_view_type")}</dd>
+              <dt>Captured</dt>
+              <dd>{recordValue(value.photo, "captured_at")}</dd>
+              <dt>Profile photo</dt>
+              <dd>{value.photo.is_profile_photo ? "Yes" : "No"}</dd>
+            </dl>
+            <a href={contentUrl} download>
+              Download full image
+            </a>
+          </article>
+          <article>
+            <h2>Edit or archive</h2>
+            <PhotoEditor
+              value={value}
+              onDone={() => setRefresh((current) => current + 1)}
+            />
+          </article>
+        </div>
+      </section>
+    </>
+  );
+}
+
 function RelationshipsPage() {
   const { ready, setReady } = useAdminSession();
   const [relationshipType, setRelationshipType] = useState("eoat-machine");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
   const [eoat, setEoat] = useState("");
   const [machine, setMachine] = useState("");
   const [tool, setTool] = useState("");
@@ -1976,129 +2257,219 @@ function RelationshipsPage() {
   const showTool = relationshipType !== "eoat-machine";
   return (
     <>
-      <PageTitle title="Governed relationship management">
+      <PageTitle title="Relationships">
         <p>
-          Relationship creation uses selected, authoritative business
-          identifiers and compatibility status; the API resolves and validates
-          every target before committing a link.
+          Search and review validated EOAT, Machine, and Tool links. Additions
+          are resolved and validated by the server before they are committed.
         </p>
       </PageTitle>
-      <section className="editor-card">
-        <Select
-          label="Relationship type"
-          value={relationshipType}
-          values={["eoat-machine", "eoat-tool", "tool-machine"]}
-          onChange={setRelationshipType}
-        />
-        {showEoat ? (
-          <label>
-            EOAT
-            <select
-              value={eoat}
-              onChange={(event) => setEoat(event.target.value)}
+      <section className="relationship-toolbar">
+        <div
+          className="relationship-tabs"
+          role="tablist"
+          aria-label="Relationship type"
+        >
+          {["eoat-machine", "eoat-tool", "tool-machine"].map((type) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={relationshipType === type}
+              className={relationshipType === type ? "selected" : ""}
+              key={type}
+              onClick={() => setRelationshipType(type)}
             >
-              <option value="">Select an EOAT</option>
-              {catalog.value.eoats.map((row) => (
-                <option
-                  key={String(row.business_identifier)}
-                  value={String(row.business_identifier)}
-                >
-                  {String(row.business_identifier)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {showMachine ? (
-          <label>
-            Machine
-            <select
-              value={machine}
-              onChange={(event) => setMachine(event.target.value)}
-            >
-              <option value="">Select a Machine</option>
-              {catalog.value.machines.map((row) => (
-                <option
-                  key={String(row.machine_number)}
-                  value={String(row.machine_number)}
-                >
-                  {String(row.machine_number)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        {showTool ? (
-          <label>
-            Tool
-            <select
-              value={tool}
-              onChange={(event) => setTool(event.target.value)}
-            >
-              <option value="">Select a Tool</option>
-              {catalog.value.tools.map((row) => (
-                <option
-                  key={String(row.business_identifier)}
-                  value={String(row.business_identifier)}
-                >
-                  {String(row.business_identifier)}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <label>
-          Compatibility status
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            <option value="">
-              Select an authoritative compatibility status
-            </option>
-            {catalog.value.statuses.map((value) => (
-              <option key={value.code} value={value.code}>
-                {value.display_name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Reason (optional)
-          <input
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-          />
-        </label>
-        <p className="state-note">
-          Typed confirmation is server-derived:{" "}
-          <code>LINK {relationshipType}</code>.
-        </p>
+              {type === "eoat-machine"
+                ? "EOAT ↔ Machine"
+                : type === "eoat-tool"
+                  ? "EOAT ↔ Tool"
+                  : "Tool ↔ Machine"}
+            </button>
+          ))}
+        </div>
         <button
           className="primary-button"
           type="button"
-          disabled={
-            (showEoat && !eoat) ||
-            (showMachine && !machine) ||
-            (showTool && !tool) ||
-            !status
-          }
-          onClick={commit}
+          onClick={() => setShowAdd((visible) => !visible)}
         >
-          Validate and link relationship
+          {showAdd ? "Close" : "+ Add relationship"}
         </button>
-        {error ? <p className="inline-error">{error.message}</p> : null}
-        <AuditSuccess eventId={audit} />
       </section>
-      <section className="editor-card">
+      <section className="filters">
+        <div className="filter-grid">
+          <label>
+            Search relationships
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Source or target identifier"
+            />
+          </label>
+          <label>
+            Compatibility status
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="">All statuses</option>
+              {catalog.value.statuses.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.display_name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+      {showAdd ? (
+        <section className="focused-editor">
+          <h2>Add relationship</h2>
+          {showEoat ? (
+            <label>
+              EOAT
+              <select
+                value={eoat}
+                onChange={(event) => setEoat(event.target.value)}
+              >
+                <option value="">Select an EOAT</option>
+                {catalog.value.eoats.map((row) => (
+                  <option
+                    key={String(row.business_identifier)}
+                    value={String(row.business_identifier)}
+                  >
+                    {String(row.business_identifier)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {showMachine ? (
+            <label>
+              Machine
+              <select
+                value={machine}
+                onChange={(event) => setMachine(event.target.value)}
+              >
+                <option value="">Select a Machine</option>
+                {catalog.value.machines.map((row) => (
+                  <option
+                    key={String(row.machine_number)}
+                    value={String(row.machine_number)}
+                  >
+                    {String(row.machine_number)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {showTool ? (
+            <label>
+              Tool
+              <select
+                value={tool}
+                onChange={(event) => setTool(event.target.value)}
+              >
+                <option value="">Select a Tool</option>
+                {catalog.value.tools.map((row) => (
+                  <option
+                    key={String(row.business_identifier)}
+                    value={String(row.business_identifier)}
+                  >
+                    {String(row.business_identifier)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label>
+            Compatibility status
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+            >
+              <option value="">
+                Select an authoritative compatibility status
+              </option>
+              {catalog.value.statuses.map((value) => (
+                <option key={value.code} value={value.code}>
+                  {value.display_name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Reason (optional)
+            <input
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+          <p className="state-note">
+            Typed confirmation is server-derived:{" "}
+            <code>LINK {relationshipType}</code>.
+          </p>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={
+              (showEoat && !eoat) ||
+              (showMachine && !machine) ||
+              (showTool && !tool) ||
+              !status
+            }
+            onClick={commit}
+          >
+            Validate and add relationship
+          </button>
+          {error ? <p className="inline-error">{error.message}</p> : null}
+          <AuditSuccess eventId={audit} />
+        </section>
+      ) : null}
+      <section className="editor-card relationship-list">
         <h2>Current relationships</h2>
-        {relations.value.items.map((row) => (
-          <RelationshipUnlinkEditor
-            key={String(row.id)}
-            relationshipType={relationshipType}
-            row={row}
-          />
-        ))}
+        <div className="audit-table-wrap">
+          <table className="audit-table">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Target</th>
+                <th>Compatibility</th>
+                <th>Revision</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {relations.value.items
+                .filter(
+                  (row) =>
+                    `${row.left ?? ""} ${row.right ?? ""}`
+                      .toLowerCase()
+                      .includes(search.toLowerCase()) &&
+                    (!statusFilter ||
+                      String(row.compatibility_status) === statusFilter),
+                )
+                .map((row) => (
+                  <tr key={String(row.id)}>
+                    <td>{String(row.left ?? "Not recorded")}</td>
+                    <td>{String(row.right ?? "Not recorded")}</td>
+                    <td>
+                      {recordValue(
+                        row,
+                        "compatibility_status",
+                        "compatibility_status_id",
+                      )}
+                    </td>
+                    <td>{String(row.row_version)}</td>
+                    <td>
+                      <RelationshipUnlinkEditor
+                        relationshipType={relationshipType}
+                        row={row}
+                      />
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
         {!relations.value.items.length ? (
           <p className="state-note">No current relationships of this type.</p>
         ) : null}
@@ -2228,23 +2599,29 @@ function BulkStatusPage() {
   if (assets.state === "loading") return <LoadingState />;
   return (
     <>
-      <PageTitle title="EOAT bulk status workflow">
+      <PageTitle title="Bulk Status Update">
         <p>
-          This is the sole bounded bulk workflow: preview first, validate every
-          current row version, then commit atomically or leave all records
-          unchanged.
+          Change the status of multiple EOAT records in one audited atomic
+          operation. Preview validates every row version before any write.
         </p>
       </PageTitle>
+      <ol className="workflow-steps" aria-label="Bulk Status Update steps">
+        <li className="active">1. Select EOATs</li>
+        <li>2. Choose new status</li>
+        <li>3. Enter reason</li>
+        <li>4. Preview</li>
+        <li>5. Apply</li>
+      </ol>
       <section className="editor-card">
         <label>
-          EOAT identifiers (comma or line separated)
+          1. Select EOAT identifiers (comma or line separated)
           <textarea
             value={identifiersText}
             onChange={(event) => setIdentifiersText(event.target.value)}
           />
         </label>
         <label>
-          Status code
+          2. New status code
           <input
             value={status}
             onChange={(event) => setStatus(event.target.value)}
@@ -2258,22 +2635,24 @@ function BulkStatusPage() {
           }
           onClick={previewChange}
         >
-          Preview atomic bulk change
+          4. Preview affected EOATs
         </button>
         {preview ? (
           <p className="state-note">
-            Preview covers {preview.count} records atomically.
+            Preview covers {preview.count} record(s) atomically. No status has
+            changed.
           </p>
         ) : null}
         <label>
-          Reason
+          3. Reason
           <input
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
         </label>
         <label>
-          Type <code>BULK STATUS {identifiers.length}</code> to commit
+          5. Confirm the reviewed change: type{" "}
+          <code>BULK STATUS {identifiers.length}</code>
           <input
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
@@ -2289,7 +2668,7 @@ function BulkStatusPage() {
           }
           onClick={commit}
         >
-          Commit atomic bulk change
+          Apply audited atomic update
         </button>
         {error ? <p className="inline-error">{error.message}</p> : null}
         <AuditSuccess eventId={audit} />
@@ -2309,6 +2688,28 @@ function SettingsPage() {
   if (!ready) return <SessionGate onReady={() => setReady(true)} />;
   if (remote.state === "error") return <ErrorState error={remote.error} />;
   if (remote.state === "loading") return <LoadingState />;
+  const sections = remote.value.items.reduce<Record<string, AdminSetting[]>>(
+    (groups, setting) => {
+      const prefix = setting.key.split(".")[0]?.toLowerCase();
+      const category =
+        prefix === "auth"
+          ? "Authentication"
+          : prefix === "media"
+            ? "Media"
+            : prefix === "data"
+              ? "Data"
+              : prefix === "fit"
+                ? "Fit Check"
+                : prefix === "admin"
+                  ? "Administration"
+                  : prefix === "app" || prefix === "ui"
+                    ? "Application / UI"
+                    : "General";
+      (groups[category] ??= []).push(setting);
+      return groups;
+    },
+    {},
+  );
   return (
     <>
       <PageTitle title="Administrator Settings">
@@ -2319,15 +2720,20 @@ function SettingsPage() {
       </PageTitle>
       <AuditSuccess eventId={lastAuditEvent} />
       <div className="settings-list">
-        {remote.value.items.map((setting) => (
-          <SettingEditor
-            key={setting.key}
-            setting={setting}
-            onDone={(auditEventId) => {
-              setLastAuditEvent(auditEventId);
-              setRefresh((value) => value + 1);
-            }}
-          />
+        {Object.entries(sections).map(([category, settings]) => (
+          <section key={category} className="settings-category">
+            <h2>{category}</h2>
+            {settings.map((setting) => (
+              <SettingEditor
+                key={setting.key}
+                setting={setting}
+                onDone={(auditEventId) => {
+                  setLastAuditEvent(auditEventId);
+                  setRefresh((value) => value + 1);
+                }}
+              />
+            ))}
+          </section>
         ))}
         {!remote.value.items.length ? (
           <p className="state-note">
@@ -2705,7 +3111,7 @@ function CorporateAccessEditor({
   const [role, setRole] = useState("VIEWER");
   const [reason, setReason] = useState("");
   const [preview, setPreview] = useState<{ confirmation: string }>();
-  const [confirmation, setConfirmation] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<AdminApiError>();
   const payload = {
     action,
@@ -2719,7 +3125,7 @@ function CorporateAccessEditor({
       .previewUserAccess(user.user_id, payload)
       .then((value) => {
         setPreview(value);
-        setConfirmation("");
+        setConfirmed(false);
       })
       .catch((value: unknown) =>
         setError(
@@ -2732,10 +3138,13 @@ function CorporateAccessEditor({
   const commit = () => {
     setError(undefined);
     adminApi
-      .commitUserAccess(user.user_id, { ...payload, confirmation })
+      .commitUserAccess(user.user_id, {
+        ...payload,
+        confirmation: preview?.confirmation ?? "",
+      })
       .then(() => {
         setPreview(undefined);
-        setConfirmation("");
+        setConfirmed(false);
         onDone();
       })
       .catch((value: unknown) =>
@@ -2800,17 +3209,22 @@ function CorporateAccessEditor({
       </button>
       {preview ? (
         <>
-          <label>
-            Type <code>{preview.confirmation}</code>
+          <p className="preview-panel">
+            Review the proposed role and access source above. This change will
+            be audited and active sessions may be revoked.
+          </p>
+          <label className="check-row">
             <input
-              value={confirmation}
-              onChange={(event) => setConfirmation(event.target.value)}
-            />
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)}
+            />{" "}
+            I understand and confirm this governed access change.
           </label>
           <button
             className="primary-button"
             type="button"
-            disabled={confirmation !== preview.confirmation}
+            disabled={!confirmed}
             onClick={commit}
           >
             Confirm governed change
@@ -2916,16 +3330,15 @@ function AccessPage() {
   };
   return (
     <>
-      <PageTitle title="Development/test Access administration">
+      <PageTitle title="Development/test access mappings">
         <p>
-          These mappings and sessions are local rehearsal configuration only. No
-          corporate directory, Active Directory group, password, bind
-          credential, or production identity mapping is displayed or changed
-          here.
+          These local rehearsal mappings assign an EOAT Atlas role to a
+          development/test identity. They are not corporate directory-group
+          policies and cannot change Active Directory or production access.
         </p>
       </PageTitle>
       <AuditSuccess eventId={lastAuditEvent} />
-      <div className="settings-list">
+      <section className="settings-list" aria-label="Access mappings">
         {mappings.value.items.map((mapping) => (
           <MappingEditor
             key={`${mapping.environment}:${mapping.identity}`}
@@ -2933,7 +3346,13 @@ function AccessPage() {
             onDone={onDone}
           />
         ))}
-      </div>
+        {!mappings.value.items.length ? (
+          <p className="state-note">
+            No development/test access mappings are configured in this
+            environment.
+          </p>
+        ) : null}
+      </section>
       <section className="editor-card">
         <h2>Recent rehearsal sessions</h2>
         <p>
@@ -3105,6 +3524,10 @@ function IntegrityEvidencePage() {
     findings: Array<Record<string, AuditValue>>;
     audit_event_id: string;
   }>();
+  const latest = useRemote(
+    (signal) => adminApi.latestIntegrity(signal),
+    `latest-integrity:${ready}:${scan?.operation_id ?? "initial"}`,
+  );
   const [error, setError] = useState<AdminApiError>();
   const run = () =>
     adminApi
@@ -3149,8 +3572,21 @@ function IntegrityEvidencePage() {
       </PageTitle>
       <section className="editor-card">
         <h2>Integrity scan</h2>
+        {latest.state === "ready" ? (
+          <div className="integrity-summary">
+            <strong>Integrity status: {latest.value.status}</strong>
+            <span>{latest.value.by_severity?.PASS ?? 0} checks passed</span>
+            <span>{latest.value.by_severity?.WARNING ?? 0} warnings</span>
+            <span>{latest.value.by_severity?.ERROR ?? 0} errors</span>
+            <small>
+              {latest.value.completed_at
+                ? `Last run ${formatTime(latest.value.completed_at)}`
+                : "No completed scan is reported."}
+            </small>
+          </div>
+        ) : null}
         <button className="primary-button" type="button" onClick={run}>
-          Run explicit integrity scan
+          Run integrity scan
         </button>
         {scan ? (
           <>
@@ -3432,6 +3868,9 @@ function NotFound() {
 
 export function AdminApp() {
   const [ready, setReady] = useState(false);
+  const showTestControls =
+    import.meta.env.DEV ||
+    import.meta.env.VITE_EOAT_ALLOW_TEST_CONTROLS === "true";
   return (
     <AdminSessionContext.Provider value={{ ready, setReady }}>
       <AdminLayout>
@@ -3451,17 +3890,23 @@ export function AdminApp() {
           <Route path="data/documents" element={<DocumentsPage />} />
           <Route path="documents" element={<DocumentsPage />} />
           <Route path="data/photos" element={<PhotosPage />} />
+          <Route
+            path="data/photos/:documentUuid"
+            element={<PhotoDetailPage />}
+          />
           <Route path="photos" element={<PhotosPage />} />
+          <Route path="photos/:documentUuid" element={<PhotoDetailPage />} />
           <Route path="data/bulk" element={<BulkStatusPage />} />
           <Route path="bulk" element={<BulkStatusPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
           <Route path="access" element={<AccessPage />} />
-          <Route path="system" element={<DiagnosticsPage />} />
-          <Route path="diagnostics" element={<DiagnosticsPage diagnostics />} />
+          <Route path="system" element={<SystemPage />} />
           <Route path="integrity" element={<IntegrityEvidencePage />} />
-          <Route path="danger-zone" element={<DangerZonePage />} />
+          {showTestControls ? (
+            <Route path="danger-zone" element={<DangerZonePage />} />
+          ) : null}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AdminLayout>

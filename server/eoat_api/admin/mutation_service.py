@@ -99,6 +99,7 @@ def list_relationships(session: Session, relationship_type: str, include_archive
     for row in rows:
         left_record = session.get(ASSET_CONFIG[left[2]]["model"], getattr(row, left[0]))
         right_record = session.get(ASSET_CONFIG[right[2]]["model"], getattr(row, right[0]))
+        status_record = session.get(db.CompatibilityStatus, row.compatibility_status_id)
         items.append(
             {
                 "id": row.id,
@@ -107,6 +108,7 @@ def list_relationships(session: Session, relationship_type: str, include_archive
                 "left": getattr(left_record, ASSET_CONFIG[left[2]]["identifier"]) if left_record is not None else None,
                 "right": getattr(right_record, ASSET_CONFIG[right[2]]["identifier"]) if right_record is not None else None,
                 "compatibility_status_id": row.compatibility_status_id,
+                "compatibility_status": status_record.code if status_record is not None else None,
             }
         )
     return items
