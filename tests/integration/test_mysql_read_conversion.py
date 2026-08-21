@@ -145,7 +145,15 @@ def test_profiles_relationships_history_documents_and_photos(api):
     assert history["items"][0]["event_id"]
     assert history["items"][0]["event_category"]
     assert api.get("/api/v1/eoats/P4-EOAT-0001/documents").status_code == 200
-    assert api.get("/api/v1/eoats/P4-EOAT-0001/photos").status_code == 200
+    photos = api.get("/api/v1/eoats/P4-EOAT-0001/photos")
+    assert photos.status_code == 200
+    listed = api.get("/api/v1/eoats", params={"search": "P4-EOAT-0001"}).json()["items"]
+    summary = next(item for item in listed if item["business_identifier"] == "P4-EOAT-0001")
+    if photos.json():
+        # The ordered gallery begins with the same server-selected photo used
+        # by the Library summary and profile hero.
+        assert summary["photo_document_uuid"] == photos.json()[0]["document_uuid"]
+        assert isinstance(summary["photo_available_through_web"], bool)
     machine_number = eoat.json()["relationships"][0]["identifier"]
     assert api.get(f"/api/v1/machines/{machine_number}").status_code == 200
     tool = next(item["identifier"] for item in eoat.json()["relationships"] if item["relationship_type"] == "tool")

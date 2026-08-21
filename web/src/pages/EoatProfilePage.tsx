@@ -292,10 +292,9 @@ function ProfileContent({
       <ProfileHeader
         profile={profile}
         location={currentLocation}
-        heroPhoto={
-          photos.data?.find((photo) => photo.is_profile_photo) ??
-          photos.data?.[0]
-        }
+        heroPhoto={photos.data?.find(
+          (photo) => photo.document_uuid === profile.photo_document_uuid,
+        )}
         actions={
           <ProfileActionMenu identifier={profile.business_identifier}>
             <EntityEditor

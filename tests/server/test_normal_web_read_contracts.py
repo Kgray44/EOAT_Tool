@@ -7,7 +7,9 @@ from server.eoat_api.contracts import (
     DataStatus,
     DocumentMetadata,
     EOATProfile,
+    EOATSummary,
     MachineProfile,
+    PaginationMetadata,
     PhotoMetadata,
     ToolProfile,
 )
@@ -21,6 +23,20 @@ class _Session:
 
 class _Repository:
     session = _Session()
+
+    def list_eoats(self, **_kwargs):
+        return (
+            [
+                EOATSummary(
+                    business_identifier="CL-EOAT-0054",
+                    is_active=True,
+                    row_version=1,
+                    photo_document_uuid="browser-safe-profile-photo",
+                    photo_available_through_web=True,
+                )
+            ],
+            PaginationMetadata(page=1, page_size=50, total=1, pages=1),
+        )
 
     def eoat(self, identifier: str):
         return EOATProfile(business_identifier=identifier, is_active=True, row_version=1)
@@ -75,6 +91,9 @@ def _client():
 
 def test_normal_profiles_and_safe_document_contracts_are_same_backend_routes():
     with _client() as client:
+        summary = client.get("/api/v1/eoats").json()["items"][0]
+        assert summary["photo_document_uuid"] == "browser-safe-profile-photo"
+        assert summary["photo_available_through_web"] is True
         assert client.get("/api/v1/eoats/CL-EOAT-0054").json()["business_identifier"] == "CL-EOAT-0054"
         assert client.get("/api/v1/machines/27").json()["machine_number"] == "27"
         assert client.get("/api/v1/tools/4611380030").json()["business_identifier"] == "4611380030"

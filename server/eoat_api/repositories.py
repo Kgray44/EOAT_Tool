@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime
 from math import ceil
 from typing import Any
@@ -25,6 +26,7 @@ from .contracts import (
     ToolSummary,
 )
 from .database import models as db
+from .web_content import content_is_available
 
 LOOKUP_MODELS = {
     "eoat_types": db.EOATType,
@@ -41,6 +43,30 @@ LOOKUP_MODELS = {
 def _optional_text(value: Any) -> str | None:
     text_value = str(value).strip() if value is not None else ""
     return text_value or None
+
+
+@dataclass(frozen=True)
+class _EOATProfilePhoto:
+    """The one server-selected photo used wherever an EOAT needs a lead image."""
+
+    document_uuid: str
+    storage_path: str
+    is_profile_photo: bool
+    is_primary_link: bool
+    sort_order: int
+    file_name: str
+
+    @property
+    def selection_key(self) -> tuple[bool, bool, int, str, str]:
+        # An explicit profile selection is authoritative. Legacy imports that
+        # predate that flag get a deterministic primary-link/sort fallback.
+        return (
+            not self.is_profile_photo,
+            not self.is_primary_link,
+            self.sort_order,
+            self.file_name.casefold(),
+            self.document_uuid,
+        )
 
 
 class AtlasRepository:
@@ -60,6 +86,48 @@ class AtlasRepository:
             ]
             for name, model in models.items()
         }
+
+    def _selected_eoat_profile_photos(self, eoat_ids: list[int]) -> dict[int, _EOATProfilePhoto]:
+        """Select one EOAT photo with the same rule for summaries and galleries.
+
+        A photo explicitly marked as the profile photo wins. Existing imported
+        records without that flag remain useful through a stable fallback:
+        primary link, then configured photo order, then filename/UUID.
+        """
+        if not eoat_ids:
+            return {}
+        rows = self.session.execute(
+            select(
+                db.DocumentLink.entity_id,
+                db.Document.document_uuid,
+                db.Document.storage_path,
+                db.Document.file_name,
+                db.Photo.is_profile_photo,
+                db.DocumentLink.is_primary,
+                db.Photo.sort_order,
+            )
+            .join(db.Document, db.Document.id == db.DocumentLink.document_id)
+            .join(db.Photo, db.Photo.document_id == db.Document.id)
+            .where(
+                db.DocumentLink.entity_type == "eoat",
+                db.DocumentLink.entity_id.in_(eoat_ids),
+                db.Document.is_active.is_(True),
+            )
+        ).all()
+        selected: dict[int, _EOATProfilePhoto] = {}
+        for entity_id, document_uuid, storage_path, file_name, is_profile, is_primary, sort_order in rows:
+            candidate = _EOATProfilePhoto(
+                document_uuid=document_uuid,
+                storage_path=storage_path,
+                is_profile_photo=bool(is_profile),
+                is_primary_link=bool(is_primary),
+                sort_order=int(sort_order or 0),
+                file_name=file_name,
+            )
+            current = selected.get(entity_id)
+            if current is None or candidate.selection_key < current.selection_key:
+                selected[entity_id] = candidate
+        return selected
 
     def list_eoats(
         self,
@@ -110,21 +178,28 @@ class AtlasRepository:
         total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
         order = db.EOAT.updated_at.desc() if sort == "updated_desc" else db.EOAT.business_identifier
         rows = self.session.execute(stmt.order_by(order).offset((page - 1) * page_size).limit(page_size)).all()
-        items = [
-            EOATSummary(
-                business_identifier=e.business_identifier,
-                legacy_identifier=e.legacy_identifier,
-                display_name=e.display_name,
-                eoat_type=t,
-                connection_type=c,
-                cleanroom_classification=cl,
-                status=s,
-                number_of_parts_picked=e.number_of_parts_picked,
-                is_active=e.is_active,
-                row_version=e.row_version,
+        selected_photos = self._selected_eoat_profile_photos([entity.id for entity, *_values in rows])
+        items = []
+        for e, t, c, cl, s in rows:
+            selected_photo = selected_photos.get(e.id)
+            items.append(
+                EOATSummary(
+                    business_identifier=e.business_identifier,
+                    legacy_identifier=e.legacy_identifier,
+                    display_name=e.display_name,
+                    eoat_type=t,
+                    connection_type=c,
+                    cleanroom_classification=cl,
+                    status=s,
+                    number_of_parts_picked=e.number_of_parts_picked,
+                    is_active=e.is_active,
+                    row_version=e.row_version,
+                    photo_document_uuid=selected_photo.document_uuid if selected_photo else None,
+                    photo_available_through_web=(
+                        content_is_available(selected_photo.storage_path) if selected_photo else False
+                    ),
+                )
             )
-            for e, t, c, cl, s in rows
-        ]
         return items, PaginationMetadata(
             page=page, page_size=page_size, total=total, pages=ceil(total / page_size) if total else 0
         )
@@ -621,7 +696,7 @@ class AtlasRepository:
             ):
                 links_by_document[link.document_id].append(link)
         identifiers: dict[tuple[str, int], str] = {}
-        for entity_type, model, column in (
+        for linked_entity_type, model, column in (
             ("eoat", db.EOAT, db.EOAT.business_identifier),
             ("machine", db.Machine, db.Machine.machine_number),
             ("tool", db.Tool, db.Tool.business_identifier),
@@ -630,12 +705,12 @@ class AtlasRepository:
                 link.entity_id
                 for values in links_by_document.values()
                 for link in values
-                if link.entity_type == entity_type
+                if link.entity_type == linked_entity_type
             }
             if ids:
                 identifiers.update(
                     {
-                        (entity_type, row_id): value
+                        (linked_entity_type, row_id): value
                         for row_id, value in self.session.execute(select(model.id, column).where(model.id.in_(ids)))
                     }
                 )
@@ -671,6 +746,12 @@ class AtlasRepository:
                 if photo
                 else DocumentMetadata(**common)
             )
+        if photos_only and entity_type == "eoat" and entity_id is not None:
+            selected_photo = self._selected_eoat_profile_photos([entity_id]).get(entity_id)
+            if selected_photo:
+                # Keep the gallery's leading photo aligned with the Library and
+                # profile hero without exposing any storage-path information.
+                results.sort(key=lambda result: result.document_uuid != selected_photo.document_uuid)
         return results
 
     def snapshot_profiles(self) -> tuple[list[EOATProfile], list[MachineProfile], list[ToolProfile]]:

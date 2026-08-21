@@ -48,7 +48,9 @@ def safe_download_name(file_name: str) -> str:
 
 def _mapped_storage_path(raw_path: str) -> str:
     """Map an approved Windows/UNC database path to a Debian mount, if needed."""
-    if not _WINDOWS_PATH.match(raw_path) or (os.name == "nt" and re.match(r"^[A-Za-z]:[\\/]", raw_path)):
+    # Windows can validate an approved drive or UNC path directly. Debian must
+    # receive an explicit mapping rather than interpreting a Windows path.
+    if not _WINDOWS_PATH.match(raw_path) or os.name == "nt":
         return raw_path
     try:
         mappings = json.loads(os.getenv("EOAT_WEB_CONTENT_PATH_MAPPINGS", "[]"))
@@ -143,9 +145,10 @@ def thumbnail_response(session: Session, document_uuid: str):
     if _media_type(document, path) not in _THUMBNAIL_TYPES:
         raise APIError(409, "THUMBNAIL_UNAVAILABLE", "A thumbnail is not available for this photo.")
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
 
         with Image.open(path) as image:
+            image = ImageOps.exif_transpose(image)
             image.thumbnail((640, 640))
             if image.mode not in {"RGB", "L"}:
                 image = image.convert("RGB")

@@ -13,6 +13,8 @@ const eoat = {
   row_version: 1,
   current_location: "UNKNOWN_NOT_VERIFIED",
   current_location_detail: null,
+  photo_document_uuid: "photo-1",
+  photo_available_through_web: true,
   relationships: [],
   audit_evidence: [],
   revision: null,
@@ -130,8 +132,7 @@ async function routeApi(
         contentType: "application/pdf",
         body: "%PDF-1.4",
       });
-    if (path.endsWith("/documents"))
-      return route.fulfill({ json: [document] });
+    if (path.endsWith("/documents")) return route.fulfill({ json: [document] });
     if (path.endsWith("/photos")) return route.fulfill({ json: [photo] });
     if (path.endsWith("/current-location"))
       return route.fulfill({
@@ -357,6 +358,42 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
       (request) =>
         request.url().includes("fit-checks") && request.method() === "POST",
     ),
+  ).toBeTruthy();
+});
+
+test("EOAT Library, profile, and Docs & Photos use the same browser-safe photo", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  await page.goto("/library?type=eoat");
+  const card = page.getByRole("link", { name: /Picker/ }).first();
+  await expect(card.locator("img")).toHaveAttribute(
+    "src",
+    "/api/v1/web-photos/photo-1/thumbnail",
+  );
+
+  await card.click();
+  const fullImage = page.getByRole("link", {
+    name: "Open full-resolution photo for EOAT-1",
+  });
+  await expect(fullImage).toHaveAttribute(
+    "href",
+    "/api/v1/web-photos/photo-1/content",
+  );
+
+  await page.getByRole("link", { name: "Docs & Photos" }).click();
+  const galleryImage = page.locator(".photo-gallery img").first();
+  await expect(galleryImage).toHaveAttribute(
+    "src",
+    "/api/v1/web-photos/photo-1/thumbnail",
+  );
+  await expect(page.locator(".photo-gallery a").first()).toHaveAttribute(
+    "href",
+    "/api/v1/web-photos/photo-1/content",
+  );
+  expect(
+    seen.every((request) => !request.headers()["x-eoat-device-token"]),
   ).toBeTruthy();
 });
 
