@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -38,6 +39,36 @@ LOOKUP_MODELS = {
     "document_types": db.DocumentType,
     "history_event_types": db.HistoryEventType,
 }
+
+_NATURAL_IDENTIFIER_PARTS = re.compile(r"(\d+)")
+
+
+def natural_identifier_key(value: object | None) -> tuple[tuple[int, int | str], ...]:
+    """Return a deterministic, case-insensitive key for human identifiers.
+
+    Catalog identifiers are business values rather than database sequence
+    numbers. Keeping this key at the repository boundary means the API sorts
+    before it applies pagination, rather than leaving individual browser views
+    to produce incompatible client-side orderings.
+    """
+
+    text_value = str(value or "")
+    return tuple(
+        (1, int(part)) if part.isdigit() else (0, part.casefold())
+        for part in _NATURAL_IDENTIFIER_PARTS.split(text_value)
+        if part
+    )
+
+
+def _page_rows(rows: list[Any], *, page: int, page_size: int) -> tuple[list[Any], PaginationMetadata]:
+    total = len(rows)
+    start = (page - 1) * page_size
+    return rows[start : start + page_size], PaginationMetadata(
+        page=page,
+        page_size=page_size,
+        total=total,
+        pages=ceil(total / page_size) if total else 0,
+    )
 
 
 def _optional_text(value: Any) -> str | None:
@@ -175,9 +206,30 @@ class AtlasRepository:
                 .where(or_(db.Area.area_code == area, db.Area.area_name == area))
                 .distinct()
             )
-        total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
-        order = db.EOAT.updated_at.desc() if sort == "updated_desc" else db.EOAT.business_identifier
-        rows = self.session.execute(stmt.order_by(order).offset((page - 1) * page_size).limit(page_size)).all()
+        rows = list(self.session.execute(stmt).all())
+        if sort == "updated_desc":
+            rows.sort(
+                key=lambda row: (
+                    row[0].updated_at,
+                    natural_identifier_key(row[0].business_identifier),
+                ),
+                reverse=True,
+            )
+        elif sort == "status":
+            rows.sort(
+                key=lambda row: (
+                    str(row[4] or "").casefold(),
+                    natural_identifier_key(row[0].business_identifier),
+                )
+            )
+        elif sort in {"business_identifier_desc", "machine_number_desc"}:
+            rows.sort(
+                key=lambda row: natural_identifier_key(row[0].business_identifier),
+                reverse=True,
+            )
+        else:
+            rows.sort(key=lambda row: natural_identifier_key(row[0].business_identifier))
+        rows, pagination = _page_rows(rows, page=page, page_size=page_size)
         selected_photos = self._selected_eoat_profile_photos([entity.id for entity, *_values in rows])
         items = []
         for e, t, c, cl, s in rows:
@@ -204,9 +256,7 @@ class AtlasRepository:
                     ),
                 )
             )
-        return items, PaginationMetadata(
-            page=page, page_size=page_size, total=total, pages=ceil(total / page_size) if total else 0
-        )
+        return items, pagination
 
     def eoat(self, identifier: str) -> EOATProfile | None:
         items, _ = self.list_eoats(search=identifier, active=None, page_size=100)
@@ -291,7 +341,13 @@ class AtlasRepository:
         return results
 
     def list_machines(
-        self, *, search: str = "", page: int = 1, page_size: int = 50, active: bool | None = True
+        self,
+        *,
+        search: str = "",
+        page: int = 1,
+        page_size: int = 50,
+        active: bool | None = True,
+        sort: str = "natural_identifier",
     ) -> tuple[list[MachineSummary], PaginationMetadata]:
         area_l = aliased(db.Area)
         clean_l = aliased(db.CleanroomClassification)
@@ -313,10 +369,40 @@ class AtlasRepository:
                     db.Machine.model.contains(search),
                 )
             )
-        total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
-        rows = self.session.execute(
-            stmt.order_by(cast(db.Machine.machine_number, String)).offset((page - 1) * page_size).limit(page_size)
-        ).all()
+        rows = list(self.session.execute(stmt).all())
+        if sort == "updated_desc":
+            rows.sort(
+                key=lambda row: (
+                    row[0].updated_at,
+                    natural_identifier_key(row[0].machine_number),
+                    str(row[1] or "").casefold(),
+                ),
+                reverse=True,
+            )
+        elif sort == "status":
+            rows.sort(
+                key=lambda row: (
+                    str(row[4] or "").casefold(),
+                    natural_identifier_key(row[0].machine_number),
+                    str(row[1] or "").casefold(),
+                )
+            )
+        elif sort in {"machine_number_desc", "business_identifier_desc"}:
+            rows.sort(
+                key=lambda row: (
+                    natural_identifier_key(row[0].machine_number),
+                    str(row[1] or "").casefold(),
+                ),
+                reverse=True,
+            )
+        else:
+            rows.sort(
+                key=lambda row: (
+                    natural_identifier_key(row[0].machine_number),
+                    str(row[1] or "").casefold(),
+                )
+            )
+        rows, pagination = _page_rows(rows, page=page, page_size=page_size)
         return [
             MachineSummary(
                 plant_code=plant_code,
@@ -331,9 +417,7 @@ class AtlasRepository:
                 row_version=m.row_version,
             )
             for m, plant_code, a, c, s in rows
-        ], PaginationMetadata(
-            page=page, page_size=page_size, total=total, pages=ceil(total / page_size) if total else 0
-        )
+        ], pagination
 
     def machine(self, number: str, *, plant_code: str | None = None) -> MachineProfile | None:
         query = select(db.Machine).where(db.Machine.machine_number == number)
@@ -417,7 +501,13 @@ class AtlasRepository:
         )
 
     def list_tools(
-        self, *, search: str = "", page: int = 1, page_size: int = 50, active: bool | None = True
+        self,
+        *,
+        search: str = "",
+        page: int = 1,
+        page_size: int = 50,
+        active: bool | None = True,
+        sort: str = "natural_identifier",
     ) -> tuple[list[ToolSummary], PaginationMetadata]:
         status_l = aliased(db.AssetStatus)
         stmt = select(db.Tool, status_l.display_name).outerjoin(status_l, db.Tool.status_id == status_l.id)
@@ -432,10 +522,37 @@ class AtlasRepository:
                     db.Tool.display_name.contains(search),
                 )
             )
-        total = self.session.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0
-        rows = self.session.execute(
-            stmt.order_by(db.Tool.business_identifier).offset((page - 1) * page_size).limit(page_size)
-        ).all()
+        rows = list(self.session.execute(stmt).all())
+        if sort == "updated_desc":
+            rows.sort(
+                key=lambda row: (
+                    row[0].updated_at,
+                    natural_identifier_key(row[0].business_identifier),
+                ),
+                reverse=True,
+            )
+        elif sort == "status":
+            rows.sort(
+                key=lambda row: (
+                    str(row[1] or "").casefold(),
+                    natural_identifier_key(row[0].business_identifier),
+                )
+            )
+        elif sort == "mold":
+            rows.sort(
+                key=lambda row: (
+                    natural_identifier_key(row[0].mold_number),
+                    natural_identifier_key(row[0].business_identifier),
+                )
+            )
+        elif sort in {"business_identifier_desc", "machine_number_desc"}:
+            rows.sort(
+                key=lambda row: natural_identifier_key(row[0].business_identifier),
+                reverse=True,
+            )
+        else:
+            rows.sort(key=lambda row: natural_identifier_key(row[0].business_identifier))
+        rows, pagination = _page_rows(rows, page=page, page_size=page_size)
         return [
             ToolSummary(
                 business_identifier=t.business_identifier,
@@ -447,9 +564,7 @@ class AtlasRepository:
                 row_version=t.row_version,
             )
             for t, s in rows
-        ], PaginationMetadata(
-            page=page, page_size=page_size, total=total, pages=ceil(total / page_size) if total else 0
-        )
+        ], pagination
 
     def tool(self, identifier: str) -> ToolProfile | None:
         entity = self.session.scalar(
@@ -928,8 +1043,15 @@ class AtlasRepository:
         return eoat_profiles, machine_profiles, tool_profiles
 
     def search(self, query: str, limit: int = 50) -> list[SearchResult]:
+        normalized_query = query.strip()
+        category_hint = None
+        for category, prefix in (("machine", "machine "), ("tool", "tool "), ("eoat", "eoat ")):
+            if normalized_query.casefold().startswith(prefix):
+                category_hint = category
+                normalized_query = normalized_query[len(prefix) :].strip()
+                break
         results: list[SearchResult] = []
-        eoats, _ = self.list_eoats(search=query, active=None, page_size=limit)
+        eoats, _ = self.list_eoats(search=normalized_query, active=None, page_size=limit)
         results.extend(
             SearchResult(
                 category="eoat",
@@ -939,19 +1061,21 @@ class AtlasRepository:
                 matched_field="identifier/name/description",
             )
             for e in eoats
+            if category_hint in (None, "eoat")
         )
-        machines, _ = self.list_machines(search=query, active=None, page_size=limit)
+        machines, _ = self.list_machines(search=normalized_query, active=None, page_size=limit)
         results.extend(
             SearchResult(
                 category="machine",
                 identifier=m.machine_number,
                 title=m.machine_name or m.machine_number,
-                subtitle=m.area or "Machine",
+                subtitle=" · ".join(value for value in (m.plant_code, m.area) if value) or "Machine",
                 matched_field="number/name/model",
             )
             for m in machines
+            if category_hint in (None, "machine")
         )
-        tools, _ = self.list_tools(search=query, active=None, page_size=limit)
+        tools, _ = self.list_tools(search=normalized_query, active=None, page_size=limit)
         results.extend(
             SearchResult(
                 category="tool",
@@ -961,5 +1085,6 @@ class AtlasRepository:
                 matched_field="identifier/tool/mold/name",
             )
             for t in tools
+            if category_hint in (None, "tool")
         )
         return results[:limit]

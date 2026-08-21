@@ -8,11 +8,22 @@ import {
   isRoutableAuthoritativeIdentifier,
   presentationText,
 } from "@/api/presentation";
+import {
+  searchableDestinations,
+  type NavigationDestination,
+} from "@/app/navigation";
 
 type Props = { open: boolean; initialQuery: string; onClose: () => void };
+type SearchEntry =
+  | { kind: "entity"; value: SearchResult }
+  | { kind: "destination"; value: NavigationDestination };
 
 function resultLabel(result: SearchResult) {
   return `${result.category}: ${presentationText(result.title)} ${presentationText(result.identifier)}`;
+}
+
+function destinationLabel(destination: NavigationDestination) {
+  return `${destination.group}: ${destination.label}`;
 }
 
 export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
@@ -26,6 +37,11 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
   const search = useQuery({
     queryKey: ["mirrorline", "global-search", debouncedQuery],
     queryFn: () => apiClient.search(debouncedQuery),
+    enabled: open && Boolean(debouncedQuery),
+  });
+  const session = useQuery({
+    queryKey: ["authentication-session"],
+    queryFn: () => apiClient.getAuthenticatedSession(),
     enabled: open && Boolean(debouncedQuery),
   });
 
@@ -44,11 +60,20 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
     return () => window.clearTimeout(timer);
   }, [open, query]);
 
-  const results = (search.data || []).filter((result) =>
+  const entityResults = (search.data || []).filter((result) =>
     isRoutableAuthoritativeIdentifier(result.identifier),
   );
+  const destinations = searchableDestinations(debouncedQuery, session.data);
+  const results: SearchEntry[] = [
+    ...entityResults.map((value) => ({ kind: "entity" as const, value })),
+    ...destinations.map((value) => ({ kind: "destination" as const, value })),
+  ];
   const resultIdentity = results
-    .map((result) => `${result.category}:${result.identifier}`)
+    .map((result) =>
+      result.kind === "entity"
+        ? `entity:${result.value.category}:${result.value.identifier}`
+        : `destination:${result.value.path}`,
+    )
     .join("|");
   useEffect(() => {
     setHighlight(0);
@@ -64,6 +89,10 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
     const path = entityPath(category, result.identifier);
     if (path) navigate(path);
   };
+  const openDestination = (destination: NavigationDestination) => {
+    onClose();
+    navigate(destination.path);
+  };
   const openRecent = (category: EntityCategory, identifier: string) => {
     onClose();
     const path = entityPath(category, identifier);
@@ -71,13 +100,17 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
   };
   const openHighlightedOrExact = () => {
     const normalized = query.trim().toLocaleLowerCase();
-    const exact = results.find(
+    const exact = entityResults.find(
       (result) =>
         result.identifier.toLocaleLowerCase() === normalized ||
         result.title.toLocaleLowerCase() === normalized,
     );
     if (exact) openResult(exact);
-    else if (results[highlight]) openResult(results[highlight]);
+    else if (results[highlight]) {
+      const result = results[highlight];
+      if (result.kind === "entity") openResult(result.value);
+      else openDestination(result.value);
+    }
   };
   const trapFocus = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Tab") return;
@@ -122,7 +155,7 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
             id="atlas-global-search"
             ref={inputRef}
             value={query}
-            placeholder="Search EOATs, machines, or tools"
+            placeholder="Search entities, pages, or settings"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -167,34 +200,89 @@ export function GlobalSearchOverlay({ open, initialQuery, onClose }: Props) {
             {!search.isPending && !search.isError && results.length === 0 && (
               <p className="atlas-empty">No Library profile found.</p>
             )}
-            {results.map((result, index) => (
-              <button
-                className="atlas-search-result"
-                data-highlighted={index === highlight}
-                key={`${result.category}-${result.identifier}`}
-                type="button"
-                onMouseEnter={() => setHighlight(index)}
-                onClick={() => openResult(result)}
-              >
-                <span className="atlas-result-icon" aria-hidden="true">
-                  {result.category === "machine"
-                    ? "◫"
-                    : result.category === "tool"
-                      ? "◇"
-                      : "◉"}
-                </span>
-                <span>
-                  <strong>
-                    {presentationText(result.title || result.identifier)}
-                  </strong>
-                  <small>
-                    {presentationText(result.subtitle || result.identifier)}
-                  </small>
-                </span>
-                <em>{result.category}</em>
-                <span className="visually-hidden">{resultLabel(result)}</span>
-              </button>
-            ))}
+            {(["Entities", "Pages", "Settings", "Administration"] as const).map(
+              (group) => {
+                const groupResults = results.filter((result) =>
+                  result.kind === "entity"
+                    ? group === "Entities"
+                    : result.value.group === group,
+                );
+                if (!groupResults.length) return null;
+                return (
+                  <section
+                    className="atlas-search-group"
+                    key={group}
+                    aria-label={`${group} results`}
+                  >
+                    <p className="atlas-section-label">{group}</p>
+                    {groupResults.map((result) => {
+                      const index = results.indexOf(result);
+                      const entity =
+                        result.kind === "entity" ? result.value : undefined;
+                      const destination =
+                        result.kind === "destination"
+                          ? result.value
+                          : undefined;
+                      return (
+                        <button
+                          className="atlas-search-result"
+                          data-highlighted={index === highlight}
+                          key={
+                            entity
+                              ? `${entity.category}-${entity.identifier}`
+                              : destination!.path
+                          }
+                          type="button"
+                          onMouseEnter={() => setHighlight(index)}
+                          onClick={() =>
+                            entity
+                              ? openResult(entity)
+                              : openDestination(destination!)
+                          }
+                        >
+                          <span
+                            className="atlas-result-icon"
+                            aria-hidden="true"
+                          >
+                            {entity
+                              ? entity.category === "machine"
+                                ? "◫"
+                                : entity.category === "tool"
+                                  ? "◇"
+                                  : "◉"
+                              : "↗"}
+                          </span>
+                          <span>
+                            <strong>
+                              {entity
+                                ? presentationText(
+                                    entity.title || entity.identifier,
+                                  )
+                                : destination!.label}
+                            </strong>
+                            <small>
+                              {entity
+                                ? presentationText(
+                                    entity.subtitle || entity.identifier,
+                                  )
+                                : destination!.path}
+                            </small>
+                          </span>
+                          <em>
+                            {entity ? entity.category : destination!.group}
+                          </em>
+                          <span className="visually-hidden">
+                            {entity
+                              ? resultLabel(entity)
+                              : destinationLabel(destination!)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </section>
+                );
+              },
+            )}
           </div>
         ) : (
           <div className="atlas-search-results">

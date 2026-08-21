@@ -8,6 +8,7 @@ import {
   isRoutableAuthoritativeIdentifier,
   presentationText,
 } from "@/api/presentation";
+import { formatLastUpdated, freshnessState } from "@/app/dataFreshness";
 
 export function FoundationPage() {
   const [query, setQuery] = useState("");
@@ -75,11 +76,19 @@ export function FoundationPage() {
     if (exact) openResult(exact);
     else if (results[highlight]) openResult(results[highlight]);
   };
-  const dataAgeMs = dataStatus.data
-    ? Date.now() - new Date(dataStatus.data.data_last_modified_at).valueOf()
-    : 0;
-  const staleData =
-    Number.isFinite(dataAgeMs) && dataAgeMs > 24 * 60 * 60 * 1000;
+  const statusState = freshnessState(dataStatus.data);
+  const statusText = dataStatus.isPending
+    ? "Last Updated: checking…"
+    : dataStatus.isError || statusState === "unavailable"
+      ? "Last Updated: unavailable"
+      : `Last Updated: ${formatLastUpdated(dataStatus.data!.data_last_modified_at)}`;
+  const statusDescription = dataStatus.isPending
+    ? "Checking server-provided data freshness."
+    : dataStatus.isError || statusState === "unavailable"
+      ? "EOAT Atlas data freshness is unavailable because the server could not be reached."
+      : statusState === "stale"
+        ? "Server-provided data freshness indicates this data may be stale."
+        : "Server-provided data freshness indicates current data.";
   return (
     <section className="atlas-home-page" aria-labelledby="home-title">
       <header className="atlas-page-title">
@@ -207,19 +216,19 @@ export function FoundationPage() {
           )}
         </div>
       </section>
-      <div className="atlas-data-status" aria-live="polite">
+      <div
+        className="atlas-data-status"
+        aria-live="polite"
+        aria-label={statusDescription}
+        title={statusDescription}
+      >
         <span
-          className={`atlas-status-dot ${dataStatus.isError ? "error" : ""}`}
+          className={`atlas-status-dot ${statusState}`}
+          aria-hidden="true"
         />
-        {dataStatus.isPending
-          ? "Read-only browser · checking API freshness…"
-          : dataStatus.isError
-            ? "Read-only browser · API unavailable · data freshness unknown"
-            : dataStatus.data && staleData
-              ? "Read-only browser · API available · data may be stale · use the shown modification time before relying on this view"
-              : dataStatus.data
-                ? `Read-only browser · API available · data modified ${new Date(dataStatus.data.data_last_modified_at).toLocaleString()} · fetched ${new Date(dataStatus.dataUpdatedAt).toLocaleTimeString()}`
-                : "Read-only browser · data status unavailable"}
+        <time dateTime={dataStatus.data?.data_last_modified_at}>
+          {statusText}
+        </time>
       </div>
     </section>
   );

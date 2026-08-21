@@ -25,7 +25,10 @@ export function SettingsPage() {
     refreshSession();
     window.addEventListener("atlas-authentication-changed", refreshSession);
     return () =>
-      window.removeEventListener("atlas-authentication-changed", refreshSession);
+      window.removeEventListener(
+        "atlas-authentication-changed",
+        refreshSession,
+      );
   }, []);
   const update = <K extends keyof BrowserSettings>(
     key: K,
@@ -62,7 +65,7 @@ export function SettingsPage() {
       <div className="settings-workspace">
         <div className="settings-content">
           <section className="profile-section settings-preferences">
-            <h2>Theme</h2>
+            <h2 id="theme">Theme</h2>
             <div className="attribute-grid">
               <label>
                 Theme
@@ -115,13 +118,15 @@ export function SettingsPage() {
             </div>
           </section>
           <section className="profile-section settings-preferences">
-            <h2>Accessibility</h2>
+            <h2 id="accessibility">Accessibility</h2>
             <div className="attribute-grid">
               <label>
                 <input
                   type="checkbox"
                   checked={settings.reduceMotion}
-                  onChange={(event) => update("reduceMotion", event.target.checked)}
+                  onChange={(event) =>
+                    update("reduceMotion", event.target.checked)
+                  }
                 />{" "}
                 Reduce motion
               </label>
