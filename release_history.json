@@ -428,6 +428,13 @@
       "state": "finalized",
       "task_id": "eoat-admin-release-lineage-reconciliation-20260820",
       "finalized_at_utc": "2026-08-20T19:13:15Z"
+    },
+    {
+      "application_version": "0.26.12",
+      "release_id": "eoat-atlas-0.26.12",
+      "state": "finalized",
+      "task_id": "photo-fit-ux-hotfix-20260821",
+      "finalized_at_utc": "2026-08-21T19:13:31Z"
     }
   ]
 }
