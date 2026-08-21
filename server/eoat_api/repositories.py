@@ -196,7 +196,11 @@ class AtlasRepository:
                     row_version=e.row_version,
                     photo_document_uuid=selected_photo.document_uuid if selected_photo else None,
                     photo_available_through_web=(
-                        content_is_available(selected_photo.storage_path) if selected_photo else False
+                        content_is_available(
+                            selected_photo.storage_path, document_uuid=selected_photo.document_uuid, photo=True
+                        )
+                        if selected_photo
+                        else False
                     ),
                 )
             )

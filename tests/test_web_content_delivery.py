@@ -127,6 +127,102 @@ def test_thumbnail_normalizes_jpeg_exif_orientation(tmp_path: Path, monkeypatch:
         assert thumbnail.size == (40, 20)
 
 
+def test_photo_manifest_resolves_unc_record_only_to_matching_jpeg_derivative(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Image = pytest.importorskip("PIL.Image")
+    _configure_root(monkeypatch, tmp_path)
+    document_uuid = "00000000-0000-4000-8000-000000000001"
+    derivative = tmp_path / "web" / f"{document_uuid}.jpg"
+    derivative.parent.mkdir()
+    Image.new("RGB", (64, 32), "green").save(derivative)
+    source_path = r"\\gwplastics.com\VT\EOAT Photos\profile.heic"
+    manifest = tmp_path / "media-manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "entries": [
+                    {
+                        "document_uuid": document_uuid,
+                        "source_path": source_path,
+                        "web_relative_path": f"web/{document_uuid}.jpg",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("EOAT_WEB_MEDIA_MANIFEST", str(manifest))
+    document = SimpleNamespace(storage_path=source_path, mime_type="image/heic", file_name="profile.heic")
+    monkeypatch.setattr(web_content, "_document", lambda *_args, **_kwargs: document)
+
+    response = web_content.content_response(SimpleNamespace(), document_uuid, photo_only=True)
+
+    assert response.media_type == "image/jpeg"
+    assert response.headers["content-disposition"].endswith('filename="profile.jpg"')
+    assert web_content.content_is_available(source_path, document_uuid=document_uuid, photo=True)
+
+
+def test_photo_manifest_rejects_a_uuid_when_its_unc_source_path_does_not_match(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_root(monkeypatch, tmp_path)
+    document_uuid = "00000000-0000-4000-8000-000000000001"
+    manifest = tmp_path / "media-manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "entries": [
+                    {
+                        "document_uuid": document_uuid,
+                        "source_path": r"\\gwplastics.com\VT\expected.heic",
+                        "web_relative_path": f"web/{document_uuid}.jpg",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("EOAT_WEB_MEDIA_MANIFEST", str(manifest))
+
+    with pytest.raises(APIError) as error:
+        web_content._manifest_photo_path(document_uuid, r"\\gwplastics.com\VT\other.heic", web_content.approved_content_roots())
+
+    assert error.value.status_code == 404
+
+
+def test_photo_manifest_rejects_forward_and_windows_style_relative_traversal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_root(monkeypatch, tmp_path)
+    document_uuid = "00000000-0000-4000-8000-000000000001"
+    source_path = r"\\gwplastics.com\VT\expected.heic"
+    manifest = tmp_path / "media-manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "entries": [
+                    {
+                        "document_uuid": document_uuid,
+                        "source_path": source_path,
+                        "web_relative_path": r"..\outside.jpg",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("EOAT_WEB_MEDIA_MANIFEST", str(manifest))
+
+    with pytest.raises(APIError) as error:
+        web_content._manifest_photo_path(document_uuid, source_path, web_content.approved_content_roots())
+
+    assert error.value.status_code == 404
+
+
 def test_content_routes_are_in_openapi() -> None:
     paths = app.openapi()["paths"]
 
