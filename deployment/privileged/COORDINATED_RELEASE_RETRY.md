@@ -1,5 +1,22 @@
 # Coordinated release coordinator
 
+## Canonical production lineage
+
+EOAT Atlas production releases use the protected `production` branch as their
+source-lineage authority. The branch was established at the deployed
+`0.26.11` source `ae4fc14b44217a8369dbfe07becadb6ff35d3058` on 2026-08-21.
+Before sealing a production candidate, the release owner must fetch
+`origin/production` and prove that the candidate descends from that branch and
+that the branch identity agrees with the live release metadata. The coordinator
+still independently re-attests the live API/static pointers and schema at
+preflight.
+
+The repository default branch `main` is a separate legacy history and is not a
+production-release authority. It must not be merged into, force-updated from,
+or used to replace `production` during normal production release work. Its
+lineage reconciliation is a separately authorized project. See
+`docs/governance/production-lineage.md` for the branch and evidence policy.
+
 Coordinator 1.4.0 retains the sealed-artifact, paired API/frontend activation,
 exact-pointer attestation, and rollback-receipt controls from 1.3.4. Its only
 new release path is a policy-pinned migration plan: the policy declares the
