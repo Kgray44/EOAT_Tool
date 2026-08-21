@@ -14,13 +14,7 @@ import {
 import { readLibraryContext } from "@/app/libraryContext";
 import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
 import { AuthenticationPanel } from "@/components/auth/AuthenticationPanel";
-
-const navigation = [
-  ["/", "Home", "⌂"],
-  ["/fit-check", "Fit Check", "◉"],
-  ["/library", "Library", "▦"],
-  ["/settings", "Settings", "⚙"],
-] as const;
+import { primaryNavigation } from "@/app/navigation";
 
 function isEditable(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -261,7 +255,7 @@ export function AppShell({ children }: PropsWithChildren) {
               ×
             </button>
             <nav aria-label="Atlas navigation">
-              {navigation.map(([to, label, icon]) => (
+              {primaryNavigation.map(({ path: to, label, icon }) => (
                 <Link
                   key={to}
                   to={to}

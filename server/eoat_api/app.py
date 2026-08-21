@@ -242,7 +242,10 @@ def eoats(
     search: str = "",
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=250),
-    sort: str = "business_identifier",
+    sort: str = Query(
+        "natural_identifier",
+        pattern="^(natural_identifier|updated_desc|status|business_identifier_desc|machine_number_desc|mold)$",
+    ),
     active: bool | None = True,
     eoat_type: str | None = None,
     area: str | None = None,
@@ -350,9 +353,19 @@ def machines(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=250),
     active: bool | None = True,
+    sort: str = Query(
+        "natural_identifier",
+        pattern="^(natural_identifier|updated_desc|status|business_identifier_desc|machine_number_desc|mold)$",
+    ),
     repo: AtlasRepository = Depends(repository),
 ):
-    items, pagination = repo.list_machines(search=search, page=page, page_size=page_size, active=active)
+    items, pagination = repo.list_machines(
+        search=search,
+        page=page,
+        page_size=page_size,
+        active=active,
+        sort=sort,
+    )
     return PaginatedMachines(items=items, pagination=pagination)
 
 
@@ -415,9 +428,19 @@ def tools(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=250),
     active: bool | None = True,
+    sort: str = Query(
+        "natural_identifier",
+        pattern="^(natural_identifier|updated_desc|status|business_identifier_desc|machine_number_desc|mold)$",
+    ),
     repo: AtlasRepository = Depends(repository),
 ):
-    items, pagination = repo.list_tools(search=search, page=page, page_size=page_size, active=active)
+    items, pagination = repo.list_tools(
+        search=search,
+        page=page,
+        page_size=page_size,
+        active=active,
+        sort=sort,
+    )
     return PaginatedTools(items=items, pagination=pagination)
 
 
