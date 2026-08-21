@@ -102,6 +102,7 @@ def _atomic_copy(source: Path, target: Path) -> None:
         temporary = Path(handle.name)
     try:
         shutil.copy2(source, temporary)
+        os.chmod(temporary, 0o640)
         os.replace(temporary, target)
     finally:
         temporary.unlink(missing_ok=True)
@@ -114,6 +115,7 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         handle.write(encoded)
         temporary = Path(handle.name)
     try:
+        os.chmod(temporary, 0o640)
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
@@ -244,6 +246,7 @@ def _jpeg_derivative(source: Path, target: Path) -> tuple[str, int, int]:
                 progressive=True,
                 exif=safe_exif.tobytes(),
             )
+            os.chmod(temporary, 0o640)
             os.replace(temporary, target)
         finally:
             temporary.unlink(missing_ok=True)
@@ -293,6 +296,7 @@ def sync(staged_inventory: Path, staging_root: Path, media_root: Path) -> dict[s
             copied += 1
         if _hash_file(original) != entry.source_sha256:
             raise MediaSyncError(f"Original mirror hash verification failed for {entry.document_uuid}.")
+        os.chmod(original, 0o640)
         web_relative = Path("web") / f"{entry.document_uuid}.jpg"
         derivative = media_root / web_relative
         old = previous.get(entry.document_uuid)
@@ -305,6 +309,7 @@ def sync(staged_inventory: Path, staging_root: Path, media_root: Path) -> dict[s
         if not isinstance(dimensions, dict) or not isinstance(dimensions.get("width"), int) or not isinstance(dimensions.get("height"), int):
             with Image.open(derivative) as image:
                 dimensions = {"width": image.width, "height": image.height}
+        os.chmod(derivative, 0o640)
         manifest_entries.append(
             {
                 "document_uuid": entry.document_uuid,
