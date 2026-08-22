@@ -3270,6 +3270,158 @@
         "title": "ExportRequest",
         "type": "object"
       },
+      "FitCheckAlternative": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/FitCheckEntity"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "best",
+              "available",
+              "verify",
+              "missing_data",
+              "not_recommended",
+              "current",
+              "incompatible"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "status_label": {
+            "title": "Status Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "status",
+          "status_label",
+          "reason"
+        ],
+        "title": "FitCheckAlternative",
+        "type": "object"
+      },
+      "FitCheckCriterion": {
+        "description": "A server-evaluated desktop-equivalent Fit Check requirement.",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "evidence_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Source"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "pair": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pair"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "COMPATIBLE",
+              "INCOMPATIBLE",
+              "NEEDS_REVIEW",
+              "NOT_APPLICABLE"
+            ],
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "result",
+          "reason"
+        ],
+        "title": "FitCheckCriterion",
+        "type": "object"
+      },
+      "FitCheckDetailSection": {
+        "properties": {
+          "entries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "FitCheckDetailSection",
+        "type": "object"
+      },
+      "FitCheckEntity": {
+        "properties": {
+          "entity_type": {
+            "enum": [
+              "machine",
+              "tool",
+              "eoat"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "identifier": {
+            "title": "Identifier",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "secondary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondary"
+          }
+        },
+        "required": [
+          "entity_type",
+          "identifier",
+          "label"
+        ],
+        "title": "FitCheckEntity",
+        "type": "object"
+      },
       "FitCheckOption": {
         "description": "A browser-safe selectable asset for the read-only Fit Check.",
         "properties": {
@@ -3348,6 +3500,43 @@
             "title": "Alternative Compatible Eoats",
             "type": "array"
           },
+          "alternative_eoats": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckAlternative"
+            },
+            "title": "Alternative Eoats",
+            "type": "array"
+          },
+          "alternative_machines": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckAlternative"
+            },
+            "title": "Alternative Machines",
+            "type": "array"
+          },
+          "confidence": {
+            "default": "unknown",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "unknown"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "decision_summary": {
+            "default": "",
+            "title": "Decision Summary",
+            "type": "string"
+          },
+          "detail_sections": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckDetailSection"
+            },
+            "title": "Detail Sections",
+            "type": "array"
+          },
           "evaluation_engine_version": {
             "default": "mysql-read-v1",
             "title": "Evaluation Engine Version",
@@ -3376,10 +3565,46 @@
             "title": "Reasons",
             "type": "array"
           },
+          "recommended_eoat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FitCheckAlternative"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckCriterion"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "selected_entities": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckEntity"
+            },
+            "title": "Selected Entities",
+            "type": "array"
+          },
+          "setup_packet_available": {
+            "default": false,
+            "title": "Setup Packet Available",
+            "type": "boolean"
+          },
           "stored": {
             "default": false,
             "title": "Stored",
             "type": "boolean"
+          },
+          "structured_warnings": {
+            "items": {
+              "$ref": "#/components/schemas/FitCheckWarning"
+            },
+            "title": "Structured Warnings",
+            "type": "array"
           },
           "tool_eoat_result": {
             "$ref": "#/components/schemas/PairCompatibility"
@@ -3410,6 +3635,34 @@
           "alternative_compatible_eoats"
         ],
         "title": "FitCheckResult",
+        "type": "object"
+      },
+      "FitCheckWarning": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "title",
+          "message"
+        ],
+        "title": "FitCheckWarning",
         "type": "object"
       },
       "GroupPolicyCreate": {
@@ -4965,6 +5218,17 @@
       },
       "PairCompatibility": {
         "properties": {
+          "evidence_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Source"
+          },
           "pair": {
             "title": "Pair",
             "type": "string"

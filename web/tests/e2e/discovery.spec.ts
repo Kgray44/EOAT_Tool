@@ -229,6 +229,79 @@ async function routeApi(
           warnings: [],
           unknown_relationships: [],
           alternative_compatible_eoats: [],
+          decision_summary:
+            "All three fixture relationships support this setup.",
+          confidence: "high",
+          selected_entities: [
+            {
+              entity_type: "machine",
+              identifier: "M-1",
+              label: "Press 1",
+              secondary: "P1 · X1",
+            },
+            {
+              entity_type: "tool",
+              identifier: "TOOL-1",
+              label: "Mold 1",
+              secondary: "MOLD",
+            },
+            {
+              entity_type: "eoat",
+              identifier: "EOAT-1",
+              label: "Picker",
+              secondary: "Revision A",
+            },
+          ],
+          requirements: [
+            ["machine_compatibility", "Machine Fit Check"],
+            ["eoat_compatibility", "EOAT Fit Check"],
+            ["robot_type", "Robot Type"],
+            ["air_architecture", "Air Architecture"],
+            ["quick_disconnect", "Pneumatic Quick Disconnect"],
+            ["part_count", "Part Count"],
+            ["sensor_requirements", "Sensor Requirements"],
+          ].map(([code, label]) => ({
+            code,
+            label,
+            result: "COMPATIBLE",
+            reason: `${label} is confirmed by fixture evidence.`,
+            evidence_source: "Fixture evidence",
+          })),
+          structured_warnings: [],
+          alternative_machines: [],
+          alternative_eoats: [
+            {
+              entity: {
+                entity_type: "eoat",
+                identifier: "EOAT-2",
+                label: "Alternate Picker",
+                secondary: "Revision B",
+              },
+              status: "best",
+              status_label: "Compatible alternative",
+              reason:
+                "Recorded as compatible with the selected Machine and Tool.",
+            },
+          ],
+          recommended_eoat: {
+            entity: {
+              entity_type: "eoat",
+              identifier: "EOAT-2",
+              label: "Alternate Picker",
+              secondary: "Revision B",
+            },
+            status: "best",
+            status_label: "Compatible alternative",
+            reason:
+              "Recorded as compatible with the selected Machine and Tool.",
+          },
+          detail_sections: [
+            {
+              title: "Relationship evidence",
+              entries: ["Fixture relationship evidence."],
+            },
+          ],
+          setup_packet_available: true,
           evaluation_engine_version: "fixture",
           stored: false,
         },
@@ -335,6 +408,10 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
     page.getByRole("heading", { name: /compatible/i }),
   ).toBeVisible();
   await expect(page.getByText("Fit Check result")).toBeVisible();
+  await page.screenshot({
+    path: "test-results/fit-check-compatible.png",
+    fullPage: true,
+  });
   await expect(
     page.getByRole("heading", { name: "Recent Fit Checks" }),
   ).toHaveCount(0);
@@ -496,6 +573,175 @@ test("Fit Check keeps dedicated searchable Machine, Tool, and EOAT selectors", a
         request.method() === "POST",
     ),
   ).toHaveLength(1);
+});
+
+test("Fit Check renders independent relationship states and the full evidence checklist", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  let evaluationCount = 0;
+  await page.route("**/api/v1/fit-checks/evaluate", async (route) => {
+    evaluationCount += 1;
+    const unknown = evaluationCount > 1;
+    const pair = (name: string, result: string, reason: string) => ({
+      pair: name,
+      result,
+      reason,
+      evidence_source: "Fixture evidence",
+    });
+    await route.fulfill({
+      json: {
+        overall_result: unknown ? "NEEDS_REVIEW" : "INCOMPATIBLE",
+        machine_tool_result: pair(
+          "machine_tool",
+          unknown ? "UNKNOWN" : "INCOMPATIBLE",
+          unknown
+            ? "No active record is available."
+            : "Machine M-1 and Tool TOOL-1 are explicitly incompatible.",
+        ),
+        machine_eoat_result: pair(
+          "machine_eoat",
+          "COMPATIBLE",
+          "Machine M-1 and EOAT EOAT-1 are recorded together.",
+        ),
+        tool_eoat_result: pair(
+          "tool_eoat",
+          "COMPATIBLE",
+          "Tool TOOL-1 and EOAT EOAT-1 are recorded together.",
+        ),
+        reasons: ["Fixture result"],
+        warnings: [],
+        unknown_relationships: unknown ? ["machine_tool"] : [],
+        alternative_compatible_eoats: [],
+        decision_summary: unknown
+          ? "Evidence needs review."
+          : "One relationship rejects this setup.",
+        confidence: "low",
+        selected_entities: [
+          {
+            entity_type: "machine",
+            identifier: "M-1",
+            label: "Press 1",
+            secondary: "P1 · X1",
+          },
+          {
+            entity_type: "tool",
+            identifier: "TOOL-1",
+            label: "Mold 1",
+            secondary: "MOLD",
+          },
+          {
+            entity_type: "eoat",
+            identifier: "EOAT-1",
+            label: "Picker",
+            secondary: "Revision A",
+          },
+        ],
+        requirements: [
+          [
+            "machine_compatibility",
+            "Machine Fit Check",
+            unknown ? "NEEDS_REVIEW" : "INCOMPATIBLE",
+          ],
+          ["eoat_compatibility", "EOAT Fit Check", "COMPATIBLE"],
+          ["robot_type", "Robot Type", "COMPATIBLE"],
+          ["air_architecture", "Air Architecture", "COMPATIBLE"],
+          ["quick_disconnect", "Pneumatic Quick Disconnect", "COMPATIBLE"],
+          ["part_count", "Part Count", "COMPATIBLE"],
+          ["sensor_requirements", "Sensor Requirements", "COMPATIBLE"],
+        ].map(([code, label, result]) => ({
+          code,
+          label,
+          result,
+          reason: `${label} detailed fixture reason.`,
+          evidence_source: "Fixture evidence",
+        })),
+        structured_warnings: [],
+        alternative_machines: [],
+        alternative_eoats: [],
+        detail_sections: [],
+        setup_packet_available: false,
+        evaluation_engine_version: "fixture",
+        stored: false,
+      },
+    });
+  });
+  await page.goto("/fit-check?machine=M-1&tool=TOOL-1&eoat=EOAT-1");
+  await page.getByRole("button", { name: "Evaluate without saving" }).click();
+  await expect(page.locator(".fit-result__diagram-canvas")).toBeVisible();
+  await expect(page.getByText("Machine ↔ Tool", { exact: true })).toBeVisible();
+  await expect(page.getByText("Machine ↔ EOAT", { exact: true })).toBeVisible();
+  await expect(page.getByText("Tool ↔ EOAT", { exact: true })).toBeVisible();
+  await expect(page.locator(".fit-result__edge--danger")).toHaveCount(1);
+  await expect(page.locator(".fit-result__edge--success")).toHaveCount(2);
+  await expect(
+    page.getByText("Sensor Requirements", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Machine M-1 and Tool TOOL-1 are explicitly incompatible.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/fit-check-mixed.png",
+    fullPage: true,
+  });
+});
+
+test("Fit Check keeps unknown relationship evidence amber rather than failed", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  await page.route("**/api/v1/fit-checks/evaluate", async (route) => {
+    const pair = (name: string, result: string) => ({
+      pair: name,
+      result,
+      reason:
+        result === "UNKNOWN"
+          ? "No active relationship is recorded; absence is not incompatibility."
+          : "Recorded compatible relationship.",
+    });
+    await route.fulfill({
+      json: {
+        overall_result: "NEEDS_REVIEW",
+        machine_tool_result: pair("machine_tool", "UNKNOWN"),
+        machine_eoat_result: pair("machine_eoat", "COMPATIBLE"),
+        tool_eoat_result: pair("tool_eoat", "COMPATIBLE"),
+        reasons: ["Missing evidence needs review."],
+        warnings: [],
+        unknown_relationships: ["machine_tool"],
+        alternative_compatible_eoats: [],
+        confidence: "medium",
+        decision_summary: "Evidence needs review.",
+        selected_entities: [
+          { entity_type: "machine", identifier: "M-1", label: "Press 1" },
+          { entity_type: "tool", identifier: "TOOL-1", label: "Mold 1" },
+          { entity_type: "eoat", identifier: "EOAT-1", label: "Picker" },
+        ],
+        requirements: [],
+        structured_warnings: [],
+        alternative_machines: [],
+        alternative_eoats: [],
+        detail_sections: [],
+        setup_packet_available: false,
+        evaluation_engine_version: "fixture",
+        stored: false,
+      },
+    });
+  });
+  await page.goto("/fit-check?machine=M-1&tool=TOOL-1&eoat=EOAT-1");
+  await page.getByRole("button", { name: "Evaluate without saving" }).click();
+  await expect(page.locator(".fit-result__edge--warning")).toHaveCount(1);
+  await expect(page.locator(".fit-result__edge--success")).toHaveCount(2);
+  await expect(
+    page.getByRole("heading", { name: "NEEDS REVIEW" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/fit-check-unknown.png",
+    fullPage: true,
+  });
 });
 
 test("Mirrorline shell traps overlays, restores Library context, and fades top chrome", async ({

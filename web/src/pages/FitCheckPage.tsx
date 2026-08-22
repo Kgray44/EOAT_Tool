@@ -1,20 +1,187 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { apiClient, type FitCheckSearchSlot } from "@/api/client";
+import {
+  apiClient,
+  type FitCheckResult,
+  type FitCheckSearchSlot,
+} from "@/api/client";
 import { AtlasSelector } from "@/components/inputs/AtlasSelector";
 import { ErrorState, LoadingState } from "@/components/feedback/StateViews";
+
+type DisplayTone = "success" | "warning" | "danger" | "neutral";
 
 function resultLabel(value: string) {
   return value === "INVALID_INPUT"
     ? "Insufficient data / unresolved input"
     : value.replaceAll("_", " ");
 }
-function resultTone(value: string) {
+
+function resultTone(value: string): DisplayTone {
   if (value === "COMPATIBLE") return "success";
-  if (value === "WARNING") return "warning";
+  if (value === "NEEDS_REVIEW" || value === "WARNING" || value === "UNKNOWN")
+    return "warning";
   if (value === "INVALID_INPUT" || value === "NOT_EVALUATED") return "neutral";
   return "danger";
+}
+
+function resultIcon(value: string) {
+  if (value === "COMPATIBLE") return "✓";
+  if (value === "INCOMPATIBLE") return "×";
+  return "?";
+}
+
+function compactText(value: string, max = 28) {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+function FitCheckDiagram({
+  result,
+  fallback,
+}: {
+  result: FitCheckResult;
+  fallback: { machine: string; tool: string; eoat: string };
+}) {
+  const selected = result.selected_entities || [];
+  const nodes = [
+    selected.find((item) => item.entity_type === "machine") || {
+      entity_type: "machine" as const,
+      identifier: fallback.machine,
+      label: fallback.machine,
+      secondary: null,
+    },
+    selected.find((item) => item.entity_type === "tool") || {
+      entity_type: "tool" as const,
+      identifier: fallback.tool,
+      label: fallback.tool,
+      secondary: null,
+    },
+    selected.find((item) => item.entity_type === "eoat") || {
+      entity_type: "eoat" as const,
+      identifier: fallback.eoat,
+      label: fallback.eoat,
+      secondary: null,
+    },
+  ];
+  const edges = [
+    {
+      pair: result.machine_tool_result,
+      label: "Machine ↔ Tool",
+      line: [360, 125, 840, 125],
+      marker: [600, 125],
+    },
+    {
+      pair: result.machine_eoat_result,
+      label: "Machine ↔ EOAT",
+      line: [285, 205, 525, 345],
+      marker: [405, 275],
+    },
+    {
+      pair: result.tool_eoat_result,
+      label: "Tool ↔ EOAT",
+      line: [915, 205, 675, 345],
+      marker: [795, 275],
+    },
+  ];
+  const positions = [
+    [60, 40],
+    [840, 40],
+    [450, 320],
+  ];
+  return (
+    <section
+      className="fit-result__diagram"
+      aria-labelledby="fit-relationship-title"
+    >
+      <div className="fit-result__section-heading">
+        <div>
+          <p className="fit-result__label">Relationship model</p>
+          <h4 id="fit-relationship-title">Selected setup</h4>
+        </div>
+        <p>Each connection shows its own authoritative result.</p>
+      </div>
+      <div className="fit-result__diagram-scroll">
+        <svg
+          className="fit-result__diagram-canvas"
+          viewBox="0 0 1200 500"
+          role="img"
+          aria-label={edges
+            .map((edge) => `${edge.label}: ${resultLabel(edge.pair.result)}`)
+            .join(". ")}
+        >
+          {edges.map((edge) => {
+            const tone = resultTone(edge.pair.result);
+            return (
+              <g
+                key={edge.pair.pair}
+                className={`fit-result__edge fit-result__edge--${tone}`}
+              >
+                <title>{`${edge.label}: ${resultLabel(edge.pair.result)}. ${edge.pair.reason}`}</title>
+                <line
+                  x1={edge.line[0]}
+                  y1={edge.line[1]}
+                  x2={edge.line[2]}
+                  y2={edge.line[3]}
+                />
+                <circle cx={edge.marker[0]} cy={edge.marker[1]} r="24" />
+                <text
+                  x={edge.marker[0]}
+                  y={edge.marker[1] + 8}
+                  textAnchor="middle"
+                >
+                  {resultIcon(edge.pair.result)}
+                </text>
+              </g>
+            );
+          })}
+          {nodes.map((node, index) => {
+            const [x, y] = positions[index];
+            return (
+              <g
+                className="fit-result__node"
+                key={node.entity_type}
+                transform={`translate(${x} ${y})`}
+              >
+                <rect width="300" height="140" rx="15" />
+                <text className="fit-result__node-type" x="24" y="34">
+                  {node.entity_type.toUpperCase()}
+                </text>
+                <text className="fit-result__node-id" x="24" y="68">
+                  {compactText(node.identifier)}
+                </text>
+                <text className="fit-result__node-label" x="24" y="96">
+                  {compactText(node.label, 34)}
+                </text>
+                {node.secondary ? (
+                  <text className="fit-result__node-secondary" x="24" y="121">
+                    {compactText(node.secondary, 42)}
+                  </text>
+                ) : null}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <ul className="fit-result__edge-legend" aria-label="Relationship results">
+        {edges.map((edge) => {
+          const tone = resultTone(edge.pair.result);
+          return (
+            <li
+              key={edge.pair.pair}
+              className={`fit-result__edge-legend-item--${tone}`}
+            >
+              <span aria-hidden="true">{resultIcon(edge.pair.result)}</span>
+              <div>
+                <strong>{edge.label}</strong>
+                <small>{edge.pair.reason}</small>
+              </div>
+              <em>{resultLabel(edge.pair.result)}</em>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
 
 /** The desktop workflow is three named records, never three interchangeable slots. */
@@ -63,14 +230,8 @@ export function FitCheckPage() {
       }),
   });
   const result = evaluation.data;
-  const setSelectorQuery = (slot: FitCheckSearchSlot, query: string) => {
-    setSelectorQueries({
-      machine: "",
-      tool: "",
-      eoat: "",
-      [slot]: query,
-    });
-  };
+  const setSelectorQuery = (slot: FitCheckSearchSlot, query: string) =>
+    setSelectorQueries({ machine: "", tool: "", eoat: "", [slot]: query });
   const choices = (
     items: Array<{
       identifier: string;
@@ -87,6 +248,16 @@ export function FitCheckPage() {
         ? `Plant ${item.plant_code} · ${item.identifier}`
         : item.identifier,
     }));
+  const applyAlternative = (
+    entityType: "machine" | "eoat",
+    identifier: string,
+  ) => {
+    if (entityType === "machine") setMachine(identifier);
+    else setEoat(identifier);
+    evaluation.reset();
+    setSelectorQuery(entityType, "");
+  };
+
   return (
     <section className="fit-check-page">
       <p className="eyebrow">Compatibility</p>
@@ -104,8 +275,9 @@ export function FitCheckPage() {
       >
         <div className="fit-check-input-hint">
           <span>
-            Choose the actual Machine, Tool, and EOAT for this setup. Plant is
-            retained with a selected machine when its number is shared.
+            Choose the actual Machine, Tool, and EOAT for this setup. Empty
+            fields show compatible recommendations; typing searches the full
+            catalog so an unfamiliar combination can be evaluated.
           </span>
           <button
             type="button"
@@ -187,27 +359,35 @@ export function FitCheckPage() {
       {evaluation.isError && <ErrorState error={evaluation.error} />}
       {result ? (
         <section className="fit-result" aria-live="polite">
-          <header className="fit-result__summary">
+          <header
+            className={`fit-result__summary fit-result__summary--${resultTone(result.overall_result)}`}
+          >
             <span
               className={`fit-result__status fit-result__status--${resultTone(result.overall_result)}`}
               aria-hidden="true"
             >
-              {result.overall_result === "COMPATIBLE" ? "✓" : "!"}
+              {resultIcon(result.overall_result)}
             </span>
             <div>
               <p className="fit-result__label">Fit Check result</p>
               <h3>{resultLabel(result.overall_result)}</h3>
               <p>
-                {result.reasons.join(" ") ||
+                {result.decision_summary ||
+                  result.reasons.join(" ") ||
                   "EOAT Atlas did not provide a conclusive recommendation."}
               </p>
             </div>
             <div className="fit-result__selection">
-              <span>Selected EOAT</span>
-              <strong>{eoat || "Not selected"}</strong>
-              <small>Match: {resultLabel(result.overall_result)}</small>
+              <span>Decision confidence</span>
+              <strong>
+                {result.confidence ? resultLabel(result.confidence) : "Unknown"}
+              </strong>
+              <small>
+                Compatibility logic and evidence are evaluated by EOAT Atlas.
+              </small>
             </div>
-            {result.overall_result === "COMPATIBLE" ? (
+            {result.setup_packet_available ||
+            result.overall_result === "COMPATIBLE" ? (
               <Link
                 className="simple-page-action fit-result__packet-action"
                 to={`/setup-packet?${new URLSearchParams({ machine, tool, eoat, ...(plantCode ? { plant: plantCode } : {}) })}`}
@@ -216,57 +396,172 @@ export function FitCheckPage() {
               </Link>
             ) : null}
           </header>
-          <section className="fit-result__path" aria-label="Evaluated setup">
-            <div>
-              <span>Machine</span>
-              <strong>{machine}</strong>
-            </div>
-            <div>
-              <span>Tool</span>
-              <strong>{tool}</strong>
-            </div>
-            <div>
-              <span>EOAT</span>
-              <strong>{eoat}</strong>
-            </div>
-          </section>
+          <FitCheckDiagram result={result} fallback={{ machine, tool, eoat }} />
           <section className="fit-result__requirements">
-            <h4>Requirements check</h4>
+            <div className="fit-result__section-heading">
+              <div>
+                <p className="fit-result__label">
+                  Desktop-equivalent checklist
+                </p>
+                <h4>Requirements check</h4>
+              </div>
+              <p>Every result is returned by the compatibility service.</p>
+            </div>
             <ul>
-              {[
-                result.machine_tool_result,
-                result.machine_eoat_result,
-                result.tool_eoat_result,
-              ].map((pair) => (
-                <li key={pair.pair}>
+              {(result.requirements || []).map((requirement) => {
+                const tone = resultTone(requirement.result);
+                return (
+                  <li
+                    key={requirement.code}
+                    className={`fit-result__requirement--${tone}`}
+                  >
+                    <span
+                      className="fit-result__criterion-icon"
+                      aria-hidden="true"
+                    >
+                      {resultIcon(requirement.result)}
+                    </span>
+                    <div>
+                      <strong>{requirement.label}</strong>
+                      <small>{requirement.reason}</small>
+                      {requirement.evidence_source ? (
+                        <i>{requirement.evidence_source}</i>
+                      ) : null}
+                    </div>
+                    <em>{resultLabel(requirement.result)}</em>
+                  </li>
+                );
+              })}
+              {!(result.requirements || []).length ? (
+                <li className="fit-result__requirement--neutral">
                   <span
-                    className={`fit-result__dot fit-result__dot--${resultTone(pair.result)}`}
-                  />
+                    className="fit-result__criterion-icon"
+                    aria-hidden="true"
+                  >
+                    ?
+                  </span>
                   <div>
-                    <strong>{pair.pair.replaceAll("_", " to ")}</strong>
-                    <small>{pair.reason}</small>
+                    <strong>Detailed requirements unavailable</strong>
+                    <small>The server did not return checklist evidence.</small>
                   </div>
-                  <em>{resultLabel(pair.result)}</em>
+                  <em>Needs review</em>
                 </li>
-              ))}
+              ) : null}
             </ul>
           </section>
           <section className="fit-result__warnings">
             <h4>Warnings and requirements</h4>
-            <p>
-              {result.warnings.length
-                ? result.warnings.join(" ")
-                : "No setup warnings from the authoritative evaluation."}
-            </p>
-            {result.unknown_relationships.length ? (
-              <p>
-                <strong>Unknown / insufficient:</strong>{" "}
-                {result.unknown_relationships.join(", ")}
+            {(result.structured_warnings || []).length ? (
+              <ul>
+                {result.structured_warnings?.map((warning, index) => (
+                  <li
+                    key={`${warning.title}-${index}`}
+                    className={`fit-result__warning--${warning.severity}`}
+                  >
+                    <strong>{warning.title}</strong>
+                    <span>{warning.message}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No setup warnings from the authoritative evaluation.</p>
+            )}
+          </section>
+          <section className="fit-result__alternatives">
+            <h4>Alternatives</h4>
+            {result.recommended_eoat ? (
+              <p className="fit-result__recommended">
+                Recommended EOAT:{" "}
+                <strong>{result.recommended_eoat.entity.identifier}</strong>
               </p>
             ) : null}
+            <div className="fit-result__alternative-columns">
+              <AlternativeList
+                heading="Other Machines"
+                items={result.alternative_machines || []}
+                onUse={(item) =>
+                  applyAlternative("machine", item.entity.identifier)
+                }
+              />
+              <AlternativeList
+                heading="Other EOATs"
+                items={result.alternative_eoats || []}
+                onUse={(item) =>
+                  applyAlternative("eoat", item.entity.identifier)
+                }
+              />
+            </div>
           </section>
+          {(result.detail_sections || []).length ? (
+            <section className="fit-result__details">
+              <h4>Detailed evidence</h4>
+              <div>
+                {result.detail_sections?.map((section) => (
+                  <article key={section.title}>
+                    <h5>{section.title}</h5>
+                    <ul>
+                      {section.entries?.map((entry) => (
+                        <li key={entry}>{entry}</li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </section>
       ) : null}
+    </section>
+  );
+}
+
+function AlternativeList({
+  heading,
+  items,
+  onUse,
+}: {
+  heading: string;
+  items: NonNullable<FitCheckResult["alternative_eoats"]>;
+  onUse: (
+    item: NonNullable<FitCheckResult["alternative_eoats"]>[number],
+  ) => void;
+}) {
+  return (
+    <section>
+      <h5>{heading}</h5>
+      {items.length ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item.entity.identifier}>
+              <div>
+                <strong>{item.entity.identifier}</strong>
+                <span>
+                  {item.entity.label}
+                  {item.entity.secondary ? ` · ${item.entity.secondary}` : ""}
+                </span>
+                <small>{item.reason}</small>
+              </div>
+              <span
+                className={`fit-result__alternative-status fit-result__alternative-status--${item.status}`}
+              >
+                {item.status_label}
+              </span>
+              <button
+                type="button"
+                className="fit-check-secondary"
+                onClick={() => onUse(item)}
+              >
+                Use
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>
+          No alternative compatible choices are recorded for this selected
+          setup.
+        </p>
+      )}
     </section>
   );
 }

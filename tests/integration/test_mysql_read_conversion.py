@@ -261,7 +261,31 @@ def test_fit_check_options_follow_real_imported_compatibility_data(api):
         },
     )
     assert evaluation.status_code == 200
-    assert evaluation.json()["overall_result"] == "COMPATIBLE"
+    fit_payload = evaluation.json()
+    # A relationship recommendation is not a compatibility promise: the
+    # desktop-equivalent detailed checklist can correctly retain a review
+    # outcome when its supporting engineering evidence is incomplete.
+    assert fit_payload["overall_result"] in {"COMPATIBLE", "NEEDS_REVIEW"}
+    assert [item["entity_type"] for item in fit_payload["selected_entities"]] == ["machine", "tool", "eoat"]
+    assert [item["code"] for item in fit_payload["requirements"]] == [
+        "machine_compatibility",
+        "eoat_compatibility",
+        "robot_type",
+        "air_architecture",
+        "quick_disconnect",
+        "part_count",
+        "sensor_requirements",
+    ]
+    assert all(item["label"] and item["reason"] for item in fit_payload["requirements"])
+    assert {item["pair"] for item in fit_payload["requirements"] if item.get("pair")} <= {
+        "machine_tool",
+        "machine_eoat",
+        "tool_eoat",
+    }
+    assert {item["title"] for item in fit_payload["detail_sections"]} >= {
+        "Relationship evidence",
+        "Setup packet",
+    }
 
     packet = api.get(
         "/api/v1/setup-packets/data",
@@ -269,7 +293,7 @@ def test_fit_check_options_follow_real_imported_compatibility_data(api):
     )
     assert packet.status_code == 200
     assert packet.json()["machine"]["plant_code"] == machine["plant_code"]
-    assert packet.json()["fit_check"]["overall_result"] == "COMPATIBLE"
+    assert packet.json()["fit_check"]["overall_result"] == fit_payload["overall_result"]
 
     incompatible_tool = next(
         (

@@ -227,6 +227,43 @@ class PairCompatibility(BaseModel):
     pair: str
     result: Literal["COMPATIBLE", "INCOMPATIBLE", "UNKNOWN", "NOT_EVALUATED"]
     reason: str
+    evidence_source: str | None = None
+
+
+class FitCheckEntity(BaseModel):
+    entity_type: Literal["machine", "tool", "eoat"]
+    identifier: str
+    label: str
+    secondary: str | None = None
+
+
+class FitCheckCriterion(BaseModel):
+    """A server-evaluated desktop-equivalent Fit Check requirement."""
+
+    code: str
+    label: str
+    result: Literal["COMPATIBLE", "INCOMPATIBLE", "NEEDS_REVIEW", "NOT_APPLICABLE"]
+    reason: str
+    evidence_source: str | None = None
+    pair: str | None = None
+
+
+class FitCheckWarning(BaseModel):
+    severity: Literal["info", "warning", "critical"]
+    title: str
+    message: str
+
+
+class FitCheckAlternative(BaseModel):
+    entity: FitCheckEntity
+    status: Literal["best", "available", "verify", "missing_data", "not_recommended", "current", "incompatible"]
+    status_label: str
+    reason: str
+
+
+class FitCheckDetailSection(BaseModel):
+    title: str
+    entries: list[str] = Field(default_factory=list)
 
 
 class FitCheckResult(BaseModel):
@@ -238,6 +275,16 @@ class FitCheckResult(BaseModel):
     warnings: list[str]
     unknown_relationships: list[str]
     alternative_compatible_eoats: list[str]
+    decision_summary: str = ""
+    confidence: Literal["high", "medium", "low", "unknown"] = "unknown"
+    selected_entities: list[FitCheckEntity] = Field(default_factory=list)
+    requirements: list[FitCheckCriterion] = Field(default_factory=list)
+    structured_warnings: list[FitCheckWarning] = Field(default_factory=list)
+    alternative_machines: list[FitCheckAlternative] = Field(default_factory=list)
+    alternative_eoats: list[FitCheckAlternative] = Field(default_factory=list)
+    detail_sections: list[FitCheckDetailSection] = Field(default_factory=list)
+    recommended_eoat: FitCheckAlternative | None = None
+    setup_packet_available: bool = False
     evaluation_engine_version: str = "mysql-read-v1"
     stored: bool = False
 

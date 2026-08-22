@@ -3382,6 +3382,61 @@ export interface components {
             /** Format */
             format: string;
         };
+        /** FitCheckAlternative */
+        FitCheckAlternative: {
+            entity: components["schemas"]["FitCheckEntity"];
+            /** Reason */
+            reason: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "best" | "available" | "verify" | "missing_data" | "not_recommended" | "current" | "incompatible";
+            /** Status Label */
+            status_label: string;
+        };
+        /**
+         * FitCheckCriterion
+         * @description A server-evaluated desktop-equivalent Fit Check requirement.
+         */
+        FitCheckCriterion: {
+            /** Code */
+            code: string;
+            /** Evidence Source */
+            evidence_source?: string | null;
+            /** Label */
+            label: string;
+            /** Pair */
+            pair?: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "COMPATIBLE" | "INCOMPATIBLE" | "NEEDS_REVIEW" | "NOT_APPLICABLE";
+        };
+        /** FitCheckDetailSection */
+        FitCheckDetailSection: {
+            /** Entries */
+            entries?: string[];
+            /** Title */
+            title: string;
+        };
+        /** FitCheckEntity */
+        FitCheckEntity: {
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "machine" | "tool" | "eoat";
+            /** Identifier */
+            identifier: string;
+            /** Label */
+            label: string;
+            /** Secondary */
+            secondary?: string | null;
+        };
         /**
          * FitCheckOption
          * @description A browser-safe selectable asset for the read-only Fit Check.
@@ -3414,6 +3469,23 @@ export interface components {
         FitCheckResult: {
             /** Alternative Compatible Eoats */
             alternative_compatible_eoats: string[];
+            /** Alternative Eoats */
+            alternative_eoats?: components["schemas"]["FitCheckAlternative"][];
+            /** Alternative Machines */
+            alternative_machines?: components["schemas"]["FitCheckAlternative"][];
+            /**
+             * Confidence
+             * @default unknown
+             * @enum {string}
+             */
+            confidence: "high" | "medium" | "low" | "unknown";
+            /**
+             * Decision Summary
+             * @default
+             */
+            decision_summary: string;
+            /** Detail Sections */
+            detail_sections?: components["schemas"]["FitCheckDetailSection"][];
             /**
              * Evaluation Engine Version
              * @default mysql-read-v1
@@ -3428,16 +3500,40 @@ export interface components {
             overall_result: "COMPATIBLE" | "INCOMPATIBLE" | "NEEDS_REVIEW" | "INVALID_INPUT";
             /** Reasons */
             reasons: string[];
+            recommended_eoat?: components["schemas"]["FitCheckAlternative"] | null;
+            /** Requirements */
+            requirements?: components["schemas"]["FitCheckCriterion"][];
+            /** Selected Entities */
+            selected_entities?: components["schemas"]["FitCheckEntity"][];
+            /**
+             * Setup Packet Available
+             * @default false
+             */
+            setup_packet_available: boolean;
             /**
              * Stored
              * @default false
              */
             stored: boolean;
+            /** Structured Warnings */
+            structured_warnings?: components["schemas"]["FitCheckWarning"][];
             tool_eoat_result: components["schemas"]["PairCompatibility"];
             /** Unknown Relationships */
             unknown_relationships: string[];
             /** Warnings */
             warnings: string[];
+        };
+        /** FitCheckWarning */
+        FitCheckWarning: {
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "critical";
+            /** Title */
+            title: string;
         };
         /** GroupPolicyCreate */
         GroupPolicyCreate: {
@@ -3837,6 +3933,8 @@ export interface components {
         };
         /** PairCompatibility */
         PairCompatibility: {
+            /** Evidence Source */
+            evidence_source?: string | null;
             /** Pair */
             pair: string;
             /** Reason */
