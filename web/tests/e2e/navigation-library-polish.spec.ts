@@ -105,21 +105,17 @@ test("Library renders server-paginated natural machine, tool, and EOAT ordering"
   }
 });
 
-test("Home freshness indicator is compact and accurately distinguishes healthy from stale", async ({
+test("Home freshness indicator reports browser refresh time, not database mutation time", async ({
   page,
 }) => {
-  const api = await mockNavigationApi(page);
+  await mockNavigationApi(page);
   await page.goto("/");
   const status = page.locator(".atlas-data-status");
-  await expect(status).toContainText("Last Updated: Aug 21, 2026");
+  await expect(status).toContainText("Last Refreshed: Aug 21, 2026");
   await expect(status.locator(".atlas-status-dot")).toHaveClass(/healthy/);
-  expect(await status.getAttribute("title")).toContain("current");
-
-  api.setStale(true);
-  await page.reload();
-  await expect(status).toContainText("Last Updated: Aug 19, 2026");
-  await expect(status.locator(".atlas-status-dot")).toHaveClass(/stale/);
-  expect(await status.getAttribute("title")).toContain("may be stale");
+  expect(await status.getAttribute("title")).toContain(
+    "Last successful refresh of data displayed in this browser",
+  );
 });
 
 test("global search groups entities and user-accessible destinations without exposing admin pages", async ({

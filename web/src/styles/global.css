@@ -569,6 +569,10 @@ a {
 .atlas-status-dot.unavailable {
   background: var(--atlas-danger);
 }
+.atlas-status-dot.degraded {
+  background: var(--atlas-danger);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--atlas-danger) 75%, transparent);
+}
 
 @keyframes atlas-status-pulse {
   50% {
