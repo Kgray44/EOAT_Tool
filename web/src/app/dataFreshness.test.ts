@@ -114,6 +114,20 @@ describe("data freshness presentation", () => {
     );
   });
 
+  it("ages to stale even if the latest attempted refresh failed", () => {
+    const failed = {
+      lastSuccessfulRefreshAt: dataStatus.server_time,
+      lastSuccessfulRefreshPerformanceMs: 100,
+      lastDataStatusUpdatedAt: 100,
+      latestRefreshFailed: true,
+    };
+
+    expect(browserFreshnessState(failed, 101)).toBe("degraded");
+    expect(browserFreshnessState(failed, 100 + 24 * 60 * 60 * 1000 + 1)).toBe(
+      "stale",
+    );
+  });
+
   it("waits for every active displayed query to finish before recording", () => {
     const previous = {
       lastSuccessfulRefreshAt: "2026-08-21T19:28:00Z",

@@ -84,12 +84,12 @@ export function browserFreshnessState(
   nowPerformanceMs: number,
 ): "healthy" | "stale" | "degraded" | "unavailable" {
   if (!freshness.lastSuccessfulRefreshAt) return "unavailable";
-  if (freshness.latestRefreshFailed) return "degraded";
   const refreshedAt = freshness.lastSuccessfulRefreshPerformanceMs;
   if (
     refreshedAt === undefined ||
     nowPerformanceMs - refreshedAt > BROWSER_FRESHNESS_STALE_AFTER_MS
   )
     return "stale";
+  if (freshness.latestRefreshFailed) return "degraded";
   return "healthy";
 }

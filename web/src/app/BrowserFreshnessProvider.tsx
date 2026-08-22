@@ -57,6 +57,11 @@ function isAuthenticationKey(key: readonly unknown[]): boolean {
 function BrowserFreshnessObserver({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const store = useMemo(() => new BrowserFreshnessStore(), []);
+  useQuery({
+    queryKey: ["data-status"],
+    queryFn: () => apiClient.getDataStatus(),
+    refetchInterval: BROWSER_DATA_REFRESH_INTERVAL_MS,
+  });
 
   useEffect(() => {
     const seenDataUpdates = new Map<string, number>();
@@ -130,13 +135,4 @@ export function useBrowserFreshness(): BrowserFreshnessState {
     store.getSnapshot,
     store.getSnapshot,
   );
-}
-
-/** Adds the server-provided clock to the active Home refresh cycle. */
-export function useDataStatusRefresh() {
-  return useQuery({
-    queryKey: ["data-status"],
-    queryFn: () => apiClient.getDataStatus(),
-    refetchInterval: BROWSER_DATA_REFRESH_INTERVAL_MS,
-  });
 }

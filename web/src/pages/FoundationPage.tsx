@@ -8,10 +8,7 @@ import {
   isRoutableAuthoritativeIdentifier,
   presentationText,
 } from "@/api/presentation";
-import {
-  useBrowserFreshness,
-  useDataStatusRefresh,
-} from "@/app/BrowserFreshnessProvider";
+import { useBrowserFreshness } from "@/app/BrowserFreshnessProvider";
 import { formatLastRefreshed, freshnessState } from "@/app/dataFreshness";
 
 export function FoundationPage() {
@@ -24,7 +21,6 @@ export function FoundationPage() {
   const navigate = useNavigate();
   const recents = readRecentItems();
   const browserFreshness = useBrowserFreshness();
-  useDataStatusRefresh();
   const search = useQuery({
     queryKey: ["mirrorline", "home-search", debouncedQuery],
     queryFn: () => apiClient.search(debouncedQuery),
