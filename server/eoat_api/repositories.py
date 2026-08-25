@@ -87,9 +87,7 @@ def _physical_audit_contract(records: list[db.AuditRecord]) -> PhysicalAuditObse
     return PhysicalAuditObservation(
         audit_identifier=projection.audit_identifier,
         observed_on=(
-            projection.audit_date.date()
-            if isinstance(projection.audit_date, datetime)
-            else projection.audit_date
+            projection.audit_date.date() if isinstance(projection.audit_date, datetime) else projection.audit_date
         ),
         observed_machine=projection.observed_machine,
         observed_tool=projection.observed_tool,
@@ -303,10 +301,13 @@ class AtlasRepository:
             )
         )
         current_location = self._current_eoat_location(entity)
-        return EOATProfile(
-            **summary.model_dump(),
+        profile_summary = summary.model_dump()
+        profile_summary.update(
             current_location=current_location.state,
             current_location_detail=current_location,
+        )
+        return EOATProfile(
+            **profile_summary,
             description=entity.description,
             revision=entity.revision,
             number_of_vacuum_cups=entity.number_of_vacuum_cups,
@@ -732,7 +733,9 @@ class AtlasRepository:
             select(db.EntityHistoryEvent, db.HistoryEventType, db.User, db.ApplicationInstance)
             .join(db.HistoryEventType, db.HistoryEventType.id == db.EntityHistoryEvent.event_type_id)
             .outerjoin(db.User, db.User.id == db.EntityHistoryEvent.actor_user_id)
-            .outerjoin(db.ApplicationInstance, db.ApplicationInstance.id == db.EntityHistoryEvent.application_instance_id)
+            .outerjoin(
+                db.ApplicationInstance, db.ApplicationInstance.id == db.EntityHistoryEvent.application_instance_id
+            )
             .where(db.EntityHistoryEvent.entity_type == entity_type, db.EntityHistoryEvent.entity_id == entity_id)
         )
         if event_category:
@@ -759,7 +762,9 @@ class AtlasRepository:
                 stmt = stmt.where(
                     or_(
                         db.EntityHistoryEvent.metadata_json.is_(None),
-                        cast(db.EntityHistoryEvent.metadata_json, String).not_ilike('%"movement_kind": "moved_to_machine"%'),
+                        cast(db.EntityHistoryEvent.metadata_json, String).not_ilike(
+                            '%"movement_kind": "moved_to_machine"%'
+                        ),
                     )
                 )
         if date_from:
@@ -782,15 +787,17 @@ class AtlasRepository:
             )
         count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
         total = int(self.session.scalar(count_stmt) or 0)
-        direction = db.EntityHistoryEvent.occurred_at.asc() if sort_order.casefold() == "asc" else db.EntityHistoryEvent.occurred_at.desc()
+        direction = (
+            db.EntityHistoryEvent.occurred_at.asc()
+            if sort_order.casefold() == "asc"
+            else db.EntityHistoryEvent.occurred_at.desc()
+        )
         # Event UUIDs are identities, not chronology.  MySQL can preserve
         # multiple history writes at the same DATETIME precision, so use the
         # immutable auto-increment sequence to make tied timestamps reflect
         # actual persisted event order deterministically.
         tie_direction = (
-            db.EntityHistoryEvent.id.asc()
-            if sort_order.casefold() == "asc"
-            else db.EntityHistoryEvent.id.desc()
+            db.EntityHistoryEvent.id.asc() if sort_order.casefold() == "asc" else db.EntityHistoryEvent.id.desc()
         )
         rows = self.session.execute(
             stmt.order_by(direction, tie_direction).offset((page - 1) * page_size).limit(page_size)
@@ -818,7 +825,9 @@ class AtlasRepository:
             .join(db.HistoryEventType, db.HistoryEventType.id == db.EntityHistoryEvent.event_type_id)
             .join(db.EOAT, db.EOAT.id == db.EntityHistoryEvent.entity_id)
             .outerjoin(db.User, db.User.id == db.EntityHistoryEvent.actor_user_id)
-            .outerjoin(db.ApplicationInstance, db.ApplicationInstance.id == db.EntityHistoryEvent.application_instance_id)
+            .outerjoin(
+                db.ApplicationInstance, db.ApplicationInstance.id == db.EntityHistoryEvent.application_instance_id
+            )
             .where(db.EntityHistoryEvent.entity_type == "eoat")
             .order_by(
                 db.EOAT.business_identifier,
@@ -873,7 +882,9 @@ class AtlasRepository:
             related_machine=_optional_text(metadata.get("related_machine") or metadata.get("machine_number")),
             related_tool=_optional_text(metadata.get("related_tool") or metadata.get("tool_number")),
             related_robot=_optional_text(metadata.get("related_robot") or metadata.get("robot_number")),
-            related_storage_location=_optional_text(metadata.get("related_storage_location") or metadata.get("storage_location")),
+            related_storage_location=_optional_text(
+                metadata.get("related_storage_location") or metadata.get("storage_location")
+            ),
             related_document=_optional_text(metadata.get("related_document") or metadata.get("document_uuid")),
             related_photo=_optional_text(metadata.get("related_photo") or metadata.get("photo_id")),
             reason=event.reason,

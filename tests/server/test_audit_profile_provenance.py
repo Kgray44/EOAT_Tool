@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 
 from server.eoat_api.audit_profiles import configuration_from_details, latest_physical_audit
+from server.eoat_api.contracts import CurrentEOATLocation, EOATProfile, EOATSummary
 from tools.migration.audit_profile_backfill import execute_backfill
 from tools.migration.import_pipeline import _latest_physical_profile_row
 
@@ -151,3 +152,20 @@ def test_backfill_execute_fails_closed_for_production_or_unknown_targets(monkeyp
 
     with pytest.raises(RuntimeError, match="approved development or staging database"):
         execute_backfill("unused.xlsx", dry_run=False)
+
+
+def test_profile_can_replace_summary_location_with_authoritative_current_location():
+    summary = EOATSummary(
+        business_identifier="P4-EOAT-0006",
+        is_active=True,
+        row_version=1,
+        current_location="UNKNOWN_NOT_VERIFIED",
+    )
+    location = CurrentEOATLocation(state="INSTALLED", source="LIFECYCLE_EVENT", machine_number="9")
+    profile_summary = summary.model_dump()
+    profile_summary.update(current_location=location.state, current_location_detail=location)
+
+    profile = EOATProfile(**profile_summary)
+
+    assert profile.current_location == "INSTALLED"
+    assert profile.current_location_detail == location
