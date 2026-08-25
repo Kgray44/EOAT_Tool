@@ -3283,6 +3283,7 @@ export interface components {
             frame_material?: string | null;
             /** Is Active */
             is_active: boolean;
+            latest_physical_audit?: components["schemas"]["PhysicalAuditObservation"] | null;
             /** Legacy Identifier */
             legacy_identifier?: string | null;
             /** Manufacturer */
@@ -3759,6 +3760,7 @@ export interface components {
             installation_date?: string | null;
             /** Is Active */
             is_active: boolean;
+            latest_physical_audit?: components["schemas"]["PhysicalAuditObservation"] | null;
             /** Machine Name */
             machine_name?: string | null;
             /** Machine Number */
@@ -3999,6 +4001,76 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /**
+         * PhysicalAuditConfiguration
+         * @description Known configuration observed during one physical audit, never a current-location claim.
+         */
+        PhysicalAuditConfiguration: {
+            /** Cleanroom Classification */
+            cleanroom_classification?: string | null;
+            /** Connection Type */
+            connection_type?: string | null;
+            /** Cup Material */
+            cup_material?: string | null;
+            /** Cup Size */
+            cup_size?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Electrical Disconnect Type */
+            electrical_disconnect_type?: string | null;
+            /** Electrical Wiring Present */
+            electrical_wiring_present?: boolean | null;
+            /** Eoat Type */
+            eoat_type?: string | null;
+            /** Gripper Count */
+            gripper_count?: number | null;
+            /** Gripper Model */
+            gripper_model?: string | null;
+            /** Gripper Type */
+            gripper_type?: string | null;
+            /** Part Present Sensor Present */
+            part_present_sensor_present?: boolean | null;
+            /** Parts Picked */
+            parts_picked?: number | null;
+            /** Pneumatic Disconnect Type */
+            pneumatic_disconnect_type?: string | null;
+            /** Pressure Circuits */
+            pressure_circuits?: number | null;
+            /** Quick Disconnect Present */
+            quick_disconnect_present?: boolean | null;
+            /** Sensors Present */
+            sensors_present?: boolean | null;
+            /** Vacuum Circuits */
+            vacuum_circuits?: number | null;
+            /** Vacuum Confirmation Sensor Present */
+            vacuum_confirmation_sensor_present?: boolean | null;
+            /** Vacuum Cup Count */
+            vacuum_cup_count?: number | null;
+            /** Vacuum Generator */
+            vacuum_generator?: string | null;
+        };
+        /**
+         * PhysicalAuditObservation
+         * @description A dated physical-audit observation with its source identity intact.
+         */
+        PhysicalAuditObservation: {
+            /** Audit Identifier */
+            audit_identifier: string;
+            configuration: components["schemas"]["PhysicalAuditConfiguration"];
+            /**
+             * Evidence
+             * @default Physical audit
+             */
+            evidence: string;
+            /** Observed Machine */
+            observed_machine?: string | null;
+            /** Observed On */
+            observed_on?: string | null;
+            /** Observed Tool */
+            observed_tool?: string | null;
+            /** Verified */
+            verified?: boolean | null;
+        };
         /** RehearsalSessionIssue */
         RehearsalSessionIssue: {
             /** Identity */
@@ -4197,6 +4269,7 @@ export interface components {
             display_name?: string | null;
             /** Is Active */
             is_active: boolean;
+            latest_physical_audit?: components["schemas"]["PhysicalAuditObservation"] | null;
             /** Mold Number */
             mold_number?: string | null;
             /** Notes */

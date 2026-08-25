@@ -21,6 +21,33 @@ const profile = {
   photo_available_through_web: true,
   relationships: [],
   audit_evidence: [],
+  latest_physical_audit: {
+    audit_identifier: "AUD-20260521-012",
+    observed_on: "2026-05-21T00:00:00Z",
+    observed_machine: "9",
+    observed_tool: "7130080010",
+    verified: true,
+    evidence: "Physical audit AUD-20260521-012",
+    configuration: {
+      parts_picked: 4,
+      vacuum_cup_count: 4,
+      gripper_count: 1,
+      cup_material: "Silicone",
+      cup_size: "15",
+      vacuum_generator: "Venturi",
+      vacuum_circuits: 2,
+      pressure_circuits: 0,
+      gripper_type: "Single Pressure",
+      gripper_model: null,
+      sensors_present: false,
+      part_present_sensor_present: null,
+      vacuum_confirmation_sensor_present: null,
+      quick_disconnect_present: true,
+      pneumatic_disconnect_type: "PTC",
+      electrical_disconnect_type: null,
+      electrical_wiring_present: false,
+    },
+  },
   revision: "R2",
   number_of_vacuum_cups: 4,
   number_of_grippers: 0,
@@ -140,6 +167,10 @@ describe("EOAT profile route", () => {
       0,
     );
     const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "Overview" }));
+    expect(await screen.findByText("AUD-20260521-012")).toBeInTheDocument();
+    expect(await screen.findByText("Venturi")).toBeInTheDocument();
+    expect(screen.getByText("This is a dated observation, not a present-day assignment.")).toBeInTheDocument();
     await user.click(screen.getByRole("link", { name: "Relationships" }));
     expect(await screen.findByRole("link", { name: /M-42/ })).toHaveAttribute(
       "href",

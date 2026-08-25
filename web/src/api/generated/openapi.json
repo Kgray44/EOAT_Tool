@@ -2874,6 +2874,16 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "latest_physical_audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhysicalAuditObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "legacy_identifier": {
             "anyOf": [
               {
@@ -4551,6 +4561,16 @@
             "title": "Is Active",
             "type": "boolean"
           },
+          "latest_physical_audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhysicalAuditObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "machine_name": {
             "anyOf": [
               {
@@ -5480,6 +5500,312 @@
         "title": "PhotoPatch",
         "type": "object"
       },
+      "PhysicalAuditConfiguration": {
+        "description": "Known configuration observed during one physical audit, never a current-location claim.",
+        "properties": {
+          "cleanroom_classification": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanroom Classification"
+          },
+          "connection_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Type"
+          },
+          "cup_material": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cup Material"
+          },
+          "cup_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cup Size"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "electrical_disconnect_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electrical Disconnect Type"
+          },
+          "electrical_wiring_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electrical Wiring Present"
+          },
+          "eoat_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eoat Type"
+          },
+          "gripper_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gripper Count"
+          },
+          "gripper_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gripper Model"
+          },
+          "gripper_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gripper Type"
+          },
+          "part_present_sensor_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Present Sensor Present"
+          },
+          "parts_picked": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parts Picked"
+          },
+          "pneumatic_disconnect_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pneumatic Disconnect Type"
+          },
+          "pressure_circuits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Circuits"
+          },
+          "quick_disconnect_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quick Disconnect Present"
+          },
+          "sensors_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensors Present"
+          },
+          "vacuum_circuits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Circuits"
+          },
+          "vacuum_confirmation_sensor_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Confirmation Sensor Present"
+          },
+          "vacuum_cup_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Cup Count"
+          },
+          "vacuum_generator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Generator"
+          }
+        },
+        "title": "PhysicalAuditConfiguration",
+        "type": "object"
+      },
+      "PhysicalAuditObservation": {
+        "description": "A dated physical-audit observation with its source identity intact.",
+        "properties": {
+          "audit_identifier": {
+            "title": "Audit Identifier",
+            "type": "string"
+          },
+          "configuration": {
+            "$ref": "#/components/schemas/PhysicalAuditConfiguration"
+          },
+          "evidence": {
+            "default": "Physical audit",
+            "title": "Evidence",
+            "type": "string"
+          },
+          "observed_machine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Machine"
+          },
+          "observed_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed On"
+          },
+          "observed_tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Tool"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified"
+          }
+        },
+        "required": [
+          "audit_identifier",
+          "configuration"
+        ],
+        "title": "PhysicalAuditObservation",
+        "type": "object"
+      },
       "RehearsalSessionIssue": {
         "additionalProperties": false,
         "properties": {
@@ -6368,6 +6694,16 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
+          },
+          "latest_physical_audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhysicalAuditObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "mold_number": {
             "anyOf": [

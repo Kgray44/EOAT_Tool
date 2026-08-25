@@ -430,6 +430,28 @@ def _canonical_profile(grouped: list[tuple[int, dict[str, Any]]], field_name: st
     return next(iter(values)) if len(values) == 1 else None
 
 
+def _latest_physical_profile_row(grouped: list[tuple[int, dict[str, Any]]]) -> dict[str, Any]:
+    """Choose the newest physical-audit row for initial nullable EOAT fields.
+
+    The old importer used the first spreadsheet row.  That made profile
+    completeness depend on row ordering and silently dropped known values from
+    a later audit.  Derived compatibility rows are never profile authority.
+    """
+
+    physical = [
+        (number, row)
+        for number, row in grouped
+        if _text(row.get("Entry Type")).casefold() == "audited" and not _text(row.get("Source Audit ID"))
+    ]
+    candidates = physical or grouped
+
+    def sort_key(item: tuple[int, dict[str, Any]]) -> tuple[datetime, int]:
+        audit_date = _datetime(item[1].get("Audit Date")) or datetime.min
+        return (audit_date.replace(tzinfo=None), item[0])
+
+    return max(candidates, key=sort_key)[1]
+
+
 def execute_import(
     source_workbook: str | Path,
     *,
@@ -514,7 +536,7 @@ def execute_import(
                 for identifier, grouped in sorted(inventory_groups.items()):
                     if not identifier:
                         continue
-                    first = grouped[0][1]
+                    first = _latest_physical_profile_row(grouped)
                     eoat_type = _canonical_profile(grouped, "EOAT Type")
                     connection = _canonical_profile(grouped, "Connection Type")
                     cleanroom = _canonical_profile(grouped, "Cleanroom/Non-Cleanroom")
@@ -529,7 +551,10 @@ def execute_import(
                         number_of_parts_picked=_integer(first.get("Number of Parts Picked")),
                         number_of_vacuum_cups=_integer(first.get("# of Cups")),
                         number_of_grippers=_integer(first.get("# of Grippers")),
-                        vacuum_present=_boolean(first.get("Vacuum Confirmation Present?")),
+                        # The tracker has no independent "vacuum present"
+                        # field.  A confirmation sensor is not proof that the
+                        # EOAT presently has vacuum hardware, so retain null.
+                        vacuum_present=None,
                         sensors_present=_boolean(first.get("Sensors Present?")),
                         part_present_sensor_present=_boolean(first.get("Part-Present Detection Present?")),
                         vacuum_confirmation_sensor_present=_boolean(first.get("Vacuum Confirmation Present?")),

@@ -10,7 +10,9 @@ from typing import Any
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
+from .audit_profiles import latest_physical_audit
 from .contracts import (
+    CurrentEOATLocation,
     DocumentMetadata,
     EOATProfile,
     EOATSummary,
@@ -21,6 +23,8 @@ from .contracts import (
     PaginatedHistory,
     PaginationMetadata,
     PhotoMetadata,
+    PhysicalAuditConfiguration,
+    PhysicalAuditObservation,
     RelationshipSummary,
     SearchResult,
     ToolProfile,
@@ -74,6 +78,25 @@ def _page_rows(rows: list[Any], *, page: int, page_size: int) -> tuple[list[Any]
 def _optional_text(value: Any) -> str | None:
     text_value = str(value).strip() if value is not None else ""
     return text_value or None
+
+
+def _physical_audit_contract(records: list[db.AuditRecord]) -> PhysicalAuditObservation | None:
+    projection = latest_physical_audit(records)
+    if projection is None:
+        return None
+    return PhysicalAuditObservation(
+        audit_identifier=projection.audit_identifier,
+        observed_on=(
+            projection.audit_date.date()
+            if isinstance(projection.audit_date, datetime)
+            else projection.audit_date
+        ),
+        observed_machine=projection.observed_machine,
+        observed_tool=projection.observed_tool,
+        verified=projection.verified,
+        evidence=f"Physical audit {projection.audit_identifier}",
+        configuration=PhysicalAuditConfiguration(**projection.configuration),
+    )
 
 
 @dataclass(frozen=True)
@@ -272,8 +295,18 @@ class AtlasRepository:
         if summary is None:
             return None
         entity = self.session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == summary.business_identifier))
+        audits = list(
+            self.session.scalars(
+                select(db.AuditRecord)
+                .where(db.AuditRecord.eoat_id == entity.id)
+                .order_by(db.AuditRecord.source_row_number)
+            )
+        )
+        current_location = self._current_eoat_location(entity)
         return EOATProfile(
             **summary.model_dump(),
+            current_location=current_location.state,
+            current_location_detail=current_location,
             description=entity.description,
             revision=entity.revision,
             number_of_vacuum_cups=entity.number_of_vacuum_cups,
@@ -293,14 +326,63 @@ class AtlasRepository:
             date_commissioned=entity.date_commissioned.isoformat() if entity.date_commissioned else None,
             notes=entity.notes,
             relationships=self.eoat_relationships(summary.business_identifier),
-            audit_evidence=[
-                audit.details_json or {}
-                for audit in self.session.scalars(
-                    select(db.AuditRecord)
-                    .where(db.AuditRecord.eoat_id == entity.id)
-                    .order_by(db.AuditRecord.source_row_number)
-                )
-            ],
+            audit_evidence=[audit.details_json or {} for audit in audits],
+            latest_physical_audit=_physical_audit_contract(audits),
+        )
+
+    def current_eoat_location(self, identifier: str) -> CurrentEOATLocation | None:
+        entity = self.session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier))
+        return self._current_eoat_location(entity) if entity is not None else None
+
+    def _current_eoat_location(self, entity: db.EOAT) -> CurrentEOATLocation:
+        """Resolve only present-tense lifecycle records as the current location.
+
+        Physical audits are intentionally excluded from a current assignment.
+        They are returned separately as ``latest_physical_audit`` evidence.
+        """
+
+        installed = self.session.execute(
+            select(db.EOATInstallation, db.Machine.machine_number)
+            .join(db.Machine, db.Machine.id == db.EOATInstallation.machine_id)
+            .where(db.EOATInstallation.eoat_id == entity.id, db.EOATInstallation.removed_at.is_(None))
+            .order_by(db.EOATInstallation.installed_at.desc())
+            .limit(1)
+        ).first()
+        if installed is not None:
+            installation, machine_number = installed
+            return CurrentEOATLocation(
+                state="INSTALLED",
+                source="LIFECYCLE_EVENT",
+                machine_number=machine_number,
+                observed_at=installation.installed_at,
+                confidence="CONFIRMED",
+                evidence="Active EOAT installation record",
+            )
+        stored = self.session.execute(
+            select(db.EOATStorageAssignment, db.StorageLocation.location_code)
+            .join(db.StorageLocation, db.StorageLocation.id == db.EOATStorageAssignment.storage_location_id)
+            .where(
+                db.EOATStorageAssignment.eoat_id == entity.id,
+                db.EOATStorageAssignment.removed_from_storage_at.is_(None),
+            )
+            .order_by(db.EOATStorageAssignment.stored_at.desc())
+            .limit(1)
+        ).first()
+        if stored is not None:
+            assignment, location_code = stored
+            return CurrentEOATLocation(
+                state="STORED",
+                source="LIFECYCLE_EVENT",
+                storage_location=location_code,
+                observed_at=assignment.stored_at,
+                confidence="CONFIRMED",
+                evidence="Active EOAT storage assignment",
+            )
+        return CurrentEOATLocation(
+            state="UNKNOWN",
+            source="NONE",
+            confidence="UNKNOWN",
+            evidence="No active installation or storage assignment is recorded.",
         )
 
     def eoat_relationships(self, identifier: str) -> list[RelationshipSummary]:
@@ -480,6 +562,13 @@ class AtlasRepository:
                 )
             )
         ]
+        audits = list(
+            self.session.scalars(
+                select(db.AuditRecord)
+                .where(db.AuditRecord.machine_id == entity.id)
+                .order_by(db.AuditRecord.source_row_number)
+            )
+        )
         return MachineProfile(
             **summary.model_dump(),
             controller_type=entity.controller_type,
@@ -490,14 +579,8 @@ class AtlasRepository:
             notes=entity.notes,
             relationships=relationships,
             robots=robots,
-            audit_evidence=[
-                audit.details_json or {}
-                for audit in self.session.scalars(
-                    select(db.AuditRecord)
-                    .where(db.AuditRecord.machine_id == entity.id)
-                    .order_by(db.AuditRecord.source_row_number)
-                )
-            ],
+            audit_evidence=[audit.details_json or {} for audit in audits],
+            latest_physical_audit=_physical_audit_contract(audits),
         )
 
     def list_tools(
@@ -610,6 +693,13 @@ class AtlasRepository:
                 )
             )
         ]
+        audits = list(
+            self.session.scalars(
+                select(db.AuditRecord)
+                .where(db.AuditRecord.tool_id == entity.id)
+                .order_by(db.AuditRecord.source_row_number)
+            )
+        )
         return ToolProfile(
             **summary.model_dump(),
             description=entity.description,
@@ -619,14 +709,8 @@ class AtlasRepository:
             program_name=entity.program_name,
             notes=entity.notes,
             relationships=relationships,
-            audit_evidence=[
-                audit.details_json or {}
-                for audit in self.session.scalars(
-                    select(db.AuditRecord)
-                    .where(db.AuditRecord.tool_id == entity.id)
-                    .order_by(db.AuditRecord.source_row_number)
-                )
-            ],
+            audit_evidence=[audit.details_json or {} for audit in audits],
+            latest_physical_audit=_physical_audit_contract(audits),
         )
 
     def history_page(
@@ -978,17 +1062,16 @@ class AtlasRepository:
                     status="ASSIGNED",
                 )
             )
-        audit_by_eoat: dict[int, list[dict]] = defaultdict(list)
-        audit_by_machine: dict[int, list[dict]] = defaultdict(list)
-        audit_by_tool: dict[int, list[dict]] = defaultdict(list)
+        audit_by_eoat: dict[int, list[db.AuditRecord]] = defaultdict(list)
+        audit_by_machine: dict[int, list[db.AuditRecord]] = defaultdict(list)
+        audit_by_tool: dict[int, list[db.AuditRecord]] = defaultdict(list)
         for audit in self.session.scalars(select(db.AuditRecord).order_by(db.AuditRecord.source_row_number)):
-            details = audit.details_json or {}
             if audit.eoat_id:
-                audit_by_eoat[audit.eoat_id].append(details)
+                audit_by_eoat[audit.eoat_id].append(audit)
             if audit.machine_id:
-                audit_by_machine[audit.machine_id].append(details)
+                audit_by_machine[audit.machine_id].append(audit)
             if audit.tool_id:
-                audit_by_tool[audit.tool_id].append(details)
+                audit_by_tool[audit.tool_id].append(audit)
 
         eoat_profiles = []
         for summary in eoat_summaries:
@@ -1008,7 +1091,8 @@ class AtlasRepository:
                     cup_material=entity.cup_material,
                     notes=entity.notes,
                     relationships=eoat_relationships[entity.id],
-                    audit_evidence=audit_by_eoat[entity.id],
+                    audit_evidence=[audit.details_json or {} for audit in audit_by_eoat[entity.id]],
+                    latest_physical_audit=_physical_audit_contract(audit_by_eoat[entity.id]),
                 )
             )
         machine_profiles = []
@@ -1022,7 +1106,8 @@ class AtlasRepository:
                     notes=entity.notes,
                     relationships=machine_relationships[entity.id],
                     robots=machine_robots[entity.id],
-                    audit_evidence=audit_by_machine[entity.id],
+                    audit_evidence=[audit.details_json or {} for audit in audit_by_machine[entity.id]],
+                    latest_physical_audit=_physical_audit_contract(audit_by_machine[entity.id]),
                 )
             )
         tool_profiles = []
@@ -1037,7 +1122,8 @@ class AtlasRepository:
                     program_name=entity.program_name,
                     notes=entity.notes,
                     relationships=tool_relationships[entity.id],
-                    audit_evidence=audit_by_tool[entity.id],
+                    audit_evidence=[audit.details_json or {} for audit in audit_by_tool[entity.id]],
+                    latest_physical_audit=_physical_audit_contract(audit_by_tool[entity.id]),
                 )
             )
         return eoat_profiles, machine_profiles, tool_profiles

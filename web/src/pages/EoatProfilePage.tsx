@@ -254,6 +254,7 @@ function ProfileContent({
   });
   const currentLocation =
     location.data ?? profile.current_location_detail ?? undefined;
+  const physicalAudit = profile.latest_physical_audit;
   const resolvedRelationships = (
     relationships.data ??
     profile.relationships ??
@@ -530,6 +531,39 @@ function ProfileContent({
           )}
         </ProfileSection>
 
+        <ProfileSection title="Last physical audit">
+          {!physicalAudit && (
+            <EmptyState title="No physical audit evidence">
+              EOAT Atlas has no traceable physical-audit observation for this
+              record.
+            </EmptyState>
+          )}
+          {physicalAudit && (
+            <>
+              <p className="notes">
+                This is a dated observation, not a present-day assignment.
+              </p>
+              <dl className="attribute-grid">
+                <Attribute
+                  label="Last physically observed"
+                  value={physicalAudit.observed_machine}
+                />
+                <Attribute
+                  label="Observed"
+                  value={formatDate(physicalAudit.observed_on)}
+                />
+                <Attribute label="Audit" value={physicalAudit.audit_identifier} />
+                <Attribute
+                  label="Verification"
+                  value={physicalAudit.verified}
+                />
+                <Attribute label="Evidence" value={physicalAudit.evidence} />
+                <Attribute label="Observed tool" value={physicalAudit.observed_tool} />
+              </dl>
+            </>
+          )}
+        </ProfileSection>
+
         <ProfileSection title="Configuration and capabilities">
           <dl className="attribute-grid">
             <Attribute label="Vacuum present" value={profile.vacuum_present} />
@@ -562,6 +596,33 @@ function ProfileContent({
             </p>
           )}
         </ProfileSection>
+
+        {physicalAudit && (
+          <ProfileSection title="Configuration observed during the last physical audit">
+            <dl className="attribute-grid">
+              <Attribute label="Description" value={physicalAudit.configuration.description} />
+              <Attribute label="EOAT type" value={physicalAudit.configuration.eoat_type} />
+              <Attribute label="Connection type" value={physicalAudit.configuration.connection_type} />
+              <Attribute label="Cleanroom" value={physicalAudit.configuration.cleanroom_classification} />
+              <Attribute label="Parts picked" value={physicalAudit.configuration.parts_picked} />
+              <Attribute label="Vacuum cups" value={physicalAudit.configuration.vacuum_cup_count} />
+              <Attribute label="Grippers" value={physicalAudit.configuration.gripper_count} />
+              <Attribute label="Gripper type" value={physicalAudit.configuration.gripper_type} />
+              <Attribute label="Gripper model" value={physicalAudit.configuration.gripper_model} />
+              <Attribute label="Cup material" value={physicalAudit.configuration.cup_material} />
+              <Attribute label="Cup size" value={physicalAudit.configuration.cup_size} />
+              <Attribute label="Vacuum generator" value={physicalAudit.configuration.vacuum_generator} />
+              <Attribute label="Vacuum circuits" value={physicalAudit.configuration.vacuum_circuits} />
+              <Attribute label="Pressure circuits" value={physicalAudit.configuration.pressure_circuits} />
+              <Attribute label="Sensors present" value={physicalAudit.configuration.sensors_present} />
+              <Attribute label="Part-present sensor" value={physicalAudit.configuration.part_present_sensor_present} />
+              <Attribute label="Vacuum-confirmation sensor" value={physicalAudit.configuration.vacuum_confirmation_sensor_present} />
+              <Attribute label="Quick disconnect" value={physicalAudit.configuration.quick_disconnect_present} />
+              <Attribute label="Pneumatic disconnect" value={physicalAudit.configuration.pneumatic_disconnect_type} />
+              <Attribute label="Electrical disconnect" value={physicalAudit.configuration.electrical_disconnect_type} />
+            </dl>
+          </ProfileSection>
+        )}
 
         <ProfileSection title="Relationships">
           {relationships.isPending && (

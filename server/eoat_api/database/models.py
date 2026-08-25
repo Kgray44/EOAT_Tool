@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -451,6 +451,11 @@ class EOAT(VersionMixin, Base):
     )
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     business_identifier: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    # Added by the physical-identity migration.  Keeping the ORM model in
+    # sync with the migrated schema lets controlled backfills resolve only
+    # explicit physical identities, never a guessed machine/tool pairing.
+    physical_uuid: Mapped[str | None] = mapped_column(String(36), unique=True)
+    design_family_identifier: Mapped[str | None] = mapped_column(String(96), index=True)
     legacy_identifier: Mapped[str | None] = mapped_column(String(96))
     display_name: Mapped[str | None] = mapped_column(String(160))
     description: Mapped[str | None] = mapped_column(Text)
@@ -767,6 +772,44 @@ class EOATStorageAssignment(Base):
     active_eoat_marker: Mapped[int | None] = mapped_column(
         PK, Computed("CASE WHEN removed_from_storage_at IS NULL THEN eoat_id ELSE NULL END")
     )
+
+
+class EOATLocationObservation(Base):
+    """Append-only historical physical-location evidence.
+
+    This maps the existing 20260717_0007 schema.  It deliberately is not an
+    installation record: an audit observation says where an EOAT was seen,
+    not that it remains there today.
+    """
+
+    __tablename__ = "eoat_location_observations"
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    observation_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    eoat_id: Mapped[int] = mapped_column(PK, ForeignKey("eoats.id", ondelete="RESTRICT"), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    machine_id: Mapped[int | None] = mapped_column(PK, ForeignKey("machines.id", ondelete="RESTRICT"))
+    storage_location_id: Mapped[int | None] = mapped_column(PK, ForeignKey("storage_locations.id", ondelete="RESTRICT"))
+    observed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    observed_on: Mapped[date | None] = mapped_column(Date)
+    observation_precision: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_audit_record_id: Mapped[int | None] = mapped_column(PK, ForeignKey("audit_records.id", ondelete="SET NULL"))
+    source_import_row_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_rows.id", ondelete="SET NULL"))
+    source_import_batch_id: Mapped[int | None] = mapped_column(PK, ForeignKey("import_batches.id", ondelete="SET NULL"))
+    source_workbook: Mapped[str | None] = mapped_column(String(512))
+    source_worksheet: Mapped[str | None] = mapped_column(String(255))
+    source_row_number: Mapped[int | None] = mapped_column(Integer)
+    original_source_wording: Mapped[str] = mapped_column(MEDIUMTEXT, nullable=False)
+    confidence: Mapped[str] = mapped_column(String(64), nullable=False)
+    resolution_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    conflict_group_uuid: Mapped[str | None] = mapped_column(String(36))
+    is_authoritative: Mapped[bool] = mapped_column(Boolean, server_default=text("1"), nullable=False)
+    superseded_by_observation_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("eoat_location_observations.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    created_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    row_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
 
 
 class Document(VersionMixin, Base):

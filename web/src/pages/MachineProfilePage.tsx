@@ -339,6 +339,21 @@ function MachineContent({
             </Link>
           </p>
         </ProfileSection>
+        {profile.latest_physical_audit && (
+          <ProfileSection title="Last physical audit evidence">
+            <p className="notes">
+              Historical observation only; it does not replace the current
+              assignment above.
+            </p>
+            <dl className="attribute-grid">
+              <Attribute label="Audit" value={profile.latest_physical_audit.audit_identifier} />
+              <Attribute label="Observed" value={profile.latest_physical_audit.observed_on} />
+              <Attribute label="Observed EOAT machine" value={profile.latest_physical_audit.observed_machine} />
+              <Attribute label="Observed tool" value={profile.latest_physical_audit.observed_tool} />
+              <Attribute label="Verification" value={profile.latest_physical_audit.verified} />
+            </dl>
+          </ProfileSection>
+        )}
         <ProfileSection title="Relationships">
           {relationships.isPending ? (
             <LoadingState label="Loading relationships…" />

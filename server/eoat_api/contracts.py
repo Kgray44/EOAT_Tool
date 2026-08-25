@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -62,6 +62,44 @@ class CurrentEOATLocation(BaseModel):
     evidence: str = "Current read-model state"
 
 
+class PhysicalAuditConfiguration(BaseModel):
+    """Known configuration observed during one physical audit, never a current-location claim."""
+
+    description: str | None = None
+    eoat_type: str | None = None
+    connection_type: str | None = None
+    cleanroom_classification: str | None = None
+    parts_picked: int | None = None
+    vacuum_cup_count: int | None = None
+    gripper_count: int | None = None
+    cup_material: str | None = None
+    cup_size: str | None = None
+    vacuum_generator: str | None = None
+    vacuum_circuits: int | None = None
+    pressure_circuits: int | None = None
+    gripper_type: str | None = None
+    gripper_model: str | None = None
+    sensors_present: bool | None = None
+    part_present_sensor_present: bool | None = None
+    vacuum_confirmation_sensor_present: bool | None = None
+    quick_disconnect_present: bool | None = None
+    pneumatic_disconnect_type: str | None = None
+    electrical_disconnect_type: str | None = None
+    electrical_wiring_present: bool | None = None
+
+
+class PhysicalAuditObservation(BaseModel):
+    """A dated physical-audit observation with its source identity intact."""
+
+    audit_identifier: str
+    observed_on: date | None = None
+    observed_machine: str | None = None
+    observed_tool: str | None = None
+    verified: bool | None = None
+    evidence: str = "Physical audit"
+    configuration: PhysicalAuditConfiguration
+
+
 class EOATSummary(BaseModel):
     business_identifier: str
     legacy_identifier: str | None = None
@@ -101,6 +139,7 @@ class EOATProfile(EOATSummary):
     part_status: str = "NOT_YET_VERIFIED"
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     audit_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    latest_physical_audit: PhysicalAuditObservation | None = None
 
 
 class MachineSummary(BaseModel):
@@ -127,6 +166,7 @@ class MachineProfile(MachineSummary):
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     robots: list[RelationshipSummary] = Field(default_factory=list)
     audit_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    latest_physical_audit: PhysicalAuditObservation | None = None
 
 
 class ToolSummary(BaseModel):
@@ -149,6 +189,7 @@ class ToolProfile(ToolSummary):
     notes: str | None = None
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     audit_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    latest_physical_audit: PhysicalAuditObservation | None = None
 
 
 class HistoryEvent(BaseModel):
