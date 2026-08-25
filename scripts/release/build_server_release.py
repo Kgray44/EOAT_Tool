@@ -36,6 +36,7 @@ SERVER_PATHS = (
     "installer/installer_config.json",
     "deployment/migration_identity.py",
     "deployment/migration_identity_attestations.json",
+    "tools/migration",
 )
 RELEVANT_PREFIXES = (
     "server/",
@@ -50,6 +51,7 @@ RELEVANT_PREFIXES = (
     "installer/installer_config.json",
     "deployment/migration_identity.py",
     "deployment/migration_identity_attestations.json",
+    "tools/migration/",
 )
 
 
@@ -59,9 +61,7 @@ class ReleaseBuildError(RuntimeError):
 
 def _git(root: Path, *args: str, binary: bool = False) -> str | bytes:
     try:
-        completed = subprocess.run(
-            ["git", *args], cwd=root, capture_output=True, text=not binary, check=False
-        )
+        completed = subprocess.run(["git", *args], cwd=root, capture_output=True, text=not binary, check=False)
     except OSError as exc:
         raise ReleaseBuildError("Git executable is unavailable") from exc
     if completed.returncode:
@@ -73,7 +73,7 @@ def _git(root: Path, *args: str, binary: bool = False) -> str | bytes:
 def resolve_source_commit(root: Path, revision: str) -> str:
     if not (root / ".git").exists():
         raise ReleaseBuildError(f"Not a Git repository: {root}")
-    commit = str(_git(root, "rev-parse", "--verify", f"{revision}^{{commit}}" )).strip().lower()
+    commit = str(_git(root, "rev-parse", "--verify", f"{revision}^{{commit}}")).strip().lower()
     if not FULL_SHA.fullmatch(commit):
         raise ReleaseBuildError(f"Git did not resolve a full commit for {revision!r}")
     return commit
@@ -81,7 +81,11 @@ def resolve_source_commit(root: Path, revision: str) -> str:
 
 def changed_paths(root: Path) -> list[str]:
     paths: set[str] = set()
-    for args in (("diff", "--name-only"), ("diff", "--cached", "--name-only"), ("ls-files", "--others", "--exclude-standard")):
+    for args in (
+        ("diff", "--name-only"),
+        ("diff", "--cached", "--name-only"),
+        ("ls-files", "--others", "--exclude-standard"),
+    ):
         output = str(_git(root, *args))
         paths.update(line.replace("\\", "/") for line in output.splitlines() if line.strip())
     return sorted(paths)
@@ -172,7 +176,11 @@ def sha256_file(path: Path) -> str:
 
 def migration_hashes(root: Path, commit: str) -> dict[str, str]:
     names = str(_git(root, "ls-tree", "-r", "--name-only", commit, "--", "server/migrations/versions")).splitlines()
-    return {name: hashlib.sha256(_git(root, "show", f"{commit}:{name}", binary=True)).hexdigest() for name in names if name.endswith(".py")}
+    return {
+        name: hashlib.sha256(_git(root, "show", f"{commit}:{name}", binary=True)).hexdigest()
+        for name in names
+        if name.endswith(".py")
+    }
 
 
 def archive_migration_hashes(archive_path: Path) -> dict[str, str]:
@@ -198,9 +206,10 @@ def create_archive(root: Path, commit: str, destination: Path, metadata: dict[st
     with tempfile.TemporaryDirectory(prefix="eoat_server_release_") as temporary:
         source_tar = Path(temporary) / "source.tar"
         _git(root, "archive", "--format=tar", f"--output={source_tar}", commit, "--", *SERVER_PATHS)
-        with tarfile.open(source_tar, "r") as source, zipfile.ZipFile(
-            destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
-        ) as archive:
+        with (
+            tarfile.open(source_tar, "r") as source,
+            zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive,
+        ):
             members = sorted((member for member in source.getmembers() if member.isfile()), key=lambda item: item.name)
             for member in members:
                 path = PurePosixPath(member.name)
@@ -292,7 +301,11 @@ def build_server_release(args: argparse.Namespace) -> tuple[Path, Path, Path, di
         "environment": metadata["environment"],
         "release_channel": metadata["release_channel"],
         "migration_inventory": {
-            path: {"git_blob_sha256": digest, "staged_file_sha256": zip_migrations[path], "zip_embedded_sha256": zip_migrations[path]}
+            path: {
+                "git_blob_sha256": digest,
+                "staged_file_sha256": zip_migrations[path],
+                "zip_embedded_sha256": zip_migrations[path],
+            }
             for path, digest in git_migrations.items()
         },
     }
