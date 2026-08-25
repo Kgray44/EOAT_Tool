@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   INTERNAL_SEMANTIC_SENTINELS,
   normalizeAuthoritativeValue,
+  presentationText,
 } from "./presentation";
 import { canonicalQrPayload } from "./qr";
 import { decodeRouteIdentifier, entityPath } from "./routes";
@@ -36,6 +37,11 @@ describe("authoritative presentation boundary", () => {
     expect(normalizeAuthoritativeValue(" ")).toMatchObject({
       kind: "unavailable",
     });
+  });
+
+  it("presents numeric and boolean profile values without treating them as identifiers", () => {
+    expect(presentationText(0)).toBe("0");
+    expect(presentationText(false)).toBe("No");
   });
 
   it("rejects known sentinels for routes and QR labels", () => {

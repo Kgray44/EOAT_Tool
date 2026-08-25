@@ -153,6 +153,17 @@ function mockApi(overrides: Record<string, Response> = {}) {
   });
 }
 
+function attributeValues(label: string) {
+  return screen
+    .getAllByText(label, { selector: "dt" })
+    .map((element) => element.parentElement?.querySelector("dd")?.textContent);
+}
+
+async function showOverview() {
+  await screen.findByRole("heading", { name: "EOAT A+1" });
+  await userEvent.setup().click(screen.getByRole("link", { name: "Overview" }));
+}
+
 describe("EOAT profile route", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -170,7 +181,12 @@ describe("EOAT profile route", () => {
     await user.click(screen.getByRole("link", { name: "Overview" }));
     expect(await screen.findByText("AUD-20260521-012")).toBeInTheDocument();
     expect(await screen.findByText("Venturi")).toBeInTheDocument();
-    expect(screen.getByText("This is a dated observation, not a present-day assignment.")).toBeInTheDocument();
+    expect(attributeValues("Last physically observed")).toEqual(["9"]);
+    expect(
+      screen.getByText(
+        "This is a dated observation, not a present-day assignment.",
+      ),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("link", { name: "Relationships" }));
     expect(await screen.findByRole("link", { name: /M-42/ })).toHaveAttribute(
       "href",
@@ -221,6 +237,111 @@ describe("EOAT profile route", () => {
       .setup()
       .click(screen.getByRole("link", { name: "Relationships" }));
     expect(await screen.findByText("API unavailable")).toBeInTheDocument();
+  });
+
+  it("prefers current profile values, including zero and false, over audit observations", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockApi({
+        "/api/v1/eoats/EOAT%20A%2B1": json({
+          ...profile,
+          number_of_parts_picked: 9,
+          number_of_vacuum_cups: 8,
+          number_of_grippers: 0,
+          sensors_present: false,
+          latest_physical_audit: {
+            ...profile.latest_physical_audit,
+            configuration: {
+              ...profile.latest_physical_audit.configuration,
+              sensors_present: true,
+            },
+          },
+        }),
+      }),
+    );
+    renderProfile();
+    await showOverview();
+
+    expect(attributeValues("Parts picked")).toEqual(["9", "4"]);
+    expect(attributeValues("Vacuum cups")).toEqual(["8", "4"]);
+    expect(attributeValues("Grippers")).toEqual(["0", "1"]);
+    expect(attributeValues("Sensors present")).toEqual(["No", "Yes"]);
+  });
+
+  it("uses verified physical-audit configuration only as labeled historical fallback", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockApi({
+        "/api/v1/eoats/EOAT%20A%2B1": json({
+          ...profile,
+          number_of_parts_picked: null,
+          number_of_vacuum_cups: null,
+          number_of_grippers: null,
+          sensors_present: null,
+        }),
+      }),
+    );
+    renderProfile();
+    await showOverview();
+
+    for (const [label, value] of [
+      ["Parts picked", "4"],
+      ["Vacuum cups", "4"],
+      ["Grippers", "1"],
+      ["Vacuum circuits", "2"],
+      ["Pressure circuits", "0"],
+    ]) {
+      const values = attributeValues(label);
+      expect(values[0]).toContain(value);
+      expect(values[0]).toContain(
+        "Observed in verified physical audit AUD-20260521-012",
+      );
+    }
+    expect(attributeValues("Sensors present")[0]).toContain("No");
+  });
+
+  it("keeps configuration unknown when neither current nor verified audit data exists", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockApi({
+        "/api/v1/eoats/EOAT%20A%2B1": json({
+          ...profile,
+          number_of_parts_picked: null,
+          number_of_vacuum_cups: null,
+          number_of_grippers: null,
+          latest_physical_audit: null,
+        }),
+      }),
+    );
+    renderProfile();
+    await showOverview();
+
+    expect(attributeValues("Parts picked")).toEqual(["Unknown / unavailable"]);
+    expect(attributeValues("Vacuum cups")).toEqual(["Unknown / unavailable"]);
+    expect(attributeValues("Grippers")).toEqual(["Unknown / unavailable"]);
+    expect(attributeValues("Vacuum circuits")).toEqual([
+      "Unknown / unavailable",
+    ]);
+  });
+
+  it("does not elevate an unverified audit observation into profile state", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockApi({
+        "/api/v1/eoats/EOAT%20A%2B1": json({
+          ...profile,
+          number_of_parts_picked: null,
+          latest_physical_audit: {
+            ...profile.latest_physical_audit,
+            verified: false,
+          },
+        }),
+      }),
+    );
+    renderProfile();
+    await showOverview();
+
+    expect(attributeValues("Parts picked")[0]).toBe("Unknown / unavailable");
   });
 
   it("renders a truthful not-found state and retries only with GET", async () => {

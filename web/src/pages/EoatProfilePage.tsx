@@ -63,6 +63,38 @@ function formatDate(value: string | null | undefined): string {
   }).format(date);
 }
 
+type DisplayValue = string | number | boolean | null | undefined;
+
+function hasDisplayValue(
+  value: DisplayValue,
+): value is string | number | boolean {
+  return value !== null && value !== undefined && value !== "";
+}
+
+function configurationValue(
+  currentValue: DisplayValue,
+  observedValue: DisplayValue,
+  physicalAudit:
+    | {
+        verified?: boolean | null;
+        audit_identifier?: string | null;
+        observed_on?: string | null;
+      }
+    | null
+    | undefined,
+) {
+  if (hasDisplayValue(currentValue)) {
+    return { value: currentValue };
+  }
+  if (physicalAudit?.verified && hasDisplayValue(observedValue)) {
+    return {
+      value: observedValue,
+      provenance: `Observed in verified physical audit ${physicalAudit.audit_identifier ?? "with unavailable identifier"} on ${formatDate(physicalAudit.observed_on)}`,
+    };
+  }
+  return { value: currentValue };
+}
+
 function truthLabel(location: EoatLocation | undefined): string {
   if (!location) return "Unknown / unavailable";
   if (
@@ -126,9 +158,11 @@ function ProfileSection({
 function Attribute({
   label,
   value,
+  provenance,
 }: {
   label: string;
   value: string | number | boolean | null | undefined;
+  provenance?: string;
 }) {
   const display = typeof value === "boolean" ? (value ? "Yes" : "No") : value;
   return (
@@ -136,6 +170,9 @@ function Attribute({
       <dt>{label}</dt>
       <dd>
         <StatusValue value={display} />
+        {provenance && (
+          <small className="attribute-provenance">{provenance}</small>
+        )}
       </dd>
     </div>
   );
@@ -255,6 +292,37 @@ function ProfileContent({
   const currentLocation =
     location.data ?? profile.current_location_detail ?? undefined;
   const physicalAudit = profile.latest_physical_audit;
+  const observedConfiguration = physicalAudit?.configuration;
+  const partsPicked = configurationValue(
+    profile.number_of_parts_picked,
+    observedConfiguration?.parts_picked,
+    physicalAudit,
+  );
+  const vacuumCups = configurationValue(
+    profile.number_of_vacuum_cups,
+    observedConfiguration?.vacuum_cup_count,
+    physicalAudit,
+  );
+  const grippers = configurationValue(
+    profile.number_of_grippers,
+    observedConfiguration?.gripper_count,
+    physicalAudit,
+  );
+  const vacuumCircuits = configurationValue(
+    null,
+    observedConfiguration?.vacuum_circuits,
+    physicalAudit,
+  );
+  const pressureCircuits = configurationValue(
+    null,
+    observedConfiguration?.pressure_circuits,
+    physicalAudit,
+  );
+  const sensorsPresent = configurationValue(
+    profile.sensors_present,
+    observedConfiguration?.sensors_present,
+    physicalAudit,
+  );
   const resolvedRelationships = (
     relationships.data ??
     profile.relationships ??
@@ -489,7 +557,8 @@ function ProfileContent({
             />
             <Attribute
               label="Parts picked"
-              value={profile.number_of_parts_picked}
+              value={partsPicked.value}
+              provenance={partsPicked.provenance}
             />
             <Attribute label="Active record" value={profile.is_active} />
           </dl>
@@ -552,13 +621,19 @@ function ProfileContent({
                   label="Observed"
                   value={formatDate(physicalAudit.observed_on)}
                 />
-                <Attribute label="Audit" value={physicalAudit.audit_identifier} />
+                <Attribute
+                  label="Audit"
+                  value={physicalAudit.audit_identifier}
+                />
                 <Attribute
                   label="Verification"
                   value={physicalAudit.verified}
                 />
                 <Attribute label="Evidence" value={physicalAudit.evidence} />
-                <Attribute label="Observed tool" value={physicalAudit.observed_tool} />
+                <Attribute
+                  label="Observed tool"
+                  value={physicalAudit.observed_tool}
+                />
               </dl>
             </>
           )}
@@ -569,12 +644,28 @@ function ProfileContent({
             <Attribute label="Vacuum present" value={profile.vacuum_present} />
             <Attribute
               label="Vacuum cups"
-              value={profile.number_of_vacuum_cups}
+              value={vacuumCups.value}
+              provenance={vacuumCups.provenance}
             />
-            <Attribute label="Grippers" value={profile.number_of_grippers} />
+            <Attribute
+              label="Grippers"
+              value={grippers.value}
+              provenance={grippers.provenance}
+            />
+            <Attribute
+              label="Vacuum circuits"
+              value={vacuumCircuits.value}
+              provenance={vacuumCircuits.provenance}
+            />
+            <Attribute
+              label="Pressure circuits"
+              value={pressureCircuits.value}
+              provenance={pressureCircuits.provenance}
+            />
             <Attribute
               label="Sensors present"
-              value={profile.sensors_present}
+              value={sensorsPresent.value}
+              provenance={sensorsPresent.provenance}
             />
             <Attribute
               label="Part-present sensor"
@@ -600,26 +691,88 @@ function ProfileContent({
         {physicalAudit && (
           <ProfileSection title="Configuration observed during the last physical audit">
             <dl className="attribute-grid">
-              <Attribute label="Description" value={physicalAudit.configuration.description} />
-              <Attribute label="EOAT type" value={physicalAudit.configuration.eoat_type} />
-              <Attribute label="Connection type" value={physicalAudit.configuration.connection_type} />
-              <Attribute label="Cleanroom" value={physicalAudit.configuration.cleanroom_classification} />
-              <Attribute label="Parts picked" value={physicalAudit.configuration.parts_picked} />
-              <Attribute label="Vacuum cups" value={physicalAudit.configuration.vacuum_cup_count} />
-              <Attribute label="Grippers" value={physicalAudit.configuration.gripper_count} />
-              <Attribute label="Gripper type" value={physicalAudit.configuration.gripper_type} />
-              <Attribute label="Gripper model" value={physicalAudit.configuration.gripper_model} />
-              <Attribute label="Cup material" value={physicalAudit.configuration.cup_material} />
-              <Attribute label="Cup size" value={physicalAudit.configuration.cup_size} />
-              <Attribute label="Vacuum generator" value={physicalAudit.configuration.vacuum_generator} />
-              <Attribute label="Vacuum circuits" value={physicalAudit.configuration.vacuum_circuits} />
-              <Attribute label="Pressure circuits" value={physicalAudit.configuration.pressure_circuits} />
-              <Attribute label="Sensors present" value={physicalAudit.configuration.sensors_present} />
-              <Attribute label="Part-present sensor" value={physicalAudit.configuration.part_present_sensor_present} />
-              <Attribute label="Vacuum-confirmation sensor" value={physicalAudit.configuration.vacuum_confirmation_sensor_present} />
-              <Attribute label="Quick disconnect" value={physicalAudit.configuration.quick_disconnect_present} />
-              <Attribute label="Pneumatic disconnect" value={physicalAudit.configuration.pneumatic_disconnect_type} />
-              <Attribute label="Electrical disconnect" value={physicalAudit.configuration.electrical_disconnect_type} />
+              <Attribute
+                label="Description"
+                value={physicalAudit.configuration.description}
+              />
+              <Attribute
+                label="EOAT type"
+                value={physicalAudit.configuration.eoat_type}
+              />
+              <Attribute
+                label="Connection type"
+                value={physicalAudit.configuration.connection_type}
+              />
+              <Attribute
+                label="Cleanroom"
+                value={physicalAudit.configuration.cleanroom_classification}
+              />
+              <Attribute
+                label="Parts picked"
+                value={physicalAudit.configuration.parts_picked}
+              />
+              <Attribute
+                label="Vacuum cups"
+                value={physicalAudit.configuration.vacuum_cup_count}
+              />
+              <Attribute
+                label="Grippers"
+                value={physicalAudit.configuration.gripper_count}
+              />
+              <Attribute
+                label="Gripper type"
+                value={physicalAudit.configuration.gripper_type}
+              />
+              <Attribute
+                label="Gripper model"
+                value={physicalAudit.configuration.gripper_model}
+              />
+              <Attribute
+                label="Cup material"
+                value={physicalAudit.configuration.cup_material}
+              />
+              <Attribute
+                label="Cup size"
+                value={physicalAudit.configuration.cup_size}
+              />
+              <Attribute
+                label="Vacuum generator"
+                value={physicalAudit.configuration.vacuum_generator}
+              />
+              <Attribute
+                label="Vacuum circuits"
+                value={physicalAudit.configuration.vacuum_circuits}
+              />
+              <Attribute
+                label="Pressure circuits"
+                value={physicalAudit.configuration.pressure_circuits}
+              />
+              <Attribute
+                label="Sensors present"
+                value={physicalAudit.configuration.sensors_present}
+              />
+              <Attribute
+                label="Part-present sensor"
+                value={physicalAudit.configuration.part_present_sensor_present}
+              />
+              <Attribute
+                label="Vacuum-confirmation sensor"
+                value={
+                  physicalAudit.configuration.vacuum_confirmation_sensor_present
+                }
+              />
+              <Attribute
+                label="Quick disconnect"
+                value={physicalAudit.configuration.quick_disconnect_present}
+              />
+              <Attribute
+                label="Pneumatic disconnect"
+                value={physicalAudit.configuration.pneumatic_disconnect_type}
+              />
+              <Attribute
+                label="Electrical disconnect"
+                value={physicalAudit.configuration.electrical_disconnect_type}
+              />
             </dl>
           </ProfileSection>
         )}

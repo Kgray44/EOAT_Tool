@@ -41,10 +41,35 @@ const location = {
   observation_uuid: null,
   conflict_group_uuid: null,
 };
+const auditedProfile = {
+  ...profile,
+  number_of_parts_picked: null,
+  number_of_vacuum_cups: null,
+  number_of_grippers: null,
+  sensors_present: null,
+  latest_physical_audit: {
+    audit_identifier: "AUD-20260521-012",
+    observed_on: "2026-05-21T00:00:00Z",
+    observed_machine: "9",
+    observed_tool: "7130080010",
+    verified: true,
+    evidence: "Physical audit AUD-20260521-012",
+    configuration: {
+      parts_picked: 4,
+      vacuum_cup_count: 4,
+      gripper_count: 1,
+      vacuum_circuits: 2,
+      pressure_circuits: 0,
+      sensors_present: false,
+      quick_disconnect_present: true,
+    },
+  },
+};
 
 async function routeApi(
   page: import("@playwright/test").Page,
   seen: import("@playwright/test").Request[],
+  profilePayload = profile,
 ) {
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -82,7 +107,7 @@ async function routeApi(
           pagination: { page: 1, page_size: 12, total: 0, pages: 0 },
         },
       });
-    return route.fulfill({ json: profile });
+    return route.fulfill({ json: profilePayload });
   });
 }
 
@@ -108,6 +133,33 @@ test("QR-style direct EOAT route loads, refreshes, and remains read-only", async
   expect(
     seen.every((request) => !request.headers()["x-eoat-device-token"]),
   ).toBeTruthy();
+});
+
+test("verified physical-audit configuration is visible without being presented as current", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen, auditedProfile);
+  await page.goto("/eoats/QR-EOAT-1");
+  await page.getByRole("link", { name: "Overview" }).click();
+
+  const valueFor = (label: string) =>
+    page.getByText(label, { exact: true }).first().locator("..").locator("dd");
+  await expect(valueFor("Parts picked")).toContainText("4");
+  await expect(valueFor("Vacuum cups")).toContainText("4");
+  await expect(valueFor("Grippers")).toContainText("1");
+  await expect(valueFor("Vacuum circuits")).toContainText("2");
+  await expect(valueFor("Pressure circuits")).toContainText("0");
+  await expect(valueFor("Sensors present")).toContainText("No");
+  await expect(valueFor("Parts picked")).toContainText(
+    "Observed in verified physical audit AUD-20260521-012",
+  );
+  await expect(
+    page.getByText(
+      "This is a dated observation, not a present-day assignment.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("9", { exact: true })).toBeVisible();
 });
 
 test("landing, back navigation, not-found, and mobile overflow are truthful", async ({

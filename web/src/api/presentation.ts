@@ -68,5 +68,7 @@ export function presentationText(
   value: unknown,
   unavailableLabel?: string,
 ): string {
+  if (typeof value === "number") return String(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
   return normalizeAuthoritativeValue(value, unavailableLabel).display;
 }
