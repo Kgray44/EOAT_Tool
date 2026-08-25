@@ -64,7 +64,10 @@ class _SourceAudit:
         physical_uuid = _text(self.values.get("Physical EOAT UUID"))
         if physical_uuid:
             return ("physical_uuid", physical_uuid)
-        return ("business_identifier", _text(self.values.get("Canonical Physical EOAT ID")) or _text(self.values.get("EOAT Assembly ID")))
+        return (
+            "business_identifier",
+            _text(self.values.get("Canonical Physical EOAT ID")) or _text(self.values.get("EOAT Assembly ID")),
+        )
 
 
 def _audit_date(value: Any) -> datetime | None:
@@ -87,9 +90,13 @@ def _load_source_audits(source_workbook: str | Path) -> list[_SourceAudit]:
     return [_SourceAudit(number, row) for number, row in rows if is_physical_audit(row)]
 
 
-def _resolve_eoat(source: _SourceAudit, by_business: dict[str, db.EOAT], by_physical_uuid: dict[str, db.EOAT]) -> tuple[db.EOAT | None, bool]:
+def _resolve_eoat(
+    source: _SourceAudit, by_business: dict[str, db.EOAT], by_physical_uuid: dict[str, db.EOAT]
+) -> tuple[db.EOAT | None, bool]:
     physical_uuid = _text(source.values.get("Physical EOAT UUID"))
-    business_identifier = _text(source.values.get("Canonical Physical EOAT ID")) or _text(source.values.get("EOAT Assembly ID"))
+    business_identifier = _text(source.values.get("Canonical Physical EOAT ID")) or _text(
+        source.values.get("EOAT Assembly ID")
+    )
     physical_match = by_physical_uuid.get(physical_uuid) if physical_uuid else None
     business_match = by_business.get(business_identifier) if business_identifier else None
     if physical_match is not None and business_match is not None and physical_match.id != business_match.id:
@@ -115,7 +122,9 @@ def _nullable_profile_updates(eoat: db.EOAT, source: _SourceAudit) -> dict[str, 
     return {name: value for name, value in field_map.items() if value is not None and getattr(eoat, name) is None}
 
 
-def plan_backfill(source_workbook: str | Path, session) -> tuple[BackfillReport, list[tuple[_SourceAudit, db.EOAT]], dict[int, dict[str, Any]]]:
+def plan_backfill(
+    source_workbook: str | Path, session
+) -> tuple[BackfillReport, list[tuple[_SourceAudit, db.EOAT]], dict[int, dict[str, Any]]]:
     source = Path(source_workbook).resolve()
     report = BackfillReport(str(source), _checksum(source), dry_run=True)
     audits = _load_source_audits(source)
@@ -136,7 +145,9 @@ def plan_backfill(source_workbook: str | Path, session) -> tuple[BackfillReport,
         target, ambiguous = _resolve_eoat(source_audit, by_business, by_physical_uuid)
         if ambiguous:
             report.ambiguous_matches += 1
-            report.conflicts.append(f"{source_audit.audit_identifier}: physical UUID and canonical ID resolve to different EOATs")
+            report.conflicts.append(
+                f"{source_audit.audit_identifier}: physical UUID and canonical ID resolve to different EOATs"
+            )
             continue
         if target is None:
             report.skipped_records += 1
@@ -147,8 +158,13 @@ def plan_backfill(source_workbook: str | Path, session) -> tuple[BackfillReport,
         grouped[target.id].append(source_audit)
         if source_audit.audit_identifier not in existing_audit_ids:
             report.audit_records_to_insert += 1
-        observation_uuid = str(uuid5(NAMESPACE_URL, f"{report.source_checksum}|physical-observation|{source_audit.audit_identifier}"))
-        if _text(source_audit.values.get("Press/Machine #")).isdigit() and observation_uuid not in existing_observation_ids:
+        observation_uuid = str(
+            uuid5(NAMESPACE_URL, f"{report.source_checksum}|physical-observation|{source_audit.audit_identifier}")
+        )
+        if (
+            _text(source_audit.values.get("Press/Machine #")).isdigit()
+            and observation_uuid not in existing_observation_ids
+        ):
             report.observations_to_insert += 1
     updates: dict[int, dict[str, Any]] = {}
     for eoat_id, source_rows in grouped.items():
@@ -183,8 +199,12 @@ def execute_backfill(
     dry_run: bool = True,
     session_factory: Callable[[], Any] | None = None,
 ) -> BackfillReport:
-    if not dry_run and os.getenv("EOAT_ATLAS_ENVIRONMENT", "development") not in {"development", "staging_local"}:
-        raise RuntimeError("Historical audit backfill is restricted to development or staging_local.")
+    environment = os.getenv("EOAT_ATLAS_ENVIRONMENT") or os.getenv("EOAT_API_ENVIRONMENT")
+    database_name = os.getenv("EOAT_DB_NAME")
+    if not dry_run and environment not in {"development", "staging", "staging_local"}:
+        raise RuntimeError("Historical audit backfill requires an explicit non-production environment.")
+    if not dry_run and database_name not in {"eoat_atlas_dev", "eoat_atlas_test"}:
+        raise RuntimeError("Historical audit backfill requires the approved development or staging database target.")
     factory = session_factory or create_session_factory(migration=True)
     with factory() as session:
         report, matches, updates = plan_backfill(source_workbook, session)
@@ -209,9 +229,7 @@ def execute_backfill(
             )
             session.add(batch)
             session.flush()
-            audits_by_identifier = {
-                item.audit_identifier: item for item in session.scalars(select(db.AuditRecord))
-            }
+            audits_by_identifier = {item.audit_identifier: item for item in session.scalars(select(db.AuditRecord))}
             observations = set(session.scalars(select(db.EOATLocationObservation.observation_uuid)))
             machines = {item.machine_number: item for item in session.scalars(select(db.Machine))}
             for source_audit, eoat in matches:
@@ -220,7 +238,9 @@ def execute_backfill(
                     audit = db.AuditRecord(
                         audit_identifier=source_audit.audit_identifier,
                         eoat_id=eoat.id,
-                        machine_id=machines.get(_text(source_audit.values.get("Press/Machine #"))).id if _text(source_audit.values.get("Press/Machine #")) in machines else None,
+                        machine_id=machines.get(_text(source_audit.values.get("Press/Machine #"))).id
+                        if _text(source_audit.values.get("Press/Machine #")) in machines
+                        else None,
                         audit_date=_audit_date(source_audit.values.get("Audit Date")),
                         source_sheet="EOAT Inventory",
                         source_row_number=source_audit.row_number,
@@ -232,7 +252,11 @@ def execute_backfill(
                     session.add(audit)
                     session.flush()
                     audits_by_identifier[audit.audit_identifier] = audit
-                observation_uuid = str(uuid5(NAMESPACE_URL, f"{report.source_checksum}|physical-observation|{source_audit.audit_identifier}"))
+                observation_uuid = str(
+                    uuid5(
+                        NAMESPACE_URL, f"{report.source_checksum}|physical-observation|{source_audit.audit_identifier}"
+                    )
+                )
                 machine = machines.get(_text(source_audit.values.get("Press/Machine #")))
                 observed_at = _audit_date(source_audit.values.get("Audit Date"))
                 if machine is not None and observed_at is not None and observation_uuid not in observations:
@@ -251,7 +275,9 @@ def execute_backfill(
                             source_worksheet="EOAT Inventory",
                             source_row_number=source_audit.row_number,
                             original_source_wording=f"Physical audit {source_audit.audit_identifier} observed on Machine {machine.machine_number}",
-                            confidence="PHYSICAL_AUDIT_VERIFIED" if source_audit.values.get("Physical Audit Verified") == "Yes" else "PHYSICAL_AUDIT_OBSERVED",
+                            confidence="PHYSICAL_AUDIT_VERIFIED"
+                            if source_audit.values.get("Physical Audit Verified") == "Yes"
+                            else "PHYSICAL_AUDIT_OBSERVED",
                             resolution_status="CURRENT",
                             is_authoritative=True,
                         )
@@ -266,7 +292,9 @@ def execute_backfill(
                         setattr(target, field_name, value)
             batch.status = "COMPLETED"
             batch.completed_at = datetime.now(timezone.utc)
-            batch.records_imported = report.audit_records_to_insert + report.observations_to_insert + report.fields_to_update
+            batch.records_imported = (
+                report.audit_records_to_insert + report.observations_to_insert + report.fields_to_update
+            )
         report.executed = True
         return report
 
@@ -274,7 +302,9 @@ def execute_backfill(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Backfill physical-audit provenance into EOAT Atlas MySQL.")
     parser.add_argument("--source-workbook", required=True)
-    parser.add_argument("--execute", action="store_true", help="Write only to development/staging_local; otherwise dry-run.")
+    parser.add_argument(
+        "--execute", action="store_true", help="Write only to development/staging_local; otherwise dry-run."
+    )
     args = parser.parse_args()
     report = execute_backfill(args.source_workbook, dry_run=not args.execute)
     print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))

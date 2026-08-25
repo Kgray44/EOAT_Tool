@@ -1,6 +1,9 @@
 from datetime import datetime
 
+import pytest
+
 from server.eoat_api.audit_profiles import configuration_from_details, latest_physical_audit
+from tools.migration.audit_profile_backfill import execute_backfill
 from tools.migration.import_pipeline import _latest_physical_profile_row
 
 
@@ -79,14 +82,31 @@ def test_physical_audit_projection_preserves_zero_false_and_provenance():
 
 
 def test_projection_uses_latest_physical_audit_and_ignores_derived_rows():
-    derived = _p4_details(**{"Audit ID": "AUD-DERIVED", "Entry Type": "Compatible", "Source Audit ID": "AUD-20260521-012"})
+    derived = _p4_details(
+        **{"Audit ID": "AUD-DERIVED", "Entry Type": "Compatible", "Source Audit ID": "AUD-20260521-012"}
+    )
     older = _p4_details(**{"Audit ID": "AUD-OLD", "# of Cups": "2"})
     newer = _p4_details(**{"Audit ID": "AUD-NEW", "# of Cups": "5"})
     projection = latest_physical_audit(
         [
-            {"audit_identifier": "AUD-DERIVED", "audit_date": datetime(2027, 1, 1), "source_row_number": 99, "details_json": derived},
-            {"audit_identifier": "AUD-OLD", "audit_date": datetime(2026, 5, 1), "source_row_number": 2, "details_json": older},
-            {"audit_identifier": "AUD-NEW", "audit_date": datetime(2026, 6, 1), "source_row_number": 3, "details_json": newer},
+            {
+                "audit_identifier": "AUD-DERIVED",
+                "audit_date": datetime(2027, 1, 1),
+                "source_row_number": 99,
+                "details_json": derived,
+            },
+            {
+                "audit_identifier": "AUD-OLD",
+                "audit_date": datetime(2026, 5, 1),
+                "source_row_number": 2,
+                "details_json": older,
+            },
+            {
+                "audit_identifier": "AUD-NEW",
+                "audit_date": datetime(2026, 6, 1),
+                "source_row_number": 3,
+                "details_json": newer,
+            },
         ]
     )
 
@@ -118,3 +138,16 @@ def test_unknown_source_values_remain_null_not_false_or_zero():
     assert values["vacuum_cup_count"] is None
     assert values["pressure_circuits"] is None
     assert values["sensors_present"] is None
+
+
+def test_backfill_execute_fails_closed_for_production_or_unknown_targets(monkeypatch):
+    monkeypatch.setenv("EOAT_API_ENVIRONMENT", "production")
+    monkeypatch.setenv("EOAT_DB_NAME", "eoat_atlas_prod")
+
+    with pytest.raises(RuntimeError, match="explicit non-production"):
+        execute_backfill("unused.xlsx", dry_run=False)
+
+    monkeypatch.setenv("EOAT_API_ENVIRONMENT", "staging")
+
+    with pytest.raises(RuntimeError, match="approved development or staging database"):
+        execute_backfill("unused.xlsx", dry_run=False)
