@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,14 +34,90 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -r requirements-dev.txt
 
-      - name: Ruff lint
-        run: python -m ruff check .
+      - name: Ruff delta gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = '${{ github.event.before }}'
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $base = '${{ github.event.pull_request.base.sha }}'
+          }
+          if ($base -match '^0+$') {
+            throw 'Ruff delta gate requires a concrete base commit.'
+          }
+          $baseRoot = Join-Path $env:RUNNER_TEMP 'eoat-ruff-base'
+          $baseline = Join-Path $env:RUNNER_TEMP 'ruff-production-baseline.json'
+          git worktree add --detach $baseRoot $base
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to prepare Ruff base worktree at $baseRoot."
+          }
+          $deltaExit = 0
+          try {
+            python scripts/ruff_delta_gate.py --root $baseRoot --baseline $baseline --write-baseline
+            if ($LASTEXITCODE -ne 0) { $deltaExit = $LASTEXITCODE }
+            if ($deltaExit -eq 0) {
+              python scripts/ruff_delta_gate.py --root . --baseline $baseline --ruff-config (Join-Path $baseRoot 'pyproject.toml') --report ruff-current.json
+              if ($LASTEXITCODE -ne 0) { $deltaExit = $LASTEXITCODE }
+            }
+          } finally {
+            git worktree remove --force $baseRoot
+            if ($LASTEXITCODE -ne 0) {
+              throw "Unable to remove Ruff base worktree at $baseRoot."
+            }
+          }
+          if ($deltaExit -ne 0) { exit $deltaExit }
+
+      - name: Upload Ruff inventory
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-inventory
+          path: ruff-current.json
+          if-no-files-found: error
 
       - name: Verify registries, demo mode, and dashboard launch
-        run: python scripts/ci_smoke_check.py --root . --dashboard-smoke
+        run: python scripts/ci_smoke_check.py --root . --registry-only --dashboard-smoke
 
       - name: Run pytest
         run: python -m pytest
 
-      - name: Repository safety audit
-        run: python scripts/repo_safety_audit.py --root .
+      - name: Repository safety delta gate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = '${{ github.event.before }}'
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $base = '${{ github.event.pull_request.base.sha }}'
+          }
+          if ($base -match '^0+$') {
+            throw 'Safety delta gate requires a concrete base commit.'
+          }
+          $baseRoot = Join-Path $env:RUNNER_TEMP 'eoat-safety-base'
+          $baseline = Join-Path $env:RUNNER_TEMP 'safety-production-baseline.json'
+          git worktree add --detach $baseRoot $base
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to prepare safety base worktree at $baseRoot."
+          }
+          $deltaExit = 0
+          try {
+            python scripts/safety_delta_gate.py --root $baseRoot --safety-script (Join-Path $baseRoot 'scripts\\repo_safety_audit.py') --baseline $baseline --write-baseline
+            if ($LASTEXITCODE -ne 0) { $deltaExit = $LASTEXITCODE }
+            if ($deltaExit -eq 0) {
+              python scripts/safety_delta_gate.py --root . --safety-script (Join-Path $baseRoot 'scripts\\repo_safety_audit.py') --baseline $baseline --report safety-current.json
+              if ($LASTEXITCODE -ne 0) { $deltaExit = $LASTEXITCODE }
+            }
+          } finally {
+            git worktree remove --force $baseRoot
+            if ($LASTEXITCODE -ne 0) {
+              throw "Unable to remove safety base worktree at $baseRoot."
+            }
+          }
+          if ($deltaExit -ne 0) { exit $deltaExit }
+
+      - name: Upload safety inventory
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-inventory
+          path: safety-current.json
+          if-no-files-found: error
