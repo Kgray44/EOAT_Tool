@@ -66,7 +66,7 @@ from .service import AuditEventWriter
 from .taxonomy import AuditAction, AuditSource
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin-governed-editing"])
-ASSET_PERMISSIONS = {"eoats": "admin.eoat.edit", "machines": "admin.machine.edit", "tools": "admin.tool.edit"}
+ASSET_PERMISSIONS = {"eoats": "eoat.edit", "machines": "machine.edit", "tools": "tool.edit"}
 ASSET_TYPES = {"eoats": "eoat", "machines": "machine", "tools": "tool"}
 ASSET_PATCHES = {"eoats": EOATPatch, "machines": MachinePatch, "tools": ToolPatch}
 RELATIONSHIP_TYPES = {"eoat-machine", "eoat-tool", "tool-machine"}
@@ -525,7 +525,7 @@ def create_group_policy_route(
         idempotency_key,
         payload.model_dump(),
         lambda: create_group_policy_governed(
-            session, actor, payload.corporate_group, payload.role_code, payload.reason
+            session, actor, payload.corporate_group, payload.role_code, payload.reason, payload.permissions
         ),
     )
 
@@ -552,6 +552,7 @@ def update_group_policy_route(
             payload.is_active,
             payload.expected_row_version,
             payload.reason,
+            payload.permissions,
         ),
     )
 

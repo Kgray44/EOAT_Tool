@@ -104,7 +104,7 @@ export function EntityEditor({
       optionsByCatalog.set(field.catalog!, catalogs[index]?.data ?? []);
     });
 
-  const mayEdit = sessionHasPermission(session, "asset.write");
+  const mayEdit = sessionHasPermission(session, `${kind}.edit`);
   const dirty = fields.some(
     (field) => values[field.key] !== initial[field.key],
   );

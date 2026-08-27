@@ -13,10 +13,13 @@ import {
 } from "@/api/client";
 
 const editPermissions = [
-  "asset.write",
-  "compatibility.write",
-  "document.write",
-  "installation.write",
+  "eoat.edit",
+  "machine.edit",
+  "tool.edit",
+  "relationship.edit",
+  "document.edit",
+  "photo.edit",
+  "assignment.edit",
 ];
 
 export function ProfileActionMenu({

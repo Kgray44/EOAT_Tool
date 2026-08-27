@@ -965,3 +965,64 @@ button:disabled {
 .health-check.controlled {
   border-left: 0.35rem solid #22709c;
 }
+
+/* The admin shell predates the shared browser theme.  Keep its information
+   hierarchy, but map surfaces and text to the same semantic tokens. */
+:root[data-atlas-theme="dark"] .admin-layout,
+:root[data-atlas-theme="dark"] .admin-main {
+  color: var(--text-primary);
+  background: var(--surface-page);
+}
+:root[data-atlas-theme="dark"] .page-heading {
+  border-color: var(--border-subtle);
+}
+:root[data-atlas-theme="dark"] .page-heading h1,
+:root[data-atlas-theme="dark"] .admin-main h2,
+:root[data-atlas-theme="dark"] .admin-main h3,
+:root[data-atlas-theme="dark"] .metric-card strong {
+  color: var(--text-heading);
+}
+:root[data-atlas-theme="dark"] .page-heading p,
+:root[data-atlas-theme="dark"] .admin-main label,
+:root[data-atlas-theme="dark"] .admin-main th,
+:root[data-atlas-theme="dark"] .admin-main small,
+:root[data-atlas-theme="dark"] .admin-main .table-subtitle {
+  color: var(--text-secondary);
+}
+:root[data-atlas-theme="dark"] .status-card,
+:root[data-atlas-theme="dark"] .metric-card,
+:root[data-atlas-theme="dark"] .filters,
+:root[data-atlas-theme="dark"] .detail-summary,
+:root[data-atlas-theme="dark"] .detail-grid article,
+:root[data-atlas-theme="dark"] .state-panel,
+:root[data-atlas-theme="dark"] .shortcuts,
+:root[data-atlas-theme="dark"] .recent-list,
+:root[data-atlas-theme="dark"] .editor-card,
+:root[data-atlas-theme="dark"] .focused-editor,
+:root[data-atlas-theme="dark"] .photo-card,
+:root[data-atlas-theme="dark"] .admin-settings-panel,
+:root[data-atlas-theme="dark"] .record-list button {
+  color: var(--text-primary);
+  background: var(--surface-card);
+  border-color: var(--border-subtle);
+  box-shadow: 0 0.1rem 0.35rem rgb(0 0 0 / 28%);
+}
+:root[data-atlas-theme="dark"] .admin-main input,
+:root[data-atlas-theme="dark"] .admin-main select,
+:root[data-atlas-theme="dark"] .admin-main textarea,
+:root[data-atlas-theme="dark"] .secondary-button,
+:root[data-atlas-theme="dark"] .admin-settings-nav button,
+:root[data-atlas-theme="dark"] .relationship-tabs button {
+  color: var(--text-primary);
+  background: var(--surface-input);
+  border-color: var(--border-subtle);
+}
+:root[data-atlas-theme="dark"] .admin-main tr:nth-child(even),
+:root[data-atlas-theme="dark"] .record-list button:hover,
+:root[data-atlas-theme="dark"] .record-list button.selected {
+  background: color-mix(
+    in srgb,
+    var(--surface-card) 82%,
+    var(--accent-primary)
+  );
+}

@@ -36,16 +36,25 @@ export function QrLabel({
   return (
     <section className="qr-label" aria-labelledby="qr-label-title">
       <h2 id="qr-label-title">QR label</h2>
-      <div className="qr-label__body">
+      <div className="qr-label__body" data-print-label>
+        <div className="qr-label__identity">
+          <strong>EOAT Atlas</strong>
+          <span>{presentationText(identifier)}</span>
+          <small>
+            Scan for profile, compatibility, documents &amp; history
+          </small>
+        </div>
         {image && payload ? (
-          <img src={image} alt={`QR code for ${payload}`} />
+          <img
+            className="qr-label__code"
+            src={image}
+            alt={`QR code for ${payload}`}
+          />
         ) : (
           <p role="status">Generating QR code…</p>
         )}
-        <div>
-          <strong>EOAT Atlas · {category}</strong>
-          <span>{presentationText(identifier)}</span>
-          <code>{payload || "QR unavailable for unverified value"}</code>
+        <div className="qr-label__actions">
+          <small>{category}</small>
           {unsafe && (
             <p className="qr-warning" role="alert">
               This origin is not suitable for a durable production label.

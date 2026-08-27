@@ -34,9 +34,16 @@ export function MediaUpload({
     return () =>
       window.removeEventListener("atlas-authentication-changed", refresh);
   }, []);
-  const mayWrite = sessionHasPermission(session, "document.write");
+  const mayCreateDocument = sessionHasPermission(session, "document.create");
+  const mayCreatePhoto = sessionHasPermission(session, "photo.create");
+  const mayWrite = mayCreateDocument || mayCreatePhoto;
+  const mayUploadCurrent =
+    mediaKind === "document" ? mayCreateDocument : mayCreatePhoto;
+  useEffect(() => {
+    if (!mayCreateDocument && mayCreatePhoto) setMediaKind("photo");
+  }, [mayCreateDocument, mayCreatePhoto]);
   async function upload() {
-    if (!file || !title || !mayWrite) return;
+    if (!file || !title || !mayUploadCurrent) return;
     setBusy(true);
     setError("");
     try {
@@ -95,8 +102,8 @@ export function MediaUpload({
               setMediaKind(event.target.value as "document" | "photo")
             }
           >
-            <option value="document">Document</option>
-            <option value="photo">Photo</option>
+            {mayCreateDocument && <option value="document">Document</option>}
+            {mayCreatePhoto && <option value="photo">Photo</option>}
           </select>
         </label>
         <label>
@@ -135,7 +142,7 @@ export function MediaUpload({
         <button
           type="button"
           onClick={() => void upload()}
-          disabled={busy || !file || !title}
+          disabled={busy || !file || !title || !mayUploadCurrent}
         >
           {busy ? "Uploading…" : "Upload media"}
         </button>

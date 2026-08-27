@@ -603,8 +603,7 @@
               "ADMIN_AUDITOR",
               "ADMIN_DATA_MANAGER",
               "ADMIN_SETTINGS_MANAGER",
-              "ADMIN_ACCESS_MANAGER",
-              "ADMINISTRATOR"
+              "ADMIN_ACCESS_MANAGER"
             ],
             "title": "Role Code",
             "type": "string"
@@ -2848,6 +2847,13 @@
             ],
             "title": "Drawing Number"
           },
+          "effective_value_sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/EffectiveValueSource"
+            },
+            "title": "Effective Value Sources",
+            "type": "object"
+          },
           "eoat_type": {
             "anyOf": [
               {
@@ -2873,6 +2879,16 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
+          },
+          "latest_physical_audit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhysicalAuditObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "legacy_identifier": {
             "anyOf": [
@@ -3209,6 +3225,46 @@
           "row_version"
         ],
         "title": "EOATSummary",
+        "type": "object"
+      },
+      "EffectiveValueSource": {
+        "properties": {
+          "audit_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Identifier"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "source": {
+            "enum": [
+              "CANONICAL",
+              "VERIFIED_PHYSICAL_AUDIT"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "EffectiveValueSource",
         "type": "object"
       },
       "ExpectedVersion": {
@@ -3674,6 +3730,14 @@
             "title": "Corporate Group",
             "type": "string"
           },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Permissions",
+            "type": "array"
+          },
           "reason": {
             "maxLength": 2000,
             "minLength": 3,
@@ -3749,6 +3813,21 @@
             ],
             "title": "Is Active"
           },
+          "permissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 16,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permissions"
+          },
           "reason": {
             "maxLength": 2000,
             "minLength": 3,
@@ -3765,8 +3844,7 @@
                   "ADMIN_AUDITOR",
                   "ADMIN_DATA_MANAGER",
                   "ADMIN_SETTINGS_MANAGER",
-                  "ADMIN_ACCESS_MANAGER",
-                  "ADMINISTRATOR"
+                  "ADMIN_ACCESS_MANAGER"
                 ],
                 "type": "string"
               },
@@ -5478,6 +5556,70 @@
           "expected_row_version"
         ],
         "title": "PhotoPatch",
+        "type": "object"
+      },
+      "PhysicalAuditObservation": {
+        "description": "The latest verified physical observation, kept distinct from governance.",
+        "properties": {
+          "audit_identifier": {
+            "title": "Audit Identifier",
+            "type": "string"
+          },
+          "configuration": {
+            "additionalProperties": true,
+            "title": "Configuration",
+            "type": "object"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "observed_machine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Machine"
+          },
+          "observed_tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Tool"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified"
+          }
+        },
+        "required": [
+          "audit_identifier"
+        ],
+        "title": "PhysicalAuditObservation",
         "type": "object"
       },
       "RehearsalSessionIssue": {

@@ -44,8 +44,8 @@ def test_list_eoats_uses_explicit_profile_photo_and_real_web_availability(monkey
     session = _PhotoSummarySession(
         [(_eoat(), None, None, None, None)],
         [
-            (7, "fallback-photo", "C:/photos/fallback.jpg", "fallback.jpg", False, True, 0),
-            (7, "explicit-profile", "C:/photos/profile.png", "profile.png", True, False, 99),
+            (7, "fallback-photo", "C:/photos/fallback.jpg", "fallback.jpg", False, True, 0, "SIDE"),
+            (7, "explicit-profile", "C:/photos/profile.png", "profile.png", True, False, 99, "Front View"),
         ],
     )
     checked_paths: list[str] = []
@@ -66,7 +66,7 @@ def test_list_eoats_uses_explicit_profile_photo_and_real_web_availability(monkey
 def test_list_eoats_reports_a_selected_photo_as_unavailable_when_its_file_is_not_browser_safe(monkeypatch):
     session = _PhotoSummarySession(
         [(_eoat(), None, None, None, None)],
-        [(7, "unavailable-photo", "C:/photos/missing.jpg", "missing.jpg", False, False, 0)],
+        [(7, "unavailable-photo", "C:/photos/missing.jpg", "missing.jpg", False, False, 0, "FRONT")],
     )
     monkeypatch.setattr("server.eoat_api.repositories.content_is_available", lambda _path, **_context: False)
 
@@ -116,11 +116,39 @@ def test_eoat_photo_gallery_starts_with_the_same_server_selected_photo():
     session = _GallerySession(
         [(secondary, secondary_photo), (selected, selected_photo)],
         [
-            (7, "secondary-photo", "C:/photos/secondary.jpg", "a-secondary.jpg", False, False, 0),
-            (7, "selected-photo", "C:/photos/selected.jpg", "z-selected.jpg", True, False, 0),
+            (7, "secondary-photo", "C:/photos/secondary.jpg", "a-secondary.jpg", False, False, 0, "BACK"),
+            (7, "selected-photo", "C:/photos/selected.jpg", "z-selected.jpg", True, False, 0, "front"),
         ],
     )
 
     photos = AtlasRepository(session).documents("eoat", 7, photos_only=True)
 
     assert [photo.document_uuid for photo in photos] == ["selected-photo", "secondary-photo"]
+
+
+def test_front_view_is_selected_over_a_profile_flagged_non_front_photo(monkeypatch):
+    session = _PhotoSummarySession(
+        [(_eoat(), None, None, None, None)],
+        [
+            (7, "profile-side", "C:/photos/side.jpg", "side.jpg", True, True, 0, "SIDE"),
+            (7, "front-later", "C:/photos/front.jpg", "front.jpg", False, False, 99, "FRONT"),
+        ],
+    )
+    monkeypatch.setattr("server.eoat_api.repositories.content_is_available", lambda *_args, **_kwargs: True)
+
+    items, _ = AtlasRepository(session).list_eoats(active=None)
+
+    assert items[0].photo_document_uuid == "front-later"
+
+
+def test_no_front_photo_has_no_representative_image(monkeypatch):
+    session = _PhotoSummarySession(
+        [(_eoat(), None, None, None, None)],
+        [(7, "profile-back", "C:/photos/back.jpg", "back.jpg", True, True, 0, "BACK")],
+    )
+    monkeypatch.setattr("server.eoat_api.repositories.content_is_available", lambda *_args, **_kwargs: True)
+
+    items, _ = AtlasRepository(session).list_eoats(active=None)
+
+    assert items[0].photo_document_uuid is None
+    assert items[0].photo_available_through_web is False

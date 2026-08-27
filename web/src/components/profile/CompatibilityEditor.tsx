@@ -123,7 +123,7 @@ export function CompatibilityEditor({
       window.removeEventListener("atlas-authentication-changed", refresh);
   }, []);
 
-  const mayEdit = sessionHasPermission(session, "compatibility.write");
+  const mayEdit = sessionHasPermission(session, "relationship.edit");
   const choice =
     choices[kind].find((value) => value.value === relationshipType) ??
     choices[kind][0];

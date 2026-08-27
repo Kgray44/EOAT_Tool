@@ -3535,8 +3535,73 @@ const GROUP_POLICY_ROLES = [
   "ADMIN_DATA_MANAGER",
   "ADMIN_SETTINGS_MANAGER",
   "ADMIN_ACCESS_MANAGER",
-  "ADMINISTRATOR",
 ];
+
+const GROUP_POLICY_CAPABILITIES = [
+  ["DATA EDITING", "eoat.edit", "Edit EOAT records"],
+  ["DATA EDITING", "machine.edit", "Edit Machine records"],
+  ["DATA EDITING", "tool.edit", "Edit Tool records"],
+  [
+    "RELATIONSHIPS",
+    "relationship.edit",
+    "Create/edit relationships and compatibility",
+  ],
+  ["RELATIONSHIPS", "relationship.delete", "Remove relationships"],
+  ["OPERATIONS", "assignment.edit", "Update assignments and locations"],
+  ["OPERATIONS", "location.record", "Record location observations"],
+  ["OPERATIONS", "audit.create", "Record audits and observations"],
+  ["FILES", "document.create", "Add documents"],
+  ["FILES", "document.edit", "Edit document metadata"],
+  ["FILES", "document.remove", "Archive documents"],
+  ["FILES", "photo.create", "Add photos"],
+  ["FILES", "photo.edit", "Edit photo metadata/profile photo"],
+  ["FILES", "photo.remove", "Archive photos"],
+  ["OPERATIONS", "bulk_status.execute", "Bulk Status Update"],
+] as const;
+
+function GroupPolicyCapabilities({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const sections = [
+    ...new Set(GROUP_POLICY_CAPABILITIES.map(([section]) => section)),
+  ];
+  return (
+    <fieldset className="group-policy-capabilities">
+      <legend>Operational editing capabilities</legend>
+      {sections.map((section) => (
+        <div key={section}>
+          <strong>{section}</strong>
+          {GROUP_POLICY_CAPABILITIES.filter(
+            ([candidate]) => candidate === section,
+          ).map(([, permission, label]) => (
+            <label key={permission} className="check-row">
+              <input
+                type="checkbox"
+                checked={value.includes(permission)}
+                onChange={(event) =>
+                  onChange(
+                    event.target.checked
+                      ? [...value, permission]
+                      : value.filter((item) => item !== permission),
+                  )
+                }
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      ))}
+      <small>
+        Administration, access, system, integrity, and release permissions
+        remain Administrator-only.
+      </small>
+    </fieldset>
+  );
+}
 
 function GroupPolicyPage() {
   const { ready, setReady } = useAdminSession();
@@ -3633,6 +3698,7 @@ function GroupPolicyCreateForm({
   const [corporateGroup, setCorporateGroup] = useState("");
   const [role, setRole] = useState("VIEWER");
   const [reason, setReason] = useState("");
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<AdminApiError>();
   const changed = () => setConfirming(false);
@@ -3642,6 +3708,7 @@ function GroupPolicyCreateForm({
         corporate_group: corporateGroup.trim(),
         role_code: role,
         reason,
+        permissions,
       })
       .then((result) => onDone(result.audit_event_id))
       .catch((value: unknown) =>
@@ -3694,6 +3761,13 @@ function GroupPolicyCreateForm({
           />
         </label>
       </div>
+      <GroupPolicyCapabilities
+        value={permissions}
+        onChange={(value) => {
+          setPermissions(value);
+          changed();
+        }}
+      />
       <div className="preview-panel">
         <strong>Preview</strong>
         <p>
@@ -3733,6 +3807,7 @@ function GroupPolicyRow({
   const [editing, setEditing] = useState(false);
   const [role, setRole] = useState(policy.role_code);
   const [reason, setReason] = useState("");
+  const [permissions, setPermissions] = useState(policy.permissions ?? []);
   const [confirming, setConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<AdminApiError>();
@@ -3743,6 +3818,7 @@ function GroupPolicyRow({
         is_active: isActive,
         expected_row_version: policy.row_version,
         reason,
+        permissions,
       })
       .then((result) => onDone(result.audit_event_id))
       .catch((value: unknown) =>
@@ -3835,6 +3911,13 @@ function GroupPolicyRow({
                   />
                 </label>
               </div>
+              <GroupPolicyCapabilities
+                value={permissions}
+                onChange={(value) => {
+                  setPermissions(value);
+                  setConfirming(false);
+                }}
+              />
               <p>
                 Preview: {policy.corporate_group} → {role};{" "}
                 {policy.is_active ? "active" : "inactive"}.

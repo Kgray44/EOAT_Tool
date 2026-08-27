@@ -5,6 +5,20 @@
   font-family: "Segoe UI", Inter, system-ui, sans-serif;
   color: var(--atlas-text-primary);
   background: var(--atlas-app-background);
+  /* Semantic aliases are consumed by shared page/component styles. */
+  --text-primary: var(--atlas-text-primary);
+  --text-secondary: var(--atlas-text-secondary);
+  --text-muted: var(--atlas-text-muted);
+  --text-heading: var(--atlas-text-primary);
+  --text-label: var(--atlas-text-secondary);
+  --text-disabled: var(--atlas-disabled-text);
+  --surface-page: var(--atlas-page-background);
+  --surface-panel: var(--atlas-panel-background);
+  --surface-card: var(--atlas-card-background);
+  --surface-input: var(--atlas-input-background);
+  --border-subtle: var(--atlas-border);
+  --border-strong: var(--atlas-border-strong);
+  --accent-primary: var(--atlas-accent);
 }
 
 :root[data-atlas-accent="neutral_gray"] {

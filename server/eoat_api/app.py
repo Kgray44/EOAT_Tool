@@ -275,16 +275,10 @@ def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
 
 @app.get("/api/v1/eoats/{identifier}/current-location", response_model=CurrentEOATLocation)
 def eoat_current_location(identifier: str, repo: AtlasRepository = Depends(repository)):
-    value = repo.eoat(identifier)
+    value = repo.current_eoat_location(identifier)
     if value is None:
         raise not_found("EOAT", identifier)
-    state = "STORED" if str(value.current_location).startswith("STORED") else "UNKNOWN"
-    return CurrentEOATLocation(
-        state=state,
-        source="NONE",
-        storage_location=value.current_location if state == "STORED" else None,
-        evidence="Current read-model state; no more-specific location evidence is available.",
-    )
+    return value
 
 
 @app.get("/api/v1/eoats/{identifier}/relationships", response_model=list[RelationshipSummary])

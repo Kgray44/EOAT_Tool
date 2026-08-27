@@ -156,10 +156,11 @@ def test_real_mysql_group_policy_editor_persists_audits_and_rejects_invalid_or_d
         )
         group = f"CN=EOAT Group Policy {suffix},OU=Test,DC=example,DC=invalid"
         created = mutation_service.create_group_policy_governed(
-            session, actor, group, "VIEWER", "Real-MySQL group policy creation"
+            session, actor, group, "VIEWER", "Real-MySQL group policy creation", ["eoat.edit"]
         )
         policy = created["policy"]
         assert policy["corporate_group"] == group
+        assert policy["permissions"] == ["eoat.edit"]
         assert policy["row_version"] == 1
         assert created["audit_event_id"]
         assert (
@@ -180,10 +181,20 @@ def test_real_mysql_group_policy_editor_persists_audits_and_rejects_invalid_or_d
         assert invalid.value.error_code == "INVALID_ROLE"
 
         changed = mutation_service.update_group_policy_governed(
-            session, actor, policy["id"], "ENGINEER", None, 1, "Real-MySQL role correction"
+            session, actor, policy["id"], "ENGINEER", None, 1, "Real-MySQL role correction", ["photo.create"]
         )
         assert changed["policy"]["role_code"] == "ENGINEER"
+        assert changed["policy"]["permissions"] == ["photo.create"]
         assert changed["policy"]["row_version"] == 2
+        with pytest.raises(APIError) as administrator_role:
+            mutation_service.create_group_policy_governed(
+                session,
+                actor,
+                f"CN=EOAT Escalation {suffix},OU=Test,DC=example,DC=invalid",
+                "ADMINISTRATOR",
+                "Administrator must remain reserved",
+            )
+        assert administrator_role.value.error_code == "GROUP_POLICY_ADMINISTRATOR_RESERVED"
         archived = mutation_service.deactivate_group_policy_governed(
             session, actor, policy["id"], 2, "Real-MySQL policy deactivation"
         )

@@ -25,7 +25,7 @@ describe("AuthenticationPanel", () => {
       authenticated: true,
       identity: { display_name: "Corporate Administrator" },
       roles: ["ADMINISTRATOR"],
-      permissions: ["asset.write"],
+      permissions: ["*"],
       scope: "application",
     });
     const user = userEvent.setup();
@@ -37,10 +37,9 @@ describe("AuthenticationPanel", () => {
     await user.type(screen.getByLabelText("Username"), "corp.user");
     await user.type(password, "not-retained");
     await user.click(
-      within(screen.getByRole("form", { name: "EOAT Atlas sign in" })).getByRole(
-        "button",
-        { name: "Sign in" },
-      ),
+      within(
+        screen.getByRole("form", { name: "EOAT Atlas sign in" }),
+      ).getByRole("button", { name: "Sign in" }),
     );
 
     await waitFor(() =>
@@ -65,8 +64,12 @@ describe("AuthenticationPanel", () => {
     renderPanel();
 
     expect(await screen.findByText("Corporate User")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Admin" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Sign out" }),
+    ).toBeInTheDocument();
   });
 
   it("keeps the safe unavailable message when the provider cannot sign in", async () => {
@@ -83,14 +86,15 @@ describe("AuthenticationPanel", () => {
     await user.type(screen.getByLabelText("Username"), "corp.user");
     await user.type(screen.getByLabelText("Password"), "not-retained");
     await user.click(
-      within(screen.getByRole("form", { name: "EOAT Atlas sign in" })).getByRole(
-        "button",
-        { name: "Sign in" },
-      ),
+      within(
+        screen.getByRole("form", { name: "EOAT Atlas sign in" }),
+      ).getByRole("button", { name: "Sign in" }),
     );
 
     expect(
-      await screen.findByText("Sign-in is unavailable. Please try again shortly."),
+      await screen.findByText(
+        "Sign-in is unavailable. Please try again shortly.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toHaveValue("");
   });

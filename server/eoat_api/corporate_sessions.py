@@ -94,6 +94,7 @@ class IssuedCorporateSession:
     username: str
     display_name: str
     roles: tuple[str, ...]
+    authorization_groups: tuple[str, ...]
     access_source: str
 
 
@@ -347,6 +348,7 @@ class CorporateSessionService:
             user.username,
             user.display_name,
             roles,
+            tuple(authorization_groups),
             str(access["access_source"]),
         )
 

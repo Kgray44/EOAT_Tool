@@ -56,7 +56,7 @@ export function InstallationEditor({
     return () =>
       window.removeEventListener("atlas-authentication-changed", refresh);
   }, []);
-  const mayInstall = sessionHasPermission(session, "installation.write");
+  const mayInstall = sessionHasPermission(session, "assignment.edit");
   const mayOverride = sessionHasPermission(
     session,
     "installation.override_compatibility",

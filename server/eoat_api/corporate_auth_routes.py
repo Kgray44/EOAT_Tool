@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy.orm import Session
 
 from .corporate_auth import administrator_group_mapping_configured, corporate_provider_state
-from .corporate_users import access_state, corporate_user_for_user
 from .corporate_sessions import (
     CORPORATE_CSRF_COOKIE,
     CORPORATE_CSRF_HEADER,
@@ -20,9 +19,10 @@ from .corporate_sessions import (
     CorporateSessionService,
     corporate_csrf_valid,
 )
+from .corporate_users import access_state, corporate_user_for_user
 from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
-from .security import ROLE_PERMISSIONS
+from .security import corporate_group_permissions
 
 router = APIRouter(prefix="/api/v1/auth", tags=["corporate-authentication"])
 
@@ -45,7 +45,9 @@ def _cookie_secure() -> bool:
     ).strip().casefold() in {"staging", "staging_local", "production"}
 
 
-def _session_payload(*, roles: tuple[str, ...] | list[str], identity: dict[str, str], **values):
+def _session_payload(
+    *, roles: tuple[str, ...] | list[str], identity: dict[str, str], permissions: set[str] | frozenset[str] | None = None, **values
+):
     """Keep browser-session responses aligned with the normal web contract.
 
     The browser uses the server-derived grants only for presentation; protected
@@ -53,14 +55,16 @@ def _session_payload(*, roles: tuple[str, ...] | list[str], identity: dict[str, 
     """
 
     normalized_roles = tuple(str(role).upper() for role in roles)
-    permissions = sorted(
-        {permission for role in normalized_roles for permission in ROLE_PERMISSIONS.get(role, frozenset())}
-    )
+    resolved_permissions = permissions
+    if resolved_permissions is None:
+        # Login responses have no session row yet.  Administrators remain
+        # fully capable; every other corporate role starts default-deny.
+        resolved_permissions = {"*"} if "ADMINISTRATOR" in normalized_roles else set()
     return {
         "authenticated": True,
         "identity": identity,
         "roles": list(normalized_roles),
-        "permissions": permissions,
+        "permissions": sorted(resolved_permissions),
         "scope": "application",
         **values,
     }
@@ -103,6 +107,11 @@ def kerberos_form_login(
         session_reference=issued.session_reference,
         expires_at=issued.expires_at,
         access_source=issued.access_source,
+        permissions=corporate_group_permissions(
+            service.session,
+            groups=issued.authorization_groups,
+            roles=set(issued.roles),
+        ),
     )
 
 
@@ -122,6 +131,11 @@ def session_status(request: Request, service: CorporateSessionService = Depends(
         authenticated_at=row.authenticated_at,
         expires_at=row.expires_at,
         access_source=access.get("access_source"),
+        permissions=corporate_group_permissions(
+            service.session,
+            groups=tuple(row.authorization_groups_json or ()),
+            roles=set(row.roles_json or ()),
+        ),
     )
 
 
