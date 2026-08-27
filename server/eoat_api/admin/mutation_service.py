@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..corporate_auth import ADMINISTRATOR_GROUP_IDENTIFIER
 from ..database import models as db
 from ..errors import APIError, conflict, not_found
-from ..security import ActorContext
+from ..security import GROUP_POLICY_PERMISSIONS, ActorContext
 from ..write_services import (
     ASSET_CONFIG,
     COMPATIBILITY_CONFIG,
@@ -486,6 +486,7 @@ def group_policy_view(record: db.ExternalGroupRoleMapping) -> dict[str, Any]:
         "is_protected_system_policy": _is_protected_group_policy(record),
         "row_version": record.row_version,
         "updated_at": record.updated_at,
+        "permissions": sorted(record.permissions_json or []),
     }
 
 
@@ -524,6 +525,23 @@ def _normalize_group_identifier(value: str) -> str:
     if len(identifier) < 3 or len(identifier) > 512 or any(character in identifier for character in "\r\n\x00"):
         raise APIError(422, "INVALID_GROUP_IDENTIFIER", "Provide the exact approved corporate group identifier.")
     return identifier
+
+
+def _normalize_group_permissions(values: list[str] | None) -> list[str]:
+    normalized = sorted({str(value).strip() for value in values or [] if str(value).strip()})
+    unknown = set(normalized).difference(GROUP_POLICY_PERMISSIONS)
+    if unknown:
+        raise APIError(422, "GROUP_PERMISSION_INVALID", "A requested group policy capability is not delegatable.")
+    return normalized
+
+
+def _ensure_group_policy_role_delegatable(role_code: str) -> None:
+    if role_code == "ADMINISTRATOR":
+        raise APIError(
+            422,
+            "GROUP_POLICY_ADMINISTRATOR_RESERVED",
+            "Only the protected Administrator recovery policy may confer Administrator authority.",
+        )
 
 
 def _ensure_admin_recovery_path(
@@ -569,9 +587,11 @@ def _revoke_sessions_for_group_policy(session: Session, group_identifier: str, *
 
 
 def create_group_policy_governed(
-    session: Session, actor: ActorContext, corporate_group: str, role_code: str, reason: str
+    session: Session, actor: ActorContext, corporate_group: str, role_code: str, reason: str, permissions: list[str] | None = None
 ) -> dict[str, Any]:
     identifier = _normalize_group_identifier(corporate_group)
+    granted_permissions = _normalize_group_permissions(permissions)
+    _ensure_group_policy_role_delegatable(role_code)
     _active_role(session, role_code)
     duplicate = session.scalar(
         select(db.ExternalGroupRoleMapping.id).where(
@@ -591,6 +611,7 @@ def create_group_policy_governed(
         is_active=True,
         is_system_policy=False,
         row_version=1,
+        permissions_json=granted_permissions,
         created_at=now,
         updated_at=now,
     )
@@ -604,7 +625,7 @@ def create_group_policy_governed(
         entity_display_id=identifier,
         operation="admin.group-policy.create",
         previous={},
-        current={"role_code": role_code, "is_active": True, "provider": record.provider},
+        current={"role_code": role_code, "is_active": True, "permissions": granted_permissions, "provider": record.provider},
         reason=reason,
         source=AuditSource.WEB,
         correlation_id=actor.request_id,
@@ -626,6 +647,7 @@ def update_group_policy_governed(
     is_active: bool | None,
     expected_row_version: int,
     reason: str,
+    permissions: list[str] | None = None,
 ) -> dict[str, Any]:
     record = session.scalar(
         select(db.ExternalGroupRoleMapping)
@@ -638,6 +660,8 @@ def update_group_policy_governed(
     _ensure_policy_is_mutable(record)
     next_role = role_code or record.role_code
     next_active = record.is_active if is_active is None else is_active
+    next_permissions = record.permissions_json if permissions is None else _normalize_group_permissions(permissions)
+    _ensure_group_policy_role_delegatable(next_role)
     _active_role(session, next_role)
     _ensure_admin_recovery_path(session, record, next_role=next_role, next_active=next_active)
     if next_role != record.role_code:
@@ -653,10 +677,11 @@ def update_group_policy_governed(
             raise APIError(
                 409, "GROUP_POLICY_DUPLICATE", "That corporate group already has this EOAT Atlas role policy."
             )
-    before = {"role_code": record.role_code, "is_active": record.is_active, "provider": record.provider}
-    changed = record.role_code != next_role or record.is_active != next_active
+    before = {"role_code": record.role_code, "is_active": record.is_active, "permissions": record.permissions_json or [], "provider": record.provider}
+    changed = record.role_code != next_role or record.is_active != next_active or (record.permissions_json or []) != next_permissions
     record.role_code = next_role
     record.is_active = next_active
+    record.permissions_json = next_permissions
     revoked_session_count = 0
     if changed:
         record.row_version += 1
@@ -664,7 +689,7 @@ def update_group_policy_governed(
             session, record.external_group_identifier, reason="group_policy_changed"
         )
     session.flush()
-    after = {"role_code": record.role_code, "is_active": record.is_active, "provider": record.provider}
+    after = {"role_code": record.role_code, "is_active": record.is_active, "permissions": record.permissions_json or [], "provider": record.provider}
     result = AuditEventWriter().write_change(
         session,
         actor,

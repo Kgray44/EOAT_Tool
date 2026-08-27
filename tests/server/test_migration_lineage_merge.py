@@ -11,7 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 PRODUCTION_HEAD = "20260729_0009"
 ADMIN_HEAD = "20260820_0012"
 MERGE_HEAD = "20260820_0013"
-CURRENT_HEAD = "20260821_0015"
+GROUP_POLICY_EDITOR_HEAD = "20260821_0014"
+PREVIOUS_HEAD = "20260821_0015"
+CURRENT_HEAD = "20260827_0016"
 PRODUCTION_REVISIONS = {
     "20260714_0005",
     "20260715_0006",
@@ -36,7 +38,7 @@ def _script() -> ScriptDirectory:
 
 
 def _upgrade_ids(script: ScriptDirectory, current: tuple[str, ...]) -> list[str]:
-    return [step.revision.revision for step in script._upgrade_revs(MERGE_HEAD, current)]
+    return [step.revision.revision for step in script._upgrade_revs(CURRENT_HEAD, current)]
 
 
 def test_accepted_production_lineage_is_present_and_merge_is_the_only_head() -> None:
@@ -47,6 +49,9 @@ def test_accepted_production_lineage_is_present_and_merge_is_the_only_head() -> 
     merge = script.get_revision(MERGE_HEAD)
     assert merge is not None
     assert tuple(merge.down_revision) == (PRODUCTION_HEAD, ADMIN_HEAD)
+    permission_grants = script.get_revision(CURRENT_HEAD)
+    assert permission_grants is not None
+    assert permission_grants.down_revision == PREVIOUS_HEAD
 
 
 def test_upgrade_from_real_production_head_runs_only_missing_admin_branch_then_merge() -> None:
@@ -61,6 +66,9 @@ def test_upgrade_from_real_production_head_runs_only_missing_admin_branch_then_m
         "20260814_0011",
         ADMIN_HEAD,
         MERGE_HEAD,
+        GROUP_POLICY_EDITOR_HEAD,
+        PREVIOUS_HEAD,
+        CURRENT_HEAD,
     ]
     assert not (set(planned) & PRODUCTION_REVISIONS)
 
@@ -74,6 +82,9 @@ def test_upgrade_from_admin_head_runs_only_missing_production_branch_then_merge(
         "20260721_0008",
         PRODUCTION_HEAD,
         MERGE_HEAD,
+        GROUP_POLICY_EDITOR_HEAD,
+        PREVIOUS_HEAD,
+        CURRENT_HEAD,
     ]
     assert not (set(planned) & ADMIN_REVISIONS)
 
@@ -94,8 +105,8 @@ def test_data_state_seed_is_safe_when_verified_historical_data_already_exists() 
     assert "ON DUPLICATE KEY UPDATE id = data_state.id" in source
 
 
-def test_fresh_upgrade_contains_both_historical_branches_and_one_final_merge() -> None:
+def test_fresh_upgrade_contains_both_historical_branches_one_merge_and_the_current_head() -> None:
     planned = _upgrade_ids(_script(), ())
     assert set(planned) >= PRODUCTION_REVISIONS | ADMIN_REVISIONS | {MERGE_HEAD}
-    assert planned[-1] == MERGE_HEAD
+    assert planned[-1] == CURRENT_HEAD
     assert planned.count(MERGE_HEAD) == 1

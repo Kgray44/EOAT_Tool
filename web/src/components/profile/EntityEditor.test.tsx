@@ -49,7 +49,7 @@ describe("EntityEditor", () => {
     const saved = vi.fn();
     vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
       authenticated: true,
-      permissions: ["asset.write"],
+      permissions: ["machine.edit"],
     });
     vi.spyOn(apiClient, "getCatalogOptions").mockResolvedValue([
       { value: "active", label: "Active" },
@@ -94,7 +94,7 @@ describe("EntityEditor", () => {
   it("keeps the editor open and reports a rejected update without pretending it saved", async () => {
     vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
       authenticated: true,
-      permissions: ["asset.write"],
+      permissions: ["machine.edit"],
     });
     vi.spyOn(apiClient, "getCatalogOptions").mockResolvedValue([]);
     vi.spyOn(apiClient, "patchMachine").mockRejectedValue(

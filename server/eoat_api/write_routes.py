@@ -92,7 +92,7 @@ def create_eoat_route(
     payload: EOATCreate,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("asset.write")),
+    actor: ActorContext = Depends(require("eoat.edit")),
 ):
     values = body(payload)
     return idempotent(
@@ -110,7 +110,7 @@ def update_eoat_route(
     identifier: str,
     payload: EOATPatch,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("asset.write")),
+    actor: ActorContext = Depends(require("eoat.edit")),
 ):
     return update_asset(session, actor, "eoat", identifier, body(payload, exclude_unset=True))
 
@@ -140,7 +140,7 @@ def create_machine_route(
     payload: MachineCreate,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("asset.write")),
+    actor: ActorContext = Depends(require("machine.edit")),
 ):
     values = body(payload)
     return idempotent(
@@ -158,7 +158,7 @@ def update_machine_route(
     identifier: str,
     payload: MachinePatch,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("asset.write")),
+    actor: ActorContext = Depends(require("machine.edit")),
 ):
     return update_asset(session, actor, "machine", identifier, body(payload, exclude_unset=True))
 
@@ -190,7 +190,7 @@ def create_tool_route(
     payload: ToolCreate,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("asset.write")),
+    actor: ActorContext = Depends(require("tool.edit")),
 ):
     values = body(payload)
     return idempotent(
@@ -208,7 +208,7 @@ def update_tool_route(
     identifier: str,
     payload: ToolPatch,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("asset.write")),
+    actor: ActorContext = Depends(require("tool.edit")),
 ):
     return update_asset(session, actor, "tool", identifier, body(payload, exclude_unset=True))
 
@@ -304,7 +304,7 @@ for relationship_type in ("eoat-machine", "eoat-tool", "tool-machine"):
         def create_relationship(
             payload: CompatibilityWrite,
             session: Session = Depends(get_write_session),
-            actor: ActorContext = Depends(require("compatibility.write")),
+            actor: ActorContext = Depends(require("relationship.edit")),
         ):
             return write_compatibility(session, actor, kind, body(payload, exclude_unset=True))
 
@@ -313,7 +313,7 @@ for relationship_type in ("eoat-machine", "eoat-tool", "tool-machine"):
             relationship_id: int,
             payload: CompatibilityWrite,
             session: Session = Depends(get_write_session),
-            actor: ActorContext = Depends(require("compatibility.write")),
+            actor: ActorContext = Depends(require("relationship.edit")),
         ):
             return write_compatibility(session, actor, kind, body(payload, exclude_unset=True), relationship_id)
 
@@ -322,7 +322,7 @@ for relationship_type in ("eoat-machine", "eoat-tool", "tool-machine"):
             relationship_id: int,
             payload: ExpectedVersion,
             session: Session = Depends(get_write_session),
-            actor: ActorContext = Depends(require("compatibility.write")),
+            actor: ActorContext = Depends(require("relationship.delete")),
         ):
             return archive_compatibility(
                 session, actor, kind, relationship_id, payload.expected_row_version, payload.reason
@@ -337,7 +337,7 @@ def move_to_machine_route(
     payload: MoveToMachine,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("installation.write")),
+    actor: ActorContext = Depends(require("assignment.edit")),
 ):
     values = body(payload)
     return idempotent(
@@ -356,7 +356,7 @@ def move_to_storage_route(
     payload: MoveToStorage,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("installation.write")),
+    actor: ActorContext = Depends(require("assignment.edit")),
 ):
     values = body(payload)
     return idempotent(
@@ -375,7 +375,7 @@ def mark_location_unknown_route(
     payload: MarkLocationUnknown,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("installation.write")),
+    actor: ActorContext = Depends(require("location.record")),
 ):
     values = body(payload)
     return idempotent(
@@ -393,7 +393,7 @@ def create_installation_route(
     payload: dict[str, Any],
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("installation.write")),
+    actor: ActorContext = Depends(require("assignment.edit")),
 ):
     identifier = str(payload.pop("eoat_identifier", ""))
     validated = MoveToMachine.model_validate(payload)
@@ -414,7 +414,7 @@ def close_installation_route(
     payload: InstallationClose,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("installation.write")),
+    actor: ActorContext = Depends(require("assignment.edit")),
 ):
     values = body(payload)
     return idempotent(
@@ -432,7 +432,7 @@ def create_audit_route(
     payload: AuditCreate,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("audit.write")),
+    actor: ActorContext = Depends(require("audit.create")),
 ):
     values = body(payload)
     return idempotent(
@@ -453,7 +453,7 @@ def update_audit_route(
     audit_id: int,
     payload: AuditPatch,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("audit.write")),
+    actor: ActorContext = Depends(require("audit.create")),
 ):
     return update_audit(session, actor, audit_id, body(payload, exclude_unset=True))
 
@@ -464,7 +464,7 @@ def complete_audit_route(
     payload: ExpectedVersion,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("audit.write")),
+    actor: ActorContext = Depends(require("audit.create")),
 ):
     values = body(payload)
     return idempotent(
@@ -539,7 +539,7 @@ def create_document_route(
     payload: DocumentCreate,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("document.create")),
 ):
     values = body(payload)
     return idempotent(
@@ -557,7 +557,7 @@ def update_document_route(
     document_id: int,
     payload: DocumentPatch,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("document.edit")),
 ):
     return update_document(session, actor, document_id, body(payload, exclude_unset=True))
 
@@ -567,7 +567,7 @@ def archive_document_route(
     document_id: int,
     payload: ExpectedVersion,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("document.remove")),
 ):
     return update_document(session, actor, document_id, body(payload), archive=True)
 
@@ -579,7 +579,7 @@ def supersede_document_route(
     expected_row_version: int = Query(..., ge=1),
     reason: str | None = None,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("document.edit")),
 ):
     return supersede_document(session, actor, document_id, expected_row_version, body(payload), reason)
 
@@ -589,7 +589,7 @@ def create_photo_route(
     payload: PhotoCreate,
     idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("photo.create")),
 ):
     values = body(payload)
     return idempotent(
@@ -602,7 +602,7 @@ def update_photo_route(
     photo_id: int,
     payload: PhotoPatch,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("photo.edit")),
 ):
     return update_photo(session, actor, photo_id, body(payload, exclude_unset=True))
 
@@ -612,7 +612,7 @@ def archive_photo_route(
     photo_id: int,
     payload: ExpectedVersion,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("photo.remove")),
 ):
     return update_photo(session, actor, photo_id, body(payload), archive=True)
 
@@ -622,7 +622,7 @@ def set_profile_photo_route(
     photo_id: int,
     payload: ExpectedVersion,
     session: Session = Depends(get_write_session),
-    actor: ActorContext = Depends(require("document.write")),
+    actor: ActorContext = Depends(require("photo.edit")),
 ):
     return set_profile_photo(
         session,

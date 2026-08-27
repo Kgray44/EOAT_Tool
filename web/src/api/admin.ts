@@ -161,6 +161,7 @@ export interface AdminGroupPolicy {
   row_version: number;
   updated_at: string;
   is_protected_system_policy: boolean;
+  permissions: string[];
 }
 export interface CorporateUserSummary {
   user_id: string;

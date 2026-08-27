@@ -231,6 +231,10 @@ class ExternalGroupRoleMapping(TimestampMixin, Base):
     # editing.  Keep its compact model, but give administrators an optimistic
     # concurrency token rather than silently overwriting another policy edit.
     row_version: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
+    # Role mapping preserves existing access semantics.  Explicit operational
+    # grants are separately default-deny so a new group cannot gain mutation
+    # authority merely by being mapped to a non-Administrator role.
+    permissions_json: Mapped[list[str]] = mapped_column(JSON, server_default=text("(JSON_ARRAY())"), nullable=False)
 
 
 class CorporateUser(VersionMixin, Base):

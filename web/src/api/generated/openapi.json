@@ -603,8 +603,7 @@
               "ADMIN_AUDITOR",
               "ADMIN_DATA_MANAGER",
               "ADMIN_SETTINGS_MANAGER",
-              "ADMIN_ACCESS_MANAGER",
-              "ADMINISTRATOR"
+              "ADMIN_ACCESS_MANAGER"
             ],
             "title": "Role Code",
             "type": "string"
@@ -3731,6 +3730,14 @@
             "title": "Corporate Group",
             "type": "string"
           },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Permissions",
+            "type": "array"
+          },
           "reason": {
             "maxLength": 2000,
             "minLength": 3,
@@ -3806,6 +3813,21 @@
             ],
             "title": "Is Active"
           },
+          "permissions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 16,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permissions"
+          },
           "reason": {
             "maxLength": 2000,
             "minLength": 3,
@@ -3822,8 +3844,7 @@
                   "ADMIN_AUDITOR",
                   "ADMIN_DATA_MANAGER",
                   "ADMIN_SETTINGS_MANAGER",
-                  "ADMIN_ACCESS_MANAGER",
-                  "ADMINISTRATOR"
+                  "ADMIN_ACCESS_MANAGER"
                 ],
                 "type": "string"
               },

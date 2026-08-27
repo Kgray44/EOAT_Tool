@@ -31,6 +31,9 @@ ROLE_PERMISSIONS = {
         {
             "installation.write",
             "audit.write",
+            "assignment.edit",
+            "location.record",
+            "audit.create",
             "maintenance.write",
             "annotation.write",
             "tag.assign",
@@ -43,6 +46,20 @@ ROLE_PERMISSIONS = {
             "asset.write",
             "compatibility.write",
             "document.write",
+            "eoat.edit",
+            "machine.edit",
+            "tool.edit",
+            "relationship.edit",
+            "relationship.delete",
+            "assignment.edit",
+            "location.record",
+            "document.create",
+            "document.edit",
+            "document.remove",
+            "photo.create",
+            "photo.edit",
+            "photo.remove",
+            "audit.create",
             "annotation.write",
             "tag.manage",
             "tag.assign",
@@ -82,6 +99,16 @@ ROLE_PERMISSIONS = {
             "admin.eoat.edit",
             "admin.machine.edit",
             "admin.tool.edit",
+            "eoat.edit",
+            "machine.edit",
+            "tool.edit",
+            "relationship.edit",
+            "relationship.delete",
+            "document.edit",
+            "document.remove",
+            "photo.edit",
+            "photo.remove",
+            "bulk_status.execute",
             "admin.asset.archive",
             "admin.relationship.manage",
             "admin.document.manage",
@@ -93,6 +120,45 @@ ROLE_PERMISSIONS = {
         {"admin.area.view", "admin.audit.view", "admin.access.manage", "admin.session.manage"}
     ),
 }
+
+# These are the only permissions a corporate group policy may delegate.  The
+# surrounding admin namespace is historical routing vocabulary, not authority
+# to administer users, policies, system settings, integrity controls, or the
+# production write gate.
+GROUP_POLICY_PERMISSIONS = frozenset(
+    {
+        "eoat.edit",
+        "machine.edit",
+        "tool.edit",
+        "relationship.edit",
+        "relationship.delete",
+        "assignment.edit",
+        "location.record",
+        "document.create",
+        "document.edit",
+        "document.remove",
+        "photo.create",
+        "photo.edit",
+        "photo.remove",
+        "audit.create",
+        "bulk_status.execute",
+    }
+)
+
+HIGH_RISK_ADMIN_PERMISSIONS = frozenset(
+    {
+        "admin.access.manage",
+        "admin.session.manage",
+        "admin.settings.edit",
+        "admin.group_policy.manage",
+        "admin.integrity.run",
+        "admin.export.audit",
+        "admin.export.support",
+        "admin.operations.backup",
+        "admin.operations.restore",
+        "admin.danger.execute",
+    }
+)
 
 DEFAULT_DEVELOPMENT_IDENTITIES = {
     "dev.viewer": "VIEWER",
@@ -118,10 +184,44 @@ class ActorContext:
     request_id: str
     application_instance_id: int | None
     client_version: str | None
+    granted_permissions: frozenset[str] | None = None
 
     def permits(self, permission: str) -> bool:
+        if permission in HIGH_RISK_ADMIN_PERMISSIONS and self.role != "ADMINISTRATOR":
+            return False
+        if self.granted_permissions is not None:
+            return "*" in self.granted_permissions or permission in self.granted_permissions
         permissions = ROLE_PERMISSIONS.get(self.role, frozenset())
         return "*" in permissions or permission in permissions
+
+
+def corporate_group_permissions(
+    session: Session, *, groups: tuple[str, ...] | list[str], roles: set[str]
+) -> frozenset[str]:
+    """Resolve only explicit operational group grants for a corporate session."""
+    if not groups:
+        return frozenset()
+    mappings = session.scalars(
+        select(db.ExternalGroupRoleMapping).where(
+            db.ExternalGroupRoleMapping.provider == "kerberos_form",
+            db.ExternalGroupRoleMapping.external_group_identifier.in_(tuple(groups)),
+            db.ExternalGroupRoleMapping.is_active.is_(True),
+            db.ExternalGroupRoleMapping.explicit_deny.is_(False),
+        )
+    ).all()
+    # Administrator authority is restricted to the canonical, migration-seeded
+    # recovery policy.  A mutable policy cannot turn an ordinary group role
+    # mapping into application administration.
+    if "ADMINISTRATOR" in roles and any(
+        mapping.is_system_policy and mapping.role_code == "ADMINISTRATOR" for mapping in mappings
+    ):
+        return frozenset({"*"})
+    return frozenset(
+        permission
+        for mapping in mappings
+        for permission in (mapping.permissions_json or [])
+        if permission in GROUP_POLICY_PERMISSIONS
+    )
 
 
 def _configured_identities(environment: str) -> dict[str, str]:
@@ -317,6 +417,11 @@ def corporate_session_actor(request: Request, session: Session) -> ActorContext:
         request_id=getattr(request.state, "request_id", None) or str(uuid4()),
         application_instance_id=None,
         client_version=request.headers.get("X-EOAT-Client-Version"),
+        granted_permissions=corporate_group_permissions(
+            session,
+            groups=tuple(row.authorization_groups_json or ()),
+            roles=roles,
+        ),
     )
 
 

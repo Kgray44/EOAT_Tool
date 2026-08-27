@@ -14,17 +14,17 @@ describe("apiClient", () => {
   it("uses server-issued effective permissions only for UI affordances", () => {
     expect(
       sessionHasPermission(
-        { authenticated: true, permissions: ["asset.write"] },
-        "asset.write",
+        { authenticated: true, permissions: ["eoat.edit"] },
+        "eoat.edit",
       ),
     ).toBe(true);
     expect(
       sessionHasPermission(
-        { authenticated: true, permissions: ["asset.write"] },
+        { authenticated: true, permissions: ["eoat.edit"] },
         "settings.edit",
       ),
     ).toBe(false);
-    expect(sessionHasPermission(null, "asset.write")).toBe(false);
+    expect(sessionHasPermission(null, "eoat.edit")).toBe(false);
   });
 
   it("uses a relative URL and never sends a device-token header", async () => {

@@ -2716,7 +2716,7 @@ export interface components {
              * Role Code
              * @enum {string}
              */
-            role_code: "VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER" | "ADMINISTRATOR";
+            role_code: "VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER";
         };
         /** AdminSessionRevoke */
         AdminSessionRevoke: {
@@ -3556,6 +3556,8 @@ export interface components {
         GroupPolicyCreate: {
             /** Corporate Group */
             corporate_group: string;
+            /** Permissions */
+            permissions?: string[];
             /** Reason */
             reason: string;
             /**
@@ -3579,10 +3581,12 @@ export interface components {
             expected_row_version: number;
             /** Is Active */
             is_active?: boolean | null;
+            /** Permissions */
+            permissions?: string[] | null;
             /** Reason */
             reason: string;
             /** Role Code */
-            role_code?: ("VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER" | "ADMINISTRATOR") | null;
+            role_code?: ("VIEWER" | "TECHNICIAN" | "ENGINEER" | "ADMIN_AUDITOR" | "ADMIN_DATA_MANAGER" | "ADMIN_SETTINGS_MANAGER" | "ADMIN_ACCESS_MANAGER") | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

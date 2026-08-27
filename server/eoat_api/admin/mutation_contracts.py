@@ -54,7 +54,6 @@ class AdminRoleMappingUpdate(WriteModel):
         "ADMIN_DATA_MANAGER",
         "ADMIN_SETTINGS_MANAGER",
         "ADMIN_ACCESS_MANAGER",
-        "ADMINISTRATOR",
     ]
     expected_row_version: int = Field(ge=1)
     reason: str = Field(min_length=3, max_length=2000)
@@ -73,6 +72,7 @@ class GroupPolicyCreate(WriteModel):
         "ADMINISTRATOR",
     ]
     reason: str = Field(min_length=3, max_length=2000)
+    permissions: list[str] = Field(default_factory=list, max_length=16)
 
 
 class GroupPolicyUpdate(ExpectedVersion):
@@ -85,17 +85,17 @@ class GroupPolicyUpdate(ExpectedVersion):
             "ADMIN_DATA_MANAGER",
             "ADMIN_SETTINGS_MANAGER",
             "ADMIN_ACCESS_MANAGER",
-            "ADMINISTRATOR",
         ]
         | None
     ) = None
     is_active: bool | None = None
+    permissions: list[str] | None = Field(default=None, max_length=16)
     reason: str = Field(min_length=3, max_length=2000)
 
     @model_validator(mode="after")
     def _includes_change(self):
-        if self.role_code is None and self.is_active is None:
-            raise ValueError("A role or active-state change is required.")
+        if self.role_code is None and self.is_active is None and self.permissions is None:
+            raise ValueError("A role, active-state, or permission change is required.")
         return self
 
 

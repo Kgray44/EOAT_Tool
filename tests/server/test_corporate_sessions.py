@@ -30,7 +30,7 @@ from server.eoat_api.corporate_users import (
 from server.eoat_api.database import models as db
 from server.eoat_api.database.session import get_runtime_session, get_write_session
 from server.eoat_api.errors import APIError
-from server.eoat_api.security import ROLE_PERMISSIONS, ActorContext, actor_context, corporate_session_actor
+from server.eoat_api.security import ActorContext, actor_context, corporate_group_permissions, corporate_session_actor
 
 
 class FakeAuthenticator:
@@ -98,7 +98,8 @@ def _engine():
             CREATE TABLE external_group_role_mappings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, provider TEXT NOT NULL,
                 external_group_identifier TEXT NOT NULL, role_code TEXT NOT NULL,
-                explicit_deny BOOLEAN DEFAULT 0, is_active BOOLEAN DEFAULT 1, is_system_policy BOOLEAN NOT NULL DEFAULT 0, row_version INTEGER NOT NULL DEFAULT 1,
+                explicit_deny BOOLEAN DEFAULT 0, is_active BOOLEAN DEFAULT 1, is_system_policy BOOLEAN NOT NULL DEFAULT 0,
+                permissions_json JSON NOT NULL DEFAULT '[]', row_version INTEGER NOT NULL DEFAULT 1,
                 created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL
             )
             """
@@ -177,6 +178,7 @@ def test_group_policy_editor_service_validates_audits_and_versions(monkeypatch):
             session, actor, "CN=EOAT Engineering", "VIEWER", "Initial governed policy"
         )
         assert created["policy"]["status"] == "active"
+        assert created["policy"]["permissions"] == []
         assert created["audit_event_id"] == "group-policy-audit"
         policy_id = created["policy"]["id"]
         with pytest.raises(APIError, match="already has") as duplicate:
@@ -185,9 +187,10 @@ def test_group_policy_editor_service_validates_audits_and_versions(monkeypatch):
             )
         assert duplicate.value.error_code == "GROUP_POLICY_DUPLICATE"
         updated = mutation_service.update_group_policy_governed(
-            session, actor, policy_id, "ENGINEER", None, 1, "Role correction"
+            session, actor, policy_id, "ENGINEER", None, 1, "Role correction", ["eoat.edit"]
         )
         assert updated["policy"]["role_code"] == "ENGINEER"
+        assert updated["policy"]["permissions"] == ["eoat.edit"]
         assert updated["policy"]["row_version"] == 2
         inactive = mutation_service.deactivate_group_policy_governed(
             session, actor, policy_id, 2, "Policy is no longer active"
@@ -198,6 +201,64 @@ def test_group_policy_editor_service_validates_audits_and_versions(monkeypatch):
                 session, actor, policy_id, None, True, 1, "Stale request must fail"
             )
         assert stale.value.error_code == "STALE_RECORD_VERSION"
+        with pytest.raises(APIError) as invalid_permission:
+            mutation_service.create_group_policy_governed(
+                session, actor, "CN=EOAT Unsafe", "VIEWER", "Must reject privileged grant", ["admin.group_policy.manage"]
+            )
+        assert invalid_permission.value.error_code == "GROUP_PERMISSION_INVALID"
+        with pytest.raises(APIError) as administrator_role:
+            mutation_service.create_group_policy_governed(
+                session, actor, "CN=EOAT Escalation", "ADMINISTRATOR", "Administrator must remain reserved"
+            )
+        assert administrator_role.value.error_code == "GROUP_POLICY_ADMINISTRATOR_RESERVED"
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_corporate_group_grants_are_default_deny_and_cannot_delegate_administration():
+    engine = _engine()
+    session = Session(engine)
+    now = datetime.now(timezone.utc)
+    try:
+        session.add(
+            db.ExternalGroupRoleMapping(
+                provider="kerberos_form",
+                external_group_identifier="CN=EOAT Editors",
+                role_code="ENGINEER",
+                permissions_json=["eoat.edit", "admin.group_policy.manage"],
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.flush()
+        grants = corporate_group_permissions(
+            session, groups=("CN=EOAT Editors",), roles={"ENGINEER"}
+        )
+        actor = ActorContext(1, "editor", "Editor", "ENGINEER", "request-grant", None, None, grants)
+        assert actor.permits("eoat.edit")
+        assert not actor.permits("machine.edit")
+        assert not actor.permits("admin.group_policy.manage")
+        assert corporate_group_permissions(session, groups=(), roles={"ENGINEER"}) == frozenset()
+        assert corporate_group_permissions(session, groups=(), roles={"ADMINISTRATOR"}) == frozenset()
+        session.add(
+            db.ExternalGroupRoleMapping(
+                provider="kerberos_form",
+                external_group_identifier=ADMINISTRATOR_GROUP_IDENTIFIER,
+                role_code="ADMINISTRATOR",
+                is_system_policy=True,
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.flush()
+        assert corporate_group_permissions(
+            session,
+            groups=(ADMINISTRATOR_GROUP_IDENTIFIER,),
+            roles={"ADMINISTRATOR"},
+        ) == frozenset({"*"})
     finally:
         session.close()
         engine.dispose()
@@ -453,6 +514,7 @@ def test_http_corporate_session_enforces_admin_mapping_csrf_and_logout(monkeypat
                 provider="kerberos_form",
                 external_group_identifier=ADMINISTRATOR_GROUP_IDENTIFIER,
                 role_code="ADMINISTRATOR",
+                is_system_policy=True,
                 created_at=now,
                 updated_at=now,
             )
@@ -477,7 +539,7 @@ def test_http_corporate_session_enforces_admin_mapping_csrf_and_logout(monkeypat
             )
             assert login.status_code == 200
             assert "password" not in login.text
-            assert login.json()["permissions"] == sorted(ROLE_PERMISSIONS["ADMINISTRATOR"])
+            assert login.json()["permissions"] == ["*"]
             assert login.json()["scope"] == "application"
             session_payload = client.get("/api/v1/auth/session").json()
             assert session_payload["roles"] == ["ADMINISTRATOR"]
