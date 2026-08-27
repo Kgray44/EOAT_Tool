@@ -3277,12 +3277,17 @@ export interface components {
             display_name?: string | null;
             /** Drawing Number */
             drawing_number?: string | null;
+            /** Effective Value Sources */
+            effective_value_sources?: {
+                [key: string]: components["schemas"]["EffectiveValueSource"];
+            };
             /** Eoat Type */
             eoat_type?: string | null;
             /** Frame Material */
             frame_material?: string | null;
             /** Is Active */
             is_active: boolean;
+            latest_physical_audit?: components["schemas"]["PhysicalAuditObservation"] | null;
             /** Legacy Identifier */
             legacy_identifier?: string | null;
             /** Manufacturer */
@@ -3365,6 +3370,18 @@ export interface components {
             row_version: number;
             /** Status */
             status?: string | null;
+        };
+        /** EffectiveValueSource */
+        EffectiveValueSource: {
+            /** Audit Identifier */
+            audit_identifier?: string | null;
+            /** Observed At */
+            observed_at?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "CANONICAL" | "VERIFIED_PHYSICAL_AUDIT";
         };
         /** ExpectedVersion */
         ExpectedVersion: {
@@ -3998,6 +4015,26 @@ export interface components {
             reason?: string | null;
             /** Title */
             title?: string | null;
+        };
+        /**
+         * PhysicalAuditObservation
+         * @description The latest verified physical observation, kept distinct from governance.
+         */
+        PhysicalAuditObservation: {
+            /** Audit Identifier */
+            audit_identifier: string;
+            /** Configuration */
+            configuration?: {
+                [key: string]: unknown;
+            };
+            /** Observed At */
+            observed_at?: string | null;
+            /** Observed Machine */
+            observed_machine?: string | null;
+            /** Observed Tool */
+            observed_tool?: string | null;
+            /** Verified */
+            verified?: boolean | null;
         };
         /** RehearsalSessionIssue */
         RehearsalSessionIssue: {

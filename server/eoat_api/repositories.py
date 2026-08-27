@@ -10,8 +10,11 @@ from typing import Any
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
+from .audit_profiles import latest_physical_audit
 from .contracts import (
+    CurrentEOATLocation,
     DocumentMetadata,
+    EffectiveValueSource,
     EOATProfile,
     EOATSummary,
     HistoryEvent,
@@ -21,6 +24,7 @@ from .contracts import (
     PaginatedHistory,
     PaginationMetadata,
     PhotoMetadata,
+    PhysicalAuditObservation,
     RelationshipSummary,
     SearchResult,
     ToolProfile,
@@ -86,11 +90,12 @@ class _EOATProfilePhoto:
     is_primary_link: bool
     sort_order: int
     file_name: str
+    view_type: str | None
 
     @property
     def selection_key(self) -> tuple[bool, bool, int, str, str]:
-        # An explicit profile selection is authoritative. Legacy imports that
-        # predate that flag get a deterministic primary-link/sort fallback.
+        # Every candidate is already a FRONT view. A profile flag can only
+        # break ties within that truthful set.
         return (
             not self.is_profile_photo,
             not self.is_primary_link,
@@ -98,6 +103,25 @@ class _EOATProfilePhoto:
             self.file_name.casefold(),
             self.document_uuid,
         )
+
+
+def _normalized_photo_view(value: object | None) -> str | None:
+    normalized = " ".join(str(value or "").strip().upper().replace("_", " ").split())
+    return "FRONT" if normalized in {"FRONT", "FRONT VIEW"} else None
+
+
+def _physical_audit_contract(records: list[db.AuditRecord]) -> PhysicalAuditObservation | None:
+    audit = latest_physical_audit(records)
+    if audit is None:
+        return None
+    return PhysicalAuditObservation(
+        audit_identifier=audit.audit_identifier,
+        observed_at=audit.audit_date if isinstance(audit.audit_date, datetime) else None,
+        observed_machine=audit.observed_machine,
+        observed_tool=audit.observed_tool,
+        verified=audit.verified,
+        configuration=audit.configuration,
+    )
 
 
 class AtlasRepository:
@@ -136,6 +160,7 @@ class AtlasRepository:
                 db.Photo.is_profile_photo,
                 db.DocumentLink.is_primary,
                 db.Photo.sort_order,
+                db.Photo.photo_view_type,
             )
             .join(db.Document, db.Document.id == db.DocumentLink.document_id)
             .join(db.Photo, db.Photo.document_id == db.Document.id)
@@ -146,7 +171,12 @@ class AtlasRepository:
             )
         ).all()
         selected: dict[int, _EOATProfilePhoto] = {}
-        for entity_id, document_uuid, storage_path, file_name, is_profile, is_primary, sort_order in rows:
+        for entity_id, document_uuid, storage_path, file_name, is_profile, is_primary, sort_order, view_type in rows:
+            if _normalized_photo_view(view_type) != "FRONT":
+                # A missing front image is a documentation gap.  Do not let a
+                # profile flag, source ordering, or a convenient side/back
+                # shot masquerade as the EOAT's representative image.
+                continue
             candidate = _EOATProfilePhoto(
                 document_uuid=document_uuid,
                 storage_path=storage_path,
@@ -154,6 +184,7 @@ class AtlasRepository:
                 is_primary_link=bool(is_primary),
                 sort_order=int(sort_order or 0),
                 file_name=file_name,
+                view_type=view_type,
             )
             current = selected.get(entity_id)
             if current is None or candidate.selection_key < current.selection_key:
@@ -272,18 +303,62 @@ class AtlasRepository:
         if summary is None:
             return None
         entity = self.session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == summary.business_identifier))
+        audits = list(self.session.scalars(
+            select(db.AuditRecord)
+            .where(db.AuditRecord.eoat_id == entity.id)
+            .order_by(db.AuditRecord.audit_date, db.AuditRecord.source_row_number)
+        ))
+        physical_audit = _physical_audit_contract(audits)
+        observed = physical_audit.configuration if physical_audit and physical_audit.verified else {}
+
+        def effective(name: str, canonical: Any) -> Any:
+            return canonical if canonical is not None else observed.get(name)
+
+        source_pairs = {
+            "description": (entity.description, "description"),
+            "eoat_type": (summary.eoat_type, "eoat_type"),
+            "connection_type": (summary.connection_type, "connection_type"),
+            "cleanroom_classification": (summary.cleanroom_classification, "cleanroom_classification"),
+            "number_of_parts_picked": (entity.number_of_parts_picked, "parts_picked"),
+            "number_of_vacuum_cups": (entity.number_of_vacuum_cups, "vacuum_cup_count"),
+            "number_of_grippers": (entity.number_of_grippers, "gripper_count"),
+            "sensors_present": (entity.sensors_present, "sensors_present"),
+            "quick_disconnect_present": (entity.quick_disconnect_present, "quick_disconnect_present"),
+            "cup_material": (entity.cup_material, "cup_material"),
+        }
+        sources = {
+            name: EffectiveValueSource(
+                source="CANONICAL" if canonical is not None else "VERIFIED_PHYSICAL_AUDIT",
+                audit_identifier=None if canonical is not None else physical_audit.audit_identifier,
+                observed_at=None if canonical is not None else physical_audit.observed_at,
+            )
+            for name, (canonical, observed_name) in source_pairs.items()
+            if canonical is not None or observed.get(observed_name) is not None
+        }
+        summary_payload = summary.model_dump()
+        current_location = self.current_eoat_location(summary.business_identifier)
+        summary_payload.update(
+            eoat_type=effective("eoat_type", summary.eoat_type),
+            connection_type=effective("connection_type", summary.connection_type),
+            cleanroom_classification=effective("cleanroom_classification", summary.cleanroom_classification),
+            number_of_parts_picked=effective("parts_picked", entity.number_of_parts_picked),
+            current_location=current_location.state if current_location else summary.current_location,
+            current_location_detail=current_location,
+        )
         return EOATProfile(
-            **summary.model_dump(),
-            description=entity.description,
+            **summary_payload,
+            description=effective("description", entity.description),
             revision=entity.revision,
-            number_of_vacuum_cups=entity.number_of_vacuum_cups,
-            number_of_grippers=entity.number_of_grippers,
-            vacuum_present=entity.vacuum_present,
-            sensors_present=entity.sensors_present,
-            part_present_sensor_present=entity.part_present_sensor_present,
-            vacuum_confirmation_sensor_present=entity.vacuum_confirmation_sensor_present,
-            quick_disconnect_present=entity.quick_disconnect_present,
-            cup_material=entity.cup_material,
+            number_of_vacuum_cups=effective("vacuum_cup_count", entity.number_of_vacuum_cups),
+            number_of_grippers=effective("gripper_count", entity.number_of_grippers),
+            vacuum_present=entity.vacuum_present if entity.vacuum_present is not None else (
+                True if observed.get("vacuum_cup_count") or observed.get("vacuum_generator") or observed.get("vacuum_circuits") else None
+            ),
+            sensors_present=effective("sensors_present", entity.sensors_present),
+            part_present_sensor_present=effective("part_present_sensor_present", entity.part_present_sensor_present),
+            vacuum_confirmation_sensor_present=effective("vacuum_confirmation_sensor_present", entity.vacuum_confirmation_sensor_present),
+            quick_disconnect_present=effective("quick_disconnect_present", entity.quick_disconnect_present),
+            cup_material=effective("cup_material", entity.cup_material),
             frame_material=entity.frame_material,
             weight_kg=float(entity.weight_kg) if entity.weight_kg is not None else None,
             maximum_payload_kg=float(entity.maximum_payload_kg) if entity.maximum_payload_kg is not None else None,
@@ -293,14 +368,9 @@ class AtlasRepository:
             date_commissioned=entity.date_commissioned.isoformat() if entity.date_commissioned else None,
             notes=entity.notes,
             relationships=self.eoat_relationships(summary.business_identifier),
-            audit_evidence=[
-                audit.details_json or {}
-                for audit in self.session.scalars(
-                    select(db.AuditRecord)
-                    .where(db.AuditRecord.eoat_id == entity.id)
-                    .order_by(db.AuditRecord.source_row_number)
-                )
-            ],
+            audit_evidence=[audit.details_json or {} for audit in audits],
+            latest_physical_audit=physical_audit,
+            effective_value_sources=sources,
         )
 
     def eoat_relationships(self, identifier: str) -> list[RelationshipSummary]:
@@ -339,6 +409,82 @@ class AtlasRepository:
                 )
             )
         return results
+
+    def current_eoat_location(self, identifier: str):
+        """Resolve present lifecycle state first, then uncontested verified audit evidence.
+
+        Compatibility links are intentionally absent from this resolver: they
+        describe fitness, not physical whereabouts.
+        """
+        entity = self.session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier))
+        if entity is None:
+            return None
+        installed = self.session.execute(
+            select(db.EOATInstallation, db.Machine.machine_number)
+            .join(db.Machine, db.Machine.id == db.EOATInstallation.machine_id)
+            .where(db.EOATInstallation.eoat_id == entity.id, db.EOATInstallation.removed_at.is_(None))
+            .order_by(db.EOATInstallation.installed_at.desc())
+            .limit(1)
+        ).first()
+        if installed is not None:
+            installation, machine_number = installed
+            return CurrentEOATLocation(
+                state="INSTALLED", source="LIFECYCLE_EVENT", machine_number=machine_number,
+                observed_at=installation.installed_at, confidence="CONFIRMED",
+                evidence="Active governed EOAT installation record",
+            )
+        stored = self.session.execute(
+            select(db.EOATStorageAssignment, db.StorageLocation.location_code)
+            .join(db.StorageLocation, db.StorageLocation.id == db.EOATStorageAssignment.storage_location_id)
+            .where(db.EOATStorageAssignment.eoat_id == entity.id, db.EOATStorageAssignment.removed_from_storage_at.is_(None))
+            .order_by(db.EOATStorageAssignment.stored_at.desc())
+            .limit(1)
+        ).first()
+        if stored is not None:
+            assignment, location_code = stored
+            return CurrentEOATLocation(
+                state="STORED", source="LIFECYCLE_EVENT", storage_location=location_code,
+                observed_at=assignment.stored_at, confidence="CONFIRMED",
+                evidence="Active governed EOAT storage assignment",
+            )
+        audits = list(self.session.scalars(select(db.AuditRecord).where(db.AuditRecord.eoat_id == entity.id)))
+        verified = [
+            audit for audit in audits
+            if (projection := latest_physical_audit([audit])) is not None
+            and projection.verified is True
+            and projection.observed_machine
+        ]
+        if not verified:
+            return CurrentEOATLocation(
+                state="UNKNOWN", source="NONE", confidence="UNKNOWN",
+                evidence="No active lifecycle location or verified physical location observation is recorded.",
+            )
+        newest_date = max(
+            (audit.audit_date.date() if audit.audit_date else datetime.min.date())
+            for audit in verified
+        )
+        newest = [
+            audit for audit in verified
+            if (audit.audit_date.date() if audit.audit_date else datetime.min.date()) == newest_date
+        ]
+        machines = {
+            latest_physical_audit([audit]).observed_machine
+            for audit in newest
+            if latest_physical_audit([audit]) is not None
+        }
+        if len(machines) != 1:
+            return CurrentEOATLocation(
+                state="CONFLICTING", source="OBSERVATION", confidence="UNKNOWN",
+                resolution_status="REVIEW_REQUIRED",
+                evidence="Conflicting equally recent verified physical-location evidence requires review.",
+            )
+        audit = newest[0]
+        projection = latest_physical_audit([audit])
+        return CurrentEOATLocation(
+            state="INSTALLED", source="OBSERVATION", machine_number=projection.observed_machine,
+            observed_at=audit.audit_date, confidence="VERIFIED",
+            evidence=f"Physically verified in audit {projection.audit_identifier}",
+        )
 
     def list_machines(
         self,

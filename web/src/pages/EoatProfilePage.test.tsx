@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router-dom";
 import { AppProviders } from "@/app/providers";
@@ -234,5 +234,35 @@ describe("EOAT profile route", () => {
     expect(
       await screen.findByRole("heading", { name: "Invalid EOAT identifier" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the photo viewer controls visible while supporting zoom, pan, fit, and close", async () => {
+    vi.stubGlobal("fetch", mockApi());
+    renderProfile();
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Open full-resolution photo for EOAT A+1",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: /Photo viewer/ });
+    const image = dialog.querySelector("img")!;
+    expect(
+      screen.getByRole("button", { name: "Close photo viewer" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Fit image" })).toBeVisible();
+    fireEvent.wheel(image, { deltaY: -120 });
+    expect(image.className).toContain("is-zoomed");
+    fireEvent.pointerDown(image, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(image, { pointerId: 1, clientX: 150, clientY: 130 });
+    fireEvent.pointerUp(image, { pointerId: 1 });
+    await user.click(screen.getByRole("button", { name: "Fit image" }));
+    expect(image.className).not.toContain("is-zoomed");
+    await user.click(
+      screen.getByRole("button", { name: "Close photo viewer" }),
+    );
+    expect(
+      screen.queryByRole("dialog", { name: /Photo viewer/ }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -141,6 +141,21 @@ function Attribute({
   );
 }
 
+function EffectiveValueNote({
+  source,
+}: {
+  source:
+    NonNullable<EoatProfile["effective_value_sources"]>[string] | undefined;
+}) {
+  if (!source || source.source !== "VERIFIED_PHYSICAL_AUDIT") return null;
+  return (
+    <small className="effective-value-note">
+      Observed in verified physical audit {source.audit_identifier}
+      {source.observed_at ? ` on ${formatDate(source.observed_at)}` : ""}
+    </small>
+  );
+}
+
 function ProfileHeader({
   profile,
   location,
@@ -492,6 +507,20 @@ function ProfileContent({
             />
             <Attribute label="Active record" value={profile.is_active} />
           </dl>
+          {profile.latest_physical_audit?.verified && (
+            <aside className="physical-audit-note">
+              <strong>
+                Latest verified physical audit:{" "}
+                {profile.latest_physical_audit.audit_identifier}
+              </strong>
+              <span>
+                Observed {formatDate(profile.latest_physical_audit.observed_at)}
+                {profile.latest_physical_audit.observed_machine
+                  ? ` · Machine ${profile.latest_physical_audit.observed_machine}`
+                  : ""}
+              </span>
+            </aside>
+          )}
         </ProfileSection>
 
         <ProfileSection title="Current location and assignment">
@@ -556,6 +585,9 @@ function ProfileContent({
             />
             <Attribute label="Cup material" value={profile.cup_material} />
           </dl>
+          <EffectiveValueNote
+            source={profile.effective_value_sources?.number_of_vacuum_cups}
+          />
           {profile.notes && (
             <p className="notes">
               <strong>Notes:</strong> {profile.notes}

@@ -62,6 +62,23 @@ class CurrentEOATLocation(BaseModel):
     evidence: str = "Current read-model state"
 
 
+class PhysicalAuditObservation(BaseModel):
+    """The latest verified physical observation, kept distinct from governance."""
+
+    audit_identifier: str
+    observed_at: datetime | None = None
+    observed_machine: str | None = None
+    observed_tool: str | None = None
+    verified: bool | None = None
+    configuration: dict[str, Any] = Field(default_factory=dict)
+
+
+class EffectiveValueSource(BaseModel):
+    source: Literal["CANONICAL", "VERIFIED_PHYSICAL_AUDIT"]
+    audit_identifier: str | None = None
+    observed_at: datetime | None = None
+
+
 class EOATSummary(BaseModel):
     business_identifier: str
     legacy_identifier: str | None = None
@@ -101,6 +118,8 @@ class EOATProfile(EOATSummary):
     part_status: str = "NOT_YET_VERIFIED"
     relationships: list[RelationshipSummary] = Field(default_factory=list)
     audit_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    latest_physical_audit: PhysicalAuditObservation | None = None
+    effective_value_sources: dict[str, EffectiveValueSource] = Field(default_factory=dict)
 
 
 class MachineSummary(BaseModel):
