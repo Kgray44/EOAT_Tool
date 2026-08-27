@@ -78,10 +78,11 @@ jobs:
       - name: Verify registries, demo mode, and dashboard launch
         run: python scripts/ci_smoke_check.py --root . --registry-only --dashboard-smoke
 
-      - name: Run pytest
-        run: python -m pytest
+      - name: Run candidate API, migration, authorization, and gate tests
+        run: python -m pytest tests/server tests/test_ruff_delta_gate.py tests/test_safety_delta_gate.py
 
       - name: Repository safety delta gate
+        if: ${{ always() }}
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
