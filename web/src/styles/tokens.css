@@ -15,7 +15,35 @@
   --surface-page: var(--atlas-page-background);
   --surface-panel: var(--atlas-panel-background);
   --surface-card: var(--atlas-card-background);
+  --surface-elevated: var(--atlas-panel-background-alt);
+  --surface-row: var(--atlas-card-background);
+  --surface-row-alt: color-mix(
+    in srgb,
+    var(--atlas-card-background) 86%,
+    var(--atlas-accent-soft)
+  );
+  --surface-selected: var(--atlas-accent-soft);
   --surface-input: var(--atlas-input-background);
+  --surface-info: color-mix(
+    in srgb,
+    var(--atlas-card-background) 78%,
+    var(--atlas-accent-soft)
+  );
+  --surface-success: color-mix(
+    in srgb,
+    var(--atlas-card-background) 76%,
+    var(--atlas-success-soft)
+  );
+  --surface-warning: color-mix(
+    in srgb,
+    var(--atlas-card-background) 76%,
+    var(--atlas-warning-soft)
+  );
+  --surface-danger: color-mix(
+    in srgb,
+    var(--atlas-card-background) 76%,
+    var(--atlas-danger-soft)
+  );
   --border-subtle: var(--atlas-border);
   --border-strong: var(--atlas-border-strong);
   --accent-primary: var(--atlas-accent);
