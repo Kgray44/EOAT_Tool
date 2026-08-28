@@ -28,7 +28,16 @@ ROLE_PRIORITY = (
     "TECHNICIAN",
     "VIEWER",
 )
-ACCESS_SOURCES = frozenset({"explicit_user_assignment", "corporate_group", "default", "explicit_deny"})
+ACCESS_SOURCES = frozenset(
+    {
+        "protected_system_administrator",
+        "explicit_group_policy_assignment",
+        "explicit_user_assignment",
+        "corporate_group",
+        "default",
+        "explicit_deny",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -36,6 +45,7 @@ class EffectiveAccess:
     role_code: str
     source: str
     group_roles: tuple[str, ...] = ()
+    explicit_policy: db.ExternalGroupRoleMapping | None = None
 
 
 def _now() -> datetime:
@@ -87,12 +97,58 @@ def _group_roles(session: Session, *, provider: str, groups: tuple[str, ...] | l
     return tuple(sorted({row.role_code for row in rows if row.role_code in ROLE_PRIORITY}))
 
 
+def _protected_system_role(
+    session: Session, *, provider: str, groups: tuple[str, ...] | list[str]
+) -> str | None:
+    """Return a verified recovery role without elevating any ordinary policy."""
+
+    if not groups:
+        return None
+    row = session.scalar(
+        select(db.ExternalGroupRoleMapping).where(
+            db.ExternalGroupRoleMapping.provider == provider,
+            db.ExternalGroupRoleMapping.external_group_identifier.in_(tuple(groups)),
+            db.ExternalGroupRoleMapping.is_active.is_(True),
+            db.ExternalGroupRoleMapping.explicit_deny.is_(False),
+            db.ExternalGroupRoleMapping.is_system_policy.is_(True),
+            db.ExternalGroupRoleMapping.role_code == "ADMINISTRATOR",
+        )
+    )
+    return row.role_code if row is not None else None
+
+
+def explicit_policy_for_user(session: Session, corporate_user: db.CorporateUser) -> db.ExternalGroupRoleMapping | None:
+    """Return the active EOAT-owned assignment, never a directory membership."""
+
+    if corporate_user.explicit_group_policy_id is None:
+        return None
+    return session.scalar(
+        select(db.ExternalGroupRoleMapping).where(
+            db.ExternalGroupRoleMapping.id == corporate_user.explicit_group_policy_id,
+            db.ExternalGroupRoleMapping.provider == corporate_user.provider,
+            db.ExternalGroupRoleMapping.is_active.is_(True),
+            db.ExternalGroupRoleMapping.explicit_deny.is_(False),
+            db.ExternalGroupRoleMapping.is_system_policy.is_(False),
+        )
+    )
+
+
 def resolve_effective_access(session: Session, corporate_user: db.CorporateUser, *, groups: tuple[str, ...] | list[str] = ()) -> EffectiveAccess:
     """Resolve access in the only permitted precedence order."""
 
     group_roles = _group_roles(session, provider=corporate_user.provider, groups=groups)
     if not corporate_user.is_active or corporate_user.archived_at is not None or corporate_user.explicit_denied:
         return EffectiveAccess(DEFAULT_ROLE, "explicit_deny", group_roles)
+    if _protected_system_role(session, provider=corporate_user.provider, groups=groups):
+        return EffectiveAccess("ADMINISTRATOR", "protected_system_administrator", group_roles)
+    explicit_policy = explicit_policy_for_user(session, corporate_user)
+    if explicit_policy is not None:
+        return EffectiveAccess(
+            explicit_policy.role_code,
+            "explicit_group_policy_assignment",
+            group_roles,
+            explicit_policy,
+        )
     if corporate_user.explicit_role_code:
         return EffectiveAccess(corporate_user.explicit_role_code, "explicit_user_assignment", group_roles)
     if group_roles:
@@ -111,6 +167,18 @@ def access_state(session: Session, corporate_user: db.CorporateUser, *, groups: 
         "access_source": effective.source,
         "group_roles": list(effective.group_roles),
         "explicit_role": corporate_user.explicit_role_code,
+        "explicit_group_policy": (
+            {
+                "id": effective.explicit_policy.id,
+                "corporate_group": effective.explicit_policy.external_group_identifier,
+                "role_code": effective.explicit_policy.role_code,
+                "status": "active" if effective.explicit_policy.is_active else "inactive",
+                "assignment_source": "explicit_eoat_group_policy",
+                "assigned_at": corporate_user.policy_assigned_at,
+            }
+            if effective.explicit_policy is not None
+            else None
+        ),
         "explicit_denied": corporate_user.explicit_denied,
     }
 

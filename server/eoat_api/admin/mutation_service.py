@@ -9,6 +9,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..corporate_auth import ADMINISTRATOR_GROUP_IDENTIFIER
+from ..corporate_users import access_state, latest_authorization_groups, revoke_active_sessions
 from ..database import models as db
 from ..errors import APIError, conflict, not_found
 from ..security import GROUP_POLICY_PERMISSIONS, ActorContext
@@ -485,9 +486,172 @@ def group_policy_view(record: db.ExternalGroupRoleMapping) -> dict[str, Any]:
         "status": "active" if record.is_active else "inactive",
         "is_protected_system_policy": _is_protected_group_policy(record),
         "row_version": record.row_version,
+        "created_at": record.created_at,
         "updated_at": record.updated_at,
         "permissions": sorted(record.permissions_json or []),
     }
+
+
+def explicit_policy_assignment_view(session: Session, user: db.CorporateUser) -> dict[str, Any] | None:
+    """Represent only the EOAT-owned policy link; never directory membership."""
+
+    if user.explicit_group_policy_id is None:
+        return None
+    policy = session.get(db.ExternalGroupRoleMapping, user.explicit_group_policy_id)
+    if policy is None:
+        return None
+    return {
+        "policy_id": policy.id,
+        "corporate_group": policy.external_group_identifier,
+        "role_code": policy.role_code,
+        "status": "active" if policy.is_active else "inactive",
+        "source": "explicit_eoat_group_policy",
+        "assigned_at": user.policy_assigned_at,
+    }
+
+
+def _membership_state(session: Session, user: db.CorporateUser) -> dict[str, Any]:
+    groups = latest_authorization_groups(session, user.user_id)
+    return {
+        **access_state(session, user, groups=groups),
+        "assignment": explicit_policy_assignment_view(session, user),
+        "active_sessions": session.scalar(
+            select(db.CorporateAuthenticationSession.id)
+            .where(
+                db.CorporateAuthenticationSession.user_id == user.user_id,
+                db.CorporateAuthenticationSession.revoked_at.is_(None),
+            )
+            .limit(1)
+        ) is not None,
+    }
+
+
+def _assignment_confirmation(action: str, user: db.CorporateUser, policy_id: int) -> str:
+    return f"{action} GROUP POLICY {policy_id} {'TO' if action == 'ASSIGN' else 'FROM'} {user.user_uuid}"
+
+
+def preview_group_policy_assignment(
+    session: Session, user: db.CorporateUser, policy: db.ExternalGroupRoleMapping, *, remove: bool = False
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    """Build the exact server-owned result used by both UI entry points."""
+
+    before = _membership_state(session, user)
+    original = user.explicit_group_policy_id
+    user.explicit_group_policy_id = None if remove else policy.id
+    try:
+        # Preview must not flush a tentative association into a read session.
+        with session.no_autoflush:
+            after = _membership_state(session, user)
+    finally:
+        user.explicit_group_policy_id = original
+    action = "REMOVE" if remove else "ASSIGN"
+    return before, after, _assignment_confirmation(action, user, policy.id)
+
+
+def _assignment_policy_for_update(session: Session, mapping_id: int) -> db.ExternalGroupRoleMapping:
+    policy = session.scalar(
+        select(db.ExternalGroupRoleMapping)
+        .where(db.ExternalGroupRoleMapping.id == mapping_id, db.ExternalGroupRoleMapping.provider == "kerberos_form")
+        .with_for_update()
+    )
+    if policy is None:
+        raise not_found("group policy", str(mapping_id))
+    if not policy.is_active:
+        raise APIError(409, "GROUP_POLICY_INACTIVE", "An inactive policy cannot be assigned.")
+    _ensure_policy_is_mutable(policy)
+    _ensure_group_policy_role_delegatable(policy.role_code)
+    return policy
+
+
+def assign_group_policy_governed(
+    session: Session,
+    actor: ActorContext,
+    user_uuid: str,
+    policy_id: int,
+    *,
+    expected_user_version: int,
+    expected_policy_version: int,
+    reason: str,
+) -> dict[str, Any]:
+    user = session.scalar(select(db.CorporateUser).where(db.CorporateUser.user_uuid == user_uuid).with_for_update())
+    if user is None:
+        raise not_found("Corporate user", user_uuid)
+    check_version(user, expected_user_version)
+    policy = _assignment_policy_for_update(session, policy_id)
+    check_version(policy, expected_policy_version)
+    before, _preview_after, _ = preview_group_policy_assignment(session, user, policy)
+    previous_assignment = explicit_policy_assignment_view(session, user)
+    user.explicit_group_policy_id = policy.id
+    user.policy_assigned_at = datetime.now(timezone.utc)
+    user.policy_assigned_by_user_id = actor.user_id
+    user.access_changed_at = datetime.now(timezone.utc)
+    user.access_changed_by_user_id = actor.user_id
+    user.updated_by_user_id = actor.user_id
+    user.row_version += 1
+    after = _membership_state(session, user)
+    revoked = revoke_active_sessions(session, user.user_id, reason="explicit_group_policy_assigned")
+    receipt = AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type="CorporateUser",
+        entity_id=user.user_uuid,
+        entity_display_id=user.canonical_identity,
+        operation="admin.group-policy.assignment.assign",
+        previous={**before, "assignment": previous_assignment, "policy_id": previous_assignment and previous_assignment["policy_id"]},
+        current={**after, "policy_id": policy.id, "policy": policy.external_group_identifier, "revoked_session_count": revoked},
+        reason=reason,
+        source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        action=AuditAction.ROLE_MAPPING_CHANGE,
+    )
+    return {"before": before, "after": after, "audit_event_id": receipt.event_id, "revoked_session_count": revoked}
+
+
+def remove_group_policy_assignment_governed(
+    session: Session,
+    actor: ActorContext,
+    user_uuid: str,
+    *,
+    expected_user_version: int,
+    reason: str,
+) -> dict[str, Any]:
+    user = session.scalar(select(db.CorporateUser).where(db.CorporateUser.user_uuid == user_uuid).with_for_update())
+    if user is None:
+        raise not_found("Corporate user", user_uuid)
+    check_version(user, expected_user_version)
+    if user.explicit_group_policy_id is None:
+        raise APIError(409, "GROUP_POLICY_ASSIGNMENT_ABSENT", "This user has no explicit EOAT Atlas group-policy assignment.")
+    policy = session.scalar(
+        select(db.ExternalGroupRoleMapping).where(db.ExternalGroupRoleMapping.id == user.explicit_group_policy_id).with_for_update()
+    )
+    if policy is None:
+        raise APIError(409, "GROUP_POLICY_ASSIGNMENT_INVALID", "The assigned policy is unavailable; resolve this through governed recovery.")
+    before, _preview_after, _ = preview_group_policy_assignment(session, user, policy, remove=True)
+    previous_assignment = explicit_policy_assignment_view(session, user)
+    user.explicit_group_policy_id = None
+    user.policy_assigned_at = None
+    user.policy_assigned_by_user_id = None
+    user.access_changed_at = datetime.now(timezone.utc)
+    user.access_changed_by_user_id = actor.user_id
+    user.updated_by_user_id = actor.user_id
+    user.row_version += 1
+    after = _membership_state(session, user)
+    revoked = revoke_active_sessions(session, user.user_id, reason="explicit_group_policy_removed")
+    receipt = AuditEventWriter().write_change(
+        session,
+        actor,
+        entity_type="CorporateUser",
+        entity_id=user.user_uuid,
+        entity_display_id=user.canonical_identity,
+        operation="admin.group-policy.assignment.remove",
+        previous={**before, "assignment": previous_assignment, "policy_id": policy.id},
+        current={**after, "policy_id": None, "revoked_session_count": revoked},
+        reason=reason,
+        source=AuditSource.WEB,
+        correlation_id=actor.request_id,
+        action=AuditAction.ROLE_MAPPING_CHANGE,
+    )
+    return {"before": before, "after": after, "audit_event_id": receipt.event_id, "revoked_session_count": revoked}
 
 
 def setting_visible_view(record: db.SystemSetting) -> dict[str, Any] | None:
@@ -679,6 +843,16 @@ def update_group_policy_governed(
             )
     before = {"role_code": record.role_code, "is_active": record.is_active, "permissions": record.permissions_json or [], "provider": record.provider}
     changed = record.role_code != next_role or record.is_active != next_active or (record.permissions_json or []) != next_permissions
+    assigned_users = (
+        session.scalars(
+            select(db.CorporateUser)
+            .where(db.CorporateUser.explicit_group_policy_id == record.id)
+            .with_for_update()
+        ).all()
+        if record.role_code != next_role
+        else []
+    )
+    assigned_before = [(user, _membership_state(session, user)) for user in assigned_users]
     record.role_code = next_role
     record.is_active = next_active
     record.permissions_json = next_permissions
@@ -688,8 +862,33 @@ def update_group_policy_governed(
         revoked_session_count = _revoke_sessions_for_group_policy(
             session, record.external_group_identifier, reason="group_policy_changed"
         )
+    propagated_session_count = 0
+    if record.role_code != before["role_code"]:
+        for user, user_before in assigned_before:
+            user.access_changed_at = datetime.now(timezone.utc)
+            user.access_changed_by_user_id = actor.user_id
+            user.updated_by_user_id = actor.user_id
+            user.row_version += 1
+            user_after = _membership_state(session, user)
+            revoked = revoke_active_sessions(session, user.user_id, reason="explicit_group_policy_role_changed")
+            propagated_session_count += revoked
+            AuditEventWriter().write_change(
+                session,
+                actor,
+                entity_type="CorporateUser",
+                entity_id=user.user_uuid,
+                entity_display_id=user.canonical_identity,
+                operation="admin.group-policy.assignment.role-aligned",
+                previous={**user_before, "policy_id": record.id, "policy_role": before["role_code"]},
+                current={**user_after, "policy_id": record.id, "policy_role": record.role_code, "revoked_session_count": revoked},
+                reason=reason,
+                source=AuditSource.WEB,
+                correlation_id=actor.request_id,
+                action=AuditAction.ROLE_MAPPING_CHANGE,
+            )
     session.flush()
-    after = {"role_code": record.role_code, "is_active": record.is_active, "permissions": record.permissions_json or [], "provider": record.provider}
+    after = {"role_code": record.role_code, "is_active": record.is_active, "permissions": record.permissions_json or [], "provider": record.provider,
+             "affected_explicit_user_count": len(assigned_users), "propagated_session_count": propagated_session_count}
     result = AuditEventWriter().write_change(
         session,
         actor,
@@ -710,6 +909,8 @@ def update_group_policy_governed(
         "correlation_id": actor.request_id,
         "request_id": actor.request_id,
         "revoked_session_count": revoked_session_count,
+        "propagated_session_count": propagated_session_count,
+        "affected_explicit_user_count": len(assigned_users),
     }
 
 
@@ -728,6 +929,15 @@ def deactivate_group_policy_governed(
     _ensure_admin_recovery_path(session, record, next_role=record.role_code, next_active=False)
     if not record.is_active:
         raise APIError(409, "GROUP_POLICY_ALREADY_INACTIVE", "This group policy is already inactive.")
+    assigned = session.scalar(
+        select(db.CorporateUser.id).where(db.CorporateUser.explicit_group_policy_id == record.id).limit(1)
+    )
+    if assigned is not None:
+        raise APIError(
+            409,
+            "GROUP_POLICY_ASSIGNMENTS_PRESENT",
+            "Remove or reassign every explicit EOAT Atlas policy assignment before deactivating this policy.",
+        )
     before = {"role_code": record.role_code, "is_active": True, "provider": record.provider}
     record.is_active = False
     record.row_version += 1

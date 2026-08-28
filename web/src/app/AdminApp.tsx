@@ -22,6 +22,7 @@ import {
   type CorporateUserDetail,
   type CorporateUserSummary,
   type CorporateUsersList,
+  type GroupPolicyDetail,
   type AuditCatalog,
   type AuditEvent,
   type AuditList,
@@ -3285,6 +3286,17 @@ function UserDetailPage() {
         </article>
       </div>
       <section className="editor-card">
+        <h2>Group Policy access</h2>
+        <dl className="detail">
+          <dt>Current effective role</dt><dd>{user.effective_role}</dd>
+          <dt>Role source</dt><dd>{user.access_source.replaceAll("_", " ")}</dd>
+          <dt>Assigned Group Policy</dt><dd>{user.explicit_group_policy ? <Link to={`/admin/group-policies/${user.explicit_group_policy.id}`}>{user.explicit_group_policy.corporate_group} · {user.explicit_group_policy.role_code}</Link> : "None"}</dd>
+          <dt>Directory-derived policy/group source</dt><dd>{user.group_roles.length ? user.group_roles.join(", ") : "None recorded"}</dd>
+          <dt>Explicit user role</dt><dd>{user.explicit_role ?? "None"}</dd>
+        </dl>
+        {user.explicit_group_policy ? <GroupPolicyRemovalWorkflow user={user} onDone={() => setRefresh((value) => value + 1)} /> : <GroupPolicyAssignmentWorkflow user={user} onDone={() => setRefresh((value) => value + 1)} />}
+      </section>
+      <section className="editor-card">
         <h2>Safe session references</h2>
         <p>Session tokens, cookies, and CSRF proofs are never displayed.</p>
         {user.sessions.map((session) => (
@@ -3688,6 +3700,108 @@ function GroupPolicyPage() {
   );
 }
 
+function GroupPolicyDetailPage() {
+  const { ready, setReady } = useAdminSession();
+  const { policyId = "" } = useParams();
+  const [refresh, setRefresh] = useState(0);
+  const remote = useRemote<GroupPolicyDetail>(
+    (signal) => adminApi.groupPolicy(Number(policyId), signal),
+    `group-policy-detail:${policyId}:${ready}:${refresh}`,
+  );
+  if (!ready) return <SessionGate onReady={() => setReady(true)} />;
+  if (remote.state === "error") return <ErrorState error={remote.error} />;
+  if (remote.state === "loading") return <LoadingState />;
+  const detail = remote.value;
+  const done = () => setRefresh((value) => value + 1);
+  return (
+    <>
+      <PageTitle title={detail.policy.corporate_group}>
+        <Link className="return-link" to="/admin/group-policies">
+          ← Back to Group Access Policies
+        </Link>
+        <p>
+          EOAT Atlas policy details. Directory group membership remains managed
+          by the corporate directory and is never changed here.
+        </p>
+      </PageTitle>
+      <div className="detail-summary">
+        <div><strong>EOAT Atlas role</strong><span>{detail.policy.role_code}</span></div>
+        <div><strong>Status</strong><span>{detail.policy.status}</span></div>
+        <div><strong>Created</strong><span>{formatTime(detail.policy.created_at)}</span></div>
+        <div><strong>Updated</strong><span>{formatTime(detail.policy.updated_at)}</span></div>
+      </div>
+      <section className="editor-card">
+        <h2>Operational editing permissions</h2>
+        <p>{detail.policy.permissions.length ? detail.policy.permissions.join(", ") : "No operational permissions granted."}</p>
+        {detail.policy.is_protected_system_policy ? <p className="protected-policy-note">Required protected Administrator recovery policy. It cannot be delegated or edited here.</p> : (
+          <table className="audit-table"><tbody><GroupPolicyRow policy={detail.policy} onDone={done} openForEdit /></tbody></table>
+        )}
+      </section>
+      <section className="editor-card">
+        <h2>Assigned users</h2>
+        <p>Explicit EOAT Atlas assignments do not modify corporate directory membership.</p>
+        {!detail.policy.is_protected_system_policy ? <GroupPolicyAssignmentWorkflow policy={detail.policy} onDone={done} /> : null}
+        {detail.assigned_users.length ? (
+          <div className="audit-table-wrap"><table className="audit-table"><thead><tr><th>Name</th><th>Corporate identity</th><th>Role</th><th>Source</th><th>Status</th><th>Last sign-in</th><th>Action</th></tr></thead><tbody>
+            {detail.assigned_users.map((user) => <tr key={user.user_id}><td><Link to={`/admin/users/${user.user_id}`}>{user.name}</Link></td><td>{user.corporate_identity}</td><td>{user.effective_role}</td><td>Explicit EOAT Atlas policy</td><td>{user.status}</td><td>{formatTime(user.last_sign_in)}</td><td><GroupPolicyRemovalWorkflow user={user} onDone={done} /></td></tr>)}
+          </tbody></table></div>
+        ) : <p className="state-note">No users are explicitly assigned to this policy.</p>}
+      </section>
+      <section className="editor-card"><h2>Policy audit history</h2>
+        {detail.audit_history.map((event) => <p key={event.event_id}><Link to={`/admin/audit/events/${event.event_id}`}>{event.action}</Link> · {event.actor ?? "Unknown actor"} · {formatTime(event.occurred_at)}{event.reason ? ` · ${event.reason}` : ""}</p>)}
+        {!detail.audit_history.length ? <p className="state-note">No policy audit events are available.</p> : null}
+      </section>
+    </>
+  );
+}
+
+function GroupPolicyAssignmentWorkflow({ policy: fixedPolicy, user: fixedUser, onDone }: { policy?: AdminGroupPolicy; user?: CorporateUserSummary; onDone: () => void }) {
+  const [search, setSearch] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(fixedUser?.user_id ?? "");
+  const [selectedPolicyId, setSelectedPolicyId] = useState(String(fixedPolicy?.id ?? ""));
+  const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof adminApi.previewUserGroupPolicy>>>();
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState<AdminApiError>();
+  const users = useRemote<CorporateUsersList>((signal) => adminApi.users(new URLSearchParams({ search, page_size: "50" }), signal), `policy-user-search:${search}`);
+  const policies = useRemote<{ items: AdminGroupPolicy[] }>(() => adminApi.groupPolicies(), "policy-assignment-policies");
+  const user = fixedUser ?? (users.state === "ready" ? users.value.items.find((item) => item.user_id === selectedUserId) : undefined);
+  const policy = fixedPolicy ?? (policies.state === "ready" ? policies.value.items.find((item) => item.id === Number(selectedPolicyId)) : undefined);
+  const previewAssignment = () => {
+    if (!user || !policy) return;
+    setError(undefined);
+    adminApi.previewUserGroupPolicy(user.user_id, { policy_id: policy.id, expected_user_version: user.row_version, expected_policy_version: policy.row_version, reason })
+      .then((value) => { setPreview(value); setConfirmed(false); })
+      .catch((value: unknown) => setError(value instanceof AdminApiError ? value : new AdminApiError("Policy assignment preview failed.", 0)));
+  };
+  const commit = () => {
+    if (!user || !policy || !preview) return;
+    adminApi.commitUserGroupPolicy(user.user_id, { policy_id: policy.id, expected_user_version: user.row_version, expected_policy_version: policy.row_version, reason, confirmation: preview.confirmation })
+      .then(() => { setPreview(undefined); setConfirmed(false); onDone(); })
+      .catch((value: unknown) => setError(value instanceof AdminApiError ? value : new AdminApiError("Policy assignment failed.", 0)));
+  };
+  return <div className="lifecycle-panel">
+    <h3>+ Add user</h3>
+    {!fixedUser ? <><label>Search registered EOAT Atlas users<input aria-label="Search registered users" value={search} onChange={(event) => { setSearch(event.target.value); setSelectedUserId(""); setPreview(undefined); }} /></label>
+      <label>User<select aria-label="Select user" value={selectedUserId} onChange={(event) => { setSelectedUserId(event.target.value); setPreview(undefined); }}><option value="">Select a registered user</option>{users.state === "ready" ? users.value.items.map((item) => <option key={item.user_id} value={item.user_id}>{item.name} · {item.corporate_identity}</option>) : null}</select></label></> : null}
+    {!fixedPolicy ? <label>Group Policy<select aria-label="Select group policy" value={selectedPolicyId} onChange={(event) => { setSelectedPolicyId(event.target.value); setPreview(undefined); }}><option value="">Select a policy</option>{policies.state === "ready" ? policies.value.items.filter((item) => !item.is_protected_system_policy).map((item) => <option key={item.id} value={item.id}>{item.corporate_group} · {item.role_code}</option>) : null}</select></label> : null}
+    <label>Reason<input value={reason} onChange={(event) => { setReason(event.target.value); setPreview(undefined); }} /></label>
+    <button type="button" disabled={!user || !policy || reason.trim().length < 3} onClick={previewAssignment}>Preview policy assignment</button>
+    {preview ? <div className="preview-panel" role={preview.role_mismatch ? "dialog" : undefined}><strong>{preview.role_mismatch ? "Role mismatch" : "Policy assignment preview"}</strong><p>{user?.name} currently has role {preview.before.effective_role}. The selected Group Policy requires {policy?.role_code}. Continuing will assign this Group Policy and align effective access to {preview.after.effective_role}.</p><p>This access change will invalidate {preview.active_session_count} active session{preview.active_session_count === 1 ? "" : "s"}.</p><label className="check-row"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I understand this atomic access change.</label><button className="primary-button" type="button" disabled={!confirmed} onClick={commit}>Assign policy and update role</button></div> : null}
+    {error ? <p className="inline-error">{error.message}</p> : null}
+  </div>;
+}
+
+function GroupPolicyRemovalWorkflow({ user, onDone }: { user: CorporateUserSummary; onDone: () => void }) {
+  const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof adminApi.previewUserGroupPolicyRemoval>>>();
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState<AdminApiError>();
+  const previewRemoval = () => adminApi.previewUserGroupPolicyRemoval(user.user_id, { expected_user_version: user.row_version, reason }).then((value) => { setPreview(value); setConfirmed(false); }).catch((value: unknown) => setError(value instanceof AdminApiError ? value : new AdminApiError("Removal preview failed.", 0)));
+  const remove = () => preview && adminApi.removeUserGroupPolicy(user.user_id, { expected_user_version: user.row_version, reason, confirmation: preview.confirmation }).then(onDone).catch((value: unknown) => setError(value instanceof AdminApiError ? value : new AdminApiError("Policy removal failed.", 0)));
+  return <div><label className="sr-only">Removal reason<input aria-label={`Removal reason for ${user.name}`} value={reason} onChange={(event) => { setReason(event.target.value); setPreview(undefined); }} /></label><button className="destructive-button" type="button" disabled={reason.trim().length < 3} onClick={previewRemoval}>Remove</button>{preview ? <div className="preview-panel" role="dialog"><strong>Confirm policy removal</strong><p>Removing this policy changes the resulting role from {preview.before.effective_role} to {preview.after.effective_role} ({preview.after.access_source.replaceAll("_", " ")}).</p><p>This access change will invalidate {preview.active_session_count} active session{preview.active_session_count === 1 ? "" : "s"}.</p><label className="check-row"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /> I understand the resulting access change.</label><button className="destructive-button" type="button" disabled={!confirmed} onClick={remove}>Confirm removal</button></div> : null}{error ? <p className="inline-error">{error.message}</p> : null}</div>;
+}
+
 function GroupPolicyCreateForm({
   onDone,
   onCancel,
@@ -3800,11 +3914,13 @@ function GroupPolicyCreateForm({
 function GroupPolicyRow({
   policy,
   onDone,
+  openForEdit = false,
 }: {
   policy: AdminGroupPolicy;
   onDone: (auditEventId: string) => void;
+  openForEdit?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(openForEdit);
   const [role, setRole] = useState(policy.role_code);
   const [reason, setReason] = useState("");
   const [permissions, setPermissions] = useState(policy.permissions ?? []);
@@ -3856,13 +3972,12 @@ function GroupPolicyRow({
         <td data-label="Status">{policy.status}</td>
         <td data-label="Updated">{formatTime(policy.updated_at)}</td>
         <td data-label="Actions">
-          <button
+          <Link
             className="secondary-button"
-            type="button"
-            onClick={() => setEditing((value) => !value)}
+            to={`/admin/group-policies/${policy.id}`}
           >
             View / edit
-          </button>
+          </Link>
           {policy.is_protected_system_policy ? (
             <span className="protected-policy-note">
               Required Administrator recovery policy
@@ -4531,6 +4646,7 @@ export function AdminApp() {
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:userId" element={<UserDetailPage />} />
           <Route path="group-policies" element={<GroupPolicyPage />} />
+          <Route path="group-policies/:policyId" element={<GroupPolicyDetailPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="integrity" element={<IntegrityEvidencePage />} />
           {showTestControls ? (

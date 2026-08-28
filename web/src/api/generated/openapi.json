@@ -3721,6 +3721,79 @@
         "title": "FitCheckWarning",
         "type": "object"
       },
+      "GroupPolicyAssignmentCommitRequest": {
+        "properties": {
+          "confirmation": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Confirmation",
+            "type": "string"
+          },
+          "expected_policy_version": {
+            "minimum": 1.0,
+            "title": "Expected Policy Version",
+            "type": "integer"
+          },
+          "expected_user_version": {
+            "minimum": 1.0,
+            "title": "Expected User Version",
+            "type": "integer"
+          },
+          "policy_id": {
+            "minimum": 1.0,
+            "title": "Policy Id",
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "expected_user_version",
+          "expected_policy_version",
+          "reason",
+          "confirmation"
+        ],
+        "title": "GroupPolicyAssignmentCommitRequest",
+        "type": "object"
+      },
+      "GroupPolicyAssignmentPreviewRequest": {
+        "properties": {
+          "expected_policy_version": {
+            "minimum": 1.0,
+            "title": "Expected Policy Version",
+            "type": "integer"
+          },
+          "expected_user_version": {
+            "minimum": 1.0,
+            "title": "Expected User Version",
+            "type": "integer"
+          },
+          "policy_id": {
+            "minimum": 1.0,
+            "title": "Policy Id",
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy_id",
+          "expected_user_version",
+          "expected_policy_version",
+          "reason"
+        ],
+        "title": "GroupPolicyAssignmentPreviewRequest",
+        "type": "object"
+      },
       "GroupPolicyCreate": {
         "additionalProperties": false,
         "properties": {
@@ -3792,6 +3865,39 @@
           "confirmed"
         ],
         "title": "GroupPolicyDeactivate",
+        "type": "object"
+      },
+      "GroupPolicyRemovalRequest": {
+        "properties": {
+          "confirmation": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation"
+          },
+          "expected_user_version": {
+            "minimum": 1.0,
+            "title": "Expected User Version",
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_user_version",
+          "reason"
+        ],
+        "title": "GroupPolicyRemovalRequest",
         "type": "object"
       },
       "GroupPolicyUpdate": {
@@ -7075,6 +7181,44 @@
       }
     },
     "/api/v1/admin/access/group-policies/{mapping_id}": {
+      "get": {
+        "operationId": "group_policy_detail_api_v1_admin_access_group_policies__mapping_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Group Policy Detail",
+        "tags": [
+          "admin-governed-editing"
+        ]
+      },
       "patch": {
         "operationId": "update_group_policy_route_api_v1_admin_access_group_policies__mapping_id__patch",
         "parameters": [
@@ -9745,6 +9889,238 @@
           }
         },
         "summary": "Preview Access",
+        "tags": [
+          "admin-corporate-users"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/group-policy/commit": {
+      "post": {
+        "operationId": "commit_group_policy_api_v1_admin_users__user_id__group_policy_commit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPolicyAssignmentCommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Commit Group Policy",
+        "tags": [
+          "admin-corporate-users"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/group-policy/preview": {
+      "post": {
+        "operationId": "preview_group_policy_api_v1_admin_users__user_id__group_policy_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPolicyAssignmentPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Group Policy",
+        "tags": [
+          "admin-corporate-users"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/group-policy/remove": {
+      "post": {
+        "operationId": "remove_group_policy_api_v1_admin_users__user_id__group_policy_remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPolicyRemovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Group Policy",
+        "tags": [
+          "admin-corporate-users"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/group-policy/remove-preview": {
+      "post": {
+        "operationId": "preview_group_policy_removal_api_v1_admin_users__user_id__group_policy_remove_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPolicyRemovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Group Policy Removal",
         "tags": [
           "admin-corporate-users"
         ]

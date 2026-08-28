@@ -17,7 +17,8 @@ ADMIN_HEAD = "20260820_0012"
 MERGE_HEAD = "20260820_0013"
 GROUP_POLICY_EDITOR_HEAD = "20260821_0014"
 PREVIOUS_HEAD = "20260821_0015"
-CURRENT_HEAD = "20260827_0016"
+CURRENT_HEAD = "20260828_0017"
+PERMISSIONS_HEAD = "20260827_0016"
 PRODUCTION_REVISIONS = {
     "20260714_0005",
     "20260715_0006",
@@ -55,7 +56,7 @@ def test_accepted_production_lineage_is_present_and_merge_is_the_only_head() -> 
     assert tuple(merge.down_revision) == (PRODUCTION_HEAD, ADMIN_HEAD)
     permission_grants = script.get_revision(CURRENT_HEAD)
     assert permission_grants is not None
-    assert permission_grants.down_revision == PREVIOUS_HEAD
+    assert permission_grants.down_revision == PERMISSIONS_HEAD
     assert API_SCHEMA_REVISION == CURRENT_HEAD
     assert RELEASE_SCHEMA_REVISION == CURRENT_HEAD
     release_defaults = json.loads((ROOT / "release_defaults.json").read_text(encoding="utf-8"))
@@ -76,6 +77,7 @@ def test_upgrade_from_real_production_head_runs_only_missing_admin_branch_then_m
         MERGE_HEAD,
         GROUP_POLICY_EDITOR_HEAD,
         PREVIOUS_HEAD,
+        PERMISSIONS_HEAD,
         CURRENT_HEAD,
     ]
     assert not (set(planned) & PRODUCTION_REVISIONS)
@@ -92,6 +94,7 @@ def test_upgrade_from_admin_head_runs_only_missing_production_branch_then_merge(
         MERGE_HEAD,
         GROUP_POLICY_EDITOR_HEAD,
         PREVIOUS_HEAD,
+        PERMISSIONS_HEAD,
         CURRENT_HEAD,
     ]
     assert not (set(planned) & ADMIN_REVISIONS)

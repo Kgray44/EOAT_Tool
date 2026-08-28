@@ -154,8 +154,10 @@ test("Group Access Policies previews and confirms audited create and edit withou
       is_active: true,
       status: "active",
       row_version: 4,
+      created_at: "2026-08-21T19:00:00Z",
       updated_at: "2026-08-21T20:00:00Z",
       is_protected_system_policy: false,
+      permissions: [],
     },
   ];
   const writes: Array<{ method: string; body: Record<string, unknown> }> = [];
@@ -184,6 +186,13 @@ test("Group Access Policies previews and confirms audited create and edit withou
   });
   await page.route("**/api/v1/admin/access/group-policies/*", async (route) => {
     const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ policy: policies[0], assigned_users: [], audit_history: [] }),
+      });
+      return;
+    }
     writes.push({
       method: request.method(),
       body: request.postDataJSON() as Record<string, unknown>,
@@ -250,16 +259,18 @@ test("Group Access Policies previews and confirms audited create and edit withou
     method: "POST",
     body: {
       corporate_group: "CN=EOAT Quality,OU=Groups,DC=gwplastics,DC=com",
-      role_code: "ADMIN_AUDITOR",
-      reason: "Quality reviewers need governed audit access",
+        role_code: "ADMIN_AUDITOR",
+        reason: "Quality reviewers need governed audit access",
+        permissions: [],
     },
   });
 
-  await page.getByRole("button", { name: "View / edit" }).click();
+  await page.getByRole("link", { name: "View / edit" }).click();
+  await expect(page).toHaveURL(/\/admin\/group-policies\/73$/);
   await page.getByLabel("Mapped role").selectOption("ADMIN_AUDITOR");
   await page
     .getByLabel("Reason")
-    .last()
+    .first()
     .fill("Correct policy scope after review");
   await page.getByRole("button", { name: "Review change" }).last().click();
   await page.getByRole("button", { name: "Confirm and apply" }).click();
@@ -289,6 +300,49 @@ test("Group Access Policies previews and confirms audited create and edit withou
       confirmed: true,
     },
   });
+});
+
+test("dedicated Group Policy page assigns a searched user through the mismatch preview", async ({ page }) => {
+  await mockAdminApi(page);
+  await page.context().addCookies([{ name: "eoat_corporate_csrf", value: "test-csrf-proof", url: "http://127.0.0.1:4173" }]);
+  const policy = {
+    id: 73, corporate_group: "CN=EOAT Engineering,OU=Groups,DC=gwplastics,DC=com",
+    role_code: "ENGINEER", provider: "kerberos_form", is_active: true, status: "active",
+    row_version: 4, created_at: "2026-08-21T19:00:00Z", updated_at: "2026-08-21T20:00:00Z",
+    is_protected_system_policy: false, permissions: ["eoat.edit"],
+  };
+  const user = {
+    user_id: "user-1", name: "Kato Gray", corporate_identity: "kato.gray@example.invalid",
+    provider: "kerberos_form", effective_role: "VIEWER", access_source: "default",
+    group_roles: [], explicit_role: null, explicit_denied: false, status: "active",
+    first_sign_in: "2026-08-21T19:00:00Z", last_sign_in: "2026-08-21T20:00:00Z",
+    sign_in_count: 1, active_sessions: 1, row_version: 3,
+  };
+  const requests: Array<{ path: string; body: Record<string, unknown> }> = [];
+  await page.route("**/api/v1/admin/access/group-policies/73", async (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ policy, assigned_users: [], audit_history: [] }) }));
+  await page.route("**/api/v1/admin/access/group-policies", async (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: [policy] }) }));
+  await page.route("**/api/v1/admin/users?*", async (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ items: [user], page: 1, page_size: 50, total: 1, sort: "name:asc" }) }));
+  await page.route("**/api/v1/admin/users/user-1/group-policy/preview", async (route) => {
+    requests.push({ path: "preview", body: route.request().postDataJSON() as Record<string, unknown> });
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ user_id: user.user_id, policy: { policy_id: policy.id }, before: user, after: { ...user, effective_role: "ENGINEER", access_source: "explicit_group_policy_assignment" }, role_mismatch: true, active_session_count: 1, confirmation: "ASSIGN GROUP POLICY 73 TO user-1" }) });
+  });
+  await page.route("**/api/v1/admin/users/user-1/group-policy/commit", async (route) => {
+    requests.push({ path: "commit", body: route.request().postDataJSON() as Record<string, unknown> });
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ audit_event_id: "assignment-audit", revoked_session_count: 1 }) });
+  });
+  await page.goto("/admin/group-policies/73");
+  await expect(page.getByRole("heading", { name: policy.corporate_group })).toBeVisible();
+  await expect(page.getByText("No users are explicitly assigned to this policy.")).toBeVisible();
+  await page.getByLabel("Search registered users").fill("Kato");
+  await page.getByLabel("Select user").selectOption("user-1");
+  await page.getByLabel("Reason").last().fill("Approve explicit engineering policy assignment");
+  await page.getByRole("button", { name: "Preview policy assignment" }).click();
+  await expect(page.getByRole("dialog")).toContainText("Role mismatch");
+  await expect(page.getByText(/invalidate 1 active session/i)).toBeVisible();
+  await page.getByRole("checkbox", { name: /understand this atomic access change/i }).check();
+  await page.getByRole("button", { name: "Assign policy and update role" }).click();
+  await expect.poll(() => requests.map((request) => request.path)).toEqual(["preview", "commit"]);
+  expect(requests[1].body).toMatchObject({ policy_id: 73, expected_user_version: 3, expected_policy_version: 4 });
 });
 
 test("administrator can deep-link to the overview and ledger investigation", async ({
@@ -666,7 +720,11 @@ test("governed Viewer assignment commits, refreshes authoritative access, and pr
   await page
     .getByRole("combobox", { name: "Role", exact: true })
     .selectOption("ADMINISTRATOR");
-  await page.getByLabel("Reason").fill("Testing");
+  await page
+    .getByRole("article")
+    .filter({ hasText: "Governed access" })
+    .getByLabel("Reason")
+    .fill("Testing");
   await page.getByRole("button", { name: "Preview change" }).click();
   await page
     .getByLabel("I understand and confirm this governed access change.")
@@ -677,7 +735,7 @@ test("governed Viewer assignment commits, refreshes authoritative access, and pr
     page.getByText("ADMINISTRATOR", { exact: true }).first(),
   ).toBeVisible();
   await expect(
-    page.getByText("explicit user assignment", { exact: true }),
+    page.getByText("explicit user assignment", { exact: true }).first(),
   ).toBeVisible();
   await expect(page.getByText("ROLE_MAPPING_CHANGE")).toBeVisible();
   await page.getByRole("link", { name: "← Back to Users & Access" }).click();
