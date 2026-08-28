@@ -228,7 +228,7 @@ h2 {
 label {
   display: grid;
   gap: 0.3rem;
-  color: #31485f;
+  color: var(--text-label);
   font-size: 0.9rem;
   font-weight: 700;
 }

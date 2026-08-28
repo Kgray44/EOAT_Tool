@@ -110,6 +110,44 @@ test("QR-style direct EOAT route loads, refreshes, and remains read-only", async
   ).toBeTruthy();
 });
 
+test("Settings labels resolve through the shared theme token", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  await page.goto("/settings");
+
+  const themeLabel = page.locator(".settings-preferences label").first();
+  await expect(themeLabel).toBeVisible();
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.atlasTheme = "dark";
+  });
+  await expect(themeLabel).toHaveCSS("color", "rgb(215, 226, 240)");
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.atlasTheme = "light";
+  });
+  await expect(themeLabel).toHaveCSS("color", "rgb(49, 73, 96)");
+});
+
+test("print media isolates the physical QR label", async ({ page }) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  await page.goto("/eoats/QR-EOAT-1");
+
+  const printLabel = page.locator("[data-print-label]");
+  await expect(printLabel.locator(".qr-label__code")).toBeVisible();
+  await page.emulateMedia({ media: "print" });
+
+  await expect(printLabel).toHaveCSS("visibility", "visible");
+  await expect(printLabel.locator("button")).toHaveCSS("display", "none");
+  await expect(page.locator("#qr-label-title")).toHaveCSS(
+    "visibility",
+    "hidden",
+  );
+});
+
 test("landing, back navigation, not-found, and mobile overflow are truthful", async ({
   page,
 }) => {
