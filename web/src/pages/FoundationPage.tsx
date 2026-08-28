@@ -8,7 +8,8 @@ import {
   isRoutableAuthoritativeIdentifier,
   presentationText,
 } from "@/api/presentation";
-import { formatLastUpdated, freshnessState } from "@/app/dataFreshness";
+import { useBrowserFreshness } from "@/app/BrowserFreshnessProvider";
+import { formatLastRefreshed, freshnessState } from "@/app/dataFreshness";
 
 export function FoundationPage() {
   const [query, setQuery] = useState("");
@@ -19,10 +20,7 @@ export function FoundationPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const recents = readRecentItems();
-  const dataStatus = useQuery({
-    queryKey: ["data-status"],
-    queryFn: () => apiClient.getDataStatus(),
-  });
+  const browserFreshness = useBrowserFreshness();
   const search = useQuery({
     queryKey: ["mirrorline", "home-search", debouncedQuery],
     queryFn: () => apiClient.search(debouncedQuery),
@@ -76,19 +74,18 @@ export function FoundationPage() {
     if (exact) openResult(exact);
     else if (results[highlight]) openResult(results[highlight]);
   };
-  const statusState = freshnessState(dataStatus.data);
-  const statusText = dataStatus.isPending
-    ? "Last Updated: checking…"
-    : dataStatus.isError || statusState === "unavailable"
-      ? "Last Updated: unavailable"
-      : `Last Updated: ${formatLastUpdated(dataStatus.data!.data_last_modified_at)}`;
-  const statusDescription = dataStatus.isPending
-    ? "Checking server-provided data freshness."
-    : dataStatus.isError || statusState === "unavailable"
-      ? "EOAT Atlas data freshness is unavailable because the server could not be reached."
+  const statusState = freshnessState(browserFreshness);
+  const statusText = browserFreshness.lastSuccessfulRefreshAt
+    ? `Last Refreshed: ${formatLastRefreshed(browserFreshness.lastSuccessfulRefreshAt)}`
+    : "Last Refreshed: unavailable";
+  const statusDescription =
+    statusState === "degraded"
+      ? "The latest refresh failed. Showing the last successful refresh of data displayed in this browser."
       : statusState === "stale"
-        ? "Server-provided data freshness indicates this data may be stale."
-        : "Server-provided data freshness indicates current data.";
+        ? "The data displayed in this browser has not refreshed within the freshness threshold."
+        : statusState === "unavailable"
+          ? "No successful refresh of data displayed in this browser is available."
+          : "Last successful refresh of data displayed in this browser.";
   return (
     <section className="atlas-home-page" aria-labelledby="home-title">
       <header className="atlas-page-title">
@@ -226,7 +223,7 @@ export function FoundationPage() {
           className={`atlas-status-dot ${statusState}`}
           aria-hidden="true"
         />
-        <time dateTime={dataStatus.data?.data_last_modified_at}>
+        <time dateTime={browserFreshness.lastSuccessfulRefreshAt}>
           {statusText}
         </time>
       </div>

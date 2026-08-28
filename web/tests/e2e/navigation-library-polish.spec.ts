@@ -34,7 +34,7 @@ function eoat(business_identifier: string) {
 }
 
 async function mockNavigationApi(page: import("@playwright/test").Page) {
-  let stale = false;
+  let serverTime = "2026-08-21T19:28:00Z";
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/auth/session")
@@ -51,10 +51,8 @@ async function mockNavigationApi(page: import("@playwright/test").Page) {
         json: {
           status: "available",
           data_revision: 9,
-          data_last_modified_at: stale
-            ? "2026-08-19T19:27:18Z"
-            : "2026-08-21T19:27:18Z",
-          server_time: "2026-08-21T19:28:00Z",
+          data_last_modified_at: "2026-07-21T19:27:18Z",
+          server_time: serverTime,
         },
       });
     if (path === "/api/v1/machines")
@@ -86,7 +84,7 @@ async function mockNavigationApi(page: import("@playwright/test").Page) {
       });
     return route.fulfill({ json: [] });
   });
-  return { setStale: (value: boolean) => (stale = value) };
+  return { setServerTime: (value: string) => (serverTime = value) };
 }
 
 test("Library renders server-paginated natural machine, tool, and EOAT ordering", async ({
@@ -105,21 +103,28 @@ test("Library renders server-paginated natural machine, tool, and EOAT ordering"
   }
 });
 
-test("Home freshness indicator is compact and accurately distinguishes healthy from stale", async ({
+test("Home freshness indicator reports browser refresh time, not database mutation time", async ({
   page,
 }) => {
   const api = await mockNavigationApi(page);
   await page.goto("/");
   const status = page.locator(".atlas-data-status");
-  await expect(status).toContainText("Last Updated: Aug 21, 2026");
+  await expect(status).toContainText("Last Refreshed: Aug 21, 2026");
   await expect(status.locator(".atlas-status-dot")).toHaveClass(/healthy/);
-  expect(await status.getAttribute("title")).toContain("current");
+  expect(await status.getAttribute("title")).toContain(
+    "Last successful refresh of data displayed in this browser",
+  );
 
-  api.setStale(true);
-  await page.reload();
-  await expect(status).toContainText("Last Updated: Aug 19, 2026");
-  await expect(status.locator(".atlas-status-dot")).toHaveClass(/stale/);
-  expect(await status.getAttribute("title")).toContain("may be stale");
+  api.setServerTime("2026-08-22T19:28:00Z");
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(status).toContainText("Last Refreshed: Aug 22, 2026");
+
+  api.setServerTime("2026-08-23T19:28:00Z");
+  await page.evaluate(() => window.dispatchEvent(new Event("offline")));
+  await page.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect(status).toContainText("Last Refreshed: Aug 23, 2026");
 });
 
 test("global search groups entities and user-accessible destinations without exposing admin pages", async ({
