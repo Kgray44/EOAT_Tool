@@ -498,10 +498,9 @@ def runtime_env_attestation() -> dict[str, object]:
     path = web.RUNTIME_ENV
     if path.is_symlink() or not path.is_file():
         fail("application runtime environment is unavailable or unsafe")
-    web.require_root_owned(path)
     web.require_root_chain(path)
     info = path.lstat()
-    if info.st_mode & 0o077:
+    if not _runtime_env_is_safe(info, _service_identity()[1]):
         fail("application runtime environment permissions are unsafe")
     return {
         "path": str(path),
@@ -510,6 +509,15 @@ def runtime_env_attestation() -> dict[str, object]:
         "gid": info.st_gid,
         "mode": stat.S_IMODE(info.st_mode),
     }
+
+
+def _runtime_env_is_safe(info: os.stat_result, service_gid: int) -> bool:
+    """Allow the fixed service group to read, but never alter, runtime.env."""
+    return (
+        info.st_uid == 0
+        and info.st_gid in {0, service_gid}
+        and not info.st_mode & (stat.S_IWGRP | stat.S_IWOTH | stat.S_IROTH | stat.S_IXOTH)
+    )
 
 
 def _require_runtime_env_attestation(expected: object) -> None:
