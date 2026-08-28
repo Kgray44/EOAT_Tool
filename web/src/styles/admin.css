@@ -979,7 +979,8 @@ button:disabled {
 :root[data-atlas-theme="dark"] .page-heading h1,
 :root[data-atlas-theme="dark"] .admin-main h2,
 :root[data-atlas-theme="dark"] .admin-main h3,
-:root[data-atlas-theme="dark"] .metric-card strong {
+:root[data-atlas-theme="dark"] .metric-card strong,
+:root[data-atlas-theme="dark"] .state-panel h1 {
   color: var(--text-heading);
 }
 :root[data-atlas-theme="dark"] .page-heading p,
@@ -1025,4 +1026,163 @@ button:disabled {
     var(--surface-card) 82%,
     var(--accent-primary)
   );
+}
+
+/* Shared Admin data and workflow primitives.  These deliberately sit after
+   the legacy light-first rules so every Admin route inherits a complete dark
+   surface hierarchy instead of requiring route-specific repairs. */
+:root[data-atlas-theme="dark"] .admin-main a,
+:root[data-atlas-theme="dark"] .admin-main .link-button {
+  color: var(--atlas-accent-hover);
+}
+:root[data-atlas-theme="dark"] .admin-main .status-card span,
+:root[data-atlas-theme="dark"] .admin-main .metric-card span,
+:root[data-atlas-theme="dark"] .admin-main .recent-list span,
+:root[data-atlas-theme="dark"] .admin-main .related-list span,
+:root[data-atlas-theme="dark"] .admin-main .detail dt,
+:root[data-atlas-theme="dark"] .admin-main .record-list span,
+:root[data-atlas-theme="dark"] .admin-main .admin-setting-row p,
+:root[data-atlas-theme="dark"] .admin-main .event-summary-facts dt,
+:root[data-atlas-theme="dark"] .admin-main .heartbeat-banner dt,
+:root[data-atlas-theme="dark"] .admin-main .heartbeat-banner span,
+:root[data-atlas-theme="dark"] .admin-main .protected-policy-note,
+:root[data-atlas-theme="dark"] .admin-main .photo-card span,
+:root[data-atlas-theme="dark"] .admin-main .photo-placeholder,
+:root[data-atlas-theme="dark"] .admin-main .audit-value-kind-missing {
+  color: var(--text-secondary);
+}
+:root[data-atlas-theme="dark"] .audit-table-wrap,
+:root[data-atlas-theme="dark"] .diff-table-wrap,
+:root[data-atlas-theme="dark"] .record-list,
+:root[data-atlas-theme="dark"] .recent-list {
+  background: var(--surface-elevated);
+  border-color: var(--border-subtle);
+}
+:root[data-atlas-theme="dark"] .admin-main table {
+  background: var(--surface-row);
+  color: var(--text-primary);
+}
+:root[data-atlas-theme="dark"] .admin-main thead,
+:root[data-atlas-theme="dark"] .admin-main thead tr,
+:root[data-atlas-theme="dark"] .admin-main th {
+  background: var(--surface-elevated);
+  color: var(--text-label);
+}
+:root[data-atlas-theme="dark"] .admin-main tbody tr {
+  background: var(--surface-row);
+}
+:root[data-atlas-theme="dark"] .admin-main tbody tr:nth-child(even) {
+  background: var(--surface-row-alt);
+}
+:root[data-atlas-theme="dark"] .admin-main tbody tr:hover {
+  background: var(--surface-selected);
+}
+:root[data-atlas-theme="dark"] .admin-main tbody tr[aria-selected="true"],
+:root[data-atlas-theme="dark"] .admin-main tbody tr.selected,
+:root[data-atlas-theme="dark"] .admin-main tbody tr.is-selected {
+  background: var(--surface-selected);
+}
+:root[data-atlas-theme="dark"] .admin-main th,
+:root[data-atlas-theme="dark"] .admin-main td,
+:root[data-atlas-theme="dark"] .admin-main .recent-list li,
+:root[data-atlas-theme="dark"] .admin-main .admin-setting-row,
+:root[data-atlas-theme="dark"] .admin-main .settings-category h2 {
+  border-color: var(--border-subtle);
+}
+:root[data-atlas-theme="dark"] .state-note,
+:root[data-atlas-theme="dark"] .preview-panel,
+:root[data-atlas-theme="dark"] .lifecycle-panel,
+:root[data-atlas-theme="dark"] .settings-confirmation,
+:root[data-atlas-theme="dark"] .focused-editor,
+:root[data-atlas-theme="dark"] .event-summary-card,
+:root[data-atlas-theme="dark"] .integrity-summary,
+:root[data-atlas-theme="dark"] .heartbeat-banner {
+  background: var(--surface-info);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+:root[data-atlas-theme="dark"] .state-note,
+:root[data-atlas-theme="dark"] .preview-panel,
+:root[data-atlas-theme="dark"] .lifecycle-panel,
+:root[data-atlas-theme="dark"] .settings-confirmation,
+:root[data-atlas-theme="dark"] .focused-editor,
+:root[data-atlas-theme="dark"] .event-summary-card,
+:root[data-atlas-theme="dark"] .integrity-summary {
+  border: 1px solid var(--border-subtle);
+}
+:root[data-atlas-theme="dark"] .preview-panel h3,
+:root[data-atlas-theme="dark"] .lifecycle-panel h3,
+:root[data-atlas-theme="dark"] .event-summary-card h2 {
+  color: var(--text-heading);
+}
+:root[data-atlas-theme="dark"] .success-note,
+:root[data-atlas-theme="dark"] .result-success {
+  background: var(--surface-success);
+  border-color: var(--atlas-success);
+  color: var(--atlas-success);
+}
+:root[data-atlas-theme="dark"] .success-note {
+  border: 1px solid var(--atlas-success);
+}
+:root[data-atlas-theme="dark"] .test-only-note,
+:root[data-atlas-theme="dark"] .result-denied {
+  background: var(--surface-warning);
+  border-color: var(--atlas-warning);
+  color: var(--atlas-warning);
+}
+:root[data-atlas-theme="dark"] .result-failure {
+  background: var(--surface-danger);
+  color: var(--atlas-danger);
+}
+:root[data-atlas-theme="dark"] .result-partial {
+  background: var(--surface-info);
+  color: var(--atlas-accent-hover);
+}
+:root[data-atlas-theme="dark"] .inline-error {
+  color: var(--atlas-danger);
+}
+:root[data-atlas-theme="dark"] .admin-main .preset-row button,
+:root[data-atlas-theme="dark"] .admin-main .pagination button,
+:root[data-atlas-theme="dark"] .admin-main .relationship-tabs button,
+:root[data-atlas-theme="dark"] .admin-main .workflow-steps li,
+:root[data-atlas-theme="dark"] .admin-main .record-list button,
+:root[data-atlas-theme="dark"] .admin-main .admin-settings-nav button,
+:root[data-atlas-theme="dark"] .secondary-button {
+  background: var(--surface-input);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+:root[data-atlas-theme="dark"] .admin-main .preset-row button:hover,
+:root[data-atlas-theme="dark"]
+  .admin-main
+  .pagination
+  button:not(:disabled):hover,
+:root[data-atlas-theme="dark"] .admin-main .relationship-tabs button:hover,
+:root[data-atlas-theme="dark"] .secondary-button:hover {
+  background: var(--surface-selected);
+}
+:root[data-atlas-theme="dark"] .primary-button,
+:root[data-atlas-theme="dark"] .editor-actions button,
+:root[data-atlas-theme="dark"] .admin-main .relationship-tabs button.selected,
+:root[data-atlas-theme="dark"] .admin-main .workflow-steps .active,
+:root[data-atlas-theme="dark"]
+  .admin-main
+  .admin-settings-nav
+  button.is-active {
+  background: var(--atlas-primary-button-background);
+  border-color: var(--atlas-primary-button-background);
+  color: var(--atlas-primary-button-text);
+}
+:root[data-atlas-theme="dark"] .primary-button:disabled,
+:root[data-atlas-theme="dark"] .secondary-button:disabled,
+:root[data-atlas-theme="dark"] .destructive-button:disabled,
+:root[data-atlas-theme="dark"] .editor-actions button:disabled,
+:root[data-atlas-theme="dark"] .admin-main button:disabled {
+  background: var(--atlas-disabled-button-background);
+  border-color: var(--atlas-disabled-border);
+  color: var(--atlas-disabled-button-text);
+  opacity: 1;
+}
+:root[data-atlas-theme="dark"] .admin-main .photo-placeholder {
+  background: var(--surface-elevated);
 }
