@@ -197,14 +197,11 @@ test("shared Admin light surfaces retain their light hierarchy", async ({
   expect(luminance(colors.disabledControl)).toBeGreaterThan(0.75);
 });
 
-test("captures the complete Admin route sweep in dark mode", async ({
+test("captures the complete Admin route sweep in both themes", async ({
   page,
 }) => {
   await openAdminShell(page);
   await page.setViewportSize({ width: 1440, height: 960 });
-  await page.evaluate(() => {
-    document.documentElement.dataset.atlasTheme = "dark";
-  });
 
   const routes = [
     ["admin", "/admin"],
@@ -220,12 +217,17 @@ test("captures the complete Admin route sweep in dark mode", async ({
     ["integrity", "/admin/integrity"],
   ] as const;
 
-  for (const [name, route] of routes) {
-    await page.goto(route);
-    await expect(page.locator(".admin-layout")).toBeVisible();
-    await page.screenshot({
-      path: `test-results/admin-theme-sweep/dark-${name}.png`,
-      fullPage: true,
-    });
+  for (const theme of ["dark", "light"] as const) {
+    for (const [name, route] of routes) {
+      await page.goto(route);
+      await expect(page.locator(".admin-layout")).toBeVisible();
+      await page.evaluate((selectedTheme) => {
+        document.documentElement.dataset.atlasTheme = selectedTheme;
+      }, theme);
+      await page.screenshot({
+        path: `test-results/admin-theme-sweep/${theme}-${name}.png`,
+        fullPage: true,
+      });
+    }
   }
 });
