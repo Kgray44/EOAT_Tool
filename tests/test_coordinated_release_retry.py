@@ -68,6 +68,7 @@ def sealing_policy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dic
         "bundle_path": str(bundle),
         "bundle_sha256": bundle_sha,
         "application_version": "0.23.6",
+        "api_contract_version": "1.4.0",
         "source_commit": "a" * 40,
         "schema": "20260721_0008",
         "canonical_migration_sha256": "b" * 64,
@@ -75,6 +76,11 @@ def sealing_policy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dic
         "expected_active_web": str(tmp_path / "web-current-target"),
         "helper_sha256": "fixture",
         "web_helper_sha256": "fixture",
+        "write_state": {
+            "transition": "preserve_current",
+            "required_before": False,
+            "required_after": False,
+        },
     }, sealed
 
 
@@ -176,6 +182,7 @@ def test_preflight_seals_then_uses_only_final_paths_without_changing_active_poin
     monkeypatch.setattr(coordinator, "API_CURRENT", api_current)
     monkeypatch.setattr(coordinator, "WEB_CURRENT", web_current)
     monkeypatch.setattr(coordinator.web, "api_health", lambda *_: {"writes_enabled": False})
+    monkeypatch.setattr(coordinator, "runtime_env_attestation", lambda: {"path": "/etc/eoat-atlas/runtime.env", "sha256": "a" * 64, "uid": 0, "gid": 0, "mode": 0o640})
     monkeypatch.setattr(coordinator.web, "api_loopback_only", lambda: True)
     monkeypatch.setattr(coordinator.web, "mysql_loopback_only", lambda: True)
     monkeypatch.setattr(coordinator.web, "listener_policy", lambda _value: True)
@@ -207,6 +214,178 @@ def test_preflight_rejects_unsealed_artifacts_without_mutating_active_pointers(
     with pytest.raises(coordinator.web.InstallError, match="already-sealed"):
         coordinator.preflight(value)
     assert not list(coordinator.SEALED_ROOT.iterdir())
+
+
+def test_public_preflight_seals_before_read_only_preflight(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text("{}", encoding="utf-8")
+    raw = {"source": "upload"}
+    sealed = {"source": "sealed"}
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(coordinator.os, "geteuid", lambda: 0, raising=False)
+    monkeypatch.setattr(coordinator, "policy", lambda _path: raw)
+    monkeypatch.setattr(coordinator, "sealed_policy", lambda value: calls.append(value) or sealed)
+    monkeypatch.setattr(coordinator, "preflight", lambda value: calls.append(value) or {"sealed": True})
+
+    assert coordinator.main(["preflight", "--policy", str(policy_path)]) == 0
+    assert calls == [raw, sealed]
+    assert json.loads(capsys.readouterr().out) == {"sealed": True}
+
+
+def test_preflight_accepts_a_sealed_zero_migration_preserve_writes_enabled_policy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    api, web = tmp_path / "api-current", tmp_path / "web-current"
+    api.mkdir()
+    web.mkdir()
+    value.update(
+        expected_active_api=str(api),
+        expected_active_web=str(web),
+        schema="20260721_0008",
+        migration_plan={"current_schema": "20260721_0008", "target_schema": "20260721_0008", "revisions": []},
+        write_state={"transition": "preserve_current", "required_before": True, "required_after": True},
+    )
+    monkeypatch.setattr(coordinator, "API_CURRENT", api)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda *_: {"writes_enabled": True})
+    monkeypatch.setattr(coordinator.web, "api_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "mysql_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "listener_policy", lambda _value: True)
+    monkeypatch.setattr(coordinator.web, "nginx_worker_user", lambda: "www-data")
+    monkeypatch.setattr(coordinator, "runtime_env_attestation", lambda: {"path": "/etc/eoat-atlas/runtime.env", "sha256": "a" * 64, "uid": 0, "gid": 0, "mode": 0o640})
+    monkeypatch.setattr(coordinator.subprocess, "run", lambda *_args, **_kwargs: type("Result", (), {"returncode": 0})())
+    evidence = coordinator.preflight(coordinator.sealed_policy(value))
+    assert evidence["migration"] == {"current_schema": "20260721_0008", "target_schema": "20260721_0008", "revisions": ()}
+    assert evidence["write_state"]["observed_before"] is True
+
+
+def test_preflight_rejects_a_mismatched_sealed_preserve_write_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    api, web = tmp_path / "api-current", tmp_path / "web-current"
+    api.mkdir()
+    web.mkdir()
+    value.update(expected_active_api=str(api), expected_active_web=str(web), write_state={"transition": "preserve_current", "required_before": True, "required_after": True})
+    monkeypatch.setattr(coordinator, "API_CURRENT", api)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda *_: {"writes_enabled": False})
+    with pytest.raises(coordinator.web.InstallError, match="sealed pre-activation requirement"):
+        coordinator.preflight(coordinator.sealed_policy(value))
+
+
+def _enabled_zero_migration_activation_fixture(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, acceptance_error: Exception | None = None
+) -> tuple[dict[str, object], Path, Path, list[tuple[Path, Path]]]:
+    old_api, old_web = tmp_path / "old-api", tmp_path / "old-web"
+    new_api, new_web = tmp_path / "new-api", tmp_path / "new-web"
+    for path in (old_api, old_web, new_api, new_web):
+        path.mkdir()
+    class Pointer:
+        def __init__(self, path: Path, target: Path) -> None:
+            self.path = path
+            self.target = target
+
+        def resolve(self) -> Path:
+            return self.target
+
+        def __str__(self) -> str:
+            return str(self.path)
+
+    api_current = Pointer(tmp_path / "api-current", old_api)
+    web_current = Pointer(tmp_path / "web-current", old_web)
+    runtime = {"path": "/etc/eoat-atlas/runtime.env", "sha256": "a" * 64, "uid": 0, "gid": 0, "mode": 0o640}
+    value: dict[str, object] = {
+        "application_version": "0.26.15",
+        "api_contract_version": "1.4.0",
+        "source_commit": "a" * 40,
+        "schema": "20260827_0016",
+        "bundle_path": str(tmp_path / "bundle"),
+        "bundle_sha256": "b" * 64,
+        "server_archive_sha256": "c" * 64,
+        "server_manifest_sha256": "d" * 64,
+        "web_release_id": "web-fixture",
+        "migration_plan": {"current_schema": "20260827_0016", "target_schema": "20260827_0016", "revisions": []},
+        "write_state": {"transition": "preserve_current", "required_before": True, "required_after": True},
+    }
+    activated: list[tuple[Path, Path]] = []
+    monkeypatch.setattr(coordinator, "API_CURRENT", api_current)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web_current)
+    monkeypatch.setattr(coordinator, "CONTROL_ROOT", tmp_path / "control")
+    monkeypatch.setattr(coordinator, "deployment_lock", lambda: __import__("contextlib").nullcontext())
+    monkeypatch.setattr(coordinator, "sealed_policy", lambda policy: policy)
+    monkeypatch.setattr(coordinator, "preflight", lambda _policy: {"runtime_env": runtime, "write_state": {**value["write_state"], "observed_before": True}})
+    monkeypatch.setattr(coordinator.web, "require_root_chain", lambda *_args: None)
+    monkeypatch.setattr(coordinator.web, "require_root_tree", lambda *_args: None)
+    monkeypatch.setattr(
+        coordinator.web,
+        "verify_bundle",
+        lambda *_args: {
+            "metadata": {
+                "application_version": "0.26.15",
+                "source_commit": "a" * 40,
+                "compatible_api_version": "1.4.0",
+                "compatible_schema": "20260827_0016",
+            },
+            "manifest": {},
+            "bundle_sha256": "b" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_api_release_attestation",
+        lambda path, _field: (Path(path), {"tree_sha256": str(path)}),
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "_web_release_attestation",
+        lambda path, _field: (Path(path), {"tree_sha256": str(path)}),
+    )
+    monkeypatch.setattr(coordinator, "extract_server", lambda *_args: new_api)
+    monkeypatch.setattr(coordinator.web, "stage_frontend", lambda *_args: new_web)
+    monkeypatch.setattr(coordinator.web, "deployed_frontend_hashes", lambda *_args: {})
+    monkeypatch.setattr(coordinator, "apply_migration_plan", lambda *_args: {"current_schema": "20260827_0016", "target_schema": "20260827_0016", "revisions": [], "executed_revisions": [], "applied": False})
+    def fake_atomic_symlink(target: Path, link: Pointer) -> None:
+        link.target = Path(target)
+        activated.append((Path(target), link.path))
+
+    monkeypatch.setattr(coordinator.web, "atomic_symlink", fake_atomic_symlink)
+    monkeypatch.setattr(coordinator.web, "nginx_test_reload", lambda: None)
+    monkeypatch.setattr(coordinator.subprocess, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "wait_api", lambda *_args: None)
+    monkeypatch.setattr(coordinator, "wait_target", lambda _policy: None)
+    monkeypatch.setattr(coordinator, "runtime_env_attestation", lambda: runtime)
+    monkeypatch.setattr(coordinator.web, "acceptance", lambda *_args: (_ for _ in ()).throw(acceptance_error) if acceptance_error else [])
+    monkeypatch.setattr(coordinator.web, "request_check", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda *_args: {"writes_enabled": True})
+    return value, old_api, old_web, activated
+
+
+def test_activation_preserves_enabled_writes_and_records_zero_executed_migrations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _old_api, _old_web, activated = _enabled_zero_migration_activation_fixture(monkeypatch, tmp_path)
+    transaction = coordinator.activate(value)
+    receipt = json.loads(transaction.joinpath("receipt.json").read_text(encoding="utf-8"))
+    assert receipt["state"] == "active"
+    assert receipt["writes_enabled"] is True
+    assert receipt["migration"]["executed_revisions"] == []
+    assert receipt["migration"]["applied"] is False
+    assert [target for target, _link in activated[:2]] == [tmp_path / "new-api", tmp_path / "new-web"]
+
+
+def test_failed_enabled_preserve_write_activation_restores_the_previous_pair(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, old_api, old_web, activated = _enabled_zero_migration_activation_fixture(
+        monkeypatch, tmp_path, acceptance_error=coordinator.web.InstallError("acceptance failed")
+    )
+    with pytest.raises(coordinator.web.InstallError, match="acceptance failed"):
+        coordinator.activate(value)
+    assert [target for target, _link in activated[-2:]] == [old_api, old_web]
 
 
 def test_listener_policy_requires_an_explicit_approved_tls_exception(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -311,13 +490,13 @@ def test_shared_acceptance_uses_existing_read_only_machine_media_routes(
     assert all("web-photos" not in url and "web-documents" not in url for _name, url in observed)
 
 
-def test_wait_target_uses_immutable_api_metadata_when_legacy_health_fields_are_absent(
+def test_wait_target_uses_immutable_api_metadata_with_a_sealed_enabled_write_state(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     release = tmp_path / "eoat-atlas-server-0.26.11"
     release.mkdir()
     monkeypatch.setattr(coordinator, "API_CURRENT", release)
-    monkeypatch.setattr(coordinator.web, "api_health", lambda _value: {"compatible": True})
+    monkeypatch.setattr(coordinator.web, "api_health", lambda _value: {"compatible": True, "writes_enabled": True})
     monkeypatch.setattr(
         coordinator,
         "_api_release_attestation",
@@ -331,7 +510,12 @@ def test_wait_target_uses_immutable_api_metadata_when_legacy_health_fields_are_a
         ),
     )
     coordinator.wait_target(
-        {"application_version": "0.26.11", "schema": "20260820_0013", "source_commit": "a" * 40}
+        {
+            "application_version": "0.26.11",
+            "schema": "20260820_0013",
+            "source_commit": "a" * 40,
+            "write_state": {"transition": "preserve_current", "required_before": True, "required_after": True},
+        }
     )
 
 

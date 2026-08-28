@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.4.6"
+HELPER_VERSION = "1.5.0"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -49,7 +49,7 @@ SEALING_RECEIPT_SCHEMA_VERSION = 2
 TRANSACTION_RECEIPT_SCHEMA_VERSION = 3
 LEGACY_TRANSACTION_RECEIPT_SCHEMA_VERSION = 2
 LEGACY_HELPER_VERSION = "1.3.1"
-SUPPORTED_TRANSACTION_HELPER_VERSIONS = {"1.3.2", "1.3.3", "1.3.4", "1.4.0", HELPER_VERSION}
+SUPPORTED_TRANSACTION_HELPER_VERSIONS = {"1.3.2", "1.3.3", "1.3.4", "1.4.0", "1.4.6", HELPER_VERSION}
 LEGACY_APPLICATION_VERSION = "0.22.12"
 LEGACY_SCHEMA = "20260721_0008"
 TRANSACTION_ID = __import__("re").compile(r"coordinated-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}")
@@ -398,11 +398,13 @@ def policy(path: Path) -> dict[str, object]:
         "bundle_path",
         "bundle_sha256",
         "application_version",
+        "api_contract_version",
         "source_commit",
         "schema",
         "canonical_migration_sha256",
         "expected_active_api",
         "expected_active_web",
+        "write_state",
     }
     web_program = Path(web.__file__).resolve()
     if (
@@ -411,6 +413,8 @@ def policy(path: Path) -> dict[str, object]:
         or web.sha256(web_program) != value["web_helper_sha256"]
     ):
         fail("coordinated deployment policy or helper SHA-256 is invalid")
+    write_state(value)
+    migration_plan(value)
     return value
 
 
@@ -455,6 +459,72 @@ def migration_plan(value: dict[str, object]) -> tuple[str, str, tuple[dict[str, 
     elif not checked or checked[-1]["revision"] != target:
         fail("migration plan does not deterministically reach the target schema")
     return current, target, tuple(checked)
+
+
+def write_state(value: dict[str, object]) -> dict[str, object]:
+    """Validate the separately sealed production write-state contract.
+
+    The coordinator never infers a desired state from a migration plan.  A
+    preserve policy is deliberately strict: its before and after values must
+    be identical, and every observed health payload is checked against them.
+    Explicit enable/disable contracts are represented independently for a
+    governed runtime-state transition; they are not accepted as a synonym for
+    an unsealed ambient write setting.
+    """
+    raw = value.get("write_state")
+    if not isinstance(raw, dict):
+        fail("write-state policy is not an object")
+    transition = raw.get("transition")
+    before = raw.get("required_before")
+    after = raw.get("required_after")
+    if transition not in {"preserve_current", "enable", "disable"} or type(before) is not bool or type(after) is not bool:
+        fail("write-state policy is invalid")
+    if transition == "preserve_current" and before != after:
+        fail("preserve write-state policy must require the same state before and after activation")
+    if transition == "enable" and after is not True:
+        fail("enable write-state policy must require writes enabled after activation")
+    if transition == "disable" and after is not False:
+        fail("disable write-state policy must require writes disabled after activation")
+    return {"transition": transition, "required_before": before, "required_after": after}
+
+
+def _require_write_state(health: dict[str, object], expected: bool, phase: str) -> None:
+    if health.get("writes_enabled") is not expected:
+        fail(f"production write state differs from the sealed {phase} requirement")
+
+
+def runtime_env_attestation() -> dict[str, object]:
+    """Attest, but never mutate, the root-owned application runtime profile."""
+    path = web.RUNTIME_ENV
+    if path.is_symlink() or not path.is_file():
+        fail("application runtime environment is unavailable or unsafe")
+    web.require_root_owned(path)
+    web.require_root_chain(path)
+    info = path.lstat()
+    if info.st_mode & 0o077:
+        fail("application runtime environment permissions are unsafe")
+    return {
+        "path": str(path),
+        "sha256": web.sha256(path),
+        "uid": info.st_uid,
+        "gid": info.st_gid,
+        "mode": stat.S_IMODE(info.st_mode),
+    }
+
+
+def _require_runtime_env_attestation(expected: object) -> None:
+    if not isinstance(expected, dict) or runtime_env_attestation() != expected:
+        fail("application runtime environment changed during coordinated deployment")
+
+
+def _receipt_write_state(receipt: dict[str, object]) -> dict[str, object]:
+    """Read modern write evidence while retaining read-only legacy receipts."""
+    raw = receipt.get("write_state")
+    if raw is None:
+        if receipt.get("writes_enabled") is not False:
+            fail("historical transaction receipt lacks a safe write-state contract")
+        raw = {"transition": "preserve_current", "required_before": False, "required_after": False}
+    return write_state({"write_state": raw})
 
 
 def _archive_migration_graph(archive: zipfile.ZipFile) -> dict[str, tuple[str, ...]]:
@@ -804,7 +874,15 @@ def apply_migration_plan(server: Path, plan: tuple[str, str, tuple[dict[str, str
     """Apply the one sealed, policy-pinned traversal and verify its exact head."""
     current, target, revisions = plan
     if not revisions:
-        return {"current_schema": current, "target_schema": target, "applied": False}
+        if current != target:
+            fail("zero-migration plan does not preserve the approved schema")
+        return {
+            "current_schema": current,
+            "target_schema": target,
+            "revisions": [],
+            "executed_revisions": [],
+            "applied": False,
+        }
     environment = _migration_environment()
     if _staged_alembic_current(server, environment) != current:
         fail("production schema does not match the approved migration-plan start")
@@ -833,6 +911,7 @@ def apply_migration_plan(server: Path, plan: tuple[str, str, tuple[dict[str, str
         "current_schema": current,
         "target_schema": target,
         "revisions": [item["revision"] for item in revisions],
+        "executed_revisions": [item["revision"] for item in revisions],
         "applied": True,
     }
 
@@ -874,6 +953,7 @@ def wait_target(value: dict[str, object]) -> None:
         or attestation["source_commit"] != value["source_commit"]
     ):
         fail("active API release metadata does not match coordinated release")
+    _require_write_state(health, bool(write_state(value)["required_after"]), "post-activation")
 
 
 def _within(path: Path, root: Path) -> bool:
@@ -1310,8 +1390,11 @@ def _transaction_receipt(transaction_id: str) -> tuple[Path, dict[str, object]]:
         fail("transaction receipt schema is invalid")
     if receipt["state"] != "active" or receipt["activation_complete"] is not True:
         fail("transaction did not complete activation")
-    if receipt["service"] != SERVICE or receipt["writes_enabled"] is not False:
+    if receipt["service"] != SERVICE or type(receipt["writes_enabled"]) is not bool:
         fail("transaction receipt violates governed rollback policy")
+    receipt_writes = _receipt_write_state(receipt)
+    if receipt["writes_enabled"] is not receipt_writes["required_before"]:
+        fail("transaction receipt write-state evidence is inconsistent")
     old_api, api_attestation = _api_release_attestation(receipt["old_api"], "old_api")
     old_web, web_attestation = _web_release_attestation(receipt["old_web"], "old_web")
     _require_attestation(api_attestation, receipt["old_api_attestation"], "old_api")
@@ -1449,6 +1532,7 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
     the fixed API service.
     """
     transaction, receipt = _transaction_receipt(transaction_id)
+    writes = _receipt_write_state(receipt)
     old_api, api_attestation = _api_release_attestation(receipt["old_api"], "old_api")
     old_web, web_attestation = _web_release_attestation(receipt["old_web"], "old_web")
     _require_attestation(api_attestation, receipt["old_api_attestation"], "old_api")
@@ -1463,8 +1547,7 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
         if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
             fail("already rolled-back transaction no longer has its prior targets active")
         health = web.api_health({"schema": receipt["schema"]})
-        if health.get("writes_enabled") is not False:
-            fail("already rolled-back transaction has writes enabled")
+        _require_write_state(health, bool(writes["required_before"]), "rollback")
         return {"transaction": transaction_id, "state": "rolled_back", "idempotent": True}
     web.atomic_symlink(old_api, API_CURRENT)
     web.atomic_symlink(old_web, WEB_CURRENT)
@@ -1481,8 +1564,7 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
         excludes="Welcome to nginx!",
     )
     health = web.api_health({"schema": receipt["schema"]})
-    if health.get("writes_enabled") is not False:
-        fail("post-activation rollback did not preserve writes-disabled state")
+    _require_write_state(health, bool(writes["required_before"]), "rollback")
     evidence = {
         "receipt_schema_version": TRANSACTION_RECEIPT_SCHEMA_VERSION,
         "transaction": transaction_id,
@@ -1616,6 +1698,7 @@ def acceptance_policy(value: dict[str, object], server: Path) -> dict[str, objec
 def preflight(value: dict[str, object]) -> dict[str, object]:
     """Read-only identity and service checks before staging or activation."""
     migration_current, migration_target, migration_revisions = migration_plan(value)
+    writes = write_state(value)
     if not _within(Path(str(value["bundle_path"])), SEALED_ROOT):
         fail("preflight requires already-sealed coordinator artifacts")
     archive = Path(str(value["server_archive_path"]))
@@ -1631,14 +1714,20 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
         fail("server package manifest SHA-256 does not match approved policy")
     validate_migration_archive(archive, migration_revisions, current=migration_current)
     verified = web.verify_bundle(bundle, str(value["bundle_sha256"]))
-    if verified["metadata"].get("application_version") != value["application_version"]:
-        fail("web bundle version does not match coordinated policy")
+    if (
+        verified["metadata"].get("application_version") != value["application_version"]
+        or verified["metadata"].get("source_commit") != value["source_commit"]
+        or verified["metadata"].get("compatible_api_version") != value["api_contract_version"]
+        or verified["metadata"].get("compatible_schema") != value["schema"]
+    ):
+        fail("web bundle identity does not match coordinated policy")
     if (
         str(API_CURRENT.resolve()) != value["expected_active_api"]
         or str(WEB_CURRENT.resolve()) != value["expected_active_web"]
     ):
         fail("active release targets differ from the approved pre-activation policy")
     health = web.api_health({**value, "schema": migration_current})
+    _require_write_state(health, bool(writes["required_before"]), "pre-activation")
     if migration_revisions:
         environment = _migration_environment()
         if _staged_alembic_current(API_CURRENT.resolve(), environment) != migration_current:
@@ -1656,6 +1745,8 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
         "active_api": str(API_CURRENT.resolve()),
         "active_web": str(WEB_CURRENT.resolve()),
         "api_health": health,
+        "runtime_env": runtime_env_attestation(),
+        "write_state": {**writes, "observed_before": health["writes_enabled"]},
         "nginx_worker_user": web.nginx_worker_user(),
         "migration": {
             "current_schema": migration_current,
@@ -1670,12 +1761,18 @@ def activate(value: dict[str, object]) -> Path:
         value = sealed_policy(value)
         preflight_evidence = preflight(value)
         migration = migration_plan(value)
+        writes = write_state(value)
         migration_current, _, migration_revisions = migration
         web.require_root_chain(Path(str(value["bundle_path"])))
         web.require_root_tree(Path(str(value["bundle_path"])))
         verified = web.verify_bundle(Path(str(value["bundle_path"])), str(value["bundle_sha256"]))
-        if verified["metadata"].get("application_version") != value["application_version"]:
-            fail("web bundle version does not match coordinated policy")
+        if (
+            verified["metadata"].get("application_version") != value["application_version"]
+            or verified["metadata"].get("source_commit") != value["source_commit"]
+            or verified["metadata"].get("compatible_api_version") != value["api_contract_version"]
+            or verified["metadata"].get("compatible_schema") != value["schema"]
+        ):
+            fail("web bundle identity does not match coordinated policy")
         old_api, old_api_attestation = _api_release_attestation(API_CURRENT.resolve(), "active_api")
         old_web, old_web_attestation = _web_release_attestation(WEB_CURRENT.resolve(), "active_web")
         transaction = (
@@ -1702,7 +1799,9 @@ def activate(value: dict[str, object]) -> Path:
             "web_bundle_sha256": value["bundle_sha256"],
             "schema": value["schema"],
             "service": SERVICE,
-            "writes_enabled": False,
+            "writes_enabled": writes["required_before"],
+            "write_state": writes,
+            "runtime_env_before": preflight_evidence["runtime_env"],
             "activation_complete": False,
             "state": "started",
             "preflight": preflight_evidence,
@@ -1730,6 +1829,7 @@ def activate(value: dict[str, object]) -> Path:
             subprocess.run(["/bin/systemctl", "restart", SERVICE], check=True)
             web.wait_api(value)
             wait_target(value)
+            _require_runtime_env_attestation(receipt["runtime_env_before"])
             # The shared HTTP acceptance helper also asserts the API release
             # symlink. Bind that invariant to this just-activated immutable target.
             web.acceptance(frontend, acceptance_policy(value, server))
@@ -1745,9 +1845,9 @@ def activate(value: dict[str, object]) -> Path:
             )
             return transaction
         except Exception as error:
-            # Restore a matching API/web pair first. Writes are already governed
-            # off, and the service is restarted only after its database is back
-            # at the old release's exact schema.
+            # Restore a matching API/web pair first.  Write state is never
+            # inferred from migration behavior; the sealed pre-activation
+            # contract is checked again after rollback.
             web.atomic_symlink(old_api, API_CURRENT)
             web.atomic_symlink(old_web, WEB_CURRENT)
             if migration_complete:
@@ -1780,8 +1880,8 @@ def activate(value: dict[str, object]) -> Path:
                 excludes="Welcome to nginx!",
             )
             rollback_health = web.api_health({"schema": migration_current})
-            if rollback_health.get("writes_enabled") is not False:
-                fail("rollback did not restore writes-disabled state")
+            _require_write_state(rollback_health, bool(writes["required_before"]), "rollback")
+            _require_runtime_env_attestation(receipt["runtime_env_before"])
             receipt.update(
                 state="rolled_back",
                 failure=str(error),
@@ -1840,7 +1940,11 @@ def main(argv: list[str] | None = None) -> int:
         fail("preflight and activate require only a governed policy")
     value = policy(args.policy)
     if args.action == "preflight":
-        print(json.dumps(preflight(value), sort_keys=True))
+        # Sealing is a root-owned, immutable preparation step.  It must happen
+        # before the public preflight command so preflight never falls back to
+        # caller-controlled upload paths; repeated calls only re-attest the
+        # same sealed receipt and do not change active release pointers.
+        print(json.dumps(preflight(sealed_policy(value)), sort_keys=True))
     else:
         print(json.dumps({"transaction": str(activate(value))}, sort_keys=True))
     return 0

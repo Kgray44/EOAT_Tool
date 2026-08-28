@@ -20,9 +20,9 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 class InstallError(RuntimeError):
@@ -176,8 +176,8 @@ def api_health(policy: dict[str, object]) -> dict[str, object]:
     expected_schema = schema.get("expected", data.get("expected_schema_revision"))
     if current_schema != policy["schema"] or expected_schema != policy["schema"]:
         raise InstallError("active schema differs from approved policy")
-    if data.get("writes_enabled") is not False:
-        raise InstallError("production writes are not disabled")
+    if type(data.get("writes_enabled")) is not bool:
+        raise InstallError("production write state is invalid")
     return data
 
 
