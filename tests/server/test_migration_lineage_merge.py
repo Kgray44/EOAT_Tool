@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+
+from core.versioning.compatibility import EXPECTED_SCHEMA_REVISION as RELEASE_SCHEMA_REVISION
+from server.eoat_api.services import EXPECTED_SCHEMA_REVISION as API_SCHEMA_REVISION
 
 ROOT = Path(__file__).resolve().parents[2]
 PRODUCTION_HEAD = "20260729_0009"
@@ -52,6 +56,10 @@ def test_accepted_production_lineage_is_present_and_merge_is_the_only_head() -> 
     permission_grants = script.get_revision(CURRENT_HEAD)
     assert permission_grants is not None
     assert permission_grants.down_revision == PREVIOUS_HEAD
+    assert API_SCHEMA_REVISION == CURRENT_HEAD
+    assert RELEASE_SCHEMA_REVISION == CURRENT_HEAD
+    release_defaults = json.loads((ROOT / "release_defaults.json").read_text(encoding="utf-8"))
+    assert release_defaults["database_schema_revision"] == CURRENT_HEAD
 
 
 def test_upgrade_from_real_production_head_runs_only_missing_admin_branch_then_merge() -> None:

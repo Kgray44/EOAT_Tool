@@ -1,7 +1,7 @@
 {
   "app_name": "EOAT Atlas",
   "api_contract_version": "1.4.0",
-  "database_schema_revision": "20260821_0015",
+  "database_schema_revision": "20260827_0016",
   "environment": "production",
   "release_channel": "server",
   "launcher_version": "0.1.0",
