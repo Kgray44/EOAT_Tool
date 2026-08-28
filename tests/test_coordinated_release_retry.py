@@ -874,6 +874,19 @@ def test_api_release_parent_policy_accepts_root_service_group_but_not_writable()
     assert not coordinator._api_release_parent_is_safe(wrong_owner, 42)
 
 
+def test_runtime_environment_policy_allows_only_root_owner_and_the_fixed_service_group() -> None:
+    root_service_group = os.stat_result((stat.S_IFREG | 0o640, 0, 0, 0, 0, 42, 0, 0, 0, 0))
+    root_group = os.stat_result((stat.S_IFREG | 0o600, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    group_writable = os.stat_result((stat.S_IFREG | 0o660, 0, 0, 0, 0, 42, 0, 0, 0, 0))
+    world_readable = os.stat_result((stat.S_IFREG | 0o644, 0, 0, 0, 0, 42, 0, 0, 0, 0))
+    wrong_group = os.stat_result((stat.S_IFREG | 0o640, 0, 0, 0, 0, 7, 0, 0, 0, 0))
+    assert coordinator._runtime_env_is_safe(root_service_group, 42)
+    assert coordinator._runtime_env_is_safe(root_group, 42)
+    assert not coordinator._runtime_env_is_safe(group_writable, 42)
+    assert not coordinator._runtime_env_is_safe(world_readable, 42)
+    assert not coordinator._runtime_env_is_safe(wrong_group, 42)
+
+
 def test_helper_version_is_safe_without_root_execution(capsys: pytest.CaptureFixture[str]) -> None:
     assert coordinator.main(["--version"]) == 0
     assert json.loads(capsys.readouterr().out) == {"helper_version": coordinator.HELPER_VERSION}
