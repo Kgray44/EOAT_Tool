@@ -27,6 +27,15 @@ class PolicyError(RuntimeError):
     pass
 
 
+def parse_bool(value: str) -> bool:
+    normalized = value.strip().casefold()
+    if normalized in {"true", "1", "yes", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "off"}:
+        return False
+    raise argparse.ArgumentTypeError("expected a boolean value")
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -42,7 +51,14 @@ def read_manifest(path: Path) -> dict[str, Any]:
         raise PolicyError("server release manifest is unreadable") from error
     if not isinstance(value, dict):
         raise PolicyError("server release manifest is not an object")
-    required = {"archive_sha256", "source_git_commit", "version", "database_schema_revision", "migration_inventory"}
+    required = {
+        "archive_sha256",
+        "source_git_commit",
+        "version",
+        "database_schema_revision",
+        "api_contract_version",
+        "migration_inventory",
+    }
     if not required.issubset(value):
         raise PolicyError("server release manifest is incomplete")
     return value
@@ -91,10 +107,19 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
     if not isinstance(target, str) or not MIGRATION.fullmatch(target):
         raise PolicyError("server release manifest target schema is invalid")
     revisions = [item.strip() for item in args.migration_revisions.split(",") if item.strip()]
-    if not revisions or revisions[-1] != target or len(set(revisions)) != len(revisions):
+    if not MIGRATION.fullmatch(args.current_schema):
+        raise PolicyError("migration current schema is invalid")
+    if args.current_schema == target:
+        if revisions:
+            raise PolicyError("zero-migration release must not name migration revisions")
+    elif not revisions or revisions[-1] != target or len(set(revisions)) != len(revisions):
         raise PolicyError("migration revisions must be unique and end at the release schema")
-    if not MIGRATION.fullmatch(args.current_schema) or args.current_schema == target:
-        raise PolicyError("migration current schema is invalid for a migration-bearing release")
+    if args.write_transition == "preserve_current" and args.writes_required_before != args.writes_required_after:
+        raise PolicyError("preserve write-state policy must require the same state before and after activation")
+    if args.write_transition == "enable" and args.writes_required_after is not True:
+        raise PolicyError("enable write-state policy must require writes enabled after activation")
+    if args.write_transition == "disable" and args.writes_required_after is not False:
+        raise PolicyError("disable write-state policy must require writes disabled after activation")
     archived = archive_migrations(args.server_archive)
     plan: list[dict[str, str]] = []
     for revision in revisions:
@@ -125,6 +150,7 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
         "bundle_path": str(policy_root / args.bundle_path.name),
         "bundle_sha256": args.bundle_sha256,
         "application_version": manifest["version"],
+        "api_contract_version": manifest["api_contract_version"],
         "source_commit": manifest["source_git_commit"],
         "schema": target,
         "canonical_migration_sha256": canonical[1],
@@ -132,6 +158,11 @@ def generate(args: argparse.Namespace) -> dict[str, object]:
         "expected_active_web": args.expected_active_web,
         "tls_listener_policy": args.tls_listener_policy,
         "migration_plan": {"current_schema": args.current_schema, "target_schema": target, "revisions": plan},
+        "write_state": {
+            "transition": args.write_transition,
+            "required_before": args.writes_required_before,
+            "required_after": args.writes_required_after,
+        },
     }
     if not SHA256.fullmatch(args.bundle_sha256) or not FULL_SHA.fullmatch(str(manifest["source_git_commit"])):
         raise PolicyError("bundle or source identity is invalid")
@@ -149,6 +180,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expected-active-web", required=True)
     parser.add_argument("--current-schema", required=True)
     parser.add_argument("--migration-revisions", required=True)
+    parser.add_argument("--write-transition", choices=("preserve_current", "enable", "disable"), required=True)
+    parser.add_argument("--writes-required-before", type=parse_bool, required=True)
+    parser.add_argument("--writes-required-after", type=parse_bool, required=True)
     parser.add_argument("--policy-artifact-root", default="/opt/eoat-atlas/incoming")
     parser.add_argument("--tls-listener-policy", choices=("http_only", "approved_self_signed_existing"), default="http_only")
     parser.add_argument("--output", type=Path, required=True)

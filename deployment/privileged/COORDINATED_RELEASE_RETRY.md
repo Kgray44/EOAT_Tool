@@ -17,14 +17,26 @@ or used to replace `production` during normal production release work. Its
 lineage reconciliation is a separately authorized project. See
 `docs/governance/production-lineage.md` for the branch and evidence policy.
 
-Coordinator 1.4.0 retains the sealed-artifact, paired API/frontend activation,
+Coordinator 1.5.0 retains the sealed-artifact, paired API/frontend activation,
 exact-pointer attestation, and rollback-receipt controls from 1.3.4. Its only
 new release path is a policy-pinned migration plan: the policy declares the
 exact current schema, target schema, ordered migration revisions, and the
 SHA-256 of every revision source. The sealed API archive must contain those
 exact files and prove that the sequence is a complete deterministic Alembic
-DAG traversal from the active head. An absent plan remains the historical
-zero-migration transaction.
+DAG traversal from the active head. A zero-migration release must state an
+equal current and target schema with an empty revision list; it cannot advance
+Alembic or name a dummy migration.
+
+The `write_state` policy is independent of schema. It carries a transition
+intent (`preserve_current`, `enable`, or `disable`) plus the required health
+state before and after activation. A `preserve_current` policy requires those
+two booleans to be identical. The coordinator records the observed pre-state,
+requires the sealed post-state after restart and acceptance, and attests the
+root-owned `runtime.env` byte identity before and after activation. It never
+edits `runtime.env` for a preserve release. A public `preflight` first seals
+the approved upload into the root-owned immutable artifact root, then runs
+read-only validation against only those sealed paths; repeated preflights
+re-attest the same receipt without changing either active pointer.
 
 For a migration-bearing transaction the coordinator holds the fixed deployment
 lock, re-attests both live pointers and the current schema, validates the
@@ -35,7 +47,7 @@ frontend are then activated as one governed transaction. If migration fails,
 the verified backup is restored before the transaction fails. If activation
 fails after migration, the coordinator restores both prior pointers, restores
 the verified backup, restarts only the API service, and records the failure;
-writes remain disabled throughout.
+the sealed pre-activation write state must still be present after rollback.
 
 `reconcile-legacy-rollback --transaction <governed-id>` remains a one-purpose,
 root-only recovery action for historical coordinator 1.3.1 transaction receipts
