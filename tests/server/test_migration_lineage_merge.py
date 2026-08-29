@@ -116,6 +116,14 @@ def test_data_state_seed_is_safe_when_verified_historical_data_already_exists() 
     assert "ON DUPLICATE KEY UPDATE id = data_state.id" in source
 
 
+def test_explicit_group_policy_foreign_keys_match_unsigned_production_ids() -> None:
+    """InnoDB foreign keys must exactly match the BIGINT UNSIGNED parent IDs."""
+    source = (
+        ROOT / "server" / "migrations" / "versions" / "20260828_0017_explicit_group_policy_assignments.py"
+    ).read_text(encoding="utf-8")
+    assert source.count("mysql.BIGINT(unsigned=True)") == 2
+
+
 def test_fresh_upgrade_contains_both_historical_branches_one_merge_and_the_current_head() -> None:
     planned = _upgrade_ids(_script(), ())
     assert set(planned) >= PRODUCTION_REVISIONS | ADMIN_REVISIONS | {MERGE_HEAD}

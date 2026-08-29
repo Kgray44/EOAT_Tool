@@ -6,6 +6,7 @@ Revises: 20260827_0016
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import mysql
 
 revision = "20260828_0017"
 down_revision = "20260827_0016"
@@ -18,10 +19,13 @@ def upgrade() -> None:
     # assignment without pretending EOAT controls directory membership.
     op.add_column(
         "corporate_users",
-        sa.Column("explicit_group_policy_id", sa.Integer(), nullable=True),
+        sa.Column("explicit_group_policy_id", mysql.BIGINT(unsigned=True), nullable=True),
     )
     op.add_column("corporate_users", sa.Column("policy_assigned_at", sa.DateTime(), nullable=True))
-    op.add_column("corporate_users", sa.Column("policy_assigned_by_user_id", sa.Integer(), nullable=True))
+    op.add_column(
+        "corporate_users",
+        sa.Column("policy_assigned_by_user_id", mysql.BIGINT(unsigned=True), nullable=True),
+    )
     op.create_foreign_key(
         "fk_corporate_users_explicit_group_policy",
         "corporate_users",
