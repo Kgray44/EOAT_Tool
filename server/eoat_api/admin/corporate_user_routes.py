@@ -24,6 +24,12 @@ from ..database.session import get_runtime_session, get_write_session
 from ..errors import APIError, not_found
 from ..security import ActorContext, require_admin_mutation, require_admin_session
 from ..write_services import idempotent
+from .mutation_service import (
+    assign_group_policy_governed,
+    explicit_policy_assignment_view,
+    preview_group_policy_assignment,
+    remove_group_policy_assignment_governed,
+)
 from .service import AuditEventWriter
 from .taxonomy import AuditAction, AuditSource
 
@@ -50,6 +56,23 @@ class CorporateAccessRequest(BaseModel):
 class CorporateSessionRevokeRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=512)
     confirmation: str = Field(min_length=3, max_length=255)
+
+
+class GroupPolicyAssignmentPreviewRequest(BaseModel):
+    policy_id: int = Field(ge=1)
+    expected_user_version: int = Field(ge=1)
+    expected_policy_version: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=2000)
+
+
+class GroupPolicyAssignmentCommitRequest(GroupPolicyAssignmentPreviewRequest):
+    confirmation: str = Field(min_length=3, max_length=255)
+
+
+class GroupPolicyRemovalRequest(BaseModel):
+    expected_user_version: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=2000)
+    confirmation: str | None = Field(default=None, max_length=255)
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -79,6 +102,18 @@ def _user_summary(session: Session, row: db.CorporateUser) -> dict[str, object]:
         "active_sessions": active_corporate_session_count(session, row.user_id),
         "row_version": row.row_version,
     }
+
+
+def _assignment_policy(session: Session, policy_id: int) -> db.ExternalGroupRoleMapping:
+    policy = session.scalar(
+        select(db.ExternalGroupRoleMapping).where(
+            db.ExternalGroupRoleMapping.id == policy_id,
+            db.ExternalGroupRoleMapping.provider == "kerberos_form",
+        )
+    )
+    if policy is None:
+        raise not_found("group policy", str(policy_id))
+    return policy
 
 
 def _get_user(session: Session, user_id: str) -> db.CorporateUser:
@@ -230,6 +265,115 @@ def commit_access(
         return {"user": _user_summary(session, row), "audit_event_id": receipt.event_id, "revoked_session_count": revoked_sessions}
 
     return idempotent(session, actor, f"admin.users.access.{payload.action}", idempotency_key, {"user_id": user_id, **payload.model_dump()}, commit)
+
+
+@router.post("/{user_id}/group-policy/preview")
+def preview_group_policy(
+    user_id: str,
+    payload: GroupPolicyAssignmentPreviewRequest,
+    session: Session = Depends(get_runtime_session),
+    actor: ActorContext = Depends(require_admin_session("admin.group_policy.manage")),
+):
+    user = _get_user(session, user_id)
+    if user.user_id == actor.user_id:
+        raise APIError(403, "SELF_ACCESS_CHANGE_FORBIDDEN", "An Administrator cannot change their own access.")
+    if user.row_version != payload.expected_user_version:
+        raise APIError(409, "ROW_VERSION_CONFLICT", "The user access record changed; refresh and review the current state.")
+    policy = _assignment_policy(session, payload.policy_id)
+    if policy.row_version != payload.expected_policy_version:
+        raise APIError(409, "ROW_VERSION_CONFLICT", "The group policy changed; refresh and review the current state.")
+    if not policy.is_active or policy.is_system_policy or policy.role_code == "ADMINISTRATOR":
+        raise APIError(422, "GROUP_POLICY_NOT_ASSIGNABLE", "The selected group policy cannot be explicitly assigned.")
+    before, after, confirmation = preview_group_policy_assignment(session, user, policy)
+    return {
+        "user_id": user.user_uuid,
+        "policy": explicit_policy_assignment_view(session, user) or {"policy_id": policy.id, "corporate_group": policy.external_group_identifier, "role_code": policy.role_code},
+        "before": before,
+        "after": after,
+        "role_mismatch": before["effective_role"] != policy.role_code,
+        "active_session_count": active_corporate_session_count(session, user.user_id),
+        "confirmation": confirmation,
+    }
+
+
+@router.post("/{user_id}/group-policy/commit")
+def commit_group_policy(
+    user_id: str,
+    payload: GroupPolicyAssignmentCommitRequest,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require_admin_mutation("admin.group_policy.manage")),
+):
+    user = _get_user(session, user_id)
+    if user.user_id == actor.user_id:
+        raise APIError(403, "SELF_ACCESS_CHANGE_FORBIDDEN", "An Administrator cannot change their own access.")
+    expected = f"ASSIGN GROUP POLICY {payload.policy_id} TO {user.user_uuid}"
+    if payload.confirmation != expected:
+        raise APIError(422, "CONFIRMATION_MISMATCH", "The typed confirmation does not match the governed action.")
+    return idempotent(
+        session,
+        actor,
+        "admin.group-policy.assignment.assign",
+        idempotency_key,
+        {"user_id": user_id, **payload.model_dump()},
+        lambda: assign_group_policy_governed(
+            session,
+            actor,
+            user_id,
+            payload.policy_id,
+            expected_user_version=payload.expected_user_version,
+            expected_policy_version=payload.expected_policy_version,
+            reason=payload.reason,
+        ),
+    )
+
+
+@router.post("/{user_id}/group-policy/remove-preview")
+def preview_group_policy_removal(
+    user_id: str,
+    payload: GroupPolicyRemovalRequest,
+    session: Session = Depends(get_runtime_session),
+    actor: ActorContext = Depends(require_admin_session("admin.group_policy.manage")),
+):
+    user = _get_user(session, user_id)
+    if user.user_id == actor.user_id:
+        raise APIError(403, "SELF_ACCESS_CHANGE_FORBIDDEN", "An Administrator cannot change their own access.")
+    if user.row_version != payload.expected_user_version:
+        raise APIError(409, "ROW_VERSION_CONFLICT", "The user access record changed; refresh and review the current state.")
+    if user.explicit_group_policy_id is None:
+        raise APIError(409, "GROUP_POLICY_ASSIGNMENT_ABSENT", "This user has no explicit EOAT Atlas group-policy assignment.")
+    policy = _assignment_policy(session, user.explicit_group_policy_id)
+    before, after, confirmation = preview_group_policy_assignment(session, user, policy, remove=True)
+    return {"user_id": user.user_uuid, "policy": explicit_policy_assignment_view(session, user), "before": before, "after": after,
+            "active_session_count": active_corporate_session_count(session, user.user_id), "confirmation": confirmation}
+
+
+@router.post("/{user_id}/group-policy/remove")
+def remove_group_policy(
+    user_id: str,
+    payload: GroupPolicyRemovalRequest,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require_admin_mutation("admin.group_policy.manage")),
+):
+    user = _get_user(session, user_id)
+    if user.user_id == actor.user_id:
+        raise APIError(403, "SELF_ACCESS_CHANGE_FORBIDDEN", "An Administrator cannot change their own access.")
+    if user.explicit_group_policy_id is None:
+        raise APIError(409, "GROUP_POLICY_ASSIGNMENT_ABSENT", "This user has no explicit EOAT Atlas group-policy assignment.")
+    expected = f"REMOVE GROUP POLICY {user.explicit_group_policy_id} FROM {user.user_uuid}"
+    if payload.confirmation != expected:
+        raise APIError(422, "CONFIRMATION_MISMATCH", "The typed confirmation does not match the governed action.")
+    return idempotent(
+        session,
+        actor,
+        "admin.group-policy.assignment.remove",
+        idempotency_key,
+        {"user_id": user_id, **payload.model_dump()},
+        lambda: remove_group_policy_assignment_governed(
+            session, actor, user_id, expected_user_version=payload.expected_user_version, reason=payload.reason
+        ),
+    )
 
 
 @router.post("/{user_id}/sessions/{session_reference}/revoke")

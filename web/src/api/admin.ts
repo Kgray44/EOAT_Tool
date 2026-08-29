@@ -159,6 +159,7 @@ export interface AdminGroupPolicy {
   is_active: boolean;
   status: "active" | "inactive";
   row_version: number;
+  created_at: string;
   updated_at: string;
   is_protected_system_policy: boolean;
   permissions: string[];
@@ -170,12 +171,22 @@ export interface CorporateUserSummary {
   provider: string;
   effective_role: string;
   access_source:
+    | "protected_system_administrator"
+    | "explicit_group_policy_assignment"
     | "explicit_user_assignment"
     | "corporate_group"
     | "default"
     | "explicit_deny";
   group_roles: string[];
   explicit_role?: string | null;
+  explicit_group_policy?: {
+    id: number;
+    corporate_group: string;
+    role_code: string;
+    status: "active" | "inactive";
+    assignment_source: string;
+    assigned_at?: string | null;
+  } | null;
   explicit_denied: boolean;
   status: "active" | "disabled";
   first_sign_in: string;
@@ -209,6 +220,27 @@ export interface CorporateUserDetail extends CorporateUserSummary {
     request_id?: string | null;
     correlation_id?: string | null;
   }>;
+}
+export interface GroupPolicyDetail {
+  policy: AdminGroupPolicy;
+  assigned_users: CorporateUserSummary[];
+  audit_history: Array<{
+    event_id: string;
+    occurred_at: string;
+    action: string;
+    result: string;
+    actor?: string | null;
+    reason?: string | null;
+  }>;
+}
+export interface GroupPolicyAssignmentPreview {
+  user_id: string;
+  policy: Record<string, AuditValue>;
+  before: CorporateUserSummary;
+  after: CorporateUserSummary;
+  role_mismatch?: boolean;
+  active_session_count: number;
+  confirmation: string;
 }
 
 let csrfToken: string | undefined;
@@ -633,6 +665,8 @@ export const adminApi = {
     adminFetch<{ items: AdminGroupPolicy[] }>(
       `/api/v1/admin/access/group-policies${includeInactive ? "?include_inactive=true" : ""}`,
     ),
+  groupPolicy: (id: number, signal?: AbortSignal) =>
+    adminFetch<GroupPolicyDetail>(`/api/v1/admin/access/group-policies/${id}`, signal),
   createGroupPolicy: (payload: Record<string, AuditValue>) =>
     adminPost<{
       policy: AdminGroupPolicy;
@@ -692,6 +726,26 @@ export const adminApi = {
       revoked_session_count: number;
     }>(
       `/api/v1/admin/users/${encodeURIComponent(userId)}/access/commit`,
+      payload,
+    ),
+  previewUserGroupPolicy: (userId: string, payload: Record<string, AuditValue>) =>
+    adminPost<GroupPolicyAssignmentPreview>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/group-policy/preview`,
+      payload,
+    ),
+  commitUserGroupPolicy: (userId: string, payload: Record<string, AuditValue>) =>
+    adminPost<{ audit_event_id: string; revoked_session_count: number }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/group-policy/commit`,
+      payload,
+    ),
+  previewUserGroupPolicyRemoval: (userId: string, payload: Record<string, AuditValue>) =>
+    adminPost<GroupPolicyAssignmentPreview>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/group-policy/remove-preview`,
+      payload,
+    ),
+  removeUserGroupPolicy: (userId: string, payload: Record<string, AuditValue>) =>
+    adminPost<{ audit_event_id: string; revoked_session_count: number }>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/group-policy/remove`,
       payload,
     ),
   revokeCorporateSession: (

@@ -252,6 +252,7 @@ class CorporateUser(VersionMixin, Base):
         CheckConstraint("row_version > 0", name="ck_corporate_users_row_version"),
         Index("ix_corporate_users_last_sign_in", "last_successful_sign_in_at"),
         Index("ix_corporate_users_access", "explicit_role_code", "explicit_denied", "is_active"),
+        Index("ix_corporate_users_explicit_policy", "explicit_group_policy_id"),
     )
     id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
     user_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
@@ -263,6 +264,14 @@ class CorporateUser(VersionMixin, Base):
     last_successful_sign_in_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     sign_in_count: Mapped[int] = mapped_column(Integer, server_default=text("1"), nullable=False)
     explicit_role_code: Mapped[str | None] = mapped_column(String(64))
+    # This is an EOAT-owned assignment, deliberately separate from a directory
+    # group mapping.  A user can have one active explicit policy at a time;
+    # Audit events retain the membership history.
+    explicit_group_policy_id: Mapped[int | None] = mapped_column(
+        PK, ForeignKey("external_group_role_mappings.id", ondelete="RESTRICT")
+    )
+    policy_assigned_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    policy_assigned_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
     explicit_denied: Mapped[bool] = mapped_column(Boolean, server_default=text("0"), nullable=False)
     access_reason: Mapped[str | None] = mapped_column(Text)
     access_changed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())

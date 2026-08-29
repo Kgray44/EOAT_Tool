@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ..corporate_users import access_state, active_corporate_session_count, latest_authorization_groups
 from ..database import models as db
 from ..database.session import get_runtime_session, get_write_session
 from ..errors import APIError, not_found
@@ -509,6 +510,64 @@ def list_group_policies(
         statement = statement.where(db.ExternalGroupRoleMapping.is_active.is_(True))
     rows = session.scalars(statement.order_by(db.ExternalGroupRoleMapping.external_group_identifier, db.ExternalGroupRoleMapping.role_code))
     return {"items": [group_policy_view(row) for row in rows]}
+
+
+@router.get("/access/group-policies/{mapping_id}")
+def group_policy_detail(
+    mapping_id: int,
+    session: Session = Depends(get_runtime_session),
+    _actor: ActorContext = Depends(require_admin_session("admin.group_policy.manage")),
+):
+    policy = session.scalar(
+        select(db.ExternalGroupRoleMapping).where(
+            db.ExternalGroupRoleMapping.id == mapping_id,
+            db.ExternalGroupRoleMapping.provider == "kerberos_form",
+        )
+    )
+    if policy is None:
+        raise not_found("group policy", str(mapping_id))
+    users = session.scalars(
+        select(db.CorporateUser)
+        .where(db.CorporateUser.explicit_group_policy_id == policy.id)
+        .order_by(db.CorporateUser.display_name, db.CorporateUser.id)
+    ).all()
+    history = session.scalars(
+        select(db.AuditEvent)
+        .where(
+            (db.AuditEvent.entity_type == "GroupPolicy") & (db.AuditEvent.entity_id == policy.id)
+        )
+        .order_by(db.AuditEvent.occurred_at_utc.desc(), db.AuditEvent.id.desc())
+        .limit(100)
+    ).all()
+    return {
+        "policy": group_policy_view(policy),
+        "assigned_users": [
+            {
+                "user_id": user.user_uuid,
+                "name": user.display_name,
+                "corporate_identity": user.canonical_identity,
+                "effective_role": access_state(session, user, groups=latest_authorization_groups(session, user.user_id))["effective_role"],
+                "access_source": access_state(session, user, groups=latest_authorization_groups(session, user.user_id))["access_source"],
+                "assignment_source": "explicit_eoat_group_policy",
+                "status": "active" if user.is_active and user.archived_at is None else "disabled",
+                "last_sign_in": user.last_successful_sign_in_at,
+                "active_sessions": active_corporate_session_count(session, user.user_id),
+                "row_version": user.row_version,
+            }
+            for user in users
+        ],
+        "audit_history": [
+            {
+                "event_id": item.event_id,
+                "occurred_at": item.occurred_at_utc,
+                "action": item.action,
+                "result": item.result,
+                "actor": item.actor_display_name,
+                "reason": item.reason_or_note,
+            }
+            for item in history
+        ],
+    }
 
 
 @router.post("/access/group-policies")

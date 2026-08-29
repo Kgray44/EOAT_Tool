@@ -112,7 +112,9 @@ def _engine():
                 canonical_identity TEXT NOT NULL, display_name TEXT NOT NULL,
                 first_successful_sign_in_at DATETIME NOT NULL,
                 last_successful_sign_in_at DATETIME NOT NULL, sign_in_count INTEGER NOT NULL,
-                explicit_role_code TEXT, explicit_denied BOOLEAN DEFAULT 0,
+                explicit_role_code TEXT, explicit_group_policy_id INTEGER,
+                policy_assigned_at DATETIME, policy_assigned_by_user_id INTEGER,
+                explicit_denied BOOLEAN DEFAULT 0,
                 access_reason TEXT, access_changed_at DATETIME,
                 access_changed_by_user_id INTEGER, created_by_user_id INTEGER,
                 updated_by_user_id INTEGER, row_version INTEGER DEFAULT 1,
@@ -451,6 +453,89 @@ def test_explicit_access_precedence_and_role_change_revokes_existing_sessions(mo
                 expected_row_version=registry.row_version,
             )
             assert denied["access_source"] == "explicit_deny"
+    finally:
+        engine.dispose()
+
+
+def test_explicit_group_policy_assignment_aligns_access_and_removal_falls_back(monkeypatch):
+    """The EOAT-owned policy link is atomic, auditable, and revokes stale access."""
+
+    engine = _engine()
+    try:
+        with Session(engine) as session:
+            class AuditWriter:
+                def write_change(self, *_args, **_kwargs):
+                    return SimpleNamespace(event_id="assignment-audit")
+
+            monkeypatch.setattr(mutation_service, "AuditEventWriter", AuditWriter)
+            now = datetime.now(timezone.utc)
+            session.add_all(
+                [
+                    db.Role(role_code="VIEWER", role_name="Viewer", is_active=True, created_at=now, updated_at=now),
+                    db.Role(role_code="ENGINEER", role_name="Engineer", is_active=True, created_at=now, updated_at=now),
+                ]
+            )
+            target = db.User(username="policy.target", display_name="Policy Target", created_at=now, updated_at=now)
+            session.add(target)
+            session.flush()
+            registry = db.CorporateUser(
+                user_uuid="00000000-0000-0000-0000-000000000011",
+                user_id=target.id,
+                provider="kerberos_form",
+                canonical_identity="policy.target@example.invalid",
+                display_name="Policy Target",
+                first_successful_sign_in_at=now,
+                last_successful_sign_in_at=now,
+                sign_in_count=1,
+                explicit_role_code="VIEWER",
+                created_at=now,
+                updated_at=now,
+            )
+            policy = db.ExternalGroupRoleMapping(
+                provider="kerberos_form",
+                external_group_identifier="CN=EOAT Engineering,OU=Test,DC=example,DC=invalid",
+                role_code="ENGINEER",
+                created_at=now,
+                updated_at=now,
+            )
+            session.add_all([registry, policy])
+            session.flush()
+            active = db.CorporateAuthenticationSession(
+                session_reference="00000000-0000-0000-0000-000000000012",
+                token_hash="a" * 64,
+                csrf_token_hash="b" * 64,
+                user_id=target.id,
+                provider="kerberos_form",
+                roles_json=["VIEWER"],
+                authenticated_at=now,
+                issued_at=now,
+                expires_at=now.replace(year=now.year + 1),
+            )
+            session.add(active)
+            session.flush()
+            actor = ActorContext(999, "admin", "Administrator", "ADMINISTRATOR", "request-policy", None, None)
+            result = mutation_service.assign_group_policy_governed(
+                session,
+                actor,
+                registry.user_uuid,
+                policy.id,
+                expected_user_version=registry.row_version,
+                expected_policy_version=policy.row_version,
+                reason="Assign governed engineering policy",
+            )
+            assert result["after"]["effective_role"] == "ENGINEER"
+            assert result["after"]["access_source"] == "explicit_group_policy_assignment"
+            assert result["revoked_session_count"] == 1
+            assert active.revoked_at is not None
+            removed = mutation_service.remove_group_policy_assignment_governed(
+                session,
+                actor,
+                registry.user_uuid,
+                expected_user_version=registry.row_version,
+                reason="Remove governed engineering policy",
+            )
+            assert removed["after"]["effective_role"] == "VIEWER"
+            assert removed["after"]["access_source"] == "explicit_user_assignment"
     finally:
         engine.dispose()
 

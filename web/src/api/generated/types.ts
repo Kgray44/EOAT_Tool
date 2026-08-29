@@ -29,7 +29,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Group Policy Detail */
+        get: operations["group_policy_detail_api_v1_admin_access_group_policies__mapping_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -774,6 +775,74 @@ export interface paths {
         put?: never;
         /** Preview Access */
         post: operations["preview_access_api_v1_admin_users__user_id__access_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/group-policy/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit Group Policy */
+        post: operations["commit_group_policy_api_v1_admin_users__user_id__group_policy_commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/group-policy/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Group Policy */
+        post: operations["preview_group_policy_api_v1_admin_users__user_id__group_policy_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/group-policy/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Group Policy */
+        post: operations["remove_group_policy_api_v1_admin_users__user_id__group_policy_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/group-policy/remove-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Group Policy Removal */
+        post: operations["preview_group_policy_removal_api_v1_admin_users__user_id__group_policy_remove_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3552,6 +3621,30 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** GroupPolicyAssignmentCommitRequest */
+        GroupPolicyAssignmentCommitRequest: {
+            /** Confirmation */
+            confirmation: string;
+            /** Expected Policy Version */
+            expected_policy_version: number;
+            /** Expected User Version */
+            expected_user_version: number;
+            /** Policy Id */
+            policy_id: number;
+            /** Reason */
+            reason: string;
+        };
+        /** GroupPolicyAssignmentPreviewRequest */
+        GroupPolicyAssignmentPreviewRequest: {
+            /** Expected Policy Version */
+            expected_policy_version: number;
+            /** Expected User Version */
+            expected_user_version: number;
+            /** Policy Id */
+            policy_id: number;
+            /** Reason */
+            reason: string;
+        };
         /** GroupPolicyCreate */
         GroupPolicyCreate: {
             /** Corporate Group */
@@ -3572,6 +3665,15 @@ export interface components {
             confirmed: boolean;
             /** Expected Row Version */
             expected_row_version: number;
+            /** Reason */
+            reason: string;
+        };
+        /** GroupPolicyRemovalRequest */
+        GroupPolicyRemovalRequest: {
+            /** Confirmation */
+            confirmation?: string | null;
+            /** Expected User Version */
+            expected_user_version: number;
             /** Reason */
             reason: string;
         };
@@ -4433,6 +4535,37 @@ export interface operations {
                 "application/json": components["schemas"]["GroupPolicyCreate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    group_policy_detail_api_v1_admin_access_group_policies__mapping_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mapping_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -5947,6 +6080,150 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CorporateAccessRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_group_policy_api_v1_admin_users__user_id__group_policy_commit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPolicyAssignmentCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_group_policy_api_v1_admin_users__user_id__group_policy_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPolicyAssignmentPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_group_policy_api_v1_admin_users__user_id__group_policy_remove_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPolicyRemovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_group_policy_removal_api_v1_admin_users__user_id__group_policy_remove_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPolicyRemovalRequest"];
             };
         };
         responses: {
