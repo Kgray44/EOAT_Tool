@@ -546,7 +546,11 @@ function ProfileContent({
                 />
                 <Attribute
                   label="Storage location"
-                  value={currentLocation.storage_location}
+                  value={
+                    currentLocation.state === "INSTALLED"
+                      ? "Not applicable while installed"
+                      : currentLocation.storage_location
+                  }
                 />
                 <Attribute
                   label="Observed"

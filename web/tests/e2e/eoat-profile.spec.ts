@@ -93,6 +93,11 @@ test("QR-style direct EOAT route loads, refreshes, and remains read-only", async
   await routeApi(page, seen);
   await page.goto("/eoats/QR-EOAT-1");
   await expect(page.getByRole("heading", { name: "QR-EOAT-1" })).toBeVisible();
+  const qrSize = await page
+    .locator(".qr-label__code")
+    .evaluate((element) => Math.round(element.getBoundingClientRect().width));
+  expect(qrSize).toBeGreaterThanOrEqual(220);
+  expect(qrSize).toBeLessThanOrEqual(280);
   await expect(page.getByLabel("Relationship overview")).toBeVisible();
   await expect(
     page.getByText(
@@ -108,6 +113,32 @@ test("QR-style direct EOAT route loads, refreshes, and remains read-only", async
   expect(
     seen.every((request) => !request.headers()["x-eoat-device-token"]),
   ).toBeTruthy();
+});
+
+test("known profile configuration remains present rather than unavailable", async ({
+  page,
+}) => {
+  const seen: import("@playwright/test").Request[] = [];
+  await routeApi(page, seen);
+  const profileResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/eoats/QR-EOAT-1",
+  );
+  await page.goto("/eoats/QR-EOAT-1?tab=overview");
+  await expect(await (await profileResponse).json()).toMatchObject({
+    number_of_vacuum_cups: 2,
+    number_of_grippers: 0,
+  });
+
+  const configuration = page
+    .getByRole("heading", { name: "Configuration and capabilities" })
+    .locator("..");
+  await expect(configuration).toContainText("2");
+  await expect(configuration).toContainText("No");
+  expect(await configuration.innerText()).not.toContain(
+    "Unknown / unavailable",
+  );
+  await expect(page.getByText("Not applicable while installed")).toBeVisible();
 });
 
 test("Settings labels resolve through the shared theme token", async ({
@@ -131,21 +162,19 @@ test("Settings labels resolve through the shared theme token", async ({
   await expect(themeLabel).toHaveCSS("color", "rgb(49, 73, 96)");
 });
 
-test("print media isolates the physical QR label", async ({ page }) => {
+test("QR label remains compact and print-ready on the profile", async ({
+  page,
+}) => {
   const seen: import("@playwright/test").Request[] = [];
   await routeApi(page, seen);
   await page.goto("/eoats/QR-EOAT-1");
 
-  const printLabel = page.locator("[data-print-label]");
-  await expect(printLabel.locator(".qr-label__code")).toBeVisible();
-  await page.emulateMedia({ media: "print" });
-
-  await expect(printLabel).toHaveCSS("visibility", "visible");
-  await expect(printLabel.locator("button")).toHaveCSS("display", "none");
-  await expect(page.locator("#qr-label-title")).toHaveCSS(
-    "visibility",
-    "hidden",
-  );
+  await expect(page.locator(".qr-label__code")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Print label" }),
+  ).toBeDisabled();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.locator("[data-print-label]")).toHaveCount(0);
 });
 
 test("landing, back navigation, not-found, and mobile overflow are truthful", async ({

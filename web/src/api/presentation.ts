@@ -68,5 +68,11 @@ export function presentationText(
   value: unknown,
   unavailableLabel?: string,
 ): string {
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? String(value)
+      : (unavailableLabel ?? "Unknown / unavailable");
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
   return normalizeAuthoritativeValue(value, unavailableLabel).display;
 }

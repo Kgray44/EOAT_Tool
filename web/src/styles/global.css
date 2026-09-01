@@ -1636,9 +1636,15 @@ a {
 }
 .qr-label__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(170px, auto);
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  width: min(100%, 760px);
+  gap: clamp(18px, 4vw, 34px);
+  margin: 0 auto;
   align-items: center;
+}
+.qr-label__content {
+  display: grid;
+  gap: 18px;
 }
 .qr-label__identity {
   display: grid;
@@ -1658,41 +1664,18 @@ a {
   color: var(--text-secondary);
 }
 .qr-label__code {
-  width: min(180px, 100%);
-  padding: 8px;
+  display: block;
+  width: clamp(220px, 22vw, 260px);
+  max-width: 100%;
+  aspect-ratio: 1;
+  justify-self: end;
+  padding: 10px;
   background: white;
   border-radius: 8px;
 }
 .qr-label__actions {
   display: grid;
   gap: 10px;
-}
-@media print {
-  body * {
-    visibility: hidden !important;
-  }
-  [data-print-label],
-  [data-print-label] * {
-    visibility: visible !important;
-  }
-  [data-print-label] {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    width: 100%;
-    padding: 10mm;
-    color: #000 !important;
-    background: white !important;
-  }
-  [data-print-label] button,
-  [data-print-label] .qr-warning,
-  [data-print-label] small:last-child {
-    display: none !important;
-  }
-  [data-print-label] .qr-label__code {
-    width: 45mm;
-  }
 }
 .result-card {
   display: grid;
@@ -1961,16 +1944,6 @@ a {
 }
 .recent-items {
   margin: 24px 0;
-}
-.qr-label__body {
-  display: grid;
-  grid-template-columns: minmax(144px, 240px) minmax(0, 1fr);
-  gap: 18px;
-  align-items: center;
-}
-.qr-label img {
-  width: 100%;
-  background: white;
 }
 .qr-warning {
   color: var(--atlas-danger);
@@ -3351,6 +3324,15 @@ a {
   }
   .qr-label__body {
     grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+  .qr-label__content {
+    justify-items: center;
+  }
+  .qr-label__code {
+    width: min(72vw, 260px);
+    justify-self: center;
   }
   .atlas-data-status {
     position: static;
