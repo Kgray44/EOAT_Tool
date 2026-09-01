@@ -581,6 +581,39 @@ def acceptance_base_url(policy: dict[str, object]) -> str:
     return "http://" + HOST
 
 
+def rollback_homepage_acceptance(name: str) -> dict[str, object]:
+    """Accept the governed HTTP-to-HTTPS redirect before checking the live shell.
+
+    Rollback receipts deliberately do not carry a mutable deployment policy.  A
+    redirect to this host's approved HTTPS listener is therefore a successful
+    transport boundary, not an application failure.  Plain HTTP remains valid
+    only when it returns the shell directly.
+    """
+    http_url = "http://" + HOST + "/"
+    headers = subprocess.run(
+        [
+            "/usr/bin/curl",
+            "--silent",
+            "--show-error",
+            "--resolve",
+            HOST + ":80:127.0.0.1",
+            "-D",
+            "-",
+            "-o",
+            "/dev/null",
+            http_url,
+        ],
+        text=True,
+        capture_output=True,
+    )
+    header_text = headers.stdout.lower()
+    if headers.returncode:
+        raise InstallError("rollback homepage transport check failed")
+    if re.search(r"^location:\s*https://" + re.escape(HOST.lower()) + r"(?:/|$)", header_text, re.MULTILINE):
+        return request_check(name, "https://" + HOST + "/", 200, contains="EOAT", excludes="Welcome to nginx!")
+    return request_check(name, http_url, 200, contains="EOAT", excludes="Welcome to nginx!")
+
+
 def request_check(name: str, url: str, expected: int, *, contains: str | None = None, excludes: str | None = None, json_body: bool = False, content_type_contains: str | None = None) -> dict[str, object]:
     parsed = urlsplit(url)
     if parsed.scheme == "https" and parsed.hostname == HOST and parsed.port in (None, 443):

@@ -28,6 +28,18 @@ sys.modules[SPEC.name] = coordinator
 SPEC.loader.exec_module(coordinator)
 
 
+def test_post_activation_rollback_accepts_the_governed_https_redirect(monkeypatch: pytest.MonkeyPatch) -> None:
+    response = type("Completed", (), {"returncode": 0, "stdout": "HTTP/1.1 308 Permanent Redirect\nLocation: https://eoat-atlas.gwplastics.com/\n"})()
+    checks: list[tuple[object, ...]] = []
+    monkeypatch.setattr(coordinator.web.subprocess, "run", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr(coordinator.web, "request_check", lambda *args, **_kwargs: checks.append(args) or {"ok": True})
+
+    assert coordinator.web.rollback_homepage_acceptance("rollback") == {"ok": True}
+    assert checks == [
+        ("rollback", "https://eoat-atlas.gwplastics.com/", 200),
+    ]
+
+
 def sealing_policy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dict[str, object], Path]:
     """Create real upload files and a real static bundle for sealing tests."""
     upload = tmp_path / "incoming"
