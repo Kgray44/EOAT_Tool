@@ -40,6 +40,14 @@ def test_post_activation_rollback_accepts_the_governed_https_redirect(monkeypatc
     ]
 
 
+def test_web_bundle_template_forwards_the_complete_external_host() -> None:
+    template = (ROOT / "deployment" / "runtime" / "nginx" / "eoat-atlas-http-web.conf.template").read_text(
+        encoding="utf-8"
+    )
+
+    assert template.count("proxy_set_header X-Forwarded-Host $http_host;") == 2
+
+
 def sealing_policy(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dict[str, object], Path]:
     """Create real upload files and a real static bundle for sealing tests."""
     upload = tmp_path / "incoming"

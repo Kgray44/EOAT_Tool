@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -58,6 +59,18 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger("eoat_api")
 app = FastAPI(title="EOAT Atlas API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+
+_FORWARDED_HOST = re.compile(r"^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$")
+
+
+def _external_request_origin(request: Request) -> str:
+    """Use the proxy's complete validated host when a non-default port matters."""
+    forwarded_host = request.headers.get("x-forwarded-host", "").split(",", 1)[0].strip()
+    forwarded_scheme = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
+    if _FORWARDED_HOST.fullmatch(forwarded_host) and forwarded_scheme in {"http", "https"}:
+        return f"{forwarded_scheme}://{forwarded_host}"
+    return str(request.base_url).rstrip("/")
 
 
 def _browser_safe_documents(rows):
@@ -279,12 +292,14 @@ def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     response_class=Response,
     responses={200: {"content": {"application/pdf": {}}}},
 )
+
+
 def eoat_qr_label_pdf(identifier: str, request: Request, repo: AtlasRepository = Depends(repository)):
     """Return a single, print-ready 4x3-inch EOAT label PDF from in-memory data."""
     profile = repo.eoat(identifier)
     if profile is None:
         raise not_found("EOAT", identifier)
-    origin = str(request.base_url).rstrip("/")
+    origin = _external_request_origin(request)
     payload, _canonical_url = generate_eoat_qr_label_pdf(profile.business_identifier, origin)
     safe_filename = "".join(character if character.isalnum() or character in "-_." else "_" for character in identifier)
     return Response(

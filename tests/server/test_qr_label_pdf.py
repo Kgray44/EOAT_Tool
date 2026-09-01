@@ -67,6 +67,39 @@ def test_qr_label_pdf_uses_the_canonical_profile_url_and_is_deterministic():
     assert encoded == scannable_payload
 
 
+def test_qr_label_pdf_preserves_a_valid_forwarded_staging_origin_with_its_port():
+    with _client() as client:
+        response = client.get(
+            "/api/v1/eoats/CL-EOAT-0047/qr-label.pdf",
+            headers={
+                "x-forwarded-host": "eoat-atlas.gwplastics.com:8443",
+                "x-forwarded-proto": "https",
+            },
+        )
+    app.dependency_overrides.clear()
+
+    image = next(iter(PdfReader(BytesIO(response.content)).pages[0].images)).image.convert("RGB")
+    encoded, _points, _straight = cv2.QRCodeDetector().detectAndDecode(
+        cv2.cvtColor(numpy.array(image), cv2.COLOR_RGB2BGR)
+    )
+    assert encoded == "https://eoat-atlas.gwplastics.com:8443/eoats/CL-EOAT-0047"
+
+
+def test_qr_label_pdf_rejects_an_invalid_forwarded_origin():
+    with _client() as client:
+        response = client.get(
+            "/api/v1/eoats/CL-EOAT-0047/qr-label.pdf",
+            headers={"x-forwarded-host": "evil.example/path", "x-forwarded-proto": "https"},
+        )
+    app.dependency_overrides.clear()
+
+    image = next(iter(PdfReader(BytesIO(response.content)).pages[0].images)).image.convert("RGB")
+    encoded, _points, _straight = cv2.QRCodeDetector().detectAndDecode(
+        cv2.cvtColor(numpy.array(image), cv2.COLOR_RGB2BGR)
+    )
+    assert encoded == "http://testserver/eoats/CL-EOAT-0047"
+
+
 def test_qr_label_pdf_returns_the_governed_not_found_response():
     with _client() as client:
         response = client.get("/api/v1/eoats/MISSING/qr-label.pdf")
