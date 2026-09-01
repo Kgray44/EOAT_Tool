@@ -1564,13 +1564,7 @@ def post_activation_rollback(transaction_id: str) -> dict[str, object]:
     web.wait_api({"schema": receipt["schema"]})
     if API_CURRENT.resolve() != old_api or WEB_CURRENT.resolve() != old_web:
         fail("post-activation rollback did not restore both prior release targets")
-    web.request_check(
-        "post_activation_rollback_homepage",
-        "http://" + web.HOST + "/",
-        200,
-        contains="EOAT",
-        excludes="Welcome to nginx!",
-    )
+    web.rollback_homepage_acceptance("post_activation_rollback_homepage")
     health = web.api_health({"schema": receipt["schema"]})
     _require_write_state(health, bool(writes["required_before"]), "rollback")
     evidence = {

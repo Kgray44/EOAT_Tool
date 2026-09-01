@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import or_, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -40,6 +40,7 @@ from .database import models as db
 from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
 from .repositories import LOOKUP_MODELS, AtlasRepository
+from .qr_label_pdf import generate_eoat_qr_label_pdf
 from .security import actor_context
 from .services import (
     API_VERSION,
@@ -271,6 +272,26 @@ def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     if value is None:
         raise not_found("EOAT", identifier)
     return value
+
+
+@app.get(
+    "/api/v1/eoats/{identifier}/qr-label.pdf",
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+def eoat_qr_label_pdf(identifier: str, request: Request, repo: AtlasRepository = Depends(repository)):
+    """Return a single, print-ready 4x3-inch EOAT label PDF from in-memory data."""
+    profile = repo.eoat(identifier)
+    if profile is None:
+        raise not_found("EOAT", identifier)
+    origin = str(request.base_url).rstrip("/")
+    payload, _canonical_url = generate_eoat_qr_label_pdf(profile.business_identifier, origin)
+    safe_filename = "".join(character if character.isalnum() or character in "-_." else "_" for character in identifier)
+    return Response(
+        content=payload,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="EOAT_Atlas_Label_{safe_filename}.pdf"'},
+    )
 
 
 @app.get("/api/v1/eoats/{identifier}/current-location", response_model=CurrentEOATLocation)
