@@ -46,6 +46,8 @@ describe("authoritative presentation boundary", () => {
     expect(presentationText(32)).toBe("32");
     expect(presentationText(0)).toBe("0");
     expect(presentationText(false)).toBe("No");
+    expect(presentationText(true)).toBe("Yes");
+    expect(presentationText(null)).toBe("Unknown / unavailable");
   });
 
   it("rejects known sentinels for routes and QR labels", () => {

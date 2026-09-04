@@ -39,13 +39,61 @@ def boolean_value(value: Any) -> bool | None:
     return None
 
 
+def normalize_optional_hardware_values(
+    *,
+    eoat_type: str | None,
+    vacuum_cup_count: int | None,
+    gripper_count: int | None,
+    sensors_present: bool | None,
+    part_present_sensor_present: bool | None,
+    vacuum_confirmation_sensor_present: bool | None,
+) -> dict[str, int | bool | None]:
+    """Apply only source-model implications that are stronger than a blank.
+
+    The audit schema deliberately writes ``N/A`` for a field that does not
+    apply.  It does *not* make every blank an absence.  Three implications are
+    explicit in that source schema:
+
+    * an exclusive Vacuum EOAT has no grippers;
+    * an exclusive Mechanical / Gripper EOAT has no vacuum cups or vacuum
+      confirmation sensor; and
+    * a ``Sensors Present? = No`` parent makes an otherwise unspecified sensor
+      presence child false.
+
+    Hybrid, miscellaneous, blank, and unknown EOAT types deliberately retain
+    nullable counts.  An explicit child value is always retained, even if an
+    inconsistent source row needs review elsewhere.
+    """
+    normalized_type = (known_text(eoat_type) or "").casefold()
+    values: dict[str, int | bool | None] = {
+        "vacuum_cup_count": vacuum_cup_count,
+        "gripper_count": gripper_count,
+        "sensors_present": sensors_present,
+        "part_present_sensor_present": part_present_sensor_present,
+        "vacuum_confirmation_sensor_present": vacuum_confirmation_sensor_present,
+    }
+    if normalized_type == "vacuum" and values["gripper_count"] is None:
+        values["gripper_count"] = 0
+    if normalized_type == "mechanical / gripper":
+        if values["vacuum_cup_count"] is None:
+            values["vacuum_cup_count"] = 0
+        if values["vacuum_confirmation_sensor_present"] is None:
+            values["vacuum_confirmation_sensor_present"] = False
+    if values["sensors_present"] is False:
+        if values["part_present_sensor_present"] is None:
+            values["part_present_sensor_present"] = False
+        if values["vacuum_confirmation_sensor_present"] is None:
+            values["vacuum_confirmation_sensor_present"] = False
+    return values
+
+
 def is_physical_audit(details: dict[str, Any]) -> bool:
     """Exclude compatibility/derived rows which cite, but are not, an audit."""
     return known_text(details.get("Entry Type")) == "Audited" and not known_text(details.get("Source Audit ID"))
 
 
 def configuration_from_details(details: dict[str, Any]) -> dict[str, Any]:
-    return {
+    configuration = {
         "description": known_text(details.get("Part Name/Description")),
         "eoat_type": known_text(details.get("EOAT Type")),
         "connection_type": known_text(details.get("Connection Type")),
@@ -64,6 +112,15 @@ def configuration_from_details(details: dict[str, Any]) -> dict[str, Any]:
         "quick_disconnect_present": boolean_value(details.get("Quick Disconnects Present?")),
         "pneumatic_disconnect_type": known_text(details.get("Pneumatic Quick Disconnect Type")),
     }
+    configuration.update(normalize_optional_hardware_values(
+        eoat_type=configuration["eoat_type"],
+        vacuum_cup_count=configuration["vacuum_cup_count"],
+        gripper_count=configuration["gripper_count"],
+        sensors_present=configuration["sensors_present"],
+        part_present_sensor_present=configuration["part_present_sensor_present"],
+        vacuum_confirmation_sensor_present=configuration["vacuum_confirmation_sensor_present"],
+    ))
+    return configuration
 
 
 @dataclass(frozen=True)
