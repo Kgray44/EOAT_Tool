@@ -114,6 +114,10 @@ export type OnboardingDraft = {
   updated_at: string;
   finalized_eoat_id?: number | null;
 };
+export type EoatEngineeringProfile = Record<string, unknown> & {
+  eoat_id: number;
+  row_version: number;
+};
 
 export function sessionHasPermission(
   session: AuthenticatedSession | null | undefined,
@@ -280,6 +284,38 @@ function csrfHeader(): HeadersInit {
 }
 
 export const apiClient = {
+  async getEoatEngineeringProfile(
+    identifier: string,
+    fetcher?: typeof fetch,
+  ): Promise<EoatEngineeringProfile> {
+    return assertObject<EoatEngineeringProfile>(
+      await requestJson(
+        `/api/v1/onboarding/eoats/${encodeURIComponent(identifier)}/engineering`,
+        fetcher,
+      ),
+      ["eoat_id", "row_version"],
+      "EOAT engineering profile",
+    );
+  },
+  async patchEoatEngineeringProfile(
+    identifier: string,
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<EoatEngineeringProfile> {
+    return assertObject<EoatEngineeringProfile>(
+      await requestJson(
+        `/api/v1/onboarding/eoats/${encodeURIComponent(identifier)}/engineering`,
+        fetcher,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["eoat_id", "row_version"],
+      "updated EOAT engineering profile",
+    );
+  },
   async getOnboardingStatus(
     fetcher?: typeof fetch,
   ): Promise<{ enabled: boolean }> {
