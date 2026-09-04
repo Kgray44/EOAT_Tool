@@ -104,6 +104,16 @@ export type CatalogFilters = {
   robot?: string;
   eoat?: string;
 };
+export type OnboardingDraft = {
+  draft_uuid: string;
+  proposed_identifier: string | null;
+  lifecycle_state: "DRAFT" | "FINALIZED" | "DISCARDED";
+  completion_state: string;
+  payload: Record<string, unknown>;
+  row_version: number;
+  updated_at: string;
+  finalized_eoat_id?: number | null;
+};
 
 export function sessionHasPermission(
   session: AuthenticatedSession | null | undefined,
@@ -270,6 +280,91 @@ function csrfHeader(): HeadersInit {
 }
 
 export const apiClient = {
+  async getOnboardingStatus(
+    fetcher?: typeof fetch,
+  ): Promise<{ enabled: boolean }> {
+    return assertObject<{ enabled: boolean }>(
+      await requestJson("/api/v1/onboarding/status", fetcher),
+      ["enabled"],
+      "onboarding status",
+    );
+  },
+  async listOnboardingDrafts(
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft[]> {
+    return assertArray<OnboardingDraft>(
+      await requestJson("/api/v1/onboarding/drafts", fetcher),
+      "onboarding drafts",
+    );
+  },
+  async getOnboardingDraft(
+    draftUuid: string,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}`,
+        fetcher,
+      ),
+      ["draft_uuid", "payload", "row_version"],
+      "onboarding draft",
+    );
+  },
+  async createOnboardingDraft(
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson("/api/v1/onboarding/drafts", fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify(payload),
+      }),
+      ["draft_uuid", "payload", "row_version"],
+      "onboarding draft",
+    );
+  },
+  async saveOnboardingDraft(
+    draftUuid: string,
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}`,
+        fetcher,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["draft_uuid", "payload", "row_version"],
+      "onboarding draft",
+    );
+  },
+  async finalizeOnboardingDraft(
+    draftUuid: string,
+    expectedRowVersion: number,
+    fetcher?: typeof fetch,
+  ): Promise<{ eoat: { business_identifier: string }; warnings: string[] }> {
+    return assertObject<{
+      eoat: { business_identifier: string };
+      warnings: string[];
+    }>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/finalize`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ expected_row_version: expectedRowVersion }),
+        },
+      ),
+      ["eoat", "warnings"],
+      "finalized EOAT",
+    );
+  },
   async getAuthenticatedSession(
     fetcher?: typeof fetch,
   ): Promise<AuthenticatedSession> {

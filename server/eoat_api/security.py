@@ -29,6 +29,10 @@ ROLE_PERMISSIONS = {
     "VIEWER": frozenset(),
     "TECHNICIAN": frozenset(
         {
+            "onboarding.draft.view",
+            "onboarding.draft.create",
+            "onboarding.draft.edit",
+            "onboarding.draft.discard",
             "installation.write",
             "audit.write",
             "assignment.edit",
@@ -43,6 +47,12 @@ ROLE_PERMISSIONS = {
     ),
     "ENGINEER": frozenset(
         {
+            "onboarding.draft.view",
+            "onboarding.draft.review",
+            "onboarding.draft.create",
+            "onboarding.draft.edit",
+            "onboarding.draft.discard",
+            "onboarding.draft.finalize",
             "asset.write",
             "compatibility.write",
             "document.write",
@@ -142,6 +152,12 @@ GROUP_POLICY_PERMISSIONS = frozenset(
         "photo.remove",
         "audit.create",
         "bulk_status.execute",
+        "onboarding.draft.view",
+        "onboarding.draft.review",
+        "onboarding.draft.create",
+        "onboarding.draft.edit",
+        "onboarding.draft.discard",
+        "onboarding.draft.finalize",
     }
 )
 

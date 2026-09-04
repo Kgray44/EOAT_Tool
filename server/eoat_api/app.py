@@ -40,6 +40,7 @@ from .corporate_auth_routes import router as corporate_auth_router
 from .database import models as db
 from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
+from .onboarding_routes import router as onboarding_router
 from .qr_label_pdf import generate_eoat_qr_label_pdf
 from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
@@ -292,8 +293,6 @@ def eoat(identifier: str, repo: AtlasRepository = Depends(repository)):
     response_class=Response,
     responses={200: {"content": {"application/pdf": {}}}},
 )
-
-
 def eoat_qr_label_pdf(identifier: str, request: Request, repo: AtlasRepository = Depends(repository)):
     """Return a single, print-ready 4x3-inch EOAT label PDF from in-memory data."""
     profile = repo.eoat(identifier)
@@ -923,6 +922,7 @@ def home_summary(repo: AtlasRepository = Depends(repository)):
 
 
 app.include_router(write_router)
+app.include_router(onboarding_router)
 app.include_router(corporate_auth_router)
 app.include_router(admin_router)
 app.include_router(admin_mutation_router)

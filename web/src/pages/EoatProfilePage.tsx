@@ -314,6 +314,12 @@ function ProfileContent({
         )}
         actions={
           <ProfileActionMenu identifier={profile.business_identifier}>
+            <Link
+              className="profile-edit-button"
+              to={`/eoats/${encodeURIComponent(profile.business_identifier)}/edit`}
+            >
+              Edit EOAT
+            </Link>
             <EntityEditor
               kind="eoat"
               identifier={profile.business_identifier}

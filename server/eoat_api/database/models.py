@@ -493,6 +493,94 @@ class EOAT(VersionMixin, Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
 
+class EOATEngineeringProfile(VersionMixin, Base):
+    """Authoritative extended engineering data added by governed onboarding."""
+
+    __tablename__ = "eoat_engineering_profiles"
+    __table_args__ = (
+        CheckConstraint("cylinder_count IS NULL OR cylinder_count >= 0", name="ck_eoat_engineering_cylinders"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    eoat_id: Mapped[int] = mapped_column(PK, ForeignKey("eoats.id", ondelete="CASCADE"), unique=True, nullable=False)
+    cylinders_present: Mapped[bool | None] = mapped_column(Boolean)
+    cylinder_count: Mapped[int | None] = mapped_column(Integer)
+    cylinder_type: Mapped[str | None] = mapped_column(String(160))
+    cylinder_model: Mapped[str | None] = mapped_column(String(160))
+    gripper_type: Mapped[str | None] = mapped_column(String(160))
+    gripper_model: Mapped[str | None] = mapped_column(String(160))
+    gripper_size: Mapped[str | None] = mapped_column(String(160))
+    vacuum_cup_type: Mapped[str | None] = mapped_column(String(160))
+    vacuum_cup_size: Mapped[str | None] = mapped_column(String(160))
+    vacuum_cup_model: Mapped[str | None] = mapped_column(String(160))
+    vacuum_generation: Mapped[str | None] = mapped_column(String(255))
+    vacuum_circuits: Mapped[int | None] = mapped_column(Integer)
+    pressure_circuits: Mapped[int | None] = mapped_column(Integer)
+    interchangeable_circuits: Mapped[int | None] = mapped_column(Integer)
+    external_circuits: Mapped[int | None] = mapped_column(Integer)
+    pneumatic_connection: Mapped[str | None] = mapped_column(String(255))
+    pneumatic_notes: Mapped[str | None] = mapped_column(Text)
+    electrical_present: Mapped[bool | None] = mapped_column(Boolean)
+    electrical_connection: Mapped[str | None] = mapped_column(String(255))
+    electrical_pinout_reference: Mapped[str | None] = mapped_column(String(255))
+    sensor_types: Mapped[str | None] = mapped_column(Text)
+    sensor_models: Mapped[str | None] = mapped_column(Text)
+
+
+class EOATOnboardingDraft(VersionMixin, Base):
+    """A resumable onboarding record; never a normal EOAT asset."""
+
+    __tablename__ = "eoat_onboarding_drafts"
+    __table_args__ = (
+        CheckConstraint("lifecycle_state IN ('DRAFT','FINALIZED','DISCARDED')", name="ck_eoat_onboarding_draft_state"),
+        Index("ix_eoat_onboarding_draft_state_updated", "lifecycle_state", "updated_at"),
+    )
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    draft_uuid: Mapped[str] = mapped_column(String(36), unique=True, nullable=False)
+    proposed_identifier: Mapped[str | None] = mapped_column(String(64))
+    plant_code: Mapped[str | None] = mapped_column(String(32))
+    area_code: Mapped[str | None] = mapped_column(String(64))
+    lifecycle_state: Mapped[str] = mapped_column(String(16), server_default=text("'DRAFT'"), nullable=False)
+    completion_state: Mapped[str] = mapped_column(String(32), server_default=text("'INCOMPLETE'"), nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    finalized_eoat_id: Mapped[int | None] = mapped_column(PK, ForeignKey("eoats.id", ondelete="SET NULL"))
+    finalized_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    discarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    discard_reason: Mapped[str | None] = mapped_column(Text)
+
+
+class EOATIdentifierReservation(Base):
+    __tablename__ = "eoat_identifier_reservations"
+    __table_args__ = (Index("ix_eoat_identifier_reservation_draft", "draft_id"),)
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    normalized_identifier: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    draft_id: Mapped[int] = mapped_column(
+        PK, ForeignKey("eoat_onboarding_drafts.id", ondelete="CASCADE"), nullable=False
+    )
+    reserved_by_user_id: Mapped[int | None] = mapped_column(PK, ForeignKey("users.id", ondelete="SET NULL"))
+    reserved_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=UTC_DEFAULT, nullable=False)
+    released_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class EOATOnboardingStagedMedia(VersionMixin, Base):
+    __tablename__ = "eoat_onboarding_staged_media"
+    __table_args__ = (Index("ix_eoat_onboarding_staged_media_draft", "draft_id", "is_active"),)
+    id: Mapped[int] = mapped_column(PK, primary_key=True, autoincrement=True)
+    draft_id: Mapped[int] = mapped_column(
+        PK, ForeignKey("eoat_onboarding_drafts.id", ondelete="CASCADE"), nullable=False
+    )
+    media_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    document_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(512), nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(2048), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    revision: Mapped[str | None] = mapped_column(String(64))
+    mime_type: Mapped[str | None] = mapped_column(String(255))
+    photo_view_type: Mapped[str | None] = mapped_column(String(64))
+    caption: Mapped[str | None] = mapped_column(Text)
+    adopted_document_id: Mapped[int | None] = mapped_column(PK, ForeignKey("documents.id", ondelete="SET NULL"))
+
+
 class Machine(VersionMixin, Base):
     __tablename__ = "machines"
     __table_args__ = (

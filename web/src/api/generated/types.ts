@@ -2051,6 +2051,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Drafts */
+        get: operations["drafts_api_v1_onboarding_drafts_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_v1_onboarding_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Draft */
+        get: operations["get_draft_api_v1_onboarding_drafts__draft_uuid__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update */
+        patch: operations["update_api_v1_onboarding_drafts__draft_uuid__patch"];
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard */
+        post: operations["discard_api_v1_onboarding_drafts__draft_uuid__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finalize */
+        post: operations["finalize_api_v1_onboarding_drafts__draft_uuid__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Media */
+        post: operations["media_api_v1_onboarding_drafts__draft_uuid__media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["status_api_v1_onboarding_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/photos": {
         parameters: {
             query?: never;
@@ -4038,6 +4142,72 @@ export interface components {
             storage_location_code: string;
             /** Stored At */
             stored_at?: string | null;
+        };
+        /** OnboardingDraftCreate */
+        OnboardingDraftCreate: {
+            /** Area Code */
+            area_code?: string | null;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Plant Code */
+            plant_code?: string | null;
+            /** Proposed Identifier */
+            proposed_identifier?: string | null;
+        };
+        /** OnboardingDraftDiscard */
+        OnboardingDraftDiscard: {
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** OnboardingDraftPatch */
+        OnboardingDraftPatch: {
+            /** Area Code */
+            area_code?: string | null;
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Plant Code */
+            plant_code?: string | null;
+            /** Proposed Identifier */
+            proposed_identifier?: string | null;
+        };
+        /** OnboardingFinalize */
+        OnboardingFinalize: {
+            /** Expected Row Version */
+            expected_row_version: number;
+        };
+        /** OnboardingMediaCreate */
+        OnboardingMediaCreate: {
+            /** Caption */
+            caption?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Document Type */
+            document_type: string;
+            /** File Name */
+            file_name: string;
+            /**
+             * Media Kind
+             * @enum {string}
+             */
+            media_kind: "document" | "photo";
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Photo View Type */
+            photo_view_type?: string | null;
+            /** Revision */
+            revision?: string | null;
+            /** Storage Path */
+            storage_path: string;
+            /** Title */
+            title: string;
         };
         /** PaginatedEOATs */
         PaginatedEOATs: {
@@ -8862,6 +9032,252 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_api_v1_onboarding_drafts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_api_v1_onboarding_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingDraftCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_draft_api_v1_onboarding_drafts__draft_uuid__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_api_v1_onboarding_drafts__draft_uuid__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingDraftPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_api_v1_onboarding_drafts__draft_uuid__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingDraftDiscard"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalize_api_v1_onboarding_drafts__draft_uuid__finalize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingFinalize"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_api_v1_onboarding_drafts__draft_uuid__media_post: {
+        parameters: {
+            query: {
+                expected_row_version: number;
+            };
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingMediaCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_api_v1_onboarding_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

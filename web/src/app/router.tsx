@@ -12,6 +12,8 @@ import { SettingsPage } from "@/pages/SettingsPage";
 import { SetupPacketPage } from "@/pages/SetupPacketPage";
 import { ToolProfilePage } from "@/pages/ToolProfilePage";
 import { DesktopBoundaryPage } from "@/pages/DesktopBoundaryPage";
+import { EoatOnboardingPage } from "@/pages/EoatOnboardingPage";
+import { EditEoatPage } from "@/pages/EditEoatPage";
 
 export const routeDefinitions = [
   {
@@ -21,6 +23,9 @@ export const routeDefinitions = [
       { index: true, element: <FoundationPage /> },
       { path: "search", element: <SearchPage /> },
       { path: "library", element: <LibraryPage /> },
+      { path: "eoats/new", element: <EoatOnboardingPage /> },
+      { path: "eoats/new/:draftUuid", element: <EoatOnboardingPage /> },
+      { path: "eoats/:identifier/edit", element: <EditEoatPage /> },
       { path: "eoats/:identifier", element: <EoatProfilePage /> },
       { path: "machines/:number", element: <MachineProfilePage /> },
       { path: "tools/:identifier", element: <ToolProfilePage /> },

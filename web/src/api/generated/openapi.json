@@ -5292,6 +5292,256 @@
         "title": "MoveToStorage",
         "type": "object"
       },
+      "OnboardingDraftCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "area_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Code"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "plant_code": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Code"
+          },
+          "proposed_identifier": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Identifier"
+          }
+        },
+        "title": "OnboardingDraftCreate",
+        "type": "object"
+      },
+      "OnboardingDraftDiscard": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_row_version": {
+            "minimum": 1.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "expected_row_version"
+        ],
+        "title": "OnboardingDraftDiscard",
+        "type": "object"
+      },
+      "OnboardingDraftPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "area_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Code"
+          },
+          "expected_row_version": {
+            "minimum": 1.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "plant_code": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plant Code"
+          },
+          "proposed_identifier": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Identifier"
+          }
+        },
+        "required": [
+          "expected_row_version"
+        ],
+        "title": "OnboardingDraftPatch",
+        "type": "object"
+      },
+      "OnboardingFinalize": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_row_version": {
+            "minimum": 1.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_row_version"
+        ],
+        "title": "OnboardingFinalize",
+        "type": "object"
+      },
+      "OnboardingMediaCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "document_type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Document Type",
+            "type": "string"
+          },
+          "file_name": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "File Name",
+            "type": "string"
+          },
+          "media_kind": {
+            "enum": [
+              "document",
+              "photo"
+            ],
+            "title": "Media Kind",
+            "type": "string"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "photo_view_type": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo View Type"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "storage_path": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Storage Path",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "media_kind",
+          "document_type",
+          "file_name",
+          "storage_path",
+          "title"
+        ],
+        "title": "OnboardingMediaCreate",
+        "type": "object"
+      },
       "PaginatedEOATs": {
         "properties": {
           "items": {
@@ -13964,6 +14214,328 @@
           }
         },
         "summary": "Complete Maintenance Route"
+      }
+    },
+    "/api/v1/onboarding/drafts": {
+      "get": {
+        "operationId": "drafts_api_v1_onboarding_drafts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Drafts",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      },
+      "post": {
+        "operationId": "create_api_v1_onboarding_drafts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingDraftCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/drafts/{draft_uuid}": {
+      "get": {
+        "operationId": "get_draft_api_v1_onboarding_drafts__draft_uuid__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Draft",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      },
+      "patch": {
+        "operationId": "update_api_v1_onboarding_drafts__draft_uuid__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingDraftPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/drafts/{draft_uuid}/discard": {
+      "post": {
+        "operationId": "discard_api_v1_onboarding_drafts__draft_uuid__discard_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingDraftDiscard"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discard",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/drafts/{draft_uuid}/finalize": {
+      "post": {
+        "operationId": "finalize_api_v1_onboarding_drafts__draft_uuid__finalize_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingFinalize"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Finalize",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/drafts/{draft_uuid}/media": {
+      "post": {
+        "operationId": "media_api_v1_onboarding_drafts__draft_uuid__media_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_row_version",
+            "required": true,
+            "schema": {
+              "title": "Expected Row Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingMediaCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Media",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/status": {
+      "get": {
+        "operationId": "status_api_v1_onboarding_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "eoat-onboarding"
+        ]
       }
     },
     "/api/v1/photos": {
