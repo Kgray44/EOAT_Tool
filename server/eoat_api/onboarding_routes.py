@@ -44,12 +44,13 @@ def status():
 
 
 @router.get("/eoats/{identifier}/engineering")
-def get_engineering(
-    identifier: str,
-    session: Session = Depends(get_runtime_session),
-    actor: ActorContext = Depends(require("eoat.view")),
-):
-    del actor
+def get_engineering(identifier: str, session: Session = Depends(get_runtime_session)):
+    """Follow the established normal-profile read access model.
+
+    Existing EOAT profile reads are not permission-gated by a synthetic
+    ``eoat.view`` permission, so this extension must not be stricter than the
+    record it describes. Editing remains guarded by ``eoat.edit``.
+    """
     require_onboarding_enabled()
     return engineering_profile(session, identifier)
 

@@ -2237,7 +2237,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Engineering */
+        /**
+         * Get Engineering
+         * @description Follow the established normal-profile read access model.
+         *
+         *     Existing EOAT profile reads are not permission-gated by a synthetic
+         *     ``eoat.view`` permission, so this extension must not be stricter than the
+         *     record it describes. Editing remains guarded by ``eoat.edit``.
+         */
         get: operations["get_engineering_api_v1_onboarding_eoats__identifier__engineering_get"];
         put?: never;
         post?: never;

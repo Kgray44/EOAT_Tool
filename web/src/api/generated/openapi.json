@@ -15193,6 +15193,7 @@
     },
     "/api/v1/onboarding/eoats/{identifier}/engineering": {
       "get": {
+        "description": "Follow the established normal-profile read access model.\n\nExisting EOAT profile reads are not permission-gated by a synthetic\n``eoat.view`` permission, so this extension must not be stricter than the\nrecord it describes. Editing remains guarded by ``eoat.edit``.",
         "operationId": "get_engineering_api_v1_onboarding_eoats__identifier__engineering_get",
         "parameters": [
           {
