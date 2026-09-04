@@ -64,22 +64,31 @@ function payloadFor(
   effectiveFrom: string,
   reason: string,
 ) {
+  const targetIdentifier = relationshipType.includes("machine")
+    ? target.split("::").at(-1) || target
+    : target;
   const payload: Record<string, unknown> = {
     compatibility_status: compatibilityStatus,
     effective_from: new Date(`${effectiveFrom}T00:00:00Z`).toISOString(),
     reason: reason || null,
   };
   if (relationshipType === "eoat-machine") {
-    payload.eoat_identifier = kind === "eoat" ? identifier : target;
-    payload.machine_number = kind === "machine" ? identifier : target;
+    payload.eoat_identifier = kind === "eoat" ? identifier : targetIdentifier;
+    payload.machine_number = kind === "machine" ? identifier : targetIdentifier;
   } else if (relationshipType === "eoat-tool") {
-    payload.eoat_identifier = kind === "eoat" ? identifier : target;
-    payload.tool_identifier = kind === "tool" ? identifier : target;
+    payload.eoat_identifier = kind === "eoat" ? identifier : targetIdentifier;
+    payload.tool_identifier = kind === "tool" ? identifier : targetIdentifier;
   } else {
-    payload.tool_identifier = kind === "tool" ? identifier : target;
-    payload.machine_number = kind === "machine" ? identifier : target;
+    payload.tool_identifier = kind === "tool" ? identifier : targetIdentifier;
+    payload.machine_number = kind === "machine" ? identifier : targetIdentifier;
   }
   return payload;
+}
+
+function targetCatalogKind(kind: EntityKind, relationshipType: RelationshipType) {
+  if (relationshipType === "eoat-machine") return kind === "eoat" ? "machine" : "eoat";
+  if (relationshipType === "eoat-tool") return kind === "eoat" ? "tool" : "eoat";
+  return kind === "machine" ? "tool" : "machine";
 }
 
 export function CompatibilityEditor({
@@ -127,6 +136,11 @@ export function CompatibilityEditor({
   const choice =
     choices[kind].find((value) => value.value === relationshipType) ??
     choices[kind][0];
+  const targetOptions = useQuery({
+    queryKey: ["editor-catalog", "compatibility-target", kind, relationshipType],
+    queryFn: () => apiClient.getCatalogOptions(targetCatalogKind(kind, relationshipType)),
+    staleTime: 60_000,
+  });
   const consequential = /incompatible|not.compatible|failed/i.test(status);
   async function save() {
     if (
@@ -195,9 +209,10 @@ export function CompatibilityEditor({
           <span>Relationship</span>
           <select
             value={relationshipType}
-            onChange={(event) =>
-              setRelationshipType(event.target.value as RelationshipType)
-            }
+            onChange={(event) => {
+              setRelationshipType(event.target.value as RelationshipType);
+              setTarget("");
+            }}
           >
             {choices[kind].map((value) => (
               <option key={value.value} value={value.value}>
@@ -208,11 +223,17 @@ export function CompatibilityEditor({
         </label>
         <label>
           <span>{choice.targetLabel}</span>
-          <input
+          <select
             value={target}
             onChange={(event) => setTarget(event.target.value)}
-            required
-          />
+          >
+            <option value="">Select an authoritative record</option>
+            {(targetOptions.data ?? []).map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           <span>Compatibility status</span>
