@@ -80,6 +80,10 @@ export function EoatOnboardingPage() {
   const [mediaStatus, setMediaStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("Not saved");
   const draftRef = useRef<OnboardingDraft | null>(null);
+  const onboardingStatus = useQuery({
+    queryKey: ["onboarding", "status"],
+    queryFn: () => apiClient.getOnboardingStatus(),
+  });
 
   useEffect(() => {
     void apiClient
@@ -350,6 +354,13 @@ export function EoatOnboardingPage() {
       setBusy(false);
     }
   }
+  if (onboardingStatus.isSuccess && !onboardingStatus.data.enabled)
+    return (
+      <section className="onboarding-page">
+        <h1>EOAT onboarding</h1>
+        <p>This feature is not enabled in the current environment.</p>
+      </section>
+    );
   if (!mayCreate)
     return (
       <section className="onboarding-page">

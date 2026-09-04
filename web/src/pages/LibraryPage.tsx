@@ -117,6 +117,10 @@ export function LibraryPage() {
   const page = Math.max(1, Number(params.get("page") || "1"));
   const [draft, setDraft] = useState(query);
   const [session, setSession] = useState<AuthenticatedSession | null>(null);
+  const onboardingStatus = useQuery({
+    queryKey: ["onboarding", "status"],
+    queryFn: () => apiClient.getOnboardingStatus(),
+  });
   const [locationDraft, setLocationDraft] = useState(
     params.get("machine") || "",
   );
@@ -269,12 +273,12 @@ export function LibraryPage() {
     <section className="library-page">
       <div className="library-heading">
         <h2>Library</h2>
-        {sessionHasPermission(session, "onboarding.draft.create") && (
+        {onboardingStatus.data?.enabled && sessionHasPermission(session, "onboarding.draft.create") && (
           <Link className="profile-edit-button" to="/eoats/new">
             Add New EOAT
           </Link>
         )}
-        {sessionHasPermission(session, "onboarding.draft.view") && (
+        {onboardingStatus.data?.enabled && sessionHasPermission(session, "onboarding.draft.view") && (
           <Link className="profile-edit-button" to="/eoats/onboarding-drafts">
             Onboarding Drafts
           </Link>
