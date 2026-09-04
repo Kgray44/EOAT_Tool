@@ -106,6 +106,16 @@ def _assert_draft_editor(actor: ActorContext, draft: db.EOATOnboardingDraft) -> 
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot edit this onboarding draft.")
 
 
+def _assert_draft_viewer(actor: ActorContext, draft: db.EOATOnboardingDraft) -> None:
+    """Permit a separately authorized finalizer to inspect, but not edit, another draft."""
+    if (
+        draft.created_by_user_id != actor.user_id
+        and not actor.permits("onboarding.draft.review")
+        and not actor.permits("onboarding.draft.finalize")
+    ):
+        raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot view this onboarding draft.")
+
+
 def _media_summary(media: db.EOATOnboardingStagedMedia) -> dict[str, Any]:
     """Return only browser-safe draft-media metadata, never a filesystem path."""
     return {
@@ -566,7 +576,7 @@ def _validate_final_payload(
 def review_draft(session: Session, actor: ActorContext, draft_uuid: str) -> dict[str, list[dict[str, str]]]:
     """Re-evaluate a draft against live authoritative data without mutating it."""
     draft = _draft(session, draft_uuid)
-    _assert_draft_editor(actor, draft)
+    _assert_draft_viewer(actor, draft)
     blocking: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
     if draft.lifecycle_state != "DRAFT":
