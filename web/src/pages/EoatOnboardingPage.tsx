@@ -8,6 +8,7 @@ import {
   type OnboardingDraft,
 } from "@/api/client";
 import { ApiError } from "@/api/errors";
+import { QrLabel } from "@/components/qr/QrLabel";
 
 type Identity = Record<string, string | number | boolean | null>;
 type CompatibilityDraft = {
@@ -82,6 +83,7 @@ export function EoatOnboardingPage() {
   const [mediaCaption, setMediaCaption] = useState("");
   const [mediaStatus, setMediaStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("Not saved");
+  const [finalizedIdentifier, setFinalizedIdentifier] = useState<string | null>(null);
   const draftRef = useRef<OnboardingDraft | null>(null);
   const onboardingStatus = useQuery({
     queryKey: ["onboarding", "status"],
@@ -244,10 +246,7 @@ export function EoatOnboardingPage() {
         draft.draft_uuid,
         draft.row_version,
       );
-      navigate(
-        `/eoats/${encodeURIComponent(result.eoat.business_identifier)}`,
-        { replace: true },
-      );
+      setFinalizedIdentifier(result.eoat.business_identifier);
     } catch (reason) {
       setError(
         reason instanceof ApiError
@@ -370,6 +369,30 @@ export function EoatOnboardingPage() {
       <section className="onboarding-page">
         <h1>EOAT onboarding</h1>
         <p>This feature is not enabled in the current environment.</p>
+      </section>
+    );
+  if (finalizedIdentifier)
+    return (
+      <section className="onboarding-page">
+        <header>
+          <p className="eyebrow">EOAT onboarding complete</p>
+          <h1>{finalizedIdentifier} is now an EOAT Atlas asset</h1>
+          <p>
+            The permanent record was created through the governed transaction.
+            It is ready for its canonical profile, relationships, and QR label.
+          </p>
+        </header>
+        <section className="onboarding-card">
+          <p>
+            <Link className="profile-edit-button" to={`/eoats/${encodeURIComponent(finalizedIdentifier)}`}>
+              View profile
+            </Link>{" "}
+            <Link className="profile-edit-button" to="/eoats/new">
+              Add another EOAT
+            </Link>
+          </p>
+          <QrLabel category="eoat" identifier={finalizedIdentifier} />
+        </section>
       </section>
     );
   if (!mayCreate)
