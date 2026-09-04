@@ -82,5 +82,23 @@ describe("EoatOnboardingPage", () => {
     );
     expect(screen.getByRole("link", { name: "Add another EOAT" })).toHaveAttribute("href", "/eoats/new");
   });
-});
 
+  it("hides inapplicable hardware detail without treating unknown as no", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: true });
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      permissions: ["onboarding.draft.create"],
+    });
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /2\. Hardware/ }));
+    expect(screen.getByRole("textbox", { name: "Vacuum cup type" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "Cylinder count" })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Vacuum present" }), "false");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Cylinders present" }), "false");
+
+    expect(screen.queryByRole("textbox", { name: "Vacuum cup type" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: "Cylinder count" })).not.toBeInTheDocument();
+  });
+});
