@@ -2145,6 +2145,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/drafts/{draft_uuid}/identifier/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Draft Identifier */
+        post: operations["generate_draft_identifier_api_v1_onboarding_drafts__draft_uuid__identifier_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/onboarding/drafts/{draft_uuid}/media": {
         parameters: {
             query?: never;
@@ -4322,6 +4339,11 @@ export interface components {
         };
         /** OnboardingFinalize */
         OnboardingFinalize: {
+            /** Expected Row Version */
+            expected_row_version: number;
+        };
+        /** OnboardingIdentifierGenerate */
+        OnboardingIdentifierGenerate: {
             /** Expected Row Version */
             expected_row_version: number;
         };
@@ -9411,6 +9433,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OnboardingFinalize"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_draft_identifier_api_v1_onboarding_drafts__draft_uuid__identifier_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingIdentifierGenerate"];
             };
         };
         responses: {

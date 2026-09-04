@@ -108,6 +108,8 @@ export type CatalogFilters = {
 export type OnboardingDraft = {
   draft_uuid: string;
   proposed_identifier: string | null;
+  plant_code?: string | null;
+  area_code?: string | null;
   lifecycle_state: "DRAFT" | "FINALIZED" | "DISCARDED";
   completion_state: string;
   payload: Record<string, unknown>;
@@ -454,6 +456,25 @@ export const apiClient = {
       ),
       ["draft_uuid", "lifecycle_state", "row_version"],
       "discarded onboarding draft",
+    );
+  },
+  async generateOnboardingIdentifier(
+    draftUuid: string,
+    expectedRowVersion: number,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/identifier/generate`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ expected_row_version: expectedRowVersion }),
+        },
+      ),
+      ["draft_uuid", "proposed_identifier", "row_version"],
+      "generated onboarding identifier",
     );
   },
   async uploadOnboardingMedia(

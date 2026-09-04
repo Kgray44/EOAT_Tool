@@ -29,6 +29,10 @@ class OnboardingFinalize(OnboardingModel):
     expected_row_version: int = Field(ge=1)
 
 
+class OnboardingIdentifierGenerate(OnboardingModel):
+    expected_row_version: int = Field(ge=1)
+
+
 class OnboardingMediaCreate(OnboardingModel):
     media_kind: Literal["document", "photo"]
     document_type: str = Field(min_length=1, max_length=64)

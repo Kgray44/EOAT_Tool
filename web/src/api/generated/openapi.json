@@ -5700,6 +5700,21 @@
         "title": "OnboardingFinalize",
         "type": "object"
       },
+      "OnboardingIdentifierGenerate": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_row_version": {
+            "minimum": 1.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_row_version"
+        ],
+        "title": "OnboardingIdentifierGenerate",
+        "type": "object"
+      },
       "OnboardingMediaArchive": {
         "additionalProperties": false,
         "properties": {
@@ -14904,6 +14919,56 @@
           }
         },
         "summary": "Finalize",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/drafts/{draft_uuid}/identifier/generate": {
+      "post": {
+        "operationId": "generate_draft_identifier_api_v1_onboarding_drafts__draft_uuid__identifier_generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingIdentifierGenerate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Draft Identifier",
         "tags": [
           "eoat-onboarding"
         ]

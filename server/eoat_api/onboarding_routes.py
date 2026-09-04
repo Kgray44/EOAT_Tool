@@ -11,6 +11,7 @@ from .onboarding_contracts import (
     OnboardingDraftDiscard,
     OnboardingDraftPatch,
     OnboardingFinalize,
+    OnboardingIdentifierGenerate,
     OnboardingMediaArchive,
     OnboardingMediaCreate,
     OnboardingMediaUpload,
@@ -20,6 +21,7 @@ from .onboarding_services import (
     discard_draft,
     engineering_profile,
     finalize_draft,
+    generate_identifier,
     list_drafts,
     remove_staged_media,
     require_onboarding_enabled,
@@ -118,6 +120,17 @@ def discard(
 ):
     require_onboarding_enabled()
     return discard_draft(session, actor, draft_uuid, payload.expected_row_version, payload.reason)
+
+
+@router.post("/drafts/{draft_uuid}/identifier/generate")
+def generate_draft_identifier(
+    draft_uuid: str,
+    payload: OnboardingIdentifierGenerate,
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require("onboarding.draft.edit")),
+):
+    require_onboarding_enabled()
+    return generate_identifier(session, actor, draft_uuid, payload.expected_row_version)
 
 
 @router.post("/drafts/{draft_uuid}/media")

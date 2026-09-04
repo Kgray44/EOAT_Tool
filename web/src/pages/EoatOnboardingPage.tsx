@@ -58,6 +58,8 @@ export function EoatOnboardingPage() {
     number_of_grippers: null,
     notes: "",
   });
+  const [plantCode, setPlantCode] = useState("");
+  const [areaCode, setAreaCode] = useState("");
   const [engineering, setEngineering] = useState<Identity>({
     cylinders_present: null,
     cylinder_count: null,
@@ -91,6 +93,8 @@ export function EoatOnboardingPage() {
       .getOnboardingDraft(draftUuid)
       .then((value) => {
         setDraft(value);
+        setPlantCode(value.plant_code ?? "");
+        setAreaCode(value.area_code ?? "");
         const payload = payloadOf(value);
         setIdentity((payload.identity ?? {}) as Identity);
         setEngineering((payload.engineering ?? {}) as Identity);
@@ -182,7 +186,7 @@ export function EoatOnboardingPage() {
         );
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [draft?.draft_uuid, identity.business_identifier, mayCreate, payload]);
+  }, [areaCode, draft?.draft_uuid, identity.business_identifier, mayCreate, payload, plantCode]);
   useEffect(() => {
     if (saveStatus !== "Changes pending…" && saveStatus !== "Saving…") return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -199,6 +203,8 @@ export function EoatOnboardingPage() {
     try {
       const body = {
         proposed_identifier: String(identity.business_identifier || ""),
+        plant_code: plantCode || null,
+        area_code: areaCode || null,
         payload,
         ...(draft ? { expected_row_version: draft.row_version } : {}),
       };
@@ -235,6 +241,33 @@ export function EoatOnboardingPage() {
         reason instanceof ApiError
           ? reason.message
           : "Finalization failed; the draft remains recoverable.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function generateIdentifier() {
+    if (!draft) {
+      setError("Save the draft with its plant code before generating an identifier.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const generated = await apiClient.generateOnboardingIdentifier(
+        draft.draft_uuid,
+        draft.row_version,
+      );
+      draftRef.current = generated;
+      setDraft(generated);
+      setIdentity((current) => ({
+        ...current,
+        business_identifier: generated.proposed_identifier ?? "",
+      }));
+      setSaveStatus("Generated identifier reserved");
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError ? reason.message : "An identifier could not be generated.",
       );
     } finally {
       setBusy(false);
@@ -358,6 +391,17 @@ export function EoatOnboardingPage() {
         {step === 0 && (
           <div className="onboarding-grid">
             <Field
+              label="Plant code"
+              value={plantCode}
+              onChange={setPlantCode}
+              required
+            />
+            <Field
+              label="Area code"
+              value={areaCode}
+              onChange={setAreaCode}
+            />
+            <Field
               label="EOAT identifier"
               value={identity.business_identifier}
               onChange={(value) =>
@@ -365,6 +409,11 @@ export function EoatOnboardingPage() {
               }
               required
             />
+            {draft && (
+              <button type="button" disabled={busy || !plantCode} onClick={() => void generateIdentifier()}>
+                Generate next identifier
+              </button>
+            )}
             <Field
               label="Display name"
               value={identity.display_name}

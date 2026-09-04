@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import binascii
 import os
+import re
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -184,6 +185,60 @@ def _release_other_reservations(session: Session, draft: db.EOATOnboardingDraft,
     ).all():
         if row.normalized_identifier != keep and row.released_at is None:
             row.released_at = utcnow()
+
+
+def generate_identifier(
+    session: Session, actor: ActorContext, draft_uuid: str, expected: int
+) -> dict[str, Any]:
+    """Reserve the next server-generated identifier using the observed plant convention."""
+    draft = _draft(session, draft_uuid, lock=True)
+    _assert_draft_editor(actor, draft)
+    _check_draft_version(draft, expected)
+    plant_code = (draft.plant_code or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{1,16}", plant_code):
+        raise APIError(
+            422,
+            "IDENTIFIER_GENERATION_REQUIRES_PLANT",
+            "Select a valid plant code before requesting a generated EOAT identifier.",
+        )
+    prefix = f"{plant_code}-EOAT-"
+    matcher = re.compile(rf"^{re.escape(prefix)}(\d{{4,}})$")
+    used = set(session.scalars(select(db.EOAT.business_identifier).where(db.EOAT.business_identifier.like(f"{prefix}%"))).all())
+    used.update(
+        session.scalars(
+            select(db.EOATIdentifierReservation.normalized_identifier).where(
+                db.EOATIdentifierReservation.released_at.is_(None),
+                db.EOATIdentifierReservation.normalized_identifier.like(f"{prefix}%"),
+            )
+        ).all()
+    )
+    sequence = max((int(match.group(1)) for value in used if (match := matcher.match(value))), default=0) + 1
+    candidate = f"{prefix}{sequence:04d}"
+    _reserve_identifier(session, actor, draft, candidate)
+    _release_other_reservations(session, draft, candidate)
+    before = record_dict(draft)
+    payload = dict(draft.payload_json or {})
+    identity = dict(payload.get("identity") or {})
+    identity["business_identifier"] = candidate
+    payload["identity"] = identity
+    draft.proposed_identifier = candidate
+    draft.payload_json = payload
+    draft.completion_state = _completion(payload)
+    draft.row_version += 1
+    draft.updated_by_user_id = actor.user_id
+    audit_change(
+        session,
+        actor,
+        entity_type="onboarding_draft",
+        entity_id=draft.id,
+        action="generate_identifier",
+        previous=before,
+        current=record_dict(draft),
+        row_version=draft.row_version,
+        source_table=draft.__tablename__,
+        source_record_id=draft.id,
+    )
+    return _draft_summary(session, draft)
 
 
 def _completion(payload: dict[str, Any]) -> str:
