@@ -104,7 +104,24 @@ def _assert_draft_editor(actor: ActorContext, draft: db.EOATOnboardingDraft) -> 
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot edit this onboarding draft.")
 
 
-def _draft_summary(draft: db.EOATOnboardingDraft) -> dict[str, Any]:
+def _media_summary(media: db.EOATOnboardingStagedMedia) -> dict[str, Any]:
+    """Return only browser-safe draft-media metadata, never a filesystem path."""
+    return {
+        "id": media.id,
+        "media_kind": media.media_kind,
+        "document_type": media.document_type,
+        "file_name": media.file_name,
+        "title": media.title,
+        "description": media.description,
+        "revision": media.revision,
+        "mime_type": media.mime_type,
+        "photo_view_type": media.photo_view_type,
+        "caption": media.caption,
+        "row_version": media.row_version,
+    }
+
+
+def _draft_summary(session: Session, draft: db.EOATOnboardingDraft) -> dict[str, Any]:
     return {
         "draft_uuid": draft.draft_uuid,
         "proposed_identifier": draft.proposed_identifier,
@@ -118,6 +135,17 @@ def _draft_summary(draft: db.EOATOnboardingDraft) -> dict[str, Any]:
         "updated_at": draft.updated_at,
         "finalized_eoat_id": draft.finalized_eoat_id,
         "finalized_at": draft.finalized_at,
+        "staged_media": [
+            _media_summary(media)
+            for media in session.scalars(
+                select(db.EOATOnboardingStagedMedia)
+                .where(
+                    db.EOATOnboardingStagedMedia.draft_id == draft.id,
+                    db.EOATOnboardingStagedMedia.is_active.is_(True),
+                )
+                .order_by(db.EOATOnboardingStagedMedia.id.asc())
+            ).all()
+        ],
     }
 
 
@@ -195,7 +223,7 @@ def create_draft(session: Session, actor: ActorContext, payload: dict[str, Any])
         source_table=draft.__tablename__,
         source_record_id=draft.id,
     )
-    return _draft_summary(draft)
+    return _draft_summary(session, draft)
 
 
 def update_draft(session: Session, actor: ActorContext, draft_uuid: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -235,7 +263,7 @@ def update_draft(session: Session, actor: ActorContext, draft_uuid: str, payload
         source_table=draft.__tablename__,
         source_record_id=draft.id,
     )
-    return _draft_summary(draft)
+    return _draft_summary(session, draft)
 
 
 def discard_draft(
@@ -270,7 +298,7 @@ def discard_draft(
         source_table=draft.__tablename__,
         source_record_id=draft.id,
     )
-    return _draft_summary(draft)
+    return _draft_summary(session, draft)
 
 
 def list_drafts(session: Session, actor: ActorContext) -> list[dict[str, Any]]:
@@ -280,8 +308,8 @@ def list_drafts(session: Session, actor: ActorContext) -> list[dict[str, Any]]:
         .order_by(db.EOATOnboardingDraft.updated_at.desc())
     ).all()
     if actor.permits("onboarding.draft.review"):
-        return [_draft_summary(row) for row in rows]
-    return [_draft_summary(row) for row in rows if row.created_by_user_id == actor.user_id]
+        return [_draft_summary(session, row) for row in rows]
+    return [_draft_summary(session, row) for row in rows if row.created_by_user_id == actor.user_id]
 
 
 def stage_media(session: Session, actor: ActorContext, draft_uuid: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -510,17 +538,22 @@ def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expec
             raise APIError(
                 403, "PERMISSION_DENIED", "This draft includes an installation that requires assignment permission."
             )
+        machine_number = str(location.get("machine_number") or "").rsplit("::", 1)[-1]
+        if not machine_number:
+            raise APIError(422, "ONBOARDING_BLOCKING_ERRORS", "Select an authoritative machine for this installation.")
         move_to_machine(
             session,
             actor,
             values["business_identifier"],
-            {**location, "expected_row_version": int(eoat["row_version"])},
+            {**location, "machine_number": machine_number, "expected_row_version": int(eoat["row_version"])},
         )
     elif location.get("kind") == "storage":
         if not actor.permits("assignment.edit"):
             raise APIError(
                 403, "PERMISSION_DENIED", "This draft includes storage assignment that requires assignment permission."
             )
+        if not location.get("storage_location_code"):
+            raise APIError(422, "ONBOARDING_BLOCKING_ERRORS", "Select an authoritative storage location.")
         move_to_storage(
             session,
             actor,
@@ -593,7 +626,7 @@ def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expec
         source_record_id=draft.id,
     )
     return {
-        "draft": _draft_summary(draft),
+        "draft": _draft_summary(session, draft),
         "eoat": eoat,
         "warnings": [] if profile_photo_id else ["No FRONT photo was staged; no profile image was selected."],
     }

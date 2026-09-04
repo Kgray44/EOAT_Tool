@@ -11725,6 +11725,67 @@
         ]
       }
     },
+    "/api/v1/catalog-options/{kind}": {
+      "get": {
+        "description": "Small, read-only option adapter for existing governed selectors.\n\nThe browser receives business identifiers and labels only; it never sees\ndatabase IDs or internal storage paths.  Write services remain the sole\nauthority that resolves and validates selections at mutation time.",
+        "operationId": "catalog_options_api_v1_catalog_options__kind__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Query",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 250,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Catalog Options"
+      }
+    },
     "/api/v1/compatibility/alternatives": {
       "get": {
         "operationId": "alternatives_api_v1_compatibility_alternatives_get",

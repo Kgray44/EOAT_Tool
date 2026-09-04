@@ -252,6 +252,81 @@ def lookup(lookup_type: str, repo: AtlasRepository = Depends(repository)):
     return repo.lookups(lookup_type)[lookup_type]
 
 
+@app.get("/api/v1/catalog-options/{kind}")
+def catalog_options(
+    kind: str,
+    query: str = Query("", max_length=200),
+    limit: int = Query(50, ge=1, le=250),
+    repo: AtlasRepository = Depends(repository),
+):
+    """Small, read-only option adapter for existing governed selectors.
+
+    The browser receives business identifiers and labels only; it never sees
+    database IDs or internal storage paths.  Write services remain the sole
+    authority that resolves and validates selections at mutation time.
+    """
+    lookup_kinds = {
+        "eoat_type": "eoat_types",
+        "connection_type": "connection_types",
+        "cleanroom": "cleanroom_classifications",
+        "status": "asset_statuses",
+        "compatibility_status": "compatibility_statuses",
+        "compatibility_source": "compatibility_sources",
+        "document_type": "document_types",
+    }
+    if kind in lookup_kinds:
+        rows = repo.lookups(lookup_kinds[kind])[lookup_kinds[kind]]
+        needle = query.casefold().strip()
+        return [
+            {"value": row.code, "label": row.display_name or row.code}
+            for row in rows
+            if not needle or needle in row.code.casefold() or needle in (row.display_name or "").casefold()
+        ][:limit]
+    if kind == "machine":
+        rows, _ = repo.list_machines(search=query, page=1, page_size=limit, active=True)
+        return [
+            {
+                "value": f"{row.plant_code}::{row.machine_number}" if row.plant_code else row.machine_number,
+                "label": " · ".join(part for part in [row.plant_code, row.machine_number, row.machine_name] if part),
+            }
+            for row in rows
+        ]
+    if kind == "tool":
+        rows, _ = repo.list_tools(search=query, page=1, page_size=limit, active=True)
+        return [
+            {"value": row.business_identifier, "label": row.display_name or row.business_identifier} for row in rows
+        ]
+    if kind == "eoat":
+        rows, _ = repo.list_eoats(search=query, page=1, page_size=limit, active=True)
+        return [
+            {"value": row.business_identifier, "label": row.display_name or row.business_identifier} for row in rows
+        ]
+    if kind == "storage":
+        stmt = (
+            select(db.StorageLocation, db.Plant.plant_code)
+            .join(db.Plant, db.Plant.id == db.StorageLocation.plant_id)
+            .where(db.StorageLocation.is_active.is_(True))
+            .order_by(db.Plant.plant_code, db.StorageLocation.location_code)
+            .limit(limit)
+        )
+        if query.strip():
+            needle = f"%{query.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    db.StorageLocation.location_code.ilike(needle),
+                    db.StorageLocation.location_name.ilike(needle),
+                )
+            )
+        return [
+            {
+                "value": location.location_code,
+                "label": " · ".join(part for part in [plant_code, location.location_code, location.location_name] if part),
+            }
+            for location, plant_code in repo.session.execute(stmt).all()
+        ]
+    raise not_found("Catalog option type", kind)
+
+
 @app.get("/api/v1/eoats", response_model=PaginatedEOATs)
 def eoats(
     search: str = "",

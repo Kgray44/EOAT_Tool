@@ -17,6 +17,9 @@ type CompatibilityDraft = {
   effective_from: string;
   reason?: string;
 };
+function machineNumber(value: string) {
+  return value.split("::").at(-1) || value;
+}
 const steps = [
   "Identity",
   "Hardware",
@@ -69,6 +72,7 @@ export function EoatOnboardingPage() {
   const [compatibility, setCompatibility] = useState<CompatibilityDraft[]>([]);
   const [location, setLocation] = useState<Identity>({ kind: "unassigned" });
   const [selectedMedia, setSelectedMedia] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<"photo" | "document">("photo");
   const [mediaTitle, setMediaTitle] = useState("");
   const [mediaStatus, setMediaStatus] = useState("");
@@ -104,12 +108,38 @@ export function EoatOnboardingPage() {
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+  useEffect(() => {
+    if (!selectedMedia || mediaKind !== "photo") {
+      setMediaPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(selectedMedia);
+    setMediaPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [mediaKind, selectedMedia]);
   const mayCreate = sessionHasPermission(session, "onboarding.draft.create");
   const mayFinalize = sessionHasPermission(
     session,
     "onboarding.draft.finalize",
   );
+  const mayDiscard = sessionHasPermission(session, "onboarding.draft.discard");
   const complete = Boolean(identity.business_identifier && identity.eoat_type);
+  const stepComplete = [
+    complete,
+    Boolean(
+      identity.number_of_vacuum_cups != null ||
+        identity.number_of_grippers != null ||
+        engineering.cylinders_present != null,
+    ),
+    Boolean(
+      identity.sensors_present != null ||
+        engineering.electrical_present != null ||
+        engineering.pneumatic_connection,
+    ),
+    compatibility.length > 0 || location.kind === "unassigned",
+    (draft?.staged_media?.length ?? 0) > 0,
+    complete,
+  ];
   const payload = useMemo(
     () => ({
       identity,
@@ -147,6 +177,15 @@ export function EoatOnboardingPage() {
     }, 900);
     return () => window.clearTimeout(timer);
   }, [draft?.draft_uuid, identity.business_identifier, mayCreate, payload]);
+  useEffect(() => {
+    if (saveStatus !== "Changes pending…" && saveStatus !== "Saving…") return;
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [saveStatus]);
   async function save() {
     if (!mayCreate) return;
     setBusy(true);
@@ -200,7 +239,7 @@ export function EoatOnboardingPage() {
     setBusy(true);
     setMediaStatus("");
     try {
-      const result = await apiClient.uploadOnboardingMedia(
+      await apiClient.uploadOnboardingMedia(
         draft.draft_uuid,
         draft.row_version,
         {
@@ -211,7 +250,9 @@ export function EoatOnboardingPage() {
           photoViewType: mediaKind === "photo" ? "FRONT" : undefined,
         },
       );
-      setDraft({ ...draft, row_version: result.row_version });
+      const refreshed = await apiClient.getOnboardingDraft(draft.draft_uuid);
+      draftRef.current = refreshed;
+      setDraft(refreshed);
       setMediaStatus(`${selectedMedia.name} staged safely.`);
       setSelectedMedia(null);
       setMediaTitle("");
@@ -220,6 +261,51 @@ export function EoatOnboardingPage() {
         reason instanceof ApiError
           ? reason.message
           : "Media could not be staged.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function removeMedia(mediaId: number) {
+    if (!draft) return;
+    setBusy(true);
+    setMediaStatus("");
+    try {
+      const result = await apiClient.removeOnboardingMedia(
+        draft.draft_uuid,
+        mediaId,
+        draft.row_version,
+      );
+      const updated = {
+        ...draft,
+        row_version: result.row_version,
+        staged_media: (draft.staged_media ?? []).filter(
+          (media) => media.id !== mediaId,
+        ),
+      };
+      draftRef.current = updated;
+      setDraft(updated);
+      setMediaStatus("Staged media removed from this draft.");
+    } catch (reason) {
+      setMediaStatus(
+        reason instanceof ApiError ? reason.message : "Media could not be removed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function discard() {
+    if (!draft || !mayDiscard) return;
+    if (!window.confirm("Discard this onboarding draft? This keeps an audited record but releases its identifier reservation."))
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiClient.discardOnboardingDraft(draft.draft_uuid, draft.row_version);
+      navigate("/eoats/onboarding-drafts", { replace: true });
+    } catch (reason) {
+      setError(
+        reason instanceof ApiError ? reason.message : "The onboarding draft could not be discarded.",
       );
     } finally {
       setBusy(false);
@@ -258,7 +344,7 @@ export function EoatOnboardingPage() {
             aria-current={index === step ? "step" : undefined}
           >
             {index + 1}. {label}
-            {index === 0 && complete ? " ✓" : ""}
+            {stepComplete[index] ? " ✓" : " · needs attention"}
           </button>
         ))}
       </nav>
@@ -281,6 +367,13 @@ export function EoatOnboardingPage() {
               }
             />
             <Field
+              label="Legacy / physical label"
+              value={identity.legacy_identifier}
+              onChange={(value) =>
+                setIdentity({ ...identity, legacy_identifier: value })
+              }
+            />
+            <Field
               label="EOAT type"
               value={identity.eoat_type}
               onChange={(value) =>
@@ -294,12 +387,35 @@ export function EoatOnboardingPage() {
               onChange={(value) => setIdentity({ ...identity, status: value })}
             />
             <Field
+              label="Robot connection / interface"
+              value={identity.connection_type}
+              onChange={(value) =>
+                setIdentity({ ...identity, connection_type: value })
+              }
+            />
+            <Field
+              label="Environment / classification"
+              value={identity.cleanroom_classification}
+              onChange={(value) =>
+                setIdentity({ ...identity, cleanroom_classification: value })
+              }
+            />
+            <Field
               label="Revision"
               value={identity.revision}
               onChange={(value) =>
                 setIdentity({ ...identity, revision: value })
               }
             />
+            <label className="wide">
+              <span>Description / part information</span>
+              <textarea
+                value={String(identity.description ?? "")}
+                onChange={(e) =>
+                  setIdentity({ ...identity, description: e.target.value })
+                }
+              />
+            </label>
             <label className="wide">
               <span>Notes</span>
               <textarea
@@ -318,6 +434,17 @@ export function EoatOnboardingPage() {
               value={identity.vacuum_present}
               onChange={(value) =>
                 setIdentity({ ...identity, vacuum_present: value })
+              }
+            />
+            <Field
+              label="Parts picked"
+              type="number"
+              value={identity.number_of_parts_picked}
+              onChange={(value) =>
+                setIdentity({
+                  ...identity,
+                  number_of_parts_picked: value === "" ? null : Number(value),
+                })
               }
             />
             <Field
@@ -341,6 +468,49 @@ export function EoatOnboardingPage() {
                   number_of_grippers: value === "" ? null : Number(value),
                 })
               }
+            />
+            <BooleanField
+              label="Quick disconnect present"
+              value={identity.quick_disconnect_present}
+              onChange={(value) =>
+                setIdentity({ ...identity, quick_disconnect_present: value })
+              }
+            />
+            <Field
+              label="Cup material"
+              value={identity.cup_material}
+              onChange={(value) => setIdentity({ ...identity, cup_material: value })}
+            />
+            <Field
+              label="Frame material"
+              value={identity.frame_material}
+              onChange={(value) => setIdentity({ ...identity, frame_material: value })}
+            />
+            <Field
+              label="Weight (kg)"
+              type="number"
+              value={identity.weight_kg}
+              onChange={(value) =>
+                setIdentity({ ...identity, weight_kg: value === "" ? null : Number(value) })
+              }
+            />
+            <Field
+              label="Maximum payload (kg)"
+              type="number"
+              value={identity.maximum_payload_kg}
+              onChange={(value) =>
+                setIdentity({ ...identity, maximum_payload_kg: value === "" ? null : Number(value) })
+              }
+            />
+            <Field
+              label="Drawing number"
+              value={identity.drawing_number}
+              onChange={(value) => setIdentity({ ...identity, drawing_number: value })}
+            />
+            <Field
+              label="Manufacturer"
+              value={identity.manufacturer}
+              onChange={(value) => setIdentity({ ...identity, manufacturer: value })}
             />
             <BooleanField
               label="Cylinders present"
@@ -400,6 +570,20 @@ export function EoatOnboardingPage() {
               }
             />
             <BooleanField
+              label="Part-present sensor"
+              value={identity.part_present_sensor_present}
+              onChange={(value) =>
+                setIdentity({ ...identity, part_present_sensor_present: value })
+              }
+            />
+            <BooleanField
+              label="Vacuum-confirmation sensor"
+              value={identity.vacuum_confirmation_sensor_present}
+              onChange={(value) =>
+                setIdentity({ ...identity, vacuum_confirmation_sensor_present: value })
+              }
+            />
+            <BooleanField
               label="Electrical present"
               value={engineering.electrical_present}
               onChange={(value) =>
@@ -411,6 +595,29 @@ export function EoatOnboardingPage() {
               value={engineering.electrical_connection}
               onChange={(value) =>
                 setEngineering({ ...engineering, electrical_connection: value })
+              }
+            />
+            <Field
+              label="Vacuum circuits"
+              type="number"
+              value={engineering.vacuum_circuits}
+              onChange={(value) =>
+                setEngineering({ ...engineering, vacuum_circuits: value === "" ? null : Number(value) })
+              }
+            />
+            <Field
+              label="Pressure circuits"
+              type="number"
+              value={engineering.pressure_circuits}
+              onChange={(value) =>
+                setEngineering({ ...engineering, pressure_circuits: value === "" ? null : Number(value) })
+              }
+            />
+            <Field
+              label="Electrical pinout reference"
+              value={engineering.electrical_pinout_reference}
+              onChange={(value) =>
+                setEngineering({ ...engineering, electrical_pinout_reference: value })
               }
             />
             <Field
@@ -466,10 +673,10 @@ export function EoatOnboardingPage() {
                     setSelectedMedia(e.target.files?.[0] ?? null)
                   }
                 />
-                {selectedMedia && mediaKind === "photo" && (
+                {mediaPreview && (
                   <img
                     className="onboarding-media-preview"
-                    src={URL.createObjectURL(selectedMedia)}
+                    src={mediaPreview}
                     alt="Selected upload preview"
                   />
                 )}
@@ -483,6 +690,24 @@ export function EoatOnboardingPage() {
               {busy ? "Staging…" : "Stage media"}
             </button>
             {mediaStatus && <p role="status">{mediaStatus}</p>}
+            {(draft?.staged_media?.length ?? 0) > 0 && (
+              <ul className="onboarding-relationship-list">
+                {draft?.staged_media?.map((media) => (
+                  <li key={media.id}>
+                    <span>
+                      {media.media_kind === "photo" ? "Photo" : "Document"}: {media.title} · {media.file_name}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void removeMedia(media.id)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
         {step === 5 && (
@@ -512,6 +737,11 @@ export function EoatOnboardingPage() {
           <button type="button" onClick={() => void save()} disabled={busy}>
             {busy ? "Saving…" : draft ? "Save draft" : "Start draft"}
           </button>
+          {draft && mayDiscard && (
+            <button type="button" onClick={() => void discard()} disabled={busy}>
+              Discard draft
+            </button>
+          )}
           {step < steps.length - 1 ? (
             <button type="button" onClick={() => setStep(step + 1)}>
               Next
@@ -554,6 +784,10 @@ function RelationshipSection({
     queryKey: ["onboarding", "compatibility-statuses"],
     queryFn: () => apiClient.getCatalogOptions("compatibility_status"),
   });
+  const storage = useQuery({
+    queryKey: ["onboarding", "storage"],
+    queryFn: () => apiClient.getCatalogOptions("storage"),
+  });
   const [type, setType] =
     useState<CompatibilityDraft["relationship_type"]>("eoat-machine");
   const [target, setTarget] = useState("");
@@ -567,7 +801,7 @@ function RelationshipSection({
       ...compatibility,
       {
         relationship_type: type,
-        target,
+        target: type === "eoat-machine" ? machineNumber(target) : target,
         compatibility_status: status,
         effective_from: new Date().toISOString(),
         reason: reason || undefined,
@@ -612,6 +846,27 @@ function RelationshipSection({
             >
               <option value="">Select a machine</option>
               {(machines.data ?? []).map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {location.kind === "storage" && (
+          <label>
+            <span>Storage location</span>
+            <select
+              value={String(location.storage_location_code ?? "")}
+              onChange={(e) =>
+                onLocationChange({
+                  ...location,
+                  storage_location_code: e.target.value || null,
+                })
+              }
+            >
+              <option value="">Select a storage location</option>
+              {(storage.data ?? []).map((item) => (
                 <option key={item.value} value={item.value}>
                   {item.label}
                 </option>

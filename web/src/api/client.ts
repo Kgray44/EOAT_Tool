@@ -90,6 +90,7 @@ export type CatalogOptionKind =
   | "plant"
   | "robot"
   | "status"
+  | "storage"
   | "tool";
 export type CatalogOption = { value: string; label: string };
 export type CatalogFilters = {
@@ -113,6 +114,20 @@ export type OnboardingDraft = {
   row_version: number;
   updated_at: string;
   finalized_eoat_id?: number | null;
+  staged_media?: OnboardingStagedMedia[];
+};
+export type OnboardingStagedMedia = {
+  id: number;
+  media_kind: "photo" | "document";
+  document_type: string;
+  file_name: string;
+  title: string;
+  description?: string | null;
+  revision?: string | null;
+  mime_type?: string | null;
+  photo_view_type?: string | null;
+  caption?: string | null;
+  row_version: number;
 };
 export type EoatEngineeringProfile = Record<string, unknown> & {
   eoat_id: number;
@@ -462,6 +477,26 @@ export const apiClient = {
       ),
       ["id", "row_version"],
       "staged onboarding media",
+    );
+  },
+  async removeOnboardingMedia(
+    draftUuid: string,
+    mediaId: number,
+    expectedRowVersion: number,
+    fetcher?: typeof fetch,
+  ): Promise<{ id: number; row_version: number }> {
+    return assertObject<{ id: number; row_version: number }>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/media/${mediaId}/remove`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ expected_row_version: expectedRowVersion }),
+        },
+      ),
+      ["id", "row_version"],
+      "removed staged onboarding media",
     );
   },
   async getAuthenticatedSession(

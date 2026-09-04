@@ -41,7 +41,13 @@ def status():
 
 
 @router.get("/eoats/{identifier}/engineering")
-def get_engineering(identifier: str, session: Session = Depends(get_runtime_session)):
+def get_engineering(
+    identifier: str,
+    session: Session = Depends(get_runtime_session),
+    actor: ActorContext = Depends(require("eoat.view")),
+):
+    del actor
+    require_onboarding_enabled()
     return engineering_profile(session, identifier)
 
 
@@ -52,6 +58,7 @@ def patch_engineering(
     session: Session = Depends(get_write_session),
     actor: ActorContext = Depends(require("eoat.edit")),
 ):
+    require_onboarding_enabled()
     return update_engineering_profile(session, actor, identifier, payload.model_dump(exclude_unset=True))
 
 
@@ -87,7 +94,7 @@ def get_draft(
         from .errors import APIError
 
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot view this onboarding draft.")
-    return _draft_summary(draft)
+    return _draft_summary(session, draft)
 
 
 @router.patch("/drafts/{draft_uuid}")

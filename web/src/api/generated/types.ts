@@ -1159,6 +1159,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog-options/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Catalog Options
+         * @description Small, read-only option adapter for existing governed selectors.
+         *
+         *     The browser receives business identifiers and labels only; it never sees
+         *     database IDs or internal storage paths.  Write services remain the sole
+         *     authority that resolves and validates selections at mutation time.
+         */
+        get: operations["catalog_options_api_v1_catalog_options__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/compatibility/alternatives": {
         parameters: {
             query?: never;
@@ -7274,6 +7298,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    catalog_options_api_v1_catalog_options__kind__get: {
+        parameters: {
+            query?: {
+                query?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
