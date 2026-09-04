@@ -83,6 +83,7 @@ export type CatalogOptionKind =
   | "compatibility_source"
   | "compatibility_status"
   | "connection_type"
+  | "document_type"
   | "eoat"
   | "eoat_type"
   | "machine"
@@ -487,6 +488,7 @@ export const apiClient = {
       title: string;
       photoViewType?: string;
       caption?: string;
+      description?: string;
     },
     fetcher?: typeof fetch,
   ): Promise<{ id: number; row_version: number }> {
@@ -506,6 +508,7 @@ export const apiClient = {
             document_type: payload.documentType,
             file_name: payload.file.name,
             title: payload.title,
+            description: payload.description || null,
             mime_type: payload.file.type || null,
             photo_view_type: payload.photoViewType || null,
             caption: payload.caption || null,

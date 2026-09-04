@@ -76,13 +76,21 @@ export function EoatOnboardingPage() {
   const [selectedMedia, setSelectedMedia] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaKind, setMediaKind] = useState<"photo" | "document">("photo");
+  const [photoViewType, setPhotoViewType] = useState("FRONT");
+  const [documentType, setDocumentType] = useState("");
   const [mediaTitle, setMediaTitle] = useState("");
+  const [mediaCaption, setMediaCaption] = useState("");
   const [mediaStatus, setMediaStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("Not saved");
   const draftRef = useRef<OnboardingDraft | null>(null);
   const onboardingStatus = useQuery({
     queryKey: ["onboarding", "status"],
     queryFn: () => apiClient.getOnboardingStatus(),
+  });
+  const documentTypes = useQuery({
+    queryKey: ["onboarding", "document-types"],
+    queryFn: () => apiClient.getCatalogOptions("document_type"),
+    enabled: step === 4,
   });
 
   useEffect(() => {
@@ -288,9 +296,11 @@ export function EoatOnboardingPage() {
         {
           file: selectedMedia,
           mediaKind,
-          documentType: mediaKind === "photo" ? "photo" : "document",
+          documentType: mediaKind === "photo" ? "photo" : documentType,
           title: mediaTitle,
-          photoViewType: mediaKind === "photo" ? "FRONT" : undefined,
+          photoViewType: mediaKind === "photo" ? photoViewType : undefined,
+          caption: mediaKind === "photo" ? mediaCaption || undefined : undefined,
+          description: mediaKind === "document" ? mediaCaption || undefined : undefined,
         },
       );
       const refreshed = await apiClient.getOnboardingDraft(draft.draft_uuid);
@@ -299,6 +309,7 @@ export function EoatOnboardingPage() {
       setMediaStatus(`${selectedMedia.name} staged safely.`);
       setSelectedMedia(null);
       setMediaTitle("");
+      setMediaCaption("");
     } catch (reason) {
       setMediaStatus(
         reason instanceof ApiError
@@ -730,6 +741,47 @@ export function EoatOnboardingPage() {
                   onChange={(e) => setMediaTitle(e.target.value)}
                 />
               </label>
+              {mediaKind === "photo" ? (
+                <label>
+                  <span>Photo view</span>
+                  <select
+                    value={photoViewType}
+                    onChange={(e) => setPhotoViewType(e.target.value)}
+                  >
+                    <option value="FRONT">Front / profile candidate</option>
+                    <option value="BACK">Back / pickup face</option>
+                    <option value="SIDE">Side</option>
+                    <option value="CONNECTION">Robot connection / mounting interface</option>
+                    <option value="VACUUM">Vacuum cups / grippers</option>
+                    <option value="SENSORS">Sensors</option>
+                    <option value="PNEUMATICS">Tubing / pneumatics</option>
+                    <option value="DETAIL">Detail / problem</option>
+                    <option value="ADDITIONAL">Additional</option>
+                  </select>
+                </label>
+              ) : (
+                <label>
+                  <span>Document category</span>
+                  <select
+                    value={documentType}
+                    onChange={(e) => setDocumentType(e.target.value)}
+                  >
+                    <option value="">Select a controlled category</option>
+                    {(documentTypes.data ?? []).map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label className="wide">
+                <span>{mediaKind === "photo" ? "Caption" : "Notes"}</span>
+                <textarea
+                  value={mediaCaption}
+                  onChange={(e) => setMediaCaption(e.target.value)}
+                />
+              </label>
               <label className="wide">
                 <span>File</span>
                 <input
@@ -750,7 +802,13 @@ export function EoatOnboardingPage() {
             </div>
             <button
               type="button"
-              disabled={!draft || !selectedMedia || !mediaTitle || busy}
+              disabled={
+                !draft ||
+                !selectedMedia ||
+                !mediaTitle ||
+                busy ||
+                (mediaKind === "document" && !documentType)
+              }
               onClick={() => void uploadMedia()}
             >
               {busy ? "Staging…" : "Stage media"}
