@@ -388,6 +388,46 @@ export const apiClient = {
       "discarded onboarding draft",
     );
   },
+  async uploadOnboardingMedia(
+    draftUuid: string,
+    expectedRowVersion: number,
+    payload: {
+      file: File;
+      mediaKind: "photo" | "document";
+      documentType: string;
+      title: string;
+      photoViewType?: string;
+      caption?: string;
+    },
+    fetcher?: typeof fetch,
+  ): Promise<{ id: number; row_version: number }> {
+    const bytes = new Uint8Array(await payload.file.arrayBuffer());
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000)
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    return assertObject<{ id: number; row_version: number }>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/media/upload?expected_row_version=${expectedRowVersion}`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({
+            media_kind: payload.mediaKind,
+            document_type: payload.documentType,
+            file_name: payload.file.name,
+            title: payload.title,
+            mime_type: payload.file.type || null,
+            photo_view_type: payload.photoViewType || null,
+            caption: payload.caption || null,
+            content_base64: btoa(binary),
+          }),
+        },
+      ),
+      ["id", "row_version"],
+      "staged onboarding media",
+    );
+  },
   async getAuthenticatedSession(
     fetcher?: typeof fetch,
   ): Promise<AuthenticatedSession> {

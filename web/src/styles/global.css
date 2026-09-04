@@ -170,6 +170,15 @@ a {
   border: 1px solid var(--atlas-border);
   border-radius: 8px;
 }
+.onboarding-media-preview {
+  display: block;
+  max-width: min(100%, 320px);
+  max-height: 220px;
+  margin-top: 0.75rem;
+  border: 1px solid var(--atlas-border);
+  border-radius: 8px;
+  object-fit: contain;
+}
 @media (max-width: 640px) {
   .onboarding-page {
     width: min(100% - 1rem, 1120px);

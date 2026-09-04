@@ -68,6 +68,10 @@ export function EoatOnboardingPage() {
   });
   const [compatibility, setCompatibility] = useState<CompatibilityDraft[]>([]);
   const [location, setLocation] = useState<Identity>({ kind: "unassigned" });
+  const [selectedMedia, setSelectedMedia] = useState<File | null>(null);
+  const [mediaKind, setMediaKind] = useState<"photo" | "document">("photo");
+  const [mediaTitle, setMediaTitle] = useState("");
+  const [mediaStatus, setMediaStatus] = useState("");
 
   useEffect(() => {
     void apiClient
@@ -153,6 +157,36 @@ export function EoatOnboardingPage() {
         reason instanceof ApiError
           ? reason.message
           : "Finalization failed; the draft remains recoverable.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function uploadMedia() {
+    if (!draft || !selectedMedia || !mediaTitle) return;
+    setBusy(true);
+    setMediaStatus("");
+    try {
+      const result = await apiClient.uploadOnboardingMedia(
+        draft.draft_uuid,
+        draft.row_version,
+        {
+          file: selectedMedia,
+          mediaKind,
+          documentType: mediaKind === "photo" ? "photo" : "document",
+          title: mediaTitle,
+          photoViewType: mediaKind === "photo" ? "FRONT" : undefined,
+        },
+      );
+      setDraft({ ...draft, row_version: result.row_version });
+      setMediaStatus(`${selectedMedia.name} staged safely.`);
+      setSelectedMedia(null);
+      setMediaTitle("");
+    } catch (reason) {
+      setMediaStatus(
+        reason instanceof ApiError
+          ? reason.message
+          : "Media could not be staged.",
       );
     } finally {
       setBusy(false);
@@ -359,11 +393,59 @@ export function EoatOnboardingPage() {
           />
         )}
         {step === 4 && (
-          <p>
-            Stage controlled media through the existing approved media root.
-            Draft media remains unavailable as ordinary EOAT media until
-            finalization.
-          </p>
+          <div className="onboarding-media">
+            <h2>Photos & Documents</h2>
+            <p>
+              Files remain staged outside the normal EOAT media library until
+              successful finalization.
+            </p>
+            <div className="onboarding-grid">
+              <label>
+                <span>Media type</span>
+                <select
+                  value={mediaKind}
+                  onChange={(e) =>
+                    setMediaKind(e.target.value as "photo" | "document")
+                  }
+                >
+                  <option value="photo">Photo</option>
+                  <option value="document">Document</option>
+                </select>
+              </label>
+              <label>
+                <span>Title</span>
+                <input
+                  value={mediaTitle}
+                  onChange={(e) => setMediaTitle(e.target.value)}
+                />
+              </label>
+              <label className="wide">
+                <span>File</span>
+                <input
+                  type="file"
+                  accept={mediaKind === "photo" ? "image/*" : undefined}
+                  onChange={(e) =>
+                    setSelectedMedia(e.target.files?.[0] ?? null)
+                  }
+                />
+                {selectedMedia && mediaKind === "photo" && (
+                  <img
+                    className="onboarding-media-preview"
+                    src={URL.createObjectURL(selectedMedia)}
+                    alt="Selected upload preview"
+                  />
+                )}
+              </label>
+            </div>
+            <button
+              type="button"
+              disabled={!draft || !selectedMedia || !mediaTitle || busy}
+              onClick={() => void uploadMedia()}
+            >
+              {busy ? "Staging…" : "Stage media"}
+            </button>
+            {mediaStatus && <p role="status">{mediaStatus}</p>}
+          </div>
         )}
         {step === 5 && (
           <div>
