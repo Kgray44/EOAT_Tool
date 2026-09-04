@@ -14,6 +14,7 @@ export function OnboardingDraftsPage() {
     queryFn: () => apiClient.getAuthenticatedSession(),
   });
   const mayCreate = sessionHasPermission(session.data, "onboarding.draft.create");
+  const mayEdit = sessionHasPermission(session.data, "onboarding.draft.edit");
   const mayDiscard = sessionHasPermission(session.data, "onboarding.draft.discard");
   if (drafts.isPending)
     return <LoadingState label="Loading onboarding drafts…" />;
@@ -58,7 +59,7 @@ export function OnboardingDraftsPage() {
                     type="button"
                     onClick={() => navigate(`/eoats/new/${draft.draft_uuid}`)}
                   >
-                    Resume
+                    {mayEdit ? "Resume" : "Review"}
                   </button>
                   {mayDiscard && (
                     <button

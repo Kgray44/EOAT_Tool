@@ -43,7 +43,7 @@ describe("OnboardingDraftsPage", () => {
     renderPage();
 
     expect(await screen.findByText("P4-EOAT-0102")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Review" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Add New EOAT" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
   });
