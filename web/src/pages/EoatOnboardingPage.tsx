@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   apiClient,
@@ -9,6 +10,13 @@ import {
 import { ApiError } from "@/api/errors";
 
 type Identity = Record<string, string | number | boolean | null>;
+type CompatibilityDraft = {
+  relationship_type: "eoat-machine" | "eoat-tool";
+  target: string;
+  compatibility_status: string;
+  effective_from: string;
+  reason?: string;
+};
 const steps = [
   "Identity",
   "Hardware",
@@ -58,6 +66,8 @@ export function EoatOnboardingPage() {
     electrical_connection: "",
     sensor_models: "",
   });
+  const [compatibility, setCompatibility] = useState<CompatibilityDraft[]>([]);
+  const [location, setLocation] = useState<Identity>({ kind: "unassigned" });
 
   useEffect(() => {
     void apiClient
@@ -74,6 +84,8 @@ export function EoatOnboardingPage() {
         const payload = payloadOf(value);
         setIdentity((payload.identity ?? {}) as Identity);
         setEngineering((payload.engineering ?? {}) as Identity);
+        setCompatibility((payload.compatibility ?? []) as CompatibilityDraft[]);
+        setLocation((payload.location ?? { kind: "unassigned" }) as Identity);
       })
       .catch((reason) =>
         setError(
@@ -93,10 +105,10 @@ export function EoatOnboardingPage() {
     () => ({
       identity,
       engineering,
-      compatibility: payloadOf(draft).compatibility ?? [],
-      location: payloadOf(draft).location ?? {},
+      compatibility,
+      location,
     }),
-    [draft, engineering, identity],
+    [compatibility, engineering, identity, location],
   );
   async function save() {
     if (!mayCreate) return;
@@ -339,11 +351,12 @@ export function EoatOnboardingPage() {
           </div>
         )}
         {step === 3 && (
-          <p>
-            Compatibility and current assignment remain separate governed
-            operations. Save this draft, then add authorized relationships and
-            assignment data through the structured editor before finalization.
-          </p>
+          <RelationshipSection
+            compatibility={compatibility}
+            onCompatibilityChange={setCompatibility}
+            location={location}
+            onLocationChange={setLocation}
+          />
         )}
         {step === 4 && (
           <p>
@@ -396,6 +409,187 @@ export function EoatOnboardingPage() {
       </section>
       <Link to="/library">Return to Library</Link>
     </section>
+  );
+}
+function RelationshipSection({
+  compatibility,
+  onCompatibilityChange,
+  location,
+  onLocationChange,
+}: {
+  compatibility: CompatibilityDraft[];
+  onCompatibilityChange: (value: CompatibilityDraft[]) => void;
+  location: Identity;
+  onLocationChange: (value: Identity) => void;
+}) {
+  const machines = useQuery({
+    queryKey: ["onboarding", "machines"],
+    queryFn: () => apiClient.getCatalogOptions("machine"),
+  });
+  const tools = useQuery({
+    queryKey: ["onboarding", "tools"],
+    queryFn: () => apiClient.getCatalogOptions("tool"),
+  });
+  const statuses = useQuery({
+    queryKey: ["onboarding", "compatibility-statuses"],
+    queryFn: () => apiClient.getCatalogOptions("compatibility_status"),
+  });
+  const [type, setType] =
+    useState<CompatibilityDraft["relationship_type"]>("eoat-machine");
+  const [target, setTarget] = useState("");
+  const [status, setStatus] = useState("");
+  const [reason, setReason] = useState("");
+  const options =
+    type === "eoat-machine" ? (machines.data ?? []) : (tools.data ?? []);
+  const add = () => {
+    if (!target || !status) return;
+    onCompatibilityChange([
+      ...compatibility,
+      {
+        relationship_type: type,
+        target,
+        compatibility_status: status,
+        effective_from: new Date().toISOString(),
+        reason: reason || undefined,
+      },
+    ]);
+    setTarget("");
+    setStatus("");
+    setReason("");
+  };
+  return (
+    <div className="onboarding-relationships">
+      <h2>Current location and compatibility</h2>
+      <p>
+        Current assignment is separate from approved compatibility. Unknown
+        relationships are not inferred.
+      </p>
+      <div className="onboarding-grid">
+        <label>
+          <span>Current location</span>
+          <select
+            value={String(location.kind ?? "unassigned")}
+            onChange={(e) =>
+              onLocationChange({ ...location, kind: e.target.value })
+            }
+          >
+            <option value="unassigned">Unassigned</option>
+            <option value="machine">Installed on a machine</option>
+            <option value="storage">Stored</option>
+          </select>
+        </label>
+        {location.kind === "machine" && (
+          <label>
+            <span>Installed machine</span>
+            <select
+              value={String(location.machine_number ?? "")}
+              onChange={(e) =>
+                onLocationChange({
+                  ...location,
+                  machine_number: e.target.value,
+                })
+              }
+            >
+              <option value="">Select a machine</option>
+              {(machines.data ?? []).map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {location.kind === "machine" && (
+          <label>
+            <span>Installed tool (if known)</span>
+            <select
+              value={String(location.tool_identifier ?? "")}
+              onChange={(e) =>
+                onLocationChange({
+                  ...location,
+                  tool_identifier: e.target.value || null,
+                })
+              }
+            >
+              <option value="">Not recorded</option>
+              {(tools.data ?? []).map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+      <hr />
+      <h3>Add approved compatibility</h3>
+      <div className="onboarding-grid">
+        <label>
+          <span>Relationship</span>
+          <select
+            value={type}
+            onChange={(e) =>
+              setType(e.target.value as CompatibilityDraft["relationship_type"])
+            }
+          >
+            <option value="eoat-machine">EOAT ↔ Machine</option>
+            <option value="eoat-tool">EOAT ↔ Tool</option>
+          </select>
+        </label>
+        <label>
+          <span>{type === "eoat-machine" ? "Machine" : "Tool"}</span>
+          <select value={target} onChange={(e) => setTarget(e.target.value)}>
+            <option value="">Select authoritative record</option>
+            {options.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Select verified status</option>
+            {(statuses.data ?? []).map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="wide">
+          <span>Evidence / provenance</span>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </label>
+      </div>
+      <button type="button" onClick={add} disabled={!target || !status}>
+        Add compatibility
+      </button>
+      <ul className="onboarding-relationship-list">
+        {compatibility.map((item, index) => (
+          <li key={`${item.relationship_type}-${item.target}-${index}`}>
+            <span>
+              {item.relationship_type === "eoat-machine" ? "Machine" : "Tool"}:{" "}
+              {item.target} · {item.compatibility_status}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                onCompatibilityChange(
+                  compatibility.filter((_, itemIndex) => itemIndex !== index),
+                )
+              }
+            >
+              Remove
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 function Field({

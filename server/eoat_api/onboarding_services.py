@@ -395,10 +395,23 @@ def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expec
             403, "PERMISSION_DENIED", "This draft includes compatibility changes that require relationship permission."
         )
     for raw in relations:
-        data = CompatibilityWrite.model_validate({**raw, "eoat_identifier": values["business_identifier"]}).model_dump(
-            exclude_none=True
-        )
-        write_compatibility(session, actor, str(raw.get("relationship_type", "eoat-machine")), data)
+        relationship_type = str(raw.get("relationship_type", "eoat-machine"))
+        target = raw.get("target")
+        relationship_values = {key: value for key, value in raw.items() if key not in {"relationship_type", "target"}}
+        if relationship_type == "eoat-machine":
+            relationship_values["machine_number"] = target
+        elif relationship_type == "eoat-tool":
+            relationship_values["tool_identifier"] = target
+        else:
+            raise APIError(
+                422,
+                "INVALID_ONBOARDING_RELATIONSHIP",
+                "Onboarding supports EOAT-to-Machine or EOAT-to-Tool relationships.",
+            )
+        data = CompatibilityWrite.model_validate(
+            {**relationship_values, "eoat_identifier": values["business_identifier"]}
+        ).model_dump(exclude_none=True)
+        write_compatibility(session, actor, relationship_type, data)
     location = (draft.payload_json or {}).get("location") or {}
     if location.get("kind") == "machine":
         if not actor.permits("assignment.edit"):
