@@ -365,6 +365,29 @@ export const apiClient = {
       "finalized EOAT",
     );
   },
+  async discardOnboardingDraft(
+    draftUuid: string,
+    expectedRowVersion: number,
+    reason?: string,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/discard`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({
+            expected_row_version: expectedRowVersion,
+            reason: reason || null,
+          }),
+        },
+      ),
+      ["draft_uuid", "lifecycle_state", "row_version"],
+      "discarded onboarding draft",
+    );
+  },
   async getAuthenticatedSession(
     fetcher?: typeof fetch,
   ): Promise<AuthenticatedSession> {

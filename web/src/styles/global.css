@@ -123,6 +123,31 @@ a {
   justify-content: flex-end;
   margin-top: 1.5rem;
 }
+.onboarding-draft-list {
+  display: grid;
+  gap: 0.75rem;
+}
+.onboarding-draft-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--atlas-border);
+  border-radius: 10px;
+}
+.onboarding-draft-list article div {
+  display: grid;
+  gap: 0.3rem;
+}
+.onboarding-draft-list article span {
+  color: var(--atlas-text-secondary);
+  font-size: 0.9rem;
+}
+.onboarding-draft-list article > div:last-child {
+  display: flex;
+  grid-template-columns: none;
+}
 @media (max-width: 640px) {
   .onboarding-page {
     width: min(100% - 1rem, 1120px);

@@ -96,6 +96,12 @@ def _check_draft_version(draft: db.EOATOnboardingDraft, expected: int) -> None:
         raise APIError(409, "DRAFT_NOT_EDITABLE", "Only an active onboarding draft can be changed.")
 
 
+def _assert_draft_editor(actor: ActorContext, draft: db.EOATOnboardingDraft) -> None:
+    """Draft preparation is owner-scoped unless a reviewer is explicitly granted."""
+    if draft.created_by_user_id != actor.user_id and not actor.permits("onboarding.draft.review"):
+        raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot edit this onboarding draft.")
+
+
 def _draft_summary(draft: db.EOATOnboardingDraft) -> dict[str, Any]:
     return {
         "draft_uuid": draft.draft_uuid,
@@ -192,6 +198,7 @@ def create_draft(session: Session, actor: ActorContext, payload: dict[str, Any])
 
 def update_draft(session: Session, actor: ActorContext, draft_uuid: str, payload: dict[str, Any]) -> dict[str, Any]:
     draft = _draft(session, draft_uuid, lock=True)
+    _assert_draft_editor(actor, draft)
     _check_draft_version(draft, payload["expected_row_version"])
     before = record_dict(draft)
     state = payload.get("payload") or {}
@@ -233,6 +240,7 @@ def discard_draft(
     session: Session, actor: ActorContext, draft_uuid: str, expected: int, reason: str | None
 ) -> dict[str, Any]:
     draft = _draft(session, draft_uuid, lock=True)
+    _assert_draft_editor(actor, draft)
     _check_draft_version(draft, expected)
     before = record_dict(draft)
     draft.lifecycle_state, draft.discarded_at, draft.discard_reason = "DISCARDED", utcnow(), reason
@@ -276,6 +284,7 @@ def list_drafts(session: Session, actor: ActorContext) -> list[dict[str, Any]]:
 
 def stage_media(session: Session, actor: ActorContext, draft_uuid: str, payload: dict[str, Any]) -> dict[str, Any]:
     draft = _draft(session, draft_uuid, lock=True)
+    _assert_draft_editor(actor, draft)
     _check_draft_version(draft, payload.pop("expected_row_version"))
     path = _validate_document_path(payload["storage_path"])
     if path.name != Path(payload["file_name"]).name:
