@@ -40,8 +40,8 @@ from .corporate_auth_routes import router as corporate_auth_router
 from .database import models as db
 from .database.session import get_runtime_session, get_write_session
 from .errors import APIError
-from .repositories import LOOKUP_MODELS, AtlasRepository
 from .qr_label_pdf import generate_eoat_qr_label_pdf
+from .repositories import LOOKUP_MODELS, AtlasRepository
 from .security import actor_context
 from .services import (
     API_VERSION,
