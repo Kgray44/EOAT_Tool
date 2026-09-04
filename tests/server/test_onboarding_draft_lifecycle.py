@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, event, select
@@ -14,6 +15,7 @@ from server.eoat_api.onboarding_services import (
     create_draft,
     finalize_draft,
     list_drafts,
+    stage_uploaded_media,
     update_draft,
 )
 from server.eoat_api.security import ActorContext, require_any
@@ -48,7 +50,11 @@ def session():
             for record in value.new:
                 if isinstance(
                     record,
-                    db.EOAT | db.EOATOnboardingDraft | db.EOATIdentifierReservation | db.EOATType,
+                    db.EOAT
+                    | db.EOATOnboardingDraft
+                    | db.EOATIdentifierReservation
+                    | db.EOATOnboardingStagedMedia
+                    | db.EOATType,
                 ) and record.id is None:
                     record.id = next_identifier
                     next_identifier += 1
@@ -234,6 +240,54 @@ def test_finalization_requires_an_explicit_finalization_grant(monkeypatch, sessi
         finalize_draft(session, actor, draft["draft_uuid"], draft["row_version"])
 
     assert session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == "P4-EOAT-0201")) is None
+
+
+def test_uploaded_media_stays_in_controlled_staging_and_paths_are_not_returned(monkeypatch, tmp_path, session, actor):
+    _disable_audit(monkeypatch)
+    monkeypatch.setenv("EOAT_ONBOARDING_STAGING_ROOT", str(tmp_path))
+    monkeypatch.setenv("EOAT_DOCUMENT_ROOTS", str(tmp_path))
+    draft = _ready_draft(session, actor)
+
+    result = stage_uploaded_media(
+        session,
+        actor,
+        draft["draft_uuid"],
+        {
+            "expected_row_version": draft["row_version"],
+            "content_base64": "c3RhZ2VkLWJ5dGVz",
+            "media_kind": "photo",
+            "document_type": "photo",
+            "file_name": "front.jpg",
+            "title": "Front view",
+            "photo_view_type": "FRONT",
+        },
+    )
+
+    media = session.get(db.EOATOnboardingStagedMedia, result["id"])
+    assert media is not None
+    assert media.storage_path.startswith(str(tmp_path))
+    assert Path(media.storage_path).name == "front.jpg"
+    assert Path(media.storage_path).read_bytes() == b"staged-bytes"
+    summary = list_drafts(session, actor)[0]
+    assert "storage_path" not in summary["staged_media"][0]
+
+    staged_before_failure = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*") if path.is_file())
+    with pytest.raises(APIError, match="changed by another user"):
+        stage_uploaded_media(
+            session,
+            actor,
+            draft["draft_uuid"],
+            {
+                "expected_row_version": draft["row_version"],
+                "content_base64": "c2hvdWxkLW5vdC1yZW1haW4=",
+                "media_kind": "photo",
+                "document_type": "photo",
+                "file_name": "failed.jpg",
+                "title": "Failed staging",
+                "photo_view_type": "FRONT",
+            },
+        )
+    assert sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*") if path.is_file()) == staged_before_failure
 
 
 def test_failed_finalization_rolls_back_created_asset_and_keeps_draft_recoverable(monkeypatch, session, actor, engineer):

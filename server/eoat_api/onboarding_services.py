@@ -440,7 +440,8 @@ def stage_uploaded_media(
     safe_name = Path(str(payload["file_name"])).name
     if safe_name in {"", ".", ".."}:
         raise APIError(422, "STAGED_MEDIA_NAME_INVALID", "The uploaded file name is invalid.")
-    destination = root / f"{uuid4()}_{safe_name}"
+    destination = root / str(uuid4()) / safe_name
+    destination.parent.mkdir(mode=0o750)
     destination.write_bytes(content)
     try:
         return stage_media(
@@ -448,6 +449,10 @@ def stage_uploaded_media(
         )
     except Exception:
         destination.unlink(missing_ok=True)
+        try:
+            destination.parent.rmdir()
+        except OSError:
+            pass
         raise
 
 
