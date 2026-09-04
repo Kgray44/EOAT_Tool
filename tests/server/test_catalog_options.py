@@ -40,4 +40,3 @@ def test_catalog_options_adapts_authoritative_lookup_and_catalog_values():
     assert status.json() == [{"value": "verified", "label": "Verified"}]
     assert machines.json() == [{"value": "VT::M-12", "label": "VT · M-12 · Press line"}]
     assert tools.json() == [{"value": "TOOL-7", "label": "Seven"}]
-
