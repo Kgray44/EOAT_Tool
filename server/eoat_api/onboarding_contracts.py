@@ -48,3 +48,29 @@ class OnboardingMediaUpload(OnboardingMediaCreate):
 
 class OnboardingMediaArchive(OnboardingModel):
     expected_row_version: int = Field(ge=1)
+
+
+class EOATEngineeringPatch(OnboardingModel):
+    expected_row_version: int = Field(ge=0)
+    cylinders_present: bool | None = None
+    cylinder_count: int | None = Field(default=None, ge=0)
+    cylinder_type: str | None = None
+    cylinder_model: str | None = None
+    gripper_type: str | None = None
+    gripper_model: str | None = None
+    gripper_size: str | None = None
+    vacuum_cup_type: str | None = None
+    vacuum_cup_size: str | None = None
+    vacuum_cup_model: str | None = None
+    vacuum_generation: str | None = None
+    vacuum_circuits: int | None = Field(default=None, ge=0)
+    pressure_circuits: int | None = Field(default=None, ge=0)
+    interchangeable_circuits: int | None = Field(default=None, ge=0)
+    external_circuits: int | None = Field(default=None, ge=0)
+    pneumatic_connection: str | None = None
+    pneumatic_notes: str | None = None
+    electrical_present: bool | None = None
+    electrical_connection: str | None = None
+    electrical_pinout_reference: str | None = None
+    sensor_types: str | None = None
+    sensor_models: str | None = None

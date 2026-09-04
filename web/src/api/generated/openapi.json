@@ -2419,6 +2419,268 @@
         "title": "EOATCreate",
         "type": "object"
       },
+      "EOATEngineeringPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "cylinder_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cylinder Count"
+          },
+          "cylinder_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cylinder Model"
+          },
+          "cylinder_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cylinder Type"
+          },
+          "cylinders_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cylinders Present"
+          },
+          "electrical_connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electrical Connection"
+          },
+          "electrical_pinout_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electrical Pinout Reference"
+          },
+          "electrical_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electrical Present"
+          },
+          "expected_row_version": {
+            "minimum": 0.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          },
+          "external_circuits": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Circuits"
+          },
+          "gripper_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gripper Model"
+          },
+          "gripper_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gripper Size"
+          },
+          "gripper_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gripper Type"
+          },
+          "interchangeable_circuits": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interchangeable Circuits"
+          },
+          "pneumatic_connection": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pneumatic Connection"
+          },
+          "pneumatic_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pneumatic Notes"
+          },
+          "pressure_circuits": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Circuits"
+          },
+          "sensor_models": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensor Models"
+          },
+          "sensor_types": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensor Types"
+          },
+          "vacuum_circuits": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Circuits"
+          },
+          "vacuum_cup_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Cup Model"
+          },
+          "vacuum_cup_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Cup Size"
+          },
+          "vacuum_cup_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Cup Type"
+          },
+          "vacuum_generation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vacuum Generation"
+          }
+        },
+        "required": [
+          "expected_row_version"
+        ],
+        "title": "EOATEngineeringPatch",
+        "type": "object"
+      },
       "EOATPatch": {
         "additionalProperties": false,
         "properties": {
@@ -14758,6 +15020,94 @@
           }
         },
         "summary": "Remove Media",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/eoats/{identifier}/engineering": {
+      "get": {
+        "operationId": "get_engineering_api_v1_onboarding_eoats__identifier__engineering_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identifier",
+            "required": true,
+            "schema": {
+              "title": "Identifier",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Engineering",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_engineering_api_v1_onboarding_eoats__identifier__engineering_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identifier",
+            "required": true,
+            "schema": {
+              "title": "Identifier",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EOATEngineeringPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Engineering",
         "tags": [
           "eoat-onboarding"
         ]

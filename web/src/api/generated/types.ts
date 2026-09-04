@@ -2172,6 +2172,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/eoats/{identifier}/engineering": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Engineering */
+        get: operations["get_engineering_api_v1_onboarding_eoats__identifier__engineering_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Engineering */
+        patch: operations["patch_engineering_api_v1_onboarding_eoats__identifier__engineering_patch"];
+        trace?: never;
+    };
     "/api/v1/onboarding/status": {
         parameters: {
             query?: never;
@@ -3416,6 +3434,55 @@ export interface components {
             vacuum_present?: boolean | null;
             /** Weight Kg */
             weight_kg?: number | null;
+        };
+        /** EOATEngineeringPatch */
+        EOATEngineeringPatch: {
+            /** Cylinder Count */
+            cylinder_count?: number | null;
+            /** Cylinder Model */
+            cylinder_model?: string | null;
+            /** Cylinder Type */
+            cylinder_type?: string | null;
+            /** Cylinders Present */
+            cylinders_present?: boolean | null;
+            /** Electrical Connection */
+            electrical_connection?: string | null;
+            /** Electrical Pinout Reference */
+            electrical_pinout_reference?: string | null;
+            /** Electrical Present */
+            electrical_present?: boolean | null;
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** External Circuits */
+            external_circuits?: number | null;
+            /** Gripper Model */
+            gripper_model?: string | null;
+            /** Gripper Size */
+            gripper_size?: string | null;
+            /** Gripper Type */
+            gripper_type?: string | null;
+            /** Interchangeable Circuits */
+            interchangeable_circuits?: number | null;
+            /** Pneumatic Connection */
+            pneumatic_connection?: string | null;
+            /** Pneumatic Notes */
+            pneumatic_notes?: string | null;
+            /** Pressure Circuits */
+            pressure_circuits?: number | null;
+            /** Sensor Models */
+            sensor_models?: string | null;
+            /** Sensor Types */
+            sensor_types?: string | null;
+            /** Vacuum Circuits */
+            vacuum_circuits?: number | null;
+            /** Vacuum Cup Model */
+            vacuum_cup_model?: string | null;
+            /** Vacuum Cup Size */
+            vacuum_cup_size?: string | null;
+            /** Vacuum Cup Type */
+            vacuum_cup_type?: string | null;
+            /** Vacuum Generation */
+            vacuum_generation?: string | null;
         };
         /** EOATPatch */
         EOATPatch: {
@@ -9379,6 +9446,72 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OnboardingMediaArchive"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_engineering_api_v1_onboarding_eoats__identifier__engineering_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_engineering_api_v1_onboarding_eoats__identifier__engineering_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EOATEngineeringPatch"];
             };
         };
         responses: {

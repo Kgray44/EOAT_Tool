@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .database.session import get_runtime_session, get_write_session
 from .onboarding_contracts import (
+    EOATEngineeringPatch,
     OnboardingDraftCreate,
     OnboardingDraftDiscard,
     OnboardingDraftPatch,
@@ -17,6 +18,7 @@ from .onboarding_contracts import (
 from .onboarding_services import (
     create_draft,
     discard_draft,
+    engineering_profile,
     finalize_draft,
     list_drafts,
     remove_staged_media,
@@ -24,6 +26,7 @@ from .onboarding_services import (
     stage_media,
     stage_uploaded_media,
     update_draft,
+    update_engineering_profile,
 )
 from .security import ActorContext, require
 
@@ -35,6 +38,21 @@ def status():
     from .onboarding_services import onboarding_enabled
 
     return {"enabled": onboarding_enabled()}
+
+
+@router.get("/eoats/{identifier}/engineering")
+def get_engineering(identifier: str, session: Session = Depends(get_runtime_session)):
+    return engineering_profile(session, identifier)
+
+
+@router.patch("/eoats/{identifier}/engineering")
+def patch_engineering(
+    identifier: str,
+    payload: EOATEngineeringPatch,
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require("eoat.edit")),
+):
+    return update_engineering_profile(session, actor, identifier, payload.model_dump(exclude_unset=True))
 
 
 @router.get("/drafts")

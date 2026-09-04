@@ -384,6 +384,59 @@ def remove_staged_media(
     return {"id": media.id, "row_version": draft.row_version}
 
 
+def engineering_profile(session: Session, identifier: str) -> dict[str, Any]:
+    eoat = session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier))
+    if eoat is None:
+        raise not_found("eoat", identifier)
+    profile = session.scalar(select(db.EOATEngineeringProfile).where(db.EOATEngineeringProfile.eoat_id == eoat.id))
+    return record_dict(profile) if profile else {"eoat_id": eoat.id, "row_version": 0}
+
+
+def update_engineering_profile(
+    session: Session, actor: ActorContext, identifier: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    eoat = session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier).with_for_update())
+    if eoat is None:
+        raise not_found("eoat", identifier)
+    expected = payload.pop("expected_row_version")
+    profile = session.scalar(
+        select(db.EOATEngineeringProfile).where(db.EOATEngineeringProfile.eoat_id == eoat.id).with_for_update()
+    )
+    if profile is None:
+        if expected != 0:
+            raise conflict(0)
+        profile = db.EOATEngineeringProfile(
+            eoat_id=eoat.id, created_by_user_id=actor.user_id, updated_by_user_id=actor.user_id
+        )
+        session.add(profile)
+        session.flush()
+    elif profile.row_version != expected:
+        raise conflict(int(profile.row_version))
+    before = record_dict(profile)
+    for key, value in payload.items():
+        if key in ENGINEERING_FIELDS:
+            setattr(profile, key, value)
+    profile.row_version += 1
+    profile.updated_by_user_id = actor.user_id
+    audit_change(
+        session,
+        actor,
+        entity_type="eoat_engineering_profile",
+        entity_id=profile.id,
+        action="update",
+        previous=before,
+        current=record_dict(profile),
+        row_version=profile.row_version,
+        history_code="record_edited",
+        history_summary=f"EOAT {identifier} engineering profile edited",
+        history_entity_type="eoat",
+        history_entity_id=eoat.id,
+        source_table=profile.__tablename__,
+        source_record_id=profile.id,
+    )
+    return record_dict(profile)
+
+
 def _validate_final_payload(session: Session, draft: db.EOATOnboardingDraft) -> tuple[dict[str, Any], dict[str, Any]]:
     payload = draft.payload_json or {}
     identity = payload.get("identity") if isinstance(payload.get("identity"), dict) else {}
