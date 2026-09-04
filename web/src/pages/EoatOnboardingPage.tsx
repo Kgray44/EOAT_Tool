@@ -633,68 +633,71 @@ export function EoatOnboardingPage() {
                 setEngineering({ ...engineering, cylinders_present: value })
               }
             />
-            <Field
-              label="Cylinder count"
-              type="number"
-              value={engineering.cylinder_count}
-              onChange={(value) =>
-                setEngineering({
-                  ...engineering,
-                  cylinder_count: value === "" ? null : Number(value),
-                })
-              }
-            />
-            <Field
-              label="Cylinder model"
-              value={engineering.cylinder_model}
-              onChange={(value) =>
-                setEngineering({ ...engineering, cylinder_model: value })
-              }
-            />
-            <Field
-              label="Cylinder type"
-              value={engineering.cylinder_type}
-              onChange={(value) => setEngineering({ ...engineering, cylinder_type: value })}
-            />
-            <Field
-              label="Gripper type"
-              value={engineering.gripper_type}
-              onChange={(value) => setEngineering({ ...engineering, gripper_type: value })}
-            />
-            <Field
-              label="Gripper model"
-              value={engineering.gripper_model}
-              onChange={(value) =>
-                setEngineering({ ...engineering, gripper_model: value })
-              }
-            />
-            <Field
-              label="Gripper size"
-              value={engineering.gripper_size}
-              onChange={(value) => setEngineering({ ...engineering, gripper_size: value })}
-            />
-            <Field
-              label="Vacuum cup type"
-              value={engineering.vacuum_cup_type}
-              onChange={(value) => setEngineering({ ...engineering, vacuum_cup_type: value })}
-            />
-            <Field
-              label="Vacuum cup size"
-              value={engineering.vacuum_cup_size}
-              onChange={(value) => setEngineering({ ...engineering, vacuum_cup_size: value })}
-            />
-            <Field
-              label="Vacuum cup model"
-              value={engineering.vacuum_cup_model}
-              onChange={(value) => setEngineering({ ...engineering, vacuum_cup_model: value })}
-            />
-            <Field
-              label="Vacuum generation"
-              value={engineering.vacuum_generation}
-              onChange={(value) =>
-                setEngineering({ ...engineering, vacuum_generation: value })
-              }
-            />
+            {engineering.cylinders_present !== false && (
+              <>
+                <Field
+                  label="Cylinder count"
+                  type="number"
+                  value={engineering.cylinder_count}
+                  onChange={(value) =>
+                    setEngineering({ ...engineering, cylinder_count: value === "" ? null : Number(value) })
+                  }
+                />
+                <Field
+                  label="Cylinder model"
+                  value={engineering.cylinder_model}
+                  onChange={(value) => setEngineering({ ...engineering, cylinder_model: value })}
+                />
+                <Field
+                  label="Cylinder type"
+                  value={engineering.cylinder_type}
+                  onChange={(value) => setEngineering({ ...engineering, cylinder_type: value })}
+                />
+              </>
+            )}
+            {identity.number_of_grippers !== 0 && (
+              <>
+                <Field
+                  label="Gripper type"
+                  value={engineering.gripper_type}
+                  onChange={(value) => setEngineering({ ...engineering, gripper_type: value })}
+                />
+                <Field
+                  label="Gripper model"
+                  value={engineering.gripper_model}
+                  onChange={(value) => setEngineering({ ...engineering, gripper_model: value })}
+                />
+                <Field
+                  label="Gripper size"
+                  value={engineering.gripper_size}
+                  onChange={(value) => setEngineering({ ...engineering, gripper_size: value })}
+                />
+              </>
+            )}
+            {identity.vacuum_present !== false && (
+              <>
+                <Field
+                  label="Vacuum cup type"
+                  value={engineering.vacuum_cup_type}
+                  onChange={(value) => setEngineering({ ...engineering, vacuum_cup_type: value })}
+                />
+                <Field
+                  label="Vacuum cup size"
+                  value={engineering.vacuum_cup_size}
+                  onChange={(value) => setEngineering({ ...engineering, vacuum_cup_size: value })}
+                />
+                <Field
+                  label="Vacuum cup model"
+                  value={engineering.vacuum_cup_model}
+                  onChange={(value) => setEngineering({ ...engineering, vacuum_cup_model: value })}
+                />
+                <Field
+                  label="Vacuum generation"
+                  value={engineering.vacuum_generation}
+                  onChange={(value) => setEngineering({ ...engineering, vacuum_generation: value })}
+                />
+              </>
+            )}
           </div>
         )}
         {step === 2 && (
@@ -706,25 +709,27 @@ export function EoatOnboardingPage() {
                 setIdentity({ ...identity, sensors_present: value })
               }
             />
-            <Field
-              label="Sensor models"
-              value={engineering.sensor_models}
-              onChange={(value) =>
-                setEngineering({ ...engineering, sensor_models: value })
-              }
-            />
-            <Field
-              label="Sensor types"
-              value={engineering.sensor_types}
-              onChange={(value) => setEngineering({ ...engineering, sensor_types: value })}
-            />
-            <BooleanField
-              label="Part-present sensor"
-              value={identity.part_present_sensor_present}
-              onChange={(value) =>
-                setIdentity({ ...identity, part_present_sensor_present: value })
-              }
-            />
+            {identity.sensors_present !== false && (
+              <>
+                <Field
+                  label="Sensor models"
+                  value={engineering.sensor_models}
+                  onChange={(value) => setEngineering({ ...engineering, sensor_models: value })}
+                />
+                <Field
+                  label="Sensor types"
+                  value={engineering.sensor_types}
+                  onChange={(value) => setEngineering({ ...engineering, sensor_types: value })}
+                />
+                <BooleanField
+                  label="Part-present sensor"
+                  value={identity.part_present_sensor_present}
+                  onChange={(value) =>
+                    setIdentity({ ...identity, part_present_sensor_present: value })
+                  }
+                />
+              </>
+            )}
             <BooleanField
               label="Vacuum-confirmation sensor"
               value={identity.vacuum_confirmation_sensor_present}
@@ -739,21 +744,32 @@ export function EoatOnboardingPage() {
                 setEngineering({ ...engineering, electrical_present: value })
               }
             />
-            <Field
-              label="Electrical connection"
-              value={engineering.electrical_connection}
-              onChange={(value) =>
-                setEngineering({ ...engineering, electrical_connection: value })
-              }
-            />
-            <Field
-              label="Vacuum circuits"
-              type="number"
-              value={engineering.vacuum_circuits}
-              onChange={(value) =>
-                setEngineering({ ...engineering, vacuum_circuits: value === "" ? null : Number(value) })
-              }
-            />
+            {engineering.electrical_present !== false && (
+              <>
+                <Field
+                  label="Electrical connection"
+                  value={engineering.electrical_connection}
+                  onChange={(value) => setEngineering({ ...engineering, electrical_connection: value })}
+                />
+                <Field
+                  label="Electrical pinout reference"
+                  value={engineering.electrical_pinout_reference}
+                  onChange={(value) =>
+                    setEngineering({ ...engineering, electrical_pinout_reference: value })
+                  }
+                />
+              </>
+            )}
+            {identity.vacuum_present !== false && (
+              <Field
+                label="Vacuum circuits"
+                type="number"
+                value={engineering.vacuum_circuits}
+                onChange={(value) =>
+                  setEngineering({ ...engineering, vacuum_circuits: value === "" ? null : Number(value) })
+                }
+              />
+            )}
             <Field
               label="Pressure circuits"
               type="number"
@@ -776,13 +792,6 @@ export function EoatOnboardingPage() {
               value={engineering.external_circuits}
               onChange={(value) =>
                 setEngineering({ ...engineering, external_circuits: value === "" ? null : Number(value) })
-              }
-            />
-            <Field
-              label="Electrical pinout reference"
-              value={engineering.electrical_pinout_reference}
-              onChange={(value) =>
-                setEngineering({ ...engineering, electrical_pinout_reference: value })
               }
             />
             <Field
