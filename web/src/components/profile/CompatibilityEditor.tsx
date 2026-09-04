@@ -63,6 +63,8 @@ function payloadFor(
   compatibilityStatus: string,
   effectiveFrom: string,
   reason: string,
+  verificationSource: string,
+  verifiedAt: string,
 ) {
   const targetIdentifier = relationshipType.includes("machine")
     ? target.split("::").at(-1) || target
@@ -72,6 +74,8 @@ function payloadFor(
     effective_from: new Date(`${effectiveFrom}T00:00:00Z`).toISOString(),
     reason: reason || null,
   };
+  if (verificationSource) payload.verification_source = verificationSource;
+  if (verifiedAt) payload.verified_at = new Date(`${verifiedAt}T00:00:00Z`).toISOString();
   if (relationshipType === "eoat-machine") {
     payload.eoat_identifier = kind === "eoat" ? identifier : targetIdentifier;
     payload.machine_number = kind === "machine" ? identifier : targetIdentifier;
@@ -111,12 +115,19 @@ export function CompatibilityEditor({
     new Date().toISOString().slice(0, 10),
   );
   const [reason, setReason] = useState("");
+  const [verificationSource, setVerificationSource] = useState("");
+  const [verifiedAt, setVerifiedAt] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const statuses = useQuery({
     queryKey: ["editor-catalog", "compatibility_status"],
     queryFn: () => apiClient.getCatalogOptions("compatibility_status"),
+    staleTime: 60_000,
+  });
+  const sources = useQuery({
+    queryKey: ["editor-catalog", "compatibility_source"],
+    queryFn: () => apiClient.getCatalogOptions("compatibility_source"),
     staleTime: 60_000,
   });
 
@@ -164,11 +175,15 @@ export function CompatibilityEditor({
           status,
           effectiveFrom,
           reason,
+          verificationSource,
+          verifiedAt,
         ),
       );
       setOpen(false);
       setTarget("");
       setReason("");
+      setVerificationSource("");
+      setVerifiedAt("");
       setConfirmed(false);
       onSaved();
     } catch (failure) {
@@ -259,6 +274,28 @@ export function CompatibilityEditor({
             value={effectiveFrom}
             onChange={(event) => setEffectiveFrom(event.target.value)}
             required
+          />
+        </label>
+        <label>
+          <span>Verification source</span>
+          <select
+            value={verificationSource}
+            onChange={(event) => setVerificationSource(event.target.value)}
+          >
+            <option value="">Not recorded</option>
+            {(sources.data ?? []).map((value) => (
+              <option key={value.value} value={value.value}>
+                {value.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Verified date</span>
+          <input
+            type="date"
+            value={verifiedAt}
+            onChange={(event) => setVerifiedAt(event.target.value)}
           />
         </label>
         <label className="wide">
