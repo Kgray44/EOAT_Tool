@@ -215,7 +215,9 @@ test("production-shaped Machine 14 presents an unverified Tool assignment withou
   await expect(
     page.locator('a[href="/tools/UNKNOWN_NOT_VERIFIED"]'),
   ).toHaveCount(0);
-  await expect(page.locator("code")).not.toContainText("UNKNOWN_NOT_VERIFIED");
+  await expect(
+    page.getByText("UNKNOWN_NOT_VERIFIED", { exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("link", { name: "Overview" }).click();
   await expect(page.locator('a[href*="fit-check"]')).toHaveCount(1);
   const recentState = await page.evaluate(() => JSON.stringify(localStorage));
