@@ -86,10 +86,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_eoat_onboarding_staged_media_draft", table_name="eoat_onboarding_staged_media")
     op.drop_table("eoat_onboarding_staged_media")
-    op.drop_index("ix_eoat_identifier_reservation_draft", table_name="eoat_identifier_reservations")
     op.drop_table("eoat_identifier_reservations")
-    op.drop_index("ix_eoat_onboarding_draft_state_updated", table_name="eoat_onboarding_drafts")
     op.drop_table("eoat_onboarding_drafts")
     op.drop_table("eoat_engineering_profiles")
