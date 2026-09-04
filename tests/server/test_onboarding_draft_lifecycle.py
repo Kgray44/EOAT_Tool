@@ -24,6 +24,7 @@ def session():
     db.Base.metadata.create_all(
         engine,
         tables=[
+            db.User.__table__,
             db.EOAT.__table__,
             db.EOATOnboardingDraft.__table__,
             db.EOATIdentifierReservation.__table__,

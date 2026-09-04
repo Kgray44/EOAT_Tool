@@ -40,6 +40,10 @@ export function OnboardingDraftsPage() {
                     {draft.completion_state} · Updated{" "}
                     {new Date(draft.updated_at).toLocaleString()}
                   </span>
+                  <span>
+                    {[draft.plant_code, draft.area_code].filter(Boolean).join(" · ") || "Plant / area not recorded"}
+                    {draft.created_by_display_name ? ` · Prepared by ${draft.created_by_display_name}` : ""}
+                  </span>
                 </div>
                 <div>
                   <button

@@ -124,6 +124,11 @@ def _media_summary(media: db.EOATOnboardingStagedMedia) -> dict[str, Any]:
 
 
 def _draft_summary(session: Session, draft: db.EOATOnboardingDraft) -> dict[str, Any]:
+    creator_name = (
+        session.scalar(select(db.User.display_name).where(db.User.id == draft.created_by_user_id))
+        if draft.created_by_user_id is not None
+        else None
+    )
     return {
         "draft_uuid": draft.draft_uuid,
         "proposed_identifier": draft.proposed_identifier,
@@ -135,6 +140,8 @@ def _draft_summary(session: Session, draft: db.EOATOnboardingDraft) -> dict[str,
         "row_version": draft.row_version,
         "created_at": draft.created_at,
         "updated_at": draft.updated_at,
+        "created_by_user_id": draft.created_by_user_id,
+        "created_by_display_name": creator_name,
         "finalized_eoat_id": draft.finalized_eoat_id,
         "finalized_at": draft.finalized_at,
         "staged_media": [

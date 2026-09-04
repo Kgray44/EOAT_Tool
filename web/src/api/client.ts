@@ -111,6 +111,8 @@ export type OnboardingDraft = {
   proposed_identifier: string | null;
   plant_code?: string | null;
   area_code?: string | null;
+  created_by_user_id?: number | null;
+  created_by_display_name?: string | null;
   lifecycle_state: "DRAFT" | "FINALIZED" | "DISCARDED";
   completion_state: string;
   payload: Record<string, unknown>;
