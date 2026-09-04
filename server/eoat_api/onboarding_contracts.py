@@ -42,5 +42,9 @@ class OnboardingMediaCreate(OnboardingModel):
     caption: str | None = None
 
 
+class OnboardingMediaUpload(OnboardingMediaCreate):
+    content_base64: str = Field(min_length=1, max_length=36_000_000)
+
+
 class OnboardingMediaArchive(OnboardingModel):
     expected_row_version: int = Field(ge=1)

@@ -2138,6 +2138,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/drafts/{draft_uuid}/media/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Media */
+        post: operations["upload_media_api_v1_onboarding_drafts__draft_uuid__media_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/onboarding/drafts/{draft_uuid}/media/{media_id}/remove": {
         parameters: {
             query?: never;
@@ -4209,6 +4226,34 @@ export interface components {
         OnboardingMediaCreate: {
             /** Caption */
             caption?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Document Type */
+            document_type: string;
+            /** File Name */
+            file_name: string;
+            /**
+             * Media Kind
+             * @enum {string}
+             */
+            media_kind: "document" | "photo";
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Photo View Type */
+            photo_view_type?: string | null;
+            /** Revision */
+            revision?: string | null;
+            /** Storage Path */
+            storage_path: string;
+            /** Title */
+            title: string;
+        };
+        /** OnboardingMediaUpload */
+        OnboardingMediaUpload: {
+            /** Caption */
+            caption?: string | null;
+            /** Content Base64 */
+            content_base64: string;
             /** Description */
             description?: string | null;
             /** Document Type */
@@ -9261,6 +9306,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OnboardingMediaCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_api_v1_onboarding_drafts__draft_uuid__media_upload_post: {
+        parameters: {
+            query: {
+                expected_row_version: number;
+            };
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingMediaUpload"];
             };
         };
         responses: {

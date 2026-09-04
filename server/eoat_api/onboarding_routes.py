@@ -12,6 +12,7 @@ from .onboarding_contracts import (
     OnboardingFinalize,
     OnboardingMediaArchive,
     OnboardingMediaCreate,
+    OnboardingMediaUpload,
 )
 from .onboarding_services import (
     create_draft,
@@ -21,6 +22,7 @@ from .onboarding_services import (
     remove_staged_media,
     require_onboarding_enabled,
     stage_media,
+    stage_uploaded_media,
     update_draft,
 )
 from .security import ActorContext, require
@@ -102,6 +104,20 @@ def media(
 ):
     require_onboarding_enabled()
     return stage_media(
+        session, actor, draft_uuid, {**payload.model_dump(), "expected_row_version": expected_row_version}
+    )
+
+
+@router.post("/drafts/{draft_uuid}/media/upload")
+def upload_media(
+    draft_uuid: str,
+    payload: OnboardingMediaUpload,
+    expected_row_version: int,
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require("onboarding.draft.edit")),
+):
+    require_onboarding_enabled()
+    return stage_uploaded_media(
         session, actor, draft_uuid, {**payload.model_dump(), "expected_row_version": expected_row_version}
     )
 

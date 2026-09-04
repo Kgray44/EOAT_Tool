@@ -7,6 +7,8 @@ compatibility, authorization, or location system.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import os
 from pathlib import Path
 from typing import Any
@@ -309,6 +311,43 @@ def stage_media(session: Session, actor: ActorContext, draft_uuid: str, payload:
         source_record_id=media.id,
     )
     return {"id": media.id, "row_version": draft.row_version}
+
+
+def stage_uploaded_media(
+    session: Session, actor: ActorContext, draft_uuid: str, payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Persist upload bytes only in the configured draft staging root.
+
+    The finalization service still re-validates the resulting path against the
+    ordinary controlled document roots before it creates normal media metadata.
+    """
+    encoded = payload.pop("content_base64")
+    try:
+        content = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise APIError(422, "STAGED_MEDIA_INVALID", "The uploaded media is not valid base64.") from exc
+    if len(content) > 25 * 1024 * 1024:
+        raise APIError(422, "STAGED_MEDIA_TOO_LARGE", "Staged media must not exceed 25 MB.")
+    root_value = os.getenv("EOAT_ONBOARDING_STAGING_ROOT", "").strip()
+    if not root_value:
+        raise APIError(
+            503, "ONBOARDING_STAGING_UNAVAILABLE", "The controlled onboarding staging root is not configured."
+        )
+    root = Path(root_value).resolve()
+    if not root.is_dir():
+        raise APIError(503, "ONBOARDING_STAGING_UNAVAILABLE", "The controlled onboarding staging root is unavailable.")
+    safe_name = Path(str(payload["file_name"])).name
+    if safe_name in {"", ".", ".."}:
+        raise APIError(422, "STAGED_MEDIA_NAME_INVALID", "The uploaded file name is invalid.")
+    destination = root / f"{uuid4()}_{safe_name}"
+    destination.write_bytes(content)
+    try:
+        return stage_media(
+            session, actor, draft_uuid, {**payload, "file_name": safe_name, "storage_path": str(destination)}
+        )
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
 
 
 def remove_staged_media(

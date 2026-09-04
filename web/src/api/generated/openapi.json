@@ -5557,6 +5557,117 @@
         "title": "OnboardingMediaCreate",
         "type": "object"
       },
+      "OnboardingMediaUpload": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "content_base64": {
+            "maxLength": 36000000,
+            "minLength": 1,
+            "title": "Content Base64",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "document_type": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Document Type",
+            "type": "string"
+          },
+          "file_name": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "File Name",
+            "type": "string"
+          },
+          "media_kind": {
+            "enum": [
+              "document",
+              "photo"
+            ],
+            "title": "Media Kind",
+            "type": "string"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          },
+          "photo_view_type": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo View Type"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "storage_path": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Storage Path",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "media_kind",
+          "document_type",
+          "file_name",
+          "storage_path",
+          "title",
+          "content_base64"
+        ],
+        "title": "OnboardingMediaUpload",
+        "type": "object"
+      },
       "PaginatedEOATs": {
         "properties": {
           "items": {
@@ -14529,6 +14640,65 @@
           }
         },
         "summary": "Media",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/drafts/{draft_uuid}/media/upload": {
+      "post": {
+        "operationId": "upload_media_api_v1_onboarding_drafts__draft_uuid__media_upload_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_row_version",
+            "required": true,
+            "schema": {
+              "title": "Expected Row Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingMediaUpload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Media",
         "tags": [
           "eoat-onboarding"
         ]
