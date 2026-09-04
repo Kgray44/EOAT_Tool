@@ -648,6 +648,8 @@ def review_draft(session: Session, actor: ActorContext, draft_uuid: str) -> dict
 
 
 def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expected: int) -> dict[str, Any]:
+    if not actor.permits("onboarding.draft.finalize"):
+        raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot finalize an onboarding draft.")
     draft = _draft(session, draft_uuid, lock=True)
     _check_draft_version(draft, expected)
     review = review_draft(session, actor, draft_uuid)
