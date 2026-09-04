@@ -206,6 +206,26 @@ def test_finalizer_can_review_another_draft_without_editing_it(monkeypatch, sess
         _assert_draft_editor(finalizer, draft)
 
 
+def test_draft_editor_is_allowed_through_the_draft_visibility_route_gate():
+    editor = ActorContext(
+        user_id=1,
+        identity="test.editor",
+        display_name="Draft Editor",
+        role="VIEWER",
+        request_id="onboarding-draft-editor-test",
+        application_instance_id=None,
+        client_version=None,
+        granted_permissions=frozenset({"onboarding.draft.edit"}),
+    )
+
+    assert require_any(
+        "onboarding.draft.view",
+        "onboarding.draft.edit",
+        "onboarding.draft.review",
+        "onboarding.draft.finalize",
+    )(editor) is editor
+
+
 def test_finalization_creates_a_real_eoat_and_releases_the_reservation(monkeypatch, session, actor, engineer):
     _disable_audit(monkeypatch)
     draft = _ready_draft(session, actor)

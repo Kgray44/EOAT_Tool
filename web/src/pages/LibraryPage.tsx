@@ -279,7 +279,7 @@ export function LibraryPage() {
           </Link>
         )}
         {onboardingStatus.data?.enabled &&
-          ["onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize"].some((permission) =>
+          ["onboarding.draft.view", "onboarding.draft.edit", "onboarding.draft.review", "onboarding.draft.finalize"].some((permission) =>
             sessionHasPermission(session, permission),
           ) && (
           <Link className="profile-edit-button" to="/eoats/onboarding-drafts">

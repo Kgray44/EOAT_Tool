@@ -70,7 +70,7 @@ def patch_engineering(
 def drafts(
     session: Session = Depends(get_runtime_session),
     actor: ActorContext = Depends(
-        require_any("onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize")
+        require_any("onboarding.draft.view", "onboarding.draft.edit", "onboarding.draft.review", "onboarding.draft.finalize")
     ),
 ):
     require_onboarding_enabled()
@@ -92,7 +92,7 @@ def get_draft(
     draft_uuid: str,
     session: Session = Depends(get_runtime_session),
     actor: ActorContext = Depends(
-        require_any("onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize")
+        require_any("onboarding.draft.view", "onboarding.draft.edit", "onboarding.draft.review", "onboarding.draft.finalize")
     ),
 ):
     require_onboarding_enabled()
@@ -194,7 +194,7 @@ def review(
     draft_uuid: str,
     session: Session = Depends(get_runtime_session),
     actor: ActorContext = Depends(
-        require_any("onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize")
+        require_any("onboarding.draft.view", "onboarding.draft.edit", "onboarding.draft.review", "onboarding.draft.finalize")
     ),
 ):
     require_onboarding_enabled()
