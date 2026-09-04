@@ -509,6 +509,18 @@ export function EoatOnboardingPage() {
                 setIdentity({ ...identity, revision: value })
               }
             />
+            <Field
+              label="Date built"
+              type="date"
+              value={identity.date_built}
+              onChange={(value) => setIdentity({ ...identity, date_built: value || null })}
+            />
+            <Field
+              label="Date commissioned"
+              type="date"
+              value={identity.date_commissioned}
+              onChange={(value) => setIdentity({ ...identity, date_commissioned: value || null })}
+            />
             <label className="wide">
               <span>Description / part information</span>
               <textarea
@@ -1201,7 +1213,7 @@ function Field({
   label: string;
   value: unknown;
   onChange: (value: string) => void;
-  type?: "text" | "number";
+  type?: "text" | "number" | "date";
   required?: boolean;
 }) {
   return (
