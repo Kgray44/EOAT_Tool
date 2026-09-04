@@ -17,6 +17,8 @@ type CompatibilityDraft = {
   compatibility_status: string;
   effective_from: string;
   reason?: string;
+  verification_source?: string;
+  verified_at?: string;
 };
 function machineNumber(value: string) {
   return value.split("::").at(-1) || value;
@@ -968,6 +970,10 @@ function RelationshipSection({
     queryKey: ["onboarding", "compatibility-statuses"],
     queryFn: () => apiClient.getCatalogOptions("compatibility_status"),
   });
+  const sources = useQuery({
+    queryKey: ["onboarding", "compatibility-sources"],
+    queryFn: () => apiClient.getCatalogOptions("compatibility_source"),
+  });
   const storage = useQuery({
     queryKey: ["onboarding", "storage"],
     queryFn: () => apiClient.getCatalogOptions("storage"),
@@ -976,6 +982,8 @@ function RelationshipSection({
     useState<CompatibilityDraft["relationship_type"]>("eoat-machine");
   const [target, setTarget] = useState("");
   const [status, setStatus] = useState("");
+  const [source, setSource] = useState("");
+  const [verifiedAt, setVerifiedAt] = useState("");
   const [reason, setReason] = useState("");
   const options =
     type === "eoat-machine" ? (machines.data ?? []) : (tools.data ?? []);
@@ -989,11 +997,15 @@ function RelationshipSection({
         compatibility_status: status,
         effective_from: new Date().toISOString(),
         reason: reason || undefined,
+        verification_source: source || undefined,
+        verified_at: verifiedAt ? new Date(`${verifiedAt}T00:00:00Z`).toISOString() : undefined,
       },
     ]);
     setTarget("");
     setSearch("");
     setStatus("");
+    setSource("");
+    setVerifiedAt("");
     setReason("");
   };
   return (
@@ -1129,6 +1141,21 @@ function RelationshipSection({
             ))}
           </select>
         </label>
+        <label>
+          <span>Verification source</span>
+          <select value={source} onChange={(e) => setSource(e.target.value)}>
+            <option value="">Not recorded</option>
+            {(sources.data ?? []).map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Verified date</span>
+          <input type="date" value={verifiedAt} onChange={(e) => setVerifiedAt(e.target.value)} />
+        </label>
         <label className="wide">
           <span>Evidence / provenance</span>
           <textarea
@@ -1146,6 +1173,7 @@ function RelationshipSection({
             <span>
               {item.relationship_type === "eoat-machine" ? "Machine" : "Tool"}:{" "}
               {item.target} · {item.compatibility_status}
+              {item.verification_source ? ` · ${item.verification_source}` : ""}
             </span>
             <button
               type="button"
