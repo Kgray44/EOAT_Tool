@@ -61,6 +61,10 @@ a {
 .onboarding-page header {
   max-width: 720px;
 }
+.onboarding-save-status {
+  color: var(--atlas-text-secondary);
+  font-size: 0.9rem;
+}
 .onboarding-steps {
   display: flex;
   gap: 0.55rem;

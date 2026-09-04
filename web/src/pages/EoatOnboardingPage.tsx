@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -72,6 +72,8 @@ export function EoatOnboardingPage() {
   const [mediaKind, setMediaKind] = useState<"photo" | "document">("photo");
   const [mediaTitle, setMediaTitle] = useState("");
   const [mediaStatus, setMediaStatus] = useState("");
+  const [saveStatus, setSaveStatus] = useState("Not saved");
+  const draftRef = useRef<OnboardingDraft | null>(null);
 
   useEffect(() => {
     void apiClient
@@ -99,6 +101,9 @@ export function EoatOnboardingPage() {
         ),
       );
   }, [draftUuid]);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
   const mayCreate = sessionHasPermission(session, "onboarding.draft.create");
   const mayFinalize = sessionHasPermission(
     session,
@@ -114,6 +119,34 @@ export function EoatOnboardingPage() {
     }),
     [compatibility, engineering, identity, location],
   );
+  useEffect(() => {
+    if (!draft?.draft_uuid || !mayCreate) return;
+    setSaveStatus("Changes pending…");
+    const timer = window.setTimeout(() => {
+      const current = draftRef.current;
+      if (!current) return;
+      setSaveStatus("Saving…");
+      void apiClient
+        .saveOnboardingDraft(current.draft_uuid, {
+          proposed_identifier: String(identity.business_identifier || ""),
+          payload,
+          expected_row_version: current.row_version,
+        })
+        .then((saved) => {
+          draftRef.current = saved;
+          setDraft(saved);
+          setSaveStatus("Saved");
+        })
+        .catch((reason) =>
+          setSaveStatus(
+            reason instanceof ApiError
+              ? `Save failed: ${reason.message}`
+              : "Save failed. Your changes are still in this browser.",
+          ),
+        );
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [draft?.draft_uuid, identity.business_identifier, mayCreate, payload]);
   async function save() {
     if (!mayCreate) return;
     setBusy(true);
@@ -209,6 +242,11 @@ export function EoatOnboardingPage() {
             ? `Draft ${draft.proposed_identifier || "without an identifier"} · ${draft.completion_state}`
             : "Start a governed draft. It will not enter the Library until finalization."}
         </p>
+        {draft && (
+          <p className="onboarding-save-status" role="status">
+            {saveStatus}
+          </p>
+        )}
       </header>
       <nav className="onboarding-steps" aria-label="Onboarding sections">
         {steps.map((label, index) => (
