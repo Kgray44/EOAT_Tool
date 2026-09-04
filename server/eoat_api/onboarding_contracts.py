@@ -54,6 +54,14 @@ class OnboardingMediaArchive(OnboardingModel):
     expected_row_version: int = Field(ge=1)
 
 
+class OnboardingProfilePhotoSelect(OnboardingModel):
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+class OnboardingProfilePhotoSelectionResult(OnboardingModel):
+    row_version: int = Field(ge=1)
+
+
 class EOATEngineeringPatch(OnboardingModel):
     expected_row_version: int = Field(ge=0)
     cylinders_present: bool | None = None

@@ -542,6 +542,26 @@ export const apiClient = {
       "removed staged onboarding media",
     );
   },
+  async selectOnboardingProfilePhoto(
+    identifier: string,
+    documentUuid: string,
+    reason?: string,
+    fetcher?: typeof fetch,
+  ): Promise<{ row_version: number }> {
+    return assertObject<{ row_version: number }>(
+      await requestJson(
+        `/api/v1/onboarding/eoats/${encodeURIComponent(identifier)}/photos/${encodeURIComponent(documentUuid)}/set-profile`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ reason: reason || null }),
+        },
+      ),
+      ["row_version"],
+      "selected profile photo",
+    );
+  },
   async getAuthenticatedSession(
     fetcher?: typeof fetch,
   ): Promise<AuthenticatedSession> {

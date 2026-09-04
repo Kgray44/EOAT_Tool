@@ -15,6 +15,7 @@ from server.eoat_api.onboarding_services import (
     create_draft,
     finalize_draft,
     list_drafts,
+    select_eoat_profile_photo,
     stage_uploaded_media,
     update_draft,
 )
@@ -35,7 +36,11 @@ def session():
         tables=[
             db.User.__table__,
             db.EOATType.__table__,
+            db.DocumentType.__table__,
             db.EOAT.__table__,
+            db.Document.__table__,
+            db.Photo.__table__,
+            db.DocumentLink.__table__,
             db.EOATOnboardingDraft.__table__,
             db.EOATIdentifierReservation.__table__,
             db.EOATOnboardingStagedMedia.__table__,
@@ -51,15 +56,20 @@ def session():
                 if isinstance(
                     record,
                     db.EOAT
+                    | db.Document
+                    | db.DocumentLink
                     | db.EOATOnboardingDraft
                     | db.EOATIdentifierReservation
                     | db.EOATOnboardingStagedMedia
-                    | db.EOATType,
+                    | db.EOATType
+                    | db.DocumentType
+                    | db.Photo
                 ) and record.id is None:
                     record.id = next_identifier
                     next_identifier += 1
 
         value.add(db.EOATType(code="vacuum", display_name="Vacuum"))
+        value.add(db.DocumentType(code="photo", display_name="Photo"))
         yield value
 
 
@@ -308,6 +318,52 @@ def test_uploaded_media_stays_in_controlled_staging_and_paths_are_not_returned(m
             },
         )
     assert sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*") if path.is_file()) == staged_before_failure
+
+
+def test_profile_photo_selection_uses_only_a_linked_eoat_photo(monkeypatch, session, actor, engineer):
+    _disable_audit(monkeypatch)
+    draft = _ready_draft(session, actor)
+    finalized = finalize_draft(session, engineer, draft["draft_uuid"], draft["row_version"])
+    eoat_id = finalized["eoat"]["id"]
+    document_type_id = session.scalar(select(db.DocumentType.id).where(db.DocumentType.code == "photo"))
+    first = db.Document(
+        document_uuid="11111111-1111-1111-1111-111111111111",
+        document_type_id=document_type_id,
+        title="Front",
+        file_name="front.jpg",
+        storage_path="C:/controlled/front.jpg",
+        created_by_user_id=engineer.user_id,
+        updated_by_user_id=engineer.user_id,
+    )
+    second = db.Document(
+        document_uuid="22222222-2222-2222-2222-222222222222",
+        document_type_id=document_type_id,
+        title="Side",
+        file_name="side.jpg",
+        storage_path="C:/controlled/side.jpg",
+        created_by_user_id=engineer.user_id,
+        updated_by_user_id=engineer.user_id,
+    )
+    session.add_all([first, second])
+    session.flush()
+    first_photo = db.Photo(document_id=first.id, is_profile_photo=True, captured_by_user_id=engineer.user_id)
+    second_photo = db.Photo(document_id=second.id, is_profile_photo=False, captured_by_user_id=engineer.user_id)
+    session.add_all([first_photo, second_photo])
+    session.add_all(
+        [
+            db.DocumentLink(document_id=first.id, entity_type="eoat", entity_id=eoat_id, relationship_type="attachment"),
+            db.DocumentLink(document_id=second.id, entity_type="eoat", entity_id=eoat_id, relationship_type="attachment"),
+        ]
+    )
+    session.flush()
+
+    result = select_eoat_profile_photo(session, engineer, "P4-EOAT-0201", second.document_uuid, "Updated front view")
+
+    assert result["row_version"] >= 1
+    assert session.get(db.Photo, first_photo.id).is_profile_photo is False
+    assert session.get(db.Photo, second_photo.id).is_profile_photo is True
+    with pytest.raises(APIError, match="not found"):
+        select_eoat_profile_photo(session, engineer, "P4-EOAT-0201", "missing-photo", None)
 
 
 def test_failed_finalization_rolls_back_created_asset_and_keeps_draft_recoverable(monkeypatch, session, actor, engineer):

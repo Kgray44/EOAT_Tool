@@ -490,6 +490,37 @@ def remove_staged_media(
     return {"id": media.id, "row_version": draft.row_version}
 
 
+def select_eoat_profile_photo(
+    session: Session, actor: ActorContext, identifier: str, document_uuid: str, reason: str | None
+) -> dict[str, Any]:
+    """Select a linked EOAT photo without exposing internal record IDs to the browser."""
+    eoat = session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier).with_for_update())
+    if eoat is None:
+        raise not_found("eoat", identifier)
+    row = session.execute(
+        select(db.Photo, db.Document)
+        .join(db.Document, db.Document.id == db.Photo.document_id)
+        .join(db.DocumentLink, db.DocumentLink.document_id == db.Document.id)
+        .where(
+            db.Document.document_uuid == document_uuid,
+            db.Document.is_active.is_(True),
+            db.DocumentLink.entity_type == "eoat",
+            db.DocumentLink.entity_id == eoat.id,
+        )
+        .with_for_update()
+    ).first()
+    if row is None:
+        raise not_found("EOAT photo", document_uuid)
+    photo, document = row
+    return set_profile_photo(
+        session,
+        actor,
+        int(photo.id),
+        int(document.row_version),
+        reason or "EOAT profile photo selected through the dedicated editor",
+    )
+
+
 def engineering_profile(session: Session, identifier: str) -> dict[str, Any]:
     eoat = session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == identifier))
     if eoat is None:

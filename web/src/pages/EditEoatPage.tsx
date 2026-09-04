@@ -203,6 +203,10 @@ export function EditEoatPage() {
         />
       </section>
       <EngineeringEditor identifier={value.business_identifier} />
+      <ProfilePhotoSelector
+        identifier={value.business_identifier}
+        onSaved={() => void profile.refetch()}
+      />
       <section className="onboarding-card">
         <h2>Assignment, compatibility, and media</h2>
         <p>
@@ -230,6 +234,70 @@ export function EditEoatPage() {
           Return to profile
         </Link>
       </p>
+    </section>
+  );
+}
+
+export function ProfilePhotoSelector({
+  identifier,
+  onSaved,
+}: {
+  identifier: string;
+  onSaved: () => void;
+}) {
+  const session = useQuery({
+    queryKey: ["auth", "session"],
+    queryFn: () => apiClient.getAuthenticatedSession(),
+  });
+  const maySelect = sessionHasPermission(session.data, "photo.edit");
+  const photos = useQuery({
+    queryKey: ["eoat", identifier, "photos"],
+    queryFn: () => apiClient.getEoatPhotos(identifier),
+    enabled: maySelect,
+  });
+  const [busyUuid, setBusyUuid] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  if (!maySelect) return null;
+  if (photos.isPending) return <LoadingState label="Loading EOAT photos…" />;
+  if (photos.isError) return <ErrorState error={photos.error} />;
+  if (!photos.data?.length) return null;
+  async function select(documentUuid: string) {
+    setBusyUuid(documentUuid);
+    setMessage("");
+    try {
+      await apiClient.selectOnboardingProfilePhoto(identifier, documentUuid);
+      await photos.refetch();
+      onSaved();
+      setMessage("Profile photo updated.");
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "Profile photo could not be updated.");
+    } finally {
+      setBusyUuid(null);
+    }
+  }
+  return (
+    <section className="onboarding-card">
+      <h2>Profile photo</h2>
+      <p>Select the preferred EOAT photo. This uses the existing audited profile-photo change path.</p>
+      <div className="onboarding-photo-selector">
+        {photos.data.map((photo) => (
+          <button
+            type="button"
+            key={photo.document_uuid}
+            className={photo.is_profile_photo ? "selected" : undefined}
+            aria-pressed={photo.is_profile_photo}
+            disabled={Boolean(busyUuid) || photo.is_profile_photo}
+            onClick={() => void select(photo.document_uuid)}
+          >
+            {photo.content_delivery_state === "AVAILABLE" && (
+              <img src={apiClient.photoThumbnailUrl(photo.document_uuid)} alt="" />
+            )}
+            <span>{photo.title}</span>
+            <small>{photo.is_profile_photo ? "Current profile photo" : "Set as profile photo"}</small>
+          </button>
+        ))}
+      </div>
+      {message && <p role="status">{message}</p>}
     </section>
   );
 }

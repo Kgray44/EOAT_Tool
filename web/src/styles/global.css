@@ -103,6 +103,32 @@ a {
   padding: 0;
   border: 0;
 }
+
+.onboarding-photo-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.8rem;
+}
+.onboarding-photo-selector button {
+  display: grid;
+  gap: 0.4rem;
+  overflow: hidden;
+  padding: 0.6rem;
+  color: var(--atlas-text-primary);
+  text-align: left;
+  background: var(--atlas-input-background);
+  border: 1px solid var(--atlas-border);
+  border-radius: 10px;
+}
+.onboarding-photo-selector button.selected {
+  border-color: var(--atlas-accent);
+}
+.onboarding-photo-selector img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+}
 .onboarding-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

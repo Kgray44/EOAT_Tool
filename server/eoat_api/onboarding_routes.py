@@ -15,6 +15,8 @@ from .onboarding_contracts import (
     OnboardingMediaArchive,
     OnboardingMediaCreate,
     OnboardingMediaUpload,
+    OnboardingProfilePhotoSelect,
+    OnboardingProfilePhotoSelectionResult,
 )
 from .onboarding_services import (
     create_draft,
@@ -26,6 +28,7 @@ from .onboarding_services import (
     remove_staged_media,
     require_onboarding_enabled,
     review_draft,
+    select_eoat_profile_photo,
     stage_media,
     stage_uploaded_media,
     update_draft,
@@ -176,6 +179,19 @@ def remove_media(
 ):
     require_onboarding_enabled()
     return remove_staged_media(session, actor, draft_uuid, media_id, payload.expected_row_version)
+
+
+@router.post("/eoats/{identifier}/photos/{document_uuid}/set-profile")
+def select_profile_photo(
+    identifier: str,
+    document_uuid: str,
+    payload: OnboardingProfilePhotoSelect,
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require("photo.edit")),
+) -> OnboardingProfilePhotoSelectionResult:
+    require_onboarding_enabled()
+    result = select_eoat_profile_photo(session, actor, identifier, document_uuid, payload.reason)
+    return OnboardingProfilePhotoSelectionResult(row_version=result["row_version"])
 
 
 @router.post("/drafts/{draft_uuid}/finalize")

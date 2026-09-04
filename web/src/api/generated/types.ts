@@ -2255,6 +2255,23 @@ export interface paths {
         patch: operations["patch_engineering_api_v1_onboarding_eoats__identifier__engineering_patch"];
         trace?: never;
     };
+    "/api/v1/onboarding/eoats/{identifier}/photos/{document_uuid}/set-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Select Profile Photo */
+        post: operations["select_profile_photo_api_v1_onboarding_eoats__identifier__photos__document_uuid__set_profile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/onboarding/status": {
         parameters: {
             query?: never;
@@ -4412,6 +4429,16 @@ export interface components {
             storage_path: string;
             /** Title */
             title: string;
+        };
+        /** OnboardingProfilePhotoSelect */
+        OnboardingProfilePhotoSelect: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** OnboardingProfilePhotoSelectionResult */
+        OnboardingProfilePhotoSelectionResult: {
+            /** Row Version */
+            row_version: number;
         };
         /** PaginatedEOATs */
         PaginatedEOATs: {
@@ -9692,6 +9719,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_profile_photo_api_v1_onboarding_eoats__identifier__photos__document_uuid__set_profile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingProfilePhotoSelect"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingProfilePhotoSelectionResult"];
                 };
             };
             /** @description Validation Error */
