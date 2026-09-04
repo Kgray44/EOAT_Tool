@@ -138,6 +138,8 @@ export function EoatOnboardingPage() {
     return () => URL.revokeObjectURL(url);
   }, [mediaKind, selectedMedia]);
   const mayCreate = sessionHasPermission(session, "onboarding.draft.create");
+  const mayEdit = sessionHasPermission(session, "onboarding.draft.edit");
+  const mayReview = sessionHasPermission(session, "onboarding.draft.review");
   const mayFinalize = sessionHasPermission(
     session,
     "onboarding.draft.finalize",
@@ -176,7 +178,7 @@ export function EoatOnboardingPage() {
     [compatibility, engineering, identity, location],
   );
   useEffect(() => {
-    if (!draft?.draft_uuid || !mayCreate) return;
+    if (!draft?.draft_uuid || !mayEdit) return;
     setSaveStatus("Changes pending…");
     const timer = window.setTimeout(() => {
       const current = draftRef.current;
@@ -202,7 +204,7 @@ export function EoatOnboardingPage() {
         );
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [areaCode, draft?.draft_uuid, identity.business_identifier, mayCreate, payload, plantCode]);
+  }, [areaCode, draft?.draft_uuid, identity.business_identifier, mayEdit, payload, plantCode]);
   useEffect(() => {
     if (saveStatus !== "Changes pending…" && saveStatus !== "Saving…") return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -213,7 +215,7 @@ export function EoatOnboardingPage() {
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
   }, [saveStatus]);
   async function save() {
-    if (!mayCreate) return;
+    if (draft ? !mayEdit : !mayCreate) return;
     setBusy(true);
     setError("");
     try {
@@ -260,7 +262,7 @@ export function EoatOnboardingPage() {
     }
   }
   async function generateIdentifier() {
-    if (!draft) {
+    if (!draft || !mayEdit) {
       setError("Save the draft with its plant code before generating an identifier.");
       return;
     }
@@ -287,7 +289,7 @@ export function EoatOnboardingPage() {
     }
   }
   async function uploadMedia() {
-    if (!draft || !selectedMedia || !mediaTitle) return;
+    if (!draft || !mayEdit || !selectedMedia || !mediaTitle) return;
     setBusy(true);
     setMediaStatus("");
     try {
@@ -322,7 +324,7 @@ export function EoatOnboardingPage() {
     }
   }
   async function removeMedia(mediaId: number) {
-    if (!draft) return;
+    if (!draft || !mayEdit) return;
     setBusy(true);
     setMediaStatus("");
     try {
@@ -389,15 +391,17 @@ export function EoatOnboardingPage() {
             <Link className="profile-edit-button" to={`/eoats/${encodeURIComponent(finalizedIdentifier)}`}>
               View profile
             </Link>{" "}
-            <Link className="profile-edit-button" to="/eoats/new">
-              Add another EOAT
-            </Link>
+            {mayCreate && (
+              <Link className="profile-edit-button" to="/eoats/new">
+                Add another EOAT
+              </Link>
+            )}
           </p>
           <QrLabel category="eoat" identifier={finalizedIdentifier} />
         </section>
       </section>
     );
-  if (!mayCreate)
+  if ((!draftUuid && !mayCreate) || (draftUuid && !mayEdit && !mayReview && !mayFinalize))
     return (
       <section className="onboarding-page">
         <h1>EOAT onboarding</h1>
@@ -419,6 +423,11 @@ export function EoatOnboardingPage() {
             {saveStatus}
           </p>
         )}
+        {draft && !mayEdit && (
+          <p className="onboarding-save-status" role="status">
+            You can review this draft, but you do not have permission to change it.
+          </p>
+        )}
       </header>
       <nav className="onboarding-steps" aria-label="Onboarding sections">
         {steps.map((label, index) => (
@@ -435,6 +444,7 @@ export function EoatOnboardingPage() {
         ))}
       </nav>
       <section className="onboarding-card">
+        <fieldset className="onboarding-fields" disabled={busy || Boolean(draft) && !mayEdit}>
         {step === 0 && (
           <div className="onboarding-grid">
             <Field
@@ -457,7 +467,7 @@ export function EoatOnboardingPage() {
               required
             />
             {draft && (
-              <button type="button" disabled={busy || !plantCode} onClick={() => void generateIdentifier()}>
+              <button type="button" disabled={busy || !mayEdit || !plantCode} onClick={() => void generateIdentifier()}>
                 Generate next identifier
               </button>
             )}
@@ -910,6 +920,7 @@ export function EoatOnboardingPage() {
               type="button"
               disabled={
                 !draft ||
+                !mayEdit ||
                 !selectedMedia ||
                 !mediaTitle ||
                 busy ||
@@ -929,7 +940,7 @@ export function EoatOnboardingPage() {
                     </span>
                     <button
                       type="button"
-                      disabled={busy}
+                      disabled={busy || !mayEdit}
                       onClick={() => void removeMedia(media.id)}
                     >
                       Remove
@@ -940,6 +951,7 @@ export function EoatOnboardingPage() {
             )}
           </div>
         )}
+        </fieldset>
         {step === 5 && (
           <div>
             <h2>Review</h2>
@@ -992,7 +1004,7 @@ export function EoatOnboardingPage() {
           >
             Back
           </button>
-          <button type="button" onClick={() => void save()} disabled={busy}>
+          <button type="button" onClick={() => void save()} disabled={busy || (draft ? !mayEdit : !mayCreate)}>
             {busy ? "Saving…" : draft ? "Save draft" : "Start draft"}
           </button>
           {draft && mayDiscard && (

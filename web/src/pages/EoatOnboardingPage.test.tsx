@@ -1,17 +1,20 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { apiClient } from "@/api/client";
 import { EoatOnboardingPage } from "./EoatOnboardingPage";
 
-function renderPage() {
+function renderPage(path = "/eoats/new") {
   return render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MemoryRouter>
-        <EoatOnboardingPage />
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/eoats/new" element={<EoatOnboardingPage />} />
+          <Route path="/eoats/new/:draftUuid" element={<EoatOnboardingPage />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -100,5 +103,31 @@ describe("EoatOnboardingPage", () => {
 
     expect(screen.queryByRole("textbox", { name: "Vacuum cup type" })).not.toBeInTheDocument();
     expect(screen.queryByRole("spinbutton", { name: "Cylinder count" })).not.toBeInTheDocument();
+  });
+
+  it("lets an authorized finalizer review a prepared draft without exposing draft mutation", async () => {
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: true });
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      permissions: ["onboarding.draft.finalize"],
+    });
+    vi.spyOn(apiClient, "getOnboardingDraft").mockResolvedValue({
+      draft_uuid: "draft-1",
+      proposed_identifier: "P4-EOAT-0101",
+      plant_code: "P4",
+      area_code: null,
+      lifecycle_state: "DRAFT",
+      completion_state: "READY_FOR_REVIEW",
+      payload: { identity: { business_identifier: "P4-EOAT-0101", eoat_type: "vacuum" } },
+      row_version: 1,
+      updated_at: "2026-09-04T00:00:00Z",
+      staged_media: [],
+    });
+
+    renderPage("/eoats/new/draft-1");
+
+    expect(await screen.findByText(/You can review this draft/)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "EOAT identifier *" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
   });
 });
