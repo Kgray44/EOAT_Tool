@@ -955,13 +955,14 @@ function RelationshipSection({
   location: Identity;
   onLocationChange: (value: Identity) => void;
 }) {
+  const [search, setSearch] = useState("");
   const machines = useQuery({
-    queryKey: ["onboarding", "machines"],
-    queryFn: () => apiClient.getCatalogOptions("machine"),
+    queryKey: ["onboarding", "machines", search],
+    queryFn: () => apiClient.getCatalogOptions("machine", search),
   });
   const tools = useQuery({
-    queryKey: ["onboarding", "tools"],
-    queryFn: () => apiClient.getCatalogOptions("tool"),
+    queryKey: ["onboarding", "tools", search],
+    queryFn: () => apiClient.getCatalogOptions("tool", search),
   });
   const statuses = useQuery({
     queryKey: ["onboarding", "compatibility-statuses"],
@@ -991,6 +992,7 @@ function RelationshipSection({
       },
     ]);
     setTarget("");
+    setSearch("");
     setStatus("");
     setReason("");
   };
@@ -1093,6 +1095,17 @@ function RelationshipSection({
             <option value="eoat-machine">EOAT ↔ Machine</option>
             <option value="eoat-tool">EOAT ↔ Tool</option>
           </select>
+        </label>
+        <label>
+          <span>Search {type === "eoat-machine" ? "machines" : "Tools"}</span>
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setTarget("");
+            }}
+            placeholder="Type an identifier or name"
+          />
         </label>
         <label>
           <span>{type === "eoat-machine" ? "Machine" : "Tool"}</span>
