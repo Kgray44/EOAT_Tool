@@ -652,11 +652,41 @@ export function EoatOnboardingPage() {
               }
             />
             <Field
+              label="Cylinder type"
+              value={engineering.cylinder_type}
+              onChange={(value) => setEngineering({ ...engineering, cylinder_type: value })}
+            />
+            <Field
+              label="Gripper type"
+              value={engineering.gripper_type}
+              onChange={(value) => setEngineering({ ...engineering, gripper_type: value })}
+            />
+            <Field
               label="Gripper model"
               value={engineering.gripper_model}
               onChange={(value) =>
                 setEngineering({ ...engineering, gripper_model: value })
               }
+            />
+            <Field
+              label="Gripper size"
+              value={engineering.gripper_size}
+              onChange={(value) => setEngineering({ ...engineering, gripper_size: value })}
+            />
+            <Field
+              label="Vacuum cup type"
+              value={engineering.vacuum_cup_type}
+              onChange={(value) => setEngineering({ ...engineering, vacuum_cup_type: value })}
+            />
+            <Field
+              label="Vacuum cup size"
+              value={engineering.vacuum_cup_size}
+              onChange={(value) => setEngineering({ ...engineering, vacuum_cup_size: value })}
+            />
+            <Field
+              label="Vacuum cup model"
+              value={engineering.vacuum_cup_model}
+              onChange={(value) => setEngineering({ ...engineering, vacuum_cup_model: value })}
             />
             <Field
               label="Vacuum generation"
@@ -682,6 +712,11 @@ export function EoatOnboardingPage() {
               onChange={(value) =>
                 setEngineering({ ...engineering, sensor_models: value })
               }
+            />
+            <Field
+              label="Sensor types"
+              value={engineering.sensor_types}
+              onChange={(value) => setEngineering({ ...engineering, sensor_types: value })}
             />
             <BooleanField
               label="Part-present sensor"
@@ -728,6 +763,22 @@ export function EoatOnboardingPage() {
               }
             />
             <Field
+              label="Interchangeable circuits"
+              type="number"
+              value={engineering.interchangeable_circuits}
+              onChange={(value) =>
+                setEngineering({ ...engineering, interchangeable_circuits: value === "" ? null : Number(value) })
+              }
+            />
+            <Field
+              label="External circuits"
+              type="number"
+              value={engineering.external_circuits}
+              onChange={(value) =>
+                setEngineering({ ...engineering, external_circuits: value === "" ? null : Number(value) })
+              }
+            />
+            <Field
               label="Electrical pinout reference"
               value={engineering.electrical_pinout_reference}
               onChange={(value) =>
@@ -741,6 +792,15 @@ export function EoatOnboardingPage() {
                 setEngineering({ ...engineering, pneumatic_connection: value })
               }
             />
+            <label className="wide">
+              <span>Pneumatic notes</span>
+              <textarea
+                value={String(engineering.pneumatic_notes ?? "")}
+                onChange={(event) =>
+                  setEngineering({ ...engineering, pneumatic_notes: event.target.value })
+                }
+              />
+            </label>
           </div>
         )}
         {step === 3 && (
