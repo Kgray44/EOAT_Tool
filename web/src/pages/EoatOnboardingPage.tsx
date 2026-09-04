@@ -124,6 +124,12 @@ export function EoatOnboardingPage() {
   );
   const mayDiscard = sessionHasPermission(session, "onboarding.draft.discard");
   const complete = Boolean(identity.business_identifier && identity.eoat_type);
+  const review = useQuery({
+    queryKey: ["onboarding", draft?.draft_uuid, draft?.row_version, "review"],
+    queryFn: () => apiClient.reviewOnboardingDraft(draft!.draft_uuid),
+    enabled: step === steps.length - 1 && Boolean(draft),
+  });
+  const hasBlockingReviewErrors = Boolean(review.data?.blocking_errors.length);
   const stepComplete = [
     complete,
     Boolean(
@@ -719,6 +725,34 @@ export function EoatOnboardingPage() {
                 : "Blocking: enter an identifier and EOAT type before finalization."}
             </p>
             <p>Draft status: {draft ? draft.completion_state : "Not saved"}</p>
+            {review.isPending && draft && <p>Checking current records and staged media…</p>}
+            {review.data && (
+              <>
+                <h3>Blocking errors</h3>
+                {review.data.blocking_errors.length ? (
+                  <ul>
+                    {review.data.blocking_errors.map((item) => (
+                      <li key={item.code}>{item.message}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No current blocking errors.</p>
+                )}
+                <h3>Warnings</h3>
+                {review.data.warnings.length ? (
+                  <ul>
+                    {review.data.warnings.map((item) => (
+                      <li key={item.code}>{item.message}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No current warnings.</p>
+                )}
+              </>
+            )}
+            {review.isError && (
+              <p role="alert">The server review could not be completed. Finalization remains protected.</p>
+            )}
           </div>
         )}
         {error && (
@@ -750,7 +784,15 @@ export function EoatOnboardingPage() {
             <button
               type="button"
               onClick={() => void finalize()}
-              disabled={!draft || !complete || !mayFinalize || busy}
+              disabled={
+                !draft ||
+                !complete ||
+                !mayFinalize ||
+                busy ||
+                review.isPending ||
+                review.isError ||
+                hasBlockingReviewErrors
+              }
             >
               {mayFinalize ? "Create EOAT" : "Finalization approval required"}
             </button>

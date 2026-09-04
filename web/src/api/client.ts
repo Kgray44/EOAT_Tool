@@ -129,6 +129,10 @@ export type OnboardingStagedMedia = {
   caption?: string | null;
   row_version: number;
 };
+export type OnboardingReview = {
+  blocking_errors: Array<{ code: string; message: string }>;
+  warnings: Array<{ code: string; message: string }>;
+};
 export type EoatEngineeringProfile = Record<string, unknown> & {
   eoat_id: number;
   row_version: number;
@@ -414,6 +418,19 @@ export const apiClient = {
       ),
       ["eoat", "warnings"],
       "finalized EOAT",
+    );
+  },
+  async reviewOnboardingDraft(
+    draftUuid: string,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingReview> {
+    return assertObject<OnboardingReview>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/review`,
+        fetcher,
+      ),
+      ["blocking_errors", "warnings"],
+      "onboarding review",
     );
   },
   async discardOnboardingDraft(

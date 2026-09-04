@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -465,7 +466,9 @@ def update_engineering_profile(
     return record_dict(profile)
 
 
-def _validate_final_payload(session: Session, draft: db.EOATOnboardingDraft) -> tuple[dict[str, Any], dict[str, Any]]:
+def _validate_final_payload(
+    session: Session, draft: db.EOATOnboardingDraft, *, lock_reservation: bool = True
+) -> tuple[dict[str, Any], dict[str, Any]]:
     payload = draft.payload_json or {}
     identity = payload.get("identity") if isinstance(payload.get("identity"), dict) else {}
     identity = {
@@ -479,11 +482,12 @@ def _validate_final_payload(session: Session, draft: db.EOATOnboardingDraft) -> 
         raise APIError(
             409, "IDENTIFIER_RESERVATION_CONFLICT", "The final identifier no longer matches the active reservation."
         )
-    reservation = session.scalar(
-        select(db.EOATIdentifierReservation)
-        .where(db.EOATIdentifierReservation.normalized_identifier == values["business_identifier"])
-        .with_for_update()
+    reservation_stmt = select(db.EOATIdentifierReservation).where(
+        db.EOATIdentifierReservation.normalized_identifier == values["business_identifier"]
     )
+    if lock_reservation:
+        reservation_stmt = reservation_stmt.with_for_update()
+    reservation = session.scalar(reservation_stmt)
     if reservation is None or reservation.draft_id != draft.id or reservation.released_at is not None:
         raise APIError(
             409, "IDENTIFIER_RESERVATION_CONFLICT", "The identifier reservation is no longer active for this draft."
@@ -497,9 +501,91 @@ def _validate_final_payload(session: Session, draft: db.EOATOnboardingDraft) -> 
     return values, {key: value for key, value in engineering.items() if key in ENGINEERING_FIELDS}
 
 
+def review_draft(session: Session, actor: ActorContext, draft_uuid: str) -> dict[str, list[dict[str, str]]]:
+    """Re-evaluate a draft against live authoritative data without mutating it."""
+    draft = _draft(session, draft_uuid)
+    _assert_draft_editor(actor, draft)
+    blocking: list[dict[str, str]] = []
+    warnings: list[dict[str, str]] = []
+    if draft.lifecycle_state != "DRAFT":
+        blocking.append({"code": "DRAFT_NOT_EDITABLE", "message": "Only an active onboarding draft can be finalized."})
+        return {"blocking_errors": blocking, "warnings": warnings}
+    try:
+        values, _engineering = _validate_final_payload(session, draft, lock_reservation=False)
+    except (APIError, ValidationError) as exc:
+        blocking.append({"code": "IDENTITY_INVALID", "message": getattr(exc, "message", "Identity needs correction.")})
+        return {"blocking_errors": blocking, "warnings": warnings}
+    if not values.get("revision"):
+        warnings.append({"code": "REVISION_UNKNOWN", "message": "Revision is not recorded."})
+    if not values.get("frame_material"):
+        warnings.append({"code": "FRAME_MATERIAL_UNKNOWN", "message": "Frame material is not recorded."})
+    relations = (draft.payload_json or {}).get("compatibility", [])
+    if relations and not actor.permits("relationship.edit"):
+        blocking.append({"code": "RELATIONSHIP_PERMISSION_REQUIRED", "message": "Compatibility permission is required."})
+    for raw in relations:
+        relation_type = str(raw.get("relationship_type", ""))
+        target = str(raw.get("target") or "")
+        if relation_type not in {"eoat-machine", "eoat-tool"} or not target:
+            blocking.append({"code": "INVALID_RELATIONSHIP", "message": "A compatibility relationship is incomplete."})
+            continue
+        target = target.rsplit("::", 1)[-1]
+        model, column = (
+            (db.Machine, db.Machine.machine_number)
+            if relation_type == "eoat-machine"
+            else (db.Tool, db.Tool.business_identifier)
+        )
+        if session.scalar(select(model.id).where(column == target, model.is_active.is_(True))) is None:
+            blocking.append({"code": "RELATIONSHIP_TARGET_UNAVAILABLE", "message": f"{target} is no longer available."})
+    if not relations:
+        warnings.append({"code": "NO_COMPATIBILITY", "message": "No approved machine or Tool compatibility is recorded."})
+    location = (draft.payload_json or {}).get("location") or {}
+    if location.get("kind") == "machine":
+        if not actor.permits("assignment.edit"):
+            blocking.append({"code": "ASSIGNMENT_PERMISSION_REQUIRED", "message": "Assignment permission is required."})
+        machine_number = str(location.get("machine_number") or "").rsplit("::", 1)[-1]
+        if not machine_number or session.scalar(
+            select(db.Machine.id).where(db.Machine.machine_number == machine_number, db.Machine.is_active.is_(True))
+        ) is None:
+            blocking.append({"code": "MACHINE_UNAVAILABLE", "message": "The selected installed machine is unavailable."})
+    elif location.get("kind") == "storage":
+        if not actor.permits("assignment.edit"):
+            blocking.append({"code": "ASSIGNMENT_PERMISSION_REQUIRED", "message": "Assignment permission is required."})
+        storage_code = str(location.get("storage_location_code") or "")
+        if not storage_code or session.scalar(
+            select(db.StorageLocation.id).where(
+                db.StorageLocation.location_code == storage_code, db.StorageLocation.is_active.is_(True)
+            )
+        ) is None:
+            blocking.append({"code": "STORAGE_UNAVAILABLE", "message": "The selected storage location is unavailable."})
+    media_rows = session.scalars(
+        select(db.EOATOnboardingStagedMedia).where(
+            db.EOATOnboardingStagedMedia.draft_id == draft.id, db.EOATOnboardingStagedMedia.is_active.is_(True)
+        )
+    ).all()
+    if not any((row.photo_view_type or "").upper() == "FRONT" for row in media_rows):
+        warnings.append({"code": "NO_FRONT_PHOTO", "message": "No FRONT photo is staged for the profile image."})
+    for media in media_rows:
+        try:
+            path = _validate_document_path(media.storage_path)
+        except APIError:
+            blocking.append({"code": "MEDIA_PATH_INVALID", "message": f"{media.file_name} is outside the controlled media roots."})
+            continue
+        if not path.is_file():
+            blocking.append({"code": "MEDIA_MISSING", "message": f"{media.file_name} is no longer available in staging."})
+    return {"blocking_errors": blocking, "warnings": warnings}
+
+
 def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expected: int) -> dict[str, Any]:
     draft = _draft(session, draft_uuid, lock=True)
     _check_draft_version(draft, expected)
+    review = review_draft(session, actor, draft_uuid)
+    if review["blocking_errors"]:
+        raise APIError(
+            422,
+            "ONBOARDING_BLOCKING_ERRORS",
+            "Resolve the blocking onboarding errors before finalization.",
+            details=review,
+        )
     values, engineering = _validate_final_payload(session, draft)
     eoat = create_asset(session, actor, "eoat", values.copy())
     eoat_id = int(eoat["id"])
@@ -628,5 +714,5 @@ def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expec
     return {
         "draft": _draft_summary(session, draft),
         "eoat": eoat,
-        "warnings": [] if profile_photo_id else ["No FRONT photo was staged; no profile image was selected."],
+        "warnings": [item["message"] for item in review["warnings"]],
     }

@@ -23,6 +23,7 @@ from .onboarding_services import (
     list_drafts,
     remove_staged_media,
     require_onboarding_enabled,
+    review_draft,
     stage_media,
     stage_uploaded_media,
     update_draft,
@@ -168,3 +169,13 @@ def finalize(
 ):
     require_onboarding_enabled()
     return finalize_draft(session, actor, draft_uuid, payload.expected_row_version)
+
+
+@router.get("/drafts/{draft_uuid}/review")
+def review(
+    draft_uuid: str,
+    session: Session = Depends(get_runtime_session),
+    actor: ActorContext = Depends(require("onboarding.draft.view")),
+):
+    require_onboarding_enabled()
+    return review_draft(session, actor, draft_uuid)

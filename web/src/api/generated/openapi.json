@@ -15086,6 +15086,46 @@
         ]
       }
     },
+    "/api/v1/onboarding/drafts/{draft_uuid}/review": {
+      "get": {
+        "operationId": "review_api_v1_onboarding_drafts__draft_uuid__review_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
     "/api/v1/onboarding/eoats/{identifier}/engineering": {
       "get": {
         "operationId": "get_engineering_api_v1_onboarding_eoats__identifier__engineering_get",
