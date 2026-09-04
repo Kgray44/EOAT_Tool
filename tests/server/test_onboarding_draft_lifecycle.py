@@ -94,3 +94,20 @@ def test_draft_reserves_identifier_resumes_and_rejects_stale_updates(monkeypatch
             draft["draft_uuid"],
             {**payload, "expected_row_version": draft["row_version"]},
         )
+
+    other_actor = ActorContext(
+        user_id=2,
+        identity="test.other-technician",
+        display_name="Other Technician",
+        role="TECHNICIAN",
+        request_id="onboarding-draft-other-user",
+        application_instance_id=None,
+        client_version=None,
+    )
+    with pytest.raises(APIError, match="cannot edit"):
+        update_draft(
+            session,
+            other_actor,
+            draft["draft_uuid"],
+            {**payload, "expected_row_version": resumed["row_version"]},
+        )
