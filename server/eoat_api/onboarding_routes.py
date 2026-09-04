@@ -31,7 +31,7 @@ from .onboarding_services import (
     update_draft,
     update_engineering_profile,
 )
-from .security import ActorContext, require
+from .security import ActorContext, require, require_any
 
 router = APIRouter(prefix="/api/v1/onboarding", tags=["eoat-onboarding"])
 
@@ -68,7 +68,10 @@ def patch_engineering(
 
 @router.get("/drafts")
 def drafts(
-    session: Session = Depends(get_runtime_session), actor: ActorContext = Depends(require("onboarding.draft.view"))
+    session: Session = Depends(get_runtime_session),
+    actor: ActorContext = Depends(
+        require_any("onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize")
+    ),
 ):
     require_onboarding_enabled()
     return list_drafts(session, actor)
@@ -88,16 +91,17 @@ def create(
 def get_draft(
     draft_uuid: str,
     session: Session = Depends(get_runtime_session),
-    actor: ActorContext = Depends(require("onboarding.draft.view")),
+    actor: ActorContext = Depends(
+        require_any("onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize")
+    ),
 ):
     require_onboarding_enabled()
     from .onboarding_services import _draft, _draft_summary
 
     draft = _draft(session, draft_uuid)
-    if draft.created_by_user_id != actor.user_id and not actor.permits("onboarding.draft.review"):
-        from .errors import APIError
+    from .onboarding_services import _assert_draft_viewer
 
-        raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot view this onboarding draft.")
+    _assert_draft_viewer(actor, draft)
     return _draft_summary(session, draft)
 
 
@@ -189,7 +193,9 @@ def finalize(
 def review(
     draft_uuid: str,
     session: Session = Depends(get_runtime_session),
-    actor: ActorContext = Depends(require("onboarding.draft.view")),
+    actor: ActorContext = Depends(
+        require_any("onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize")
+    ),
 ):
     require_onboarding_enabled()
     return review_draft(session, actor, draft_uuid)

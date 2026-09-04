@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { apiClient } from "@/api/client";
+import { apiClient, sessionHasPermission } from "@/api/client";
 import { ErrorState, LoadingState } from "@/components/feedback/StateViews";
 
 export function OnboardingDraftsPage() {
@@ -9,6 +9,12 @@ export function OnboardingDraftsPage() {
     queryKey: ["onboarding", "drafts"],
     queryFn: () => apiClient.listOnboardingDrafts(),
   });
+  const session = useQuery({
+    queryKey: ["session"],
+    queryFn: () => apiClient.getAuthenticatedSession(),
+  });
+  const mayCreate = sessionHasPermission(session.data, "onboarding.draft.create");
+  const mayDiscard = sessionHasPermission(session.data, "onboarding.draft.discard");
   if (drafts.isPending)
     return <LoadingState label="Loading onboarding drafts…" />;
   if (drafts.isError) return <ErrorState error={drafts.error} />;
@@ -22,11 +28,13 @@ export function OnboardingDraftsPage() {
           labels until finalization.
         </p>
       </header>
-      <p>
-        <Link className="profile-edit-button" to="/eoats/new">
-          Add New EOAT
-        </Link>
-      </p>
+      {mayCreate && (
+        <p>
+          <Link className="profile-edit-button" to="/eoats/new">
+            Add New EOAT
+          </Link>
+        </p>
+      )}
       <section className="onboarding-card">
         <div className="onboarding-draft-list">
           {drafts.data?.length ? (
@@ -52,20 +60,22 @@ export function OnboardingDraftsPage() {
                   >
                     Resume
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm("Discard this onboarding draft?"))
-                        void apiClient
-                          .discardOnboardingDraft(
-                            draft.draft_uuid,
-                            draft.row_version,
-                          )
-                          .then(() => void drafts.refetch());
-                    }}
-                  >
-                    Discard
-                  </button>
+                  {mayDiscard && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("Discard this onboarding draft?"))
+                          void apiClient
+                            .discardOnboardingDraft(
+                              draft.draft_uuid,
+                              draft.row_version,
+                            )
+                            .then(() => void drafts.refetch());
+                      }}
+                    >
+                      Discard
+                    </button>
+                  )}
                 </div>
               </article>
             ))

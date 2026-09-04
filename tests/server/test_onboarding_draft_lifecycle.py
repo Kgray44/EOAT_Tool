@@ -8,8 +8,14 @@ from sqlalchemy.orm import Session
 
 from server.eoat_api.database import models as db
 from server.eoat_api.errors import APIError
-from server.eoat_api.onboarding_services import _assert_draft_editor, _assert_draft_viewer, create_draft, update_draft
-from server.eoat_api.security import ActorContext
+from server.eoat_api.onboarding_services import (
+    _assert_draft_editor,
+    _assert_draft_viewer,
+    create_draft,
+    list_drafts,
+    update_draft,
+)
+from server.eoat_api.security import ActorContext, require_any
 
 
 @pytest.fixture
@@ -114,7 +120,18 @@ def test_draft_reserves_identifier_resumes_and_rejects_stale_updates(monkeypatch
         )
 
 
-def test_finalizer_can_review_another_draft_without_editing_it():
+def test_finalizer_can_review_another_draft_without_editing_it(monkeypatch, session, actor):
+    monkeypatch.setattr("server.eoat_api.onboarding_services.audit_change", lambda *_args, **_kwargs: None)
+    created = create_draft(
+        session,
+        actor,
+        {
+            "proposed_identifier": "P4-EOAT-0102",
+            "plant_code": "P4",
+            "payload": {"identity": {"business_identifier": "P4-EOAT-0102", "eoat_type": "vacuum"}},
+        },
+    )
+    session.flush()
     draft = type("Draft", (), {"created_by_user_id": 1})()
     finalizer = ActorContext(
         user_id=2,
@@ -128,5 +145,10 @@ def test_finalizer_can_review_another_draft_without_editing_it():
     )
 
     _assert_draft_viewer(finalizer, draft)
+    assert (
+        require_any("onboarding.draft.view", "onboarding.draft.review", "onboarding.draft.finalize")(finalizer)
+        is finalizer
+    )
+    assert [row["draft_uuid"] for row in list_drafts(session, finalizer)] == [created["draft_uuid"]]
     with pytest.raises(APIError, match="cannot edit"):
         _assert_draft_editor(finalizer, draft)

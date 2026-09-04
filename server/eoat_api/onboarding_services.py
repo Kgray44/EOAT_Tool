@@ -380,7 +380,7 @@ def list_drafts(session: Session, actor: ActorContext) -> list[dict[str, Any]]:
         .where(db.EOATOnboardingDraft.lifecycle_state == "DRAFT")
         .order_by(db.EOATOnboardingDraft.updated_at.desc())
     ).all()
-    if actor.permits("onboarding.draft.review"):
+    if actor.permits("onboarding.draft.review") or actor.permits("onboarding.draft.finalize"):
         return [_draft_summary(session, row) for row in rows]
     return [_draft_summary(session, row) for row in rows if row.created_by_user_id == actor.user_id]
 

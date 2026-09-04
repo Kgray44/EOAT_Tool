@@ -450,6 +450,17 @@ def require(permission: str):
     return dependency
 
 
+def require_any(*permissions: str):
+    """Require one of several explicitly equivalent route capabilities."""
+
+    def dependency(actor: ActorContext = Depends(actor_context)) -> ActorContext:
+        if not any(actor.permits(permission) for permission in permissions):
+            raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this permission.")
+        return actor
+
+    return dependency
+
+
 def require_admin(permission: str):
     def dependency(actor: ActorContext = Depends(read_actor_context)) -> ActorContext:
         if not actor.permits(permission):
