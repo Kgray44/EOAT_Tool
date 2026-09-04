@@ -4,6 +4,9 @@ import { Link, useParams } from "react-router-dom";
 import { apiClient, sessionHasPermission } from "@/api/client";
 import { ApiError } from "@/api/errors";
 import { EntityEditor } from "@/components/profile/EntityEditor";
+import { CompatibilityEditor } from "@/components/profile/CompatibilityEditor";
+import { InstallationEditor } from "@/components/profile/InstallationEditor";
+import { MediaUpload } from "@/components/profile/MediaUpload";
 import { ErrorState, LoadingState } from "@/components/feedback/StateViews";
 
 /** Dedicated, wide editing route; the profile remains the read-only record view. */
@@ -37,6 +40,11 @@ export function EditEoatPage() {
           onSaved={() => void profile.refetch()}
           fields={[
             {
+              key: "legacy_identifier",
+              label: "Legacy identifier",
+              value: value.legacy_identifier,
+            },
+            {
               key: "display_name",
               label: "Display name",
               value: value.display_name,
@@ -54,12 +62,30 @@ export function EditEoatPage() {
               catalog: "eoat_type",
             },
             {
+              key: "connection_type",
+              label: "Connection type",
+              value: value.connection_type,
+              catalog: "connection_type",
+            },
+            {
+              key: "cleanroom_classification",
+              label: "Environment / classification",
+              value: value.cleanroom_classification,
+              catalog: "cleanroom",
+            },
+            {
               key: "status",
               label: "Status",
               value: value.status,
               catalog: "status",
             },
             { key: "revision", label: "Revision", value: value.revision },
+            {
+              key: "number_of_parts_picked",
+              label: "Parts picked",
+              kind: "number",
+              value: value.number_of_parts_picked,
+            },
             {
               key: "number_of_vacuum_cups",
               label: "Vacuum cups",
@@ -85,6 +111,68 @@ export function EditEoatPage() {
               value: value.sensors_present,
             },
             {
+              key: "part_present_sensor_present",
+              label: "Part-present sensor",
+              kind: "boolean",
+              value: value.part_present_sensor_present,
+            },
+            {
+              key: "vacuum_confirmation_sensor_present",
+              label: "Vacuum-confirmation sensor",
+              kind: "boolean",
+              value: value.vacuum_confirmation_sensor_present,
+            },
+            {
+              key: "quick_disconnect_present",
+              label: "Quick disconnect",
+              kind: "boolean",
+              value: value.quick_disconnect_present,
+            },
+            {
+              key: "cup_material",
+              label: "Cup material",
+              value: value.cup_material,
+            },
+            {
+              key: "frame_material",
+              label: "Frame material",
+              value: value.frame_material,
+            },
+            {
+              key: "weight_kg",
+              label: "Weight (kg)",
+              kind: "number",
+              value: value.weight_kg,
+            },
+            {
+              key: "maximum_payload_kg",
+              label: "Maximum payload (kg)",
+              kind: "number",
+              value: value.maximum_payload_kg,
+            },
+            {
+              key: "drawing_number",
+              label: "Drawing number",
+              value: value.drawing_number,
+            },
+            {
+              key: "manufacturer",
+              label: "Manufacturer",
+              value: value.manufacturer,
+            },
+            {
+              key: "date_built",
+              label: "Date built",
+              kind: "date",
+              value: value.date_built,
+            },
+            {
+              key: "date_commissioned",
+              label: "Date commissioned",
+              kind: "date",
+              value: value.date_commissioned,
+            },
+            {
               key: "notes",
               label: "Notes",
               kind: "textarea",
@@ -94,6 +182,28 @@ export function EditEoatPage() {
         />
       </section>
       <EngineeringEditor identifier={value.business_identifier} />
+      <section className="onboarding-card">
+        <h2>Assignment, compatibility, and media</h2>
+        <p>
+          These actions use the established governed paths and remain separate:
+          current assignment does not imply compatibility.
+        </p>
+        <CompatibilityEditor
+          kind="eoat"
+          identifier={value.business_identifier}
+          onSaved={() => void profile.refetch()}
+        />
+        <InstallationEditor
+          identifier={value.business_identifier}
+          rowVersion={value.row_version}
+          onSaved={() => void profile.refetch()}
+        />
+        <MediaUpload
+          entityType="eoat"
+          identifier={value.business_identifier}
+          onSaved={() => void profile.refetch()}
+        />
+      </section>
       <p>
         <Link to={`/eoats/${encodeURIComponent(value.business_identifier)}`}>
           Return to profile
