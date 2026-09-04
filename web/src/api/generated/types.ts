@@ -2138,6 +2138,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding/drafts/{draft_uuid}/media/{media_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Media */
+        post: operations["remove_media_api_v1_onboarding_drafts__draft_uuid__media__media_id__remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/onboarding/status": {
         parameters: {
             query?: never;
@@ -4180,6 +4197,11 @@ export interface components {
         };
         /** OnboardingFinalize */
         OnboardingFinalize: {
+            /** Expected Row Version */
+            expected_row_version: number;
+        };
+        /** OnboardingMediaArchive */
+        OnboardingMediaArchive: {
             /** Expected Row Version */
             expected_row_version: number;
         };
@@ -9239,6 +9261,42 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OnboardingMediaCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_media_api_v1_onboarding_drafts__draft_uuid__media__media_id__remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+                media_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingMediaArchive"];
             };
         };
         responses: {

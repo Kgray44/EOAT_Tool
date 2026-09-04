@@ -5438,6 +5438,21 @@
         "title": "OnboardingFinalize",
         "type": "object"
       },
+      "OnboardingMediaArchive": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_row_version": {
+            "minimum": 1.0,
+            "title": "Expected Row Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_row_version"
+        ],
+        "title": "OnboardingMediaArchive",
+        "type": "object"
+      },
       "OnboardingMediaCreate": {
         "additionalProperties": false,
         "properties": {
@@ -14514,6 +14529,65 @@
           }
         },
         "summary": "Media",
+        "tags": [
+          "eoat-onboarding"
+        ]
+      }
+    },
+    "/api/v1/onboarding/drafts/{draft_uuid}/media/{media_id}/remove": {
+      "post": {
+        "operationId": "remove_media_api_v1_onboarding_drafts__draft_uuid__media__media_id__remove_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_uuid",
+            "required": true,
+            "schema": {
+              "title": "Draft Uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "title": "Media Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingMediaArchive"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Media",
         "tags": [
           "eoat-onboarding"
         ]

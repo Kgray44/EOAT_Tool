@@ -10,6 +10,7 @@ from .onboarding_contracts import (
     OnboardingDraftDiscard,
     OnboardingDraftPatch,
     OnboardingFinalize,
+    OnboardingMediaArchive,
     OnboardingMediaCreate,
 )
 from .onboarding_services import (
@@ -17,6 +18,7 @@ from .onboarding_services import (
     discard_draft,
     finalize_draft,
     list_drafts,
+    remove_staged_media,
     require_onboarding_enabled,
     stage_media,
     update_draft,
@@ -102,6 +104,18 @@ def media(
     return stage_media(
         session, actor, draft_uuid, {**payload.model_dump(), "expected_row_version": expected_row_version}
     )
+
+
+@router.post("/drafts/{draft_uuid}/media/{media_id}/remove")
+def remove_media(
+    draft_uuid: str,
+    media_id: int,
+    payload: OnboardingMediaArchive,
+    session: Session = Depends(get_write_session),
+    actor: ActorContext = Depends(require("onboarding.draft.edit")),
+):
+    require_onboarding_enabled()
+    return remove_staged_media(session, actor, draft_uuid, media_id, payload.expected_row_version)
 
 
 @router.post("/drafts/{draft_uuid}/finalize")

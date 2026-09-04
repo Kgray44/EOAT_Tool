@@ -311,6 +311,40 @@ def stage_media(session: Session, actor: ActorContext, draft_uuid: str, payload:
     return {"id": media.id, "row_version": draft.row_version}
 
 
+def remove_staged_media(
+    session: Session, actor: ActorContext, draft_uuid: str, media_id: int, expected: int
+) -> dict[str, Any]:
+    draft = _draft(session, draft_uuid, lock=True)
+    _assert_draft_editor(actor, draft)
+    _check_draft_version(draft, expected)
+    media = session.scalar(
+        select(db.EOATOnboardingStagedMedia)
+        .where(db.EOATOnboardingStagedMedia.id == media_id, db.EOATOnboardingStagedMedia.draft_id == draft.id)
+        .with_for_update()
+    )
+    if media is None or not media.is_active:
+        raise not_found("staged onboarding media", media_id)
+    previous = record_dict(media)
+    media.is_active, media.archived_at, media.archived_by_user_id = False, utcnow(), actor.user_id
+    media.row_version += 1
+    media.updated_by_user_id = actor.user_id
+    draft.row_version += 1
+    draft.updated_by_user_id = actor.user_id
+    audit_change(
+        session,
+        actor,
+        entity_type="onboarding_draft",
+        entity_id=draft.id,
+        action="remove_staged_media",
+        previous=previous,
+        current=record_dict(media),
+        row_version=draft.row_version,
+        source_table=media.__tablename__,
+        source_record_id=media.id,
+    )
+    return {"id": media.id, "row_version": draft.row_version}
+
+
 def _validate_final_payload(session: Session, draft: db.EOATOnboardingDraft) -> tuple[dict[str, Any], dict[str, Any]]:
     payload = draft.payload_json or {}
     identity = payload.get("identity") if isinstance(payload.get("identity"), dict) else {}
