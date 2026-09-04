@@ -12,11 +12,32 @@ import { ErrorState, LoadingState } from "@/components/feedback/StateViews";
 /** Dedicated, wide editing route; the profile remains the read-only record view. */
 export function EditEoatPage() {
   const { identifier } = useParams();
+  const onboardingStatus = useQuery({
+    queryKey: ["onboarding", "status"],
+    queryFn: () => apiClient.getOnboardingStatus(),
+  });
   const profile = useQuery({
     queryKey: ["eoat", identifier],
     queryFn: () => apiClient.getEoatProfile(identifier!),
-    enabled: Boolean(identifier),
+    enabled: Boolean(identifier) && onboardingStatus.data?.enabled === true,
   });
+  if (onboardingStatus.isPending)
+    return <LoadingState label="Checking EOAT editing availability…" />;
+  if (onboardingStatus.isError)
+    return <ErrorState error={onboardingStatus.error} />;
+  if (!onboardingStatus.data?.enabled)
+    return (
+      <section className="onboarding-page">
+        <header>
+          <p className="eyebrow">Governed EOAT editing</p>
+          <h1>EOAT editing unavailable</h1>
+          <p>
+            EOAT onboarding and the dedicated editor are not enabled in this
+            environment.
+          </p>
+        </header>
+      </section>
+    );
   if (profile.isPending) return <LoadingState label="Loading EOAT editor…" />;
   if (profile.isError || !profile.data)
     return <ErrorState error={profile.error} />;

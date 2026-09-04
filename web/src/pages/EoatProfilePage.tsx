@@ -236,6 +236,10 @@ function ProfileContent({
   onSaved: () => void;
 }) {
   const [searchParams] = useSearchParams();
+  const onboardingStatus = useQuery({
+    queryKey: ["onboarding", "status"],
+    queryFn: () => apiClient.getOnboardingStatus(),
+  });
   useEffect(() => {
     rememberItem({
       category: "eoat",
@@ -314,12 +318,14 @@ function ProfileContent({
         )}
         actions={
           <ProfileActionMenu identifier={profile.business_identifier}>
-            <Link
-              className="profile-edit-button"
-              to={`/eoats/${encodeURIComponent(profile.business_identifier)}/edit`}
-            >
-              Edit EOAT
-            </Link>
+            {onboardingStatus.data?.enabled && (
+              <Link
+                className="profile-edit-button"
+                to={`/eoats/${encodeURIComponent(profile.business_identifier)}/edit`}
+              >
+                Edit EOAT
+              </Link>
+            )}
             <EntityEditor
               kind="eoat"
               identifier={profile.business_identifier}
