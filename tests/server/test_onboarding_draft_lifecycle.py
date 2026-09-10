@@ -15,6 +15,7 @@ from server.eoat_api.onboarding_services import (
     create_draft,
     finalize_draft,
     list_drafts,
+    review_draft,
     select_eoat_profile_photo,
     stage_uploaded_media,
     update_draft,
@@ -36,6 +37,8 @@ def session():
         tables=[
             db.User.__table__,
             db.EOATType.__table__,
+            db.ConnectionType.__table__,
+            db.CleanroomClassification.__table__,
             db.DocumentType.__table__,
             db.EOAT.__table__,
             db.EOATEngineeringProfile.__table__,
@@ -71,6 +74,8 @@ def session():
                     next_identifier += 1
 
         value.add(db.EOATType(code="vacuum", display_name="Vacuum"))
+        value.add(db.ConnectionType(id=1, code="ati", display_name="ATI"))
+        value.add(db.CleanroomClassification(id=1, code="non_cleanroom", display_name="Non-Cleanroom"))
         value.add(db.DocumentType(code="photo", display_name="Photo"))
         yield value
 
@@ -117,10 +122,56 @@ def _ready_draft(session, actor):
                 "identity": {
                     "business_identifier": "P4-EOAT-0201",
                     "eoat_type": "vacuum",
-                    "number_of_vacuum_cups": 0,
+                    "connection_type": "ati",
+                    "cleanroom_classification": "non_cleanroom",
+                    "number_of_parts_picked": 1,
+                    "number_of_vacuum_cups": 2,
                     "number_of_grippers": None,
-                    "vacuum_present": False,
-                }
+                    "vacuum_present": True,
+                    "quick_disconnect_present": True,
+                    "cup_material": "Silicone",
+                    "weight_kg": 4.5,
+                    "sensors_present": True,
+                    "part_present_sensor_present": True,
+                },
+                "engineering": {
+                    "cylinders_present": False,
+                    "vacuum_cup_type": "Bellows",
+                    "vacuum_cup_size": "30 mm",
+                    "vacuum_generation": "Venturi",
+                    "vacuum_circuits": 2,
+                    "pressure_circuits": 1,
+                    "interchangeable_circuits": 0,
+                    "pneumatic_connection": "PTC",
+                    "electrical_present": False,
+                    "sensor_types": "Reed Switch",
+                    "sensor_models": "SMC",
+                },
+                "command_center": {
+                    "audit_context": "Installed on Machine",
+                    "status": "In Progress",
+                    "priority": "Medium",
+                    "follow_up_needed": "No",
+                    "eoat_moves": "Part",
+                    "part_family": "Closure",
+                    "part_name_description": "Closure cap",
+                    "air_circuit_architecture": "Robot Only",
+                    "robot_vacuum_circuits": 2,
+                    "robot_pressure_circuits": 1,
+                    "robot_interchangeable_circuits": 0,
+                    "pneumatic_quick_disconnect_type": "PTC",
+                    "tubing_condition": "OK",
+                    "mounting_hardware_condition": "OK",
+                    "fastener_locking_hardware_present": "Yes",
+                    "cycle_time_concern": "No",
+                    "scrap_quality_concern": "No",
+                    "changeover_difficulty": "Low",
+                    "spare_parts_identified": "No",
+                    "drawing_cad_available": "No",
+                    "bom_available": "No",
+                    "process_binder_complete": "No",
+                    "photos_taken": "No",
+                },
             },
         },
     )
@@ -140,7 +191,7 @@ def test_draft_reserves_identifier_resumes_and_rejects_stale_updates(monkeypatch
     session.flush()
 
     assert draft["proposed_identifier"] == "P4-EOAT-0101"
-    assert draft["completion_state"] == "READY_FOR_REVIEW"
+    assert draft["completion_state"] == "INCOMPLETE"
     with pytest.raises(APIError, match="reserved"):
         create_draft(session, actor, {**payload, "payload": {"identity": {"eoat_type": "vacuum"}}})
 
@@ -241,7 +292,6 @@ def test_draft_editor_is_allowed_through_the_draft_visibility_route_gate():
 def test_finalization_creates_a_real_eoat_and_releases_the_reservation(monkeypatch, session, actor, engineer):
     _disable_audit(monkeypatch)
     draft = _ready_draft(session, actor)
-
     result = finalize_draft(session, engineer, draft["draft_uuid"], draft["row_version"])
 
     created = session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == "P4-EOAT-0201"))
@@ -255,9 +305,9 @@ def test_finalization_creates_a_real_eoat_and_releases_the_reservation(monkeypat
     )
 
     assert created is not None
-    assert created.number_of_vacuum_cups == 0
+    assert created.number_of_vacuum_cups == 2
     assert created.number_of_grippers is None
-    assert created.vacuum_present is False
+    assert created.vacuum_present is True
     assert result["eoat"]["id"] == created.id
     assert persisted_draft is not None and persisted_draft.lifecycle_state == "FINALIZED"
     assert persisted_draft.finalized_eoat_id == created.id
@@ -278,11 +328,13 @@ def test_finalization_retains_command_center_data_with_controlled_defaults(monke
             "payload": {
                 **draft["payload"],
                 "command_center": {
+                    **draft["payload"]["command_center"],
                     "eoat_moves": "Part",
                     "air_circuit_architecture": "Robot Only",
                     "external_pressure_circuits": "N/A",
                     "part_family": "Closure",
                     "tubing_condition": "OK",
+                        "changeover_difficulty": "Unknown / Not Checked",
                 },
             },
         },
@@ -299,6 +351,30 @@ def test_finalization_retains_command_center_data_with_controlled_defaults(monke
     assert profile.command_center_data["eoat_moves"] == "Part"
     assert profile.command_center_data["external_pressure_circuits"] == "N/A"
     assert profile.command_center_data["changeover_difficulty"] == "Unknown / Not Checked"
+
+
+def test_review_lists_each_missing_tracker_required_field(monkeypatch, session, actor):
+    _disable_audit(monkeypatch)
+    draft = _ready_draft(session, actor)
+    updated = update_draft(
+        session,
+        actor,
+        draft["draft_uuid"],
+        {
+            "expected_row_version": draft["row_version"],
+            "proposed_identifier": "P4-EOAT-0201",
+            "plant_code": "P4",
+            "payload": {
+                **draft["payload"],
+                "identity": {**draft["payload"]["identity"], "weight_kg": None},
+                "command_center": {**draft["payload"]["command_center"], "audit_context": None},
+            },
+        },
+    )
+
+    review = review_draft(session, actor, updated["draft_uuid"])
+
+    assert {item["code"] for item in review["blocking_errors"]} >= {"REQUIRED_WEIGHT", "REQUIRED_AUDIT_CONTEXT"}
 
 
 def test_finalization_requires_an_explicit_finalization_grant(monkeypatch, session, actor):

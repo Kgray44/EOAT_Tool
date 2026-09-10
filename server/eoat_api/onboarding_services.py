@@ -242,7 +242,7 @@ def generate_identifier(
     payload["identity"] = identity
     draft.proposed_identifier = candidate
     draft.payload_json = payload
-    draft.completion_state = _completion(payload)
+    draft.completion_state = _completion(payload, plant_code=draft.plant_code)
     draft.row_version += 1
     draft.updated_by_user_id = actor.user_id
     audit_change(
@@ -260,11 +260,122 @@ def generate_identifier(
     return _draft_summary(session, draft)
 
 
-def _completion(payload: dict[str, Any]) -> str:
+def _has_required_value(value: Any) -> bool:
+    """Treat zero and ``False`` as deliberate answers, not missing answers."""
+    return value is not None and (not isinstance(value, str) or bool(value.strip()))
+
+
+def _required_field_errors(
+    *, plant_code: str | None, identity: dict[str, Any], engineering: dict[str, Any], command_center: dict[str, Any]
+) -> list[dict[str, str]]:
+    """Return the tracker-calibrated finalization requirements.
+
+    These requirements intentionally apply only when a draft is reviewed or
+    finalized.  The Master Tracker has explicit unknown and N/A values, so an
+    intentionally selected controlled value is complete; an omitted field is
+    not.  Type-specific details are required only when that hardware applies.
+    """
+    missing: list[dict[str, str]] = []
+
+    def require(code: str, label: str, value: Any) -> None:
+        if not _has_required_value(value):
+            missing.append({"code": f"REQUIRED_{code}", "message": f"{label} is required."})
+
+    for code, label, value in (
+        ("PLANT_CODE", "Plant code", plant_code),
+        ("IDENTIFIER", "EOAT identifier", identity.get("business_identifier")),
+        ("EOAT_TYPE", "EOAT type", identity.get("eoat_type")),
+        ("CONNECTION_TYPE", "Robot connection / interface", identity.get("connection_type")),
+        ("ENVIRONMENT", "Environment / classification", identity.get("cleanroom_classification")),
+        ("PARTS_PICKED", "Parts picked", identity.get("number_of_parts_picked")),
+        ("VACUUM_PRESENT", "Vacuum presence", identity.get("vacuum_present")),
+        ("QUICK_DISCONNECT_PRESENT", "Quick disconnect presence", identity.get("quick_disconnect_present")),
+        ("WEIGHT", "Weight", identity.get("weight_kg")),
+        ("CYLINDERS_PRESENT", "Cylinder presence", engineering.get("cylinders_present")),
+        ("SENSORS_PRESENT", "Sensor presence", identity.get("sensors_present")),
+        ("ELECTRICAL_PRESENT", "Electrical presence", engineering.get("electrical_present")),
+        ("PRESSURE_CIRCUITS", "Pressure circuits", engineering.get("pressure_circuits")),
+        ("INTERCHANGEABLE_CIRCUITS", "Interchangeable circuits", engineering.get("interchangeable_circuits")),
+        ("PNEUMATIC_CONNECTION", "Pneumatic connection", engineering.get("pneumatic_connection")),
+        ("AUDIT_CONTEXT", "Audit context", command_center.get("audit_context")),
+        ("EOAT_MOVES", "EOAT moves", command_center.get("eoat_moves")),
+        ("PART_FAMILY", "Part family", command_center.get("part_family")),
+        ("PART_NAME", "Part name / description", command_center.get("part_name_description")),
+        ("AIR_ARCHITECTURE", "Air circuit architecture", command_center.get("air_circuit_architecture")),
+        ("ROBOT_VACUUM_CIRCUITS", "Robot vacuum circuits", command_center.get("robot_vacuum_circuits")),
+        ("ROBOT_PRESSURE_CIRCUITS", "Robot pressure circuits", command_center.get("robot_pressure_circuits")),
+        ("ROBOT_INTERCHANGEABLE_CIRCUITS", "Robot interchangeable circuits", command_center.get("robot_interchangeable_circuits")),
+        ("PNEUMATIC_QUICK_DISCONNECT", "Pneumatic quick disconnect type", command_center.get("pneumatic_quick_disconnect_type")),
+        ("TUBING_CONDITION", "Tubing condition", command_center.get("tubing_condition")),
+        ("MOUNTING_CONDITION", "Mounting hardware condition", command_center.get("mounting_hardware_condition")),
+        ("FASTENER_LOCKING", "Fastener / locking hardware", command_center.get("fastener_locking_hardware_present")),
+        ("CYCLE_TIME", "Cycle-time concern", command_center.get("cycle_time_concern")),
+        ("SCRAP_QUALITY", "Scrap / quality concern", command_center.get("scrap_quality_concern")),
+        ("CHANGEOVER", "Changeover difficulty", command_center.get("changeover_difficulty")),
+        ("SPARE_PARTS", "Spare parts identified", command_center.get("spare_parts_identified")),
+        ("DRAWING_CAD", "Drawing / CAD available", command_center.get("drawing_cad_available")),
+        ("BOM", "BOM available", command_center.get("bom_available")),
+        ("PROCESS_BINDER", "Process binder complete", command_center.get("process_binder_complete")),
+        ("PHOTOS_TAKEN", "Photos taken", command_center.get("photos_taken")),
+    ):
+        require(code, label, value)
+
+    eoat_type = identity.get("eoat_type")
+    vacuum_required = eoat_type in {"vacuum", "hybrid"}
+    if vacuum_required and identity.get("vacuum_present") is not True:
+        missing.append({"code": "REQUIRED_VACUUM_HARDWARE", "message": "Vacuum must be marked present for a Vacuum or Hybrid EOAT."})
+    if identity.get("vacuum_present") is True:
+        for code, label, value in (
+            ("VACUUM_CUPS", "Vacuum cup count", identity.get("number_of_vacuum_cups")),
+            ("CUP_MATERIAL", "Cup material", identity.get("cup_material")),
+            ("VACUUM_CUP_TYPE", "Vacuum cup type", engineering.get("vacuum_cup_type")),
+            ("VACUUM_CUP_SIZE", "Vacuum cup size", engineering.get("vacuum_cup_size")),
+            ("VACUUM_GENERATION", "Vacuum generation", engineering.get("vacuum_generation")),
+            ("VACUUM_CIRCUITS", "Vacuum circuits", engineering.get("vacuum_circuits")),
+        ):
+            require(code, label, value)
+
+    gripper_required = eoat_type in {"mechanical_gripper", "hybrid"}
+    if gripper_required:
+        require("GRIPPER_COUNT", "Gripper count", identity.get("number_of_grippers"))
+    if (identity.get("number_of_grippers") or 0) > 0:
+        for code, label, value in (
+            ("GRIPPER_TYPE", "Gripper type", engineering.get("gripper_type")),
+            ("GRIPPER_MODEL", "Gripper model", engineering.get("gripper_model")),
+        ):
+            require(code, label, value)
+
+    if engineering.get("cylinders_present") is True:
+        for code, label, value in (
+            ("CYLINDER_COUNT", "Cylinder count", engineering.get("cylinder_count")),
+            ("CYLINDER_TYPE", "Cylinder type", engineering.get("cylinder_type")),
+            ("CYLINDER_MODEL", "Cylinder model", engineering.get("cylinder_model")),
+        ):
+            require(code, label, value)
+    if identity.get("sensors_present") is True:
+        for code, label, value in (
+            ("SENSOR_TYPES", "Sensor types", engineering.get("sensor_types")),
+            ("SENSOR_MODELS", "Sensor models", engineering.get("sensor_models")),
+            ("PART_PRESENT_SENSOR", "Part-present sensor", identity.get("part_present_sensor_present")),
+        ):
+            require(code, label, value)
+    return missing
+
+
+def _completion(payload: dict[str, Any], *, plant_code: str | None = None) -> str:
     identity = payload.get("identity") if isinstance(payload.get("identity"), dict) else {}
-    if not identity.get("business_identifier") or not identity.get("eoat_type"):
+    engineering = payload.get("engineering") if isinstance(payload.get("engineering"), dict) else {}
+    try:
+        command_center = normalize_command_center_data(payload.get("command_center"))
+    except APIError:
         return "INCOMPLETE"
-    return "READY_FOR_REVIEW"
+    return (
+        "READY_FOR_REVIEW"
+        if not _required_field_errors(
+            plant_code=plant_code, identity=identity, engineering=engineering, command_center=command_center
+        )
+        else "INCOMPLETE"
+    )
 
 
 def create_draft(session: Session, actor: ActorContext, payload: dict[str, Any]) -> dict[str, Any]:
@@ -278,7 +389,7 @@ def create_draft(session: Session, actor: ActorContext, payload: dict[str, Any])
         plant_code=payload.get("plant_code"),
         area_code=payload.get("area_code"),
         payload_json=payload.get("payload") or {},
-        completion_state=_completion(payload.get("payload") or {}),
+        completion_state=_completion(payload.get("payload") or {}, plant_code=payload.get("plant_code")),
         created_by_user_id=actor.user_id,
         updated_by_user_id=actor.user_id,
     )
@@ -321,7 +432,7 @@ def update_draft(session: Session, actor: ActorContext, draft_uuid: str, payload
         state,
     )
     draft.completion_state, draft.row_version, draft.updated_by_user_id = (
-        _completion(state),
+        _completion(state, plant_code=payload.get("plant_code")),
         draft.row_version + 1,
         actor.user_id,
     )
@@ -585,8 +696,21 @@ def _validate_final_payload(
         **identity,
         "business_identifier": _identifier(identity.get("business_identifier") or draft.proposed_identifier),
     }
-    if not identity.get("business_identifier") or not identity.get("eoat_type"):
-        raise APIError(422, "ONBOARDING_BLOCKING_ERRORS", "Identifier and EOAT type are required before finalization.")
+    engineering = payload.get("engineering") if isinstance(payload.get("engineering"), dict) else {}
+    command_center = normalize_command_center_data(payload.get("command_center"))
+    required_errors = _required_field_errors(
+        plant_code=draft.plant_code,
+        identity=identity,
+        engineering=engineering,
+        command_center=command_center,
+    )
+    if required_errors:
+        raise APIError(
+            422,
+            "ONBOARDING_REQUIRED_FIELDS",
+            "Complete the required onboarding fields before finalization.",
+            details=required_errors,
+        )
     values = EOATCreate.model_validate(identity).model_dump()
     if values["business_identifier"] != draft.proposed_identifier:
         raise APIError(
@@ -607,8 +731,6 @@ def _validate_final_payload(
         is not None
     ):
         raise APIError(409, "DUPLICATE_IDENTIFIER", "An EOAT already uses this identifier.")
-    engineering = payload.get("engineering") if isinstance(payload.get("engineering"), dict) else {}
-    command_center = normalize_command_center_data(payload.get("command_center"))
     return values, {
         **{key: value for key, value in engineering.items() if key in ENGINEERING_FIELDS},
         "command_center_data": command_center,
@@ -627,7 +749,10 @@ def review_draft(session: Session, actor: ActorContext, draft_uuid: str) -> dict
     try:
         values, _engineering = _validate_final_payload(session, draft, lock_reservation=False)
     except (APIError, ValidationError) as exc:
-        blocking.append({"code": "IDENTITY_INVALID", "message": getattr(exc, "message", "Identity needs correction.")})
+        if isinstance(exc, APIError) and exc.error_code == "ONBOARDING_REQUIRED_FIELDS" and isinstance(exc.details, list):
+            blocking.extend(exc.details)
+        else:
+            blocking.append({"code": "IDENTITY_INVALID", "message": getattr(exc, "message", "Identity needs correction.")})
         return {"blocking_errors": blocking, "warnings": warnings}
     if not values.get("revision"):
         warnings.append({"code": "REVISION_UNKNOWN", "message": "Revision is not recorded."})

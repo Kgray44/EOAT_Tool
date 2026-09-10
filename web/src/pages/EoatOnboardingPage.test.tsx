@@ -143,11 +143,11 @@ describe("EoatOnboardingPage", () => {
       screen.getByRole("spinbutton", { name: "Cylinder count" }),
     ).toBeInTheDocument();
     await user.selectOptions(
-      screen.getByRole("combobox", { name: "Vacuum present" }),
+      screen.getByRole("combobox", { name: "Vacuum present *" }),
       "false",
     );
     await user.selectOptions(
-      screen.getByRole("combobox", { name: "Cylinders present" }),
+      screen.getByRole("combobox", { name: "Cylinders present *" }),
       "false",
     );
 
@@ -180,10 +180,10 @@ describe("EoatOnboardingPage", () => {
     });
 
     renderPage();
-    expect(await screen.findByRole("combobox", { name: "Status" })).toHaveValue("In Progress");
+    expect(await screen.findByRole("combobox", { name: "Status *" })).toHaveValue("In Progress");
     const rail = screen.getByRole("navigation", { name: "Onboarding sections" });
     await user.click(within(rail).getByRole("button", { name: /Step 5: Photos & Documents/ }));
-    const moves = screen.getByRole("combobox", { name: "EOAT moves" });
+    const moves = screen.getByRole("combobox", { name: "EOAT moves *" });
     expect(within(moves).getByRole("option", { name: "Part" })).toBeInTheDocument();
     expect(within(moves).getByRole("option", { name: "Sprue" })).toBeInTheDocument();
     expect(within(moves).getByRole("option", { name: "Both" })).toBeInTheDocument();

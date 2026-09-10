@@ -41,6 +41,24 @@ part-present sensing fills Reed Switch and SMC only when those values are still
 blank; ATI and DoveTail apply Low and Medium changeover defaults only while the
 field remains at its unknown default. This keeps intentional values intact.
 
+## Requiredness calibration
+
+Requiredness is calibrated from the audited physical-record subset of the
+authoritative Master Tracker (`EOAT_Master_Tracker.xlsx`, SHA-256
+`C3A43289930FBFC38E678302DE9952A6F6B7654925891B185534D63FBAB49F4C`): 67
+audited rows without a source-audit reference. The finalization gate requires
+the consistently captured identity, interface, environment, pickup,
+inspection, circuit, part-context, condition, documentation-status, and
+follow-up values. Vacuum, gripper, cylinder, and sensor details are required
+only when their applicable hardware is selected. Explicit zero, No, N/A, and
+controlled unknown values remain valid answers; an empty value does not.
+
+Machine/Tool assignment, robot make/model, revision, freeform notes, external
+circuit details, cable/alignment observations, and a staged upload remain
+optional because the tracker commonly records them as N/A, unknown, or absent.
+Draft saving is never blocked by these requirements; the review response lists
+each omission and finalization refuses it until corrected.
+
 ## Operational configuration and staging acceptance
 
 `EOAT_ONBOARDING_ENABLED` defaults to `false`; enabling the candidate requires an explicit environment change after migration and staging UAT. `EOAT_ONBOARDING_STAGING_ROOT` must be an existing controlled filesystem directory, and it must also be listed in `EOAT_DOCUMENT_ROOTS` so finalization can adopt the staged file through the normal document validation path. The upload endpoint rejects an absent root, names that escape the staging directory, invalid base64, and files over 25 MB.

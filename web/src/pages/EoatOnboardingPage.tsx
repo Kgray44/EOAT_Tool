@@ -56,6 +56,30 @@ const commandCenterDefaults: Identity = {
   pilot_candidate: "No",
   pneumatic_quick_disconnect_type: "PTC",
 };
+const requiredCommandCenterKeys = new Set([
+  "audit_context",
+  "priority",
+  "follow_up_needed",
+  "eoat_moves",
+  "part_family",
+  "part_name_description",
+  "air_circuit_architecture",
+  "robot_vacuum_circuits",
+  "robot_pressure_circuits",
+  "robot_interchangeable_circuits",
+  "pneumatic_quick_disconnect_type",
+  "tubing_condition",
+  "mounting_hardware_condition",
+  "fastener_locking_hardware_present",
+  "cycle_time_concern",
+  "scrap_quality_concern",
+  "changeover_difficulty",
+  "spare_parts_identified",
+  "drawing_cad_available",
+  "bom_available",
+  "process_binder_complete",
+  "photos_taken",
+]);
 const commandCenterFields: Array<{
   key: string;
   label: string;
@@ -900,6 +924,7 @@ export function EoatOnboardingPage() {
                       "Needs Follow-Up",
                       "Blocked",
                     ]}
+                    required
                   />
                   <SelectField
                     label="Robot connection / interface"
@@ -926,6 +951,7 @@ export function EoatOnboardingPage() {
                       { value: "direct_mount", label: "Direct Mount" },
                       { value: "lever_lock", label: "Lever Lock" },
                     ]}
+                    required
                   />
                   <SelectField
                     label="Environment / classification"
@@ -945,6 +971,7 @@ export function EoatOnboardingPage() {
                         label: "Unknown / Not Checked",
                       },
                     ]}
+                    required
                   />
                   <div className="onboarding-field-heading">
                     <h2>Lifecycle</h2>
@@ -1021,6 +1048,7 @@ export function EoatOnboardingPage() {
                     onChange={(value) =>
                       setIdentity({ ...identity, vacuum_present: value })
                     }
+                    required
                   />
                   <Field
                     label="Parts picked"
@@ -1033,6 +1061,7 @@ export function EoatOnboardingPage() {
                           value === "" ? null : Number(value),
                       })
                     }
+                    required
                   />
                   <Field
                     label="Vacuum cups"
@@ -1045,6 +1074,7 @@ export function EoatOnboardingPage() {
                           value === "" ? null : Number(value),
                       })
                     }
+                    required={identity.vacuum_present === true}
                   />
                   <Field
                     label="Grippers"
@@ -1056,6 +1086,10 @@ export function EoatOnboardingPage() {
                         number_of_grippers: value === "" ? null : Number(value),
                       })
                     }
+                    required={
+                      identity.eoat_type === "mechanical_gripper" ||
+                      identity.eoat_type === "hybrid"
+                    }
                   />
                   <BooleanField
                     label="Quick disconnect present"
@@ -1066,6 +1100,7 @@ export function EoatOnboardingPage() {
                         quick_disconnect_present: value,
                       })
                     }
+                    required
                   />
                   <Field
                     label="Cup material"
@@ -1073,6 +1108,7 @@ export function EoatOnboardingPage() {
                     onChange={(value) =>
                       setIdentity({ ...identity, cup_material: value })
                     }
+                    required={identity.vacuum_present === true}
                   />
                   <Field
                     label="Frame material"
@@ -1091,6 +1127,7 @@ export function EoatOnboardingPage() {
                         weight_kg: value === "" ? null : Number(value),
                       })
                     }
+                    required
                   />
                   <Field
                     label="Maximum payload (kg)"
@@ -1126,6 +1163,7 @@ export function EoatOnboardingPage() {
                         cylinders_present: value,
                       })
                     }
+                    required
                   />
                   {engineering.cylinders_present !== false && (
                     <>
@@ -1139,6 +1177,7 @@ export function EoatOnboardingPage() {
                             cylinder_count: value === "" ? null : Number(value),
                           })
                         }
+                        required={engineering.cylinders_present === true}
                       />
                       <Field
                         label="Cylinder model"
@@ -1149,6 +1188,7 @@ export function EoatOnboardingPage() {
                             cylinder_model: value,
                           })
                         }
+                        required={engineering.cylinders_present === true}
                       />
                       <SelectField
                         label="Cylinder type"
@@ -1160,6 +1200,7 @@ export function EoatOnboardingPage() {
                           })
                         }
                         options={["Linear", "Rotary"]}
+                        required={engineering.cylinders_present === true}
                       />
                     </>
                   )}
@@ -1175,6 +1216,7 @@ export function EoatOnboardingPage() {
                           })
                         }
                         options={["Single Pressure", "Double Pressure"]}
+                        required={Number(identity.number_of_grippers ?? 0) > 0}
                       />
                       <SelectField
                         label="Gripper model"
@@ -1189,6 +1231,7 @@ export function EoatOnboardingPage() {
                           "Large Double Gripper",
                           "Small Double Gripper",
                         ]}
+                        required={Number(identity.number_of_grippers ?? 0) > 0}
                       />
                       <Field
                         label="Gripper size"
@@ -1213,6 +1256,7 @@ export function EoatOnboardingPage() {
                             vacuum_cup_type: value,
                           })
                         }
+                        required={identity.vacuum_present === true}
                       />
                       <Field
                         label="Vacuum cup size"
@@ -1223,6 +1267,7 @@ export function EoatOnboardingPage() {
                             vacuum_cup_size: value,
                           })
                         }
+                        required={identity.vacuum_present === true}
                       />
                       <Field
                         label="Vacuum cup model"
@@ -1243,6 +1288,7 @@ export function EoatOnboardingPage() {
                             vacuum_generation: value,
                           })
                         }
+                        required={identity.vacuum_present === true}
                       />
                     </>
                   )}
@@ -1263,6 +1309,7 @@ export function EoatOnboardingPage() {
                     onChange={(value) =>
                       setIdentity({ ...identity, sensors_present: value })
                     }
+                    required
                   />
                   {identity.sensors_present !== false && (
                     <>
@@ -1275,6 +1322,7 @@ export function EoatOnboardingPage() {
                             sensor_models: value,
                           })
                         }
+                        required={identity.sensors_present === true}
                       />
                       <Field
                         label="Sensor types"
@@ -1285,6 +1333,7 @@ export function EoatOnboardingPage() {
                             sensor_types: value,
                           })
                         }
+                        required={identity.sensors_present === true}
                       />
                       <BooleanField
                         label="Part-present sensor"
@@ -1303,6 +1352,7 @@ export function EoatOnboardingPage() {
                             }));
                           }
                         }}
+                        required={identity.sensors_present === true}
                       />
                     </>
                   )}
@@ -1325,6 +1375,7 @@ export function EoatOnboardingPage() {
                         electrical_present: value,
                       })
                     }
+                    required
                   />
                   {engineering.electrical_present !== false && (
                     <>
@@ -1361,6 +1412,7 @@ export function EoatOnboardingPage() {
                           vacuum_circuits: value === "" ? null : Number(value),
                         })
                       }
+                      required={identity.vacuum_present === true}
                     />
                   )}
                   <Field
@@ -1373,6 +1425,7 @@ export function EoatOnboardingPage() {
                         pressure_circuits: value === "" ? null : Number(value),
                       })
                     }
+                    required
                   />
                   <Field
                     label="Interchangeable circuits"
@@ -1385,6 +1438,7 @@ export function EoatOnboardingPage() {
                           value === "" ? null : Number(value),
                       })
                     }
+                    required
                   />
                   <Field
                     label="External circuits"
@@ -1406,6 +1460,7 @@ export function EoatOnboardingPage() {
                         pneumatic_connection: value,
                       })
                     }
+                    required
                   />
                   <label className="wide">
                     <span>Pneumatic notes</span>
@@ -1576,7 +1631,7 @@ export function EoatOnboardingPage() {
                 <h2>Review</h2>
                 <p>
                   {complete
-                    ? "Required identity fields are present. Final validation will re-check the identifier, permissions, references, and staged media."
+                    ? "Core identity fields are present. Final validation will re-check every required field, the identifier, permissions, references, and staged media."
                     : "Blocking: enter an identifier and EOAT type before finalization."}
                 </p>
                 <p>
@@ -2043,13 +2098,18 @@ function CommandCenterDataFields({
             value={values[field.key]}
             onChange={(value) => setValue(field.key, value)}
             options={field.options}
+            required={requiredCommandCenterKeys.has(field.key)}
           />
         ) : field.wide ? (
           <label className="wide" key={field.key}>
-            <span>{field.label}</span>
+            <span>
+              {field.label}
+              {requiredCommandCenterKeys.has(field.key) ? " *" : ""}
+            </span>
             <textarea
               value={String(values[field.key] ?? "")}
               onChange={(event) => setValue(field.key, event.target.value)}
+              required={requiredCommandCenterKeys.has(field.key)}
             />
           </label>
         ) : (
@@ -2059,6 +2119,7 @@ function CommandCenterDataFields({
             type={field.type}
             value={values[field.key]}
             onChange={(value) => setValue(field.key, value, field.type)}
+            required={requiredCommandCenterKeys.has(field.key)}
           />
         ),
       )}
@@ -2069,19 +2130,25 @@ function BooleanField({
   label,
   value,
   onChange,
+  required = false,
 }: {
   label: string;
   value: unknown;
   onChange: (value: boolean | null) => void;
+  required?: boolean;
 }) {
   return (
     <label>
-      <span>{label}</span>
+      <span>
+        {label}
+        {required ? " *" : ""}
+      </span>
       <select
         value={value == null ? "" : String(value)}
         onChange={(e) =>
           onChange(e.target.value === "" ? null : e.target.value === "true")
         }
+        required={required}
       >
         <option value="">Unknown</option>
         <option value="true">Yes</option>
