@@ -86,3 +86,4 @@ class EOATEngineeringPatch(OnboardingModel):
     electrical_pinout_reference: str | None = None
     sensor_types: str | None = None
     sensor_models: str | None = None
+    command_center_data: dict[str, Any] | None = None

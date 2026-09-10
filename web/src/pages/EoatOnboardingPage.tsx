@@ -31,6 +31,214 @@ const steps = [
   "Photos & Documents",
   "Review & Create",
 ];
+const commandCenterDefaults: Identity = {
+  status: "In Progress",
+  priority: "Medium",
+  follow_up_needed: "No",
+  air_circuit_architecture: "Robot Only",
+  robot_interchangeable_circuits: 0,
+  external_vacuum_circuits: "N/A",
+  external_pressure_circuits: "N/A",
+  external_interchangeable_circuits: "N/A",
+  tubing_condition: "Unknown / Not Checked",
+  cable_management_condition: "Unknown / Not Checked",
+  mounting_hardware_condition: "Unknown / Not Checked",
+  eoat_alignment_condition: "Unknown / Not Checked",
+  fastener_locking_hardware_present: "Unknown / Not Checked",
+  cycle_time_concern: "Unknown / Not Checked",
+  scrap_quality_concern: "Unknown / Not Checked",
+  changeover_difficulty: "Unknown / Not Checked",
+  spare_parts_identified: "No",
+  drawing_cad_available: "No",
+  bom_available: "No",
+  process_binder_complete: "No",
+  photos_taken: "No",
+  pilot_candidate: "No",
+  pneumatic_quick_disconnect_type: "PTC",
+};
+const commandCenterFields: Array<{
+  key: string;
+  label: string;
+  options?: string[];
+  type?: "text" | "number";
+  wide?: boolean;
+}> = [
+  {
+    key: "audit_context",
+    label: "Audit context",
+    options: [
+      "Installed on Machine",
+      "Not Installed / Bench Audit",
+      "Compatibility row",
+      "Historical/imported",
+      "Needs review",
+    ],
+  },
+  {
+    key: "priority",
+    label: "Priority",
+    options: ["Low", "Medium", "High", "Critical"],
+  },
+  {
+    key: "follow_up_needed",
+    label: "Follow-up needed",
+    options: ["Yes", "No"],
+  },
+  {
+    key: "eoat_moves",
+    label: "EOAT moves",
+    options: ["Part", "Sprue", "Both"],
+  },
+  { key: "part_family", label: "Part family" },
+  {
+    key: "part_name_description",
+    label: "Part name / description",
+    wide: true,
+  },
+  {
+    key: "robot_type",
+    label: "Robot type",
+    options: ["Wittmann R8", "Wittmann R9", "Engel Viper", "Other", "Unknown"],
+  },
+  { key: "robot_model_controller", label: "Robot model / controller" },
+  {
+    key: "air_circuit_architecture",
+    label: "Air circuit architecture",
+    options: [
+      "Robot Only",
+      "External Peripheral Only",
+      "Mixed Robot + External Peripheral",
+      "Unknown / Needs Verification",
+    ],
+  },
+  {
+    key: "robot_vacuum_circuits",
+    label: "Robot vacuum circuits",
+    type: "number",
+  },
+  {
+    key: "robot_pressure_circuits",
+    label: "Robot pressure circuits",
+    type: "number",
+  },
+  {
+    key: "robot_interchangeable_circuits",
+    label: "Robot interchangeable circuits",
+    type: "number",
+  },
+  { key: "external_vacuum_circuits", label: "External vacuum circuits" },
+  { key: "external_pressure_circuits", label: "External pressure circuits" },
+  {
+    key: "external_interchangeable_circuits",
+    label: "External interchangeable circuits",
+  },
+  { key: "robot_notes", label: "Robot notes", wide: true },
+  {
+    key: "pneumatic_quick_disconnect_type",
+    label: "Pneumatic quick disconnect type",
+  },
+  {
+    key: "electrical_quick_disconnect_type",
+    label: "Electrical quick disconnect type",
+  },
+  {
+    key: "tubing_condition",
+    label: "Tubing condition",
+    options: [
+      "OK",
+      "Worn",
+      "Damaged",
+      "Poor Routing",
+      "Needs Follow-Up",
+      "Unknown / Not Checked",
+    ],
+  },
+  { key: "tubing_routing_notes", label: "Tubing routing notes", wide: true },
+  {
+    key: "cable_management_condition",
+    label: "Cable management condition",
+    options: [
+      "OK",
+      "Loose",
+      "Damaged",
+      "Poor Routing",
+      "Needs Follow-Up",
+      "Unknown / Not Checked",
+    ],
+  },
+  {
+    key: "mounting_hardware_condition",
+    label: "Mounting hardware condition",
+    options: [
+      "OK",
+      "Loose",
+      "Missing Hardware",
+      "Damaged",
+      "Needs Follow-Up",
+      "Unknown / Not Checked",
+    ],
+  },
+  {
+    key: "eoat_alignment_condition",
+    label: "EOAT alignment condition",
+    options: [
+      "OK",
+      "Slightly Off",
+      "Misaligned",
+      "Needs Follow-Up",
+      "Unknown / Not Checked",
+    ],
+  },
+  {
+    key: "fastener_locking_hardware_present",
+    label: "Fastener / locking hardware",
+    options: ["Yes", "No", "Partial", "Unknown / Not Checked"],
+  },
+  { key: "known_issues", label: "Known issues", wide: true },
+  { key: "drop_mispick_history", label: "Drop / mis-pick history", wide: true },
+  { key: "maintenance_frequency", label: "Maintenance frequency" },
+  {
+    key: "cycle_time_concern",
+    label: "Cycle time concern",
+    options: ["Yes", "No", "Unknown / Not Checked"],
+  },
+  {
+    key: "scrap_quality_concern",
+    label: "Scrap / quality concern",
+    options: ["Yes", "No", "Unknown / Not Checked"],
+  },
+  {
+    key: "changeover_difficulty",
+    label: "Changeover difficulty",
+    options: ["Easy", "Low", "Medium", "High", "Unknown / Not Checked"],
+  },
+  {
+    key: "spare_parts_identified",
+    label: "Spare parts identified",
+    options: ["Yes", "No", "Partial", "Unknown / Not Checked"],
+  },
+  {
+    key: "drawing_cad_available",
+    label: "Drawing / CAD available",
+    options: ["Yes", "No", "Unknown / Not Checked"],
+  },
+  {
+    key: "bom_available",
+    label: "BOM available",
+    options: ["Yes", "No", "Unknown / Not Checked"],
+  },
+  {
+    key: "process_binder_complete",
+    label: "Process binder complete",
+    options: ["Yes", "No", "Partial", "Unknown / Not Checked"],
+  },
+  { key: "photos_taken", label: "Photos taken", options: ["Yes", "No"] },
+  {
+    key: "pilot_candidate",
+    label: "Pilot candidate",
+    options: ["Yes", "No", "Maybe"],
+  },
+];
 
 type StepVisualState =
   "not-started" | "needs-attention" | "complete" | "warning" | "error";
@@ -123,6 +331,7 @@ function payloadOf(draft: OnboardingDraft | null) {
   return (draft?.payload ?? {}) as {
     identity?: Identity;
     engineering?: Identity;
+    command_center?: Identity;
     compatibility?: unknown[];
     location?: Identity;
   };
@@ -140,13 +349,13 @@ export function EoatOnboardingPage() {
     business_identifier: "",
     display_name: "",
     eoat_type: "",
-    status: "",
     revision: "",
     vacuum_present: null,
     sensors_present: null,
     number_of_vacuum_cups: null,
     number_of_grippers: null,
     notes: "",
+    cleanroom_classification: "cleanroom",
   });
   const [plantCode, setPlantCode] = useState("");
   const [areaCode, setAreaCode] = useState("");
@@ -155,12 +364,15 @@ export function EoatOnboardingPage() {
     cylinder_count: null,
     cylinder_model: "",
     gripper_model: "",
-    vacuum_generation: "",
-    pneumatic_connection: "",
     electrical_present: null,
     electrical_connection: "",
     sensor_models: "",
+    vacuum_generation: "Venturi",
+    pneumatic_connection: "PTC",
   });
+  const [commandCenter, setCommandCenter] = useState<Identity>(
+    commandCenterDefaults,
+  );
   const [compatibility, setCompatibility] = useState<CompatibilityDraft[]>([]);
   const [location, setLocation] = useState<Identity>({ kind: "unassigned" });
   const [selectedMedia, setSelectedMedia] = useState<File | null>(null);
@@ -203,6 +415,10 @@ export function EoatOnboardingPage() {
         const payload = payloadOf(value);
         setIdentity((payload.identity ?? {}) as Identity);
         setEngineering((payload.engineering ?? {}) as Identity);
+        setCommandCenter({
+          ...commandCenterDefaults,
+          ...((payload.command_center ?? {}) as Identity),
+        });
         setCompatibility((payload.compatibility ?? []) as CompatibilityDraft[]);
         setLocation((payload.location ?? { kind: "unassigned" }) as Identity);
       })
@@ -262,10 +478,11 @@ export function EoatOnboardingPage() {
     () => ({
       identity,
       engineering,
+      command_center: commandCenter,
       compatibility,
       location,
     }),
-    [compatibility, engineering, identity, location],
+    [commandCenter, compatibility, engineering, identity, location],
   );
   useEffect(() => {
     if (!draft?.draft_uuid || !mayEdit) return;
@@ -649,29 +866,68 @@ export function EoatOnboardingPage() {
                     <h2>Classification</h2>
                     <p>Describe how this EOAT is categorized and connected.</p>
                   </div>
-                  <Field
+                  <SelectField
                     label="EOAT type"
                     value={identity.eoat_type}
                     onChange={(value) =>
                       setIdentity({ ...identity, eoat_type: value })
                     }
+                    options={[
+                      { value: "vacuum", label: "Vacuum" },
+                      {
+                        value: "mechanical_gripper",
+                        label: "Mechanical / Gripper",
+                      },
+                      { value: "hybrid", label: "Hybrid" },
+                      {
+                        value: "unknown_needs_review",
+                        label: "Unknown / Needs Review",
+                      },
+                      { value: "miscellaneous", label: "Miscellaneous" },
+                    ]}
                     required
                   />
-                  <Field
+                  <SelectField
                     label="Status"
-                    value={identity.status}
+                    value={commandCenter.status}
                     onChange={(value) =>
-                      setIdentity({ ...identity, status: value })
+                      setCommandCenter({ ...commandCenter, status: value })
                     }
+                    options={[
+                      "Not Started",
+                      "In Progress",
+                      "Complete",
+                      "Needs Follow-Up",
+                      "Blocked",
+                    ]}
                   />
-                  <Field
+                  <SelectField
                     label="Robot connection / interface"
                     value={identity.connection_type}
-                    onChange={(value) =>
-                      setIdentity({ ...identity, connection_type: value })
-                    }
+                    onChange={(value) => {
+                      setIdentity({ ...identity, connection_type: value });
+                      setCommandCenter((current) => ({
+                        ...current,
+                        changeover_difficulty:
+                          current.changeover_difficulty ===
+                            "Unknown / Not Checked" ||
+                          !current.changeover_difficulty
+                            ? value === "ati"
+                              ? "Low"
+                              : value === "dovetail"
+                                ? "Medium"
+                                : current.changeover_difficulty
+                            : current.changeover_difficulty,
+                      }));
+                    }}
+                    options={[
+                      { value: "ati", label: "ATI" },
+                      { value: "dovetail", label: "DoveTail" },
+                      { value: "direct_mount", label: "Direct Mount" },
+                      { value: "lever_lock", label: "Lever Lock" },
+                    ]}
                   />
-                  <Field
+                  <SelectField
                     label="Environment / classification"
                     value={identity.cleanroom_classification}
                     onChange={(value) =>
@@ -680,6 +936,15 @@ export function EoatOnboardingPage() {
                         cleanroom_classification: value,
                       })
                     }
+                    options={[
+                      { value: "cleanroom", label: "Cleanroom" },
+                      { value: "non_cleanroom", label: "Non-Cleanroom" },
+                      { value: "whiteroom", label: "Whiteroom" },
+                      {
+                        value: "unknown_not_checked",
+                        label: "Unknown / Not Checked",
+                      },
+                    ]}
                   />
                   <div className="onboarding-field-heading">
                     <h2>Lifecycle</h2>
@@ -885,7 +1150,7 @@ export function EoatOnboardingPage() {
                           })
                         }
                       />
-                      <Field
+                      <SelectField
                         label="Cylinder type"
                         value={engineering.cylinder_type}
                         onChange={(value) =>
@@ -894,12 +1159,13 @@ export function EoatOnboardingPage() {
                             cylinder_type: value,
                           })
                         }
+                        options={["Linear", "Rotary"]}
                       />
                     </>
                   )}
                   {identity.number_of_grippers !== 0 && (
                     <>
-                      <Field
+                      <SelectField
                         label="Gripper type"
                         value={engineering.gripper_type}
                         onChange={(value) =>
@@ -908,8 +1174,9 @@ export function EoatOnboardingPage() {
                             gripper_type: value,
                           })
                         }
+                        options={["Single Pressure", "Double Pressure"]}
                       />
-                      <Field
+                      <SelectField
                         label="Gripper model"
                         value={engineering.gripper_model}
                         onChange={(value) =>
@@ -918,6 +1185,10 @@ export function EoatOnboardingPage() {
                             gripper_model: value,
                           })
                         }
+                        options={[
+                          "Large Double Gripper",
+                          "Small Double Gripper",
+                        ]}
                       />
                       <Field
                         label="Gripper size"
@@ -1018,12 +1289,20 @@ export function EoatOnboardingPage() {
                       <BooleanField
                         label="Part-present sensor"
                         value={identity.part_present_sensor_present}
-                        onChange={(value) =>
+                        onChange={(value) => {
                           setIdentity({
                             ...identity,
                             part_present_sensor_present: value,
-                          })
-                        }
+                          });
+                          if (value === true) {
+                            setEngineering((current) => ({
+                              ...current,
+                              sensor_types:
+                                current.sensor_types || "Reed Switch",
+                              sensor_models: current.sensor_models || "SMC",
+                            }));
+                          }
+                        }}
                       />
                     </>
                   )}
@@ -1152,6 +1431,17 @@ export function EoatOnboardingPage() {
               )}
               {step === 4 && (
                 <div className="onboarding-media">
+                  <div className="onboarding-field-heading">
+                    <h2>Command Center engineering &amp; inspection data</h2>
+                    <p>
+                      These are the controlled operational fields carried from
+                      the original Command Center workflow.
+                    </p>
+                  </div>
+                  <CommandCenterDataFields
+                    values={commandCenter}
+                    onChange={setCommandCenter}
+                  />
                   <h2>Photos & Documents</h2>
                   <p>
                     Files remain staged outside the normal EOAT media library
@@ -1689,6 +1979,90 @@ function Field({
         required={required}
       />
     </label>
+  );
+}
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  required = false,
+}: {
+  label: string;
+  value: unknown;
+  onChange: (value: string) => void;
+  options: Array<string | { value: string; label: string }>;
+  required?: boolean;
+}) {
+  return (
+    <label>
+      <span>
+        {label}
+        {required ? " *" : ""}
+      </span>
+      <select
+        value={value == null ? "" : String(value)}
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+      >
+        <option value="">Select a value</option>
+        {options.map((option) => {
+          const item =
+            typeof option === "string"
+              ? { value: option, label: option }
+              : option;
+          return (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          );
+        })}
+      </select>
+    </label>
+  );
+}
+function CommandCenterDataFields({
+  values,
+  onChange,
+}: {
+  values: Identity;
+  onChange: (next: Identity) => void;
+}) {
+  const setValue = (key: string, value: string, type?: "text" | "number") =>
+    onChange({
+      ...values,
+      [key]: type === "number" ? (value === "" ? null : Number(value)) : value,
+    });
+  return (
+    <div className="onboarding-grid">
+      {commandCenterFields.map((field) =>
+        field.options ? (
+          <SelectField
+            key={field.key}
+            label={field.label}
+            value={values[field.key]}
+            onChange={(value) => setValue(field.key, value)}
+            options={field.options}
+          />
+        ) : field.wide ? (
+          <label className="wide" key={field.key}>
+            <span>{field.label}</span>
+            <textarea
+              value={String(values[field.key] ?? "")}
+              onChange={(event) => setValue(field.key, event.target.value)}
+            />
+          </label>
+        ) : (
+          <Field
+            key={field.key}
+            label={field.label}
+            type={field.type}
+            value={values[field.key]}
+            onChange={(value) => setValue(field.key, value, field.type)}
+          />
+        ),
+      )}
+    </div>
   );
 }
 function BooleanField({

@@ -38,6 +38,7 @@ def session():
             db.EOATType.__table__,
             db.DocumentType.__table__,
             db.EOAT.__table__,
+            db.EOATEngineeringProfile.__table__,
             db.Document.__table__,
             db.Photo.__table__,
             db.DocumentLink.__table__,
@@ -56,6 +57,7 @@ def session():
                 if isinstance(
                     record,
                     db.EOAT
+                    | db.EOATEngineeringProfile
                     | db.Document
                     | db.DocumentLink
                     | db.EOATOnboardingDraft
@@ -260,6 +262,43 @@ def test_finalization_creates_a_real_eoat_and_releases_the_reservation(monkeypat
     assert persisted_draft is not None and persisted_draft.lifecycle_state == "FINALIZED"
     assert persisted_draft.finalized_eoat_id == created.id
     assert reservation is not None and reservation.released_at is not None
+
+
+def test_finalization_retains_command_center_data_with_controlled_defaults(monkeypatch, session, actor, engineer):
+    _disable_audit(monkeypatch)
+    draft = _ready_draft(session, actor)
+    updated = update_draft(
+        session,
+        actor,
+        draft["draft_uuid"],
+        {
+            "expected_row_version": draft["row_version"],
+            "proposed_identifier": "P4-EOAT-0201",
+            "plant_code": "P4",
+            "payload": {
+                **draft["payload"],
+                "command_center": {
+                    "eoat_moves": "Part",
+                    "air_circuit_architecture": "Robot Only",
+                    "external_pressure_circuits": "N/A",
+                    "part_family": "Closure",
+                    "tubing_condition": "OK",
+                },
+            },
+        },
+    )
+    session.flush()
+
+    finalized = finalize_draft(session, engineer, updated["draft_uuid"], updated["row_version"])
+    profile = session.scalar(
+        select(db.EOATEngineeringProfile).where(db.EOATEngineeringProfile.eoat_id == finalized["eoat"]["id"])
+    )
+
+    assert profile is not None
+    assert profile.command_center_data["part_family"] == "Closure"
+    assert profile.command_center_data["eoat_moves"] == "Part"
+    assert profile.command_center_data["external_pressure_circuits"] == "N/A"
+    assert profile.command_center_data["changeover_difficulty"] == "Unknown / Not Checked"
 
 
 def test_finalization_requires_an_explicit_finalization_grant(monkeypatch, session, actor):

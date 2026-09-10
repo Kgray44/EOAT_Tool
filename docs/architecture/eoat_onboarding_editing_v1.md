@@ -19,6 +19,28 @@ The candidate adds an additive draft/reservation/staged-media representation wit
 
 The baseline `EOAT` table did not contain detailed cylinder, sensor model, pneumatic circuit, or electrical connection data. Migration `20260904_0018` adds the authoritative one-to-one `eoat_engineering_profiles` extension for the supported V1 fields, while freeform claims that lack a defensible model remain governed notes rather than invented engineering facts.
 
+## Command Center data parity
+
+The original EOAT Command Center audit registry is the source reference for
+onboarding field labels, controlled options, and automatic defaults. The web
+workflow now uses its controlled values for EOAT type, status, interface,
+environment, cylinder/gripper choices, operating-condition choices, and the
+inspection/documentation assessment fields. Its normal asset fields continue
+to finalize into `eoats`; Command Center-only engineering and inspection
+details finalize into the versioned `eoat_engineering_profiles.command_center_data`
+record added by migration `20260910_0019`.
+
+The preserved fields include EOAT movement, part and robot context, split
+robot/external pneumatic circuits, quick-disconnect types, routing and
+mechanical condition, reliability/maintenance findings, documentation status,
+priority/follow-up/pilot data, and assessment context. Defaults are applied
+server-side as well as in the browser: Robot Only air architecture, zero robot
+interchangeable circuits, N/A external circuits, PTC pneumatic quick
+disconnect, and the Command Center's explicit unknown/no defaults. Selecting
+part-present sensing fills Reed Switch and SMC only when those values are still
+blank; ATI and DoveTail apply Low and Medium changeover defaults only while the
+field remains at its unknown default. This keeps intentional values intact.
+
 ## Operational configuration and staging acceptance
 
 `EOAT_ONBOARDING_ENABLED` defaults to `false`; enabling the candidate requires an explicit environment change after migration and staging UAT. `EOAT_ONBOARDING_STAGING_ROOT` must be an existing controlled filesystem directory, and it must also be listed in `EOAT_DOCUMENT_ROOTS` so finalization can adopt the staged file through the normal document validation path. The upload endpoint rejects an absent root, names that escape the staging directory, invalid base64, and files over 25 MB.

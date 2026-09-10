@@ -3519,6 +3519,10 @@ export interface components {
         };
         /** EOATEngineeringPatch */
         EOATEngineeringPatch: {
+            /** Command Center Data */
+            command_center_data?: {
+                [key: string]: unknown;
+            } | null;
             /** Cylinder Count */
             cylinder_count?: number | null;
             /** Cylinder Model */

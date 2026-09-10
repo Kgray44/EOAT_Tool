@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .command_center_data import normalize_command_center_data
 from .database import models as db
 from .errors import APIError, conflict, not_found
 from .security import ActorContext
@@ -61,6 +62,7 @@ ENGINEERING_FIELDS = frozenset(
         "electrical_pinout_reference",
         "sensor_types",
         "sensor_models",
+        "command_center_data",
     }
 )
 
@@ -606,7 +608,11 @@ def _validate_final_payload(
     ):
         raise APIError(409, "DUPLICATE_IDENTIFIER", "An EOAT already uses this identifier.")
     engineering = payload.get("engineering") if isinstance(payload.get("engineering"), dict) else {}
-    return values, {key: value for key, value in engineering.items() if key in ENGINEERING_FIELDS}
+    command_center = normalize_command_center_data(payload.get("command_center"))
+    return values, {
+        **{key: value for key, value in engineering.items() if key in ENGINEERING_FIELDS},
+        "command_center_data": command_center,
+    }
 
 
 def review_draft(session: Session, actor: ActorContext, draft_uuid: str) -> dict[str, list[dict[str, str]]]:

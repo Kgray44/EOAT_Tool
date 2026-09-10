@@ -91,9 +91,9 @@ describe("EoatOnboardingPage", () => {
       screen.getByRole("textbox", { name: "EOAT identifier *" }),
       "P4-EOAT-0101",
     );
-    await user.type(
-      screen.getByRole("textbox", { name: "EOAT type *" }),
-      "Vacuum",
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "EOAT type *" }),
+      "vacuum",
     );
     await user.click(
       screen.getByRole("button", { name: "Start Draft & Continue →" }),
@@ -157,6 +157,54 @@ describe("EoatOnboardingPage", () => {
     expect(
       screen.queryByRole("spinbutton", { name: "Cylinder count" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("carries Command Center defaults and controlled choices into a new draft", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: true });
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      permissions: ["onboarding.draft.create"],
+    });
+    const create = vi.spyOn(apiClient, "createOnboardingDraft").mockResolvedValue({
+      draft_uuid: "draft-command-center",
+      proposed_identifier: "",
+      plant_code: "P4",
+      area_code: null,
+      lifecycle_state: "DRAFT",
+      completion_state: "INCOMPLETE",
+      payload: {},
+      row_version: 1,
+      updated_at: "2026-09-10T00:00:00Z",
+      staged_media: [],
+    });
+
+    renderPage();
+    expect(await screen.findByRole("combobox", { name: "Status" })).toHaveValue("In Progress");
+    const rail = screen.getByRole("navigation", { name: "Onboarding sections" });
+    await user.click(within(rail).getByRole("button", { name: /Step 5: Photos & Documents/ }));
+    const moves = screen.getByRole("combobox", { name: "EOAT moves" });
+    expect(within(moves).getByRole("option", { name: "Part" })).toBeInTheDocument();
+    expect(within(moves).getByRole("option", { name: "Sprue" })).toBeInTheDocument();
+    expect(within(moves).getByRole("option", { name: "Both" })).toBeInTheDocument();
+    await user.selectOptions(moves, "Both");
+    await user.click(within(rail).getByRole("button", { name: /Step 1: Identity/ }));
+    await user.click(screen.getByRole("button", { name: "Start Draft & Continue →" }));
+
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({
+            command_center: expect.objectContaining({
+              status: "In Progress",
+              pneumatic_quick_disconnect_type: "PTC",
+              external_vacuum_circuits: "N/A",
+              eoat_moves: "Both",
+            }),
+          }),
+        }),
+      ),
+    );
   });
 
   it("persists the selected plant before reserving the next identifier", async () => {

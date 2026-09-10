@@ -524,6 +524,7 @@ class EOATEngineeringProfile(VersionMixin, Base):
     electrical_pinout_reference: Mapped[str | None] = mapped_column(String(255))
     sensor_types: Mapped[str | None] = mapped_column(Text)
     sensor_models: Mapped[str | None] = mapped_column(Text)
+    command_center_data: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
 
 class EOATOnboardingDraft(VersionMixin, Base):
