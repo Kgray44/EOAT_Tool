@@ -607,24 +607,31 @@ export function EoatOnboardingPage() {
     }
   }
   async function generateIdentifier() {
-    if (!draft || !mayEdit) {
+    if (!plantCode) {
       setError(
-        "Save the draft with its plant code before generating an identifier.",
+        "Select a plant code before generating an identifier.",
       );
       return;
     }
+    if ((draft && !mayEdit) || (!draft && !mayCreate)) return;
     setBusy(true);
     setError("");
     try {
-      const saved = await apiClient.saveOnboardingDraft(draft.draft_uuid, {
+      const body = {
         proposed_identifier: String(identity.business_identifier || ""),
         plant_code: plantCode || null,
         area_code: areaCode || null,
         payload,
-        expected_row_version: draft.row_version,
-      });
+      };
+      const saved = draft
+        ? await apiClient.saveOnboardingDraft(draft.draft_uuid, {
+            ...body,
+            expected_row_version: draft.row_version,
+          })
+        : await apiClient.createOnboardingDraft(body);
       draftRef.current = saved;
       setDraft(saved);
+      if (!draft) navigate(`/eoats/new/${saved.draft_uuid}`, { replace: true });
       const generated = await apiClient.generateOnboardingIdentifier(
         saved.draft_uuid,
         saved.row_version,
@@ -863,15 +870,17 @@ export function EoatOnboardingPage() {
                     }
                     required
                   />
-                  {draft && (
-                    <button
-                      type="button"
-                      disabled={busy || !mayEdit || !plantCode}
-                      onClick={() => void generateIdentifier()}
-                    >
-                      Generate next identifier
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    disabled={
+                      busy ||
+                      !plantCode ||
+                      (draft ? !mayEdit : !mayCreate)
+                    }
+                    onClick={() => void generateIdentifier()}
+                  >
+                    Generate next identifier
+                  </button>
                   <Field
                     label="Display name"
                     value={identity.display_name}

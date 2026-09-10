@@ -286,6 +286,50 @@ describe("EoatOnboardingPage", () => {
     ).toHaveValue("P7-EOAT-0001");
   });
 
+  it("makes the next identifier available before the draft has been started", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: true });
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      permissions: ["onboarding.draft.create", "onboarding.draft.edit"],
+    });
+    const create = vi.spyOn(apiClient, "createOnboardingDraft").mockResolvedValue({
+      draft_uuid: "draft-generated",
+      proposed_identifier: "",
+      plant_code: "P7",
+      area_code: null,
+      lifecycle_state: "DRAFT",
+      completion_state: "INCOMPLETE",
+      payload: {},
+      row_version: 1,
+      updated_at: "2026-09-10T00:00:00Z",
+      staged_media: [],
+    });
+    const generate = vi.spyOn(apiClient, "generateOnboardingIdentifier").mockResolvedValue({
+      draft_uuid: "draft-generated",
+      proposed_identifier: "P7-EOAT-0001",
+      plant_code: "P7",
+      area_code: null,
+      lifecycle_state: "DRAFT",
+      completion_state: "INCOMPLETE",
+      payload: {},
+      row_version: 2,
+      updated_at: "2026-09-10T00:00:00Z",
+      staged_media: [],
+    });
+
+    renderPage();
+    await user.selectOptions(
+      await screen.findByRole("combobox", { name: "Plant code *" }),
+      "P7",
+    );
+    await user.click(screen.getByRole("button", { name: "Generate next identifier" }));
+
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ plant_code: "P7" })));
+    await waitFor(() => expect(generate).toHaveBeenCalledWith("draft-generated", 1));
+    expect(screen.getByRole("textbox", { name: "EOAT identifier *" })).toHaveValue("P7-EOAT-0001");
+  });
+
   it("lets an authorized finalizer review a prepared draft without exposing draft mutation", async () => {
     vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
       enabled: true,
