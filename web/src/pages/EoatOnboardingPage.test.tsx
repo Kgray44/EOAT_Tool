@@ -218,6 +218,9 @@ describe("EoatOnboardingPage", () => {
     expect(within(plant).getByRole("option", { name: "Plant 7" })).toHaveValue(
       "P7",
     );
+    expect(
+      within(plant).getByRole("option", { name: "Cleanroom" }),
+    ).toHaveValue("CL");
     await user.selectOptions(plant, "P7");
     await user.click(
       screen.getByRole("button", { name: "Generate next identifier" }),

@@ -606,6 +606,7 @@ export function EoatOnboardingPage() {
                       <option value="">Select a plant</option>
                       <option value="P4">Plant 4</option>
                       <option value="P7">Plant 7</option>
+                      <option value="CL">Cleanroom</option>
                     </select>
                   </label>
                   <Field
