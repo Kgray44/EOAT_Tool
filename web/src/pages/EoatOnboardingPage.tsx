@@ -277,6 +277,8 @@ export function EoatOnboardingPage() {
       void apiClient
         .saveOnboardingDraft(current.draft_uuid, {
           proposed_identifier: String(identity.business_identifier || ""),
+          plant_code: plantCode || null,
+          area_code: areaCode || null,
           payload,
           expected_row_version: current.row_version,
         })
@@ -373,9 +375,18 @@ export function EoatOnboardingPage() {
     setBusy(true);
     setError("");
     try {
+      const saved = await apiClient.saveOnboardingDraft(draft.draft_uuid, {
+        proposed_identifier: String(identity.business_identifier || ""),
+        plant_code: plantCode || null,
+        area_code: areaCode || null,
+        payload,
+        expected_row_version: draft.row_version,
+      });
+      draftRef.current = saved;
+      setDraft(saved);
       const generated = await apiClient.generateOnboardingIdentifier(
-        draft.draft_uuid,
-        draft.row_version,
+        saved.draft_uuid,
+        saved.row_version,
       );
       draftRef.current = generated;
       setDraft(generated);
@@ -585,12 +596,18 @@ export function EoatOnboardingPage() {
                     <h2>Asset identity</h2>
                     <p>Identify the physical EOAT and its governed record.</p>
                   </div>
-                  <Field
-                    label="Plant code"
-                    value={plantCode}
-                    onChange={setPlantCode}
-                    required
-                  />
+                  <label>
+                    <span>Plant code *</span>
+                    <select
+                      value={plantCode}
+                      onChange={(event) => setPlantCode(event.target.value)}
+                      required
+                    >
+                      <option value="">Select a plant</option>
+                      <option value="P4">Plant 4</option>
+                      <option value="P7">Plant 7</option>
+                    </select>
+                  </label>
                   <Field
                     label="Area code"
                     value={areaCode}

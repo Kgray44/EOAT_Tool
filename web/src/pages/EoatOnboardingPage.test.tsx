@@ -83,8 +83,8 @@ describe("EoatOnboardingPage", () => {
       });
 
     renderPage();
-    await user.type(
-      await screen.findByRole("textbox", { name: "Plant code *" }),
+    await user.selectOptions(
+      await screen.findByRole("combobox", { name: "Plant code *" }),
       "P4",
     );
     await user.type(
@@ -157,6 +157,82 @@ describe("EoatOnboardingPage", () => {
     expect(
       screen.queryByRole("spinbutton", { name: "Cylinder count" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("persists the selected plant before reserving the next identifier", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
+      enabled: true,
+    });
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      permissions: ["onboarding.draft.edit"],
+    });
+    vi.spyOn(apiClient, "getOnboardingDraft").mockResolvedValue({
+      draft_uuid: "draft-1",
+      proposed_identifier: null,
+      plant_code: "P4",
+      area_code: null,
+      lifecycle_state: "DRAFT",
+      completion_state: "INCOMPLETE",
+      payload: { identity: { business_identifier: "", eoat_type: "" } },
+      row_version: 1,
+      updated_at: "2026-09-10T00:00:00Z",
+      staged_media: [],
+    });
+    const save = vi.spyOn(apiClient, "saveOnboardingDraft").mockResolvedValue({
+      draft_uuid: "draft-1",
+      proposed_identifier: "",
+      plant_code: "P7",
+      area_code: null,
+      lifecycle_state: "DRAFT",
+      completion_state: "INCOMPLETE",
+      payload: { identity: { business_identifier: "", eoat_type: "" } },
+      row_version: 2,
+      updated_at: "2026-09-10T00:00:00Z",
+      staged_media: [],
+    });
+    const generate = vi
+      .spyOn(apiClient, "generateOnboardingIdentifier")
+      .mockResolvedValue({
+        draft_uuid: "draft-1",
+        proposed_identifier: "P7-EOAT-0001",
+        plant_code: "P7",
+        area_code: null,
+        lifecycle_state: "DRAFT",
+        completion_state: "INCOMPLETE",
+        payload: { identity: { business_identifier: "", eoat_type: "" } },
+        row_version: 3,
+        updated_at: "2026-09-10T00:00:00Z",
+        staged_media: [],
+      });
+
+    renderPage("/eoats/new/draft-1");
+
+    const plant = await screen.findByRole("combobox", {
+      name: "Plant code *",
+    });
+    expect(within(plant).getByRole("option", { name: "Plant 4" })).toHaveValue(
+      "P4",
+    );
+    expect(within(plant).getByRole("option", { name: "Plant 7" })).toHaveValue(
+      "P7",
+    );
+    await user.selectOptions(plant, "P7");
+    await user.click(
+      screen.getByRole("button", { name: "Generate next identifier" }),
+    );
+
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        "draft-1",
+        expect.objectContaining({ plant_code: "P7", expected_row_version: 1 }),
+      ),
+    );
+    await waitFor(() => expect(generate).toHaveBeenCalledWith("draft-1", 2));
+    expect(
+      screen.getByRole("textbox", { name: "EOAT identifier *" }),
+    ).toHaveValue("P7-EOAT-0001");
   });
 
   it("lets an authorized finalizer review a prepared draft without exposing draft mutation", async () => {
