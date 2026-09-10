@@ -3,8 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   apiClient,
-  sessionHasPermission,
-  type AuthenticatedSession,
   type CatalogActivity,
   type CatalogFilters,
   type CatalogOptionKind,
@@ -116,11 +114,6 @@ export function LibraryPage() {
   const activity = (params.get("status") || "active") as CatalogActivity;
   const page = Math.max(1, Number(params.get("page") || "1"));
   const [draft, setDraft] = useState(query);
-  const [session, setSession] = useState<AuthenticatedSession | null>(null);
-  const onboardingStatus = useQuery({
-    queryKey: ["onboarding", "status"],
-    queryFn: () => apiClient.getOnboardingStatus(),
-  });
   const [locationDraft, setLocationDraft] = useState(
     params.get("machine") || "",
   );
@@ -140,17 +133,6 @@ export function LibraryPage() {
     setDraft(query);
     setLocationDraft(params.get("machine") || "");
   }, [params, query]);
-  useEffect(() => {
-    const refresh = () =>
-      void apiClient
-        .getAuthenticatedSession()
-        .then(setSession)
-        .catch(() => setSession(null));
-    refresh();
-    window.addEventListener("atlas-authentication-changed", refresh);
-    return () =>
-      window.removeEventListener("atlas-authentication-changed", refresh);
-  }, []);
   useEffect(() => {
     const context = readLibraryContext(location.state);
     if (!context) return;
@@ -273,19 +255,6 @@ export function LibraryPage() {
     <section className="library-page">
       <div className="library-heading">
         <h2>Library</h2>
-        {onboardingStatus.data?.enabled && sessionHasPermission(session, "onboarding.draft.create") && (
-          <Link className="profile-edit-button" to="/eoats/new">
-            Add New EOAT
-          </Link>
-        )}
-        {onboardingStatus.data?.enabled &&
-          ["onboarding.draft.view", "onboarding.draft.edit", "onboarding.draft.review", "onboarding.draft.finalize"].some((permission) =>
-            sessionHasPermission(session, permission),
-          ) && (
-          <Link className="profile-edit-button" to="/eoats/onboarding-drafts">
-            Onboarding Drafts
-          </Link>
-        )}
       </div>
       <span className="library-title-accent" aria-hidden="true" />
       <form

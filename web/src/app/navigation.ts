@@ -1,4 +1,4 @@
-import type { AuthenticatedSession } from "@/api/client";
+import { sessionHasPermission, type AuthenticatedSession } from "@/api/client";
 
 export type NavigationGroup = "Pages" | "Settings" | "Administration";
 
@@ -9,6 +9,7 @@ export type NavigationDestination = {
   group: NavigationGroup;
   keywords: readonly string[];
   administratorOnly?: boolean;
+  permissionAnyOf?: readonly string[];
 };
 
 /**
@@ -37,6 +38,20 @@ export const navigationDestinations: readonly NavigationDestination[] = [
     icon: "▦",
     group: "Pages",
     keywords: ["library", "catalog", "machines", "tools", "eoats"],
+  },
+  {
+    path: "/management/eoats",
+    label: "EOAT Management",
+    icon: "◇",
+    group: "Administration",
+    keywords: ["management", "onboarding", "drafts", "create eoat", "new eoat"],
+    permissionAnyOf: [
+      "onboarding.draft.view",
+      "onboarding.draft.create",
+      "onboarding.draft.edit",
+      "onboarding.draft.review",
+      "onboarding.draft.finalize",
+    ],
   },
   {
     path: "/setup-packet",
@@ -112,19 +127,38 @@ export const navigationDestinations: readonly NavigationDestination[] = [
   },
 ];
 
-export const primaryNavigation = navigationDestinations.filter(
-  (destination) =>
-    Boolean(destination.icon) && destination.group !== "Administration",
+export const primaryNavigation = navigationDestinations.filter((destination) =>
+  Boolean(destination.icon),
 );
+
+export function destinationIsVisible(
+  destination: NavigationDestination,
+  session: AuthenticatedSession | null | undefined,
+) {
+  if (
+    destination.administratorOnly &&
+    !session?.roles?.includes("ADMINISTRATOR")
+  ) {
+    return false;
+  }
+  if (
+    destination.permissionAnyOf &&
+    !destination.permissionAnyOf.some((permission) =>
+      sessionHasPermission(session, permission),
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
 
 export function searchableDestinations(
   query: string,
   session: AuthenticatedSession | null | undefined,
 ): NavigationDestination[] {
   const normalized = query.trim().toLocaleLowerCase();
-  const isAdministrator = session?.roles?.includes("ADMINISTRATOR") ?? false;
   return navigationDestinations.filter((destination) => {
-    if (destination.administratorOnly && !isAdministrator) return false;
+    if (!destinationIsVisible(destination, session)) return false;
     if (!normalized) return false;
     return [destination.label, ...destination.keywords].some((value) =>
       value.toLocaleLowerCase().includes(normalized),

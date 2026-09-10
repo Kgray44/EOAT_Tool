@@ -15,6 +15,7 @@ import { DesktopBoundaryPage } from "@/pages/DesktopBoundaryPage";
 import { EoatOnboardingPage } from "@/pages/EoatOnboardingPage";
 import { EditEoatPage } from "@/pages/EditEoatPage";
 import { OnboardingDraftsPage } from "@/pages/OnboardingDraftsPage";
+import { EoatManagementPage } from "@/pages/EoatManagementPage";
 
 export const routeDefinitions = [
   {
@@ -24,6 +25,7 @@ export const routeDefinitions = [
       { index: true, element: <FoundationPage /> },
       { path: "search", element: <SearchPage /> },
       { path: "library", element: <LibraryPage /> },
+      { path: "management/eoats", element: <EoatManagementPage /> },
       { path: "eoats/new", element: <EoatOnboardingPage /> },
       { path: "eoats/new/:draftUuid", element: <EoatOnboardingPage /> },
       { path: "eoats/onboarding-drafts", element: <OnboardingDraftsPage /> },

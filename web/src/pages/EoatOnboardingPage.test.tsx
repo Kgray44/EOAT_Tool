@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { apiClient } from "@/api/client";
@@ -8,12 +8,17 @@ import { EoatOnboardingPage } from "./EoatOnboardingPage";
 function renderPage(path = "/eoats/new") {
   return render(
     <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
     >
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/eoats/new" element={<EoatOnboardingPage />} />
-          <Route path="/eoats/new/:draftUuid" element={<EoatOnboardingPage />} />
+          <Route
+            path="/eoats/new/:draftUuid"
+            element={<EoatOnboardingPage />}
+          />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -24,7 +29,9 @@ describe("EoatOnboardingPage", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("does not expose an off-environment onboarding workflow", async () => {
-    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: false });
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
+      enabled: false,
+    });
     vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
       authenticated: true,
       permissions: ["onboarding.draft.create"],
@@ -32,12 +39,18 @@ describe("EoatOnboardingPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("This feature is not enabled in the current environment.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "This feature is not enabled in the current environment.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("presents canonical profile and QR actions after finalization", async () => {
     const user = userEvent.setup();
-    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: true });
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
+      enabled: true,
+    });
     vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
       authenticated: true,
       permissions: [
@@ -62,51 +75,94 @@ describe("EoatOnboardingPage", () => {
       blocking_errors: [],
       warnings: [],
     });
-    const finalize = vi.spyOn(apiClient, "finalizeOnboardingDraft").mockResolvedValue({
-      eoat: { business_identifier: "P4-EOAT-0101" },
-      warnings: [],
-    });
+    const finalize = vi
+      .spyOn(apiClient, "finalizeOnboardingDraft")
+      .mockResolvedValue({
+        eoat: { business_identifier: "P4-EOAT-0101" },
+        warnings: [],
+      });
 
     renderPage();
-    await user.type(await screen.findByRole("textbox", { name: "Plant code *" }), "P4");
-    await user.type(screen.getByRole("textbox", { name: "EOAT identifier *" }), "P4-EOAT-0101");
-    await user.type(screen.getByRole("textbox", { name: "EOAT type *" }), "Vacuum");
-    await user.click(screen.getByRole("button", { name: "Start draft" }));
-    for (let step = 0; step < 5; step += 1) {
-      await user.click(await screen.findByRole("button", { name: "Next" }));
+    await user.type(
+      await screen.findByRole("textbox", { name: "Plant code *" }),
+      "P4",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "EOAT identifier *" }),
+      "P4-EOAT-0101",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "EOAT type *" }),
+      "Vacuum",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Start Draft & Continue →" }),
+    );
+    for (let step = 0; step < 4; step += 1) {
+      await user.click(
+        await screen.findByRole("button", { name: "Continue →" }),
+      );
     }
-    await waitFor(() => expect(screen.getByText("No current blocking errors.")).toBeInTheDocument());
-    await user.click(screen.getByRole("button", { name: "Create EOAT" }));
+    await waitFor(() =>
+      expect(
+        screen.getByText("No current blocking errors."),
+      ).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole("button", { name: "Finalize EOAT" }));
 
     await waitFor(() => expect(finalize).toHaveBeenCalledWith("draft-1", 1));
-    expect(await screen.findByRole("link", { name: "View profile" })).toHaveAttribute(
-      "href",
-      "/eoats/P4-EOAT-0101",
-    );
-    expect(screen.getByRole("link", { name: "Add another EOAT" })).toHaveAttribute("href", "/eoats/new");
+    expect(
+      await screen.findByRole("link", { name: "View profile" }),
+    ).toHaveAttribute("href", "/eoats/P4-EOAT-0101");
+    expect(
+      screen.getByRole("link", { name: "Add another EOAT" }),
+    ).toHaveAttribute("href", "/eoats/new");
   });
 
   it("hides inapplicable hardware detail without treating unknown as no", async () => {
     const user = userEvent.setup();
-    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: true });
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
+      enabled: true,
+    });
     vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
       authenticated: true,
       permissions: ["onboarding.draft.create"],
     });
 
     renderPage();
-    await user.click(await screen.findByRole("button", { name: /2\. Hardware/ }));
-    expect(screen.getByRole("textbox", { name: "Vacuum cup type" })).toBeInTheDocument();
-    expect(screen.getByRole("spinbutton", { name: "Cylinder count" })).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Vacuum present" }), "false");
-    await user.selectOptions(screen.getByRole("combobox", { name: "Cylinders present" }), "false");
+    const rail = await screen.findByRole("navigation", {
+      name: "Onboarding sections",
+    });
+    await user.click(
+      within(rail).getByRole("button", { name: /Step 2: Hardware/ }),
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Vacuum cup type" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", { name: "Cylinder count" }),
+    ).toBeInTheDocument();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Vacuum present" }),
+      "false",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Cylinders present" }),
+      "false",
+    );
 
-    expect(screen.queryByRole("textbox", { name: "Vacuum cup type" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("spinbutton", { name: "Cylinder count" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Vacuum cup type" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("spinbutton", { name: "Cylinder count" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets an authorized finalizer review a prepared draft without exposing draft mutation", async () => {
-    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({ enabled: true });
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
+      enabled: true,
+    });
     vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
       authenticated: true,
       permissions: ["onboarding.draft.finalize"],
@@ -118,7 +174,9 @@ describe("EoatOnboardingPage", () => {
       area_code: null,
       lifecycle_state: "DRAFT",
       completion_state: "READY_FOR_REVIEW",
-      payload: { identity: { business_identifier: "P4-EOAT-0101", eoat_type: "vacuum" } },
+      payload: {
+        identity: { business_identifier: "P4-EOAT-0101", eoat_type: "vacuum" },
+      },
       row_version: 1,
       updated_at: "2026-09-04T00:00:00Z",
       staged_media: [],
@@ -126,8 +184,38 @@ describe("EoatOnboardingPage", () => {
 
     renderPage("/eoats/new/draft-1");
 
-    expect(await screen.findByText(/You can review this draft/)).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "EOAT identifier *" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    expect(
+      await screen.findByText(/You can review this draft/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "EOAT identifier *" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save Draft" })).toBeDisabled();
+  });
+
+  it("uses a semantic vertical step rail and a compact mobile step control", async () => {
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
+      enabled: true,
+    });
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      permissions: ["onboarding.draft.create"],
+    });
+
+    renderPage();
+
+    const rail = await screen.findByRole("navigation", {
+      name: "Onboarding sections",
+    });
+    expect(rail).toBeInTheDocument();
+    expect(
+      within(rail).getByRole("button", {
+        name: /Step 1: Identity\. Needs attention/,
+      }),
+    ).toHaveAttribute("aria-current", "step");
+    expect(screen.getByText("Step 1 of 6")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Start Draft & Continue →" }),
+    ).toBeInTheDocument();
   });
 });

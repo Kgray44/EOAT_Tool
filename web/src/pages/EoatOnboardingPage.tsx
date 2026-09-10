@@ -32,6 +32,93 @@ const steps = [
   "Review & Create",
 ];
 
+type StepVisualState =
+  "not-started" | "needs-attention" | "complete" | "warning" | "error";
+
+function StepNavigation({
+  step,
+  stepComplete,
+  reviewWarnings,
+  reviewErrors,
+  busy,
+  onStepChange,
+  mobile = false,
+}: {
+  step: number;
+  stepComplete: boolean[];
+  reviewWarnings: boolean;
+  reviewErrors: boolean;
+  busy: boolean;
+  onStepChange: (next: number) => void;
+  mobile?: boolean;
+}) {
+  const stateFor = (index: number): StepVisualState => {
+    if (index === steps.length - 1 && reviewErrors) return "error";
+    if (index === steps.length - 1 && reviewWarnings) return "warning";
+    if (stepComplete[index]) return "complete";
+    return index === step ? "needs-attention" : "not-started";
+  };
+  const statusLabel = (state: StepVisualState) =>
+    state === "complete"
+      ? "Complete"
+      : state === "error"
+        ? "Needs attention"
+        : state === "warning"
+          ? "Warning"
+          : state === "needs-attention"
+            ? "Needs attention"
+            : "Not started";
+  const list = (
+    <nav
+      className={mobile ? "onboarding-mobile-step-list" : "onboarding-steps"}
+      aria-label={
+        mobile ? "Onboarding section selector" : "Onboarding sections"
+      }
+    >
+      {steps.map((label, index) => {
+        const state = stateFor(index);
+        const status = statusLabel(state);
+        return (
+          <button
+            type="button"
+            key={label}
+            className={`onboarding-step is-${state}${index === step ? " is-current" : ""}`}
+            onClick={() => onStepChange(index)}
+            disabled={busy}
+            aria-current={index === step ? "step" : undefined}
+            aria-label={`Step ${index + 1}: ${label}. ${status}.`}
+          >
+            <span className="onboarding-step-number" aria-hidden="true">
+              {index + 1}
+            </span>
+            <span className="onboarding-step-copy">
+              <strong>{label}</strong>
+              <small>{state === "complete" ? "Complete ✓" : status}</small>
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+  if (!mobile) return list;
+  return (
+    <details className="onboarding-mobile-steps">
+      <summary>
+        <span>
+          Step {step + 1} of {steps.length}
+        </span>
+        <strong>{steps[step]}</strong>
+        <progress
+          value={step + 1}
+          max={steps.length}
+          aria-label={`Step ${step + 1} of ${steps.length}`}
+        />
+      </summary>
+      {list}
+    </details>
+  );
+}
+
 function payloadOf(draft: OnboardingDraft | null) {
   return (draft?.payload ?? {}) as {
     identity?: Identity;
@@ -85,7 +172,9 @@ export function EoatOnboardingPage() {
   const [mediaCaption, setMediaCaption] = useState("");
   const [mediaStatus, setMediaStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("Not saved");
-  const [finalizedIdentifier, setFinalizedIdentifier] = useState<string | null>(null);
+  const [finalizedIdentifier, setFinalizedIdentifier] = useState<string | null>(
+    null,
+  );
   const draftRef = useRef<OnboardingDraft | null>(null);
   const onboardingStatus = useQuery({
     queryKey: ["onboarding", "status"],
@@ -152,17 +241,18 @@ export function EoatOnboardingPage() {
     enabled: step === steps.length - 1 && Boolean(draft),
   });
   const hasBlockingReviewErrors = Boolean(review.data?.blocking_errors.length);
+  const hasReviewWarnings = Boolean(review.data?.warnings.length);
   const stepComplete = [
     complete,
     Boolean(
       identity.number_of_vacuum_cups != null ||
-        identity.number_of_grippers != null ||
-        engineering.cylinders_present != null,
+      identity.number_of_grippers != null ||
+      engineering.cylinders_present != null,
     ),
     Boolean(
       identity.sensors_present != null ||
-        engineering.electrical_present != null ||
-        engineering.pneumatic_connection,
+      engineering.electrical_present != null ||
+      engineering.pneumatic_connection,
     ),
     compatibility.length > 0 || location.kind === "unassigned",
     (draft?.staged_media?.length ?? 0) > 0,
@@ -204,7 +294,14 @@ export function EoatOnboardingPage() {
         );
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [areaCode, draft?.draft_uuid, identity.business_identifier, mayEdit, payload, plantCode]);
+  }, [
+    areaCode,
+    draft?.draft_uuid,
+    identity.business_identifier,
+    mayEdit,
+    payload,
+    plantCode,
+  ]);
   useEffect(() => {
     if (saveStatus !== "Changes pending…" && saveStatus !== "Saving…") return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -214,8 +311,8 @@ export function EoatOnboardingPage() {
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
   }, [saveStatus]);
-  async function save() {
-    if (draft ? !mayEdit : !mayCreate) return;
+  async function save(): Promise<boolean> {
+    if (draft ? !mayEdit : !mayCreate) return false;
     setBusy(true);
     setError("");
     try {
@@ -231,15 +328,20 @@ export function EoatOnboardingPage() {
         : await apiClient.createOnboardingDraft(body);
       setDraft(saved);
       if (!draft) navigate(`/eoats/new/${saved.draft_uuid}`, { replace: true });
+      return true;
     } catch (reason) {
       setError(
         reason instanceof ApiError
           ? reason.message
           : "Draft save failed. Your unsaved fields remain on this device.",
       );
+      return false;
     } finally {
       setBusy(false);
     }
+  }
+  async function startAndContinue() {
+    if (await save()) setStep(1);
   }
   async function finalize() {
     if (!draft || !mayFinalize) return;
@@ -263,7 +365,9 @@ export function EoatOnboardingPage() {
   }
   async function generateIdentifier() {
     if (!draft || !mayEdit) {
-      setError("Save the draft with its plant code before generating an identifier.");
+      setError(
+        "Save the draft with its plant code before generating an identifier.",
+      );
       return;
     }
     setBusy(true);
@@ -282,7 +386,9 @@ export function EoatOnboardingPage() {
       setSaveStatus("Generated identifier reserved");
     } catch (reason) {
       setError(
-        reason instanceof ApiError ? reason.message : "An identifier could not be generated.",
+        reason instanceof ApiError
+          ? reason.message
+          : "An identifier could not be generated.",
       );
     } finally {
       setBusy(false);
@@ -302,8 +408,10 @@ export function EoatOnboardingPage() {
           documentType: mediaKind === "photo" ? "photo" : documentType,
           title: mediaTitle,
           photoViewType: mediaKind === "photo" ? photoViewType : undefined,
-          caption: mediaKind === "photo" ? mediaCaption || undefined : undefined,
-          description: mediaKind === "document" ? mediaCaption || undefined : undefined,
+          caption:
+            mediaKind === "photo" ? mediaCaption || undefined : undefined,
+          description:
+            mediaKind === "document" ? mediaCaption || undefined : undefined,
         },
       );
       const refreshed = await apiClient.getOnboardingDraft(draft.draft_uuid);
@@ -345,7 +453,9 @@ export function EoatOnboardingPage() {
       setMediaStatus("Staged media removed from this draft.");
     } catch (reason) {
       setMediaStatus(
-        reason instanceof ApiError ? reason.message : "Media could not be removed.",
+        reason instanceof ApiError
+          ? reason.message
+          : "Media could not be removed.",
       );
     } finally {
       setBusy(false);
@@ -353,16 +463,25 @@ export function EoatOnboardingPage() {
   }
   async function discard() {
     if (!draft || !mayDiscard) return;
-    if (!window.confirm("Discard this onboarding draft? This keeps an audited record but releases its identifier reservation."))
+    if (
+      !window.confirm(
+        "Discard this onboarding draft? This keeps an audited record but releases its identifier reservation.",
+      )
+    )
       return;
     setBusy(true);
     setError("");
     try {
-      await apiClient.discardOnboardingDraft(draft.draft_uuid, draft.row_version);
+      await apiClient.discardOnboardingDraft(
+        draft.draft_uuid,
+        draft.row_version,
+      );
       navigate("/eoats/onboarding-drafts", { replace: true });
     } catch (reason) {
       setError(
-        reason instanceof ApiError ? reason.message : "The onboarding draft could not be discarded.",
+        reason instanceof ApiError
+          ? reason.message
+          : "The onboarding draft could not be discarded.",
       );
     } finally {
       setBusy(false);
@@ -388,7 +507,10 @@ export function EoatOnboardingPage() {
         </header>
         <section className="onboarding-card">
           <p>
-            <Link className="profile-edit-button" to={`/eoats/${encodeURIComponent(finalizedIdentifier)}`}>
+            <Link
+              className="profile-edit-button"
+              to={`/eoats/${encodeURIComponent(finalizedIdentifier)}`}
+            >
               View profile
             </Link>{" "}
             {mayCreate && (
@@ -401,7 +523,10 @@ export function EoatOnboardingPage() {
         </section>
       </section>
     );
-  if ((!draftUuid && !mayCreate) || (draftUuid && !mayEdit && !mayReview && !mayFinalize))
+  if (
+    (!draftUuid && !mayCreate) ||
+    (draftUuid && !mayEdit && !mayReview && !mayFinalize)
+  )
     return (
       <section className="onboarding-page">
         <h1>EOAT onboarding</h1>
@@ -425,616 +550,846 @@ export function EoatOnboardingPage() {
         )}
         {draft && !mayEdit && (
           <p className="onboarding-save-status" role="status">
-            You can review this draft, but you do not have permission to change it.
+            You can review this draft, but you do not have permission to change
+            it.
           </p>
         )}
       </header>
-      <nav className="onboarding-steps" aria-label="Onboarding sections">
-        {steps.map((label, index) => (
-          <button
-            type="button"
-            key={label}
-            className={index === step ? "active" : undefined}
-            onClick={() => setStep(index)}
-            aria-current={index === step ? "step" : undefined}
-          >
-            {index + 1}. {label}
-            {stepComplete[index] ? " ✓" : " · needs attention"}
-          </button>
-        ))}
-      </nav>
-      <section className="onboarding-card">
-        <fieldset className="onboarding-fields" disabled={busy || Boolean(draft) && !mayEdit}>
-        {step === 0 && (
-          <div className="onboarding-grid">
-            <Field
-              label="Plant code"
-              value={plantCode}
-              onChange={setPlantCode}
-              required
-            />
-            <Field
-              label="Area code"
-              value={areaCode}
-              onChange={setAreaCode}
-            />
-            <Field
-              label="EOAT identifier"
-              value={identity.business_identifier}
-              onChange={(value) =>
-                setIdentity({ ...identity, business_identifier: value })
-              }
-              required
-            />
-            {draft && (
-              <button type="button" disabled={busy || !mayEdit || !plantCode} onClick={() => void generateIdentifier()}>
-                Generate next identifier
-              </button>
-            )}
-            <Field
-              label="Display name"
-              value={identity.display_name}
-              onChange={(value) =>
-                setIdentity({ ...identity, display_name: value })
-              }
-            />
-            <Field
-              label="Legacy / physical label"
-              value={identity.legacy_identifier}
-              onChange={(value) =>
-                setIdentity({ ...identity, legacy_identifier: value })
-              }
-            />
-            <Field
-              label="EOAT type"
-              value={identity.eoat_type}
-              onChange={(value) =>
-                setIdentity({ ...identity, eoat_type: value })
-              }
-              required
-            />
-            <Field
-              label="Status"
-              value={identity.status}
-              onChange={(value) => setIdentity({ ...identity, status: value })}
-            />
-            <Field
-              label="Robot connection / interface"
-              value={identity.connection_type}
-              onChange={(value) =>
-                setIdentity({ ...identity, connection_type: value })
-              }
-            />
-            <Field
-              label="Environment / classification"
-              value={identity.cleanroom_classification}
-              onChange={(value) =>
-                setIdentity({ ...identity, cleanroom_classification: value })
-              }
-            />
-            <Field
-              label="Revision"
-              value={identity.revision}
-              onChange={(value) =>
-                setIdentity({ ...identity, revision: value })
-              }
-            />
-            <Field
-              label="Date built"
-              type="date"
-              value={identity.date_built}
-              onChange={(value) => setIdentity({ ...identity, date_built: value || null })}
-            />
-            <Field
-              label="Date commissioned"
-              type="date"
-              value={identity.date_commissioned}
-              onChange={(value) => setIdentity({ ...identity, date_commissioned: value || null })}
-            />
-            <label className="wide">
-              <span>Description / part information</span>
-              <textarea
-                value={String(identity.description ?? "")}
-                onChange={(e) =>
-                  setIdentity({ ...identity, description: e.target.value })
-                }
-              />
-            </label>
-            <label className="wide">
-              <span>Notes</span>
-              <textarea
-                value={String(identity.notes ?? "")}
-                onChange={(e) =>
-                  setIdentity({ ...identity, notes: e.target.value })
-                }
-              />
-            </label>
-          </div>
-        )}
-        {step === 1 && (
-          <div className="onboarding-grid">
-            <BooleanField
-              label="Vacuum present"
-              value={identity.vacuum_present}
-              onChange={(value) =>
-                setIdentity({ ...identity, vacuum_present: value })
-              }
-            />
-            <Field
-              label="Parts picked"
-              type="number"
-              value={identity.number_of_parts_picked}
-              onChange={(value) =>
-                setIdentity({
-                  ...identity,
-                  number_of_parts_picked: value === "" ? null : Number(value),
-                })
-              }
-            />
-            <Field
-              label="Vacuum cups"
-              type="number"
-              value={identity.number_of_vacuum_cups}
-              onChange={(value) =>
-                setIdentity({
-                  ...identity,
-                  number_of_vacuum_cups: value === "" ? null : Number(value),
-                })
-              }
-            />
-            <Field
-              label="Grippers"
-              type="number"
-              value={identity.number_of_grippers}
-              onChange={(value) =>
-                setIdentity({
-                  ...identity,
-                  number_of_grippers: value === "" ? null : Number(value),
-                })
-              }
-            />
-            <BooleanField
-              label="Quick disconnect present"
-              value={identity.quick_disconnect_present}
-              onChange={(value) =>
-                setIdentity({ ...identity, quick_disconnect_present: value })
-              }
-            />
-            <Field
-              label="Cup material"
-              value={identity.cup_material}
-              onChange={(value) => setIdentity({ ...identity, cup_material: value })}
-            />
-            <Field
-              label="Frame material"
-              value={identity.frame_material}
-              onChange={(value) => setIdentity({ ...identity, frame_material: value })}
-            />
-            <Field
-              label="Weight (kg)"
-              type="number"
-              value={identity.weight_kg}
-              onChange={(value) =>
-                setIdentity({ ...identity, weight_kg: value === "" ? null : Number(value) })
-              }
-            />
-            <Field
-              label="Maximum payload (kg)"
-              type="number"
-              value={identity.maximum_payload_kg}
-              onChange={(value) =>
-                setIdentity({ ...identity, maximum_payload_kg: value === "" ? null : Number(value) })
-              }
-            />
-            <Field
-              label="Drawing number"
-              value={identity.drawing_number}
-              onChange={(value) => setIdentity({ ...identity, drawing_number: value })}
-            />
-            <Field
-              label="Manufacturer"
-              value={identity.manufacturer}
-              onChange={(value) => setIdentity({ ...identity, manufacturer: value })}
-            />
-            <BooleanField
-              label="Cylinders present"
-              value={engineering.cylinders_present}
-              onChange={(value) =>
-                setEngineering({ ...engineering, cylinders_present: value })
-              }
-            />
-            {engineering.cylinders_present !== false && (
-              <>
-                <Field
-                  label="Cylinder count"
-                  type="number"
-                  value={engineering.cylinder_count}
-                  onChange={(value) =>
-                    setEngineering({ ...engineering, cylinder_count: value === "" ? null : Number(value) })
-                  }
-                />
-                <Field
-                  label="Cylinder model"
-                  value={engineering.cylinder_model}
-                  onChange={(value) => setEngineering({ ...engineering, cylinder_model: value })}
-                />
-                <Field
-                  label="Cylinder type"
-                  value={engineering.cylinder_type}
-                  onChange={(value) => setEngineering({ ...engineering, cylinder_type: value })}
-                />
-              </>
-            )}
-            {identity.number_of_grippers !== 0 && (
-              <>
-                <Field
-                  label="Gripper type"
-                  value={engineering.gripper_type}
-                  onChange={(value) => setEngineering({ ...engineering, gripper_type: value })}
-                />
-                <Field
-                  label="Gripper model"
-                  value={engineering.gripper_model}
-                  onChange={(value) => setEngineering({ ...engineering, gripper_model: value })}
-                />
-                <Field
-                  label="Gripper size"
-                  value={engineering.gripper_size}
-                  onChange={(value) => setEngineering({ ...engineering, gripper_size: value })}
-                />
-              </>
-            )}
-            {identity.vacuum_present !== false && (
-              <>
-                <Field
-                  label="Vacuum cup type"
-                  value={engineering.vacuum_cup_type}
-                  onChange={(value) => setEngineering({ ...engineering, vacuum_cup_type: value })}
-                />
-                <Field
-                  label="Vacuum cup size"
-                  value={engineering.vacuum_cup_size}
-                  onChange={(value) => setEngineering({ ...engineering, vacuum_cup_size: value })}
-                />
-                <Field
-                  label="Vacuum cup model"
-                  value={engineering.vacuum_cup_model}
-                  onChange={(value) => setEngineering({ ...engineering, vacuum_cup_model: value })}
-                />
-                <Field
-                  label="Vacuum generation"
-                  value={engineering.vacuum_generation}
-                  onChange={(value) => setEngineering({ ...engineering, vacuum_generation: value })}
-                />
-              </>
-            )}
-          </div>
-        )}
-        {step === 2 && (
-          <div className="onboarding-grid">
-            <BooleanField
-              label="Sensors present"
-              value={identity.sensors_present}
-              onChange={(value) =>
-                setIdentity({ ...identity, sensors_present: value })
-              }
-            />
-            {identity.sensors_present !== false && (
-              <>
-                <Field
-                  label="Sensor models"
-                  value={engineering.sensor_models}
-                  onChange={(value) => setEngineering({ ...engineering, sensor_models: value })}
-                />
-                <Field
-                  label="Sensor types"
-                  value={engineering.sensor_types}
-                  onChange={(value) => setEngineering({ ...engineering, sensor_types: value })}
-                />
-                <BooleanField
-                  label="Part-present sensor"
-                  value={identity.part_present_sensor_present}
-                  onChange={(value) =>
-                    setIdentity({ ...identity, part_present_sensor_present: value })
-                  }
-                />
-              </>
-            )}
-            <BooleanField
-              label="Vacuum-confirmation sensor"
-              value={identity.vacuum_confirmation_sensor_present}
-              onChange={(value) =>
-                setIdentity({ ...identity, vacuum_confirmation_sensor_present: value })
-              }
-            />
-            <BooleanField
-              label="Electrical present"
-              value={engineering.electrical_present}
-              onChange={(value) =>
-                setEngineering({ ...engineering, electrical_present: value })
-              }
-            />
-            {engineering.electrical_present !== false && (
-              <>
-                <Field
-                  label="Electrical connection"
-                  value={engineering.electrical_connection}
-                  onChange={(value) => setEngineering({ ...engineering, electrical_connection: value })}
-                />
-                <Field
-                  label="Electrical pinout reference"
-                  value={engineering.electrical_pinout_reference}
-                  onChange={(value) =>
-                    setEngineering({ ...engineering, electrical_pinout_reference: value })
-                  }
-                />
-              </>
-            )}
-            {identity.vacuum_present !== false && (
-              <Field
-                label="Vacuum circuits"
-                type="number"
-                value={engineering.vacuum_circuits}
-                onChange={(value) =>
-                  setEngineering({ ...engineering, vacuum_circuits: value === "" ? null : Number(value) })
-                }
-              />
-            )}
-            <Field
-              label="Pressure circuits"
-              type="number"
-              value={engineering.pressure_circuits}
-              onChange={(value) =>
-                setEngineering({ ...engineering, pressure_circuits: value === "" ? null : Number(value) })
-              }
-            />
-            <Field
-              label="Interchangeable circuits"
-              type="number"
-              value={engineering.interchangeable_circuits}
-              onChange={(value) =>
-                setEngineering({ ...engineering, interchangeable_circuits: value === "" ? null : Number(value) })
-              }
-            />
-            <Field
-              label="External circuits"
-              type="number"
-              value={engineering.external_circuits}
-              onChange={(value) =>
-                setEngineering({ ...engineering, external_circuits: value === "" ? null : Number(value) })
-              }
-            />
-            <Field
-              label="Pneumatic connection"
-              value={engineering.pneumatic_connection}
-              onChange={(value) =>
-                setEngineering({ ...engineering, pneumatic_connection: value })
-              }
-            />
-            <label className="wide">
-              <span>Pneumatic notes</span>
-              <textarea
-                value={String(engineering.pneumatic_notes ?? "")}
-                onChange={(event) =>
-                  setEngineering({ ...engineering, pneumatic_notes: event.target.value })
-                }
-              />
-            </label>
-          </div>
-        )}
-        {step === 3 && (
-          <RelationshipSection
-            compatibility={compatibility}
-            onCompatibilityChange={setCompatibility}
-            location={location}
-            onLocationChange={setLocation}
+      <div className="onboarding-workspace">
+        <StepNavigation
+          step={step}
+          stepComplete={stepComplete}
+          reviewWarnings={hasReviewWarnings}
+          reviewErrors={hasBlockingReviewErrors}
+          busy={busy}
+          onStepChange={setStep}
+        />
+        <div className="onboarding-content">
+          <StepNavigation
+            step={step}
+            stepComplete={stepComplete}
+            reviewWarnings={hasReviewWarnings}
+            reviewErrors={hasBlockingReviewErrors}
+            busy={busy}
+            onStepChange={setStep}
+            mobile
           />
-        )}
-        {step === 4 && (
-          <div className="onboarding-media">
-            <h2>Photos & Documents</h2>
-            <p>
-              Files remain staged outside the normal EOAT media library until
-              successful finalization.
-            </p>
-            <div className="onboarding-grid">
-              <label>
-                <span>Media type</span>
-                <select
-                  value={mediaKind}
-                  onChange={(e) =>
-                    setMediaKind(e.target.value as "photo" | "document")
-                  }
-                >
-                  <option value="photo">Photo</option>
-                  <option value="document">Document</option>
-                </select>
-              </label>
-              <label>
-                <span>Title</span>
-                <input
-                  value={mediaTitle}
-                  onChange={(e) => setMediaTitle(e.target.value)}
-                />
-              </label>
-              {mediaKind === "photo" ? (
-                <label>
-                  <span>Photo view</span>
-                  <select
-                    value={photoViewType}
-                    onChange={(e) => setPhotoViewType(e.target.value)}
-                  >
-                    <option value="FRONT">Front / profile candidate</option>
-                    <option value="BACK">Back / pickup face</option>
-                    <option value="SIDE">Side</option>
-                    <option value="CONNECTION">Robot connection / mounting interface</option>
-                    <option value="VACUUM">Vacuum cups / grippers</option>
-                    <option value="SENSORS">Sensors</option>
-                    <option value="PNEUMATICS">Tubing / pneumatics</option>
-                    <option value="DETAIL">Detail / problem</option>
-                    <option value="ADDITIONAL">Additional</option>
-                  </select>
-                </label>
-              ) : (
-                <label>
-                  <span>Document category</span>
-                  <select
-                    value={documentType}
-                    onChange={(e) => setDocumentType(e.target.value)}
-                  >
-                    <option value="">Select a controlled category</option>
-                    {(documentTypes.data ?? []).map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="wide">
-                <span>{mediaKind === "photo" ? "Caption" : "Notes"}</span>
-                <textarea
-                  value={mediaCaption}
-                  onChange={(e) => setMediaCaption(e.target.value)}
-                />
-              </label>
-              <label className="wide">
-                <span>File</span>
-                <input
-                  type="file"
-                  accept={mediaKind === "photo" ? "image/*" : undefined}
-                  onChange={(e) =>
-                    setSelectedMedia(e.target.files?.[0] ?? null)
-                  }
-                />
-                {mediaPreview && (
-                  <img
-                    className="onboarding-media-preview"
-                    src={mediaPreview}
-                    alt="Selected upload preview"
-                  />
-                )}
-              </label>
-            </div>
-            <button
-              type="button"
-              disabled={
-                !draft ||
-                !mayEdit ||
-                !selectedMedia ||
-                !mediaTitle ||
-                busy ||
-                (mediaKind === "document" && !documentType)
-              }
-              onClick={() => void uploadMedia()}
+          <section className="onboarding-card">
+            <fieldset
+              className="onboarding-fields"
+              disabled={busy || (Boolean(draft) && !mayEdit)}
             >
-              {busy ? "Staging…" : "Stage media"}
-            </button>
-            {mediaStatus && <p role="status">{mediaStatus}</p>}
-            {(draft?.staged_media?.length ?? 0) > 0 && (
-              <ul className="onboarding-relationship-list">
-                {draft?.staged_media?.map((media) => (
-                  <li key={media.id}>
-                    <span>
-                      {media.media_kind === "photo" ? "Photo" : "Document"}: {media.title} · {media.file_name}
-                    </span>
+              {step === 0 && (
+                <div className="onboarding-grid">
+                  <div className="onboarding-field-heading">
+                    <h2>Asset identity</h2>
+                    <p>Identify the physical EOAT and its governed record.</p>
+                  </div>
+                  <Field
+                    label="Plant code"
+                    value={plantCode}
+                    onChange={setPlantCode}
+                    required
+                  />
+                  <Field
+                    label="Area code"
+                    value={areaCode}
+                    onChange={setAreaCode}
+                  />
+                  <Field
+                    label="EOAT identifier"
+                    value={identity.business_identifier}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, business_identifier: value })
+                    }
+                    required
+                  />
+                  {draft && (
                     <button
                       type="button"
-                      disabled={busy || !mayEdit}
-                      onClick={() => void removeMedia(media.id)}
+                      disabled={busy || !mayEdit || !plantCode}
+                      onClick={() => void generateIdentifier()}
                     >
-                      Remove
+                      Generate next identifier
                     </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-        </fieldset>
-        {step === 5 && (
-          <div>
-            <h2>Review</h2>
-            <p>
-              {complete
-                ? "Required identity fields are present. Final validation will re-check the identifier, permissions, references, and staged media."
-                : "Blocking: enter an identifier and EOAT type before finalization."}
-            </p>
-            <p>Draft status: {draft ? draft.completion_state : "Not saved"}</p>
-            {review.isPending && draft && <p>Checking current records and staged media…</p>}
-            {review.data && (
-              <>
-                <h3>Blocking errors</h3>
-                {review.data.blocking_errors.length ? (
-                  <ul>
-                    {review.data.blocking_errors.map((item) => (
-                      <li key={item.code}>{item.message}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>No current blocking errors.</p>
+                  )}
+                  <Field
+                    label="Display name"
+                    value={identity.display_name}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, display_name: value })
+                    }
+                  />
+                  <Field
+                    label="Legacy / physical label"
+                    value={identity.legacy_identifier}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, legacy_identifier: value })
+                    }
+                  />
+                  <div className="onboarding-field-heading">
+                    <h2>Classification</h2>
+                    <p>Describe how this EOAT is categorized and connected.</p>
+                  </div>
+                  <Field
+                    label="EOAT type"
+                    value={identity.eoat_type}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, eoat_type: value })
+                    }
+                    required
+                  />
+                  <Field
+                    label="Status"
+                    value={identity.status}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, status: value })
+                    }
+                  />
+                  <Field
+                    label="Robot connection / interface"
+                    value={identity.connection_type}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, connection_type: value })
+                    }
+                  />
+                  <Field
+                    label="Environment / classification"
+                    value={identity.cleanroom_classification}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        cleanroom_classification: value,
+                      })
+                    }
+                  />
+                  <div className="onboarding-field-heading">
+                    <h2>Lifecycle</h2>
+                    <p>Capture the revision and important lifecycle dates.</p>
+                  </div>
+                  <Field
+                    label="Revision"
+                    value={identity.revision}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, revision: value })
+                    }
+                  />
+                  <Field
+                    label="Date built"
+                    type="date"
+                    value={identity.date_built}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, date_built: value || null })
+                    }
+                  />
+                  <Field
+                    label="Date commissioned"
+                    type="date"
+                    value={identity.date_commissioned}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        date_commissioned: value || null,
+                      })
+                    }
+                  />
+                  <div className="onboarding-field-heading">
+                    <h2>Description</h2>
+                    <p>
+                      Record context that helps colleagues identify and use this
+                      EOAT.
+                    </p>
+                  </div>
+                  <label className="wide">
+                    <span>Description / part information</span>
+                    <textarea
+                      value={String(identity.description ?? "")}
+                      onChange={(e) =>
+                        setIdentity({
+                          ...identity,
+                          description: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="wide">
+                    <span>Notes</span>
+                    <textarea
+                      value={String(identity.notes ?? "")}
+                      onChange={(e) =>
+                        setIdentity({ ...identity, notes: e.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+              {step === 1 && (
+                <div className="onboarding-grid">
+                  <div className="onboarding-field-heading">
+                    <h2>Pickup hardware</h2>
+                    <p>
+                      Record the pickup, frame, and actuation details without
+                      changing unknown values.
+                    </p>
+                  </div>
+                  <BooleanField
+                    label="Vacuum present"
+                    value={identity.vacuum_present}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, vacuum_present: value })
+                    }
+                  />
+                  <Field
+                    label="Parts picked"
+                    type="number"
+                    value={identity.number_of_parts_picked}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        number_of_parts_picked:
+                          value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <Field
+                    label="Vacuum cups"
+                    type="number"
+                    value={identity.number_of_vacuum_cups}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        number_of_vacuum_cups:
+                          value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <Field
+                    label="Grippers"
+                    type="number"
+                    value={identity.number_of_grippers}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        number_of_grippers: value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <BooleanField
+                    label="Quick disconnect present"
+                    value={identity.quick_disconnect_present}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        quick_disconnect_present: value,
+                      })
+                    }
+                  />
+                  <Field
+                    label="Cup material"
+                    value={identity.cup_material}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, cup_material: value })
+                    }
+                  />
+                  <Field
+                    label="Frame material"
+                    value={identity.frame_material}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, frame_material: value })
+                    }
+                  />
+                  <Field
+                    label="Weight (kg)"
+                    type="number"
+                    value={identity.weight_kg}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        weight_kg: value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <Field
+                    label="Maximum payload (kg)"
+                    type="number"
+                    value={identity.maximum_payload_kg}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        maximum_payload_kg: value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <Field
+                    label="Drawing number"
+                    value={identity.drawing_number}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, drawing_number: value })
+                    }
+                  />
+                  <Field
+                    label="Manufacturer"
+                    value={identity.manufacturer}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, manufacturer: value })
+                    }
+                  />
+                  <BooleanField
+                    label="Cylinders present"
+                    value={engineering.cylinders_present}
+                    onChange={(value) =>
+                      setEngineering({
+                        ...engineering,
+                        cylinders_present: value,
+                      })
+                    }
+                  />
+                  {engineering.cylinders_present !== false && (
+                    <>
+                      <Field
+                        label="Cylinder count"
+                        type="number"
+                        value={engineering.cylinder_count}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            cylinder_count: value === "" ? null : Number(value),
+                          })
+                        }
+                      />
+                      <Field
+                        label="Cylinder model"
+                        value={engineering.cylinder_model}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            cylinder_model: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Cylinder type"
+                        value={engineering.cylinder_type}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            cylinder_type: value,
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                  {identity.number_of_grippers !== 0 && (
+                    <>
+                      <Field
+                        label="Gripper type"
+                        value={engineering.gripper_type}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            gripper_type: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Gripper model"
+                        value={engineering.gripper_model}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            gripper_model: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Gripper size"
+                        value={engineering.gripper_size}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            gripper_size: value,
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                  {identity.vacuum_present !== false && (
+                    <>
+                      <Field
+                        label="Vacuum cup type"
+                        value={engineering.vacuum_cup_type}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            vacuum_cup_type: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Vacuum cup size"
+                        value={engineering.vacuum_cup_size}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            vacuum_cup_size: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Vacuum cup model"
+                        value={engineering.vacuum_cup_model}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            vacuum_cup_model: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Vacuum generation"
+                        value={engineering.vacuum_generation}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            vacuum_generation: value,
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+              )}
+              {step === 2 && (
+                <div className="onboarding-grid">
+                  <div className="onboarding-field-heading">
+                    <h2>Pneumatics &amp; sensors</h2>
+                    <p>
+                      Capture controls, sensors, and circuit details that
+                      support safe operation.
+                    </p>
+                  </div>
+                  <BooleanField
+                    label="Sensors present"
+                    value={identity.sensors_present}
+                    onChange={(value) =>
+                      setIdentity({ ...identity, sensors_present: value })
+                    }
+                  />
+                  {identity.sensors_present !== false && (
+                    <>
+                      <Field
+                        label="Sensor models"
+                        value={engineering.sensor_models}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            sensor_models: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Sensor types"
+                        value={engineering.sensor_types}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            sensor_types: value,
+                          })
+                        }
+                      />
+                      <BooleanField
+                        label="Part-present sensor"
+                        value={identity.part_present_sensor_present}
+                        onChange={(value) =>
+                          setIdentity({
+                            ...identity,
+                            part_present_sensor_present: value,
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                  <BooleanField
+                    label="Vacuum-confirmation sensor"
+                    value={identity.vacuum_confirmation_sensor_present}
+                    onChange={(value) =>
+                      setIdentity({
+                        ...identity,
+                        vacuum_confirmation_sensor_present: value,
+                      })
+                    }
+                  />
+                  <BooleanField
+                    label="Electrical present"
+                    value={engineering.electrical_present}
+                    onChange={(value) =>
+                      setEngineering({
+                        ...engineering,
+                        electrical_present: value,
+                      })
+                    }
+                  />
+                  {engineering.electrical_present !== false && (
+                    <>
+                      <Field
+                        label="Electrical connection"
+                        value={engineering.electrical_connection}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            electrical_connection: value,
+                          })
+                        }
+                      />
+                      <Field
+                        label="Electrical pinout reference"
+                        value={engineering.electrical_pinout_reference}
+                        onChange={(value) =>
+                          setEngineering({
+                            ...engineering,
+                            electrical_pinout_reference: value,
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                  {identity.vacuum_present !== false && (
+                    <Field
+                      label="Vacuum circuits"
+                      type="number"
+                      value={engineering.vacuum_circuits}
+                      onChange={(value) =>
+                        setEngineering({
+                          ...engineering,
+                          vacuum_circuits: value === "" ? null : Number(value),
+                        })
+                      }
+                    />
+                  )}
+                  <Field
+                    label="Pressure circuits"
+                    type="number"
+                    value={engineering.pressure_circuits}
+                    onChange={(value) =>
+                      setEngineering({
+                        ...engineering,
+                        pressure_circuits: value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <Field
+                    label="Interchangeable circuits"
+                    type="number"
+                    value={engineering.interchangeable_circuits}
+                    onChange={(value) =>
+                      setEngineering({
+                        ...engineering,
+                        interchangeable_circuits:
+                          value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <Field
+                    label="External circuits"
+                    type="number"
+                    value={engineering.external_circuits}
+                    onChange={(value) =>
+                      setEngineering({
+                        ...engineering,
+                        external_circuits: value === "" ? null : Number(value),
+                      })
+                    }
+                  />
+                  <Field
+                    label="Pneumatic connection"
+                    value={engineering.pneumatic_connection}
+                    onChange={(value) =>
+                      setEngineering({
+                        ...engineering,
+                        pneumatic_connection: value,
+                      })
+                    }
+                  />
+                  <label className="wide">
+                    <span>Pneumatic notes</span>
+                    <textarea
+                      value={String(engineering.pneumatic_notes ?? "")}
+                      onChange={(event) =>
+                        setEngineering({
+                          ...engineering,
+                          pneumatic_notes: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+              {step === 3 && (
+                <RelationshipSection
+                  compatibility={compatibility}
+                  onCompatibilityChange={setCompatibility}
+                  location={location}
+                  onLocationChange={setLocation}
+                />
+              )}
+              {step === 4 && (
+                <div className="onboarding-media">
+                  <h2>Photos & Documents</h2>
+                  <p>
+                    Files remain staged outside the normal EOAT media library
+                    until successful finalization.
+                  </p>
+                  <div className="onboarding-grid">
+                    <label>
+                      <span>Media type</span>
+                      <select
+                        value={mediaKind}
+                        onChange={(e) =>
+                          setMediaKind(e.target.value as "photo" | "document")
+                        }
+                      >
+                        <option value="photo">Photo</option>
+                        <option value="document">Document</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Title</span>
+                      <input
+                        value={mediaTitle}
+                        onChange={(e) => setMediaTitle(e.target.value)}
+                      />
+                    </label>
+                    {mediaKind === "photo" ? (
+                      <label>
+                        <span>Photo view</span>
+                        <select
+                          value={photoViewType}
+                          onChange={(e) => setPhotoViewType(e.target.value)}
+                        >
+                          <option value="FRONT">
+                            Front / profile candidate
+                          </option>
+                          <option value="BACK">Back / pickup face</option>
+                          <option value="SIDE">Side</option>
+                          <option value="CONNECTION">
+                            Robot connection / mounting interface
+                          </option>
+                          <option value="VACUUM">Vacuum cups / grippers</option>
+                          <option value="SENSORS">Sensors</option>
+                          <option value="PNEUMATICS">
+                            Tubing / pneumatics
+                          </option>
+                          <option value="DETAIL">Detail / problem</option>
+                          <option value="ADDITIONAL">Additional</option>
+                        </select>
+                      </label>
+                    ) : (
+                      <label>
+                        <span>Document category</span>
+                        <select
+                          value={documentType}
+                          onChange={(e) => setDocumentType(e.target.value)}
+                        >
+                          <option value="">Select a controlled category</option>
+                          {(documentTypes.data ?? []).map((item) => (
+                            <option key={item.value} value={item.value}>
+                              {item.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <label className="wide">
+                      <span>{mediaKind === "photo" ? "Caption" : "Notes"}</span>
+                      <textarea
+                        value={mediaCaption}
+                        onChange={(e) => setMediaCaption(e.target.value)}
+                      />
+                    </label>
+                    <label className="wide">
+                      <span>File</span>
+                      <input
+                        type="file"
+                        accept={mediaKind === "photo" ? "image/*" : undefined}
+                        onChange={(e) =>
+                          setSelectedMedia(e.target.files?.[0] ?? null)
+                        }
+                      />
+                      {mediaPreview && (
+                        <img
+                          className="onboarding-media-preview"
+                          src={mediaPreview}
+                          alt="Selected upload preview"
+                        />
+                      )}
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={
+                      !draft ||
+                      !mayEdit ||
+                      !selectedMedia ||
+                      !mediaTitle ||
+                      busy ||
+                      (mediaKind === "document" && !documentType)
+                    }
+                    onClick={() => void uploadMedia()}
+                  >
+                    {busy ? "Staging…" : "Stage media"}
+                  </button>
+                  {mediaStatus && <p role="status">{mediaStatus}</p>}
+                  {(draft?.staged_media?.length ?? 0) > 0 && (
+                    <ul className="onboarding-relationship-list">
+                      {draft?.staged_media?.map((media) => (
+                        <li key={media.id}>
+                          <span>
+                            {media.media_kind === "photo"
+                              ? "Photo"
+                              : "Document"}
+                            : {media.title} · {media.file_name}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={busy || !mayEdit}
+                            onClick={() => void removeMedia(media.id)}
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </fieldset>
+            {step === 5 && (
+              <div>
+                <h2>Review</h2>
+                <p>
+                  {complete
+                    ? "Required identity fields are present. Final validation will re-check the identifier, permissions, references, and staged media."
+                    : "Blocking: enter an identifier and EOAT type before finalization."}
+                </p>
+                <p>
+                  Draft status: {draft ? draft.completion_state : "Not saved"}
+                </p>
+                {review.isPending && draft && (
+                  <p>Checking current records and staged media…</p>
                 )}
-                <h3>Warnings</h3>
-                {review.data.warnings.length ? (
-                  <ul>
-                    {review.data.warnings.map((item) => (
-                      <li key={item.code}>{item.message}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>No current warnings.</p>
+                {review.data && (
+                  <>
+                    <h3>Blocking errors</h3>
+                    {review.data.blocking_errors.length ? (
+                      <ul>
+                        {review.data.blocking_errors.map((item) => (
+                          <li key={item.code}>{item.message}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No current blocking errors.</p>
+                    )}
+                    <h3>Warnings</h3>
+                    {review.data.warnings.length ? (
+                      <ul>
+                        {review.data.warnings.map((item) => (
+                          <li key={item.code}>{item.message}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>No current warnings.</p>
+                    )}
+                  </>
                 )}
-              </>
+                {review.isError && (
+                  <p role="alert">
+                    The server review could not be completed. Finalization
+                    remains protected.
+                  </p>
+                )}
+              </div>
             )}
-            {review.isError && (
-              <p role="alert">The server review could not be completed. Finalization remains protected.</p>
+            {error && (
+              <p role="alert" className="entity-editor-error">
+                {error}
+              </p>
             )}
-          </div>
-        )}
-        {error && (
-          <p role="alert" className="entity-editor-error">
-            {error}
-          </p>
-        )}
-        <footer>
-          <button
-            type="button"
-            onClick={() => setStep(Math.max(0, step - 1))}
-            disabled={step === 0 || busy}
-          >
-            Back
-          </button>
-          <button type="button" onClick={() => void save()} disabled={busy || (draft ? !mayEdit : !mayCreate)}>
-            {busy ? "Saving…" : draft ? "Save draft" : "Start draft"}
-          </button>
-          {draft && mayDiscard && (
-            <button type="button" onClick={() => void discard()} disabled={busy}>
-              Discard draft
-            </button>
-          )}
-          {step < steps.length - 1 ? (
-            <button type="button" onClick={() => setStep(step + 1)}>
-              Next
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void finalize()}
-              disabled={
-                !draft ||
-                !complete ||
-                !mayFinalize ||
-                busy ||
-                review.isPending ||
-                review.isError ||
-                hasBlockingReviewErrors
-              }
+            <footer
+              className="onboarding-action-footer"
+              aria-label="Onboarding actions"
             >
-              {mayFinalize ? "Create EOAT" : "Finalization approval required"}
-            </button>
-          )}
-        </footer>
-      </section>
+              <button
+                type="button"
+                className="onboarding-action onboarding-action--ghost"
+                onClick={() => setStep(Math.max(0, step - 1))}
+                disabled={step === 0 || busy}
+              >
+                ← Back
+              </button>
+              <div className="onboarding-action-footer__primary">
+                {draft && mayDiscard && (
+                  <button
+                    type="button"
+                    className="onboarding-action onboarding-action--danger"
+                    onClick={() => void discard()}
+                    disabled={busy}
+                  >
+                    Discard draft
+                  </button>
+                )}
+                {!draft ? (
+                  <button
+                    type="button"
+                    className="onboarding-action onboarding-action--primary"
+                    onClick={() => void startAndContinue()}
+                    disabled={busy || !mayCreate}
+                  >
+                    {busy ? "Starting…" : "Start Draft & Continue →"}
+                  </button>
+                ) : step < steps.length - 1 ? (
+                  <>
+                    <button
+                      type="button"
+                      className="onboarding-action onboarding-action--secondary"
+                      onClick={() => void save()}
+                      disabled={busy || !mayEdit}
+                    >
+                      {busy ? "Saving…" : "Save Draft"}
+                    </button>
+                    <button
+                      type="button"
+                      className="onboarding-action onboarding-action--primary"
+                      onClick={() => setStep(step + 1)}
+                      disabled={busy}
+                    >
+                      Continue →
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="onboarding-action onboarding-action--primary"
+                    onClick={() => void finalize()}
+                    disabled={
+                      !draft ||
+                      !complete ||
+                      !mayFinalize ||
+                      busy ||
+                      review.isPending ||
+                      review.isError ||
+                      hasBlockingReviewErrors
+                    }
+                  >
+                    {mayFinalize
+                      ? "Finalize EOAT"
+                      : "Finalization approval required"}
+                  </button>
+                )}
+              </div>
+            </footer>
+          </section>
+        </div>
+      </div>
       <Link to="/library">Return to Library</Link>
     </section>
   );
@@ -1091,7 +1446,9 @@ function RelationshipSection({
         effective_from: new Date().toISOString(),
         reason: reason || undefined,
         verification_source: source || undefined,
-        verified_at: verifiedAt ? new Date(`${verifiedAt}T00:00:00Z`).toISOString() : undefined,
+        verified_at: verifiedAt
+          ? new Date(`${verifiedAt}T00:00:00Z`).toISOString()
+          : undefined,
       },
     ]);
     setTarget("");
@@ -1247,7 +1604,11 @@ function RelationshipSection({
         </label>
         <label>
           <span>Verified date</span>
-          <input type="date" value={verifiedAt} onChange={(e) => setVerifiedAt(e.target.value)} />
+          <input
+            type="date"
+            value={verifiedAt}
+            onChange={(e) => setVerifiedAt(e.target.value)}
+          />
         </label>
         <label className="wide">
           <span>Evidence / provenance</span>
