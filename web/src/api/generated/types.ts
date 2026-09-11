@@ -1159,6 +1159,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog-options/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Catalog Options
+         * @description Small, read-only option adapter for existing governed selectors.
+         *
+         *     The browser receives business identifiers and labels only; it never sees
+         *     database IDs or internal storage paths.  Write services remain the sole
+         *     authority that resolves and validates selections at mutation time.
+         */
+        get: operations["catalog_options_api_v1_catalog_options__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/compatibility/alternatives": {
         parameters: {
             query?: never;
@@ -2045,6 +2069,220 @@ export interface paths {
         put?: never;
         /** Complete Maintenance Route */
         post: operations["complete_maintenance_route_api_v1_maintenance_events__event_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Drafts */
+        get: operations["drafts_api_v1_onboarding_drafts_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_v1_onboarding_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Draft */
+        get: operations["get_draft_api_v1_onboarding_drafts__draft_uuid__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update */
+        patch: operations["update_api_v1_onboarding_drafts__draft_uuid__patch"];
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard */
+        post: operations["discard_api_v1_onboarding_drafts__draft_uuid__discard_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finalize */
+        post: operations["finalize_api_v1_onboarding_drafts__draft_uuid__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/identifier/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Draft Identifier */
+        post: operations["generate_draft_identifier_api_v1_onboarding_drafts__draft_uuid__identifier_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Media */
+        post: operations["media_api_v1_onboarding_drafts__draft_uuid__media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/media/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Media */
+        post: operations["upload_media_api_v1_onboarding_drafts__draft_uuid__media_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/media/{media_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Media */
+        post: operations["remove_media_api_v1_onboarding_drafts__draft_uuid__media__media_id__remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/drafts/{draft_uuid}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Review */
+        get: operations["review_api_v1_onboarding_drafts__draft_uuid__review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/eoats/{identifier}/engineering": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Engineering
+         * @description Follow the established normal-profile read access model.
+         *
+         *     Existing EOAT profile reads are not permission-gated by a synthetic
+         *     ``eoat.view`` permission, so this extension must not be stricter than the
+         *     record it describes. Editing remains guarded by ``eoat.edit``.
+         */
+        get: operations["get_engineering_api_v1_onboarding_eoats__identifier__engineering_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Engineering */
+        patch: operations["patch_engineering_api_v1_onboarding_eoats__identifier__engineering_patch"];
+        trace?: never;
+    };
+    "/api/v1/onboarding/eoats/{identifier}/photos/{document_uuid}/set-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Select Profile Photo */
+        post: operations["select_profile_photo_api_v1_onboarding_eoats__identifier__photos__document_uuid__set_profile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["status_api_v1_onboarding_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3279,6 +3517,59 @@ export interface components {
             /** Weight Kg */
             weight_kg?: number | null;
         };
+        /** EOATEngineeringPatch */
+        EOATEngineeringPatch: {
+            /** Command Center Data */
+            command_center_data?: {
+                [key: string]: unknown;
+            } | null;
+            /** Cylinder Count */
+            cylinder_count?: number | null;
+            /** Cylinder Model */
+            cylinder_model?: string | null;
+            /** Cylinder Type */
+            cylinder_type?: string | null;
+            /** Cylinders Present */
+            cylinders_present?: boolean | null;
+            /** Electrical Connection */
+            electrical_connection?: string | null;
+            /** Electrical Pinout Reference */
+            electrical_pinout_reference?: string | null;
+            /** Electrical Present */
+            electrical_present?: boolean | null;
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** External Circuits */
+            external_circuits?: number | null;
+            /** Gripper Model */
+            gripper_model?: string | null;
+            /** Gripper Size */
+            gripper_size?: string | null;
+            /** Gripper Type */
+            gripper_type?: string | null;
+            /** Interchangeable Circuits */
+            interchangeable_circuits?: number | null;
+            /** Pneumatic Connection */
+            pneumatic_connection?: string | null;
+            /** Pneumatic Notes */
+            pneumatic_notes?: string | null;
+            /** Pressure Circuits */
+            pressure_circuits?: number | null;
+            /** Sensor Models */
+            sensor_models?: string | null;
+            /** Sensor Types */
+            sensor_types?: string | null;
+            /** Vacuum Circuits */
+            vacuum_circuits?: number | null;
+            /** Vacuum Cup Model */
+            vacuum_cup_model?: string | null;
+            /** Vacuum Cup Size */
+            vacuum_cup_size?: string | null;
+            /** Vacuum Cup Type */
+            vacuum_cup_type?: string | null;
+            /** Vacuum Generation */
+            vacuum_generation?: string | null;
+        };
         /** EOATPatch */
         EOATPatch: {
             /** Cleanroom Classification */
@@ -4038,6 +4329,120 @@ export interface components {
             storage_location_code: string;
             /** Stored At */
             stored_at?: string | null;
+        };
+        /** OnboardingDraftCreate */
+        OnboardingDraftCreate: {
+            /** Area Code */
+            area_code?: string | null;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Plant Code */
+            plant_code?: string | null;
+            /** Proposed Identifier */
+            proposed_identifier?: string | null;
+        };
+        /** OnboardingDraftDiscard */
+        OnboardingDraftDiscard: {
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** OnboardingDraftPatch */
+        OnboardingDraftPatch: {
+            /** Area Code */
+            area_code?: string | null;
+            /** Expected Row Version */
+            expected_row_version: number;
+            /** Payload */
+            payload?: {
+                [key: string]: unknown;
+            };
+            /** Plant Code */
+            plant_code?: string | null;
+            /** Proposed Identifier */
+            proposed_identifier?: string | null;
+        };
+        /** OnboardingFinalize */
+        OnboardingFinalize: {
+            /** Expected Row Version */
+            expected_row_version: number;
+        };
+        /** OnboardingIdentifierGenerate */
+        OnboardingIdentifierGenerate: {
+            /** Expected Row Version */
+            expected_row_version: number;
+        };
+        /** OnboardingMediaArchive */
+        OnboardingMediaArchive: {
+            /** Expected Row Version */
+            expected_row_version: number;
+        };
+        /** OnboardingMediaCreate */
+        OnboardingMediaCreate: {
+            /** Caption */
+            caption?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Document Type */
+            document_type: string;
+            /** File Name */
+            file_name: string;
+            /**
+             * Media Kind
+             * @enum {string}
+             */
+            media_kind: "document" | "photo";
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Photo View Type */
+            photo_view_type?: string | null;
+            /** Revision */
+            revision?: string | null;
+            /** Storage Path */
+            storage_path: string;
+            /** Title */
+            title: string;
+        };
+        /** OnboardingMediaUpload */
+        OnboardingMediaUpload: {
+            /** Caption */
+            caption?: string | null;
+            /** Content Base64 */
+            content_base64: string;
+            /** Description */
+            description?: string | null;
+            /** Document Type */
+            document_type: string;
+            /** File Name */
+            file_name: string;
+            /**
+             * Media Kind
+             * @enum {string}
+             */
+            media_kind: "document" | "photo";
+            /** Mime Type */
+            mime_type?: string | null;
+            /** Photo View Type */
+            photo_view_type?: string | null;
+            /** Revision */
+            revision?: string | null;
+            /** Storage Path */
+            storage_path: string;
+            /** Title */
+            title: string;
+        };
+        /** OnboardingProfilePhotoSelect */
+        OnboardingProfilePhotoSelect: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** OnboardingProfilePhotoSelectionResult */
+        OnboardingProfilePhotoSelectionResult: {
+            /** Row Version */
+            row_version: number;
         };
         /** PaginatedEOATs */
         PaginatedEOATs: {
@@ -6974,6 +7379,40 @@ export interface operations {
             };
         };
     };
+    catalog_options_api_v1_catalog_options__kind__get: {
+        parameters: {
+            query?: {
+                query?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     alternatives_api_v1_compatibility_alternatives_get: {
         parameters: {
             query: {
@@ -8862,6 +9301,493 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_api_v1_onboarding_drafts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    create_api_v1_onboarding_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingDraftCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_draft_api_v1_onboarding_drafts__draft_uuid__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_api_v1_onboarding_drafts__draft_uuid__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingDraftPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discard_api_v1_onboarding_drafts__draft_uuid__discard_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingDraftDiscard"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalize_api_v1_onboarding_drafts__draft_uuid__finalize_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingFinalize"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_draft_identifier_api_v1_onboarding_drafts__draft_uuid__identifier_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingIdentifierGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_api_v1_onboarding_drafts__draft_uuid__media_post: {
+        parameters: {
+            query: {
+                expected_row_version: number;
+            };
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingMediaCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_media_api_v1_onboarding_drafts__draft_uuid__media_upload_post: {
+        parameters: {
+            query: {
+                expected_row_version: number;
+            };
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingMediaUpload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_media_api_v1_onboarding_drafts__draft_uuid__media__media_id__remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+                media_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingMediaArchive"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_api_v1_onboarding_drafts__draft_uuid__review_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_engineering_api_v1_onboarding_eoats__identifier__engineering_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_engineering_api_v1_onboarding_eoats__identifier__engineering_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EOATEngineeringPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_profile_photo_api_v1_onboarding_eoats__identifier__photos__document_uuid__set_profile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+                document_uuid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingProfilePhotoSelect"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingProfilePhotoSelectionResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_api_v1_onboarding_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

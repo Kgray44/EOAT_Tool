@@ -83,6 +83,7 @@ export type CatalogOptionKind =
   | "compatibility_source"
   | "compatibility_status"
   | "connection_type"
+  | "document_type"
   | "eoat"
   | "eoat_type"
   | "machine"
@@ -90,6 +91,7 @@ export type CatalogOptionKind =
   | "plant"
   | "robot"
   | "status"
+  | "storage"
   | "tool";
 export type CatalogOption = { value: string; label: string };
 export type CatalogFilters = {
@@ -103,6 +105,42 @@ export type CatalogFilters = {
   mold?: string;
   robot?: string;
   eoat?: string;
+};
+export type OnboardingDraft = {
+  draft_uuid: string;
+  proposed_identifier: string | null;
+  plant_code?: string | null;
+  area_code?: string | null;
+  created_by_user_id?: number | null;
+  created_by_display_name?: string | null;
+  lifecycle_state: "DRAFT" | "FINALIZED" | "DISCARDED";
+  completion_state: string;
+  payload: Record<string, unknown>;
+  row_version: number;
+  updated_at: string;
+  finalized_eoat_id?: number | null;
+  staged_media?: OnboardingStagedMedia[];
+};
+export type OnboardingStagedMedia = {
+  id: number;
+  media_kind: "photo" | "document";
+  document_type: string;
+  file_name: string;
+  title: string;
+  description?: string | null;
+  revision?: string | null;
+  mime_type?: string | null;
+  photo_view_type?: string | null;
+  caption?: string | null;
+  row_version: number;
+};
+export type OnboardingReview = {
+  blocking_errors: Array<{ code: string; message: string }>;
+  warnings: Array<{ code: string; message: string }>;
+};
+export type EoatEngineeringProfile = Record<string, unknown> & {
+  eoat_id: number;
+  row_version: number;
 };
 
 export function sessionHasPermission(
@@ -270,6 +308,260 @@ function csrfHeader(): HeadersInit {
 }
 
 export const apiClient = {
+  async getEoatEngineeringProfile(
+    identifier: string,
+    fetcher?: typeof fetch,
+  ): Promise<EoatEngineeringProfile> {
+    return assertObject<EoatEngineeringProfile>(
+      await requestJson(
+        `/api/v1/onboarding/eoats/${encodeURIComponent(identifier)}/engineering`,
+        fetcher,
+      ),
+      ["eoat_id", "row_version"],
+      "EOAT engineering profile",
+    );
+  },
+  async patchEoatEngineeringProfile(
+    identifier: string,
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<EoatEngineeringProfile> {
+    return assertObject<EoatEngineeringProfile>(
+      await requestJson(
+        `/api/v1/onboarding/eoats/${encodeURIComponent(identifier)}/engineering`,
+        fetcher,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["eoat_id", "row_version"],
+      "updated EOAT engineering profile",
+    );
+  },
+  async getOnboardingStatus(
+    fetcher?: typeof fetch,
+  ): Promise<{ enabled: boolean }> {
+    return assertObject<{ enabled: boolean }>(
+      await requestJson("/api/v1/onboarding/status", fetcher),
+      ["enabled"],
+      "onboarding status",
+    );
+  },
+  async listOnboardingDrafts(
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft[]> {
+    return assertArray<OnboardingDraft>(
+      await requestJson("/api/v1/onboarding/drafts", fetcher),
+      "onboarding drafts",
+    );
+  },
+  async getOnboardingDraft(
+    draftUuid: string,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}`,
+        fetcher,
+      ),
+      ["draft_uuid", "payload", "row_version"],
+      "onboarding draft",
+    );
+  },
+  async createOnboardingDraft(
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson("/api/v1/onboarding/drafts", fetcher, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...csrfHeader() },
+        body: JSON.stringify(payload),
+      }),
+      ["draft_uuid", "payload", "row_version"],
+      "onboarding draft",
+    );
+  },
+  async saveOnboardingDraft(
+    draftUuid: string,
+    payload: Record<string, unknown>,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}`,
+        fetcher,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify(payload),
+        },
+      ),
+      ["draft_uuid", "payload", "row_version"],
+      "onboarding draft",
+    );
+  },
+  async finalizeOnboardingDraft(
+    draftUuid: string,
+    expectedRowVersion: number,
+    fetcher?: typeof fetch,
+  ): Promise<{ eoat: { business_identifier: string }; warnings: string[] }> {
+    return assertObject<{
+      eoat: { business_identifier: string };
+      warnings: string[];
+    }>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/finalize`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ expected_row_version: expectedRowVersion }),
+        },
+      ),
+      ["eoat", "warnings"],
+      "finalized EOAT",
+    );
+  },
+  async reviewOnboardingDraft(
+    draftUuid: string,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingReview> {
+    return assertObject<OnboardingReview>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/review`,
+        fetcher,
+      ),
+      ["blocking_errors", "warnings"],
+      "onboarding review",
+    );
+  },
+  async discardOnboardingDraft(
+    draftUuid: string,
+    expectedRowVersion: number,
+    reason?: string,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/discard`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({
+            expected_row_version: expectedRowVersion,
+            reason: reason || null,
+          }),
+        },
+      ),
+      ["draft_uuid", "lifecycle_state", "row_version"],
+      "discarded onboarding draft",
+    );
+  },
+  async generateOnboardingIdentifier(
+    draftUuid: string,
+    expectedRowVersion: number,
+    fetcher?: typeof fetch,
+  ): Promise<OnboardingDraft> {
+    return assertObject<OnboardingDraft>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/identifier/generate`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ expected_row_version: expectedRowVersion }),
+        },
+      ),
+      ["draft_uuid", "proposed_identifier", "row_version"],
+      "generated onboarding identifier",
+    );
+  },
+  async uploadOnboardingMedia(
+    draftUuid: string,
+    expectedRowVersion: number,
+    payload: {
+      file: File;
+      mediaKind: "photo" | "document";
+      documentType: string;
+      title: string;
+      photoViewType?: string;
+      caption?: string;
+      description?: string;
+    },
+    fetcher?: typeof fetch,
+  ): Promise<{ id: number; row_version: number }> {
+    const bytes = new Uint8Array(await payload.file.arrayBuffer());
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000)
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    return assertObject<{ id: number; row_version: number }>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/media/upload?expected_row_version=${expectedRowVersion}`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({
+            media_kind: payload.mediaKind,
+            document_type: payload.documentType,
+            file_name: payload.file.name,
+            title: payload.title,
+            description: payload.description || null,
+            mime_type: payload.file.type || null,
+            photo_view_type: payload.photoViewType || null,
+            caption: payload.caption || null,
+            content_base64: btoa(binary),
+          }),
+        },
+      ),
+      ["id", "row_version"],
+      "staged onboarding media",
+    );
+  },
+  async removeOnboardingMedia(
+    draftUuid: string,
+    mediaId: number,
+    expectedRowVersion: number,
+    fetcher?: typeof fetch,
+  ): Promise<{ id: number; row_version: number }> {
+    return assertObject<{ id: number; row_version: number }>(
+      await requestJson(
+        `/api/v1/onboarding/drafts/${encodeURIComponent(draftUuid)}/media/${mediaId}/remove`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ expected_row_version: expectedRowVersion }),
+        },
+      ),
+      ["id", "row_version"],
+      "removed staged onboarding media",
+    );
+  },
+  async selectOnboardingProfilePhoto(
+    identifier: string,
+    documentUuid: string,
+    reason?: string,
+    fetcher?: typeof fetch,
+  ): Promise<{ row_version: number }> {
+    return assertObject<{ row_version: number }>(
+      await requestJson(
+        `/api/v1/onboarding/eoats/${encodeURIComponent(identifier)}/photos/${encodeURIComponent(documentUuid)}/set-profile`,
+        fetcher,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...csrfHeader() },
+          body: JSON.stringify({ reason: reason || null }),
+        },
+      ),
+      ["row_version"],
+      "selected profile photo",
+    );
+  },
   async getAuthenticatedSession(
     fetcher?: typeof fetch,
   ): Promise<AuthenticatedSession> {

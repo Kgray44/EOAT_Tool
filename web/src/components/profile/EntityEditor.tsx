@@ -45,15 +45,17 @@ export function EntityEditor({
   rowVersion,
   fields,
   onSaved,
+  initialOpen = false,
 }: {
   kind: EntityKind;
   identifier: string;
   rowVersion: number;
   fields: EditorField[];
   onSaved: () => void;
+  initialOpen?: boolean;
 }) {
   const [session, setSession] = useState<AuthenticatedSession | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialOpen);
   const fieldSignature = JSON.stringify(
     fields.map((field) => [field.key, field.value]),
   );

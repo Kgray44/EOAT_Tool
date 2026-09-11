@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
-from .audit_profiles import latest_physical_audit
+from .audit_profiles import latest_physical_audit, normalize_optional_hardware_values
 from .contracts import (
     CurrentEOATLocation,
     DocumentMetadata,
@@ -323,6 +323,14 @@ class AtlasRepository:
             "number_of_vacuum_cups": (entity.number_of_vacuum_cups, "vacuum_cup_count"),
             "number_of_grippers": (entity.number_of_grippers, "gripper_count"),
             "sensors_present": (entity.sensors_present, "sensors_present"),
+            "part_present_sensor_present": (
+                entity.part_present_sensor_present,
+                "part_present_sensor_present",
+            ),
+            "vacuum_confirmation_sensor_present": (
+                entity.vacuum_confirmation_sensor_present,
+                "vacuum_confirmation_sensor_present",
+            ),
             "quick_disconnect_present": (entity.quick_disconnect_present, "quick_disconnect_present"),
             "cup_material": (entity.cup_material, "cup_material"),
         }
@@ -345,18 +353,30 @@ class AtlasRepository:
             current_location=current_location.state if current_location else summary.current_location,
             current_location_detail=current_location,
         )
+        semantic_hardware = normalize_optional_hardware_values(
+            eoat_type=summary_payload["eoat_type"],
+            vacuum_cup_count=effective("vacuum_cup_count", entity.number_of_vacuum_cups),
+            gripper_count=effective("gripper_count", entity.number_of_grippers),
+            sensors_present=effective("sensors_present", entity.sensors_present),
+            part_present_sensor_present=effective(
+                "part_present_sensor_present", entity.part_present_sensor_present
+            ),
+            vacuum_confirmation_sensor_present=effective(
+                "vacuum_confirmation_sensor_present", entity.vacuum_confirmation_sensor_present
+            ),
+        )
         return EOATProfile(
             **summary_payload,
             description=effective("description", entity.description),
             revision=entity.revision,
-            number_of_vacuum_cups=effective("vacuum_cup_count", entity.number_of_vacuum_cups),
-            number_of_grippers=effective("gripper_count", entity.number_of_grippers),
+            number_of_vacuum_cups=semantic_hardware["vacuum_cup_count"],
+            number_of_grippers=semantic_hardware["gripper_count"],
             vacuum_present=entity.vacuum_present if entity.vacuum_present is not None else (
                 True if observed.get("vacuum_cup_count") or observed.get("vacuum_generator") or observed.get("vacuum_circuits") else None
             ),
-            sensors_present=effective("sensors_present", entity.sensors_present),
-            part_present_sensor_present=effective("part_present_sensor_present", entity.part_present_sensor_present),
-            vacuum_confirmation_sensor_present=effective("vacuum_confirmation_sensor_present", entity.vacuum_confirmation_sensor_present),
+            sensors_present=semantic_hardware["sensors_present"],
+            part_present_sensor_present=semantic_hardware["part_present_sensor_present"],
+            vacuum_confirmation_sensor_present=semantic_hardware["vacuum_confirmation_sensor_present"],
             quick_disconnect_present=effective("quick_disconnect_present", entity.quick_disconnect_present),
             cup_material=effective("cup_material", entity.cup_material),
             frame_material=entity.frame_material,

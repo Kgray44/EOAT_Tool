@@ -29,6 +29,10 @@ ROLE_PERMISSIONS = {
     "VIEWER": frozenset(),
     "TECHNICIAN": frozenset(
         {
+            "onboarding.draft.view",
+            "onboarding.draft.create",
+            "onboarding.draft.edit",
+            "onboarding.draft.discard",
             "installation.write",
             "audit.write",
             "assignment.edit",
@@ -43,6 +47,12 @@ ROLE_PERMISSIONS = {
     ),
     "ENGINEER": frozenset(
         {
+            "onboarding.draft.view",
+            "onboarding.draft.review",
+            "onboarding.draft.create",
+            "onboarding.draft.edit",
+            "onboarding.draft.discard",
+            "onboarding.draft.finalize",
             "asset.write",
             "compatibility.write",
             "document.write",
@@ -142,6 +152,12 @@ GROUP_POLICY_PERMISSIONS = frozenset(
         "photo.remove",
         "audit.create",
         "bulk_status.execute",
+        "onboarding.draft.view",
+        "onboarding.draft.review",
+        "onboarding.draft.create",
+        "onboarding.draft.edit",
+        "onboarding.draft.discard",
+        "onboarding.draft.finalize",
     }
 )
 
@@ -428,6 +444,17 @@ def corporate_session_actor(request: Request, session: Session) -> ActorContext:
 def require(permission: str):
     def dependency(actor: ActorContext = Depends(actor_context)) -> ActorContext:
         if not actor.permits(permission):
+            raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this permission.")
+        return actor
+
+    return dependency
+
+
+def require_any(*permissions: str):
+    """Require one of several explicitly equivalent route capabilities."""
+
+    def dependency(actor: ActorContext = Depends(actor_context)) -> ActorContext:
+        if not any(actor.permits(permission) for permission in permissions):
             raise APIError(403, "PERMISSION_DENIED", "The authenticated identity does not have this permission.")
         return actor
 

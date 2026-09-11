@@ -428,7 +428,7 @@ test("library, Fit Check, QR payload, and responsive layouts are browser-safe", 
   ).toBeEnabled();
   await page.goto("/machines/M-1");
   await expect(
-    page.locator("code").filter({ hasText: "/machines/M-1" }),
+    page.getByRole("img", { name: /QR code for .*\/machines\/M-1/ }),
   ).toBeVisible();
   for (const [width, height] of [
     [1760, 1080],

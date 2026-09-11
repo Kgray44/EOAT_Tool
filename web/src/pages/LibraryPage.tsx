@@ -253,7 +253,9 @@ export function LibraryPage() {
 
   return (
     <section className="library-page">
-      <h2>Library</h2>
+      <div className="library-heading">
+        <h2>Library</h2>
+      </div>
       <span className="library-title-accent" aria-hidden="true" />
       <form
         className="library-controls"

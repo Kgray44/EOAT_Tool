@@ -63,23 +63,36 @@ function payloadFor(
   compatibilityStatus: string,
   effectiveFrom: string,
   reason: string,
+  verificationSource: string,
+  verifiedAt: string,
 ) {
+  const targetIdentifier = relationshipType.includes("machine")
+    ? target.split("::").at(-1) || target
+    : target;
   const payload: Record<string, unknown> = {
     compatibility_status: compatibilityStatus,
     effective_from: new Date(`${effectiveFrom}T00:00:00Z`).toISOString(),
     reason: reason || null,
   };
+  if (verificationSource) payload.verification_source = verificationSource;
+  if (verifiedAt) payload.verified_at = new Date(`${verifiedAt}T00:00:00Z`).toISOString();
   if (relationshipType === "eoat-machine") {
-    payload.eoat_identifier = kind === "eoat" ? identifier : target;
-    payload.machine_number = kind === "machine" ? identifier : target;
+    payload.eoat_identifier = kind === "eoat" ? identifier : targetIdentifier;
+    payload.machine_number = kind === "machine" ? identifier : targetIdentifier;
   } else if (relationshipType === "eoat-tool") {
-    payload.eoat_identifier = kind === "eoat" ? identifier : target;
-    payload.tool_identifier = kind === "tool" ? identifier : target;
+    payload.eoat_identifier = kind === "eoat" ? identifier : targetIdentifier;
+    payload.tool_identifier = kind === "tool" ? identifier : targetIdentifier;
   } else {
-    payload.tool_identifier = kind === "tool" ? identifier : target;
-    payload.machine_number = kind === "machine" ? identifier : target;
+    payload.tool_identifier = kind === "tool" ? identifier : targetIdentifier;
+    payload.machine_number = kind === "machine" ? identifier : targetIdentifier;
   }
   return payload;
+}
+
+function targetCatalogKind(kind: EntityKind, relationshipType: RelationshipType) {
+  if (relationshipType === "eoat-machine") return kind === "eoat" ? "machine" : "eoat";
+  if (relationshipType === "eoat-tool") return kind === "eoat" ? "tool" : "eoat";
+  return kind === "machine" ? "tool" : "machine";
 }
 
 export function CompatibilityEditor({
@@ -102,12 +115,19 @@ export function CompatibilityEditor({
     new Date().toISOString().slice(0, 10),
   );
   const [reason, setReason] = useState("");
+  const [verificationSource, setVerificationSource] = useState("");
+  const [verifiedAt, setVerifiedAt] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const statuses = useQuery({
     queryKey: ["editor-catalog", "compatibility_status"],
     queryFn: () => apiClient.getCatalogOptions("compatibility_status"),
+    staleTime: 60_000,
+  });
+  const sources = useQuery({
+    queryKey: ["editor-catalog", "compatibility_source"],
+    queryFn: () => apiClient.getCatalogOptions("compatibility_source"),
     staleTime: 60_000,
   });
 
@@ -127,6 +147,11 @@ export function CompatibilityEditor({
   const choice =
     choices[kind].find((value) => value.value === relationshipType) ??
     choices[kind][0];
+  const targetOptions = useQuery({
+    queryKey: ["editor-catalog", "compatibility-target", kind, relationshipType],
+    queryFn: () => apiClient.getCatalogOptions(targetCatalogKind(kind, relationshipType)),
+    staleTime: 60_000,
+  });
   const consequential = /incompatible|not.compatible|failed/i.test(status);
   async function save() {
     if (
@@ -150,11 +175,15 @@ export function CompatibilityEditor({
           status,
           effectiveFrom,
           reason,
+          verificationSource,
+          verifiedAt,
         ),
       );
       setOpen(false);
       setTarget("");
       setReason("");
+      setVerificationSource("");
+      setVerifiedAt("");
       setConfirmed(false);
       onSaved();
     } catch (failure) {
@@ -186,8 +215,7 @@ export function CompatibilityEditor({
       <header>
         <h2>Add compatibility relationship</h2>
         <p>
-          EOAT Atlas validates the referenced records and does not infer
-          compatibility from an absent relationship.
+          Select a record and its compatibility status.
         </p>
       </header>
       <div className="entity-editor-grid">
@@ -195,9 +223,10 @@ export function CompatibilityEditor({
           <span>Relationship</span>
           <select
             value={relationshipType}
-            onChange={(event) =>
-              setRelationshipType(event.target.value as RelationshipType)
-            }
+            onChange={(event) => {
+              setRelationshipType(event.target.value as RelationshipType);
+              setTarget("");
+            }}
           >
             {choices[kind].map((value) => (
               <option key={value.value} value={value.value}>
@@ -208,11 +237,17 @@ export function CompatibilityEditor({
         </label>
         <label>
           <span>{choice.targetLabel}</span>
-          <input
+          <select
             value={target}
             onChange={(event) => setTarget(event.target.value)}
-            required
-          />
+          >
+            <option value="">Select a {choice.targetLabel.toLowerCase()}</option>
+            {(targetOptions.data ?? []).map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           <span>Compatibility status</span>
@@ -238,6 +273,28 @@ export function CompatibilityEditor({
             value={effectiveFrom}
             onChange={(event) => setEffectiveFrom(event.target.value)}
             required
+          />
+        </label>
+        <label>
+          <span>Verification source</span>
+          <select
+            value={verificationSource}
+            onChange={(event) => setVerificationSource(event.target.value)}
+          >
+            <option value="">Not recorded</option>
+            {(sources.data ?? []).map((value) => (
+              <option key={value.value} value={value.value}>
+                {value.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Verified date</span>
+          <input
+            type="date"
+            value={verifiedAt}
+            onChange={(event) => setVerifiedAt(event.target.value)}
           />
         </label>
         <label className="wide">

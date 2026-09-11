@@ -62,6 +62,17 @@ async function routeApi(
           current_schema_revision: "20260717_0007",
         },
       });
+    if (path.endsWith("/data-status"))
+      return route.fulfill({
+        json: {
+          status: "available",
+          data_last_modified_at: "2026-09-04T00:00:00Z",
+          server_time: "2026-09-04T00:00:00Z",
+          data_revision: 1,
+        },
+      });
+    if (path.endsWith("/auth/session"))
+      return route.fulfill({ json: { authenticated: false } });
     if (path.includes("MISSING"))
       return route.fulfill({
         status: 404,

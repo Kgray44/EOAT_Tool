@@ -1,18 +1,44 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router-dom";
+import { afterEach, beforeEach, vi } from "vitest";
+import { apiClient } from "@/api/client";
 import { AppProviders } from "@/app/providers";
 import { createTestRouter } from "@/app/router";
 
+const routers = new Set<ReturnType<typeof createTestRouter>>();
+
 function renderAt(path: string) {
+  const router = createTestRouter([path]);
+  routers.add(router);
   return render(
     <AppProviders>
-      <RouterProvider router={createTestRouter([path])} />
+      <RouterProvider router={router} />
     </AppProviders>,
   );
 }
 
+afterEach(() => {
+  for (const router of routers) {
+    router.dispose();
+  }
+  routers.clear();
+  vi.restoreAllMocks();
+});
+
 describe("router", () => {
+  beforeEach(() => {
+    vi.spyOn(apiClient, "getDataStatus").mockResolvedValue({
+      status: "available",
+      data_last_modified_at: "2026-09-04T00:00:00Z",
+      server_time: "2026-09-04T00:00:00Z",
+      data_revision: 1,
+    });
+    vi.spyOn(apiClient, "getMachineProfile").mockImplementation(
+      () => new Promise(() => {}),
+    );
+  });
+
   it("registers a machine deep route as a real profile route", () => {
     renderAt("/machines/test-machine");
     expect(screen.getByRole("status")).toHaveTextContent(

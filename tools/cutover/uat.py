@@ -13,7 +13,7 @@ import httpx
 from core.data_gateway.cache_repository import CacheRepository
 from core.data_gateway.configuration import GatewayConfiguration
 from core.data_gateway.gateway import AtlasDataGateway
-from tools.cutover.rehearsal import REPORT_ROOT, STAGING_STATE, sha256, utcnow, write_json
+from tools.cutover.rehearsal import EXPECTED_REVISION, REPORT_ROOT, STAGING_STATE, sha256, utcnow, write_json
 
 BASE = "http://127.0.0.1:8766"
 
@@ -109,14 +109,14 @@ def main() -> int:
     for name in ("a", "b", "c"):
         cache_path = STAGING_STATE / "caches" / f"uat-client-{name}.db"
         config = GatewayConfiguration(backend="mysql_api", api_base_url=BASE, cache_path=cache_path,
-            expected_schema_revision="20260714_0004", writes_enabled=True, environment="staging_local",
-            development_identity="staging.engineer", client_version="rehearsal-rc1")
+            expected_schema_revision=EXPECTED_REVISION, writes_enabled=True, environment="staging_local",
+            development_identity="staging.engineer", client_version="0.27.0-staging")
         gateway = AtlasDataGateway(config)
         gateway.deep_refresh()
         counts = gateway.cache.validate()
         caches.append({"client": name, "path": str(cache_path), "counts": counts, "metadata": gateway.cache.metadata()})
     offline_config = GatewayConfiguration(backend="mysql_api", api_base_url="http://127.0.0.1:65534", cache_path=Path(caches[0]["path"]),
-        expected_schema_revision="20260714_0004", environment="staging_local")
+        expected_schema_revision=EXPECTED_REVISION, environment="staging_local")
     offline_gateway = AtlasDataGateway(offline_config, cache=CacheRepository(offline_config.cache_path))
     cached_record = offline_gateway.cache.get("eoats", identifiers["eoat"])
     cases["cache_and_api_outage"] = {"status": "PASS", "evidence": {"clients": caches, "cached_record_available_with_api_unreachable": cached_record is not None}}
@@ -143,7 +143,7 @@ def main() -> int:
     all_requests = engineer.requests + technician.requests + admin.requests + viewer.requests + client_a.requests + client_b.requests
     failures = [name for name, case in cases.items() if case["status"] != "PASS"]
     report = {"status": "PASS" if not failures else "FAIL", "generated_at": utcnow(), "duration_seconds": round(time.perf_counter() - started, 3),
-              "api": BASE, "release": {"api_version": "1.3.0", "schema_revision": "20260714_0004", "client": "rehearsal-rc1"},
+              "api": BASE, "release": {"api_version": "0.27.0", "schema_revision": EXPECTED_REVISION, "client": "0.27.0-staging"},
               "identifiers": identifiers, "cases": cases, "http_requests": all_requests, "failed_cases": failures,
               "post_cutover_export": {"json": str(REPORT_ROOT / "post_cutover_change_export.json"), "csv": str(csv_path), "records": len(export["changes"])}}
     write_json(REPORT_ROOT / "uat_results.json", report)

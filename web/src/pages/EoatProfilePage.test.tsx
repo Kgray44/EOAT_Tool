@@ -172,6 +172,56 @@ describe("EOAT profile route", () => {
     );
   });
 
+  it("renders normalized zero and no values while preserving unknown and installed storage semantics", async () => {
+    const semanticProfile = {
+      ...profile,
+      revision: null,
+      number_of_vacuum_cups: 32,
+      number_of_grippers: 0,
+      sensors_present: false,
+      part_present_sensor_present: false,
+      vacuum_confirmation_sensor_present: false,
+    };
+    const installedLocation = {
+      ...location,
+      state: "INSTALLED",
+      machine_number: "43",
+      storage_location: null,
+    };
+    vi.stubGlobal(
+      "fetch",
+      mockApi({
+        "/api/v1/eoats/EOAT%20A%2B1": json(semanticProfile),
+        "/api/v1/eoats/EOAT%20A%2B1/current-location": json(installedLocation),
+      }),
+    );
+    renderProfile("/eoats/EOAT%20A%2B1?tab=overview");
+
+    await screen.findByRole("heading", { name: "EOAT A+1" });
+    expect(screen.getByText("Revision").parentElement).toHaveTextContent(
+      "Unknown / unavailable",
+    );
+    expect(screen.getByText("Vacuum cups").parentElement).toHaveTextContent(
+      "32",
+    );
+    expect(screen.getByText("Grippers").parentElement).toHaveTextContent("0");
+    expect(screen.getByText("Sensors present").parentElement).toHaveTextContent(
+      "No",
+    );
+    expect(
+      screen.getByText("Part-present sensor").parentElement,
+    ).toHaveTextContent("No");
+    expect(
+      screen.getByText("Vacuum-confirmation sensor").parentElement,
+    ).toHaveTextContent("No");
+    expect(
+      (await screen.findByText("Machine assignment")).parentElement,
+    ).toHaveTextContent("43");
+    expect(
+      screen.getByText("Storage location").parentElement,
+    ).toHaveTextContent("Not applicable while installed");
+  });
+
   it("keeps loaded identity visible when a secondary endpoint fails", async () => {
     vi.stubGlobal(
       "fetch",

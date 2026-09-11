@@ -7,6 +7,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { apiClient, type AuthenticatedSession } from "@/api/client";
 import {
   readBrowserSettings,
   type BrowserSettings,
@@ -14,7 +15,7 @@ import {
 import { readLibraryContext } from "@/app/libraryContext";
 import { GlobalSearchOverlay } from "@/components/search/GlobalSearchOverlay";
 import { AuthenticationPanel } from "@/components/auth/AuthenticationPanel";
-import { primaryNavigation } from "@/app/navigation";
+import { destinationIsVisible, primaryNavigation } from "@/app/navigation";
 
 function isEditable(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -66,6 +67,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const [settings, setSettings] = useState<BrowserSettings>(() =>
     readBrowserSettings(),
   );
+  const [session, setSession] = useState<AuthenticatedSession | null>(null);
   const profileRoute = /^\/(eoats|machines|tools)\//.test(location.pathname);
 
   const closeMenu = useCallback((restore = true) => {
@@ -104,6 +106,28 @@ export function AppShell({ children }: PropsWithChildren) {
     const handler = () => setSettings(readBrowserSettings());
     window.addEventListener("atlas-settings-changed", handler);
     return () => window.removeEventListener("atlas-settings-changed", handler);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const refreshSession = () => {
+      void apiClient
+        .getAuthenticatedSession()
+        .then((nextSession) => {
+          if (active) setSession(nextSession);
+        })
+        .catch(() => {
+          if (active) setSession(null);
+        });
+    };
+    refreshSession();
+    window.addEventListener("atlas-authentication-changed", refreshSession);
+    return () => {
+      active = false;
+      window.removeEventListener(
+        "atlas-authentication-changed",
+        refreshSession,
+      );
+    };
   }, []);
   useEffect(() => {
     const refresh = () => setScrolled(window.scrollY > 10);
@@ -255,24 +279,28 @@ export function AppShell({ children }: PropsWithChildren) {
               ×
             </button>
             <nav aria-label="Atlas navigation">
-              {primaryNavigation.map(({ path: to, label, icon }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className={
-                    isActiveNavigation(location.pathname, to) ? "active" : ""
-                  }
-                  aria-current={
-                    isActiveNavigation(location.pathname, to)
-                      ? "page"
-                      : undefined
-                  }
-                  onClick={() => closeMenu(false)}
-                >
-                  <span aria-hidden="true">{icon}</span>
-                  {label}
-                </Link>
-              ))}
+              {primaryNavigation
+                .filter((destination) =>
+                  destinationIsVisible(destination, session),
+                )
+                .map(({ path: to, label, icon }) => (
+                  <Link
+                    key={to}
+                    to={to}
+                    className={
+                      isActiveNavigation(location.pathname, to) ? "active" : ""
+                    }
+                    aria-current={
+                      isActiveNavigation(location.pathname, to)
+                        ? "page"
+                        : undefined
+                    }
+                    onClick={() => closeMenu(false)}
+                  >
+                    <span aria-hidden="true">{icon}</span>
+                    {label}
+                  </Link>
+                ))}
             </nav>
           </section>
         </div>

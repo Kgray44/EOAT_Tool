@@ -53,6 +53,449 @@ a {
   top: 1rem;
 }
 
+.onboarding-page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 9rem 0 4rem;
+}
+.onboarding-page header {
+  max-width: 720px;
+}
+.onboarding-save-status {
+  color: var(--atlas-text-secondary);
+  font-size: 0.9rem;
+}
+.onboarding-workspace {
+  display: grid;
+  grid-template-columns: minmax(12.5rem, 15.5rem) minmax(0, 1fr);
+  gap: clamp(1rem, 2.5vw, 2rem);
+  align-items: start;
+  margin-top: 2rem;
+}
+.onboarding-steps {
+  position: sticky;
+  top: 6.6rem;
+  display: grid;
+  gap: 0.55rem;
+}
+.onboarding-step {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  width: 100%;
+  min-height: 4.25rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--atlas-text-secondary);
+  text-align: left;
+  background: var(--atlas-panel-background);
+  border: 1px solid var(--atlas-border);
+  border-radius: 13px;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+.onboarding-step:hover:not(:disabled) {
+  border-color: var(--atlas-border-strong);
+  transform: translateX(2px);
+}
+.onboarding-step:focus-visible,
+.onboarding-action:focus-visible,
+.onboarding-mobile-steps summary:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--atlas-accent) 56%, transparent);
+  outline-offset: 2px;
+}
+.onboarding-step-number {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  color: var(--atlas-text-primary);
+  font-weight: 750;
+  background: var(--atlas-input-background);
+  border: 1px solid var(--atlas-border);
+  border-radius: 999px;
+}
+.onboarding-step-copy {
+  display: grid;
+  gap: 0.14rem;
+  min-width: 0;
+}
+.onboarding-step-copy strong {
+  overflow: hidden;
+  color: var(--atlas-text-primary);
+  font-size: 0.9rem;
+  line-height: 1.14;
+  text-overflow: ellipsis;
+}
+.onboarding-step-copy small {
+  color: var(--atlas-text-muted);
+  font-size: 0.75rem;
+}
+.onboarding-step.is-current {
+  border-color: var(--atlas-accent);
+  background: color-mix(
+    in srgb,
+    var(--atlas-accent) 14%,
+    var(--atlas-panel-background)
+  );
+}
+.onboarding-step.is-current .onboarding-step-number,
+.onboarding-step.is-complete .onboarding-step-number {
+  color: var(--atlas-text-on-accent);
+  background: var(--atlas-accent);
+  border-color: var(--atlas-accent);
+}
+.onboarding-step.is-warning {
+  border-color: var(--atlas-warning);
+}
+.onboarding-step.is-error {
+  border-color: var(--atlas-danger);
+}
+.onboarding-step.is-warning .onboarding-step-copy small {
+  color: var(--atlas-warning);
+}
+.onboarding-step.is-error .onboarding-step-copy small {
+  color: var(--atlas-danger);
+}
+.onboarding-content {
+  min-width: 0;
+}
+.onboarding-mobile-steps {
+  display: none;
+}
+.onboarding-card {
+  padding: clamp(1rem, 3vw, 2rem);
+  background: var(--atlas-panel-background);
+  border: 1px solid var(--atlas-border);
+  border-radius: 18px;
+  box-shadow: var(--atlas-shadow-card);
+}
+.onboarding-card h2,
+.onboarding-card h3 {
+  color: var(--atlas-text-primary);
+}
+
+.onboarding-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.onboarding-photo-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.8rem;
+}
+.onboarding-photo-selector button {
+  display: grid;
+  gap: 0.4rem;
+  overflow: hidden;
+  padding: 0.6rem;
+  color: var(--atlas-text-primary);
+  text-align: left;
+  background: var(--atlas-input-background);
+  border: 1px solid var(--atlas-border);
+  border-radius: 10px;
+}
+.onboarding-photo-selector button.selected {
+  border-color: var(--atlas-accent);
+}
+.onboarding-photo-selector img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+}
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.onboarding-grid label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--atlas-text-secondary);
+}
+.onboarding-grid input,
+.onboarding-grid select,
+.onboarding-grid textarea {
+  width: 100%;
+  padding: 0.65rem 0.7rem;
+  color: var(--atlas-text-primary);
+  background: var(--atlas-input-background);
+  border: 1px solid var(--atlas-border);
+  border-radius: 8px;
+}
+.onboarding-grid textarea,
+.onboarding-grid .wide {
+  grid-column: 1 / -1;
+  min-height: 6rem;
+}
+.onboarding-field-heading {
+  grid-column: 1 / -1;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--atlas-border);
+}
+.onboarding-field-heading:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.onboarding-field-heading h2 {
+  margin: 0;
+  color: var(--atlas-text-primary);
+  font-size: 1rem;
+}
+.onboarding-field-heading p {
+  margin: 0.28rem 0 0;
+  color: var(--atlas-text-secondary);
+  font-size: 0.86rem;
+}
+.onboarding-action-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--atlas-border);
+}
+.onboarding-action-footer__primary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+.onboarding-action {
+  min-height: 2.6rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 9px;
+  font-weight: 700;
+  transition:
+    transform 130ms ease,
+    background 130ms ease,
+    border-color 130ms ease;
+}
+.onboarding-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.onboarding-action--primary {
+  color: var(--atlas-text-on-accent);
+  background: var(--atlas-primary-button-background);
+  border: 1px solid var(--atlas-accent-hover);
+}
+.onboarding-action--secondary {
+  color: var(--atlas-text-primary);
+  background: var(--atlas-panel-background);
+  border: 1px solid var(--atlas-border-strong);
+}
+.onboarding-action--ghost {
+  color: var(--atlas-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+}
+.onboarding-action--danger {
+  color: var(--atlas-danger);
+  background: transparent;
+  border: 1px solid
+    color-mix(in srgb, var(--atlas-danger) 55%, var(--atlas-border));
+}
+.onboarding-action:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+  filter: saturate(0.72);
+}
+.onboarding-draft-list {
+  display: grid;
+  gap: 0.75rem;
+}
+.onboarding-draft-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--atlas-border);
+  border-radius: 10px;
+}
+.onboarding-draft-list article div {
+  display: grid;
+  gap: 0.3rem;
+}
+.onboarding-draft-list article span {
+  color: var(--atlas-text-secondary);
+  font-size: 0.9rem;
+}
+.onboarding-draft-list article > div:last-child {
+  display: flex;
+  grid-template-columns: none;
+}
+.onboarding-relationships hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--atlas-border);
+}
+.onboarding-relationship-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 1rem 0 0;
+  list-style: none;
+}
+.onboarding-relationship-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  color: var(--atlas-text-secondary);
+  border: 1px solid var(--atlas-border);
+  border-radius: 8px;
+}
+.onboarding-media-preview {
+  display: block;
+  max-width: min(100%, 320px);
+  max-height: 220px;
+  margin-top: 0.75rem;
+  border: 1px solid var(--atlas-border);
+  border-radius: 8px;
+  object-fit: contain;
+}
+.eoat-management-page {
+  width: min(960px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 9rem 0 4rem;
+}
+.eoat-management-page header {
+  max-width: 46rem;
+}
+.eoat-management-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.eoat-management-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.8rem;
+  min-height: 8rem;
+  padding: 1.15rem;
+  color: var(--atlas-text-primary);
+  text-decoration: none;
+  background: var(--atlas-panel-background);
+  border: 1px solid var(--atlas-border);
+  border-radius: 16px;
+  box-shadow: var(--atlas-shadow-card);
+}
+.eoat-management-card:hover {
+  border-color: var(--atlas-accent);
+  transform: translateY(-2px);
+}
+.eoat-management-card > span {
+  grid-row: span 2;
+  color: var(--atlas-accent);
+  font-size: 1.7rem;
+}
+.eoat-management-card strong {
+  align-self: end;
+}
+.eoat-management-card small {
+  color: var(--atlas-text-secondary);
+  line-height: 1.35;
+}
+.eoat-management-card.is-primary {
+  border-color: var(--atlas-accent);
+  background: color-mix(
+    in srgb,
+    var(--atlas-accent) 11%,
+    var(--atlas-panel-background)
+  );
+}
+@media (max-width: 760px) {
+  .onboarding-workspace {
+    display: block;
+    margin-top: 1.25rem;
+  }
+  .onboarding-steps {
+    display: none;
+  }
+  .onboarding-mobile-steps {
+    display: block;
+    margin-bottom: 0.85rem;
+    background: var(--atlas-panel-background);
+    border: 1px solid var(--atlas-border);
+    border-radius: 13px;
+  }
+  .onboarding-mobile-steps summary {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.15rem 0.75rem;
+    align-items: center;
+    min-height: 4.2rem;
+    padding: 0.75rem 0.9rem;
+    cursor: pointer;
+  }
+  .onboarding-mobile-steps summary span {
+    color: var(--atlas-text-secondary);
+    font-size: 0.78rem;
+  }
+  .onboarding-mobile-steps summary strong {
+    color: var(--atlas-text-primary);
+  }
+  .onboarding-mobile-steps progress {
+    grid-column: 1 / -1;
+    width: 100%;
+    accent-color: var(--atlas-accent);
+  }
+  .onboarding-mobile-step-list {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0 0.6rem 0.65rem;
+    border-top: 1px solid var(--atlas-border);
+  }
+  .onboarding-mobile-step-list .onboarding-step {
+    min-height: 3.65rem;
+  }
+}
+@media (max-width: 640px) {
+  .onboarding-page {
+    width: min(100% - 1rem, 1120px);
+    padding-top: 7rem;
+  }
+  .onboarding-grid {
+    grid-template-columns: 1fr;
+  }
+  .onboarding-grid .wide {
+    grid-column: auto;
+  }
+  .onboarding-action-footer {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+  .onboarding-action-footer > button,
+  .onboarding-action-footer__primary,
+  .onboarding-action-footer__primary button {
+    flex: 1 1 10rem;
+  }
+  .onboarding-action-footer__primary {
+    justify-content: stretch;
+  }
+  .eoat-management-page {
+    width: min(100% - 1rem, 960px);
+    padding-top: 7rem;
+  }
+  .atlas-app-shell:has(.onboarding-page) .atlas-auth-dock {
+    position: static;
+    display: flex;
+    justify-content: flex-end;
+    width: min(100% - 1rem, 1120px);
+    margin: 0 auto 1rem;
+  }
+}
+
 .atlas-app-shell {
   position: relative;
   isolation: isolate;
