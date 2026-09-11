@@ -9,6 +9,7 @@ import os
 import stat
 import sys
 import zipfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -1068,6 +1069,14 @@ def test_preflight_accepts_only_the_verified_stale_old_app_reconciliation_case(
     )
     monkeypatch.setattr(coordinator, "_migration_environment", lambda: {"fixed": "environment"})
     checks: list[Path] = []
+    validation_server = tmp_path / "sealed-target-migration-environment"
+    validation_server.mkdir()
+
+    @contextmanager
+    def validated_target(_archive: Path):
+        yield validation_server
+
+    monkeypatch.setattr(coordinator, "_migration_validation_server", validated_target)
     monkeypatch.setattr(coordinator, "_staged_alembic_current", lambda server, _env: checks.append(server) or "20260904_0018")
     monkeypatch.setattr(coordinator.web, "api_loopback_only", lambda: True)
     monkeypatch.setattr(coordinator.web, "mysql_loopback_only", lambda: True)
@@ -1078,7 +1087,7 @@ def test_preflight_accepts_only_the_verified_stale_old_app_reconciliation_case(
 
     evidence = coordinator.preflight(coordinator.sealed_policy(value))
 
-    assert checks == [api]
+    assert checks == [validation_server]
     assert evidence["api_health"] == health
     assert evidence["migration"]["current_schema"] == "20260904_0018"
 
