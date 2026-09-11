@@ -754,6 +754,40 @@ def _staged_alembic_current(server: Path, environment: dict[str, str]) -> str:
     return matches[0]
 
 
+@contextlib.contextmanager
+def _migration_validation_server(archive_path: Path):
+    """Expose sealed target migrations for a read-only preflight query.
+
+    The active application can legitimately predate the approved migration
+    start and therefore cannot load that revision from its own migration
+    directory.  Extract the already hash-verified target archive only into a
+    private root-owned directory under ``API_RELEASES``; retain the active
+    release's immutable virtual environment solely for the Alembic runtime.
+    The directory is removed before preflight returns and is never activated.
+    """
+    active_venv = API_CURRENT.resolve() / "venv"
+    if not active_venv.is_dir():
+        fail("current API virtual environment is unavailable")
+    try:
+        with tempfile.TemporaryDirectory(dir=API_RELEASES, prefix=".migration-validation-") as temporary:
+            server = Path(temporary)
+            with zipfile.ZipFile(archive_path) as archive:
+                for member in safe_zip_members(archive):
+                    if member.is_dir():
+                        (server / member.filename).mkdir(parents=True, exist_ok=True)
+                        continue
+                    destination = server / member.filename
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(member) as source, destination.open("wb") as output:
+                        shutil.copyfileobj(source, output)
+            if not (server / "server" / "alembic.ini").is_file():
+                fail("sealed target archive lacks a migration configuration")
+            (server / "venv").symlink_to(active_venv)
+            yield server
+    except zipfile.BadZipFile as error:
+        fail(f"sealed archive cannot be extracted for migration validation: {error}")
+
+
 def _backup_path(transaction: Path) -> Path:
     path = transaction / "pre-migration.sql.gz"
     if path.exists() or path.is_symlink() or path.parent != transaction:
@@ -1773,8 +1807,9 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
         fail("active release targets differ from the approved pre-activation policy")
     if migration_revisions:
         environment = _migration_environment()
-        if _staged_alembic_current(API_CURRENT.resolve(), environment) != migration_current:
-            fail("production schema does not match the approved migration-plan start")
+        with _migration_validation_server(archive) as validation_server:
+            if _staged_alembic_current(validation_server, environment) != migration_current:
+                fail("production schema does not match the approved migration-plan start")
     health = _migration_start_health(value, archive, migration_current, migration_revisions)
     _require_write_state(health, bool(writes["required_before"]), "pre-activation")
     if not web.api_loopback_only() or not web.mysql_loopback_only() or not web.listener_policy(value):
