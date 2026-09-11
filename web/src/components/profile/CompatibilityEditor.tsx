@@ -215,8 +215,7 @@ export function CompatibilityEditor({
       <header>
         <h2>Add compatibility relationship</h2>
         <p>
-          EOAT Atlas validates the referenced records and does not infer
-          compatibility from an absent relationship.
+          Select a record and its compatibility status.
         </p>
       </header>
       <div className="entity-editor-grid">
@@ -242,7 +241,7 @@ export function CompatibilityEditor({
             value={target}
             onChange={(event) => setTarget(event.target.value)}
           >
-            <option value="">Select an authoritative record</option>
+            <option value="">Select a {choice.targetLabel.toLowerCase()}</option>
             {(targetOptions.data ?? []).map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}

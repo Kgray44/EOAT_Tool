@@ -108,7 +108,7 @@ describe("EoatOnboardingPage", () => {
         screen.getByText("No current blocking errors."),
       ).toBeInTheDocument(),
     );
-    await user.click(screen.getByRole("button", { name: "Finalize EOAT" }));
+    await user.click(screen.getByRole("button", { name: "Create EOAT" }));
 
     await waitFor(() => expect(finalize).toHaveBeenCalledWith("draft-1", 1));
     expect(
@@ -356,7 +356,7 @@ describe("EoatOnboardingPage", () => {
     renderPage("/eoats/new/draft-1");
 
     expect(
-      await screen.findByText(/You can review this draft/),
+      await screen.findByText("You can review and create this EOAT."),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "EOAT identifier *" }),

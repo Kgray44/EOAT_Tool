@@ -29,7 +29,7 @@ export function EditEoatPage() {
     return (
       <section className="onboarding-page">
         <header>
-          <p className="eyebrow">Governed EOAT editing</p>
+          <p className="eyebrow">EOAT editing</p>
           <h1>EOAT editing unavailable</h1>
           <p>
             EOAT onboarding and the dedicated editor are not enabled in this
@@ -45,12 +45,9 @@ export function EditEoatPage() {
   return (
     <section className="onboarding-page">
       <header>
-        <p className="eyebrow">Governed EOAT editing</p>
+        <p className="eyebrow">EOAT editing</p>
         <h1>Edit {value.business_identifier}</h1>
-        <p>
-          Changes use the existing optimistic version, audit, and history write
-          path. Identifier changes are intentionally excluded.
-        </p>
+        <p>Update EOAT details.</p>
       </header>
       <section className="onboarding-card">
         <EntityEditor
@@ -209,10 +206,7 @@ export function EditEoatPage() {
       />
       <section className="onboarding-card">
         <h2>Assignment, compatibility, and media</h2>
-        <p>
-          These actions use the established governed paths and remain separate:
-          current assignment does not imply compatibility.
-        </p>
+        <p>Update assignment, compatibility, and media.</p>
         <CompatibilityEditor
           kind="eoat"
           identifier={value.business_identifier}

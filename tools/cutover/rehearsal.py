@@ -27,7 +27,9 @@ SOURCE_WORKBOOK = REPO / "EOAT_Standardization_Project/01_EOAT_Audit/EOAT_Audit_
 SOURCE_ROBOT = REPO / "EOAT_Standardization_Project/01_EOAT_Audit/EOAT_Audit_Database/Robot_Info.xlsx"
 SOURCE_SQLITE = REPO / "EOAT_Standardization_Project/project_data/annotations.sqlite"
 REPORT_ROOT = REPO / "reports/cutover_rehearsal"
-EXPECTED_REVISION = "20260714_0004"
+PRODUCTION_START_REVISION = "20260828_0017"
+EXPECTED_REVISION = "20260910_0019"
+REHEARSAL_CHAIN = (PRODUCTION_START_REVISION, "20260904_0018", EXPECTED_REVISION)
 
 
 def utcnow() -> str:
@@ -79,7 +81,7 @@ def root_connection(dev: dict[str, str], database: str | None = None):
     )
 
 
-def staging_environment(*, reset: bool) -> dict[str, object]:
+def staging_environment(*, reset: bool, target_revision: str = EXPECTED_REVISION) -> dict[str, object]:
     dev = read_env(DEV_STATE / "database.env")
     STAGING_STATE.mkdir(parents=True, exist_ok=True)
     env_path = STAGING_STATE / "staging.env"
@@ -112,7 +114,7 @@ def staging_environment(*, reset: bool) -> dict[str, object]:
     }
     env_path.write_text("".join(f"{key}={value}\n" for key, value in values.items()), encoding="utf-8")
     command_env = os.environ.copy() | values
-    seconds = run([sys.executable, "-m", "alembic", "-c", "server/alembic.ini", "upgrade", "head"], env=command_env)
+    seconds = run([sys.executable, "-m", "alembic", "-c", "server/alembic.ini", "upgrade", target_revision], env=command_env)
     with pymysql.connect(
         host=values["EOAT_DB_HOST"], port=int(values["EOAT_DB_PORT"]), user=values["EOAT_DB_USER"],
         password=values["EOAT_DB_PASSWORD"], database=STAGING_DB, connect_timeout=5,
@@ -122,10 +124,11 @@ def staging_environment(*, reset: bool) -> dict[str, object]:
         cursor.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s", (STAGING_DB,))
         tables = cursor.fetchone()[0]
     result = {
-        "status": "PASS" if revision == EXPECTED_REVISION else "FAIL",
+        "status": "PASS" if revision == target_revision else "FAIL",
         "database": STAGING_DB,
         "host": values["EOAT_DB_HOST"],
         "schema_revision": revision,
+        "requested_schema_revision": target_revision,
         "table_count_including_alembic": tables,
         "separate_runtime_and_migration_accounts": True,
         "secrets_location": str(env_path),
@@ -133,6 +136,53 @@ def staging_environment(*, reset: bool) -> dict[str, object]:
         "generated_at": utcnow(),
     }
     write_json(REPORT_ROOT / "staging_environment.json", result)
+    return result
+
+
+def _current_revision(env: dict[str, str]) -> str:
+    with pymysql.connect(
+        host=env["EOAT_DB_HOST"], port=int(env["EOAT_DB_PORT"]), user=env["EOAT_DB_USER"],
+        password=env["EOAT_DB_PASSWORD"], database=STAGING_DB, connect_timeout=5,
+    ) as connection, connection.cursor() as cursor:
+        cursor.execute("SELECT version_num FROM alembic_version")
+        return str(cursor.fetchone()[0])
+
+
+def migration_chain_rehearsal() -> dict[str, object]:
+    """Exercise the 0.27.0 production path and reversible schema steps on real MySQL."""
+    staging = read_env(STAGING_STATE / "staging.env")
+    command_env = os.environ.copy() | staging
+    steps: list[dict[str, object]] = []
+
+    def migrate(action: str, revision: str) -> None:
+        seconds = run(
+            [sys.executable, "-m", "alembic", "-c", "server/alembic.ini", action, revision],
+            env=command_env,
+        )
+        observed = _current_revision(staging)
+        steps.append({"action": action, "requested_revision": revision, "observed_revision": observed, "seconds": seconds})
+        if observed != revision:
+            raise RuntimeError(f"migration rehearsal expected {revision}, observed {observed}")
+
+    if _current_revision(staging) != PRODUCTION_START_REVISION:
+        raise RuntimeError(f"migration rehearsal must start at {PRODUCTION_START_REVISION}")
+    for revision in REHEARSAL_CHAIN[1:]:
+        migrate("upgrade", revision)
+    for revision in reversed(REHEARSAL_CHAIN[:-1]):
+        migrate("downgrade", revision)
+    for revision in REHEARSAL_CHAIN[1:]:
+        migrate("upgrade", revision)
+    result = {
+        "status": "PASS", "generated_at": utcnow(), "database": STAGING_DB,
+        "production_start_revision": PRODUCTION_START_REVISION,
+        "final_revision": EXPECTED_REVISION,
+        "forward_chain": list(REHEARSAL_CHAIN),
+        "rollback_target_revision": PRODUCTION_START_REVISION,
+        "final_staging_revision": _current_revision(staging),
+        "steps": steps,
+        "rollback_note": "0019 drops only command_center_data and intentionally retains potentially pre-existing lookup rows.",
+    }
+    write_json(REPORT_ROOT / "onboarding_migration_chain_rehearsal.json", result)
     return result
 
 
@@ -331,6 +381,8 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     environment = sub.add_parser("environment")
     environment.add_argument("--reset", action="store_true")
+    environment.add_argument("--target-revision", default=EXPECTED_REVISION)
+    sub.add_parser("migration-chain")
     sub.add_parser("freeze")
     classify = sub.add_parser("classify")
     classify.add_argument("--import-report", type=Path, required=True)
@@ -341,7 +393,9 @@ def main() -> int:
     sub.add_parser("verify")
     args = parser.parse_args()
     if args.command == "environment":
-        result = staging_environment(reset=args.reset)
+        result = staging_environment(reset=args.reset, target_revision=args.target_revision)
+    elif args.command == "migration-chain":
+        result = migration_chain_rehearsal()
     elif args.command == "freeze":
         result = freeze_sources()
     elif args.command == "classify":

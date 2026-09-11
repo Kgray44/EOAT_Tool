@@ -13,3 +13,14 @@ The rehearsal environment is intentionally isolated:
 Create/reset/verify/start/stop scripts live in `scripts/cutover`. Reset requires the exact marker `EOAT_STAGING_REHEARSAL_ONLY`; database and restore names are hard allowlisted. The local auth identities exist only for rehearsal and are forbidden in other environments.
 
 PowerShell execution policy may require `powershell -ExecutionPolicy Bypass -File <script>` on this workstation. That is a workstation policy detail, not an application bypass.
+
+## EOAT Atlas 0.27.0 onboarding rehearsal
+
+The 0.27.0 candidate starts from the retained production schema
+`20260828_0017` and must exercise the real-MySQL path
+`20260828_0017 -> 20260904_0018 -> 20260910_0019`. The staging receipt must
+name the exact published candidate commit and final revision
+`20260910_0019`. The controlled rollback rehearsal returns through the same
+revisions to `20260828_0017`, then reapplies the forward chain so authenticated
+UAT runs against the final candidate and schema. This isolated process never
+touches Press Capacity or a production database.

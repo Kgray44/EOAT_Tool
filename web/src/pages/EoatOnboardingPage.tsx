@@ -27,9 +27,9 @@ const steps = [
   "Identity",
   "Hardware",
   "Pneumatics & Sensors",
-  "Machines, Tools & Compatibility",
+  "Machines & Tools",
   "Photos & Documents",
-  "Review & Create",
+  "Review",
 ];
 const commandCenterDefaults: Identity = {
   status: "In Progress",
@@ -600,7 +600,7 @@ export function EoatOnboardingPage() {
       setError(
         reason instanceof ApiError
           ? reason.message
-          : "Finalization failed; the draft remains recoverable.",
+          : "Could not create EOAT. Try again.",
       );
     } finally {
       setBusy(false);
@@ -676,7 +676,7 @@ export function EoatOnboardingPage() {
       const refreshed = await apiClient.getOnboardingDraft(draft.draft_uuid);
       draftRef.current = refreshed;
       setDraft(refreshed);
-      setMediaStatus(`${selectedMedia.name} staged safely.`);
+      setMediaStatus(`${selectedMedia.name} uploaded.`);
       setSelectedMedia(null);
       setMediaTitle("");
       setMediaCaption("");
@@ -684,7 +684,7 @@ export function EoatOnboardingPage() {
       setMediaStatus(
         reason instanceof ApiError
           ? reason.message
-          : "Media could not be staged.",
+          : "Upload failed. Try again.",
       );
     } finally {
       setBusy(false);
@@ -709,7 +709,7 @@ export function EoatOnboardingPage() {
       };
       draftRef.current = updated;
       setDraft(updated);
-      setMediaStatus("Staged media removed from this draft.");
+      setMediaStatus("Media removed.");
     } catch (reason) {
       setMediaStatus(
         reason instanceof ApiError
@@ -724,7 +724,7 @@ export function EoatOnboardingPage() {
     if (!draft || !mayDiscard) return;
     if (
       !window.confirm(
-        "Discard this onboarding draft? This keeps an audited record but releases its identifier reservation.",
+        "Discard this draft? You cannot undo this action.",
       )
     )
       return;
@@ -758,11 +758,7 @@ export function EoatOnboardingPage() {
       <section className="onboarding-page">
         <header>
           <p className="eyebrow">EOAT onboarding complete</p>
-          <h1>{finalizedIdentifier} is now an EOAT Atlas asset</h1>
-          <p>
-            The permanent record was created through the governed transaction.
-            It is ready for its canonical profile, relationships, and QR label.
-          </p>
+          <h1>{finalizedIdentifier} created</h1>
         </header>
         <section className="onboarding-card">
           <p>
@@ -797,11 +793,11 @@ export function EoatOnboardingPage() {
       <header>
         <p className="eyebrow">EOAT onboarding</p>
         <h1>{draft ? "Continue onboarding" : "Add New EOAT"}</h1>
-        <p>
-          {draft
-            ? `Draft ${draft.proposed_identifier || "without an identifier"} · ${draft.completion_state}`
-            : "Start a governed draft. It will not enter the Library until finalization."}
-        </p>
+        {draft && (
+          <p>
+            Draft {draft.proposed_identifier || "without an identifier"}
+          </p>
+        )}
         {draft && (
           <p className="onboarding-save-status" role="status">
             {saveStatus}
@@ -809,8 +805,9 @@ export function EoatOnboardingPage() {
         )}
         {draft && !mayEdit && (
           <p className="onboarding-save-status" role="status">
-            You can review this draft, but you do not have permission to change
-            it.
+            {mayFinalize
+              ? "You can review and create this EOAT."
+              : "Read only"}
           </p>
         )}
       </header>
@@ -842,7 +839,7 @@ export function EoatOnboardingPage() {
                 <div className="onboarding-grid">
                   <div className="onboarding-field-heading">
                     <h2>Asset identity</h2>
-                    <p>Identify the physical EOAT and its governed record.</p>
+                    <p>Identify this EOAT.</p>
                   </div>
                   <label>
                     <span>Plant code *</span>
@@ -983,8 +980,8 @@ export function EoatOnboardingPage() {
                     required
                   />
                   <div className="onboarding-field-heading">
-                    <h2>Lifecycle</h2>
-                    <p>Capture the revision and important lifecycle dates.</p>
+                    <h2>Build details</h2>
+                    <p>Add the revision and key dates.</p>
                   </div>
                   <Field
                     label="Revision"
@@ -1508,8 +1505,7 @@ export function EoatOnboardingPage() {
                   />
                   <h2>Photos & Documents</h2>
                   <p>
-                    Files remain staged outside the normal EOAT media library
-                    until successful finalization.
+                    Upload photos and documents for this EOAT.
                   </p>
                   <div className="onboarding-grid">
                     <label>
@@ -1640,14 +1636,14 @@ export function EoatOnboardingPage() {
                 <h2>Review</h2>
                 <p>
                   {complete
-                    ? "Core identity fields are present. Final validation will re-check every required field, the identifier, permissions, references, and staged media."
-                    : "Blocking: enter an identifier and EOAT type before finalization."}
+                    ? "Required identity fields are complete. Review the details before creating the EOAT."
+                    : "Enter an identifier and EOAT type."}
                 </p>
                 <p>
-                  Draft status: {draft ? draft.completion_state : "Not saved"}
+                  Draft status: {draft ? draft.completion_state.replaceAll("_", " ").toLowerCase() : "Not saved"}
                 </p>
                 {review.isPending && draft && (
-                  <p>Checking current records and staged media…</p>
+                  <p>Checking EOAT details…</p>
                 )}
                 {review.data && (
                   <>
@@ -1675,8 +1671,8 @@ export function EoatOnboardingPage() {
                 )}
                 {review.isError && (
                   <p role="alert">
-                    The server review could not be completed. Finalization
-                    remains protected.
+                    Review could not be completed. Try again before creating the
+                    EOAT.
                   </p>
                 )}
               </div>
@@ -1753,8 +1749,8 @@ export function EoatOnboardingPage() {
                     }
                   >
                     {mayFinalize
-                      ? "Finalize EOAT"
-                      : "Finalization approval required"}
+                      ? "Create EOAT"
+                      : "You don't have permission to create this EOAT"}
                   </button>
                 )}
               </div>
@@ -1944,7 +1940,7 @@ function RelationshipSection({
         <label>
           <span>{type === "eoat-machine" ? "Machine" : "Tool"}</span>
           <select value={target} onChange={(e) => setTarget(e.target.value)}>
-            <option value="">Select authoritative record</option>
+            <option value="">Select a {type === "eoat-machine" ? "machine" : "tool"}</option>
             {options.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}

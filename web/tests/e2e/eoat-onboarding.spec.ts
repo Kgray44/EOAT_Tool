@@ -131,7 +131,7 @@ test("captures the desktop and narrow onboarding presentation", async ({
     path: testInfo.outputPath("onboarding-light-hardware.png"),
     fullPage: true,
   });
-  await page.getByRole("button", { name: /Step 6: Review & Create/ }).click();
+  await page.getByRole("button", { name: /Step 6: Review/ }).click();
   await expect(page.getByRole("heading", { name: "Review" })).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("onboarding-light-review.png"),
@@ -175,7 +175,7 @@ test("captures the desktop and narrow onboarding presentation", async ({
     path: testInfo.outputPath("onboarding-dark-hardware.png"),
     fullPage: true,
   });
-  await page.getByRole("button", { name: /Step 6: Review & Create/ }).click();
+  await page.getByRole("button", { name: /Step 6: Review/ }).click();
   await expect(page.getByRole("heading", { name: "Review" })).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("onboarding-dark-review.png"),

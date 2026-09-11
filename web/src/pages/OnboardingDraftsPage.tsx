@@ -22,12 +22,9 @@ export function OnboardingDraftsPage() {
   return (
     <section className="onboarding-page">
       <header>
-        <p className="eyebrow">Governed workspace</p>
+        <p className="eyebrow">EOAT management</p>
         <h1>Onboarding Drafts</h1>
-        <p>
-          Drafts are not Library assets and cannot be used by Fit Check or QR
-          labels until finalization.
-        </p>
+        <p>Resume or review drafts.</p>
       </header>
       {mayCreate && (
         <p>
