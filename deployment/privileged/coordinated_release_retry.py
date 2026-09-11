@@ -37,7 +37,7 @@ except ImportError:  # pragma: no cover - exercised by Linux deployment gates
 
 import install_http_web_host as web
 
-HELPER_VERSION = "1.5.0"
+HELPER_VERSION = "1.5.1"
 API_CURRENT = Path("/opt/eoat-atlas/current")
 API_RELEASES = Path("/opt/eoat-atlas/releases")
 WEB_CURRENT = Path("/var/www/eoat-atlas/current")
@@ -1697,6 +1697,49 @@ def acceptance_policy(value: dict[str, object], server: Path) -> dict[str, objec
     return {**value, "api_release": str(server.resolve())}
 
 
+def _migration_start_health(
+    value: dict[str, object], archive: Path, migration_current: str, migration_revisions: tuple[dict[str, str], ...]
+) -> dict[str, object]:
+    """Read the active API health without weakening normal compatibility checks.
+
+    A migration-bearing release may begin after a previously completed,
+    canonical schema advance.  In that narrowly governed case the old active
+    binary can truthfully report its older compiled expectation while the
+    database already equals the policy-pinned migration start.  The caller
+    has already verified that start directly through the fixed Alembic
+    environment; this helper only accepts the mismatch when the old expected
+    revision is a strict predecessor of that start in the sealed target
+    archive's migration graph.
+    """
+    if not migration_revisions:
+        return web.api_health({**value, "schema": migration_current})
+
+    status, content_type, health = web.http_json(web.API_HEALTH)
+    if status != 200 or "json" not in content_type or not isinstance(health, dict):
+        fail(f"local API health failed: status={status} content_type={content_type}")
+    schema = health.get("schema") if isinstance(health.get("schema"), dict) else {}
+    observed = schema.get("current", health.get("current_schema_revision"))
+    expected = schema.get("expected", health.get("expected_schema_revision"))
+    if observed != migration_current:
+        fail("active database revision differs from the approved migration-plan start")
+    if not isinstance(expected, str) or not MIGRATION_REVISION.fullmatch(expected):
+        fail("active API expected schema revision is invalid")
+    if expected == migration_current:
+        # Preserve the established strict health semantics whenever the active
+        # application and database agree.
+        return web.api_health({**value, "schema": migration_current})
+    if health.get("compatible") is not False:
+        fail("active API schema compatibility state is invalid for reconciliation")
+    try:
+        with zipfile.ZipFile(archive) as bundle:
+            graph = _archive_migration_graph(bundle)
+    except zipfile.BadZipFile as error:
+        fail(f"sealed archive cannot be inspected for migration evidence: {error}")
+    if expected not in _migration_ancestors(graph, migration_current):
+        fail("active API expected schema is not a predecessor of the approved migration-plan start")
+    return health
+
+
 def preflight(value: dict[str, object]) -> dict[str, object]:
     """Read-only identity and service checks before staging or activation."""
     migration_current, migration_target, migration_revisions = migration_plan(value)
@@ -1728,12 +1771,12 @@ def preflight(value: dict[str, object]) -> dict[str, object]:
         or str(WEB_CURRENT.resolve()) != value["expected_active_web"]
     ):
         fail("active release targets differ from the approved pre-activation policy")
-    health = web.api_health({**value, "schema": migration_current})
-    _require_write_state(health, bool(writes["required_before"]), "pre-activation")
     if migration_revisions:
         environment = _migration_environment()
         if _staged_alembic_current(API_CURRENT.resolve(), environment) != migration_current:
             fail("production schema does not match the approved migration-plan start")
+    health = _migration_start_health(value, archive, migration_current, migration_revisions)
+    _require_write_state(health, bool(writes["required_before"]), "pre-activation")
     if not web.api_loopback_only() or not web.mysql_loopback_only() or not web.listener_policy(value):
         fail("API, MySQL, or listener policy failed")
     nginx = subprocess.run(["/usr/sbin/nginx", "-t"], text=True, capture_output=True)

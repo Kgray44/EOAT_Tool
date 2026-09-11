@@ -979,6 +979,194 @@ def test_migration_plan_rejects_incomplete_or_mismatched_traversals(plan: dict[s
         coordinator.migration_plan({"schema": "20260820_0013", "migration_plan": plan})
 
 
+def _reconciliation_archive(
+    tmp_path: Path, *, directory: Path | None = None
+) -> tuple[Path, tuple[dict[str, str], ...]]:
+    archive_directory = directory or tmp_path
+    archive_directory.mkdir(parents=True, exist_ok=True)
+    archive = archive_directory / "reconciliation-server.zip"
+    migrations = {
+        "20260904_0017": None,
+        "20260904_0018": "20260904_0017",
+        "20260910_0019": "20260904_0018",
+    }
+    approved: list[dict[str, str]] = []
+    with zipfile.ZipFile(archive, "w") as bundle:
+        for revision, predecessor in migrations.items():
+            payload = f"revision = {revision!r}\ndown_revision = {predecessor!r}\n".encode()
+            bundle.writestr(f"server/migrations/versions/{revision}_fixture.py", payload)
+            if revision == "20260910_0019":
+                approved.append({"revision": revision, "sha256": hashlib.sha256(payload).hexdigest()})
+    return archive, tuple(approved)
+
+
+def _reconciliation_health(*, current: str, expected: str, compatible: bool) -> tuple[int, str, dict[str, object]]:
+    return 200, "application/json", {
+        "current_schema_revision": current,
+        "expected_schema_revision": expected,
+        "compatible": compatible,
+        "writes_enabled": True,
+    }
+
+
+def test_migration_start_health_accepts_a_canonical_advanced_database_with_stale_old_app_expectation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    archive, revisions = _reconciliation_archive(tmp_path, directory=tmp_path / "incoming")
+    payload = _reconciliation_health(current="20260904_0018", expected="20260904_0017", compatible=False)
+    monkeypatch.setattr(coordinator.web, "http_json", lambda _url: payload)
+
+    assert coordinator._migration_start_health({}, archive, "20260904_0018", revisions) == payload[2]
+
+
+def test_preflight_accepts_only_the_verified_stale_old_app_reconciliation_case(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    value, _ = sealing_policy(monkeypatch, tmp_path)
+    archive, revisions = _reconciliation_archive(tmp_path, directory=tmp_path / "incoming")
+    api, web = tmp_path / "api-current", tmp_path / "web-current"
+    api.mkdir()
+    web.mkdir()
+    value.update(
+        server_archive_path=str(archive),
+        server_archive_sha256=coordinator.web.sha256(archive),
+        expected_active_api=str(api),
+        expected_active_web=str(web),
+        application_version="0.27.0",
+        api_contract_version="1.4.0",
+        source_commit="a" * 40,
+        schema="20260910_0019",
+        migration_plan={
+            "current_schema": "20260904_0018",
+            "target_schema": "20260910_0019",
+            "revisions": list(revisions),
+        },
+        write_state={"transition": "preserve_current", "required_before": True, "required_after": True},
+    )
+    monkeypatch.setattr(coordinator, "API_CURRENT", api)
+    monkeypatch.setattr(coordinator, "WEB_CURRENT", web)
+    monkeypatch.setattr(
+        coordinator.web,
+        "verify_bundle",
+        lambda *_args: {
+            "metadata": {
+                "application_version": "0.27.0",
+                "source_commit": "a" * 40,
+                "compatible_api_version": "1.4.0",
+                "compatible_schema": "20260910_0019",
+            },
+            "manifest": {},
+            "bundle_sha256": value["bundle_sha256"],
+        },
+    )
+    health = _reconciliation_health(current="20260904_0018", expected="20260904_0017", compatible=False)[2]
+    monkeypatch.setattr(coordinator.web, "http_json", lambda _url: (200, "application/json", health))
+    monkeypatch.setattr(
+        coordinator.web,
+        "api_health",
+        lambda _policy: (_ for _ in ()).throw(AssertionError("strict health must not run for the verified reconciliation case")),
+    )
+    monkeypatch.setattr(coordinator, "_migration_environment", lambda: {"fixed": "environment"})
+    checks: list[Path] = []
+    monkeypatch.setattr(coordinator, "_staged_alembic_current", lambda server, _env: checks.append(server) or "20260904_0018")
+    monkeypatch.setattr(coordinator.web, "api_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "mysql_loopback_only", lambda: True)
+    monkeypatch.setattr(coordinator.web, "listener_policy", lambda _value: True)
+    monkeypatch.setattr(coordinator.web, "nginx_worker_user", lambda: "www-data")
+    monkeypatch.setattr(coordinator, "runtime_env_attestation", lambda: {"path": "/etc/eoat-atlas/runtime.env", "sha256": "a" * 64, "uid": 0, "gid": 0, "mode": 0o640})
+    monkeypatch.setattr(coordinator.subprocess, "run", lambda *_args, **_kwargs: type("Result", (), {"returncode": 0})())
+
+    evidence = coordinator.preflight(coordinator.sealed_policy(value))
+
+    assert checks == [api]
+    assert evidence["api_health"] == health
+    assert evidence["migration"]["current_schema"] == "20260904_0018"
+
+
+def test_migration_start_health_preserves_strict_compatible_health_when_old_app_matches_start(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    archive, revisions = _reconciliation_archive(tmp_path)
+    payload = _reconciliation_health(current="20260904_0018", expected="20260904_0018", compatible=True)
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(coordinator.web, "http_json", lambda _url: payload)
+    monkeypatch.setattr(coordinator.web, "api_health", lambda policy: calls.append(policy) or payload[2])
+
+    assert coordinator._migration_start_health({"schema": "20260910_0019"}, archive, "20260904_0018", revisions) == payload[2]
+    assert calls == [{"schema": "20260904_0018"}]
+
+
+@pytest.mark.parametrize("actual", ["20260904_0017", "20260910_0019"])
+def test_migration_start_health_rejects_any_database_revision_other_than_the_policy_start(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, actual: str
+) -> None:
+    archive, revisions = _reconciliation_archive(tmp_path)
+    monkeypatch.setattr(
+        coordinator.web,
+        "http_json",
+        lambda _url: _reconciliation_health(current=actual, expected="20260904_0017", compatible=False),
+    )
+
+    with pytest.raises(coordinator.web.InstallError, match="database revision differs"):
+        coordinator._migration_start_health({}, archive, "20260904_0018", revisions)
+
+
+def test_migration_start_health_rejects_an_expected_revision_outside_the_sealed_predecessor_chain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    archive, revisions = _reconciliation_archive(tmp_path)
+    monkeypatch.setattr(
+        coordinator.web,
+        "http_json",
+        lambda _url: _reconciliation_health(current="20260904_0018", expected="20260910_0019", compatible=False),
+    )
+
+    with pytest.raises(coordinator.web.InstallError, match="not a predecessor"):
+        coordinator._migration_start_health({}, archive, "20260904_0018", revisions)
+
+
+def test_non_migration_health_keeps_the_existing_strict_compatibility_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        coordinator.web,
+        "api_health",
+        lambda _policy: (_ for _ in ()).throw(coordinator.web.InstallError("active schema differs from approved policy")),
+    )
+
+    with pytest.raises(coordinator.web.InstallError, match="active schema differs"):
+        coordinator._migration_start_health({}, Path("unused.zip"), "20260904_0018", ())
+
+
+def test_migration_plan_requires_an_explicit_start_and_a_target_equal_to_the_release_schema() -> None:
+    with pytest.raises(coordinator.web.InstallError, match="current schema is invalid"):
+        coordinator.migration_plan(
+            {"schema": "20260910_0019", "migration_plan": {"target_schema": "20260910_0019", "revisions": []}}
+        )
+    with pytest.raises(coordinator.web.InstallError, match="target schema is invalid"):
+        coordinator.migration_plan(
+            {
+                "schema": "20260904_0018",
+                "migration_plan": {
+                    "current_schema": "20260904_0018",
+                    "target_schema": "20260910_0019",
+                    "revisions": [{"revision": "20260910_0019", "sha256": "a" * 64}],
+                },
+            }
+        )
+
+
+def test_migration_archive_rejects_a_target_that_does_not_connect_to_the_policy_start(tmp_path: Path) -> None:
+    archive = tmp_path / "disconnected-server.zip"
+    start = b"revision = '20260904_0018'\ndown_revision = None\n"
+    payload = b"revision = '20260910_0019'\ndown_revision = '20260904_0017'\n"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("server/migrations/versions/20260904_0018_fixture.py", start)
+        bundle.writestr("server/migrations/versions/20260910_0019_fixture.py", payload)
+    revisions = ({"revision": "20260910_0019", "sha256": hashlib.sha256(payload).hexdigest()},)
+
+    with pytest.raises(coordinator.web.InstallError, match="missing predecessor"):
+        coordinator.validate_migration_archive(archive, revisions, current="20260904_0018")
+
+
 def test_migration_archive_requires_each_approved_revision_once_and_untampered(tmp_path: Path) -> None:
     archive = tmp_path / "server.zip"
     payload = b"revision = '20260820_0013'\n"

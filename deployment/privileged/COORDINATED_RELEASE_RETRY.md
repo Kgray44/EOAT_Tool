@@ -17,7 +17,7 @@ or used to replace `production` during normal production release work. Its
 lineage reconciliation is a separately authorized project. See
 `docs/governance/production-lineage.md` for the branch and evidence policy.
 
-Coordinator 1.5.0 retains the sealed-artifact, paired API/frontend activation,
+Coordinator 1.5.1 retains the sealed-artifact, paired API/frontend activation,
 exact-pointer attestation, and rollback-receipt controls from 1.3.4. Its only
 new release path is a policy-pinned migration plan: the policy declares the
 exact current schema, target schema, ordered migration revisions, and the
@@ -26,6 +26,14 @@ exact files and prove that the sequence is a complete deterministic Alembic
 DAG traversal from the active head. A zero-migration release must state an
 equal current and target schema with an empty revision list; it cannot advance
 Alembic or name a dummy migration.
+
+For a migration-bearing release only, a previously advanced canonical database
+may be the declared start even if the still-active old binary reports an older
+compiled expected revision. The coordinator first verifies the live Alembic
+head through its fixed migration environment, then accepts that mismatch only
+when the old expected revision is a strict predecessor of the declared start
+in the sealed target archive's migration graph. Non-migration releases and
+matching migration starts retain the ordinary strict health validation.
 
 The `write_state` policy is independent of schema. It carries a transition
 intent (`preserve_current`, `enable`, or `disable`) plus the required health
