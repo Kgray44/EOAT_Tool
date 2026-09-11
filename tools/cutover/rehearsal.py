@@ -26,7 +26,9 @@ ALLOWED_DATABASES = {STAGING_DB, RESTORE_DB}
 SOURCE_WORKBOOK = REPO / "EOAT_Standardization_Project/01_EOAT_Audit/EOAT_Audit_Database/EOAT_Master_Tracker.xlsx"
 SOURCE_ROBOT = REPO / "EOAT_Standardization_Project/01_EOAT_Audit/EOAT_Audit_Database/Robot_Info.xlsx"
 SOURCE_SQLITE = REPO / "EOAT_Standardization_Project/project_data/annotations.sqlite"
-REPORT_ROOT = REPO / "reports/cutover_rehearsal"
+# Release receipts are operational evidence.  A controlled run can redirect them
+# outside the source checkout so it never overwrites historical committed reports.
+REPORT_ROOT = Path(os.environ.get("EOAT_REHEARSAL_REPORT_ROOT", REPO / "reports/cutover_rehearsal"))
 PRODUCTION_START_REVISION = "20260828_0017"
 EXPECTED_REVISION = "20260910_0019"
 REHEARSAL_CHAIN = (PRODUCTION_START_REVISION, "20260904_0018", EXPECTED_REVISION)
@@ -42,6 +44,12 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def candidate_identity() -> dict[str, str]:
+    version = json.loads((REPO / "app/atlas/version.json").read_text(encoding="utf-8"))["version"]
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, text=True).strip()
+    return {"version": str(version), "source_commit": commit}
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -174,6 +182,7 @@ def migration_chain_rehearsal() -> dict[str, object]:
         migrate("upgrade", revision)
     result = {
         "status": "PASS", "generated_at": utcnow(), "database": STAGING_DB,
+        "release": candidate_identity(),
         "production_start_revision": PRODUCTION_START_REVISION,
         "final_revision": EXPECTED_REVISION,
         "forward_chain": list(REHEARSAL_CHAIN),
