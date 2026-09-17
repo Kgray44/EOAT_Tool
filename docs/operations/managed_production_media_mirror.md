@@ -98,6 +98,41 @@ mirrored-original path, web derivative path/hash/dimensions, source format,
 conversion parameters, and synchronization time. Unreferenced originals are
 reported as orphans and are never deleted by sync.
 
+## Onboarding finalization publication
+
+Onboarding uses the same `/var/lib/eoat-atlas/media` canonical media root; it
+does not create a second permanent onboarding media store. The API service
+continues to have read-only access to `originals`, `web`, and `manifest`.
+During finalization it talks only to the root-owned local
+`eoat-onboarding-media-broker` over its group-restricted Unix socket. The
+broker accepts a fixed, validated promotion request: a regular file already
+under the configured temporary onboarding staging root, a generated document
+UUID, and safe metadata. It copies with a hash check into
+`originals/<document-uuid>/`, creates a JPEG derivative for photos, and
+atomically merges the photo into this same private manifest.
+
+The API records the returned durable original path through the normal document
+and photo writers. A private pending journal bridges the unavoidable MySQL /
+filesystem boundary: on rollback the API requests broker compensation, and on
+commit it requests confirmation, which removes the temporary staging byte.
+If the request process dies, the journal is retained rather than assuming a
+commit or deleting evidence. Before another activation or cleanup, an approved
+operator must compare every pending journal document UUID with the canonical
+`documents` row: confirm a committed row, or compensate an absent row. This is
+filesystem recovery evidence, not a second EOAT population or an EOAT-data
+synchronization mechanism.
+
+Bootstrap the broker only from the exact protected candidate bytes with the
+human-only `deployment/privileged/install_onboarding_media_broker.sh` script.
+Its root-owned configuration must name the existing staging root, canonical
+media root, and `/run/eoat-atlas/onboarding-media.sock`; it is installed but
+not enabled by bootstrap. Enable it only after the controlled staging rehearsal
+proves the service account can connect to the socket but still cannot write the
+published media directories directly. Configure `EOAT_DOCUMENT_ROOTS` with
+both the temporary onboarding staging root and the canonical media root before
+enabling onboarding, so staged-file and returned durable-path validation remain
+equally fail-closed.
+
 ## Conversion settings
 
 HEIC/HEIF decoding uses the pinned `Pillow` and `pillow-heif` dependencies.

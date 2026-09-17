@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import or_, select
@@ -1182,8 +1182,13 @@ def create_document(
 ):
     path = _validate_document_path(payload["storage_path"])
     document_type = lookup_id(session, db.DocumentType, payload["document_type"], "document_type", required=True)
+    supplied_document_uuid = payload.get("document_uuid")
+    try:
+        document_uuid = str(uuid4()) if supplied_document_uuid is None else str(UUID(str(supplied_document_uuid)))
+    except (TypeError, ValueError) as exc:
+        raise APIError(422, "DOCUMENT_UUID_INVALID", "The document identity is invalid.") from exc
     record = db.Document(
-        document_uuid=str(uuid4()),
+        document_uuid=document_uuid,
         document_type_id=document_type,
         document_number=payload.get("document_number"),
         title=payload["title"],
@@ -1193,6 +1198,7 @@ def create_document(
         file_extension=path.suffix,
         mime_type=payload.get("mime_type") or mimetypes.guess_type(path.name)[0],
         storage_path=str(path),
+        storage_provider=payload.get("storage_provider") or "network_file",
         file_size_bytes=path.stat().st_size,
         checksum_sha256=payload.get("checksum_sha256"),
         created_by_user_id=actor.user_id,

@@ -449,6 +449,20 @@
       "state": "finalized",
       "task_id": "eoat-final-admin-usability-regression-20260821",
       "finalized_at_utc": "2026-08-21T22:49:41Z"
+    },
+    {
+      "application_version": "0.27.0",
+      "release_id": "eoat-atlas-0.27.0",
+      "state": "historical",
+      "task_id": "github-pr-23-eoat-onboarding-editing-v1",
+      "finalized_at_utc": null
+    },
+    {
+      "application_version": "0.27.1",
+      "release_id": "eoat-atlas-0.27.1",
+      "state": "finalized",
+      "task_id": "onboarding-media-promotion-0271",
+      "finalized_at_utc": "2026-09-17T14:45:59Z"
     }
   ]
 }

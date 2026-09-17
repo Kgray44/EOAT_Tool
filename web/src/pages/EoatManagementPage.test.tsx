@@ -44,6 +44,26 @@ describe("EoatManagementPage", () => {
     ).toHaveAttribute("href", "/eoats/onboarding-drafts");
   });
 
+  it("accepts the server-resolved protected Administrator wildcard", async () => {
+    vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
+      enabled: true,
+    });
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      roles: ["ADMINISTRATOR"],
+      permissions: ["*"],
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: /Add New EOAT/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Onboarding Drafts/ }),
+    ).toBeInTheDocument();
+  });
+
   it("does not expose management actions without an onboarding grant", async () => {
     vi.spyOn(apiClient, "getOnboardingStatus").mockResolvedValue({
       enabled: true,
