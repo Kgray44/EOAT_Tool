@@ -1,0 +1,19 @@
+[Unit]
+Description=EOAT Atlas onboarding canonical media broker
+After=local-fs.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/opt/eoat-atlas/current/venv/bin/python /usr/local/libexec/eoat-atlas/eoat_onboarding_media_broker.py --config /etc/eoat-atlas/onboarding-media.env
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ReadWritePaths=/var/lib/eoat-atlas/media /run/eoat-atlas
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

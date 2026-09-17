@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from server.eoat_api.database import models as db
 from server.eoat_api.errors import APIError
+from server.eoat_api.onboarding_media import PromotedMedia
 from server.eoat_api.onboarding_services import (
     _assert_draft_editor,
     _assert_draft_viewer,
@@ -433,6 +436,134 @@ def test_uploaded_media_stays_in_controlled_staging_and_paths_are_not_returned(m
             },
         )
     assert sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*") if path.is_file()) == staged_before_failure
+
+
+def test_finalization_promotes_uploaded_media_to_canonical_document_storage_after_commit(
+    monkeypatch, tmp_path, session, actor, engineer
+):
+    _disable_audit(monkeypatch)
+    staging = tmp_path / "staging"
+    durable = tmp_path / "canonical-media"
+    staging.mkdir()
+    durable.mkdir()
+    monkeypatch.setenv("EOAT_ONBOARDING_STAGING_ROOT", str(staging))
+    monkeypatch.setenv("EOAT_DOCUMENT_ROOTS", os.pathsep.join((str(staging), str(durable))))
+    draft = _ready_draft(session, actor)
+    staged = stage_uploaded_media(
+        session,
+        actor,
+        draft["draft_uuid"],
+        {
+            "expected_row_version": draft["row_version"],
+            "content_base64": "Y2Fub25pY2FsLWltYWdlLWJ5dGVz",
+            "media_kind": "photo",
+            "document_type": "photo",
+            "file_name": "front.jpg",
+            "title": "Front view",
+            "photo_view_type": "FRONT",
+        },
+    )
+    confirmed: list[str] = []
+    staged_path = Path(session.get(db.EOATOnboardingStagedMedia, staged["id"]).storage_path)
+
+    def fake_promote(items, *, eoat_identifier):
+        promoted = {}
+        for item in items:
+            target = durable / item.document_uuid / item.file_name
+            target.parent.mkdir(parents=True)
+            shutil.copyfile(item.source_path, target)
+            promoted[item.media_id] = PromotedMedia(
+                media_id=item.media_id,
+                document_uuid=item.document_uuid,
+                storage_path=str(target),
+                checksum_sha256="a" * 64,
+                file_size_bytes=target.stat().st_size,
+            )
+        return "00000000-0000-4000-8000-000000000099", promoted
+
+    monkeypatch.setattr("server.eoat_api.onboarding_services.promote_media", fake_promote)
+    def fake_confirm(promotion_id):
+        confirmed.append(promotion_id)
+        staged_path.unlink()
+
+    monkeypatch.setattr("server.eoat_api.onboarding_services.confirm_media", fake_confirm)
+    monkeypatch.setattr("server.eoat_api.onboarding_services.compensate_media", lambda _promotion_id: None)
+
+    finalized = finalize_draft(session, engineer, draft["draft_uuid"], staged["row_version"])
+    session.commit()
+    document = session.scalar(select(db.Document).where(db.Document.id == session.get(db.EOATOnboardingStagedMedia, staged["id"]).adopted_document_id))
+    photo = session.scalar(select(db.Photo).where(db.Photo.document_id == document.id)) if document else None
+
+    assert finalized["eoat"]["business_identifier"] == "P4-EOAT-0201"
+    assert document is not None
+    assert document.storage_path.startswith(str(durable))
+    assert not document.storage_path.startswith(str(staging))
+    assert photo is not None and photo.is_profile_photo is True
+    assert Path(document.storage_path).is_file()
+    assert not staged_path.exists()
+    assert confirmed == ["00000000-0000-4000-8000-000000000099"]
+
+
+def test_failed_finalization_compensates_promoted_media_and_keeps_staging_for_recovery(
+    monkeypatch, tmp_path, session, actor, engineer
+):
+    _disable_audit(monkeypatch)
+    staging = tmp_path / "staging"
+    durable = tmp_path / "canonical-media"
+    staging.mkdir()
+    durable.mkdir()
+    monkeypatch.setenv("EOAT_ONBOARDING_STAGING_ROOT", str(staging))
+    monkeypatch.setenv("EOAT_DOCUMENT_ROOTS", os.pathsep.join((str(staging), str(durable))))
+    draft = _ready_draft(session, actor)
+    staged = stage_uploaded_media(
+        session,
+        actor,
+        draft["draft_uuid"],
+        {
+            "expected_row_version": draft["row_version"],
+            "content_base64": "cmVjb3ZlcmFibGUtYnl0ZXM=",
+            "media_kind": "photo",
+            "document_type": "photo",
+            "file_name": "front.jpg",
+            "title": "Front view",
+            "photo_view_type": "FRONT",
+        },
+    )
+    # The staged draft is a pre-existing workflow record.  A later finalizer
+    # rollback must retain it and its temporary bytes for a safe retry.
+    session.commit()
+    promoted_paths: list[Path] = []
+    compensated: list[str] = []
+
+    def fake_promote(items, *, eoat_identifier):
+        promoted = {}
+        for item in items:
+            target = durable / item.document_uuid / item.file_name
+            target.parent.mkdir(parents=True)
+            shutil.copyfile(item.source_path, target)
+            promoted_paths.append(target)
+            promoted[item.media_id] = PromotedMedia(item.media_id, item.document_uuid, str(target), "b" * 64, target.stat().st_size)
+        return "00000000-0000-4000-8000-000000000098", promoted
+
+    def fake_compensate(promotion_id):
+        compensated.append(promotion_id)
+        for path in promoted_paths:
+            path.unlink(missing_ok=True)
+
+    monkeypatch.setattr("server.eoat_api.onboarding_services.promote_media", fake_promote)
+    monkeypatch.setattr("server.eoat_api.onboarding_services.confirm_media", lambda _promotion_id: None)
+    monkeypatch.setattr("server.eoat_api.onboarding_services.compensate_media", fake_compensate)
+    monkeypatch.setattr("server.eoat_api.onboarding_services.create_asset", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("forced asset failure")))
+
+    with pytest.raises(RuntimeError, match="forced asset failure"):
+        finalize_draft(session, engineer, draft["draft_uuid"], staged["row_version"])
+    session.rollback()
+
+    assert compensated == ["00000000-0000-4000-8000-000000000098"]
+    assert all(not path.exists() for path in promoted_paths)
+    staged_row = session.get(db.EOATOnboardingStagedMedia, staged["id"])
+    assert staged_row is not None and Path(staged_row.storage_path).is_file()
+    assert session.scalar(select(db.EOAT).where(db.EOAT.business_identifier == "P4-EOAT-0201")) is None
 
 
 def test_profile_photo_selection_uses_only_a_linked_eoat_photo(monkeypatch, session, actor, engineer):

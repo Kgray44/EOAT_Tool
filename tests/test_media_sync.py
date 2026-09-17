@@ -92,3 +92,34 @@ def test_sync_refuses_changed_source_without_replacing_archival_original(tmp_pat
         {"document_uuid": "00000000-0000-4000-8000-000000000001", "reason": "STAGING_TARGET_CONFLICT"}
     ]
     assert sync._hash_file(original) == original_hash
+
+
+def test_legacy_sync_retains_broker_published_managed_media_entries(tmp_path: Path) -> None:
+    image = pytest.importorskip("PIL.Image")
+    sync = _module()
+    source_root = tmp_path / "corporate"
+    source_root.mkdir()
+    source = source_root / "photo.jpg"
+    image.new("RGB", (20, 20), "blue").save(source)
+    inventory = _inventory(tmp_path / "inventory.json", source)
+    staging_root = tmp_path / "staging"
+    media_root = tmp_path / "media"
+    sync.stage(inventory, str(source_root), staging_root)
+    sync.sync(staging_root / "manifest" / "staged-inventory.json", staging_root, media_root)
+    manifest_path = media_root / "manifest" / "media-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    managed_uuid = "00000000-0000-4000-8000-000000000099"
+    manifest["entries"].append(
+        {
+            "document_uuid": managed_uuid,
+            "managed_media": True,
+            "source_path": "/var/lib/eoat-atlas/media/originals/managed/photo.jpg",
+            "web_relative_path": f"web/{managed_uuid}.jpg",
+        }
+    )
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    sync.sync(staging_root / "manifest" / "staged-inventory.json", staging_root, media_root)
+
+    retained = json.loads(manifest_path.read_text(encoding="utf-8"))["entries"]
+    assert any(entry["document_uuid"] == managed_uuid and entry.get("managed_media") is True for entry in retained)

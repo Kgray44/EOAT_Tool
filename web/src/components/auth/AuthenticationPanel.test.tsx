@@ -72,6 +72,20 @@ describe("AuthenticationPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not claim Administrator navigation when a stale role label lacks server capability", async () => {
+    vi.spyOn(apiClient, "getAuthenticatedSession").mockResolvedValue({
+      authenticated: true,
+      identity: { display_name: "Role Label Only" },
+      roles: ["ADMINISTRATOR"],
+      permissions: [],
+      scope: "application",
+    });
+    renderPanel();
+
+    expect(await screen.findByText("Role Label Only")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
+  });
+
   it("keeps the safe unavailable message when the provider cannot sign in", async () => {
     vi.spyOn(apiClient, "getAuthenticatedSession").mockRejectedValue(
       new Error("signed out"),

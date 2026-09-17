@@ -37,7 +37,7 @@ def export_inventory(database_url: str, output: Path) -> dict[str, int]:
     query = text(
         """
         SELECT d.document_uuid, d.storage_path, d.file_name, d.file_extension,
-               d.file_size_bytes, d.checksum_sha256, e.business_identifier AS eoat_identifier
+               d.storage_provider, d.file_size_bytes, d.checksum_sha256, e.business_identifier AS eoat_identifier
         FROM documents AS d
         JOIN photos AS p ON p.document_id = d.id
         JOIN document_links AS l ON l.document_id = d.id AND l.entity_type = 'eoat'
@@ -53,7 +53,11 @@ def export_inventory(database_url: str, output: Path) -> dict[str, int]:
     finally:
         engine.dispose()
     grouped: dict[str, dict[str, Any]] = {}
+    managed_photo_count = 0
     for row in rows:
+        if str(row["storage_provider"] or "").casefold() == "managed_media":
+            managed_photo_count += 1
+            continue
         document_uuid = str(row["document_uuid"])
         current = grouped.setdefault(
             document_uuid,
@@ -78,7 +82,11 @@ def export_inventory(database_url: str, output: Path) -> dict[str, int]:
         "entries": sorted(entries, key=lambda entry: entry["document_uuid"]),
     }
     _atomic_json(output, payload)
-    return {"linked_photo_count": len(entries), "eoat_link_count": len(rows)}
+    return {
+        "linked_photo_count": len(entries),
+        "eoat_link_count": len(rows),
+        "managed_photo_count_excluded_from_unc_export": managed_photo_count,
+    }
 
 
 def _database_url_from_environment() -> str:

@@ -1,7 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "@/api/errors";
-import { apiClient, type AuthenticatedSession } from "@/api/client";
+import {
+  apiClient,
+  sessionHasPermission,
+  type AuthenticatedSession,
+} from "@/api/client";
 
 export function AuthenticationPanel() {
   const [session, setSession] = useState<AuthenticatedSession | null>(null);
@@ -52,7 +56,9 @@ export function AuthenticationPanel() {
 
   const identity = session?.identity;
   if (identity) {
-    const isAdministrator = session?.roles?.includes("ADMINISTRATOR");
+    // A stored role label is descriptive; only the server-resolved capability
+    // proves that this browser session can enter protected administration.
+    const isAdministrator = sessionHasPermission(session, "admin.area.view");
     return (
       <div className="atlas-auth-panel">
         <span className="atlas-auth-user">

@@ -1,6 +1,6 @@
 # EOAT Atlas privileged deployment helper
 
-`eoat_atlas_deploy_helper.py` is the sole root component of Phase 3.  It
+`eoat_atlas_deploy_helper.py` is the sole root component of Phase 3 deployment.  It
 accepts one base64-encoded JSON request, runs as root only, and exposes these
 fixed operations: `begin`, `stage`, `activate`, `status`, `abort`, `rollback`,
 `recover`, and `retention-status`.
@@ -24,3 +24,14 @@ The checked-in sudo rule grants `kgray` exactly the Python helper invocation
 with `--request-b64`.  The wildcard represents only the opaque structured
 request; extra arguments are rejected by `argparse`, and unrecognized request
 fields are rejected before any action.
+
+`eoat_onboarding_media_broker.py` is a separate, root-owned, local Unix-socket
+service for the onboarding patch. It is not callable through sudo and is not a
+general deployment helper. Its only operation is controlled media promotion
+from the configured temporary onboarding root into the existing managed media
+tree, plus commit confirmation or rollback compensation for its private
+journal. `install_onboarding_media_broker.sh` installs it from exact protected
+source bytes but intentionally does not enable it. The installer requires a
+clean Git checkout whose `HEAD` is the explicitly supplied protected merge
+SHA; it rejects a mismatched revision and both tracked and untracked source
+changes before copying the three root-owned files.

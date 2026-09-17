@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 import os
 import re
 from pathlib import Path
@@ -16,12 +17,16 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
 from .command_center_data import normalize_command_center_data
 from .database import models as db
 from .errors import APIError, conflict, not_found
+from .onboarding_media import PromotionItem
+from .onboarding_media import compensate as compensate_media
+from .onboarding_media import confirm as confirm_media
+from .onboarding_media import promote as promote_media
 from .security import ActorContext
 from .write_contracts import CompatibilityWrite, EOATCreate
 from .write_services import (
@@ -65,6 +70,8 @@ ENGINEERING_FIELDS = frozenset(
         "command_center_data",
     }
 )
+
+LOGGER = logging.getLogger("eoat_api.onboarding")
 
 
 def onboarding_enabled() -> bool:
@@ -814,6 +821,34 @@ def review_draft(session: Session, actor: ActorContext, draft_uuid: str) -> dict
     return {"blocking_errors": blocking, "warnings": warnings}
 
 
+def _register_media_promotion_lifecycle(session: Session, promotion_id: str) -> None:
+    """Confirm only after MySQL commits; compensate if its transaction aborts.
+
+    The root broker keeps a private pending journal until either callback
+    succeeds.  A process crash leaves that journal for the governed broker
+    reconciliation procedure rather than pretending filesystem work was part
+    of MySQL's rollback.
+    """
+
+    if not promotion_id:
+        return
+
+    def after_commit(_session: Session) -> None:
+        try:
+            confirm_media(promotion_id)
+        except APIError:
+            LOGGER.exception("onboarding_media_promotion_confirmation_pending", extra={"promotion_id": promotion_id})
+
+    def after_rollback(_session: Session) -> None:
+        try:
+            compensate_media(promotion_id)
+        except APIError:
+            LOGGER.exception("onboarding_media_promotion_compensation_pending", extra={"promotion_id": promotion_id})
+
+    event.listen(session, "after_commit", after_commit, once=True)
+    event.listen(session, "after_rollback", after_rollback, once=True)
+
+
 def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expected: int) -> dict[str, Any]:
     if not actor.permits("onboarding.draft.finalize"):
         raise APIError(403, "PERMISSION_DENIED", "The authenticated identity cannot finalize an onboarding draft.")
@@ -828,6 +863,25 @@ def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expec
             details=review,
         )
     values, engineering = _validate_final_payload(session, draft)
+    media_rows = session.scalars(
+        select(db.EOATOnboardingStagedMedia)
+        .where(db.EOATOnboardingStagedMedia.draft_id == draft.id, db.EOATOnboardingStagedMedia.is_active.is_(True))
+        .with_for_update()
+    ).all()
+    promotion_id, promoted_media = promote_media(
+        [
+            PromotionItem(
+                media_id=int(media.id),
+                document_uuid=str(uuid4()),
+                source_path=media.storage_path,
+                file_name=media.file_name,
+                is_photo=media.media_kind == "photo",
+            )
+            for media in media_rows
+        ],
+        eoat_identifier=values["business_identifier"],
+    )
+    _register_media_promotion_lifecycle(session, promotion_id)
     eoat = create_asset(session, actor, "eoat", values.copy())
     eoat_id = int(eoat["id"])
     if engineering:
@@ -888,18 +942,17 @@ def finalize_draft(session: Session, actor: ActorContext, draft_uuid: str, expec
             {**location, "expected_row_version": int(eoat["row_version"])},
         )
     profile_photo_id: int | None = None
-    media_rows = session.scalars(
-        select(db.EOATOnboardingStagedMedia)
-        .where(db.EOATOnboardingStagedMedia.draft_id == draft.id, db.EOATOnboardingStagedMedia.is_active.is_(True))
-        .with_for_update()
-    ).all()
     for media in media_rows:
+        promoted = promoted_media[int(media.id)]
         metadata = {
             "document_type": media.document_type,
             "title": media.title,
             "description": media.description,
             "revision": media.revision,
-            "storage_path": media.storage_path,
+            "storage_path": promoted.storage_path,
+            "checksum_sha256": promoted.checksum_sha256,
+            "document_uuid": promoted.document_uuid,
+            "storage_provider": "managed_media",
             "mime_type": media.mime_type,
             "entity_type": "eoat",
             "entity_id": eoat_id,

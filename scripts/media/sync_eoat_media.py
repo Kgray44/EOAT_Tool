@@ -334,7 +334,17 @@ def sync(staged_inventory: Path, staging_root: Path, media_root: Path) -> dict[s
                 "synchronized_at": old.get("synchronized_at") if old and old.get("source_sha256") == entry.source_sha256 else _utc_now(),
             }
         )
-    payload = {"version": MANIFEST_VERSION, "entries": manifest_entries}
+    # Broker-published onboarding media is already present in the same
+    # canonical root.  It has no Windows/UNC source to restage, so a later
+    # legacy mirror run must retain its verified manifest entry rather than
+    # treating it as an unresolved transfer or silently dropping it.
+    staged_document_uuids = {entry.document_uuid for entry in entries}
+    retained_managed = [
+        entry
+        for document_uuid, entry in previous.items()
+        if document_uuid not in staged_document_uuids and entry.get("managed_media") is True
+    ]
+    payload = {"version": MANIFEST_VERSION, "entries": sorted([*manifest_entries, *retained_managed], key=lambda entry: str(entry["document_uuid"]))}
     _atomic_json(manifest_path, payload)
     expected_originals = {entry["original_relative_path"] for entry in manifest_entries}
     orphaned_originals = sorted(
