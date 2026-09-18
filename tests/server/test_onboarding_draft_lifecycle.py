@@ -6,11 +6,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import Session
 
 from server.eoat_api.database import models as db
 from server.eoat_api.errors import APIError
+from server.eoat_api.onboarding_contracts import OnboardingMediaCreate, OnboardingMediaUpload
 from server.eoat_api.onboarding_media import PromotedMedia
 from server.eoat_api.onboarding_services import (
     _assert_draft_editor,
@@ -436,6 +438,54 @@ def test_uploaded_media_stays_in_controlled_staging_and_paths_are_not_returned(m
             },
         )
     assert sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*") if path.is_file()) == staged_before_failure
+
+
+def test_browser_upload_contract_has_no_destination_and_preserves_pre_staged_contract(
+    monkeypatch, tmp_path, session, actor
+):
+    """The public browser shape cannot select a server filesystem path."""
+    _disable_audit(monkeypatch)
+    monkeypatch.setenv("EOAT_ONBOARDING_STAGING_ROOT", str(tmp_path))
+    monkeypatch.setenv("EOAT_DOCUMENT_ROOTS", str(tmp_path))
+    draft = _ready_draft(session, actor)
+    browser_payload = {
+        "content_base64": "YnJvd3Nlci11cGxvYWQ=",
+        "media_kind": "photo",
+        "document_type": "photo",
+        "file_name": "../front.jpg",
+        "title": "Front view",
+        "mime_type": "image/jpeg",
+        "photo_view_type": "FRONT",
+        "caption": "Browser upload",
+    }
+
+    upload = OnboardingMediaUpload.model_validate(browser_payload)
+    assert "storage_path" not in upload.model_dump()
+    with pytest.raises(ValidationError, match="storage_path"):
+        OnboardingMediaUpload.model_validate({**browser_payload, "storage_path": str(tmp_path / "outside.jpg")})
+    with pytest.raises(ValidationError, match="storage_path"):
+        OnboardingMediaCreate.model_validate(browser_payload)
+    pre_staged = OnboardingMediaCreate.model_validate(
+        {
+            **{key: value for key, value in browser_payload.items() if key != "content_base64"},
+            "storage_path": str(tmp_path / "controlled" / "front.jpg"),
+        }
+    )
+    assert Path(pre_staged.storage_path).parent.name == "controlled"
+    assert Path(pre_staged.storage_path).name == "front.jpg"
+
+    result = stage_uploaded_media(
+        session,
+        actor,
+        draft["draft_uuid"],
+        {"expected_row_version": draft["row_version"], **upload.model_dump()},
+    )
+    media = session.get(db.EOATOnboardingStagedMedia, result["id"])
+    assert media is not None
+    assigned = Path(media.storage_path).resolve()
+    assert assigned.is_relative_to(tmp_path.resolve())
+    assert assigned.name == "front.jpg"
+    assert assigned.read_bytes() == b"browser-upload"
 
 
 def test_finalization_promotes_uploaded_media_to_canonical_document_storage_after_commit(

@@ -4380,7 +4380,14 @@ export interface components {
             /** Expected Row Version */
             expected_row_version: number;
         };
-        /** OnboardingMediaCreate */
+        /**
+         * OnboardingMediaCreate
+         * @description Metadata for a pre-staged server-side file.
+         *
+         *     This is deliberately separate from ``OnboardingMediaUpload``: callers of
+         *     the pre-staged-media endpoint must identify a controlled path, whereas a
+         *     browser upload never gets to choose a filesystem destination.
+         */
         OnboardingMediaCreate: {
             /** Caption */
             caption?: string | null;
@@ -4406,7 +4413,10 @@ export interface components {
             /** Title */
             title: string;
         };
-        /** OnboardingMediaUpload */
+        /**
+         * OnboardingMediaUpload
+         * @description Browser upload metadata plus bytes; staging location is server-owned.
+         */
         OnboardingMediaUpload: {
             /** Caption */
             caption?: string | null;
@@ -4429,8 +4439,6 @@ export interface components {
             photo_view_type?: string | null;
             /** Revision */
             revision?: string | null;
-            /** Storage Path */
-            storage_path: string;
             /** Title */
             title: string;
         };
