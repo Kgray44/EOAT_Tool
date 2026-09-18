@@ -41,6 +41,48 @@ describe("apiClient", () => {
     );
   });
 
+  it("uses the server-owned onboarding upload contract without a storage path", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 7, row_version: 3 }), { status: 200 }));
+    const file = {
+      name: "front.jpg",
+      type: "image/jpeg",
+      arrayBuffer: async () => new TextEncoder().encode("browser-upload").buffer,
+    } as File;
+
+    await apiClient.uploadOnboardingMedia(
+      "draft-uuid",
+      2,
+      {
+        file,
+        mediaKind: "photo",
+        documentType: "photo",
+        title: "Front view",
+        photoViewType: "FRONT",
+        caption: "Browser upload",
+      },
+      fetcher,
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/v1/onboarding/drafts/draft-uuid/media/upload?expected_row_version=2",
+      expect.objectContaining({ method: "POST" }),
+    );
+    const request = fetcher.mock.calls[0][1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload).toMatchObject({
+      media_kind: "photo",
+      document_type: "photo",
+      file_name: "front.jpg",
+      title: "Front view",
+      mime_type: "image/jpeg",
+      photo_view_type: "FRONT",
+      caption: "Browser upload",
+    });
+    expect(payload).not.toHaveProperty("storage_path");
+  });
+
   it("uses the server-issued corporate CSRF cookie for logout", async () => {
     document.cookie = "eoat_corporate_csrf=corporate-test-csrf; path=/";
     const fetcher = vi

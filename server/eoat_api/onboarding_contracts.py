@@ -33,11 +33,10 @@ class OnboardingIdentifierGenerate(OnboardingModel):
     expected_row_version: int = Field(ge=1)
 
 
-class OnboardingMediaCreate(OnboardingModel):
+class OnboardingMediaMetadata(OnboardingModel):
     media_kind: Literal["document", "photo"]
     document_type: str = Field(min_length=1, max_length=64)
     file_name: str = Field(min_length=1, max_length=512)
-    storage_path: str = Field(min_length=1, max_length=2048)
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
     revision: str | None = Field(default=None, max_length=64)
@@ -46,7 +45,20 @@ class OnboardingMediaCreate(OnboardingModel):
     caption: str | None = None
 
 
-class OnboardingMediaUpload(OnboardingMediaCreate):
+class OnboardingMediaCreate(OnboardingMediaMetadata):
+    """Metadata for a pre-staged server-side file.
+
+    This is deliberately separate from ``OnboardingMediaUpload``: callers of
+    the pre-staged-media endpoint must identify a controlled path, whereas a
+    browser upload never gets to choose a filesystem destination.
+    """
+
+    storage_path: str = Field(min_length=1, max_length=2048)
+
+
+class OnboardingMediaUpload(OnboardingMediaMetadata):
+    """Browser upload metadata plus bytes; staging location is server-owned."""
+
     content_base64: str = Field(min_length=1, max_length=36_000_000)
 
 

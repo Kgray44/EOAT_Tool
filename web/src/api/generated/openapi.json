@@ -5744,6 +5744,7 @@
       },
       "OnboardingMediaCreate": {
         "additionalProperties": false,
+        "description": "Metadata for a pre-staged server-side file.\n\nThis is deliberately separate from ``OnboardingMediaUpload``: callers of\nthe pre-staged-media endpoint must identify a controlled path, whereas a\nbrowser upload never gets to choose a filesystem destination.",
         "properties": {
           "caption": {
             "anyOf": [
@@ -5840,14 +5841,15 @@
           "media_kind",
           "document_type",
           "file_name",
-          "storage_path",
-          "title"
+          "title",
+          "storage_path"
         ],
         "title": "OnboardingMediaCreate",
         "type": "object"
       },
       "OnboardingMediaUpload": {
         "additionalProperties": false,
+        "description": "Browser upload metadata plus bytes; staging location is server-owned.",
         "properties": {
           "caption": {
             "anyOf": [
@@ -5933,12 +5935,6 @@
             ],
             "title": "Revision"
           },
-          "storage_path": {
-            "maxLength": 2048,
-            "minLength": 1,
-            "title": "Storage Path",
-            "type": "string"
-          },
           "title": {
             "maxLength": 255,
             "minLength": 1,
@@ -5950,7 +5946,6 @@
           "media_kind",
           "document_type",
           "file_name",
-          "storage_path",
           "title",
           "content_base64"
         ],
